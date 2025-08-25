@@ -20,10 +20,12 @@ namespace Atelia.Memory;
 /// </remarks>
 public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
     #region Chunked Buffer
-    public const int PageSize = 4096; // 4K
+    public const int PageSize = 4096; // legacy default
 
-    private int _minChunkPages = 1; // 默认最小1页
-    private int _maxChunkPages = 256; // 默认最大256页，即1MB
+    private readonly int _pageSize = PageSize;
+    private readonly int _minChunkPages = 1; // configurable via options
+    private readonly int _maxChunkPages = 256; // configurable via options
+    private readonly bool _enforceStrictAdvance;
 
     private class Chunk {
         public byte[] Buffer = null!;
@@ -50,16 +52,16 @@ public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
         // Ensure the new chunk can satisfy the sizeHint.
         // Fast path: if requested size exceeds the configured max paged chunk size, rent exactly that size
         // (we intentionally bypass page alignment to avoid silent truncation / failure).
-        int maxPagedBytes = _maxChunkPages * PageSize;
+    int maxPagedBytes = _maxChunkPages * _pageSize;
         byte[] buffer;
         if (sizeHint > maxPagedBytes) {
             // Rent a buffer large enough. ArrayPool may give larger which is fine.
             buffer = _pool.Rent(sizeHint);
         } else {
-            int requiredBytes = Math.Max(sizeHint, PageSize);
-            int pages = Math.Max(_minChunkPages, (requiredBytes + PageSize - 1) / PageSize);
+            int requiredBytes = Math.Max(sizeHint, _pageSize);
+            int pages = Math.Max(_minChunkPages, (requiredBytes + _pageSize - 1) / _pageSize);
             pages = Math.Min(pages, _maxChunkPages);
-            int chunkSize = pages * PageSize;
+            int chunkSize = pages * _pageSize;
             buffer = _pool.Rent(chunkSize);
         }
 
@@ -111,9 +113,24 @@ public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
 
     private readonly IBufferWriter<byte> _innerWriter;
 
-    public PagedReservableWriter(IBufferWriter<byte> innerWriter, ArrayPool<byte>? pool = null) {
+    public PagedReservableWriter(IBufferWriter<byte> innerWriter, ArrayPool<byte>? pool = null)
+        : this(innerWriter, new PagedReservableWriterOptions { Pool = pool }) { }
+
+    public PagedReservableWriter(IBufferWriter<byte> innerWriter, PagedReservableWriterOptions? options) {
         _innerWriter = innerWriter ?? throw new ArgumentNullException(nameof(innerWriter));
-        _pool = pool ?? ArrayPool<byte>.Shared;
+        options ??= new PagedReservableWriterOptions();
+        var opt = options.Clone();
+        _pool = opt.Pool ?? ArrayPool<byte>.Shared;
+        if (opt.PageSize <= 0 || (opt.PageSize & (opt.PageSize - 1)) != 0)
+            throw new ArgumentException("PageSize must be a positive power of two", nameof(options));
+        if (opt.MinChunkPages <= 0)
+            throw new ArgumentException("MinChunkPages must be > 0", nameof(options));
+        if (opt.MaxChunkPages < opt.MinChunkPages)
+            throw new ArgumentException("MaxChunkPages must be >= MinChunkPages", nameof(options));
+        _pageSize = opt.PageSize;
+        _minChunkPages = opt.MinChunkPages;
+        _maxChunkPages = opt.MaxChunkPages;
+        _enforceStrictAdvance = opt.EnforceStrictAdvance;
     }
 
     #region Reservation
@@ -261,8 +278,12 @@ public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
 
         if (count < 0)
             throw new ArgumentOutOfRangeException(nameof(count), "Count cannot be negative");
-        if (count == 0)
+        if (count == 0) {
+            // Treat Advance(0) as explicit cancellation of outstanding span.
+            _hasLastSpan = false;
+            _lastSpanLength = 0;
             return;
+        }
 
         // Validate that count does not exceed the available space from the last GetSpan/GetMemory call.
         if (!_hasLastSpan || count > _lastSpanLength)
@@ -351,9 +372,10 @@ public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
 
         // 防止与尚未 Advance 的上一次 GetSpan/GetMemory 返回的可写区域发生重叠（否则会出现数据区间覆盖 / 长度统计紊乱）。
         if (_hasLastSpan) {
-            // 允许调用方直接进入 reservation；之前的 GetSpan/GetMemory 结果若未被 Advance，等价于放弃。
-            // 只需清除验证状态，不做写入统计。
-            _hasLastSpan = false;
+            if (_enforceStrictAdvance) {
+                throw new InvalidOperationException("Previous buffer not advanced (strict mode). Call Advance() before ReserveSpan().");
+            }
+            _hasLastSpan = false; // permissive discard
             _lastSpanLength = 0;
         }
 
