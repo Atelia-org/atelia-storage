@@ -9,7 +9,7 @@ using System.Runtime.InteropServices; // MemoryMarshal
 
 namespace Atelia.Memory;
 
-// AI TODO:实现这个类型
+// 类型设计与实现意图
 // 内部用若干个内存Chunk来储存数据，每个内存Chunk的大小是4K字节的整倍数。
 // 用ArrayPool<byte>来管理Chunk的租用和归还。
 // 记录每个Chunk使用了多少字节，因为在边界处会出现GetSpan请求数量超出当前页剩余空间的情况，此时就划分新的Chunk，保证单个Span不跨Chunk。
@@ -157,35 +157,37 @@ public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
     /// </summary>
     /// <exception cref="NotImplementedException"></exception>
     /// <summary>
-    /// 检查并flush连续完成的数据到_innerWriter
+    /// 检查并 flush 从头开始的“连续已完成数据”到 _innerWriter。
+    /// 返回是否发生了任何实际 flush，用于后续决定是否尝试回收 Chunk。
+    /// 逻辑：遍历有效 Chunk，直到遇到包含第一个未提交 Reservation 的 Chunk；该 Chunk 仅 flush 到该 Reservation 的起始位置。
     /// </summary>
-    private void CheckAndFlushCompletedData() {
+    /// <returns>是否有数据被写入到 _innerWriter。</returns>
+    private bool CheckAndFlushCompletedData() {
         Reservation? firstReservation = _reservationOrder.First?.Value;
+        bool flushed = false;
 
         foreach (Chunk chunk in GetActiveChunks()) {
             int flushableLength;
 
             if (firstReservation?.Chunk == chunk) {
-                // 这个Chunk有最早的未Commit的Reservation
+                // 这个Chunk有最早的未Commit的Reservation，最多 flush 到 reservation 起点
                 flushableLength = firstReservation.Offset - chunk.DataBegin;
-
-                // flush这部分数据（如果有的话）
                 if (flushableLength > 0) {
                     FlushChunkData(chunk, flushableLength);
+                    flushed = true;
                 }
-
-                // 遇到第一个有Reservation的Chunk后就停止，后面的都不能flush
-                break;
+                break; // 后续 Chunk 被阻断
             } else {
-                // 这个Chunk没有未Commit的Reservation，全部可flush
+                // 该 Chunk 没有未提交 Reservation，可全部 flush
                 flushableLength = chunk.DataEnd - chunk.DataBegin;
-
                 if (flushableLength > 0) {
                     FlushChunkData(chunk, flushableLength);
+                    flushed = true;
                 }
                 // 继续检查下一个Chunk
             }
         }
+        return flushed;
     }
 
     /// <summary>
@@ -240,6 +242,19 @@ public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
         _chunks.RemoveRange(writeIndex, _chunks.Count - writeIndex);
         _chunksHeadIndex = 0;
     }
+
+    /// <summary>
+    /// 若当前已无未提交 Reservation 且所有 Chunk 已被回收，则显式清空列表，恢复直通模式。
+    /// （不重置长度计数器，以保持逻辑字节统计的连续性。）
+    /// </summary>
+    private void TryRestorePassthroughIfIdle() {
+        if (_reservationOrder.Count == 0 && GetActiveChunksCount() == 0 && _chunks.Count > 0) {
+            // 所有已回收（_chunksHeadIndex == _chunks.Count），清理内部列表释放引用与容量
+            _chunks.Clear();
+            _chunksHeadIndex = 0;
+            // 不触碰 _totalLogicalLength / _completedLogicalLength
+        }
+    }
     #endregion
 
     #region IBufferWriter<byte>
@@ -270,7 +285,12 @@ public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
             if (lastChunk != null) {
                 lastChunk.DataEnd += count;
                 _totalLogicalLength += count;
-                CheckAndFlushCompletedData();
+                bool flushed = CheckAndFlushCompletedData();
+                if (flushed) {
+                    // 仅在确实 flush 时尝试回收，避免无谓遍历
+                    TryRecycleCompletedChunks();
+                    TryRestorePassthroughIfIdle();
+                }
             }
         }
 
@@ -365,11 +385,12 @@ public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
         _reservationOrder.Remove(node);
         _tokenToNode.Remove(reservationToken);
 
-        // 检查并flush连续完成的数据
-        CheckAndFlushCompletedData();
-
-        // 尝试回收完全flush的Chunk
-        TryRecycleCompletedChunks();
+        // 检查并flush连续完成的数据，并在有 flush 时尝试回收
+        bool flushed = CheckAndFlushCompletedData();
+        if (flushed) {
+            TryRecycleCompletedChunks();
+            TryRestorePassthroughIfIdle();
+        }
     }
     #endregion
 
@@ -402,6 +423,12 @@ public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
     }
 
     /// <summary>
+    /// 当前是否处于直通模式：无任何活动 Chunk（全部已回收或尚未创建）且无未提交 Reservation。
+    /// 该属性仅用于诊断与可读性，不额外保证线程安全。
+    /// </summary>
+    public bool IsPassthroughMode => GetActiveChunksCount() == 0 && _reservationOrder.Count == 0;
+
+    /// <summary>
     /// 释放资源，归还所有ArrayPool租用的内存
     /// </summary>
     public void Dispose() {
@@ -413,50 +440,3 @@ public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
     }
     #endregion
 }
-
-// GTP-5的分析与建议：
-///
-/// 设计要点：
-///   在 Commit 时标记并尝试推进“已完成前缀”边界：
-///     * 维护一个 frontCompletedPointer（逻辑偏移），表示从头开始连续且全部 Commit 的最大位置。
-///     * 在有 Reservation 存在时，“前缀连续性”会被这些未Commit的洞阻断。
-/// - 提前释放：
-///   并将这些数据对应的完整Chunk在无保留数据时归还池。
-/// - ReserveSpan(count):
-///   4. Reservation 包含 Advance；即 Reservation 的空间“占位”也增加 logicalLength。
-///      - 需要决定逻辑：
-///        方案B: Reserve 时也把其作为已“占据”的逻辑长度（更像长度固定的占位洞），但仍不算“已完成前缀”。Commit 后变为已完成。推荐方案B，便于整体线性偏移计算。
-/// - Commit(reservationSpan):
-///   1. 找到对应Reservation（需要能从Span反查；可在Reservation结构中保存UnderlyingArray引用与起始offset进行匹配。注意Span可能被复制比较时成本大，
-///      更高效做法：ReserveSpan 返回前把 Reservation 对象入列表并同时返回Span；Commit 传回Span 时在内部通过ReferenceEquals(array) + offset匹配。）
-////      可替代方案：ReserveSpan 返回一个 ReservationHandle (struct) 供 Commit 使用，更安全高效。但接口已定只能传Span，只能做匹配。
-///   2. 标记Committed = true。
-///   3. 尝试推进 frontCompletedPointer：
-///        while 下一个尚未处理的逻辑区域已全部Advance（普通）或 Reservation 已Committed，则向前移动；
-///        若跨Chunk并且最前Chunk已完全被 frontCompletedPointer 超过且不含未Commit的Reservation，则归还Chunk。
-/// - 元数据结构建议：
-///   class Chunk { byte[] Buffer; int Length; int Written; int ActiveReservations; }
-///   struct Reservation { Chunk Chunk; int Offset; int Length; bool Committed; }
-///   - 需要一个 List<Chunk> 按顺序排列。
-///   - Reservation 列表可按创建顺序追加；再维护一个指针 nextReservationToPromote 用于推进 frontCompletedPointer。
-/// - frontCompletedPointer 推进算法：
-///   * 维护一个 long completedLogicalLength；
-///   * 维护一个 long totalLogicalLength（包括普通写入 + 预留区域长度）；
-///   * 每次 Commit 或 Advance 后检查 Reservation 列表/普通写入边界：
-///       - 我们可维护一个“Gap Set”表示未Commit Reservation 区域的逻辑区间。
-///       - 更简单：Reservation 按逻辑顺序（因为写入顺序）添加。保持一个索引 currentReservationPromoteIndex。
-///         在循环中：
-///            if currentReservationPromoteIndex 的 Reservation 已Committed -> 推进 completedLogicalLength 至该 Reservation 末尾并递增索引；
-///            else 终止（遇到未Commit洞）。
-///         同时普通写入与 Reservation 混合的逻辑边界如何合并？因为 Reservation 在创建时就分配了逻辑位置（方案B），
-///         所以 completedLogicalLength 只需与 next logical boundary 比较即可。
-///
-/// - Dispose / Reset：
-///   * 提供 Reset() 清空状态并归还所有Chunk；
-///   * 提供可选的最大保留Chunk数以减少后续租用；
-///   * 注意防止重复归还。
-///
-/// - 异常与契约：
-///   * Advance(负数或超过可用Span) => ArgumentOutOfRangeException。
-///   * GetSpan 在 sizeHint > chunkSize 时：创建多倍PageSize的Chunk，向上取整。
-///   * ReserveSpan/Commit 传入无效Span => ArgumentException。

@@ -184,4 +184,80 @@ public class PagedReservableWriterTests
         var result = innerWriter2.GetWrittenData();
         Assert.Equal("Reset"u8.ToArray(), result);
     }
+
+    [Fact]
+    public void PassthroughRestorationTest()
+    {
+        var innerWriter = new TestBufferWriter();
+        using var writer = new PagedReservableWriter(innerWriter);
+
+        // 初始应为直通模式
+        Assert.True(writer.IsPassthroughMode);
+
+        // 先写入一些直通数据
+        var preSpan = writer.GetSpan(5);
+        "Hello"u8.CopyTo(preSpan);
+        writer.Advance(5);
+
+        // 建立 reservation 进入缓冲模式
+        var reserved = writer.ReserveSpan(4, out int token);
+        Assert.False(writer.IsPassthroughMode);
+
+        var tailSpan = writer.GetSpan(5);
+        "World"u8.CopyTo(tailSpan);
+        writer.Advance(5);
+
+        // 此时预留阻塞，innerWriter 仅应包含 "Hello"
+        Assert.Equal("Hello"u8.ToArray(), innerWriter.GetWrittenData());
+
+        // 填充并提交 reservation，触发 flush + 回收 + 回退直通
+        reserved[0] = 1; reserved[1] = 2; reserved[2] = 3; reserved[3] = 4;
+        writer.Commit(token);
+        Assert.True(writer.IsPassthroughMode); // 已回退
+
+        // 再次直接写入（应直通不再缓存）
+        var more = writer.GetSpan(3);
+        "ABC"u8.CopyTo(more);
+        writer.Advance(3);
+
+        var data = innerWriter.GetWrittenData();
+        // 期望顺序：Hello + reservation(1..4) + World + ABC
+        var expected = new byte[5 + 4 + 5 + 3];
+        "Hello"u8.CopyTo(expected.AsSpan(0,5));
+        new byte[]{1,2,3,4}.CopyTo(expected.AsSpan(5,4));
+        "World"u8.CopyTo(expected.AsSpan(9,5));
+        "ABC"u8.CopyTo(expected.AsSpan(14,3));
+        Assert.Equal(expected, data);
+    }
+
+    [Fact]
+    public void PassthroughBufferedCycleMultipleTimes()
+    {
+        var innerWriter = new TestBufferWriter();
+        using var writer = new PagedReservableWriter(innerWriter);
+
+        for (int cycle = 0; cycle < 3; cycle++)
+        {
+            Assert.True(writer.IsPassthroughMode);
+
+            // 进入缓冲
+            var res = writer.ReserveSpan(2, out int token);
+            Assert.False(writer.IsPassthroughMode);
+            res[0] = (byte)cycle; res[1] = (byte)(cycle + 1);
+            writer.Commit(token);
+            Assert.True(writer.IsPassthroughMode);
+
+            // 直通写入一个标记字节
+            var s = writer.GetSpan(1);
+            s[0] = 0xFF;
+            writer.Advance(1);
+        }
+
+        var bytes = innerWriter.GetWrittenData();
+        // 每个 cycle：2 bytes reserved + 1 byte marker
+        Assert.Equal(3 * 3, bytes.Length);
+        // 简单结构验证：每第三字节应为 0xFF
+        for (int i = 2; i < bytes.Length; i += 3)
+            Assert.Equal(0xFF, bytes[i]);
+    }
 }
