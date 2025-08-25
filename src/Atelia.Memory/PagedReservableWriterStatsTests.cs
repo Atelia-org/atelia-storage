@@ -25,38 +25,38 @@ public class PagedReservableWriterStatsTests
     {
         var inner = new DummyWriter();
         using var writer = new PagedReservableWriter(inner);
-        Assert.Equal(0, writer.TotalLogicalLength);
-        Assert.Equal(0, writer.EmittedLength);
-        Assert.Equal(0, writer.BufferedUnemittedLength);
-        Assert.Equal(0, writer.OutstandingReservationCount);
-        Assert.True(writer.IsPassthroughMode);
+        Assert.Equal(0, writer.WrittenLength);
+        Assert.Equal(0, writer.FlushedLength);
+        Assert.Equal(0, writer.PendingLength);
+        Assert.Equal(0, writer.PendingReservationCount);
+        Assert.True(writer.IsPassthrough);
 
         // Direct write (passthrough)
         var s = writer.GetSpan(5);
         s[0]=1; s[1]=2; s[2]=3; s[3]=4; s[4]=5;
         writer.Advance(5);
-        Assert.Equal(5, writer.TotalLogicalLength);
-        Assert.Equal(5, writer.EmittedLength);
-        Assert.Equal(0, writer.BufferedUnemittedLength);
+        Assert.Equal(5, writer.WrittenLength);
+        Assert.Equal(5, writer.FlushedLength);
+        Assert.Equal(0, writer.PendingLength);
 
         // Reservation
         var rspan = writer.ReserveSpan(4, out int token, "tag-X");
         rspan.Clear();
-        Assert.Equal(9, writer.TotalLogicalLength); // +4
-        Assert.Equal(5, writer.EmittedLength); // 被阻塞
-        Assert.Equal(4, writer.BufferedUnemittedLength);
-        Assert.Equal(1, writer.OutstandingReservationCount);
-        Assert.False(writer.IsPassthroughMode);
-        Assert.NotNull(writer.FirstBlockingReservationToken);
+        Assert.Equal(9, writer.WrittenLength); // +4
+        Assert.Equal(5, writer.FlushedLength); // 被阻塞
+        Assert.Equal(4, writer.PendingLength);
+        Assert.Equal(1, writer.PendingReservationCount);
+        Assert.False(writer.IsPassthrough);
+        Assert.NotNull(writer.BlockingReservationToken);
 
         // Fill & commit
         writer.Commit(token);
-        Assert.Equal(9, writer.TotalLogicalLength);
-        Assert.Equal(9, writer.EmittedLength);
-        Assert.Equal(0, writer.BufferedUnemittedLength);
-        Assert.Equal(0, writer.OutstandingReservationCount);
-        Assert.True(writer.IsPassthroughMode);
-        Assert.Null(writer.FirstBlockingReservationToken);
+        Assert.Equal(9, writer.WrittenLength);
+        Assert.Equal(9, writer.FlushedLength);
+        Assert.Equal(0, writer.PendingLength);
+        Assert.Equal(0, writer.PendingReservationCount);
+        Assert.True(writer.IsPassthrough);
+        Assert.Null(writer.BlockingReservationToken);
     }
 
     [Fact]
@@ -68,18 +68,18 @@ public class PagedReservableWriterStatsTests
         // Two reservations
         writer.ReserveSpan(2, out int t1, "A");
         writer.ReserveSpan(2, out int t2, "B");
-        Assert.Equal(2, writer.OutstandingReservationCount);
-        var first = writer.FirstBlockingReservationToken;
+        Assert.Equal(2, writer.PendingReservationCount);
+        var first = writer.BlockingReservationToken;
         Assert.True(first == t1 || first == t2); // Implementation detail: token scramble; ensure token exists
 
         // Commit first (whichever is blocking) then second
         writer.Commit(first!.Value);
-        Assert.Equal(1, writer.OutstandingReservationCount);
-        Assert.NotNull(writer.FirstBlockingReservationToken);
-        Assert.NotEqual(first, writer.FirstBlockingReservationToken); // 应该变化
+        Assert.Equal(1, writer.PendingReservationCount);
+        Assert.NotNull(writer.BlockingReservationToken);
+        Assert.NotEqual(first, writer.BlockingReservationToken); // 应该变化
 
-        writer.Commit(writer.FirstBlockingReservationToken!.Value);
-        Assert.Equal(0, writer.OutstandingReservationCount);
-        Assert.Null(writer.FirstBlockingReservationToken);
+        writer.Commit(writer.BlockingReservationToken!.Value);
+        Assert.Equal(0, writer.PendingReservationCount);
+        Assert.Null(writer.BlockingReservationToken);
     }
 }

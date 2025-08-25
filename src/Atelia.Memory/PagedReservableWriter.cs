@@ -1,22 +1,25 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Runtime.CompilerServices;
-using System.Buffers; // RuntimeHelpers.GetHashCode(obj);
-using System.Runtime.InteropServices; // MemoryMarshal
+﻿using System.Buffers; // RuntimeHelpers.GetHashCode(obj);
+
+// using System;
+// using System.Collections.Generic;
+// using System.Linq;
+// using System.Text;
+// using System.Threading.Tasks;
+// using System.Runtime.CompilerServices;
+// using System.Runtime.InteropServices; // MemoryMarshal
 
 namespace Atelia.Memory;
 
-// 类型设计与实现意图
-// 内部用若干个内存Chunk来储存数据，每个内存Chunk的大小是4K字节的整倍数。
-// 用ArrayPool<byte>来管理Chunk的租用和归还。
-// 记录每个Chunk使用了多少字节，因为在边界处会出现GetSpan请求数量超出当前页剩余空间的情况，此时就划分新的Chunk，保证单个Span不跨Chunk。
-// 还需要管理所有已ReserveSpan但未Commit的Span，在Commit时更新内部索引，以支持快速的获知已完整填入数据(即不包含reservation的连续完整头部，这部分数据可以用于向网络写入并适当释放Chunk)。
-//
 /// <summary>
 /// 按页对齐的分块(Chunk)式，与可预留(Reservation)缓冲写入器。
+/// </summary>
+/// <remarks>
+/// 设计与实现意图:
+/// 1. 内部用若干个内存Chunk来储存数据，每个内存Chunk的大小是4K字节的整倍数。
+/// 2. 用ArrayPool<byte>来管理Chunk的租用和归还。
+/// 3. 记录每个Chunk使用了多少字节，因为在边界处会出现GetSpan请求数量超出当前页剩余空间的情况，此时就划分新的Chunk，保证单个Span不跨Chunk。
+/// 4. 还需要管理所有已ReserveSpan但未Commit的Span，在Commit时更新内部索引，以支持快速的获知已完整填入数据(即不包含reservation的连续完整头部，这部分数据可以用于向网络写入并适当释放Chunk)。
+///
 /// 目标：
 /// 1. 提供与IBufferWriter<byte>一致的顺序写入语义：GetSpan/GetMemory + Advance。
 /// 2. 允许调用方显式 ReserveSpan(N) 预留一段将来才会被回填的数据区域；在 Commit 之前这段区域不能被归并进“已完全可消费”的前缀。
@@ -26,7 +29,7 @@ namespace Atelia.Memory;
 ///
 /// 线程安全：默认假设单线程使用（与PipeWriter类似）；不支持多线程并发写入。
 /// 内存对齐：交由上层逻辑控制
-/// </summary>
+/// </remarks>
 public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
     #region Chunked Buffer
     public const int PageSize = 4096; // 4K
@@ -53,8 +56,8 @@ public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
     private int _chunksHeadIndex = 0; // 优化：避免List.RemoveAt(0)的O(n)开销
 
     // 当前写入状态
-    private long _totalLogicalLength; // 包括普通写入 + 预留区域长度
-    private long _completedLogicalLength; // 从头开始连续已完成的长度
+    private long _writtenLength; // 包括普通写入 + 预留区域长度
+    private long _flushedLength; // 从头开始连续已完成的长度
 
     private Chunk CreateChunk(int sizeHint) {
         // 确保新Chunk能满足sizeHint的要求
@@ -157,16 +160,12 @@ public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
     }
 
     /// <summary>
-    /// 供Commit调用，用以实现“拼出一段连续的有完成数据的头部，就写入_innerWriter中”的逻辑。
-    /// </summary>
-    /// <exception cref="NotImplementedException"></exception>
-    /// <summary>
     /// 检查并 flush 从头开始的“连续已完成数据”到 _innerWriter。
     /// 返回是否发生了任何实际 flush，用于后续决定是否尝试回收 Chunk。
     /// 逻辑：遍历有效 Chunk，直到遇到包含第一个未提交 Reservation 的 Chunk；该 Chunk 仅 flush 到该 Reservation 的起始位置。
     /// </summary>
     /// <returns>是否有数据被写入到 _innerWriter。</returns>
-    private bool CheckAndFlushCompletedData() {
+    private bool FlushCommittedData() {
         Reservation? firstReservation = _reservationOrder.First?.Value;
         bool flushed = false;
 
@@ -206,14 +205,14 @@ public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
         _innerWriter.Advance(length);
 
         chunk.DataBegin += length;
-        _completedLogicalLength += length;
+        _flushedLength += length;
     }
 
     /// <summary>
     /// 尝试回收完全flush的Chunk
     /// 优化：使用headIndex避免List.RemoveAt(0)的O(n)开销
     /// </summary>
-    private void TryRecycleCompletedChunks() {
+    private void TryRecycleFlushedChunks() {
         // 从头开始检查，回收完全flush的Chunk
         while (_chunksHeadIndex < _chunks.Count && _chunks[_chunksHeadIndex].IsFullyFlushed) {
             Chunk chunk = _chunks[_chunksHeadIndex];
@@ -256,7 +255,7 @@ public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
             // 所有已回收（_chunksHeadIndex == _chunks.Count），清理内部列表释放引用与容量
             _chunks.Clear();
             _chunksHeadIndex = 0;
-            // 不触碰 _totalLogicalLength / _completedLogicalLength
+            // 不触碰 _writtenLength / _flushedLength
         }
     }
     #endregion
@@ -281,18 +280,18 @@ public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
         // 如果没有Reservation，直接写入_innerWriter
         if (GetActiveChunksCount() == 0) {
             _innerWriter.Advance(count);
-            _totalLogicalLength += count;
-            _completedLogicalLength += count;
+            _writtenLength += count;
+            _flushedLength += count;
         } else {
             // 有Reservation时，更新当前Chunk的Written
             Chunk? lastChunk = GetLastActiveChunk();
             if (lastChunk != null) {
                 lastChunk.DataEnd += count;
-                _totalLogicalLength += count;
-                bool flushed = CheckAndFlushCompletedData();
+                _writtenLength += count;
+                bool flushed = FlushCommittedData();
                 if (flushed) {
                     // 仅在确实 flush 时尝试回收，避免无谓遍历
-                    TryRecycleCompletedChunks();
+                    TryRecycleFlushedChunks();
                     TryRestorePassthroughIfIdle();
                 }
             }
@@ -358,7 +357,7 @@ public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
         // 确保有足够空间的Chunk
         Chunk chunk = EnsureSpace(count);
         int offset = chunk.DataEnd;
-        long logicalOffset = _totalLogicalLength; // 预留区域起始逻辑偏移（当前总长度）
+        long logicalOffset = _writtenLength; // 预留区域起始逻辑偏移（当前总长度）
 
         // 创建Reservation
         Reservation reservation = new Reservation(chunk, offset, count, logicalOffset, tag);
@@ -370,7 +369,7 @@ public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
 
         // 更新Chunk状态
         chunk.DataEnd += count;
-        _totalLogicalLength += count;
+        _writtenLength += count;
 
         // 返回预留的Span
         return chunk.Buffer.AsSpan(offset, count);
@@ -391,9 +390,9 @@ public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
         _tokenToNode.Remove(reservationToken);
 
         // 检查并flush连续完成的数据，并在有 flush 时尝试回收
-        bool flushed = CheckAndFlushCompletedData();
+        bool flushed = FlushCommittedData();
         if (flushed) {
-            TryRecycleCompletedChunks();
+            TryRecycleFlushedChunks();
             TryRestorePassthroughIfIdle();
         }
     }
@@ -420,43 +419,51 @@ public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
         _chunksHeadIndex = 0;
         _tokenToNode.Clear();
         _reservationOrder.Clear();
-        _totalLogicalLength = 0;
-        _completedLogicalLength = 0;
+        _writtenLength = 0;
+        _flushedLength = 0;
         _hasLastSpan = false;
         _lastSpanLength = 0;
         _reservationSerial = 0;
     }
 
+    #region 核心状态属性
     /// <summary>
-    /// 当前是否处于直通模式：无任何活动 Chunk（全部已回收或尚未创建）且无未提交 Reservation。
+    /// 获取已写入或预留的总字节数。这是缓冲区的逻辑总长度。
+    /// 即逻辑上被占用的总字节数（普通写入 + 所有 reservation 长度）。
+    /// </summary>
+    public long WrittenLength => _writtenLength;
+
+    /// <summary>
+    /// 获取从头开始已成功刷写到底层写入器的总字节数。
+    /// </summary>
+    public long FlushedLength => _flushedLength;
+
+    /// <summary>
+    /// 获取已写入但尚未刷写的字节数 (WrittenLength - FlushedLength)。
+    /// 即阻塞或等待回填的字节数。
+    /// </summary>
+    public long PendingLength => _writtenLength - _flushedLength;
+    #endregion
+
+    #region 诊断属性
+    /// <summary>
+    /// 获取当前尚未提交的预留(Reservation)数量。
+    /// </summary>
+    public int PendingReservationCount => _reservationOrder.Count;
+
+    /// <summary>
+    /// 获取第一个阻塞数据刷写的ReservationToken。如果所有Reservation都已提交，则返回 null。
+    /// 即最早阻塞 flush 的 reservation 的 token（若无则为 null）。
+    /// 这个属性对于调试非常有用，可以快速定位是哪个预留操作导致了数据积压。
+    /// </summary>
+    public int? BlockingReservationToken => _reservationOrder.First is { } n ? _tokenToNode.First(kv => kv.Value == n).Key : (int?)null;
+
+    /// <summary>
+    /// 获取一个值，该值指示写入器当前是否工作在直通模式下（即无任何预留和内部缓冲）。即无任何活动 Chunk（全部已回收或尚未创建）且无未提交 Reservation。
     /// 该属性仅用于诊断与可读性，不额外保证线程安全。
     /// </summary>
-    public bool IsPassthroughMode => GetActiveChunksCount() == 0 && _reservationOrder.Count == 0;
-
-    /// <summary>
-    /// 已写入或预留（逻辑上被占用）的总字节数（普通写入 + 所有 reservation 长度）。
-    /// </summary>
-    public long TotalLogicalLength => _totalLogicalLength;
-
-    /// <summary>
-    /// 从头开始已经 flush / 提交的连续前缀长度（已写入 innerWriter）。
-    /// </summary>
-    public long EmittedLength => _completedLogicalLength;
-
-    /// <summary>
-    /// 尚未 flush 的（阻塞或等待回填的）字节数。
-    /// </summary>
-    public long BufferedUnemittedLength => _totalLogicalLength - _completedLogicalLength;
-
-    /// <summary>
-    /// 当前未提交的 reservation 数量。
-    /// </summary>
-    public int OutstandingReservationCount => _reservationOrder.Count;
-
-    /// <summary>
-    /// 最早阻塞 flush 的 reservation 的 token（若无则为 null）。
-    /// </summary>
-    public int? FirstBlockingReservationToken => _reservationOrder.First is { } n ? _tokenToNode.First(kv => kv.Value == n).Key : (int?)null;
+    public bool IsPassthrough => GetActiveChunksCount() == 0 && _reservationOrder.Count == 0;
+    #endregion
 
     /// <summary>
     /// 释放资源，归还所有ArrayPool租用的内存

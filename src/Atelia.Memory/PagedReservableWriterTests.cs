@@ -192,7 +192,7 @@ public class PagedReservableWriterTests
         using var writer = new PagedReservableWriter(innerWriter);
 
         // 初始应为直通模式
-        Assert.True(writer.IsPassthroughMode);
+        Assert.True(writer.IsPassthrough);
 
         // 先写入一些直通数据
         var preSpan = writer.GetSpan(5);
@@ -201,7 +201,7 @@ public class PagedReservableWriterTests
 
         // 建立 reservation 进入缓冲模式
         var reserved = writer.ReserveSpan(4, out int token, "block-A");
-        Assert.False(writer.IsPassthroughMode);
+        Assert.False(writer.IsPassthrough);
 
         var tailSpan = writer.GetSpan(5);
         "World"u8.CopyTo(tailSpan);
@@ -213,7 +213,7 @@ public class PagedReservableWriterTests
         // 填充并提交 reservation，触发 flush + 回收 + 回退直通
         reserved[0] = 1; reserved[1] = 2; reserved[2] = 3; reserved[3] = 4;
         writer.Commit(token);
-        Assert.True(writer.IsPassthroughMode); // 已回退
+        Assert.True(writer.IsPassthrough); // 已回退
 
         // 再次直接写入（应直通不再缓存）
         var more = writer.GetSpan(3);
@@ -238,14 +238,14 @@ public class PagedReservableWriterTests
 
         for (int cycle = 0; cycle < 3; cycle++)
         {
-            Assert.True(writer.IsPassthroughMode);
+            Assert.True(writer.IsPassthrough);
 
             // 进入缓冲
             var res = writer.ReserveSpan(2, out int token, $"cycle-{cycle}");
-            Assert.False(writer.IsPassthroughMode);
+            Assert.False(writer.IsPassthrough);
             res[0] = (byte)cycle; res[1] = (byte)(cycle + 1);
             writer.Commit(token);
-            Assert.True(writer.IsPassthroughMode);
+            Assert.True(writer.IsPassthrough);
 
             // 直通写入一个标记字节
             var s = writer.GetSpan(1);
