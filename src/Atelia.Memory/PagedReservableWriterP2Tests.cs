@@ -83,6 +83,79 @@ public class PagedReservableWriterP2Tests {
     }
 
     [Fact]
+    public void MiniRandomSequenceInvariantTest_StrictMode() {
+        var inner = new CollectingWriter();
+        var options = new PagedReservableWriterOptions { EnforceStrictAdvance = true };
+        using var writer = new PagedReservableWriter(inner, options);
+        var rnd = new Random(54321);
+        var activeTokens = new List<int>();
+
+        int steps = 1500; // 保持快速
+        bool haveOutstanding = false; // 跟踪是否有未 Advance 的 span
+        for (int i = 0; i < steps; i++) {
+            int op = rnd.Next(100);
+            try {
+                switch (op) {
+                    case < 40: { // 正常写
+                        if (haveOutstanding) { // 50% 概率先取消
+                            if (rnd.Next(2) == 0) {
+                                writer.Advance(0);
+                            } else {
+                                writer.Advance(0); // same effect; kept to preserve randomness branch
+                            }
+                            haveOutstanding = false;
+                        }
+                        int size = rnd.Next(1, 48);
+                        var span = writer.GetSpan(size);
+                        int adv = rnd.Next(0, Math.Min(size, span.Length));
+                        if (adv > 0) span.Slice(0, adv).Fill((byte)(adv % 251));
+                        if (adv > 0) { writer.Advance(adv); haveOutstanding = false; } else { // 留下未 Advance
+                            haveOutstanding = true; // 故意制造潜在后续错误路径
+                        }
+                        break; }
+                    case < 65: { // reservation
+                        if (haveOutstanding) {
+                            // 严格模式必须先 Advance(0)
+                            writer.Advance(0); haveOutstanding = false;
+                        }
+                        int len = rnd.Next(1, 24);
+                        var span = writer.ReserveSpan(len, out int tk, null);
+                        int fill = rnd.Next(0, len + 1);
+                        if (fill > 0) span.Slice(0, fill).Fill((byte)(fill % 97));
+                        activeTokens.Add(tk);
+                        break; }
+                    case < 80: { // commit
+                        if (activeTokens.Count > 0) {
+                            int idx = rnd.Next(activeTokens.Count);
+                            int tk = activeTokens[idx];
+                            activeTokens.RemoveAt(idx);
+                            writer.Commit(tk);
+                        }
+                        break; }
+                    case < 90: { // reset
+                        if (haveOutstanding) { writer.Advance(0); haveOutstanding = false; }
+                        writer.Reset();
+                        activeTokens.Clear();
+                        break; }
+                    default: { // 取消 pending span
+                        if (haveOutstanding) { writer.Advance(0); haveOutstanding = false; }
+                        else writer.Advance(0); // no-op
+                        break; }
+                }
+            } catch (InvalidOperationException ex) {
+                // 允许严格模式下的合法异常（只在我们故意构造未 Advance 再 ReserveSpan 时出现，逻辑已防护，但保留兜底）
+                Assert.Contains("Previous buffer not advanced", ex.Message);
+                // 清理状态后继续
+                if (haveOutstanding) { writer.Advance(0); haveOutstanding = false; }
+            }
+            AssertInvariants(writer);
+        }
+
+        foreach (var tk in activeTokens) writer.Commit(tk);
+        AssertInvariants(writer);
+    }
+
+    [Fact]
     public void LargeReservationBlocksThenFlushesAllAtCommit() {
         var inner = new CollectingWriter();
         using var writer = new PagedReservableWriter(inner);
