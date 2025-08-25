@@ -37,15 +37,41 @@ public class PagedReservableWriter : IReservableBufferWriter {
     private class Chunk {
         public byte[] Buffer;
         public int Written; // 已写入字节数
+        public int DataBegin; // 已写入_innerWriter的字节数
         public int FreeSpace => Buffer.Length - Written;
+        public int PendingData => Written - DataBegin; // 待写入_innerWriter的数据
+        public bool IsRented; // 是否从ArrayPool租用，用于正确归还
+        public bool IsFullyFlushed => DataBegin == Written; // 是否完全flush，可以回收
+
+        public Span<byte> GetAvailableSpan() => Buffer.AsSpan(Written);
+        public Span<byte> GetAvailableSpan(int maxLength) => Buffer.AsSpan(Written, Math.Min(maxLength, FreeSpace));
     }
 
     // ArrayPool：可允许外部注入以便测试；默认 Shared。
     private readonly ArrayPool<byte> _pool;
     private readonly List<Chunk> _chunks = new();
 
+    // 当前写入状态
+    private long _totalLogicalLength; // 包括普通写入 + 预留区域长度
+    private long _completedLogicalLength; // 从头开始连续已完成的长度
+
     private Chunk CreateChunk(int sizeHint) {
-        throw new NotImplementedException();
+        // 计算需要的页数，至少1页，最多_maxChunkPages页
+        int requiredBytes = Math.Max(sizeHint, PageSize);
+        int pages = Math.Max(_minChunkPages, (requiredBytes + PageSize - 1) / PageSize);
+        pages = Math.Min(pages, _maxChunkPages);
+
+        int chunkSize = pages * PageSize;
+        byte[] buffer = _pool.Rent(chunkSize);
+
+        var chunk = new Chunk {
+            Buffer = buffer,
+            Written = 0,
+            IsRented = true
+        };
+
+        _chunks.Add(chunk);
+        return chunk;
     }
 
     private Chunk EnsureSpace(int sizeHint) {
@@ -61,19 +87,30 @@ public class PagedReservableWriter : IReservableBufferWriter {
 
     private readonly IBufferWriter<byte> _innerWriter;
 
+    public PagedReservableWriter(IBufferWriter<byte> innerWriter, ArrayPool<byte> pool = null) {
+        _innerWriter = innerWriter ?? throw new ArgumentNullException(nameof(innerWriter));
+        _pool = pool ?? ArrayPool<byte>.Shared;
+    }
+
     #region Reservation
     private class Reservation {
         public readonly Chunk Chunk;
         public readonly int Offset;
+        public readonly int Length;
+
+        public Reservation(Chunk chunk, int offset, int length) {
+            Chunk = chunk;
+            Offset = offset;
+            Length = length;
+        }
     }
 
     /// <summary>
-    /// 三种典型的Reservation管理思路，都能保序访问+快速查找+快速删除：
-    /// 1. Dictionary<int, LinkedListNode<Reservation>> + LinkedList<Reservation>
-    /// 2. reservationSerial <-> reservationToken 双向转换。Dictionary<uint, Reservation> 里的key直接就是reservationSerial。内部红黑树。
-    /// 3. 我们自己实现一个ArrayChain<Reservation> + Dictionary<int, ushort>。ArrayChain本质上是个链表，但节点是struct类型用Array同一创建和回收，节点间用在Array中的index作为软指针，节点数最大64K个足够用了。
+    /// 采用方案1: Dictionary<int, LinkedListNode<Reservation>> + LinkedList<Reservation>
+    /// 优势：实现简单，快速验证，保序访问+快速查找+快速删除
     /// </summary>
-    Dictionary<int, Reservation> _tokenToReservation;
+    private readonly Dictionary<int, LinkedListNode<Reservation>> _tokenToNode = new();
+    private readonly LinkedList<Reservation> _reservationOrder = new();
 
 
     private uint _reservationSerial;
@@ -92,38 +129,162 @@ public class PagedReservableWriter : IReservableBufferWriter {
     /// 供Commit调用，用以实现“拼出一段连续的有完成数据的头部，就写入_innerWriter中”的逻辑。
     /// </summary>
     /// <exception cref="NotImplementedException"></exception>
-    private void CheckFrontCompleted() {
-        throw new NotImplementedException();
+    /// <summary>
+    /// 检查并flush连续完成的数据到_innerWriter
+    /// </summary>
+    private void CheckAndFlushCompletedData() {
+        var firstReservation = _reservationOrder.First?.Value;
+
+        foreach (var chunk in _chunks) {
+            int flushableLength;
+
+            if (firstReservation?.Chunk == chunk) {
+                // 这个Chunk有最早的未Commit的Reservation
+                flushableLength = firstReservation.Offset - chunk.DataBegin;
+
+                // flush这部分数据（如果有的话）
+                if (flushableLength > 0) {
+                    FlushChunkData(chunk, flushableLength);
+                }
+
+                // 遇到第一个有Reservation的Chunk后就停止，后面的都不能flush
+                break;
+            } else {
+                // 这个Chunk没有未Commit的Reservation，全部可flush
+                flushableLength = chunk.Written - chunk.DataBegin;
+
+                if (flushableLength > 0) {
+                    FlushChunkData(chunk, flushableLength);
+                }
+                // 继续检查下一个Chunk
+            }
+        }
+    }
+
+    /// <summary>
+    /// 将Chunk中的数据flush到_innerWriter
+    /// </summary>
+    /// <param name="chunk">要flush的Chunk</param>
+    /// <param name="length">要flush的长度</param>
+    private void FlushChunkData(Chunk chunk, int length) {
+        var dataToFlush = chunk.Buffer.AsSpan(chunk.DataBegin, length);
+        var innerSpan = _innerWriter.GetSpan(length);
+        dataToFlush.CopyTo(innerSpan);
+        _innerWriter.Advance(length);
+
+        chunk.DataBegin += length;
+        _completedLogicalLength += length;
+    }
+
+    /// <summary>
+    /// 尝试回收完全flush的Chunk
+    /// </summary>
+    private void TryRecycleCompletedChunks() {
+        // 从头开始检查，回收完全flush的Chunk
+        while (_chunks.Count > 0 && _chunks[0].IsFullyFlushed) {
+            var chunk = _chunks[0];
+            if (chunk.IsRented) {
+                _pool.Return(chunk.Buffer);
+            }
+            _chunks.RemoveAt(0);
+        }
     }
     #endregion
 
     #region IBufferWriter<byte>
+    private Span<byte> _lastSpan; // 记录最后一次GetSpan返回的Span，用于Advance验证
+
     public void Advance(int count) {
-        throw new NotImplementedException();
+        if (count < 0)
+            throw new ArgumentOutOfRangeException(nameof(count), "Count cannot be negative");
+        if (count == 0)
+            return;
+
+        // 验证count不超过最后一次GetSpan的可用空间
+        if (count > _lastSpan.Length)
+            throw new ArgumentOutOfRangeException(nameof(count), "Count exceeds available space");
+
+        // 如果没有Reservation，直接写入_innerWriter
+        if (_chunks.Count == 0) {
+            _innerWriter.Advance(count);
+            _totalLogicalLength += count;
+            _completedLogicalLength += count;
+        } else {
+            // 有Reservation时，更新当前Chunk的Written
+            if (_chunks.Count > 0) {
+                _chunks[^1].Written += count;
+                _totalLogicalLength += count;
+                CheckAndFlushCompletedData();
+            }
+        }
+
+        _lastSpan = default; // 清空，防止重复Advance
     }
 
     public Memory<byte> GetMemory(int sizeHint = 0) {
-        throw new NotImplementedException();
+        return GetSpan(sizeHint).AsMemory();
     }
 
     public Span<byte> GetSpan(int sizeHint = 0) {
-        throw new NotImplementedException();
+        sizeHint = Math.Max(sizeHint, 1);
+
+        // 如果没有Reservation，直接使用_innerWriter
+        if (_chunks.Count == 0) {
+            var span = _innerWriter.GetSpan(sizeHint);
+            _lastSpan = span;
+            return span;
+        }
+
+        // 有Reservation时，使用内部Chunk
+        var chunk = EnsureSpace(sizeHint);
+        var availableSpan = chunk.GetAvailableSpan(sizeHint);
+        _lastSpan = availableSpan;
+        return availableSpan;
     }
     #endregion
 
     #region IReservableBufferWriter
     public Span<byte> ReserveSpan(int count, out int reservationToken) {
-        throw new NotImplementedException();
+        if (count <= 0)
+            throw new ArgumentOutOfRangeException(nameof(count), "Count must be positive");
+
+        // 确保有足够空间的Chunk
+        var chunk = EnsureSpace(count);
+        int offset = chunk.Written;
+
+        // 创建Reservation
+        var reservation = new Reservation(chunk, offset, count);
+        reservationToken = AllocReservationToken();
+
+        // 添加到数据结构
+        var node = _reservationOrder.AddLast(reservation);
+        _tokenToNode[reservationToken] = node;
+
+        // 更新Chunk状态
+        chunk.Written += count;
+        _totalLogicalLength += count;
+
+        // 返回预留的Span
+        return chunk.Buffer.AsSpan(offset, count);
     }
 
     /// <summary>
-    ///
     /// Commit 重复调用 => 抛 InvalidOperationException 便于发现逻辑问题。
     /// </summary>
     /// <param name="reservationToken"></param>
-    /// <exception cref="NotImplementedException"></exception>
     public void Commit(int reservationToken) {
-        throw new NotImplementedException();
+        if (!_tokenToNode.TryGetValue(reservationToken, out var node))
+            throw new InvalidOperationException("Invalid or already committed reservation token");
+
+        // 直接删除Reservation
+        _reservationOrder.Remove(node);
+        _tokenToNode.Remove(reservationToken);
+
+        // 检查并flush连续完成的数据
+        CheckAndFlushCompletedData();
+
+        // 尝试回收完全flush的Chunk
+        TryRecycleCompletedChunks();
     }
     #endregion
 }
@@ -174,109 +335,3 @@ public class PagedReservableWriter : IReservableBufferWriter {
 ///   * Advance(负数或超过可用Span) => ArgumentOutOfRangeException。
 ///   * GetSpan 在 sizeHint > chunkSize 时：创建多倍PageSize的Chunk，向上取整。
 ///   * ReserveSpan/Commit 传入无效Span => ArgumentException。
-
-/// 仅示意实现
-public class ArrayChain<T> {
-    private struct Node {
-        public T Value;
-        public int Next;
-        public int Previous;
-        public bool IsUsed;
-    }
-
-    private Node[] _nodes;
-    private int _freeListHead;
-    private int _first;
-    private int _last;
-    private int _count;
-
-    public ArrayChain(int initialCapacity = 16) {
-        _nodes = new Node[initialCapacity];
-        InitializeFreeList();
-        _first = -1;
-        _last = -1;
-        _count = 0;
-    }
-
-    public sealed class Token {
-        internal int Index { get; set; }
-        internal ArrayChain<T> Chain { get; set; }
-    }
-
-    public Token AddLast(T value) {
-        int index = AllocateNode();
-        _nodes[index] = new Node {
-            Value = value,
-            Next = -1,
-            Previous = _last,
-            IsUsed = true
-        };
-
-        if (_last != -1)
-            _nodes[_last].Next = index;
-        else
-            _first = index;
-
-        _last = index;
-        _count++;
-
-        return new Token { Index = index, Chain = this };
-    }
-
-    public void Remove(Token token) {
-        if (token.Chain != this || !IsValidToken(token))
-            throw new ArgumentException("Invalid token");
-
-        int index = token.Index;
-        var node = _nodes[index];
-
-        // 更新前后节点的指针
-        if (node.Previous != -1)
-            _nodes[node.Previous].Next = node.Next;
-        else
-            _first = node.Next;
-
-        if (node.Next != -1)
-            _nodes[node.Next].Previous = node.Previous;
-        else
-            _last = node.Previous;
-
-        // 回收节点
-        DeallocateNode(index);
-        _count--;
-    }
-
-    public IEnumerable<T> Enumerate() {
-        int current = _first;
-        while (current != -1) {
-            yield return _nodes[current].Value;
-            current = _nodes[current].Next;
-        }
-    }
-
-    private int AllocateNode() {
-        // 简化的空闲列表分配
-        if (_freeListHead >= _nodes.Length) {
-            // 扩容逻辑
-            Array.Resize(ref _nodes, _nodes.Length * 2);
-            InitializeFreeList(_freeListHead);
-        }
-
-        return _freeListHead++;
-    }
-
-    private void DeallocateNode(int index) {
-        _nodes[index] = default;
-        // 简化的回收逻辑
-    }
-
-    private void InitializeFreeList(int start = 0) {
-        for (int i = start; i < _nodes.Length - 1; i++) {
-            // 初始化空闲列表
-        }
-    }
-
-    private bool IsValidToken(Token token) {
-        return token.Index >= 0 && token.Index < _nodes.Length && _nodes[token.Index].IsUsed;
-    }
-}
