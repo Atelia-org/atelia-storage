@@ -3,45 +3,33 @@ using System.Buffers;
 namespace Atelia.Memory;
 
 /// <summary>
-/// Configuration options for <see cref="PagedReservableWriter"/>.
+/// Configuration options for <see cref="PagedReservableWriter"/> (chunk-size based).
 /// </summary>
 public sealed class PagedReservableWriterOptions {
+    // ---------------- New (preferred) properties ----------------
     /// <summary>
-    /// Size of a logical page used for chunk sizing heuristics. Must be positive power of two.
-    /// Default: 4096.
+    /// 最小 Chunk 字节数。必须 >= 1024。默认：4096。
     /// </summary>
-    public int PageSize { get; set; } = PagedReservableWriter.PageSize; // keep backward const as default
+    public int MinChunkSize { get; set; } = 4096;
 
     /// <summary>
-    /// Minimum pages per pooled chunk. Default: 1.
+    /// 最大 Chunk 字节数（不含一次性超大直租请求）。默认：65536 (64KB)，避免落入 LOH。
     /// </summary>
-    public int MinChunkPages { get; set; } = 1;
+    public int MaxChunkSize { get; set; } = 64 * 1024;
 
     /// <summary>
-    /// Maximum pages per pooled chunk. Requests larger than MaxChunkPages*PageSize rent a direct oversized buffer.
-    /// Default: 256 (1MB at 4KB pages).
-    /// </summary>
-    public int MaxChunkPages { get; set; } = 256;
-
-    /// <summary>
-    /// When true, calling ReserveSpan (or another GetSpan/GetMemory) while a previously obtained buffer
-    /// is still outstanding (i.e., Advance not yet called) throws InvalidOperationException.
-    /// Default: false (permissive, PipeWriter-like behavior).
+    /// 是否严格要求在再次获取缓冲或预留前必须 Advance 已获取的缓冲。
     /// </summary>
     public bool EnforceStrictAdvance { get; set; } = false;
 
     /// <summary>
-    /// Optional explicit pool. If null, ArrayPool<byte>.Shared is used.
+    /// 可选显式 ArrayPool。为空则使用 ArrayPool<byte>.Shared。
     /// </summary>
     public ArrayPool<byte>? Pool { get; set; } = null;
 
-    /// <summary>
-    /// Shallow clone helper allowing safe mutation of user-provided options after construction.
-    /// </summary>
     internal PagedReservableWriterOptions Clone() => new() {
-        PageSize = PageSize,
-        MinChunkPages = MinChunkPages,
-        MaxChunkPages = MaxChunkPages,
+        MinChunkSize = MinChunkSize,
+        MaxChunkSize = MaxChunkSize,
         EnforceStrictAdvance = EnforceStrictAdvance,
         Pool = Pool
     };

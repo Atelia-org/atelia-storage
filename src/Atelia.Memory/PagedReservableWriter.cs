@@ -3,7 +3,7 @@
 namespace Atelia.Memory;
 
 /// <summary>
-/// A chunked, page-aligned, reservable buffer writer.
+/// A chunked, reservable buffer writer (logical chunks backed by ArrayPool).
 /// </summary>
 /// <remarks>
 /// This writer is designed for high-performance scenarios where data is written sequentially,
@@ -20,11 +20,11 @@ namespace Atelia.Memory;
 /// </remarks>
 public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
     #region Chunked Buffer
-    public const int PageSize = 4096; // legacy default
-
-    private readonly int _pageSize = PageSize;
-    private readonly int _minChunkPages = 1; // configurable via options
-    private readonly int _maxChunkPages = 256; // configurable via options
+    // New sizing fields (byte-based)
+    private readonly int _minChunkSize;
+    private readonly int _maxChunkSize;
+    private int _currentChunkTargetSize; // adaptive growth baseline
+    private const double GrowthFactor = 2.0; // simple heuristic; could be optionized later
     private readonly bool _enforceStrictAdvance;
 
     private class Chunk {
@@ -49,35 +49,54 @@ public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
     private long _flushedLength;
 
     private Chunk CreateChunk(int sizeHint) {
-        // Ensure the new chunk can satisfy the sizeHint.
-        // Fast path: if requested size exceeds the configured max paged chunk size, rent exactly that size
-        // (we intentionally bypass page alignment to avoid silent truncation / failure).
-    int maxPagedBytes = _maxChunkPages * _pageSize;
-        byte[] buffer;
-        if (sizeHint > maxPagedBytes) {
-            // Rent a buffer large enough. ArrayPool may give larger which is fine.
-            buffer = _pool.Rent(sizeHint);
+        sizeHint = Math.Max(sizeHint, 1);
+        // Determine base required size.
+        int required = Math.Max(sizeHint, _minChunkSize);
+
+        int size;
+        if (required > _maxChunkSize) {
+            // Oversized direct rent (do not influence adaptive target).
+            size = required;
         } else {
-            int requiredBytes = Math.Max(sizeHint, _pageSize);
-            int pages = Math.Max(_minChunkPages, (requiredBytes + _pageSize - 1) / _pageSize);
-            pages = Math.Min(pages, _maxChunkPages);
-            int chunkSize = pages * _pageSize;
-            buffer = _pool.Rent(chunkSize);
+            int candidate = Math.Max(required, _currentChunkTargetSize);
+            // Round up to power of two (bounded) for better ArrayPool bucket locality.
+            candidate = RoundUpToPowerOfTwo(candidate);
+            if (candidate > _maxChunkSize) candidate = _maxChunkSize;
+            size = candidate;
         }
 
-        // Verify that the rented buffer can actually satisfy the sizeHint (defensive – should rarely trigger).
+        byte[] buffer = _pool.Rent(size);
         if (buffer.Length < sizeHint) {
-            throw new InvalidOperationException($"ArrayPool returned buffer of size {buffer.Length}, but {sizeHint} was required");
+            throw new InvalidOperationException($"ArrayPool returned buffer length {buffer.Length} < requested {sizeHint}");
         }
 
-        Chunk chunk = new Chunk {
-            Buffer = buffer,
-            DataEnd = 0,
-            IsRented = true
-        };
-
+        var chunk = new Chunk { Buffer = buffer, DataEnd = 0, IsRented = true };
         _chunks.Add(chunk);
+
+        // Adaptive growth: if we allocated below max and prior target nearly fully used, grow.
+        if (size <= _maxChunkSize && size < _maxChunkSize) {
+            // Heuristic: grow when prior chunk target was reached (implicit since we just allocated with target >= required)
+            if (_currentChunkTargetSize < _maxChunkSize) {
+                long next = (long)(_currentChunkTargetSize * GrowthFactor);
+                _currentChunkTargetSize = (int)Math.Min(next, _maxChunkSize);
+            }
+        }
+
         return chunk;
+    }
+
+    private static int RoundUpToPowerOfTwo(int value) {
+        // Clamp negative / zero
+        if (value <= 2) return 2;
+        // From BitOperations.RoundUpToPowerOf2 (netstandard polyfill style)
+        value--;
+        value |= value >> 1;
+        value |= value >> 2;
+        value |= value >> 4;
+        value |= value >> 8;
+        value |= value >> 16;
+        value++;
+        return value;
     }
 
     /// <summary>
@@ -121,15 +140,16 @@ public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
         options ??= new PagedReservableWriterOptions();
         var opt = options.Clone();
         _pool = opt.Pool ?? ArrayPool<byte>.Shared;
-        if (opt.PageSize <= 0 || (opt.PageSize & (opt.PageSize - 1)) != 0)
-            throw new ArgumentException("PageSize must be a positive power of two", nameof(options));
-        if (opt.MinChunkPages <= 0)
-            throw new ArgumentException("MinChunkPages must be > 0", nameof(options));
-        if (opt.MaxChunkPages < opt.MinChunkPages)
-            throw new ArgumentException("MaxChunkPages must be >= MinChunkPages", nameof(options));
-        _pageSize = opt.PageSize;
-        _minChunkPages = opt.MinChunkPages;
-        _maxChunkPages = opt.MaxChunkPages;
+        int minSize = opt.MinChunkSize;
+        int maxSize = opt.MaxChunkSize;
+
+        if (minSize < 1024)
+            throw new ArgumentException("MinChunkSize must be >= 1024", nameof(options));
+        if (maxSize < minSize)
+            throw new ArgumentException("MaxChunkSize must be >= MinChunkSize", nameof(options));
+        _minChunkSize = minSize;
+        _maxChunkSize = maxSize;
+        _currentChunkTargetSize = _minChunkSize;
         _enforceStrictAdvance = opt.EnforceStrictAdvance;
     }
 

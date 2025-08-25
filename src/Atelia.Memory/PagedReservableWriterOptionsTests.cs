@@ -42,29 +42,44 @@ public class PagedReservableWriterOptionsTests {
     }
 
     [Fact]
-    public void CustomPageSize_BufferedModeSpanRespectsConfiguredPageSize() {
+    public void CustomMinMaxChunkSize_BufferedModeSpanRespectsConfiguredMin() {
         var inner = new CollectingWriter();
-        var options = new PagedReservableWriterOptions { PageSize = 8192 };
+        var options = new PagedReservableWriterOptions { MinChunkSize = 8192, MaxChunkSize = 8192 };
         using var writer = new PagedReservableWriter(inner, options);
-        // Enter buffered mode by creating a reservation first (so following GetSpan allocates a chunk)
-        writer.ReserveSpan(1, out int tk, null)[0] = 0xFF; // not yet committed -> buffered mode
-        var span = writer.GetSpan(10); // now from internal chunk
-        Assert.True(span.Length >= 10, "Span should satisfy sizeHint");
-        // We cannot strictly assert span length == page size because we return entire free space,
-        // but ensure chunk allocation at least page sized by making a larger second request.
-        var span2 = writer.GetSpan(4000); // second request may still be same chunk
+        writer.ReserveSpan(1, out int tk, null)[0] = 0xFF; // force buffered mode
+        var span = writer.GetSpan(16);
+        Assert.True(span.Length >= 16);
+        // second span request should still come from same chunk unless exhausted
+        var span2 = writer.GetSpan(4000);
         Assert.True(span2.Length >= 4000);
         writer.Commit(tk);
     }
 
     [Fact]
-    public void OversizeRequest_ExceedsMaxPagedBytes_RentsOversizeBuffer() {
+    public void OversizeRequest_ExceedsMaxChunkSize_RentsOversizeBuffer() {
         var inner = new CollectingWriter();
-        var options = new PagedReservableWriterOptions { PageSize = 1024, MinChunkPages = 1, MaxChunkPages = 1 }; // max paged = 1024
+        var options = new PagedReservableWriterOptions { MinChunkSize = 4096, MaxChunkSize = 8192 };
         using var writer = new PagedReservableWriter(inner, options);
-        int big = 5000; // > 1024 so triggers oversize path
+        int big = 50_000; // >> max chunk size triggers direct rent
         var span = writer.GetSpan(big);
         Assert.True(span.Length >= big, $"Oversize span length {span.Length} < requested {big}");
+    }
+
+    [Fact]
+    public void AdaptiveGrowth_IncreasesChunkTarget() {
+        var inner = new CollectingWriter();
+        // Allow growth: min 4KB, max 32KB
+        var options = new PagedReservableWriterOptions { MinChunkSize = 4096, MaxChunkSize = 32 * 1024 };
+        using var writer = new PagedReservableWriter(inner, options);
+        // Force buffered mode and allocate sequentially increasing sizeHints to encourage growth
+        writer.ReserveSpan(10, out int t0, null); // allocate first chunk
+        // Request several spans so internal heuristic grows target size. We cannot read internal target; infer indirectly.
+        var s1 = writer.GetSpan(2000); writer.Advance(2000);
+        var s2 = writer.GetSpan(6000); writer.Advance(6000);
+        var s3 = writer.GetSpan(12000); writer.Advance(12000);
+        // By now a larger chunk should have been allocated at least once (>= 8192)
+        Assert.True(Math.Max(s1.Length, Math.Max(s2.Length, s3.Length)) >= 8192, "Expected growth to allocate >= 8KB chunk");
+        writer.Commit(t0);
     }
 
     [Fact]

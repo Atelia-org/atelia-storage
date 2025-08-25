@@ -194,8 +194,8 @@ public class PagedReservableWriterP2Tests {
         var r = writer.ReserveSpan(8, out int t, "head-block");
         r.Fill(0x11);
 
-        // 写入 > PageSize 的数据保证产生多个 chunk
-        int total = PagedReservableWriter.PageSize * 3 + 500; // 3.5 pages
+        // 写入足够大的数据保证产生多个 chunk（基于默认最小 chunk 4096 推测）
+        int total = 4096 * 3 + 500; // ~3.5 minimal chunks
         int written = 0;
         while (written < total) {
             int size = Math.Min(4096, total - written);
