@@ -81,7 +81,7 @@ public class PagedReservableWriterTests
         writer.Advance(5);
 
         // 预留4字节空间用于长度字段
-        var reservedSpan = writer.ReserveSpan(4, out int token);
+        var reservedSpan = writer.ReserveSpan(4, out int token, "len-field");
 
         var span2 = writer.GetSpan(5);
         "World"u8.CopyTo(span2);
@@ -113,8 +113,8 @@ public class PagedReservableWriterTests
         using var writer = new PagedReservableWriter(innerWriter);
 
         // Act - 创建多个预留空间
-        var span1 = writer.ReserveSpan(2, out int token1);
-        var span2 = writer.ReserveSpan(2, out int token2);
+        var span1 = writer.ReserveSpan(2, out int token1, "r1");
+        var span2 = writer.ReserveSpan(2, out int token2, "r2");
 
         // 写入一些普通数据
         var normalSpan = writer.GetSpan(4);
@@ -200,7 +200,7 @@ public class PagedReservableWriterTests
         writer.Advance(5);
 
         // 建立 reservation 进入缓冲模式
-        var reserved = writer.ReserveSpan(4, out int token);
+        var reserved = writer.ReserveSpan(4, out int token, "block-A");
         Assert.False(writer.IsPassthroughMode);
 
         var tailSpan = writer.GetSpan(5);
@@ -241,7 +241,7 @@ public class PagedReservableWriterTests
             Assert.True(writer.IsPassthroughMode);
 
             // 进入缓冲
-            var res = writer.ReserveSpan(2, out int token);
+            var res = writer.ReserveSpan(2, out int token, $"cycle-{cycle}");
             Assert.False(writer.IsPassthroughMode);
             res[0] = (byte)cycle; res[1] = (byte)(cycle + 1);
             writer.Commit(token);

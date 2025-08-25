@@ -124,11 +124,15 @@ public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
         public readonly Chunk Chunk;
         public readonly int Offset;
         public readonly int Length;
+        public readonly long LogicalOffset; // 预留区域在整体逻辑流中的起始偏移
+        public readonly string? Tag; // 调试注解，可为空
 
-        public Reservation(Chunk chunk, int offset, int length) {
+        public Reservation(Chunk chunk, int offset, int length, long logicalOffset, string? tag) {
             Chunk = chunk;
             Offset = offset;
             Length = length;
+            LogicalOffset = logicalOffset;
+            Tag = tag;
         }
     }
 
@@ -345,7 +349,7 @@ public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
     #endregion
 
     #region IReservableBufferWriter
-    public Span<byte> ReserveSpan(int count, out int reservationToken) {
+    public Span<byte> ReserveSpan(int count, out int reservationToken, string? tag = null) {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         if (count <= 0)
@@ -354,9 +358,10 @@ public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
         // 确保有足够空间的Chunk
         Chunk chunk = EnsureSpace(count);
         int offset = chunk.DataEnd;
+        long logicalOffset = _totalLogicalLength; // 预留区域起始逻辑偏移（当前总长度）
 
         // 创建Reservation
-        Reservation reservation = new Reservation(chunk, offset, count);
+        Reservation reservation = new Reservation(chunk, offset, count, logicalOffset, tag);
         reservationToken = AllocReservationToken();
 
         // 添加到数据结构
@@ -427,6 +432,31 @@ public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
     /// 该属性仅用于诊断与可读性，不额外保证线程安全。
     /// </summary>
     public bool IsPassthroughMode => GetActiveChunksCount() == 0 && _reservationOrder.Count == 0;
+
+    /// <summary>
+    /// 已写入或预留（逻辑上被占用）的总字节数（普通写入 + 所有 reservation 长度）。
+    /// </summary>
+    public long TotalLogicalLength => _totalLogicalLength;
+
+    /// <summary>
+    /// 从头开始已经 flush / 提交的连续前缀长度（已写入 innerWriter）。
+    /// </summary>
+    public long EmittedLength => _completedLogicalLength;
+
+    /// <summary>
+    /// 尚未 flush 的（阻塞或等待回填的）字节数。
+    /// </summary>
+    public long BufferedUnemittedLength => _totalLogicalLength - _completedLogicalLength;
+
+    /// <summary>
+    /// 当前未提交的 reservation 数量。
+    /// </summary>
+    public int OutstandingReservationCount => _reservationOrder.Count;
+
+    /// <summary>
+    /// 最早阻塞 flush 的 reservation 的 token（若无则为 null）。
+    /// </summary>
+    public int? FirstBlockingReservationToken => _reservationOrder.First is { } n ? _tokenToNode.First(kv => kv.Value == n).Key : (int?)null;
 
     /// <summary>
     /// 释放资源，归还所有ArrayPool租用的内存
