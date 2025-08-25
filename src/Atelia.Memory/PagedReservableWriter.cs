@@ -27,7 +27,7 @@ namespace Atelia.Memory;
 /// 线程安全：默认假设单线程使用（与PipeWriter类似）；不支持多线程并发写入。
 /// 内存对齐：交由上层逻辑控制
 /// </summary>
-public class PagedReservableWriter : IReservableBufferWriter {
+public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
     #region Chunked Buffer
     public const int PageSize = 4096; // 4K
 
@@ -35,28 +35,30 @@ public class PagedReservableWriter : IReservableBufferWriter {
     private int _maxChunkPages = 256; // 默认最大256页，即1MB
 
     private class Chunk {
-        public byte[] Buffer;
-        public int Written; // 已写入字节数
+        public byte[] Buffer = null!; // 在CreateChunk中初始化
+        public int DataEnd; // 已写入字节数
         public int DataBegin; // 已写入_innerWriter的字节数
-        public int FreeSpace => Buffer.Length - Written;
-        public int PendingData => Written - DataBegin; // 待写入_innerWriter的数据
+        public int FreeSpace => Buffer.Length - DataEnd;
+        public int PendingData => DataEnd - DataBegin; // 待写入_innerWriter的数据
         public bool IsRented; // 是否从ArrayPool租用，用于正确归还
-        public bool IsFullyFlushed => DataBegin == Written; // 是否完全flush，可以回收
+        public bool IsFullyFlushed => DataBegin == DataEnd; // 是否完全flush，可以回收
 
-        public Span<byte> GetAvailableSpan() => Buffer.AsSpan(Written);
-        public Span<byte> GetAvailableSpan(int maxLength) => Buffer.AsSpan(Written, Math.Min(maxLength, FreeSpace));
+        public Span<byte> GetAvailableSpan() => Buffer.AsSpan(DataEnd);
+        public Span<byte> GetAvailableSpan(int maxLength) => Buffer.AsSpan(DataEnd, Math.Min(maxLength, FreeSpace));
     }
 
     // ArrayPool：可允许外部注入以便测试；默认 Shared。
     private readonly ArrayPool<byte> _pool;
     private readonly List<Chunk> _chunks = new();
+    private int _chunksHeadIndex = 0; // 优化：避免List.RemoveAt(0)的O(n)开销
 
     // 当前写入状态
     private long _totalLogicalLength; // 包括普通写入 + 预留区域长度
     private long _completedLogicalLength; // 从头开始连续已完成的长度
 
     private Chunk CreateChunk(int sizeHint) {
-        // 计算需要的页数，至少1页，最多_maxChunkPages页
+        // 确保新Chunk能满足sizeHint的要求
+        // 计算需要的页数，至少满足sizeHint，最少1页，最多_maxChunkPages页
         int requiredBytes = Math.Max(sizeHint, PageSize);
         int pages = Math.Max(_minChunkPages, (requiredBytes + PageSize - 1) / PageSize);
         pages = Math.Min(pages, _maxChunkPages);
@@ -64,9 +66,14 @@ public class PagedReservableWriter : IReservableBufferWriter {
         int chunkSize = pages * PageSize;
         byte[] buffer = _pool.Rent(chunkSize);
 
-        var chunk = new Chunk {
+        // 验证租用的buffer确实能满足sizeHint
+        if (buffer.Length < sizeHint) {
+            throw new InvalidOperationException($"ArrayPool returned buffer of size {buffer.Length}, but {sizeHint} was required");
+        }
+
+        Chunk chunk = new Chunk {
             Buffer = buffer,
-            Written = 0,
+            DataEnd = 0,
             IsRented = true
         };
 
@@ -74,20 +81,40 @@ public class PagedReservableWriter : IReservableBufferWriter {
         return chunk;
     }
 
-    private Chunk EnsureSpace(int sizeHint) {
-        Chunk ret;
-        if (_chunks.Count == 0 || _chunks[^1].FreeSpace < sizeHint) {
-            ret = CreateChunk(sizeHint);
-        } else {
-            ret = _chunks[^1];
+    /// <summary>
+    /// 获取有效的Chunks数量（排除已回收的）
+    /// </summary>
+    private int GetActiveChunksCount() => _chunks.Count - _chunksHeadIndex;
+
+    /// <summary>
+    /// 获取最后一个有效的Chunk，如果没有则返回null
+    /// </summary>
+    private Chunk? GetLastActiveChunk() {
+        return GetActiveChunksCount() > 0 ? _chunks[^1] : null;
+    }
+
+    /// <summary>
+    /// 获取有效的Chunks枚举器
+    /// </summary>
+    private IEnumerable<Chunk> GetActiveChunks() {
+        for (int i = _chunksHeadIndex; i < _chunks.Count; i++) {
+            yield return _chunks[i];
         }
-        return ret;
+    }
+
+    private Chunk EnsureSpace(int sizeHint) {
+        Chunk? lastChunk = GetLastActiveChunk();
+        if (lastChunk == null || lastChunk.FreeSpace < sizeHint) {
+            return CreateChunk(sizeHint);
+        } else {
+            return lastChunk;
+        }
     }
     #endregion
 
     private readonly IBufferWriter<byte> _innerWriter;
 
-    public PagedReservableWriter(IBufferWriter<byte> innerWriter, ArrayPool<byte> pool = null) {
+    public PagedReservableWriter(IBufferWriter<byte> innerWriter, ArrayPool<byte>? pool = null) {
         _innerWriter = innerWriter ?? throw new ArgumentNullException(nameof(innerWriter));
         _pool = pool ?? ArrayPool<byte>.Shared;
     }
@@ -133,9 +160,9 @@ public class PagedReservableWriter : IReservableBufferWriter {
     /// 检查并flush连续完成的数据到_innerWriter
     /// </summary>
     private void CheckAndFlushCompletedData() {
-        var firstReservation = _reservationOrder.First?.Value;
+        Reservation? firstReservation = _reservationOrder.First?.Value;
 
-        foreach (var chunk in _chunks) {
+        foreach (Chunk chunk in GetActiveChunks()) {
             int flushableLength;
 
             if (firstReservation?.Chunk == chunk) {
@@ -151,7 +178,7 @@ public class PagedReservableWriter : IReservableBufferWriter {
                 break;
             } else {
                 // 这个Chunk没有未Commit的Reservation，全部可flush
-                flushableLength = chunk.Written - chunk.DataBegin;
+                flushableLength = chunk.DataEnd - chunk.DataBegin;
 
                 if (flushableLength > 0) {
                     FlushChunkData(chunk, flushableLength);
@@ -178,90 +205,146 @@ public class PagedReservableWriter : IReservableBufferWriter {
 
     /// <summary>
     /// 尝试回收完全flush的Chunk
+    /// 优化：使用headIndex避免List.RemoveAt(0)的O(n)开销
     /// </summary>
     private void TryRecycleCompletedChunks() {
         // 从头开始检查，回收完全flush的Chunk
-        while (_chunks.Count > 0 && _chunks[0].IsFullyFlushed) {
-            var chunk = _chunks[0];
+        while (_chunksHeadIndex < _chunks.Count && _chunks[_chunksHeadIndex].IsFullyFlushed) {
+            Chunk chunk = _chunks[_chunksHeadIndex];
             if (chunk.IsRented) {
                 _pool.Return(chunk.Buffer);
             }
-            _chunks.RemoveAt(0);
+            _chunks[_chunksHeadIndex] = null!; // 清空引用，帮助GC
+            _chunksHeadIndex++;
         }
+
+        // 当积累了太多空位时，压缩列表
+        if (_chunksHeadIndex > _chunks.Count / 2 && _chunksHeadIndex > 10) {
+            CompactChunksList();
+        }
+    }
+
+    /// <summary>
+    /// 压缩Chunks列表，移除已回收的空位
+    /// </summary>
+    private void CompactChunksList() {
+        if (_chunksHeadIndex == 0) return;
+
+        // 将有效的Chunk移到列表前面
+        int writeIndex = 0;
+        for (int readIndex = _chunksHeadIndex; readIndex < _chunks.Count; readIndex++) {
+            _chunks[writeIndex++] = _chunks[readIndex];
+        }
+
+        // 移除尾部的无效项
+        _chunks.RemoveRange(writeIndex, _chunks.Count - writeIndex);
+        _chunksHeadIndex = 0;
     }
     #endregion
 
     #region IBufferWriter<byte>
-    private Span<byte> _lastSpan; // 记录最后一次GetSpan返回的Span，用于Advance验证
+    // 用于Advance验证的状态，避免使用Span<byte>字段
+    private int _lastSpanLength; // 记录最后一次GetSpan返回的Span长度
+    private bool _hasLastSpan; // 是否有有效的lastSpan状态
 
     public void Advance(int count) {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         if (count < 0)
             throw new ArgumentOutOfRangeException(nameof(count), "Count cannot be negative");
         if (count == 0)
             return;
 
         // 验证count不超过最后一次GetSpan的可用空间
-        if (count > _lastSpan.Length)
+        if (!_hasLastSpan || count > _lastSpanLength)
             throw new ArgumentOutOfRangeException(nameof(count), "Count exceeds available space");
 
         // 如果没有Reservation，直接写入_innerWriter
-        if (_chunks.Count == 0) {
+        if (GetActiveChunksCount() == 0) {
             _innerWriter.Advance(count);
             _totalLogicalLength += count;
             _completedLogicalLength += count;
         } else {
             // 有Reservation时，更新当前Chunk的Written
-            if (_chunks.Count > 0) {
-                _chunks[^1].Written += count;
+            Chunk? lastChunk = GetLastActiveChunk();
+            if (lastChunk != null) {
+                lastChunk.DataEnd += count;
                 _totalLogicalLength += count;
                 CheckAndFlushCompletedData();
             }
         }
 
-        _lastSpan = default; // 清空，防止重复Advance
+        _hasLastSpan = false; // 清空状态，防止重复Advance
     }
 
     public Memory<byte> GetMemory(int sizeHint = 0) {
-        return GetSpan(sizeHint).AsMemory();
-    }
-
-    public Span<byte> GetSpan(int sizeHint = 0) {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         sizeHint = Math.Max(sizeHint, 1);
 
         // 如果没有Reservation，直接使用_innerWriter
-        if (_chunks.Count == 0) {
-            var span = _innerWriter.GetSpan(sizeHint);
-            _lastSpan = span;
+        if (GetActiveChunksCount() == 0) {
+            Memory<byte> memory = _innerWriter.GetMemory(sizeHint);
+            _lastSpanLength = memory.Length;
+            _hasLastSpan = true;
+            return memory;
+        }
+
+        // 有Reservation时，使用内部Chunk
+        Chunk chunk = EnsureSpace(sizeHint);
+        Memory<byte> availableMemory = chunk.Buffer.AsMemory(chunk.DataEnd, Math.Min(sizeHint, chunk.FreeSpace));
+        _lastSpanLength = availableMemory.Length;
+        _hasLastSpan = true;
+        return availableMemory;
+    }
+
+    public Span<byte> GetSpan(int sizeHint = 0) {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        sizeHint = Math.Max(sizeHint, 1);
+
+        // 如果没有Reservation，直接使用_innerWriter
+        if (GetActiveChunksCount() == 0) {
+            Span<byte> span = _innerWriter.GetSpan(sizeHint);
+            _lastSpanLength = span.Length;
+            _hasLastSpan = true;
             return span;
         }
 
         // 有Reservation时，使用内部Chunk
-        var chunk = EnsureSpace(sizeHint);
-        var availableSpan = chunk.GetAvailableSpan(sizeHint);
-        _lastSpan = availableSpan;
+        Chunk chunk = EnsureSpace(sizeHint);
+        Span<byte> availableSpan = chunk.GetAvailableSpan();
+
+        // 确保返回的Span至少满足sizeHint的要求
+        if (availableSpan.Length < sizeHint) {
+            throw new InvalidOperationException($"Unable to provide span of size {sizeHint}, only {availableSpan.Length} available");
+        }
+
+        _lastSpanLength = availableSpan.Length;
+        _hasLastSpan = true;
         return availableSpan;
     }
     #endregion
 
     #region IReservableBufferWriter
     public Span<byte> ReserveSpan(int count, out int reservationToken) {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         if (count <= 0)
             throw new ArgumentOutOfRangeException(nameof(count), "Count must be positive");
 
         // 确保有足够空间的Chunk
-        var chunk = EnsureSpace(count);
-        int offset = chunk.Written;
+        Chunk chunk = EnsureSpace(count);
+        int offset = chunk.DataEnd;
 
         // 创建Reservation
-        var reservation = new Reservation(chunk, offset, count);
+        Reservation reservation = new Reservation(chunk, offset, count);
         reservationToken = AllocReservationToken();
 
         // 添加到数据结构
-        var node = _reservationOrder.AddLast(reservation);
+        LinkedListNode<Reservation> node = _reservationOrder.AddLast(reservation);
         _tokenToNode[reservationToken] = node;
 
         // 更新Chunk状态
-        chunk.Written += count;
+        chunk.DataEnd += count;
         _totalLogicalLength += count;
 
         // 返回预留的Span
@@ -273,7 +356,9 @@ public class PagedReservableWriter : IReservableBufferWriter {
     /// </summary>
     /// <param name="reservationToken"></param>
     public void Commit(int reservationToken) {
-        if (!_tokenToNode.TryGetValue(reservationToken, out var node))
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (!_tokenToNode.TryGetValue(reservationToken, out LinkedListNode<Reservation>? node))
             throw new InvalidOperationException("Invalid or already committed reservation token");
 
         // 直接删除Reservation
@@ -285,6 +370,46 @@ public class PagedReservableWriter : IReservableBufferWriter {
 
         // 尝试回收完全flush的Chunk
         TryRecycleCompletedChunks();
+    }
+    #endregion
+
+    #region IDisposable and Reset
+    private bool _disposed = false;
+
+    /// <summary>
+    /// 重置Writer状态，归还所有Chunk到ArrayPool，清空所有Reservation
+    /// </summary>
+    public void Reset() {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        // 归还所有Chunk
+        foreach (Chunk chunk in _chunks) {
+            if (chunk != null && chunk.IsRented) {
+                _pool.Return(chunk.Buffer);
+            }
+        }
+
+        // 清空所有状态
+        _chunks.Clear();
+        _chunksHeadIndex = 0;
+        _tokenToNode.Clear();
+        _reservationOrder.Clear();
+        _totalLogicalLength = 0;
+        _completedLogicalLength = 0;
+        _hasLastSpan = false;
+        _lastSpanLength = 0;
+        _reservationSerial = 0;
+    }
+
+    /// <summary>
+    /// 释放资源，归还所有ArrayPool租用的内存
+    /// </summary>
+    public void Dispose() {
+        if (!_disposed) {
+            Reset();
+            _disposed = true;
+            GC.SuppressFinalize(this);
+        }
     }
     #endregion
 }
