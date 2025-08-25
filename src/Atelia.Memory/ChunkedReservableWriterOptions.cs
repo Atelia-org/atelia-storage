@@ -3,9 +3,9 @@ using System.Buffers;
 namespace Atelia.Memory;
 
 /// <summary>
-/// Configuration options for <see cref="PagedReservableWriter"/> (chunk-size based).
+/// Configuration options for <see cref="ChunkedReservableWriter"/> (chunk-size based).
 /// </summary>
-public sealed class PagedReservableWriterOptions {
+public sealed class ChunkedReservableWriterOptions {
     // ---------------- New (preferred) properties ----------------
     /// <summary>
     /// 最小 Chunk 字节数。必须 >= 1024。默认：4096。
@@ -27,7 +27,7 @@ public sealed class PagedReservableWriterOptions {
     /// </summary>
     public ArrayPool<byte>? Pool { get; set; } = null;
 
-    internal PagedReservableWriterOptions Clone() => new() {
+    internal ChunkedReservableWriterOptions Clone() => new() {
         MinChunkSize = MinChunkSize,
         MaxChunkSize = MaxChunkSize,
         EnforceStrictAdvance = EnforceStrictAdvance,

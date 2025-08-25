@@ -1,4 +1,4 @@
-﻿using System.Buffers;
+using System.Buffers;
 
 namespace Atelia.Memory;
 
@@ -12,13 +12,13 @@ namespace Atelia.Memory;
 /// Core Goals:
 /// 1. Provides IBufferWriter<byte> semantics (GetSpan/GetMemory + Advance).
 /// 2. Allows explicit reservation of a buffer area for future writes via ReserveSpan() and Commit().
-/// 3. Uses a pool of page-aligned memory chunks (rented from ArrayPool<byte>) to minimize GC pressure.
+/// 3. Uses a pool of memory chunks (rented from ArrayPool<byte>) to minimize GC pressure.
 /// 4. Enables efficient flushing of the contiguous, committed data prefix to an underlying writer.
 /// 5. Ensures that any returned Span or Memory<byte> does not cross internal chunk boundaries.
 ///
 /// Thread Safety: This class is not thread-safe and is intended for use by a single writer thread, similar to PipeWriter.
 /// </remarks>
-public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
+public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     #region Chunked Buffer
     // New sizing fields (byte-based)
     private readonly int _minChunkSize;
@@ -132,12 +132,12 @@ public class PagedReservableWriter : IReservableBufferWriter, IDisposable {
 
     private readonly IBufferWriter<byte> _innerWriter;
 
-    public PagedReservableWriter(IBufferWriter<byte> innerWriter, ArrayPool<byte>? pool = null)
-        : this(innerWriter, new PagedReservableWriterOptions { Pool = pool }) { }
+    public ChunkedReservableWriter(IBufferWriter<byte> innerWriter, ArrayPool<byte>? pool = null)
+        : this(innerWriter, new ChunkedReservableWriterOptions { Pool = pool }) { }
 
-    public PagedReservableWriter(IBufferWriter<byte> innerWriter, PagedReservableWriterOptions? options) {
+    public ChunkedReservableWriter(IBufferWriter<byte> innerWriter, ChunkedReservableWriterOptions? options) {
         _innerWriter = innerWriter ?? throw new ArgumentNullException(nameof(innerWriter));
-        options ??= new PagedReservableWriterOptions();
+        options ??= new ChunkedReservableWriterOptions();
         var opt = options.Clone();
         _pool = opt.Pool ?? ArrayPool<byte>.Shared;
         int minSize = opt.MinChunkSize;

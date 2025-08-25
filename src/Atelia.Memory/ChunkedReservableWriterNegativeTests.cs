@@ -6,7 +6,7 @@ using Xunit;
 namespace Atelia.Memory.Tests;
 
 /// <summary>
-/// 针对 PagedReservableWriter 的健壮性 / 负面路径 / 关键语义补充测试
+/// 针对 ChunkedReservableWriter 的健壮性 / 负面路径 / 关键语义补充测试
 /// 覆盖分析中选定的首批高优先级(P0)用例：
 /// 1. Commit_InvalidToken_Throws
 /// 2. Commit_DoubleCommit_Throws
@@ -16,7 +16,7 @@ namespace Atelia.Memory.Tests;
 /// 6. Reset_InvalidatesOldReservationTokens
 /// （保持范围克制：不引入复杂随机 / 属性测试，专注最易遗漏的语义）
 /// </summary>
-public class PagedReservableWriterNegativeTests {
+public class ChunkedReservableWriterNegativeTests {
     /// <summary>
     /// 轻量 inner writer：追加写入并可读取已写数据
     /// </summary>
@@ -39,7 +39,7 @@ public class PagedReservableWriterNegativeTests {
     [Fact]
     public void Commit_InvalidToken_Throws() {
         var inner = new CollectingWriter();
-        using var writer = new PagedReservableWriter(inner);
+        using var writer = new ChunkedReservableWriter(inner);
         // 直接使用一个极不可能被分配的 token（实现递增 + 混洗，不会跳到 int.MaxValue）
         Assert.Throws<InvalidOperationException>(() => writer.Commit(int.MaxValue));
     }
@@ -47,7 +47,7 @@ public class PagedReservableWriterNegativeTests {
     [Fact]
     public void Commit_DoubleCommit_Throws() {
         var inner = new CollectingWriter();
-        using var writer = new PagedReservableWriter(inner);
+        using var writer = new ChunkedReservableWriter(inner);
         writer.ReserveSpan(4, out int token, "r1").Clear();
         writer.Commit(token); // 首次成功
         Assert.Throws<InvalidOperationException>(() => writer.Commit(token)); // 再次应失败
@@ -56,7 +56,7 @@ public class PagedReservableWriterNegativeTests {
     [Fact]
     public void Commit_NonBlockingReservation_DoesNotFlushEarlierData() {
         var inner = new CollectingWriter();
-        using var writer = new PagedReservableWriter(inner);
+        using var writer = new ChunkedReservableWriter(inner);
 
         // 写入前置数据（应立即直通）
         var pre = writer.GetSpan(2);
@@ -88,7 +88,7 @@ public class PagedReservableWriterNegativeTests {
     [Fact]
     public void ReserveSpan_NonPositiveCount_Throws() {
         var inner = new CollectingWriter();
-        using var writer = new PagedReservableWriter(inner);
+        using var writer = new ChunkedReservableWriter(inner);
         Assert.Throws<ArgumentOutOfRangeException>(() => writer.ReserveSpan(0, out _, null));
         Assert.Throws<ArgumentOutOfRangeException>(() => writer.ReserveSpan(-1, out _, null));
     }
@@ -96,7 +96,7 @@ public class PagedReservableWriterNegativeTests {
     [Fact]
     public void Advance_ExceedLastSpan_Throws() {
         var inner = new CollectingWriter();
-        using var writer = new PagedReservableWriter(inner);
+        using var writer = new ChunkedReservableWriter(inner);
         var span = writer.GetSpan(8);
         span[0] = 42; // 写入部分
         Assert.Throws<ArgumentOutOfRangeException>(() => writer.Advance(9)); // 超过可用长度
@@ -105,7 +105,7 @@ public class PagedReservableWriterNegativeTests {
     [Fact]
     public void Reset_InvalidatesOldReservationTokens() {
         var inner = new CollectingWriter();
-        using var writer = new PagedReservableWriter(inner);
+        using var writer = new ChunkedReservableWriter(inner);
         writer.ReserveSpan(4, out int token, "will-reset");
         writer.Reset();
         // Reset 清空 token 结构，再次提交旧 token 应视为无效

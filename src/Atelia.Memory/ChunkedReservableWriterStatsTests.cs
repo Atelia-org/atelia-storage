@@ -4,7 +4,7 @@ using Xunit;
 
 namespace Atelia.Memory.Tests;
 
-public class PagedReservableWriterStatsTests
+public class ChunkedReservableWriterStatsTests
 {
     private class DummyWriter : IBufferWriter<byte>
     {
@@ -24,7 +24,7 @@ public class PagedReservableWriterStatsTests
     public void LengthPropertiesReflectWritesAndReservations()
     {
         var inner = new DummyWriter();
-        using var writer = new PagedReservableWriter(inner);
+        using var writer = new ChunkedReservableWriter(inner);
         Assert.Equal(0, writer.WrittenLength);
         Assert.Equal(0, writer.FlushedLength);
         Assert.Equal(0, writer.PendingLength);
@@ -63,7 +63,7 @@ public class PagedReservableWriterStatsTests
     public void FirstBlockingReservationTokenChangesWithCommitOrder()
     {
         var inner = new DummyWriter();
-        using var writer = new PagedReservableWriter(inner);
+        using var writer = new ChunkedReservableWriter(inner);
 
         // Two reservations
         writer.ReserveSpan(2, out int t1, "A");

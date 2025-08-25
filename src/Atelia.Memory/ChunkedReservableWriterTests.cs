@@ -8,9 +8,9 @@ using Xunit;
 namespace Atelia.Memory.Tests;
 
 /// <summary>
-/// PagedReservableWriter的基础功能测试
+/// ChunkedReservableWriter的基础功能测试
 /// </summary>
-public class PagedReservableWriterTests
+public class ChunkedReservableWriterTests
 {
     /// <summary>
     /// 简单的内存缓冲区实现，用于测试
@@ -56,7 +56,7 @@ public class PagedReservableWriterTests
     {
         // Arrange
         var innerWriter = new TestBufferWriter();
-        using var writer = new PagedReservableWriter(innerWriter);
+        using var writer = new ChunkedReservableWriter(innerWriter);
 
         // Act
         var span = writer.GetSpan(10);
@@ -73,7 +73,7 @@ public class PagedReservableWriterTests
     {
         // Arrange
         var innerWriter = new TestBufferWriter();
-        using var writer = new PagedReservableWriter(innerWriter);
+        using var writer = new ChunkedReservableWriter(innerWriter);
 
         // Act - 写入一些数据，然后预留空间，再写入更多数据
         var span1 = writer.GetSpan(5);
@@ -110,7 +110,7 @@ public class PagedReservableWriterTests
     {
         // Arrange
         var innerWriter = new TestBufferWriter();
-        using var writer = new PagedReservableWriter(innerWriter);
+        using var writer = new ChunkedReservableWriter(innerWriter);
 
         // Act - 创建多个预留空间
         var span1 = writer.ReserveSpan(2, out int token1, "r1");
@@ -144,7 +144,7 @@ public class PagedReservableWriterTests
     {
         // Arrange
         var innerWriter = new TestBufferWriter();
-        var writer = new PagedReservableWriter(innerWriter);
+        var writer = new ChunkedReservableWriter(innerWriter);
 
         // Act - 写入一些数据然后释放
         var span = writer.GetSpan(100);
@@ -160,7 +160,7 @@ public class PagedReservableWriterTests
     {
         // Arrange
         var innerWriter1 = new TestBufferWriter();
-        using var writer = new PagedReservableWriter(innerWriter1);
+        using var writer = new ChunkedReservableWriter(innerWriter1);
 
         // Act - 写入数据，重置，再用新的innerWriter写入
         writer.GetSpan(100);
@@ -174,7 +174,7 @@ public class PagedReservableWriterTests
 
         // 重置后，使用新的innerWriter测试
         var innerWriter2 = new TestBufferWriter();
-        using var writer2 = new PagedReservableWriter(innerWriter2);
+        using var writer2 = new ChunkedReservableWriter(innerWriter2);
 
         var span = writer2.GetSpan(10);
         "Reset"u8.CopyTo(span);
@@ -189,7 +189,7 @@ public class PagedReservableWriterTests
     public void PassthroughRestorationTest()
     {
         var innerWriter = new TestBufferWriter();
-        using var writer = new PagedReservableWriter(innerWriter);
+        using var writer = new ChunkedReservableWriter(innerWriter);
 
         // 初始应为直通模式
         Assert.True(writer.IsPassthrough);
@@ -234,7 +234,7 @@ public class PagedReservableWriterTests
     public void PassthroughBufferedCycleMultipleTimes()
     {
         var innerWriter = new TestBufferWriter();
-        using var writer = new PagedReservableWriter(innerWriter);
+        using var writer = new ChunkedReservableWriter(innerWriter);
 
         for (int cycle = 0; cycle < 3; cycle++)
         {

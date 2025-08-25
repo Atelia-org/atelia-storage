@@ -15,7 +15,7 @@ namespace Atelia.Memory.Tests;
 /// - LargeSizeHint_GetSpan_ReturnsSpanLengthAtLeastSizeHint
 /// - Bijection_TokenUniqueness_NoImmediateCollision
 /// </summary>
-public class PagedReservableWriterP1Tests {
+public class ChunkedReservableWriterP1Tests {
     private sealed class CollectingWriter : IBufferWriter<byte> {
         private MemoryStream _ms = new();
         private int _pos;
@@ -32,7 +32,7 @@ public class PagedReservableWriterP1Tests {
     [Fact]
     public void NonBlockingCommitThenBlockingCommit_FlushesAll() {
         var inner = new CollectingWriter();
-        using var writer = new PagedReservableWriter(inner);
+        using var writer = new ChunkedReservableWriter(inner);
 
         // 两个 reservation + 后续普通数据
         var r1 = writer.ReserveSpan(2, out int t1, "r1"); r1[0]=1; r1[1]=2;
@@ -54,7 +54,7 @@ public class PagedReservableWriterP1Tests {
     [Fact]
     public void Reset_ClearsLengthsAndPassthrough() {
         var inner = new CollectingWriter();
-        using var writer = new PagedReservableWriter(inner);
+        using var writer = new ChunkedReservableWriter(inner);
         // 构造一些状态：写入 + reservation
         var s = writer.GetSpan(5); s[0]=10; s[1]=11; s[2]=12; s[3]=13; s[4]=14; writer.Advance(5);
         writer.ReserveSpan(4, out int token, "block");
@@ -75,7 +75,7 @@ public class PagedReservableWriterP1Tests {
     [Fact]
     public void Dispose_Idempotent() {
         var inner = new CollectingWriter();
-        var writer = new PagedReservableWriter(inner);
+        var writer = new ChunkedReservableWriter(inner);
         var s = writer.GetSpan(3); s[0]=1; s[1]=2; s[2]=3; writer.Advance(3);
         writer.Dispose();
         // 第二次不应抛异常
@@ -86,7 +86,7 @@ public class PagedReservableWriterP1Tests {
     [Fact]
     public void LargeSizeHint_GetSpan_ReturnsSpanLengthAtLeastSizeHint() {
         var inner = new CollectingWriter();
-        using var writer = new PagedReservableWriter(inner);
+        using var writer = new ChunkedReservableWriter(inner);
         int large = 500_000; // < 256 * 4096 (1,048,576) 保证可分配
         var span = writer.GetSpan(large);
         Assert.True(span.Length >= large);
@@ -102,7 +102,7 @@ public class PagedReservableWriterP1Tests {
     [Fact]
     public void Bijection_TokenUniqueness_NoImmediateCollision() {
         var inner = new CollectingWriter();
-        using var writer = new PagedReservableWriter(inner);
+        using var writer = new ChunkedReservableWriter(inner);
         const int n = 2000; // 快速，但足以证明线性迭代无碰撞
         var set = new HashSet<int>();
         var tokens = new int[n];

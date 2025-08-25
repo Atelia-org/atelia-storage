@@ -6,9 +6,9 @@ using Xunit;
 namespace Atelia.Memory.Tests;
 
 /// <summary>
-/// Tests covering PagedReservableWriterOptions based configurable behaviors.
+/// Tests covering ChunkedReservableWriterOptions based configurable behaviors.
 /// </summary>
-public class PagedReservableWriterOptionsTests {
+public class ChunkedReservableWriterOptionsTests {
     private sealed class CollectingWriter : IBufferWriter<byte> {
         private MemoryStream _ms = new();
         private int _pos;
@@ -21,8 +21,8 @@ public class PagedReservableWriterOptionsTests {
     [Fact]
     public void StrictMode_ReserveSpanAfterUnadvancedGetSpan_Throws() {
         var inner = new CollectingWriter();
-        var options = new PagedReservableWriterOptions { EnforceStrictAdvance = true };
-        using var writer = new PagedReservableWriter(inner, options);
+        var options = new ChunkedReservableWriterOptions { EnforceStrictAdvance = true };
+        using var writer = new ChunkedReservableWriter(inner, options);
         var span = writer.GetSpan(8);
         span[0] = 1; // write something but forget Advance
         Assert.Throws<InvalidOperationException>(() => writer.ReserveSpan(4, out _, null));
@@ -31,8 +31,8 @@ public class PagedReservableWriterOptionsTests {
     [Fact]
     public void StrictMode_ReserveSpanAfterAdvanceZero_Allows() {
         var inner = new CollectingWriter();
-        var options = new PagedReservableWriterOptions { EnforceStrictAdvance = true };
-        using var writer = new PagedReservableWriter(inner, options);
+        var options = new ChunkedReservableWriterOptions { EnforceStrictAdvance = true };
+        using var writer = new ChunkedReservableWriter(inner, options);
         writer.GetSpan(16); // acquire
         writer.Advance(0);  // explicitly cancel
     var r = writer.ReserveSpan(4, out int token, null);
@@ -44,8 +44,8 @@ public class PagedReservableWriterOptionsTests {
     [Fact]
     public void CustomMinMaxChunkSize_BufferedModeSpanRespectsConfiguredMin() {
         var inner = new CollectingWriter();
-        var options = new PagedReservableWriterOptions { MinChunkSize = 8192, MaxChunkSize = 8192 };
-        using var writer = new PagedReservableWriter(inner, options);
+        var options = new ChunkedReservableWriterOptions { MinChunkSize = 8192, MaxChunkSize = 8192 };
+        using var writer = new ChunkedReservableWriter(inner, options);
         writer.ReserveSpan(1, out int tk, null)[0] = 0xFF; // force buffered mode
         var span = writer.GetSpan(16);
         Assert.True(span.Length >= 16);
@@ -58,8 +58,8 @@ public class PagedReservableWriterOptionsTests {
     [Fact]
     public void OversizeRequest_ExceedsMaxChunkSize_RentsOversizeBuffer() {
         var inner = new CollectingWriter();
-        var options = new PagedReservableWriterOptions { MinChunkSize = 4096, MaxChunkSize = 8192 };
-        using var writer = new PagedReservableWriter(inner, options);
+        var options = new ChunkedReservableWriterOptions { MinChunkSize = 4096, MaxChunkSize = 8192 };
+        using var writer = new ChunkedReservableWriter(inner, options);
         int big = 50_000; // >> max chunk size triggers direct rent
         var span = writer.GetSpan(big);
         Assert.True(span.Length >= big, $"Oversize span length {span.Length} < requested {big}");
@@ -69,8 +69,8 @@ public class PagedReservableWriterOptionsTests {
     public void AdaptiveGrowth_IncreasesChunkTarget() {
         var inner = new CollectingWriter();
         // Allow growth: min 4KB, max 32KB
-        var options = new PagedReservableWriterOptions { MinChunkSize = 4096, MaxChunkSize = 32 * 1024 };
-        using var writer = new PagedReservableWriter(inner, options);
+        var options = new ChunkedReservableWriterOptions { MinChunkSize = 4096, MaxChunkSize = 32 * 1024 };
+        using var writer = new ChunkedReservableWriter(inner, options);
         // Force buffered mode and allocate sequentially increasing sizeHints to encourage growth
         writer.ReserveSpan(10, out int t0, null); // allocate first chunk
         // Request several spans so internal heuristic grows target size. We cannot read internal target; infer indirectly.
@@ -85,8 +85,8 @@ public class PagedReservableWriterOptionsTests {
     [Fact]
     public void StrictMode_DoesNotBreakFlushSemantics() {
         var inner = new CollectingWriter();
-        var options = new PagedReservableWriterOptions { EnforceStrictAdvance = true };
-        using var writer = new PagedReservableWriter(inner, options);
+        var options = new ChunkedReservableWriterOptions { EnforceStrictAdvance = true };
+        using var writer = new ChunkedReservableWriter(inner, options);
         var head = writer.GetSpan(3); head[0]=0x01; head[1]=0x02; head[2]=0x03; writer.Advance(3); // passthrough
         writer.ReserveSpan(2, out int t, "r").Fill(0x10);
         var tail = writer.GetSpan(2); tail[0]=0xEE; tail[1]=0xEF; writer.Advance(2);

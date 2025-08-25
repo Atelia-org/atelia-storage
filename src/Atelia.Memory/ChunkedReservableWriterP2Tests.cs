@@ -9,7 +9,7 @@ namespace Atelia.Memory.Tests;
 /// <summary>
 /// P2 批次：轻量随机不变量 + 边界与多 chunk 行为测试（保持执行时间短）。
 /// </summary>
-public class PagedReservableWriterP2Tests {
+public class ChunkedReservableWriterP2Tests {
     private sealed class CollectingWriter : IBufferWriter<byte> {
         private MemoryStream _ms = new();
         private int _pos;
@@ -20,7 +20,7 @@ public class PagedReservableWriterP2Tests {
         public int Length => _pos;
     }
 
-    private static void AssertInvariants(PagedReservableWriter w) {
+    private static void AssertInvariants(ChunkedReservableWriter w) {
         Assert.True(w.FlushedLength <= w.WrittenLength, "Flushed <= Written 违反");
         Assert.Equal(w.WrittenLength - w.FlushedLength, w.PendingLength);
         Assert.True(w.PendingLength >= 0, "PendingLength < 0");
@@ -34,7 +34,7 @@ public class PagedReservableWriterP2Tests {
     [Fact]
     public void MiniRandomSequenceInvariantTest() {
         var inner = new CollectingWriter();
-        using var writer = new PagedReservableWriter(inner);
+        using var writer = new ChunkedReservableWriter(inner);
         var rnd = new Random(12345);
         var activeTokens = new List<int>();
 
@@ -85,8 +85,8 @@ public class PagedReservableWriterP2Tests {
     [Fact]
     public void MiniRandomSequenceInvariantTest_StrictMode() {
         var inner = new CollectingWriter();
-        var options = new PagedReservableWriterOptions { EnforceStrictAdvance = true };
-        using var writer = new PagedReservableWriter(inner, options);
+        var options = new ChunkedReservableWriterOptions { EnforceStrictAdvance = true };
+        using var writer = new ChunkedReservableWriter(inner, options);
         var rnd = new Random(54321);
         var activeTokens = new List<int>();
 
@@ -158,7 +158,7 @@ public class PagedReservableWriterP2Tests {
     [Fact]
     public void LargeReservationBlocksThenFlushesAllAtCommit() {
         var inner = new CollectingWriter();
-        using var writer = new PagedReservableWriter(inner);
+        using var writer = new ChunkedReservableWriter(inner);
 
         // 大 reservation 放在最前面，阻塞后续所有写入 flush
         int large = 800_000; // < 1MB 上限
@@ -188,7 +188,7 @@ public class PagedReservableWriterP2Tests {
     [Fact]
     public void MultipleChunksPartialFlushThenRecycleToPassthrough() {
         var inner = new CollectingWriter();
-        using var writer = new PagedReservableWriter(inner);
+        using var writer = new ChunkedReservableWriter(inner);
 
         // 在第一个 chunk 前部放一个小 reservation 阻塞 flush
         var r = writer.ReserveSpan(8, out int t, "head-block");
