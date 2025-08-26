@@ -34,7 +34,7 @@ namespace Atelia.Memory;
     DebuggerDisplay("Count={Count}, Head={_head}")
 ]
 public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
-    private readonly List<T> _items = new();
+    private readonly List<T> _items; // 延迟在构造函数中根据初始容量初始化
     private int _head; // 指向第一个“活动”元素（逻辑队头）
     private int _version; // 枚举 fail-fast 版本号
 
@@ -43,7 +43,17 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
 
     private static readonly bool NeedsClear = RuntimeHelpers.IsReferenceOrContainsReferences<T>();
 
-    public SlidingQueue() { }
+    /// <summary>使用默认容量初始化一个空的滑动队列。</summary>
+    public SlidingQueue() {
+        _items = new List<T>();
+    }
+    /// <summary>使用指定初始容量初始化队列（不会预填充元素）。</summary>
+    /// <param name="capacity">初始容量，必须 >= 0。</param>
+    /// <exception cref="ArgumentOutOfRangeException">capacity 小于 0。</exception>
+    public SlidingQueue(int capacity) {
+        if (capacity < 0) throw new ArgumentOutOfRangeException(nameof(capacity));
+        _items = capacity == 0 ? new List<T>() : new List<T>(capacity);
+    }
 
     /// <summary>当前活动元素数量。</summary>
     public int Count => _items.Count - _head;
