@@ -33,7 +33,7 @@ namespace Atelia.Memory;
 ///  - 固定压缩策略：_head >= 64 且 _head >= Count(物理) / 2 时触发一次 O(存活数) 搬移；摊销 O(1)
 /// </remarks>
 [
-    DebuggerDisplay("Count = {Count}, Head = {_head}")
+    DebuggerDisplay("Count={Count}, Consumed={ConsumedCount}, Head={_head}")
 ]
 public sealed class SlidingQueue<T> : IReadOnlyList<T> {
     private readonly List<T> _items = new();
@@ -49,6 +49,8 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> {
 
     /// <summary>当前活动元素数量。</summary>
     public int Count => _items.Count - _head;
+
+    // public int ConsumedCount => _head; 会引入“历史总消费数 vs 当前skip ahead”的误解，所以注释掉了
 
     /// <summary>索引访问（0 对应逻辑队头）。</summary>
     public T this[int index] {
@@ -127,9 +129,16 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> {
     /// <summary>
     /// 压缩前缀空洞（可选调用）。满足阈值时把活动元素搬移到前部以释放已消费段的引用。
     /// </summary>
-    public void Compact() {
-        if (_head < CompactHeadMin) return;
-        if (_head * 2 < _items.Count) return; // 未达到一半条件
+    /// <param name="force">
+    /// 强制压缩（无视阈值条件）。适用于需要立即释放引用的内存压力场景。
+    /// </param>
+    public void Compact(bool force=false) {
+        if (force) {
+            if (_head == 0) return; // 无空洞
+        } else {
+            if (_head < CompactHeadMin) return;
+            if (_head * 2 < _items.Count) return; // 未达到一半条件
+        }
         int write = 0;
         for (int read = _head; read < _items.Count; read++) {
             _items[write++] = _items[read];
@@ -147,6 +156,14 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> {
         _head = 0;
         _version++;
         Debug.Assert(_head <= _items.Count);
+    }
+
+    /// <summary>
+    /// 清空所有元素，并可选择在需要时收缩底层列表容量（防止长期占用大数组）。
+    /// </summary>
+    public void Clear(bool trimExcess) {
+        Clear();
+        if (trimExcess) _items.TrimExcess();
     }
     /// <summary>枚举器（struct，fail-fast）。</summary>
     public struct Enumerator : IEnumerator<T> {
@@ -203,7 +220,8 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> {
         if (array == null) throw new ArgumentNullException(nameof(array));
         if (arrayIndex < 0) throw new ArgumentOutOfRangeException(nameof(arrayIndex));
         if (array.Length - arrayIndex < Count) throw new ArgumentException("Destination array is too small.");
-        for (int i = 0, src = _head; i < Count; i++, src++) array[arrayIndex + i] = _items[src]!;
+        if (Count == 0) return;
+        _items.CopyTo(_head, array, arrayIndex, Count);
     }
 
     /// <summary>是否包含任意元素。</summary>
@@ -212,6 +230,30 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> {
     private void AutoCompactMaybe() {
         // 直接调用 Compact，内部含条件；保持调用点简洁
         Compact();
+    }
+
+    /// <summary>
+    /// 按顺序批量入队；一次性提升版本号以保持枚举 fail-fast 语义。
+    /// </summary>
+    public void EnqueueRange(IEnumerable<T> source) {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+        int added = 0;
+        // 不在这里暴露或依赖 Capacity 外部语义，仅顺序添加。
+        foreach (var item in source) {
+            if (!typeof(T).IsValueType && item is null) throw new ArgumentNullException(nameof(item));
+            _items.Add(item);
+            added++;
+        }
+        if (added > 0) { _version++; Debug.Assert(_head <= _items.Count); }
+    }
+
+    /// <summary>
+    /// 尝试按逻辑索引窥视（0=队头）；失败返回 false，不抛异常。
+    /// </summary>
+    public bool TryPeek(int index, [MaybeNullWhen(false)] out T value) {
+        if ((uint)index >= (uint)Count) { value = default!; return false; }
+        value = _items[_head + index];
+        return true;
     }
 
     [DebuggerBrowsable(DebuggerBrowsableState.Never)]
