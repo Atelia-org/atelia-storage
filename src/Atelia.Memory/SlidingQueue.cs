@@ -130,11 +130,19 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
     /// </summary>
     public int DequeueWhile(System.Func<T, bool> predicate, bool autoCompactCheck = true) {
         if (predicate == null) throw new ArgumentNullException(nameof(predicate));
+        return DequeueWhile(new FuncValuePredicate<T>(predicate), autoCompactCheck);
+    }
+    /// <summary>
+    /// 高性能值类型谓词版本；避免委托调用开销。TPredicate 应为小 struct，实现 <see cref="IValuePredicate{T}"/>。
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public int DequeueWhile<TPredicate>(TPredicate predicate, bool autoCompactCheck = true) where TPredicate : struct, IValuePredicate<T> {
+        // 直接内联循环，避免任何委托适配层 —— 真正零委托/零间接调用路径。
         int oldHead = _head;
         int count = 0;
         while (_head < _items.Count) {
             var cur = _items[_head];
-            if (!predicate(cur)) break;
+            if (!predicate.Invoke(cur)) break;
             if (NeedsClear) _items[_head] = default!;
             _head++;
             count++;

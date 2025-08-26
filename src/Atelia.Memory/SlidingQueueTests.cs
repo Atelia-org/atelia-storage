@@ -42,4 +42,20 @@ public class SlidingQueueTests {
         Assert.True(q.Capacity <= capBefore); // 容量收缩（可能策略性 >= Count）
         Assert.Equal(new[]{30,31,32,33,34,35,36,37,38,39}, q.ToArray());
     }
+
+    private readonly struct LessThanPredicate : IValuePredicate<int> {
+        private readonly int _limit;
+        public LessThanPredicate(int limit) => _limit = limit;
+        public bool Invoke(int value) => value < _limit;
+    }
+
+    [Fact]
+    public void DequeueWhile_ValuePredicate_Works() {
+        var q = new SlidingQueue<int>();
+        for (int i=0;i<10;i++) q.Enqueue(i);
+        int removed = q.DequeueWhile(new LessThanPredicate(4));
+        Assert.Equal(4, removed);
+        Assert.Equal(6, q.Count);
+        Assert.Equal(4, q.PeekFirst());
+    }
 }
