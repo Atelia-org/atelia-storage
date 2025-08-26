@@ -10,7 +10,7 @@ namespace Atelia.Memory;
 /// <summary>
 /// SlidingQueue<T> 是一个“基于 List + 头索引”的单向滑动窗口容器：
 ///  - 只支持尾部 Append (Add)
-///  - 只支持从头部按顺序批量回收 (RecycleWhile)
+///  - 只支持从头部按顺序批量回收 (DequeueWhile)
 ///  - 通过 _head 索引惰性丢弃前缀，必要时 Compact 将活动元素搬移到前部
 /// 设计背景：源自早期在 <see cref="ChunkedReservableWriter"/> 中的专用实现（纪念：刘德智 SlidingBuffer 思路），
 /// 抽取为独立类型以复用并降低主类复杂度。
@@ -20,9 +20,7 @@ namespace Atelia.Memory;
 /// </summary>
 /// <remarks>
 /// 可作为一个“可压缩队头批量消费队列”使用；未来若需要替换为 <c>Queue<T></c> 或 deque，只需保持公开成员契约。
-/// 重要不变量：0 <= _head <= _items.Count；活动区为 [_head, _items.Count)。
-/// </remarks>
-/// <remarks>
+/// 重要不变量：0 <= _head <= _items.Count；活动区为 [_head, _items.Count)。///
 /// 2025 增强：
 ///  - 实现 IReadOnlyList<T> 提供索引访问
 ///  - struct 枚举器 + fail-fast 版本号，减少 foreach 分配并在修改时抛错
@@ -33,7 +31,7 @@ namespace Atelia.Memory;
 ///  - 固定压缩策略：_head >= 64 且 _head >= Count(物理) / 2 时触发一次 O(存活数) 搬移；摊销 O(1)
 /// </remarks>
 [
-    DebuggerDisplay("Count={Count}, Consumed={ConsumedCount}, Head={_head}")
+    DebuggerDisplay("Count={Count}, Head={_head}")
 ]
 public sealed class SlidingQueue<T> : IReadOnlyList<T> {
     private readonly List<T> _items = new();
@@ -49,6 +47,10 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> {
 
     /// <summary>当前活动元素数量。</summary>
     public int Count => _items.Count - _head;
+    /// <summary>当前底层容量（物理数组长度）。</summary>
+    public int Capacity => _items.Capacity;
+    /// <summary>当前是否达到压缩阈值（若调用 <see cref="Compact"/> 将会执行实际搬移）。</summary>
+    public bool ShouldCompact => _head >= CompactHeadMin && _head * 2 >= _items.Count;
 
     // public int ConsumedCount => _head; 会引入“历史总消费数 vs 当前skip ahead”的误解，所以注释掉了
 
@@ -111,6 +113,8 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> {
         if (autoCompactCheck) AutoCompactMaybe();
         return true;
     }
+    /// <summary>尝试出队（默认执行自动压缩检查）。</summary>
+    public bool TryDequeue([MaybeNullWhen(false)] out T value) => TryDequeue(out value, true);
 
     /// <summary>
     /// 按谓词连续出队（头到尾），返回实际出队个数。与 BCL 不同：这是一个附加便捷方法，用于批量消费。
@@ -283,6 +287,19 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> {
         if ((uint)index >= (uint)Count) { value = default!; return false; }
         value = _items[_head + index];
         return true;
+    }
+
+    /// <summary>确保底层容量至少为指定值（若已足够则不动作），返回最终容量。</summary>
+    public int EnsureCapacity(int capacity) {
+        if (capacity < 0) throw new ArgumentOutOfRangeException(nameof(capacity));
+        if (capacity > _items.Capacity) {
+            // 若存在已消费前缀且可通过压缩满足要求（理论上 capacity 可能 <= 存活数 + 未用空间），先尝试压缩。
+            if (_head > 0 && Count >= 0 && capacity <= Count + (_items.Capacity - _items.Count)) {
+                Compact(force: true);
+            }
+            if (capacity > _items.Capacity) _items.Capacity = capacity;
+        }
+        return _items.Capacity;
     }
 
     [DebuggerBrowsable(DebuggerBrowsableState.Never)]
