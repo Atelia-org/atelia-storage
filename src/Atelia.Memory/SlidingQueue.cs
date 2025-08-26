@@ -254,6 +254,13 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
     /// </summary>
     public void EnqueueRange(IEnumerable<T> source) {
         if (source == null) throw new ArgumentNullException(nameof(source));
+        // 自引用防护：若传入当前实例（或其内部底层列表枚举），需要先快照。否则 List 在枚举期间修改会抛异常。
+        if (ReferenceEquals(source, this) || ReferenceEquals(source, _items)) {
+            var snapshot = ToArray(); // snapshot 只含活动区元素
+            if (snapshot.Length == 0) return;
+            EnqueueRange(snapshot); // 递归调用走 ICollection<T> 分支（数组实现 ICollection）
+            return;
+        }
         // 优先处理具备 Count 的集合：一次性预估容量，减少多次扩容/多次 JIT 搬移。
         if (source is ICollection<T> coll) {
             int incoming = coll.Count;
@@ -267,7 +274,14 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
                 // 直接设置足够容量，避免 List 的指数扩容行为导致多余内存峰值。
                 _items.Capacity = needed;
             }
-            foreach (var item in coll) _items.Add(item);
+            // 利用 AddRange 降低循环边界检查成本（coll 可能是 List / 数组）
+            if (coll is List<T> list) {
+                _items.AddRange(list); // 内部会优化 List -> List 复制
+            } else if (coll is T[] arr) {
+                _items.AddRange(arr);
+            } else {
+                foreach (var item in coll) _items.Add(item);
+            }
             _version++;
             Debug.Assert(_head <= _items.Count);
             return;
@@ -297,16 +311,41 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
     /// <summary>确保底层容量至少为指定值（若已足够则不动作），返回最终容量。</summary>
     public int EnsureCapacity(int capacity) {
         if (capacity < 0) throw new ArgumentOutOfRangeException(nameof(capacity));
-        if (capacity > _items.Capacity) {
-            // 若存在已消费前缀且可通过压缩满足要求（理论上 capacity 可能 <= 存活数 + 未用空间），先尝试压缩。
-            if (_head > 0 && Count >= 0 && capacity <= Count + (_items.Capacity - _items.Count)) {
-                Compact(force: true);
+        int currentCap = _items.Capacity;
+        if (capacity <= currentCap) {
+            // 需求容量不超过现有容量：若前缀有空洞且为了后续追加需要更多连续尾部空间（腾挪后可获得），进行一次强制压缩。
+            // 逻辑需要的“未来总元素上限”= capacity；当前存活数 = Count。
+            // 当前尾部可直接追加空间 = currentCap - _items.Count。
+            int freeTail = currentCap - _items.Count; // 物理数组尾部剩余插入位数
+            int logicalNeededFree = capacity - Count; // 达到给定 capacity 还需要多少新增元素
+            if (logicalNeededFree > freeTail && _head > 0) {
+                // 通过一次搬移把存活区移到 0，尾部可用空间变成 currentCap - Count
+                Compact(force: true); // 会 bump version（视为结构移动）
             }
-            if (capacity > _items.Capacity) _items.Capacity = capacity;
+            return _items.Capacity; // 可能未变或仍然相同
         }
+
+        // 需求容量大于当前容量：可先（可选）压缩以降低内存峰值，再一次性设置目标容量，避免指数扩容产生中间大数组。
+        if (_head > 0) {
+            Compact(force: true); // 先回收前缀再扩容，避免活动区被复制两次
+        }
+        if (capacity > _items.Capacity) _items.Capacity = capacity; // 直接设定足够容量
         return _items.Capacity;
     }
 
     [DebuggerBrowsable(DebuggerBrowsableState.Never)]
     internal int DebugHeadIndex => _head; // 调试辅助
+
+    /// <summary>
+    /// 收缩底层存储容量至当前存活元素所需的最小大小（类似 List.TrimExcess）。
+    /// 为保证收缩前后逻辑索引连续性，会先强制压缩前缀空洞（若存在）。
+    /// </summary>
+    public void TrimExcess() {
+        if (_head > 0) {
+            // Compact(force:true) 会 bump version。仅在确实有空洞时进行。
+            Compact(force: true);
+        }
+        // List.TrimExcess 只影响容量，不改变元素顺序与计数；不再 bump 版本号。
+        _items.TrimExcess();
+    }
 }
