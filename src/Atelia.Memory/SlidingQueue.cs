@@ -107,9 +107,9 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
         _head++;
         _version++;
         Debug.Assert(_head <= _items.Count);
-        if (autoCompactCheck) AutoCompactMaybe();
-        return v!;
-    }
+        if (autoCompactCheck) Compact(); // Compact 内部自行判断阈值，无副作用
+            return v!;
+        }
 
     /// <summary>尝试出队一个元素。</summary>
     public bool TryDequeue([MaybeNullWhen(false)] out T value, bool autoCompactCheck = true) {
@@ -119,9 +119,9 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
         _head++;
         _version++;
         Debug.Assert(_head <= _items.Count);
-        if (autoCompactCheck) AutoCompactMaybe();
-        return true;
-    }
+        if (autoCompactCheck) Compact();
+            return true;
+        }
     /// <summary>尝试出队（默认执行自动压缩检查）。</summary>
     public bool TryDequeue([MaybeNullWhen(false)] out T value) => TryDequeue(out value, true);
 
@@ -147,7 +147,11 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
             _head++;
             count++;
         }
-        if (_head != oldHead) { _version++; Debug.Assert(_head <= _items.Count); if (autoCompactCheck) AutoCompactMaybe(); }
+        if (_head != oldHead) {
+            _version++;
+            Debug.Assert(_head <= _items.Count);
+            if (autoCompactCheck) Compact();
+        }
         return count;
     }
 
@@ -159,10 +163,10 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
     /// </param>
     public void Compact(bool force=false) {
         if (force) {
-            if (_head == 0) return; // 无空洞
-        } else {
-            if (_head < CompactHeadMin) return;
-            if (_head * 2 < _items.Count) return; // 未达到一半条件
+            if (_head == 0)
+                return; // 无空洞
+        } else if (!ShouldCompact) { // 复用 ShouldCompact 条件
+            return;
         }
         int write = 0;
         for (int read = _head; read < _items.Count; read++) {
@@ -252,11 +256,6 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
     /// <summary>是否包含任意元素。</summary>
     public bool Any() => !IsEmpty;
 
-    private void AutoCompactMaybe() {
-        // 直接调用 Compact，内部含条件；保持调用点简洁
-        Compact();
-    }
-
     /// <summary>
     /// 按顺序批量入队；一次性提升版本号以保持枚举 fail-fast 语义。
     /// </summary>
@@ -274,8 +273,10 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
             int incoming = coll.Count;
             if (incoming == 0) return; // 无新增
             // 若需要的总元素数会超过当前容量，先尝试 JIT 搬移以复用已消费前缀。
+            bool compacted = false;
             if (_head > 0 && _items.Count + incoming > _items.Capacity) {
-                Compact(force: true);
+                Compact(force: true); // 可能已 bump 版本
+                compacted = true;
             }
             int needed = _items.Count + incoming;
             if (needed > _items.Capacity) {
@@ -290,21 +291,26 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
             } else {
                 foreach (var item in coll) _items.Add(item);
             }
-            _version++;
+            if (!compacted) _version++; // 若已压缩则版本已递增，这里避免二次 bump
             Debug.Assert(_head <= _items.Count);
             return;
         }
 
         int added = 0;
+        bool compactedInLoop = false;
         // 对未知大小的可枚举：逐项添加；在需要真正增长前尝试 JIT 搬移。
         foreach (var item in source) {
             if (_head > 0 && _items.Count == _items.Capacity) {
-                Compact(force: true);
+                Compact(force: true); // 版本 +1
+                compactedInLoop = true;
             }
             _items.Add(item);
             added++;
         }
-        if (added > 0) { _version++; Debug.Assert(_head <= _items.Count); }
+        if (added > 0 && !compactedInLoop) {
+            _version++;
+            Debug.Assert(_head <= _items.Count);
+        }
     }
 
     /// <summary>
@@ -316,7 +322,12 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
         return true;
     }
 
-    /// <summary>确保底层容量至少为指定值（若已足够则不动作），返回最终容量。</summary>
+    /// <summary>
+    /// 确保底层容量至少为指定值（若已足够则不扩容），返回最终容量。
+    /// 注意：为复用前缀空洞，本方法可能触发一次 <see cref="Compact(bool)"/>（force 模式），
+    /// 这会导致结构移动并使现有枚举器失效（版本号递增），即便逻辑元素集未发生增删。
+    /// 调用者若依赖“仅容量调整不失效枚举”语义，请在调用前完成枚举或避免使用本方法。
+    /// </summary>
     public int EnsureCapacity(int capacity) {
         if (capacity < 0) throw new ArgumentOutOfRangeException(nameof(capacity));
         int currentCap = _items.Capacity;
