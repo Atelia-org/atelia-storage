@@ -33,7 +33,7 @@ namespace Atelia.Memory;
 [
     DebuggerDisplay("Count={Count}, Head={_head}")
 ]
-public sealed class SlidingQueue<T> : IReadOnlyList<T> {
+public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
     private readonly List<T> _items = new();
     private int _head; // 指向第一个“活动”元素（逻辑队头）
     private int _version; // 枚举 fail-fast 版本号
@@ -65,9 +65,8 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> {
     /// <summary>是否无活动元素。</summary>
     public bool IsEmpty => Count == 0;
 
-    /// <summary>追加一个元素到尾部。禁止引用类型 null 进入以保持非空语义。</summary>
+    /// <summary>追加一个元素到尾部（泛型约束 notnull 确保不接受 null）。</summary>
     public void Enqueue(T item) {
-        if (!typeof(T).IsValueType && item is null) throw new ArgumentNullException(nameof(item));
         // JIT Compaction: 若底层 List 已满且存在已消费前缀，则先搬移存活元素到下标 0 复用空间，避免真正扩容。
         if (_head > 0 && _items.Count == _items.Capacity) {
             Compact(force: true); // force: 无视阈值，直接压缩；O(存活数)，劣于扩容的 O(总数) 只有活动区更小才触发
@@ -258,10 +257,7 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> {
                 // 直接设置足够容量，避免 List 的指数扩容行为导致多余内存峰值。
                 _items.Capacity = needed;
             }
-            foreach (var item in coll) {
-                if (!typeof(T).IsValueType && item is null) throw new ArgumentNullException(nameof(item));
-                _items.Add(item);
-            }
+            foreach (var item in coll) _items.Add(item);
             _version++;
             Debug.Assert(_head <= _items.Count);
             return;
@@ -270,7 +266,6 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> {
         int added = 0;
         // 对未知大小的可枚举：逐项添加；在需要真正增长前尝试 JIT 搬移。
         foreach (var item in source) {
-            if (!typeof(T).IsValueType && item is null) throw new ArgumentNullException(nameof(item));
             if (_head > 0 && _items.Count == _items.Capacity) {
                 Compact(force: true);
             }
