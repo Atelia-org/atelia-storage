@@ -1,4 +1,3 @@
-# EditorConfig is awesome: https://EditorConfig.org
 # top-most EditorConfig file
 root = true
 
@@ -109,7 +108,8 @@ dotnet_style_prefer_inferred_anonymous_type_member_names = true:suggestion
 
 # C# expression-level preferences
 csharp_prefer_simple_using_statement = true:suggestion
-csharp_prefer_braces = true:silent
+csharp_prefer_braces = true:warning
+dotnet_diagnostic.IDE0011.severity = warning
 csharp_style_deconstructed_variable_declaration = true:suggestion
 csharp_prefer_simple_default_expression = true:suggestion
 csharp_style_pattern_local_over_anonymous_function = true:suggestion
