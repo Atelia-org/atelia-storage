@@ -1,4 +1,6 @@
 using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
+using System.Numerics;
 
 namespace Atelia.Memory;
 
@@ -41,8 +43,7 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     }
 
     private readonly ArrayPool<byte> _pool;
-    private readonly List<Chunk> _chunks = new();
-    private int _chunksHeadIndex = 0; // 优化：避免List.RemoveAt(0)的O(n)开销
+    private readonly SlidingQueue<Chunk> _chunks = new(); // 抽离原 headIndex + Compact 模式
 
     // 当前写入状态
     private long _writtenLength;
@@ -60,8 +61,10 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         } else {
             int candidate = Math.Max(required, _currentChunkTargetSize);
             // Round up to power of two (bounded) for better ArrayPool bucket locality.
-            candidate = RoundUpToPowerOfTwo(candidate);
-            if (candidate > _maxChunkSize) candidate = _maxChunkSize;
+            // candidate = RoundUpToPowerOfTwo(candidate);
+            candidate = (int)BitOperations.RoundUpToPowerOf2((uint)candidate); // 由前面若干Math.Max确保candidate为正数。
+            if (candidate > _maxChunkSize)
+                candidate = _maxChunkSize;
             size = candidate;
         }
 
@@ -71,7 +74,7 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         }
 
         var chunk = new Chunk { Buffer = buffer, DataEnd = 0, IsRented = true };
-        _chunks.Add(chunk);
+        _chunks.Enqueue(chunk);
 
         // Adaptive growth: if we allocated below max and prior target nearly fully used, grow.
         if (size <= _maxChunkSize && size < _maxChunkSize) {
@@ -85,47 +88,41 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         return chunk;
     }
 
-    private static int RoundUpToPowerOfTwo(int value) {
-        // Clamp negative / zero
-        if (value <= 2) return 2;
-        // From BitOperations.RoundUpToPowerOf2 (netstandard polyfill style)
-        value--;
-        value |= value >> 1;
-        value |= value >> 2;
-        value |= value >> 4;
-        value |= value >> 8;
-        value |= value >> 16;
-        value++;
-        return value;
-    }
+    // private static int RoundUpToPowerOfTwo(int value) {
+    //     // Clamp negative / zero
+    //     if (value <= 2) return 2;
+    //     // From BitOperations.RoundUpToPowerOf2 (netstandard polyfill style)
+    //     value--;
+    //     value |= value >> 1;
+    //     value |= value >> 2;
+    //     value |= value >> 4;
+    //     value |= value >> 8;
+    //     value |= value >> 16;
+    //     value++;
+    //     return value;
+    // }
 
     /// <summary>
     /// Gets the number of active chunks (excluding recycled ones).
     /// </summary>
-    private int GetActiveChunksCount() => _chunks.Count - _chunksHeadIndex;
+    private int GetActiveChunksCount() => _chunks.Count;
 
     /// <summary>
     /// Gets the last active chunk, or null if there are none.
     /// </summary>
-    private Chunk? GetLastActiveChunk() {
-        return GetActiveChunksCount() > 0 ? _chunks[^1] : null;
-    }
+    private bool TryGetLastActiveChunk([MaybeNullWhen(false)] out Chunk item) => _chunks.TryPeekLast(out item);
 
     /// <summary>
     /// Gets an enumerator for the active chunks.
     /// </summary>
-    private IEnumerable<Chunk> GetActiveChunks() {
-        for (int i = _chunksHeadIndex; i < _chunks.Count; i++) {
-            yield return _chunks[i];
-        }
-    }
+    private IEnumerable<Chunk> GetActiveChunks() => _chunks;
 
     private Chunk EnsureSpace(int sizeHint) {
-        Chunk? lastChunk = GetLastActiveChunk();
-        if (lastChunk == null || lastChunk.FreeSpace < sizeHint) {
-            return CreateChunk(sizeHint);
-        } else {
+        Chunk? lastChunk;
+        if (TryGetLastActiveChunk(out lastChunk) && lastChunk.FreeSpace >= sizeHint) {
             return lastChunk;
+        } else {
+            return CreateChunk(sizeHint);
         }
     }
     #endregion
@@ -241,49 +238,27 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     /// Uses a head index to avoid O(n) for List.RemoveAt(0).
     /// </summary>
     private void TryRecycleFlushedChunks() {
-        // Recycle fully flushed chunks from the beginning.
-        while (_chunksHeadIndex < _chunks.Count && _chunks[_chunksHeadIndex].IsFullyFlushed) {
-            Chunk chunk = _chunks[_chunksHeadIndex];
-            if (chunk.IsRented) {
-                _pool.Return(chunk.Buffer);
-            }
-            _chunks[_chunksHeadIndex] = null!; // Help GC by clearing the reference.
-            _chunksHeadIndex++;
+        // 手动逐个检查并出队，确保在出队前归还池内缓冲区
+        while (_chunks.TryPeekFirst(out var c) && c.IsFullyFlushed) {
+            if (c.IsRented) _pool.Return(c.Buffer);
+            _chunks.TryDequeue(out _); // 丢弃引用
         }
-
-        // Compact the list if too many empty slots have accumulated.
-        if (_chunksHeadIndex > _chunks.Count / 2 && _chunksHeadIndex > 10) {
-            CompactChunksList();
-        }
+        _chunks.Compact(); // 仍按阈值压缩
     }
 
     /// <summary>
     /// Compacts the chunks list by removing recycled empty slots at the beginning.
     /// </summary>
-    private void CompactChunksList() {
-        if (_chunksHeadIndex == 0) return;
-
-        // Move active chunks to the front of the list.
-        int writeIndex = 0;
-        for (int readIndex = _chunksHeadIndex; readIndex < _chunks.Count; readIndex++) {
-            _chunks[writeIndex++] = _chunks[readIndex];
-        }
-
-        // Remove the now-invalid items at the end.
-        _chunks.RemoveRange(writeIndex, _chunks.Count - writeIndex);
-        _chunksHeadIndex = 0;
-    }
+    private void CompactChunksList() => _chunks.Compact();
 
     /// <summary>
     /// If there are no pending reservations and all chunks have been recycled,
     /// explicitly clear the list to restore passthrough mode.
     /// </summary>
     private void TryRestorePassthroughIfIdle() {
-        if (_reservationOrder.Count == 0 && GetActiveChunksCount() == 0 && _chunks.Count > 0) {
-            // All chunks have been recycled (_chunksHeadIndex == _chunks.Count).
-            // Clear the internal list to release references and capacity.
+        if (_reservationOrder.Count == 0 && _chunks.IsEmpty) {
+            // Clear() 会释放底层 List 容量引用
             _chunks.Clear();
-            _chunksHeadIndex = 0;
         }
     }
     #endregion
@@ -316,8 +291,8 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
             _flushedLength += count;
         } else {
             // With active reservations, update the current chunk's written position.
-            Chunk? lastChunk = GetLastActiveChunk();
-            if (lastChunk != null) {
+            Chunk? lastChunk;
+            if (TryGetLastActiveChunk(out lastChunk)) {
                 lastChunk.DataEnd += count;
                 _writtenLength += count;
                 bool flushed = FlushCommittedData();
@@ -453,17 +428,12 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     /// </summary>
     public void Reset() {
         ObjectDisposedException.ThrowIf(_disposed, this);
-
-        // Return all rented chunks to the pool.
-        foreach (Chunk chunk in _chunks) {
-            if (chunk != null && chunk.IsRented) {
-                _pool.Return(chunk.Buffer);
-            }
+        // 归还所有租借的缓冲区
+        foreach (var c in _chunks) {
+            if (c.IsRented) _pool.Return(c.Buffer);
         }
-
-        // Clear all state.
         _chunks.Clear();
-        _chunksHeadIndex = 0;
+    // Clear all state.
         _tokenToNode.Clear();
         _reservationOrder.Clear();
         _writtenLength = 0;
