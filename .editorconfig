@@ -63,11 +63,20 @@ end_of_line = lf
 [*.cs]
 
 # Indentation preferences
+csharp_indent_block_contents = true         # 显式：缩进普通代码块内容（函数体/if/for 等）
+csharp_indent_braces = false                # 不对大括号本身再额外缩进（保持与左边界对齐）
 csharp_indent_case_contents = true
 # 有独立 { } 块时不再再额外加一层
-csharp_indent_case_contents_when_block = false
+csharp_indent_case_contents_when_block = true  # 临时开启以验证缩进应用；若不想多一层可改回 false
 csharp_indent_switch_labels = true
 csharp_indent_labels = flush_left
+# 初始化器缩进（缺失会导致对象/集合初始化器内元素顶格）
+csharp_indent_object_initializer = true
+csharp_indent_collection_initializer = true
+csharp_indent_array_initializer = true
+# 如需让 case 内出现额外 { } 时仍缩进一层，把 csharp_indent_case_contents_when_block 改为 true。
+# 之前未显式声明 csharp_indent_block_contents，且曾给格式键加过 :warning 导致解析失败被忽略，触发函数体 "不缩进" 现象。
+# 若需要一次性修正历史奇怪缩进，可临时把 csharp_preserve_single_line_blocks 设为 false 后执行 dotnet format，再改回。
 
 # New line preferences - K&R style (braces on same line)
 # NOTE: Formatting (whitespace/new_line/indent/spacing) 选项本身不支持 :warning/:error 等严重级别后缀；
@@ -107,10 +116,15 @@ csharp_space_between_method_call_empty_parameter_list_parentheses = false
 
 # Wrapping preferences
 csharp_preserve_single_line_statements = false
-csharp_preserve_single_line_blocks = true
+# 临时关闭以便 dotnet format 可以重新写入历史异常缩进；修复完成后可改回 true
+csharp_preserve_single_line_blocks = false
 
 # StyleCop: 禁止一行多语句（调试/断点友好）。需要 StyleCop.Analyzers 包。
 dotnet_diagnostic.SA1107.severity = warning
+dotnet_diagnostic.MT0001.severity = warning
+dotnet_diagnostic.MT0002.severity = warning
+dotnet_diagnostic.RS2007.severity = none   # 临时关闭发布跟踪格式警告（待后续打包前再修复）
+dotnet_diagnostic.RS2008.severity = none   # 临时关闭发布跟踪未启用/规则登记警告
 
 # ---------------------------------------------------------------------------
 # LLM 协作模式降噪策略 (Phase 1): 关闭当前无自动修复/与既定紧凑 K&R 风格冲突的规则
