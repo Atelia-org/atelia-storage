@@ -13,10 +13,25 @@ public class ChunkedReservableWriterP2Tests {
     private sealed class CollectingWriter : IBufferWriter<byte> {
         private MemoryStream _ms = new();
         private int _pos;
-        public void Advance(int count) { _pos += count; if (_pos > _ms.Length) _ms.SetLength(_pos); }
-        public Memory<byte> GetMemory(int sizeHint = 0) { int need = _pos + Math.Max(sizeHint,1); if (_ms.Length < need) _ms.SetLength(need); return _ms.GetBuffer().AsMemory(_pos, (int)_ms.Length - _pos); }
+        public void Advance(int count) {
+            _pos += count;
+            if (_pos > _ms.Length) {
+                _ms.SetLength(_pos);
+            }
+        }
+        public Memory<byte> GetMemory(int sizeHint = 0) {
+            int need = _pos + Math.Max(sizeHint, 1);
+            if (_ms.Length < need) {
+                _ms.SetLength(need);
+            }
+            return _ms.GetBuffer().AsMemory(_pos, (int)_ms.Length - _pos);
+        }
         public Span<byte> GetSpan(int sizeHint = 0) => GetMemory(sizeHint).Span;
-        public byte[] Data() { var a=new byte[_pos]; Array.Copy(_ms.GetBuffer(),0,a,0,_pos); return a; }
+        public byte[] Data() {
+            var a = new byte[_pos];
+            Array.Copy(_ms.GetBuffer(), 0, a, 0, _pos);
+            return a;
+        }
         public int Length => _pos;
     }
 
@@ -24,7 +39,10 @@ public class ChunkedReservableWriterP2Tests {
         Assert.True(w.FlushedLength <= w.WrittenLength, "Flushed <= Written 违反");
         Assert.Equal(w.WrittenLength - w.FlushedLength, w.PendingLength);
         Assert.True(w.PendingLength >= 0, "PendingLength < 0");
-        if (w.BlockingReservationToken.HasValue) Assert.True(w.PendingReservationCount > 0, "有阻塞 token 但计数为0");
+        if (w.BlockingReservationToken.HasValue) {
+            Assert.True(w.PendingReservationCount > 0, "有阻塞 token 但计数为0");
+        }
+
         if (w.IsPassthrough) {
             Assert.Equal(0, w.PendingReservationCount);
             Assert.Equal(0, w.PendingLength);
@@ -49,15 +67,20 @@ public class ChunkedReservableWriterP2Tests {
                     // 填充一段可辨识数据（不必全填）
                     span.Slice(0, adv).Fill((byte)(adv % 251));
                     writer.Advance(adv);
-                    break; }
+                    break;
+                }
                 case < 75: { // Reserve
                     int len = rnd.Next(1, 32);
                     var span = writer.ReserveSpan(len, out int token, tag: null);
                     // 填充部分（模拟用户覆盖）
                     int fill = rnd.Next(0, len + 1);
-                    if (fill > 0) span.Slice(0, fill).Fill((byte)(fill % 97));
+                    if (fill > 0) {
+                        span.Slice(0, fill).Fill((byte)(fill % 97));
+                    }
+
                     activeTokens.Add(token);
-                    break; }
+                    break;
+                }
                 case < 90: { // Commit 随机一个 token
                     if (activeTokens.Count > 0) {
                         int idx = rnd.Next(activeTokens.Count);
@@ -65,20 +88,26 @@ public class ChunkedReservableWriterP2Tests {
                         activeTokens.RemoveAt(idx);
                         writer.Commit(tk);
                     }
-                    break; }
+                    break;
+                }
                 case < 95: { // Reset
                     writer.Reset();
                     activeTokens.Clear();
-                    break; }
+                    break;
+                }
                 default: { // No-op / Advance(0) 验证
                     writer.Advance(0);
-                    break; }
+                    break;
+                }
             }
             AssertInvariants(writer);
         }
 
         // 最终确保全部可提交
-        foreach (var tk in activeTokens) writer.Commit(tk);
+        foreach (var tk in activeTokens) {
+            writer.Commit(tk);
+        }
+
         AssertInvariants(writer);
     }
 
@@ -108,22 +137,34 @@ public class ChunkedReservableWriterP2Tests {
                         int size = rnd.Next(1, 48);
                         var span = writer.GetSpan(size);
                         int adv = rnd.Next(0, Math.Min(size, span.Length));
-                        if (adv > 0) span.Slice(0, adv).Fill((byte)(adv % 251));
-                        if (adv > 0) { writer.Advance(adv); haveOutstanding = false; } else { // 留下未 Advance
+                        if (adv > 0) {
+                            span.Slice(0, adv).Fill((byte)(adv % 251));
+                        }
+
+                        if (adv > 0) {
+                            writer.Advance(adv);
+                            haveOutstanding = false;
+                        } else { // 留下未 Advance
                             haveOutstanding = true; // 故意制造潜在后续错误路径
                         }
-                        break; }
+                        break;
+                    }
                     case < 65: { // reservation
                         if (haveOutstanding) {
                             // 严格模式必须先 Advance(0)
-                            writer.Advance(0); haveOutstanding = false;
+                            writer.Advance(0);
+                            haveOutstanding = false;
                         }
                         int len = rnd.Next(1, 24);
                         var span = writer.ReserveSpan(len, out int tk, null);
                         int fill = rnd.Next(0, len + 1);
-                        if (fill > 0) span.Slice(0, fill).Fill((byte)(fill % 97));
+                        if (fill > 0) {
+                            span.Slice(0, fill).Fill((byte)(fill % 97));
+                        }
+
                         activeTokens.Add(tk);
-                        break; }
+                        break;
+                    }
                     case < 80: { // commit
                         if (activeTokens.Count > 0) {
                             int idx = rnd.Next(activeTokens.Count);
@@ -131,27 +172,44 @@ public class ChunkedReservableWriterP2Tests {
                             activeTokens.RemoveAt(idx);
                             writer.Commit(tk);
                         }
-                        break; }
+                        break;
+                    }
                     case < 90: { // reset
-                        if (haveOutstanding) { writer.Advance(0); haveOutstanding = false; }
+                        if (haveOutstanding) {
+                            writer.Advance(0);
+                            haveOutstanding = false;
+                        }
                         writer.Reset();
                         activeTokens.Clear();
-                        break; }
+                        break;
+                    }
                     default: { // 取消 pending span
-                        if (haveOutstanding) { writer.Advance(0); haveOutstanding = false; }
-                        else writer.Advance(0); // no-op
-                        break; }
+                        if (haveOutstanding) {
+                            writer.Advance(0);
+                            haveOutstanding = false;
+                        } else {
+                            writer.Advance(0); // no-op
+                        }
+
+                        break;
+                    }
                 }
             } catch (InvalidOperationException ex) {
                 // 允许严格模式下的合法异常（只在我们故意构造未 Advance 再 ReserveSpan 时出现，逻辑已防护，但保留兜底）
                 Assert.Contains("Previous buffer not advanced", ex.Message);
                 // 清理状态后继续
-                if (haveOutstanding) { writer.Advance(0); haveOutstanding = false; }
+                if (haveOutstanding) {
+                    writer.Advance(0);
+                    haveOutstanding = false;
+                }
             }
             AssertInvariants(writer);
         }
 
-        foreach (var tk in activeTokens) writer.Commit(tk);
+        foreach (var tk in activeTokens) {
+            writer.Commit(tk);
+        }
+
         AssertInvariants(writer);
     }
 
@@ -164,7 +222,7 @@ public class ChunkedReservableWriterP2Tests {
         int large = 800_000; // < 1MB 上限
         var res = writer.ReserveSpan(large, out int token, "big");
         // 只填充前 16 字节作为标记
-    res.Slice(0, Math.Min(16, large)).Fill(0xAB);
+        res.Slice(0, Math.Min(16, large)).Fill(0xAB);
 
         // 写入很多小块（这些应被阻塞）
         int smallWrites = 200;
@@ -214,7 +272,13 @@ public class ChunkedReservableWriterP2Tests {
         Assert.True(writer.IsPassthrough);
 
         // 再执行一次小写入，应直接直通不再缓存
-        var tail = writer.GetSpan(5); tail[0]=1; tail[1]=2; tail[2]=3; tail[3]=4; tail[4]=5; writer.Advance(5);
+        var tail = writer.GetSpan(5);
+        tail[0] = 1;
+        tail[1] = 2;
+        tail[2] = 3;
+        tail[3] = 4;
+        tail[4] = 5;
+        writer.Advance(5);
         Assert.Equal(writer.WrittenLength, writer.FlushedLength);
         Assert.True(writer.IsPassthrough);
     }

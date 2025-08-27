@@ -1,9 +1,7 @@
-using System;
 using System.Collections;
-using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 
 namespace Atelia.Memory;
 
@@ -23,16 +21,14 @@ namespace Atelia.Memory;
 /// 重要不变量：0 <= _head <= _items.Count；活动区为 [_head, _items.Count)。///
 /// 2025 增强：
 ///  - 实现 IReadOnlyList<T> 提供索引访问
-///  - struct 枚举器 + fail-fast 版本号，减少 foreach 分配并在修改时抛错
+///  - struct 枚舉器 + fail-fast 版本号，减少 foreach 分配并在修改时抛错
 ///  - 缓存 NeedsClear 避免重复调用 RuntimeHelpers
 ///  - 新增 PeekFirst/PeekLast 非 Try 版本
 ///  - 添加 ToArray / CopyTo / Indexer / Any
 ///  - Dequeue / TryDequeue 支持可选自动 Compact 检查参数（默认启用）
 ///  - 固定压缩策略：_head >= 64 且 _head >= Count(物理) / 2 时触发一次 O(存活数) 搬移；摊销 O(1)
 /// </remarks>
-[
-    DebuggerDisplay("Count={Count}, Head={_head}")
-]
+[DebuggerDisplay("Count={Count}, Head={_head}")]
 public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
     private readonly List<T> _items; // 延迟在构造函数中根据初始容量初始化
     private int _head; // 指向第一个“活动”元素（逻辑队头）
@@ -51,7 +47,9 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
     /// <param name="capacity">初始容量，必须 >= 0。</param>
     /// <exception cref="ArgumentOutOfRangeException">capacity 小于 0。</exception>
     public SlidingQueue(int capacity) {
-        if (capacity < 0) throw new ArgumentOutOfRangeException(nameof(capacity));
+        if (capacity < 0) {
+            throw new ArgumentOutOfRangeException(nameof(capacity));
+        }
         _items = capacity == 0 ? new List<T>() : new List<T>(capacity);
     }
 
@@ -67,7 +65,9 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
     /// <summary>索引访问（0 对应逻辑队头）。</summary>
     public T this[int index] {
         get {
-            if ((uint)index >= (uint)Count) throw new ArgumentOutOfRangeException(nameof(index));
+            if ((uint)index >= (uint)Count) {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
             return _items[_head + index]!;
         }
     }
@@ -88,40 +88,59 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
 
     /// <summary>尝试窥视队头元素；若为空返回 false。</summary>
     public bool TryPeekFirst([MaybeNullWhen(false)] out T value) {
-        if (IsEmpty) { value = default!; return false; }
+        if (IsEmpty) {
+            value = default!;
+            return false;
+        }
         value = _items[_head];
         return true;
     }
     /// <summary>尝试窥视队尾元素；若为空返回 false。</summary>
     public bool TryPeekLast([MaybeNullWhen(false)] out T value) {
-        if (IsEmpty) { value = default!; return false; }
+        if (IsEmpty) {
+            value = default!;
+            return false;
+        }
         value = _items[^1];
         return true;
     }
 
     /// <summary>出队一个元素，失败抛 <see cref="InvalidOperationException"/>。</summary>
     public T Dequeue(bool autoCompactCheck = true) {
-        if (IsEmpty) throw new InvalidOperationException("Queue is empty");
+        if (IsEmpty) {
+            throw new InvalidOperationException("Queue is empty");
+        }
         var v = _items[_head];
-        if (NeedsClear) _items[_head] = default!; // 协助 GC
+        if (NeedsClear) {
+            _items[_head] = default!; // 协助 GC
+        }
         _head++;
         _version++;
         Debug.Assert(_head <= _items.Count);
-        if (autoCompactCheck) Compact(); // Compact 内部自行判断阈值，无副作用
-            return v!;
+        if (autoCompactCheck) {
+            Compact(); // Compact 内部自行判断阈值，无副作用
         }
+        return v!;
+    }
 
     /// <summary>尝试出队一个元素。</summary>
     public bool TryDequeue([MaybeNullWhen(false)] out T value, bool autoCompactCheck = true) {
-        if (IsEmpty) { value = default!; return false; }
+        if (IsEmpty) {
+            value = default!;
+            return false;
+        }
         value = _items[_head];
-        if (NeedsClear) _items[_head] = default!;
+        if (NeedsClear) {
+            _items[_head] = default!;
+        }
         _head++;
         _version++;
         Debug.Assert(_head <= _items.Count);
-        if (autoCompactCheck) Compact();
-            return true;
+        if (autoCompactCheck) {
+            Compact();
         }
+        return true;
+    }
     /// <summary>尝试出队（默认执行自动压缩检查）。</summary>
     public bool TryDequeue([MaybeNullWhen(false)] out T value) => TryDequeue(out value, true);
 
@@ -129,7 +148,9 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
     /// 按谓词连续出队（头到尾），返回实际出队个数。与 BCL 不同：这是一个附加便捷方法，用于批量消费。
     /// </summary>
     public int DequeueWhile(System.Func<T, bool> predicate, bool autoCompactCheck = true) {
-        if (predicate == null) throw new ArgumentNullException(nameof(predicate));
+        if (predicate == null) {
+            throw new ArgumentNullException(nameof(predicate));
+        }
         return DequeueWhile(new FuncValuePredicate<T>(predicate), autoCompactCheck);
     }
     /// <summary>
@@ -142,29 +163,36 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
         int count = 0;
         while (_head < _items.Count) {
             var cur = _items[_head];
-            if (!predicate.Invoke(cur)) break;
-            if (NeedsClear) _items[_head] = default!;
+            if (!predicate.Invoke(cur)) {
+                break;
+            }
+            if (NeedsClear) {
+                _items[_head] = default!;
+            }
             _head++;
             count++;
         }
         if (_head != oldHead) {
             _version++;
             Debug.Assert(_head <= _items.Count);
-            if (autoCompactCheck) Compact();
+            if (autoCompactCheck) {
+                Compact();
+            }
         }
         return count;
     }
 
     /// <summary>
-    /// 压缩前缀空洞（可选调用）。满足阈值时把活动元素搬移到前部以释放已消费段的引用。
+    /// 压缩前缀空洞（可选调用）。满足阈值时把活动元素搬移到前部以释放已 consumed 段的引用。
     /// </summary>
     /// <param name="force">
     /// 强制压缩（无视阈值条件）。适用于需要立即释放引用的内存压力场景。
     /// </param>
-    public void Compact(bool force=false) {
+    public void Compact(bool force = false) {
         if (force) {
-            if (_head == 0)
+            if (_head == 0) {
                 return; // 无空洞
+            }
         } else if (!ShouldCompact) { // 复用 ShouldCompact 条件
             return;
         }
@@ -180,7 +208,10 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
 
     /// <summary>清空所有元素。</summary>
     public void Clear() {
-        if (_items.Count == 0 && _head == 0) return;
+        if (_items.Count == 0 && _head == 0) {
+            return;
+        }
+
         _items.Clear();
         _head = 0;
         _version++;
@@ -192,7 +223,9 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
     /// </summary>
     public void Clear(bool trimExcess) {
         Clear();
-        if (trimExcess) _items.TrimExcess();
+        if (trimExcess) {
+            _items.TrimExcess();
+        }
     }
     /// <summary>枚举器（struct，fail-fast）。</summary>
     public struct Enumerator : IEnumerator<T> {
@@ -205,10 +238,14 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
             _index = -1;
             Current = default!;
         }
-        public T Current { get; private set; }
+        public T Current {
+            get; private set;
+        }
         object IEnumerator.Current => Current!;
         public bool MoveNext() {
-            if (_version != _queue._version) throw new InvalidOperationException("Collection was modified during enumeration");
+            if (_version != _queue._version) {
+                throw new InvalidOperationException("Collection was modified during enumeration");
+            }
             int next = _index + 1;
             if (next < _queue.Count) {
                 Current = _queue._items[_queue._head + next]!;
@@ -219,11 +256,14 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
             return false;
         }
         public void Reset() {
-            if (_version != _queue._version) throw new InvalidOperationException("Collection was modified during enumeration");
+            if (_version != _queue._version) {
+                throw new InvalidOperationException("Collection was modified during enumeration");
+            }
             _index = -1;
             Current = default!;
         }
-        public void Dispose() { }
+        public void Dispose() {
+        }
     }
 
     /// <summary>获取枚举器（无分配）。</summary>
@@ -238,7 +278,9 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
 
     /// <summary>复制活动区到新数组。</summary>
     public T[] ToArray() {
-        if (IsEmpty) return Array.Empty<T>();
+        if (IsEmpty) {
+            return Array.Empty<T>();
+        }
         var result = new T[Count];
         _items.CopyTo(_head, result, 0, Count);
         return result;
@@ -246,10 +288,18 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
 
     /// <summary>复制到外部数组。</summary>
     public void CopyTo(T[] array, int arrayIndex) {
-        if (array == null) throw new ArgumentNullException(nameof(array));
-        if (arrayIndex < 0) throw new ArgumentOutOfRangeException(nameof(arrayIndex));
-        if (array.Length - arrayIndex < Count) throw new ArgumentException("Destination array is too small.");
-        if (Count == 0) return;
+        if (array == null) {
+            throw new ArgumentNullException(nameof(array));
+        }
+        if (arrayIndex < 0) {
+            throw new ArgumentOutOfRangeException(nameof(arrayIndex));
+        }
+        if (array.Length - arrayIndex < Count) {
+            throw new ArgumentException("Destination array is too small.");
+        }
+        if (Count == 0) {
+            return;
+        }
         _items.CopyTo(_head, array, arrayIndex, Count);
     }
 
@@ -260,18 +310,24 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
     /// 按顺序批量入队；一次性提升版本号以保持枚举 fail-fast 语义。
     /// </summary>
     public void EnqueueRange(IEnumerable<T> source) {
-        if (source == null) throw new ArgumentNullException(nameof(source));
+        if (source == null) {
+            throw new ArgumentNullException(nameof(source));
+        }
         // 自引用防护：若传入当前实例（或其内部底层列表枚举），需要先快照。否则 List 在枚举期间修改会抛异常。
         if (ReferenceEquals(source, this) || ReferenceEquals(source, _items)) {
             var snapshot = ToArray(); // snapshot 只含活动区元素
-            if (snapshot.Length == 0) return;
+            if (snapshot.Length == 0) {
+                return;
+            }
             EnqueueRange(snapshot); // 递归调用走 ICollection<T> 分支（数组实现 ICollection）
             return;
         }
         // 优先处理具备 Count 的集合：一次性预估容量，减少多次扩容/多次 JIT 搬移。
         if (source is ICollection<T> coll) {
             int incoming = coll.Count;
-            if (incoming == 0) return; // 无新增
+            if (incoming == 0) {
+                return; // 无新增
+            }
             // 若需要的总元素数会超过当前容量，先尝试 JIT 搬移以复用已消费前缀。
             bool compacted = false;
             if (_head > 0 && _items.Count + incoming > _items.Capacity) {
@@ -289,9 +345,13 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
             } else if (coll is T[] arr) {
                 _items.AddRange(arr);
             } else {
-                foreach (var item in coll) _items.Add(item);
+                foreach (var item in coll) {
+                    _items.Add(item);
+                }
             }
-            if (!compacted) _version++; // 若已压缩则版本已递增，这里避免二次 bump
+            if (!compacted) {
+                _version++; // 若已压缩则版本已递增，这里避免二次 bump
+            }
             Debug.Assert(_head <= _items.Count);
             return;
         }
@@ -317,7 +377,10 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
     /// 尝试按逻辑索引窥视（0=队头）；失败返回 false，不抛异常。
     /// </summary>
     public bool TryPeek(int index, [MaybeNullWhen(false)] out T value) {
-        if ((uint)index >= (uint)Count) { value = default!; return false; }
+        if ((uint)index >= (uint)Count) {
+            value = default!;
+            return false;
+        }
         value = _items[_head + index];
         return true;
     }
@@ -329,11 +392,13 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
     /// 调用者若依赖“仅容量调整不失效枚举”语义，请在调用前完成枚举或避免使用本方法。
     /// </summary>
     public int EnsureCapacity(int capacity) {
-        if (capacity < 0) throw new ArgumentOutOfRangeException(nameof(capacity));
+        if (capacity < 0) {
+            throw new ArgumentOutOfRangeException(nameof(capacity));
+        }
         int currentCap = _items.Capacity;
         if (capacity <= currentCap) {
             // 需求容量不超过现有容量：若前缀有空洞且为了后续追加需要更多连续尾部空间（腾挪后可获得），进行一次强制压缩。
-            // 逻辑需要的“未来总元素上限”= capacity；当前存活数 = Count。
+            // 逻辑需要的"未来总元素上限"= capacity；当前存活数 = Count。
             // 当前尾部可直接追加空间 = currentCap - _items.Count。
             int freeTail = currentCap - _items.Count; // 物理数组尾部剩余插入位数
             int logicalNeededFree = capacity - Count; // 达到给定 capacity 还需要多少新增元素
@@ -348,7 +413,9 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
         if (_head > 0) {
             Compact(force: true); // 先回收前缀再扩容，避免活动区被复制两次
         }
-        if (capacity > _items.Capacity) _items.Capacity = capacity; // 直接设定足够容量
+        if (capacity > _items.Capacity) {
+            _items.Capacity = capacity; // 直接设定足够容量
+        }
         return _items.Capacity;
     }
 

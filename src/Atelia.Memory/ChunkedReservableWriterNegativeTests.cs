@@ -25,15 +25,24 @@ public class ChunkedReservableWriterNegativeTests {
         private int _pos;
         public void Advance(int count) {
             _pos += count;
-            if (_pos > _stream.Length) _stream.SetLength(_pos);
+            if (_pos > _stream.Length) {
+                _stream.SetLength(_pos);
+            }
         }
         public Memory<byte> GetMemory(int sizeHint = 0) {
             int need = _pos + Math.Max(sizeHint, 1);
-            if (_stream.Length < need) _stream.SetLength(need);
+            if (_stream.Length < need) {
+                _stream.SetLength(need);
+            }
+
             return _stream.GetBuffer().AsMemory(_pos, (int)_stream.Length - _pos);
         }
         public Span<byte> GetSpan(int sizeHint = 0) => GetMemory(sizeHint).Span;
-        public byte[] Data() { var a = new byte[_pos]; Array.Copy(_stream.GetBuffer(), 0, a, 0, _pos); return a; }
+        public byte[] Data() {
+            var a = new byte[_pos];
+            Array.Copy(_stream.GetBuffer(), 0, a, 0, _pos);
+            return a;
+        }
     }
 
     [Fact]
@@ -60,28 +69,34 @@ public class ChunkedReservableWriterNegativeTests {
 
         // 写入前置数据（应立即直通）
         var pre = writer.GetSpan(2);
-        pre[0] = 0xAA; pre[1] = 0xBB;
+        pre[0] = 0xAA;
+        pre[1] = 0xBB;
         writer.Advance(2);
-        Assert.Equal(new byte[]{0xAA,0xBB}, inner.Data());
+        Assert.Equal(new byte[] { 0xAA, 0xBB }, inner.Data());
 
         // 建立两个 reservation：先 r1 再 r2
         var r1 = writer.ReserveSpan(2, out int t1, "r1");
         var r2 = writer.ReserveSpan(2, out int t2, "r2");
-        r1[0] = 1; r1[1] = 2; r2[0] = 3; r2[1] = 4; // 填充但不提交
+        r1[0] = 1;
+        r1[1] = 2;
+        r2[0] = 3;
+        r2[1] = 4; // 填充但不提交
 
         // 在 reservations 之后再追加普通数据 (被 r1 阻塞 flush)
         var tail = writer.GetSpan(3);
-        tail[0] = 0xEE; tail[1] = 0xEF; tail[2] = 0xF0;
+        tail[0] = 0xEE;
+        tail[1] = 0xEF;
+        tail[2] = 0xF0;
         writer.Advance(3);
 
         // 先提交非阻塞（顺序后来的 r2），不应触发任何新 flush
         writer.Commit(t2);
         // 仍只应看到 pre 数据（因为 r1 仍阻塞）
-        Assert.Equal(new byte[]{0xAA,0xBB}, inner.Data());
+        Assert.Equal(new byte[] { 0xAA, 0xBB }, inner.Data());
 
         // 现在提交 r1，触发统一 flush，顺序：AA BB + r1(1,2) + r2(3,4) + tail(EE EF F0)
         writer.Commit(t1);
-        var expected = new byte[]{0xAA,0xBB,1,2,3,4,0xEE,0xEF,0xF0};
+        var expected = new byte[] { 0xAA, 0xBB, 1, 2, 3, 4, 0xEE, 0xEF, 0xF0 };
         Assert.Equal(expected, inner.Data());
     }
 

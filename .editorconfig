@@ -64,6 +64,8 @@ end_of_line = lf
 
 # Indentation preferences
 csharp_indent_case_contents = true
+# 有独立 { } 块时不再再额外加一层
+csharp_indent_case_contents_when_block = false
 csharp_indent_switch_labels = true
 csharp_indent_labels = flush_left
 
@@ -104,8 +106,53 @@ csharp_space_between_method_call_name_and_opening_parenthesis = false
 csharp_space_between_method_call_empty_parameter_list_parentheses = false
 
 # Wrapping preferences
-csharp_preserve_single_line_statements = true
+csharp_preserve_single_line_statements = false
 csharp_preserve_single_line_blocks = true
+
+# StyleCop: 禁止一行多语句（调试/断点友好）。需要 StyleCop.Analyzers 包。
+dotnet_diagnostic.SA1107.severity = warning
+
+# ---------------------------------------------------------------------------
+# LLM 协作模式降噪策略 (Phase 1): 关闭当前无自动修复/与既定紧凑 K&R 风格冲突的规则
+# 目标：显著减少风格告警面板噪声，只保留少量高价值/将来会自研 CodeFix 的规则
+# 后续 Phase 2 将用自研 Analyzer (MT000x) 逐步替换需要的子集
+# ---------------------------------------------------------------------------
+dotnet_diagnostic.SA1500.severity = none   # Braces share line (与当前 K&R + 压缩策略冲突)
+dotnet_diagnostic.SA1501.severity = none   # 单行语句限制 (暂不强制，待自研精细策略)
+dotnet_diagnostic.SA1503.severity = none   # 单行嵌套语句 (与总是大括号策略重复 / 已由 IDE0011 覆盖)
+dotnet_diagnostic.SA1513.severity = none   # 关闭强制闭括号后空行
+dotnet_diagnostic.SA1515.severity = none   # 单行注释前空行
+dotnet_diagnostic.SA1516.severity = none   # 成员之间空行
+dotnet_diagnostic.SA1518.severity = none   # 末尾空行
+
+dotnet_diagnostic.SA1633.severity = none   # 文件头注释缺失 - 当前不强制版权头
+
+dotnet_diagnostic.SA1200.severity = none   # using 必须在 namespace 内 - 允许顶层集中
+dotnet_diagnostic.SA1201.severity = none   # 元素顺序 (class/struct 等) - 自研再定
+dotnet_diagnostic.SA1202.severity = none   # public/ private 排序 - 暂不强制
+dotnet_diagnostic.SA1208.severity = none   # System* 排序优先
+dotnet_diagnostic.SA1210.severity = none   # using 字母序
+dotnet_diagnostic.SA1101.severity = none   # 必须 this. 前缀 - 与简洁策略冲突
+
+dotnet_diagnostic.SA1309.severity = none   # 下划线字段命名 - 现有代码大量使用, 延后统一
+dotnet_diagnostic.SA1313.severity = none   # 参数命名 (下划线 / 大小写) - 延后
+
+dotnet_diagnostic.SA1413.severity = none   # 尾随逗号 - 后续若需要稳定 diff 改为自研规则
+
+dotnet_diagnostic.SA1000.severity = none   # 关键字后空格 - 由 formatter 已基本覆盖
+dotnet_diagnostic.SA1009.severity = none   # 右括号后空格 - 非关键约束
+dotnet_diagnostic.SA1116.severity = none   # 多行参数起始行规则 - 暂不强制
+dotnet_diagnostic.SA1117.severity = none   # 参数同/分行一致性 - 暂不强制
+dotnet_diagnostic.SA1118.severity = none   # 参数跨多行 - 暂不强制
+dotnet_diagnostic.SA1122.severity = none   # 用 string.Empty 替换 "" - 微收益
+
+dotnet_diagnostic.SA0001.severity = none   # XML 注释分析禁用信息 - 不需要提示
+
+# 保留/仍在关注：
+#   SA1107 (多语句同一行) -> warning (调试与可读性)
+#   IDE0011 / csharp_prefer_braces (始终大括号安全)
+# 如需恢复某条，将 severity 调整为 suggestion/warning。
+
 
 # Code style rules
 dotnet_style_qualification_for_field = false:suggestion
@@ -126,6 +173,11 @@ dotnet_style_coalesce_expression = true:suggestion
 dotnet_style_prefer_is_null_check_over_reference_equality_method = true:suggestion
 dotnet_style_prefer_inferred_tuple_names = true:suggestion
 dotnet_style_prefer_inferred_anonymous_type_member_names = true:suggestion
+
+# 禁止在声明后立即使用语句
+dotnet_diagnostic.SA1503.severity = warning
+# 要求元素访问后换行
+dotnet_diagnostic.SA1519.severity = warning
 
 # C# expression-level preferences
 csharp_prefer_simple_using_statement = true:suggestion

@@ -4,16 +4,16 @@ using Xunit;
 
 namespace Atelia.Memory.Tests;
 
-public class ChunkedReservableWriterStatsTests
-{
-    private class DummyWriter : IBufferWriter<byte>
-    {
+public class ChunkedReservableWriterStatsTests {
+    private class DummyWriter : IBufferWriter<byte> {
         private byte[] _buffer = new byte[1024];
         private int _pos;
         public void Advance(int count) => _pos += count;
         public Memory<byte> GetMemory(int sizeHint = 0) {
-            if (_pos + sizeHint > _buffer.Length)
+            if (_pos + sizeHint > _buffer.Length) {
                 Array.Resize(ref _buffer, Math.Max(_buffer.Length * 2, _pos + sizeHint));
+            }
+
             return _buffer.AsMemory(_pos);
         }
         public Span<byte> GetSpan(int sizeHint = 0) => GetMemory(sizeHint).Span;
@@ -21,8 +21,7 @@ public class ChunkedReservableWriterStatsTests
     }
 
     [Fact]
-    public void LengthPropertiesReflectWritesAndReservations()
-    {
+    public void LengthPropertiesReflectWritesAndReservations() {
         var inner = new DummyWriter();
         using var writer = new ChunkedReservableWriter(inner);
         Assert.Equal(0, writer.WrittenLength);
@@ -33,7 +32,11 @@ public class ChunkedReservableWriterStatsTests
 
         // Direct write (passthrough)
         var s = writer.GetSpan(5);
-        s[0]=1; s[1]=2; s[2]=3; s[3]=4; s[4]=5;
+        s[0] = 1;
+        s[1] = 2;
+        s[2] = 3;
+        s[3] = 4;
+        s[4] = 5;
         writer.Advance(5);
         Assert.Equal(5, writer.WrittenLength);
         Assert.Equal(5, writer.FlushedLength);
@@ -60,8 +63,7 @@ public class ChunkedReservableWriterStatsTests
     }
 
     [Fact]
-    public void FirstBlockingReservationTokenChangesWithCommitOrder()
-    {
+    public void FirstBlockingReservationTokenChangesWithCommitOrder() {
         var inner = new DummyWriter();
         using var writer = new ChunkedReservableWriter(inner);
 

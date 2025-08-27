@@ -12,10 +12,25 @@ public class ChunkedReservableWriterOptionsTests {
     private sealed class CollectingWriter : IBufferWriter<byte> {
         private MemoryStream _ms = new();
         private int _pos;
-        public void Advance(int count) { _pos += count; if (_pos > _ms.Length) _ms.SetLength(_pos); }
-        public Memory<byte> GetMemory(int sizeHint = 0) { int need = _pos + Math.Max(sizeHint,1); if (_ms.Length < need) _ms.SetLength(need); return _ms.GetBuffer().AsMemory(_pos, (int)_ms.Length - _pos); }
+        public void Advance(int count) {
+            _pos += count;
+            if (_pos > _ms.Length) {
+                _ms.SetLength(_pos);
+            }
+        }
+        public Memory<byte> GetMemory(int sizeHint = 0) {
+            int need = _pos + Math.Max(sizeHint, 1);
+            if (_ms.Length < need) {
+                _ms.SetLength(need);
+            }
+            return _ms.GetBuffer().AsMemory(_pos, (int)_ms.Length - _pos);
+        }
         public Span<byte> GetSpan(int sizeHint = 0) => GetMemory(sizeHint).Span;
-        public byte[] Data() { var a=new byte[_pos]; Array.Copy(_ms.GetBuffer(),0,a,0,_pos); return a; }
+        public byte[] Data() {
+            var a = new byte[_pos];
+            Array.Copy(_ms.GetBuffer(), 0, a, 0, _pos);
+            return a;
+        }
     }
 
     [Fact]
@@ -34,11 +49,11 @@ public class ChunkedReservableWriterOptionsTests {
         var options = new ChunkedReservableWriterOptions { EnforceStrictAdvance = true };
         using var writer = new ChunkedReservableWriter(inner, options);
         writer.GetSpan(16); // acquire
-        writer.Advance(0);  // explicitly cancel
-    var r = writer.ReserveSpan(4, out int token, null);
+        writer.Advance(0); // explicitly cancel
+        var r = writer.ReserveSpan(4, out int token, null);
         r.Fill(0xAB);
         writer.Commit(token);
-        Assert.Equal(new byte[]{0xAB,0xAB,0xAB,0xAB}, inner.Data());
+        Assert.Equal(new byte[] { 0xAB, 0xAB, 0xAB, 0xAB }, inner.Data());
     }
 
     [Fact]
@@ -74,9 +89,12 @@ public class ChunkedReservableWriterOptionsTests {
         // Force buffered mode and allocate sequentially increasing sizeHints to encourage growth
         writer.ReserveSpan(10, out int t0, null); // allocate first chunk
         // Request several spans so internal heuristic grows target size. We cannot read internal target; infer indirectly.
-        var s1 = writer.GetSpan(2000); writer.Advance(2000);
-        var s2 = writer.GetSpan(6000); writer.Advance(6000);
-        var s3 = writer.GetSpan(12000); writer.Advance(12000);
+        var s1 = writer.GetSpan(2000);
+        writer.Advance(2000);
+        var s2 = writer.GetSpan(6000);
+        writer.Advance(6000);
+        var s3 = writer.GetSpan(12000);
+        writer.Advance(12000);
         // By now a larger chunk should have been allocated at least once (>= 8192)
         Assert.True(Math.Max(s1.Length, Math.Max(s2.Length, s3.Length)) >= 8192, "Expected growth to allocate >= 8KB chunk");
         writer.Commit(t0);
@@ -87,10 +105,17 @@ public class ChunkedReservableWriterOptionsTests {
         var inner = new CollectingWriter();
         var options = new ChunkedReservableWriterOptions { EnforceStrictAdvance = true };
         using var writer = new ChunkedReservableWriter(inner, options);
-        var head = writer.GetSpan(3); head[0]=0x01; head[1]=0x02; head[2]=0x03; writer.Advance(3); // passthrough
+        var head = writer.GetSpan(3);
+        head[0] = 0x01;
+        head[1] = 0x02;
+        head[2] = 0x03;
+        writer.Advance(3); // passthrough
         writer.ReserveSpan(2, out int t, "r").Fill(0x10);
-        var tail = writer.GetSpan(2); tail[0]=0xEE; tail[1]=0xEF; writer.Advance(2);
+        var tail = writer.GetSpan(2);
+        tail[0] = 0xEE;
+        tail[1] = 0xEF;
+        writer.Advance(2);
         writer.Commit(t);
-        Assert.Equal(new byte[]{0x01,0x02,0x03,0x10,0x10,0xEE,0xEF}, inner.Data());
+        Assert.Equal(new byte[] { 0x01, 0x02, 0x03, 0x10, 0x10, 0xEE, 0xEF }, inner.Data());
     }
 }

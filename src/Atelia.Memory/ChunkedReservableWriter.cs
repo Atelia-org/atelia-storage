@@ -63,8 +63,10 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
             // Round up to power of two (bounded) for better ArrayPool bucket locality.
             // candidate = RoundUpToPowerOfTwo(candidate);
             candidate = (int)BitOperations.RoundUpToPowerOf2((uint)candidate); // 由前面若干Math.Max确保candidate为正数。
-            if (candidate > _maxChunkSize)
+            if (candidate > _maxChunkSize) {
                 candidate = _maxChunkSize;
+            }
+
             size = candidate;
         }
 
@@ -130,7 +132,7 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     private readonly IBufferWriter<byte> _innerWriter;
 
     public ChunkedReservableWriter(IBufferWriter<byte> innerWriter, ArrayPool<byte>? pool = null)
-        : this(innerWriter, new ChunkedReservableWriterOptions { Pool = pool }) { }
+    : this(innerWriter, new ChunkedReservableWriterOptions { Pool = pool }) { }
 
     public ChunkedReservableWriter(IBufferWriter<byte> innerWriter, ChunkedReservableWriterOptions? options) {
         _innerWriter = innerWriter ?? throw new ArgumentNullException(nameof(innerWriter));
@@ -140,10 +142,14 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         int minSize = opt.MinChunkSize;
         int maxSize = opt.MaxChunkSize;
 
-        if (minSize < 1024)
+        if (minSize < 1024) {
             throw new ArgumentException("MinChunkSize must be >= 1024", nameof(options));
-        if (maxSize < minSize)
+        }
+
+        if (maxSize < minSize) {
             throw new ArgumentException("MaxChunkSize must be >= MinChunkSize", nameof(options));
+        }
+
         _minChunkSize = minSize;
         _maxChunkSize = maxSize;
         _currentChunkTargetSize = _minChunkSize;
@@ -240,7 +246,10 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     private void TryRecycleFlushedChunks() {
         // 手动逐个检查并出队，确保在出队前归还池内缓冲区
         while (_chunks.TryPeekFirst(out var c) && c.IsFullyFlushed) {
-            if (c.IsRented) _pool.Return(c.Buffer);
+            if (c.IsRented) {
+                _pool.Return(c.Buffer);
+            }
+
             _chunks.TryDequeue(out _); // 丢弃引用
         }
         _chunks.Compact(); // 仍按阈值压缩
@@ -271,8 +280,10 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     public void Advance(int count) {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (count < 0)
+        if (count < 0) {
             throw new ArgumentOutOfRangeException(nameof(count), "Count cannot be negative");
+        }
+
         if (count == 0) {
             // Treat Advance(0) as explicit cancellation of outstanding span.
             _hasLastSpan = false;
@@ -281,8 +292,9 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         }
 
         // Validate that count does not exceed the available space from the last GetSpan/GetMemory call.
-        if (!_hasLastSpan || count > _lastSpanLength)
+        if (!_hasLastSpan || count > _lastSpanLength) {
             throw new ArgumentOutOfRangeException(nameof(count), "Count exceeds available space from the last buffer request.");
+        }
 
         // If there are no reservations, write directly to the inner writer (passthrough mode).
         if (GetActiveChunksCount() == 0) {
@@ -319,11 +331,11 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
             return memory;
         }
 
-    // Buffered mode
-    Chunk chunk = EnsureSpace(sizeHint);
-    // Return the entire remaining free space of the current chunk (common pattern in IBufferWriter implementations)
-    // to reduce the number of GetMemory/Advance roundtrips. This still satisfies the sizeHint contract.
-    Memory<byte> availableMemory = chunk.Buffer.AsMemory(chunk.DataEnd, chunk.FreeSpace);
+        // Buffered mode
+        Chunk chunk = EnsureSpace(sizeHint);
+        // Return the entire remaining free space of the current chunk (common pattern in IBufferWriter implementations)
+        // to reduce the number of GetMemory/Advance roundtrips. This still satisfies the sizeHint contract.
+        Memory<byte> availableMemory = chunk.Buffer.AsMemory(chunk.DataEnd, chunk.FreeSpace);
         _lastSpanLength = availableMemory.Length;
         _hasLastSpan = true;
         return availableMemory;
@@ -362,8 +374,9 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     public Span<byte> ReserveSpan(int count, out int reservationToken, string? tag = null) {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (count <= 0)
+        if (count <= 0) {
             throw new ArgumentOutOfRangeException(nameof(count), "Count must be positive");
+        }
 
         // 防止与尚未 Advance 的上一次 GetSpan/GetMemory 返回的可写区域发生重叠（否则会出现数据区间覆盖 / 长度统计紊乱）。
         if (_hasLastSpan) {
@@ -404,8 +417,9 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     public void Commit(int reservationToken) {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (!_tokenToNode.TryGetValue(reservationToken, out LinkedListNode<Reservation>? node))
+        if (!_tokenToNode.TryGetValue(reservationToken, out LinkedListNode<Reservation>? node)) {
             throw new InvalidOperationException("Invalid or already committed reservation token.");
+        }
 
         // Remove the reservation from tracking.
         _reservationOrder.Remove(node);
@@ -430,17 +444,19 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         ObjectDisposedException.ThrowIf(_disposed, this);
         // 归还所有租借的缓冲区
         foreach (var c in _chunks) {
-            if (c.IsRented) _pool.Return(c.Buffer);
+            if (c.IsRented) {
+                _pool.Return(c.Buffer);
+            }
         }
         _chunks.Clear();
-    // Clear all state.
+        // Clear all state.
         _tokenToNode.Clear();
         _reservationOrder.Clear();
         _writtenLength = 0;
         _flushedLength = 0;
         _hasLastSpan = false;
         _lastSpanLength = 0;
-    // 不重置 _reservationSerial，避免 Reset 后旧 token 与新 token 发生整数复用造成误提交风险。
+        // 不重置 _reservationSerial，避免 Reset 后旧 token 与新 token 发生整数复用造成误提交风险。
     }
 
     #region Core State Properties

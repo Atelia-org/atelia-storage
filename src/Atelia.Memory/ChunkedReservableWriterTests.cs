@@ -10,41 +10,40 @@ namespace Atelia.Memory.Tests;
 /// <summary>
 /// ChunkedReservableWriter的基础功能测试
 /// </summary>
-public class ChunkedReservableWriterTests
-{
+public class ChunkedReservableWriterTests {
     /// <summary>
     /// 简单的内存缓冲区实现，用于测试
     /// </summary>
-    private class TestBufferWriter : IBufferWriter<byte>
-    {
+    private class TestBufferWriter : IBufferWriter<byte> {
         private readonly MemoryStream _stream = new();
         private int _position = 0;
 
-        public void Advance(int count)
-        {
+        public void Advance(int count) {
             _position += count;
-            if (_position > _stream.Length)
+            if (_position > _stream.Length) {
                 _stream.SetLength(_position);
+            }
         }
 
-        public Memory<byte> GetMemory(int sizeHint = 0)
-        {
+        public Memory<byte> GetMemory(int sizeHint = 0) {
             int requiredSize = _position + Math.Max(sizeHint, 1024);
-            if (_stream.Length < requiredSize)
+            if (_stream.Length < requiredSize) {
                 _stream.SetLength(requiredSize);
+            }
+
             return _stream.GetBuffer().AsMemory(_position, (int)_stream.Length - _position);
         }
 
-        public Span<byte> GetSpan(int sizeHint = 0)
-        {
+        public Span<byte> GetSpan(int sizeHint = 0) {
             int requiredSize = _position + Math.Max(sizeHint, 1024);
-            if (_stream.Length < requiredSize)
+            if (_stream.Length < requiredSize) {
                 _stream.SetLength(requiredSize);
+            }
+
             return _stream.GetBuffer().AsSpan(_position, (int)_stream.Length - _position);
         }
 
-        public byte[] GetWrittenData()
-        {
+        public byte[] GetWrittenData() {
             var result = new byte[_position];
             Array.Copy(_stream.GetBuffer(), 0, result, 0, _position);
             return result;
@@ -52,8 +51,7 @@ public class ChunkedReservableWriterTests
     }
 
     [Fact]
-    public void BasicWriteTest()
-    {
+    public void BasicWriteTest() {
         // Arrange
         var innerWriter = new TestBufferWriter();
         using var writer = new ChunkedReservableWriter(innerWriter);
@@ -69,8 +67,7 @@ public class ChunkedReservableWriterTests
     }
 
     [Fact]
-    public void ReservationBasicTest()
-    {
+    public void ReservationBasicTest() {
         // Arrange
         var innerWriter = new TestBufferWriter();
         using var writer = new ChunkedReservableWriter(innerWriter);
@@ -106,8 +103,7 @@ public class ChunkedReservableWriterTests
     }
 
     [Fact]
-    public void MultipleReservationsTest()
-    {
+    public void MultipleReservationsTest() {
         // Arrange
         var innerWriter = new TestBufferWriter();
         using var writer = new ChunkedReservableWriter(innerWriter);
@@ -140,8 +136,7 @@ public class ChunkedReservableWriterTests
     }
 
     [Fact]
-    public void DisposeTest()
-    {
+    public void DisposeTest() {
         // Arrange
         var innerWriter = new TestBufferWriter();
         var writer = new ChunkedReservableWriter(innerWriter);
@@ -156,8 +151,7 @@ public class ChunkedReservableWriterTests
     }
 
     [Fact]
-    public void ResetTest()
-    {
+    public void ResetTest() {
         // Arrange
         var innerWriter1 = new TestBufferWriter();
         using var writer = new ChunkedReservableWriter(innerWriter1);
@@ -186,8 +180,7 @@ public class ChunkedReservableWriterTests
     }
 
     [Fact]
-    public void PassthroughRestorationTest()
-    {
+    public void PassthroughRestorationTest() {
         var innerWriter = new TestBufferWriter();
         using var writer = new ChunkedReservableWriter(innerWriter);
 
@@ -211,7 +204,10 @@ public class ChunkedReservableWriterTests
         Assert.Equal("Hello"u8.ToArray(), innerWriter.GetWrittenData());
 
         // 填充并提交 reservation，触发 flush + 回收 + 回退直通
-        reserved[0] = 1; reserved[1] = 2; reserved[2] = 3; reserved[3] = 4;
+        reserved[0] = 1;
+        reserved[1] = 2;
+        reserved[2] = 3;
+        reserved[3] = 4;
         writer.Commit(token);
         Assert.True(writer.IsPassthrough); // 已回退
 
@@ -223,27 +219,26 @@ public class ChunkedReservableWriterTests
         var data = innerWriter.GetWrittenData();
         // 期望顺序：Hello + reservation(1..4) + World + ABC
         var expected = new byte[5 + 4 + 5 + 3];
-        "Hello"u8.CopyTo(expected.AsSpan(0,5));
-        new byte[]{1,2,3,4}.CopyTo(expected.AsSpan(5,4));
-        "World"u8.CopyTo(expected.AsSpan(9,5));
-        "ABC"u8.CopyTo(expected.AsSpan(14,3));
+        "Hello"u8.CopyTo(expected.AsSpan(0, 5));
+        new byte[] { 1, 2, 3, 4 }.CopyTo(expected.AsSpan(5, 4));
+        "World"u8.CopyTo(expected.AsSpan(9, 5));
+        "ABC"u8.CopyTo(expected.AsSpan(14, 3));
         Assert.Equal(expected, data);
     }
 
     [Fact]
-    public void PassthroughBufferedCycleMultipleTimes()
-    {
+    public void PassthroughBufferedCycleMultipleTimes() {
         var innerWriter = new TestBufferWriter();
         using var writer = new ChunkedReservableWriter(innerWriter);
 
-        for (int cycle = 0; cycle < 3; cycle++)
-        {
+        for (int cycle = 0; cycle < 3; cycle++) {
             Assert.True(writer.IsPassthrough);
 
             // 进入缓冲
             var res = writer.ReserveSpan(2, out int token, $"cycle-{cycle}");
             Assert.False(writer.IsPassthrough);
-            res[0] = (byte)cycle; res[1] = (byte)(cycle + 1);
+            res[0] = (byte)cycle;
+            res[1] = (byte)(cycle + 1);
             writer.Commit(token);
             Assert.True(writer.IsPassthrough);
 
@@ -257,7 +252,8 @@ public class ChunkedReservableWriterTests
         // 每个 cycle：2 bytes reserved + 1 byte marker
         Assert.Equal(3 * 3, bytes.Length);
         // 简单结构验证：每第三字节应为 0xFF
-        for (int i = 2; i < bytes.Length; i += 3)
+        for (int i = 2; i < bytes.Length; i += 3) {
             Assert.Equal(0xFF, bytes[i]);
+        }
     }
 }

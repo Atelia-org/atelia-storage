@@ -19,14 +19,26 @@ public class ChunkedReservableWriterP1Tests {
     private sealed class CollectingWriter : IBufferWriter<byte> {
         private MemoryStream _ms = new();
         private int _pos;
-        public void Advance(int count) { _pos += count; if (_pos > _ms.Length) _ms.SetLength(_pos); }
+        public void Advance(int count) {
+            _pos += count;
+            if (_pos > _ms.Length) {
+                _ms.SetLength(_pos);
+            }
+        }
         public Memory<byte> GetMemory(int sizeHint = 0) {
             int need = _pos + Math.Max(sizeHint, 1);
-            if (_ms.Length < need) _ms.SetLength(need);
+            if (_ms.Length < need) {
+                _ms.SetLength(need);
+            }
+
             return _ms.GetBuffer().AsMemory(_pos, (int)_ms.Length - _pos);
         }
         public Span<byte> GetSpan(int sizeHint = 0) => GetMemory(sizeHint).Span;
-        public byte[] Data() { var a = new byte[_pos]; Array.Copy(_ms.GetBuffer(), 0, a, 0, _pos); return a; }
+        public byte[] Data() {
+            var a = new byte[_pos];
+            Array.Copy(_ms.GetBuffer(), 0, a, 0, _pos);
+            return a;
+        }
     }
 
     [Fact]
@@ -35,9 +47,17 @@ public class ChunkedReservableWriterP1Tests {
         using var writer = new ChunkedReservableWriter(inner);
 
         // 两个 reservation + 后续普通数据
-        var r1 = writer.ReserveSpan(2, out int t1, "r1"); r1[0]=1; r1[1]=2;
-        var r2 = writer.ReserveSpan(2, out int t2, "r2"); r2[0]=3; r2[1]=4;
-        var tail = writer.GetSpan(3); tail[0]=0xEE; tail[1]=0xEF; tail[2]=0xF0; writer.Advance(3);
+        var r1 = writer.ReserveSpan(2, out int t1, "r1");
+        r1[0] = 1;
+        r1[1] = 2;
+        var r2 = writer.ReserveSpan(2, out int t2, "r2");
+        r2[0] = 3;
+        r2[1] = 4;
+        var tail = writer.GetSpan(3);
+        tail[0] = 0xEE;
+        tail[1] = 0xEF;
+        tail[2] = 0xF0;
+        writer.Advance(3);
 
         // 先提交 r2（非阻塞）不应 flush
         writer.Commit(t2);
@@ -46,7 +66,7 @@ public class ChunkedReservableWriterP1Tests {
 
         // 再提交 r1 -> 应一次性 flush r1 + r2 + tail
         writer.Commit(t1);
-        var expected = new byte[]{1,2,3,4,0xEE,0xEF,0xF0};
+        var expected = new byte[] { 1, 2, 3, 4, 0xEE, 0xEF, 0xF0 };
         Assert.Equal(expected, inner.Data());
         Assert.True(writer.IsPassthrough);
     }
@@ -56,7 +76,13 @@ public class ChunkedReservableWriterP1Tests {
         var inner = new CollectingWriter();
         using var writer = new ChunkedReservableWriter(inner);
         // 构造一些状态：写入 + reservation
-        var s = writer.GetSpan(5); s[0]=10; s[1]=11; s[2]=12; s[3]=13; s[4]=14; writer.Advance(5);
+        var s = writer.GetSpan(5);
+        s[0] = 10;
+        s[1] = 11;
+        s[2] = 12;
+        s[3] = 13;
+        s[4] = 14;
+        writer.Advance(5);
         writer.ReserveSpan(4, out int token, "block");
         Assert.False(writer.IsPassthrough);
         Assert.True(writer.WrittenLength > 0);
@@ -76,7 +102,11 @@ public class ChunkedReservableWriterP1Tests {
     public void Dispose_Idempotent() {
         var inner = new CollectingWriter();
         var writer = new ChunkedReservableWriter(inner);
-        var s = writer.GetSpan(3); s[0]=1; s[1]=2; s[2]=3; writer.Advance(3);
+        var s = writer.GetSpan(3);
+        s[0] = 1;
+        s[1] = 2;
+        s[2] = 3;
+        writer.Advance(3);
         writer.Dispose();
         // 第二次不应抛异常
         writer.Dispose();
@@ -112,7 +142,10 @@ public class ChunkedReservableWriterP1Tests {
             Assert.True(set.Add(token), $"Duplicate token at {i} -> {token}");
         }
         // 全部提交（保证结构清理逻辑不崩）
-        foreach (var tk in tokens) writer.Commit(tk);
+        foreach (var tk in tokens) {
+            writer.Commit(tk);
+        }
+
         Assert.True(writer.IsPassthrough);
     }
 }
