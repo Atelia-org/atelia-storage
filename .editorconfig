@@ -67,7 +67,7 @@ csharp_indent_block_contents = true         # 显式：缩进普通代码块内�
 csharp_indent_braces = false                # 不对大括号本身再额外缩进（保持与左边界对齐）
 csharp_indent_case_contents = true
 # 有独立 { } 块时不再再额外加一层
-csharp_indent_case_contents_when_block = true  # 临时开启以验证缩进应用；若不想多一层可改回 false
+csharp_indent_case_contents_when_block = false
 csharp_indent_switch_labels = true
 csharp_indent_labels = flush_left
 # 初始化器缩进（缺失会导致对象/集合初始化器内元素顶格）
@@ -116,8 +116,7 @@ csharp_space_between_method_call_empty_parameter_list_parentheses = false
 
 # Wrapping preferences
 csharp_preserve_single_line_statements = false
-# 临时关闭以便 dotnet format 可以重新写入历史异常缩进；修复完成后可改回 true
-csharp_preserve_single_line_blocks = false
+csharp_preserve_single_line_blocks = true
 
 # StyleCop: 禁止一行多语句（调试/断点友好）。需要 StyleCop.Analyzers 包。
 dotnet_diagnostic.SA1107.severity = warning
