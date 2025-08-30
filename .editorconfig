@@ -119,17 +119,6 @@ csharp_preserve_single_line_statements = false
 csharp_preserve_single_line_blocks = true
 
 # StyleCop: 禁止一行多语句（调试/断点友好）。需要 StyleCop.Analyzers 包。
-# dotnet_diagnostic.MT0001.severity = none
-# dotnet_diagnostic.MT0002.severity = none
-# dotnet_diagnostic.MT0003.severity = none
-# dotnet_diagnostic.MT0004.severity = none
-# dotnet_diagnostic.MT0006.severity = none
-
-dotnet_diagnostic.MT0001.severity = suggestion
-dotnet_diagnostic.MT0002.severity = suggestion
-dotnet_diagnostic.MT0003.severity = suggestion
-dotnet_diagnostic.MT0004.severity = suggestion
-dotnet_diagnostic.MT0006.severity = suggestion
 
 # dotnet_diagnostic.X0001.severity = none      # 已被 MT0005 取代; 保留行避免旧分支 merge 再次开启
 dotnet_diagnostic.MT0005.severity = none     # 默认保持禁用; 需要对称开括号换行时改为 warning/suggestion
