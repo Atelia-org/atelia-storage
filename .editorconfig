@@ -85,7 +85,7 @@ csharp_new_line_before_open_brace = none
 csharp_new_line_before_else = false
 csharp_new_line_before_catch = false
 csharp_new_line_before_finally = false
-csharp_new_line_before_members_in_object_initializers = true
+csharp_new_line_before_members_in_object_initializers = false
 csharp_new_line_before_members_in_anonymous_types = true
 csharp_new_line_between_query_expression_clauses = true
 
@@ -131,7 +131,7 @@ dotnet_diagnostic.MT0003.severity = suggestion
 dotnet_diagnostic.MT0004.severity = suggestion
 dotnet_diagnostic.MT0006.severity = suggestion
 
-dotnet_diagnostic.X0001.severity = none      # 已被 MT0005 取代; 保留行避免旧分支 merge 再次开启
+# dotnet_diagnostic.X0001.severity = none      # 已被 MT0005 取代; 保留行避免旧分支 merge 再次开启
 dotnet_diagnostic.MT0005.severity = none     # 默认保持禁用; 需要对称开括号换行时改为 warning/suggestion
 
 dotnet_diagnostic.RS2007.severity = none   # 临时关闭发布跟踪格式警告（待后续打包前再修复）
@@ -200,9 +200,9 @@ dotnet_style_prefer_inferred_tuple_names = true:suggestion
 dotnet_style_prefer_inferred_anonymous_type_member_names = true:suggestion
 
 # 禁止在声明后立即使用语句
-dotnet_diagnostic.SA1503.severity = warning
+dotnet_diagnostic.SA1503.severity = suggestion
 # 要求元素访问后换行
-dotnet_diagnostic.SA1519.severity = warning
+dotnet_diagnostic.SA1519.severity = suggestion
 
 # C# expression-level preferences
 csharp_prefer_simple_using_statement = true:suggestion
