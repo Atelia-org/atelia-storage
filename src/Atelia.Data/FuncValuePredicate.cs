@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
 
-namespace Atelia.Memory;
+namespace Atelia.Data;
 
 /// <summary>
 /// 将 <see cref="Func{T, Boolean}"/> 适配为 <see cref="IValuePredicate{T}"/> 的值类型包装器，

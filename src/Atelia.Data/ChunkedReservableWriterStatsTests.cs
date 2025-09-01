@@ -2,7 +2,7 @@ using System;
 using System.Buffers;
 using Xunit;
 
-namespace Atelia.Memory.Tests;
+namespace Atelia.Data.Tests;
 
 public class ChunkedReservableWriterStatsTests {
     private class DummyWriter : IBufferWriter<byte> {

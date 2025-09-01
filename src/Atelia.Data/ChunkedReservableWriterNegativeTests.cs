@@ -3,7 +3,7 @@ using System.Buffers;
 using System.IO;
 using Xunit;
 
-namespace Atelia.Memory.Tests;
+namespace Atelia.Data.Tests;
 
 /// <summary>
 /// 针对 ChunkedReservableWriter 的健壮性 / 负面路径 / 关键语义补充测试

@@ -2,7 +2,7 @@ using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 
-namespace Atelia.Memory;
+namespace Atelia.Data;
 
 /// <summary>
 /// A chunked, reservable buffer writer (logical chunks backed by ArrayPool).

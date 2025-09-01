@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
-namespace Atelia.Memory;
+namespace Atelia.Data;
 
 /// <summary>
 /// SlidingQueue<T> 是一个“基于 List + 头索引”的单向滑动窗口容器：

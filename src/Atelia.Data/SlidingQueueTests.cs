@@ -1,7 +1,7 @@
 using System;
 using Xunit;
 
-namespace Atelia.Memory.Tests;
+namespace Atelia.Data.Tests;
 
 public class SlidingQueueTests {
     [Fact]

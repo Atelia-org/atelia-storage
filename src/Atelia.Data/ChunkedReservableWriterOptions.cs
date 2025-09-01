@@ -1,6 +1,6 @@
 using System.Buffers;
 
-namespace Atelia.Memory;
+namespace Atelia.Data;
 
 /// <summary>
 /// Configuration options for <see cref="ChunkedReservableWriter"/> (chunk-size based).

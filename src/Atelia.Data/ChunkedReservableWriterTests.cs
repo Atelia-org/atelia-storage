@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using Xunit;
 
-namespace Atelia.Memory.Tests;
+namespace Atelia.Data.Tests;
 
 /// <summary>
 /// ChunkedReservableWriter的基础功能测试

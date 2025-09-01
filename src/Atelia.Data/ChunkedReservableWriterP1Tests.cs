@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using Xunit;
 
-namespace Atelia.Memory.Tests;
+namespace Atelia.Data.Tests;
 
 /// <summary>
 /// P1 批次：语义补充分层（不引入额外框架）

@@ -1,6 +1,6 @@
 using System;
 
-namespace Atelia.Memory;
+namespace Atelia.Data;
 
 /// <summary>
 /// 高性能值类型谓词接口：用于 <see cref="SlidingQueue{T}.DequeueWhile{TPredicate}(TPredicate,bool)"/>

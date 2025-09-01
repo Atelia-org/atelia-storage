@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using Xunit;
 
-namespace Atelia.Memory.Tests;
+namespace Atelia.Data.Tests;
 
 /// <summary>
 /// P2 批次：轻量随机不变量 + 边界与多 chunk 行为测试（保持执行时间短）。

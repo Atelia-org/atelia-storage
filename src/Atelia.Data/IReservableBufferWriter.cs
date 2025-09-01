@@ -1,6 +1,6 @@
 using System.Buffers;
 
-namespace Atelia.Memory;
+namespace Atelia.Data;
 public interface IReservableBufferWriter : IBufferWriter<byte> {
     /// <summary>
     /// 预留一段将来回填的数据空间。返回该空间的 Span 供直接写入；同时生成 reservationToken 用于后续 Commit。

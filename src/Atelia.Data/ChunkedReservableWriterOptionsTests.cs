@@ -3,7 +3,7 @@ using System.Buffers;
 using System.IO;
 using Xunit;
 
-namespace Atelia.Memory.Tests;
+namespace Atelia.Data.Tests;
 
 /// <summary>
 /// Tests covering ChunkedReservableWriterOptions based configurable behaviors.
