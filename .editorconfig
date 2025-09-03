@@ -125,6 +125,7 @@ dotnet_diagnostic.MT0005.severity = none     # 默认保持禁用; 需要对称�
 
 dotnet_diagnostic.RS2007.severity = none   # 临时关闭发布跟踪格式警告（待后续打包前再修复）
 dotnet_diagnostic.RS2008.severity = none   # 临时关闭发布跟踪未启用/规则登记警告
+dotnet_diagnostic.CS1591.severity = none   # 临时关闭发布跟踪未启用/规则登记警告
 
 # ---------------------------------------------------------------------------
 # LLM 协作模式降噪策略 (Phase 1): 关闭当前无自动修复/与既定紧凑 K&R 风格冲突的规则
