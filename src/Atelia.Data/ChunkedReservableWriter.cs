@@ -12,11 +12,11 @@ namespace Atelia.Data;
 /// but some sections need to be reserved and filled in later (e.g., length prefixes in network protocols).
 ///
 /// Core Goals:
-/// 1. Provides IBufferWriter<byte> semantics (GetSpan/GetMemory + Advance).
+/// 1. Provides IBufferWriter&lt;byte&gt; semantics (GetSpan/GetMemory + Advance).
 /// 2. Allows explicit reservation of a buffer area for future writes via ReserveSpan() and Commit().
-/// 3. Uses a pool of memory chunks (rented from ArrayPool<byte>) to minimize GC pressure.
+/// 3. Uses a pool of memory chunks (rented from ArrayPool&lt;byte&gt;) to minimize GC pressure.
 /// 4. Enables efficient flushing of the contiguous, committed data prefix to an underlying writer.
-/// 5. Ensures that any returned Span or Memory<byte> does not cross internal chunk boundaries.
+/// 5. Ensures that any returned Span or Memory&lt;byte&gt; does not cross internal chunk boundaries.
 ///
 /// Thread Safety: This class is not thread-safe and is intended for use by a single writer thread, similar to PipeWriter.
 /// </remarks>
@@ -174,7 +174,7 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     }
 
     /// <summary>
-    /// Using a Dictionary<int, LinkedListNode<Reservation>> + LinkedList<Reservation>
+    /// Using a Dictionary&lt;int, LinkedListNode&lt;Reservation&gt;&gt; + LinkedList&lt;Reservation&gt;
     /// for fast lookups, ordered traversal, and quick removal.
     /// </summary>
     private readonly Dictionary<int, LinkedListNode<Reservation>> _tokenToNode = new();

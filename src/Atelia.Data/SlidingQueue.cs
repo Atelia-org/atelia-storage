@@ -6,7 +6,7 @@ using System.Runtime.CompilerServices;
 namespace Atelia.Data;
 
 /// <summary>
-/// SlidingQueue<T> 是一个“基于 List + 头索引”的单向滑动窗口容器：
+/// SlidingQueue&lt;T&gt; 是一个“基于 List + 头索引”的单向滑动窗口容器：
 ///  - 只支持尾部 Append (Add)
 ///  - 只支持从头部按顺序批量回收 (DequeueWhile)
 ///  - 通过 _head 索引惰性丢弃前缀，必要时 Compact 将活动元素搬移到前部
@@ -17,16 +17,16 @@ namespace Atelia.Data;
 /// 非线程安全。
 /// </summary>
 /// <remarks>
-/// 可作为一个“可压缩队头批量消费队列”使用；未来若需要替换为 <c>Queue<T></c> 或 deque，只需保持公开成员契约。
-/// 重要不变量：0 <= _head <= _items.Count；活动区为 [_head, _items.Count)。///
+/// 可作为一个“可压缩队头批量消费队列”使用；未来若需要替换为 <c>Queue&lt;T&gt;</c> 或 deque，只需保持公开成员契约。
+/// 重要不变量：0 &lt;= _head &lt;= _items.Count；活动区为 [_head, _items.Count)。///
 /// 2025 增强：
-///  - 实现 IReadOnlyList<T> 提供索引访问
+///  - 实现 IReadOnlyList&lt;T&gt; 提供索引访问
 ///  - struct 枚舉器 + fail-fast 版本号，减少 foreach 分配并在修改时抛错
 ///  - 缓存 NeedsClear 避免重复调用 RuntimeHelpers
 ///  - 新增 PeekFirst/PeekLast 非 Try 版本
 ///  - 添加 ToArray / CopyTo / Indexer / Any
 ///  - Dequeue / TryDequeue 支持可选自动 Compact 检查参数（默认启用）
-///  - 固定压缩策略：_head >= 64 且 _head >= Count(物理) / 2 时触发一次 O(存活数) 搬移；摊销 O(1)
+///  - 固定压缩策略：_head &gt;= 64 且 _head &gt;= Count(物理) / 2 时触发一次 O(存活数) 搬移；摊销 O(1)
 /// </remarks>
 [DebuggerDisplay("Count={Count}, Head={_head}")]
 public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
@@ -44,7 +44,7 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
         _items = new List<T>();
     }
     /// <summary>使用指定初始容量初始化队列（不会预填充元素）。</summary>
-    /// <param name="capacity">初始容量，必须 >= 0。</param>
+    /// <param name="capacity">初始容量，必须 &gt;= 0。</param>
     /// <exception cref="ArgumentOutOfRangeException">capacity 小于 0。</exception>
     public SlidingQueue(int capacity) {
         if (capacity < 0) {

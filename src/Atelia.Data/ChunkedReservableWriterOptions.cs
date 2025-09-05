@@ -8,7 +8,7 @@ namespace Atelia.Data;
 public sealed class ChunkedReservableWriterOptions {
     // ---------------- New (preferred) properties ----------------
     /// <summary>
-    /// 最小 Chunk 字节数。必须 >= 1024。默认：4096。
+    /// 最小 Chunk 字节数。必须 &gt;= 1024。默认：4096。
     /// </summary>
     public int MinChunkSize { get; set; } = 4096;
 
@@ -23,7 +23,7 @@ public sealed class ChunkedReservableWriterOptions {
     public bool EnforceStrictAdvance { get; set; } = false;
 
     /// <summary>
-    /// 可选显式 ArrayPool。为空则使用 ArrayPool<byte>.Shared。
+    /// 可选显式 ArrayPool。为空则使用 ArrayPool&lt;byte&gt;.Shared。
     /// </summary>
     public ArrayPool<byte>? Pool { get; set; } = null;
 
