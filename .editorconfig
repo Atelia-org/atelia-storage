@@ -115,7 +115,7 @@ csharp_space_between_method_call_name_and_opening_parenthesis = false
 csharp_space_between_method_call_empty_parameter_list_parentheses = false
 
 # Wrapping preferences
-csharp_preserve_single_line_statements = false
+csharp_preserve_single_line_statements = true
 csharp_preserve_single_line_blocks = true
 
 # StyleCop: 禁止一行多语句（调试/断点友好）。需要 StyleCop.Analyzers 包。
