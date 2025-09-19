@@ -4,7 +4,7 @@ root = true
 # All files
 [*]
 charset = utf-8
-end_of_line = crlf
+end_of_line = lf
 insert_final_newline = true
 trim_trailing_whitespace = true
 
@@ -58,6 +58,14 @@ end_of_line = crlf
 # Bash files
 [*.sh]
 end_of_line = lf
+
+# PowerShell scripts
+[*.ps1]
+end_of_line = crlf
+
+# Visual Studio solution files
+[*.sln]
+end_of_line = crlf
 
 # C# files - K&R style preferences (left brace on same line)
 [*.cs]
