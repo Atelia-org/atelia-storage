@@ -82,9 +82,9 @@ csharp_indent_array_initializer = true
 # NOTE: Formatting (whitespace/new_line/indent/spacing) 选项本身不支持 :warning/:error 等严重级别后缀；
 # 只能写纯值。之前加 :error 导致解析失败而被忽略，回退为默认换行。请勿再为这些键添加 severity。
 csharp_new_line_before_open_brace = none
-csharp_new_line_before_else = false
-csharp_new_line_before_catch = false
-csharp_new_line_before_finally = false
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_finally = true
 csharp_new_line_before_members_in_object_initializers = false
 csharp_new_line_before_members_in_anonymous_types = true
 csharp_new_line_between_query_expression_clauses = true
@@ -121,7 +121,13 @@ csharp_preserve_single_line_blocks = true
 # StyleCop: 禁止一行多语句（调试/断点友好）。需要 StyleCop.Analyzers 包。
 
 # dotnet_diagnostic.X0001.severity = none      # 已被 MT0005 取代; 保留行避免旧分支 merge 再次开启
-dotnet_diagnostic.MT0005.severity = none     # 默认保持禁用; 需要对称开括号换行时改为 warning/suggestion
+dotnet_diagnostic.MT0005.severity = none     # 禁用候选规则
+dotnet_diagnostic.X0001.severity = none     # 禁用实验性规则
+dotnet_diagnostic.X0002.severity = none     # 禁用实验性规则
+
+#用自定义的MT0008取代IDE0011 / csharp_prefer_braces (始终大括号安全)。MT0008的唯一区别是仅插入花括号而不插入换行，实现花括号与换行的解耦。
+dotnet_diagnostic.IDE0011.severity = none
+#csharp_prefer_braces = false
 
 dotnet_diagnostic.RS2007.severity = none   # 临时关闭发布跟踪格式警告（待后续打包前再修复）
 dotnet_diagnostic.RS2008.severity = none   # 临时关闭发布跟踪未启用/规则登记警告
@@ -165,9 +171,7 @@ dotnet_diagnostic.SA0001.severity = none   # XML 注释分析禁用信息 - 不�
 
 # 保留/仍在关注：
 #   SA1107 (多语句同一行) -> warning (调试与可读性)
-#   IDE0011 / csharp_prefer_braces (始终大括号安全)
 # 如需恢复某条，将 severity 调整为 suggestion/warning。
-
 
 # Code style rules
 dotnet_style_qualification_for_field = false:suggestion
