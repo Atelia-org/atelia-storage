@@ -129,7 +129,8 @@ public class ChunkedReservableWriterP2Tests {
                         if (haveOutstanding) { // 50% 概率先取消
                             if (rnd.Next(2) == 0) {
                                 writer.Advance(0);
-                            } else {
+                            }
+                            else {
                                 writer.Advance(0); // same effect; kept to preserve randomness branch
                             }
                             haveOutstanding = false;
@@ -144,7 +145,8 @@ public class ChunkedReservableWriterP2Tests {
                         if (adv > 0) {
                             writer.Advance(adv);
                             haveOutstanding = false;
-                        } else { // 留下未 Advance
+                        }
+                        else { // 留下未 Advance
                             haveOutstanding = true; // 故意制造潜在后续错误路径
                         }
                         break;
@@ -187,14 +189,16 @@ public class ChunkedReservableWriterP2Tests {
                         if (haveOutstanding) {
                             writer.Advance(0);
                             haveOutstanding = false;
-                        } else {
+                        }
+                        else {
                             writer.Advance(0); // no-op
                         }
 
                         break;
                     }
                 }
-            } catch (InvalidOperationException ex) {
+            }
+            catch (InvalidOperationException ex) {
                 // 允许严格模式下的合法异常（只在我们故意构造未 Advance 再 ReserveSpan 时出现，逻辑已防护，但保留兜底）
                 Assert.Contains("Previous buffer not advanced", ex.Message);
                 // 清理状态后继续

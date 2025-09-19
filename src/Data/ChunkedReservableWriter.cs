@@ -58,7 +58,8 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         if (required > _maxChunkSize) {
             // Oversized direct rent (do not influence adaptive target).
             size = required;
-        } else {
+        }
+        else {
             int candidate = Math.Max(required, _currentChunkTargetSize);
             // Round up to power of two (bounded) for better ArrayPool bucket locality.
             // candidate = RoundUpToPowerOfTwo(candidate);
@@ -71,10 +72,7 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         }
 
         byte[] buffer = _pool.Rent(size);
-        if (buffer.Length < sizeHint) {
-            throw new InvalidOperationException($"ArrayPool returned buffer length {buffer.Length} < requested {sizeHint}");
-        }
-
+        if (buffer.Length < sizeHint) { throw new InvalidOperationException($"ArrayPool returned buffer length {buffer.Length} < requested {sizeHint}"); }
         var chunk = new Chunk { Buffer = buffer, DataEnd = 0, IsRented = true };
         _chunks.Enqueue(chunk);
 
@@ -121,11 +119,8 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
 
     private Chunk EnsureSpace(int sizeHint) {
         Chunk? lastChunk;
-        if (TryGetLastActiveChunk(out lastChunk) && lastChunk.FreeSpace >= sizeHint) {
-            return lastChunk;
-        } else {
-            return CreateChunk(sizeHint);
-        }
+        if (TryGetLastActiveChunk(out lastChunk) && lastChunk.FreeSpace >= sizeHint) { return lastChunk; }
+        else { return CreateChunk(sizeHint); }
     }
     #endregion
 
@@ -142,14 +137,8 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         int minSize = opt.MinChunkSize;
         int maxSize = opt.MaxChunkSize;
 
-        if (minSize < 1024) {
-            throw new ArgumentException("MinChunkSize must be >= 1024", nameof(options));
-        }
-
-        if (maxSize < minSize) {
-            throw new ArgumentException("MaxChunkSize must be >= MinChunkSize", nameof(options));
-        }
-
+        if (minSize < 1024) { throw new ArgumentException("MinChunkSize must be >= 1024", nameof(options)); }
+        if (maxSize < minSize) { throw new ArgumentException("MaxChunkSize must be >= MinChunkSize", nameof(options)); }
         _minChunkSize = minSize;
         _maxChunkSize = maxSize;
         _currentChunkTargetSize = _minChunkSize;
@@ -213,7 +202,8 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
                     flushed = true;
                 }
                 break; // Subsequent chunks are blocked.
-            } else {
+            }
+            else {
                 // This chunk has no pending reservations and can be fully flushed.
                 flushableLength = chunk.DataEnd - chunk.DataBegin;
                 if (flushableLength > 0) {
@@ -280,10 +270,7 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     public void Advance(int count) {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (count < 0) {
-            throw new ArgumentOutOfRangeException(nameof(count), "Count cannot be negative");
-        }
-
+        if (count < 0) { throw new ArgumentOutOfRangeException(nameof(count), "Count cannot be negative"); }
         if (count == 0) {
             // Treat Advance(0) as explicit cancellation of outstanding span.
             _hasLastSpan = false;
@@ -292,16 +279,13 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         }
 
         // Validate that count does not exceed the available space from the last GetSpan/GetMemory call.
-        if (!_hasLastSpan || count > _lastSpanLength) {
-            throw new ArgumentOutOfRangeException(nameof(count), "Count exceeds available space from the last buffer request.");
-        }
-
-        // If there are no reservations, write directly to the inner writer (passthrough mode).
+        if (!_hasLastSpan || count > _lastSpanLength) { throw new ArgumentOutOfRangeException(nameof(count), "Count exceeds available space from the last buffer request."); }
         if (GetActiveChunksCount() == 0) {
             _innerWriter.Advance(count);
             _writtenLength += count;
             _flushedLength += count;
-        } else {
+        }
+        else {
             // With active reservations, update the current chunk's written position.
             Chunk? lastChunk;
             if (TryGetLastActiveChunk(out lastChunk)) {
@@ -374,15 +358,9 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     public Span<byte> ReserveSpan(int count, out int reservationToken, string? tag = null) {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (count <= 0) {
-            throw new ArgumentOutOfRangeException(nameof(count), "Count must be positive");
-        }
-
-        // 防止与尚未 Advance 的上一次 GetSpan/GetMemory 返回的可写区域发生重叠（否则会出现数据区间覆盖 / 长度统计紊乱）。
+        if (count <= 0) { throw new ArgumentOutOfRangeException(nameof(count), "Count must be positive"); }
         if (_hasLastSpan) {
-            if (_enforceStrictAdvance) {
-                throw new InvalidOperationException("Previous buffer not advanced (strict mode). Call Advance() before ReserveSpan().");
-            }
+            if (_enforceStrictAdvance) { throw new InvalidOperationException("Previous buffer not advanced (strict mode). Call Advance() before ReserveSpan()."); }
             _hasLastSpan = false; // permissive discard
             _lastSpanLength = 0;
         }
@@ -417,11 +395,7 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     public void Commit(int reservationToken) {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (!_tokenToNode.TryGetValue(reservationToken, out LinkedListNode<Reservation>? node)) {
-            throw new InvalidOperationException("Invalid or already committed reservation token.");
-        }
-
-        // Remove the reservation from tracking.
+        if (!_tokenToNode.TryGetValue(reservationToken, out LinkedListNode<Reservation>? node)) { throw new InvalidOperationException("Invalid or already committed reservation token."); }
         _reservationOrder.Remove(node);
         _tokenToNode.Remove(reservationToken);
 
