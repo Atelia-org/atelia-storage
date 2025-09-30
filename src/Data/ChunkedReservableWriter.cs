@@ -386,6 +386,11 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     #endregion
 
     #region IReservableBufferWriter
+    /// <summary>
+    /// Reserves a contiguous buffer region for later backfilling.
+    /// The returned span remains valid until the reservation is committed or the writer is reset/disposed,
+    /// even if additional <see cref="GetSpan"/> or <see cref="ReserveSpan"/> calls allocate space after it.
+    /// </summary>
     public Span<byte> ReserveSpan(int count, out int reservationToken, string? tag = null) {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
