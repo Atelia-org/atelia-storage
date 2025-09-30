@@ -1,3 +1,4 @@
+using System;
 using System.Buffers;
 
 namespace Atelia.Data;
@@ -27,10 +28,22 @@ public sealed class ChunkedReservableWriterOptions {
     /// </summary>
     public ArrayPool<byte>? Pool { get; set; } = null;
 
+    /// <summary>
+    /// 可选调试输出回调，例如 DebugUtil.Print。参数依次为 category 和 message。
+    /// </summary>
+    public Action<string, string>? DebugLog { get; set; } = null;
+
+    /// <summary>
+    /// DebugLog 使用的默认类别。未设置 DebugLog 时忽略。默认："BinaryLog"。
+    /// </summary>
+    public string DebugCategory { get; set; } = "BinaryLog";
+
     internal ChunkedReservableWriterOptions Clone() => new() {
         MinChunkSize = MinChunkSize,
         MaxChunkSize = MaxChunkSize,
         EnforceStrictAdvance = EnforceStrictAdvance,
-        Pool = Pool
+        Pool = Pool,
+        DebugLog = DebugLog,
+        DebugCategory = DebugCategory
     };
 }

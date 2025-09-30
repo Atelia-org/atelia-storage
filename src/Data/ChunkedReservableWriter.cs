@@ -1,3 +1,4 @@
+using System;
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
@@ -28,6 +29,8 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     private int _currentChunkTargetSize; // adaptive growth baseline
     private const double GrowthFactor = 2.0; // simple heuristic; could be optionized later
     private readonly bool _enforceStrictAdvance;
+    private readonly Action<string, string>? _debugLog;
+    private readonly string _debugCategory;
 
     private class Chunk {
         public byte[] Buffer = null!;
@@ -143,6 +146,14 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         _maxChunkSize = maxSize;
         _currentChunkTargetSize = _minChunkSize;
         _enforceStrictAdvance = opt.EnforceStrictAdvance;
+        _debugLog = opt.DebugLog;
+        _debugCategory = string.IsNullOrWhiteSpace(opt.DebugCategory) ? "BinaryLog" : opt.DebugCategory;
+    }
+
+    private void Trace(string message) {
+        var logger = _debugLog;
+        if (logger is null) { return; }
+        logger(_debugCategory, message);
     }
 
     #region Reservation
@@ -227,6 +238,9 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
 
         chunk.DataBegin += length;
         _flushedLength += length;
+        if (_debugLog is not null) {
+            Trace($"Flushed {length} bytes, pending={PendingLength}");
+        }
     }
 
     /// <summary>
@@ -235,14 +249,22 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     /// </summary>
     private void TryRecycleFlushedChunks() {
         // 手动逐个检查并出队，确保在出队前归还池内缓冲区
+        int recycled = 0;
         while (_chunks.TryPeekFirst(out var c) && c.IsFullyFlushed) {
             if (c.IsRented) {
                 _pool.Return(c.Buffer);
             }
 
             _chunks.TryDequeue(out _); // 丢弃引用
+            recycled++;
         }
         _chunks.Compact(); // 仍按阈值压缩
+        if (recycled > 0 && _debugLog is not null) {
+            Trace($"Recycled {recycled} chunks");
+        }
+        if (recycled > 0 && _chunks.IsEmpty && _debugLog is not null) {
+            Trace("All buffered chunks recycled");
+        }
     }
 
     /// <summary>
@@ -258,6 +280,9 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         if (_reservationOrder.Count == 0 && _chunks.IsEmpty) {
             // Clear() 会释放底层 List 容量引用
             _chunks.Clear();
+            if (_debugLog is not null) {
+                Trace("Passthrough mode restored");
+            }
         }
     }
     #endregion
@@ -284,6 +309,9 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
             _innerWriter.Advance(count);
             _writtenLength += count;
             _flushedLength += count;
+            if (_debugLog is not null) {
+                Trace($"Advance passthrough count={count}, written={_writtenLength}");
+            }
         }
         else {
             // With active reservations, update the current chunk's written position.
@@ -296,6 +324,9 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
                     // Only try to recycle if a flush actually occurred.
                     TryRecycleFlushedChunks();
                     TryRestorePassthroughIfIdle();
+                }
+                else if (_debugLog is not null) {
+                    Trace($"Advance buffered count={count}, pending={PendingLength}");
                 }
             }
         }
@@ -383,6 +414,9 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         _writtenLength += count;
 
         // Return the reserved span.
+        if (_debugLog is not null) {
+            Trace($"ReserveSpan token={reservationToken}, count={count}, tag={tag ?? string.Empty}, logicalOffset={logicalOffset}");
+        }
         return chunk.Buffer.AsSpan(offset, count);
     }
 
@@ -400,6 +434,9 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         _tokenToNode.Remove(reservationToken);
 
         // Check if we can now flush a contiguous block of data.
+        if (_debugLog is not null) {
+            Trace($"Commit token={reservationToken}, remaining={_reservationOrder.Count}");
+        }
         bool flushed = FlushCommittedData();
         if (flushed) {
             TryRecycleFlushedChunks();
