@@ -15,10 +15,28 @@ namespace Atelia.Data;
 /// <description><see cref="GetSpan(int)"/>（或 <see cref="GetMemory(int)"/>）与 <see cref="Advance(int)"/> 必须严格配对。调用者在再次索取缓冲或预留之前必须先调用 <see cref="Advance(int)"/>（若无需写入可传入 0 表示放弃先前缓冲）。</description>
 /// </item>
 /// <item>
+/// <description>在调用 <see cref="GetSpan(int)"/> 或 <see cref="GetMemory(int)"/> 后、执行对应的 <see cref="Advance(int)"/> 之前，禁止再次调用 <see cref="GetSpan(int)"/>、<see cref="GetMemory(int)"/> 或 <see cref="ReserveSpan(int, out int, string?)"/>；调用方必须先完成配对的 <see cref="Advance(int)"/>。</description>
+/// </item>
+/// <item>
 /// <description><see cref="ReserveSpan(int, out int, string?)"/> 只能在不存在未 <see cref="Advance(int)"/> 的普通缓冲时调用；返回的 <see cref="Span{Byte}"/> 在对应的 <see cref="Commit(int)"/>、<see cref="IDisposable.Dispose"/>（若实现支持）或实现自带的 <c>Reset</c> 发生前始终有效，即使其间调用了新的 <see cref="GetSpan"/> / <see cref="ReserveSpan"/>。</description>
 /// </item>
 /// <item>
 /// <description><see cref="Commit(int)"/> 之后，底层实现需确保所有比该 reservation 更早写入的数据最终可以推进到下游目标；若实现选择延迟冲刷，必须提供显式 <c>Flush</c> 或在生命周期结束时自动冲刷。</description>
+/// </item>
+/// </list>
+/// <para>状态约束（写入方需要遵守下列调用序列）：</para>
+/// <list type="bullet">
+/// <item>
+/// <description>&lt;b&gt;空闲 → 借用普通缓冲&lt;/b&gt;：调用 <see cref="GetSpan(int)"/> 或 <see cref="GetMemory(int)"/> 进入“待 Advance”状态。</description>
+/// </item>
+/// <item>
+/// <description>&lt;b&gt;待 Advance&lt;/b&gt;：唯一允许的调用是 <see cref="Advance(int)"/>（可传 0 表示放弃）。完成后回到空闲状态，可继续请求新的缓冲或进行预留。</description>
+/// </item>
+/// <item>
+/// <description>&lt;b&gt;空闲 → 预留缓冲&lt;/b&gt;：在没有“待 Advance”缓冲时调用 <see cref="ReserveSpan(int, out int, string?)"/>；预留 span 持续有效直至配对的 <see cref="Commit(int)"/>。</description>
+/// </item>
+/// <item>
+/// <description>&lt;b&gt;待 Commit&lt;/b&gt;：每个 reservation 需调用一次 <see cref="Commit(int)"/>。实现应阻止重复提交、未知 token 或未提交 reservation 即结束生命周期。</description>
 /// </item>
 /// </list>
 /// <para>任何违反顺序的调用都应在实现中导致异常，以便尽早暴露调用方错误。</para>
