@@ -112,10 +112,9 @@ public class ChunkedReservableWriterP2Tests {
     }
 
     [Fact]
-    public void MiniRandomSequenceInvariantTest_StrictMode() {
+    public void MiniRandomSequenceInvariantTest_StrictContract() {
         var inner = new CollectingWriter();
-        var options = new ChunkedReservableWriterOptions { EnforceStrictAdvance = true };
-        using var writer = new ChunkedReservableWriter(inner, options);
+        using var writer = new ChunkedReservableWriter(inner);
         var rnd = new Random(54321);
         var activeTokens = new List<int>();
 
@@ -199,7 +198,7 @@ public class ChunkedReservableWriterP2Tests {
                 }
             }
             catch (InvalidOperationException ex) {
-                // 允许严格模式下的合法异常（只在我们故意构造未 Advance 再 ReserveSpan 时出现，逻辑已防护，但保留兜底）
+                // 允许严格契约下的合法异常（只在我们故意构造未 Advance 再 ReserveSpan 时出现，逻辑已防护，但保留兜底）
                 Assert.Contains("Previous buffer not advanced", ex.Message);
                 // 清理状态后继续
                 if (haveOutstanding) {

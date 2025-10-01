@@ -34,20 +34,38 @@ public class ChunkedReservableWriterOptionsTests {
     }
 
     [Fact]
-    public void StrictMode_ReserveSpanAfterUnadvancedGetSpan_Throws() {
+    public void ReserveSpanAfterUnadvancedGetSpan_Throws() {
         var inner = new CollectingWriter();
-        var options = new ChunkedReservableWriterOptions { EnforceStrictAdvance = true };
-        using var writer = new ChunkedReservableWriter(inner, options);
+        using var writer = new ChunkedReservableWriter(inner);
         var span = writer.GetSpan(8);
         span[0] = 1; // write something but forget Advance
         Assert.Throws<InvalidOperationException>(() => writer.ReserveSpan(4, out _, null));
     }
 
     [Fact]
-    public void StrictMode_ReserveSpanAfterAdvanceZero_Allows() {
+    public void GetSpanTwiceWithoutAdvance_Throws() {
         var inner = new CollectingWriter();
-        var options = new ChunkedReservableWriterOptions { EnforceStrictAdvance = true };
-        using var writer = new ChunkedReservableWriter(inner, options);
+        using var writer = new ChunkedReservableWriter(inner);
+        var first = writer.GetSpan(4);
+        first[0] = 42;
+        var ex = Assert.Throws<InvalidOperationException>(() => writer.GetSpan(2));
+        Assert.Contains("Previous buffer not advanced", ex.Message);
+    }
+
+    [Fact]
+    public void GetMemoryTwiceWithoutAdvance_Throws() {
+        var inner = new CollectingWriter();
+        using var writer = new ChunkedReservableWriter(inner);
+        var first = writer.GetMemory(4);
+        first.Span[0] = 11;
+        var ex = Assert.Throws<InvalidOperationException>(() => writer.GetMemory(1));
+        Assert.Contains("Previous buffer not advanced", ex.Message);
+    }
+
+    [Fact]
+    public void ReserveSpanAfterAdvanceZero_Allows() {
+        var inner = new CollectingWriter();
+        using var writer = new ChunkedReservableWriter(inner);
         writer.GetSpan(16); // acquire
         writer.Advance(0); // explicitly cancel
         var r = writer.ReserveSpan(4, out int token, null);
@@ -64,6 +82,7 @@ public class ChunkedReservableWriterOptionsTests {
         writer.ReserveSpan(1, out int tk, null)[0] = 0xFF; // force buffered mode
         var span = writer.GetSpan(16);
         Assert.True(span.Length >= 16);
+        writer.Advance(0); // release without writing
         // second span request should still come from same chunk unless exhausted
         var span2 = writer.GetSpan(4000);
         Assert.True(span2.Length >= 4000);
@@ -101,10 +120,9 @@ public class ChunkedReservableWriterOptionsTests {
     }
 
     [Fact]
-    public void StrictMode_DoesNotBreakFlushSemantics() {
+    public void StrictContract_DoesNotBreakFlushSemantics() {
         var inner = new CollectingWriter();
-        var options = new ChunkedReservableWriterOptions { EnforceStrictAdvance = true };
-        using var writer = new ChunkedReservableWriter(inner, options);
+        using var writer = new ChunkedReservableWriter(inner);
         var head = writer.GetSpan(3);
         head[0] = 0x01;
         head[1] = 0x02;

@@ -19,11 +19,6 @@ public sealed class ChunkedReservableWriterOptions {
     public int MaxChunkSize { get; set; } = 64 * 1024;
 
     /// <summary>
-    /// 是否严格要求在再次获取缓冲或预留前必须 Advance 已获取的缓冲。
-    /// </summary>
-    public bool EnforceStrictAdvance { get; set; } = false;
-
-    /// <summary>
     /// 可选显式 ArrayPool。为空则使用 ArrayPool&lt;byte&gt;.Shared。
     /// </summary>
     public ArrayPool<byte>? Pool { get; set; } = null;
@@ -41,7 +36,6 @@ public sealed class ChunkedReservableWriterOptions {
     internal ChunkedReservableWriterOptions Clone() => new() {
         MinChunkSize = MinChunkSize,
         MaxChunkSize = MaxChunkSize,
-        EnforceStrictAdvance = EnforceStrictAdvance,
         Pool = Pool,
         DebugLog = DebugLog,
         DebugCategory = DebugCategory

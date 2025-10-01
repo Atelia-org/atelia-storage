@@ -120,6 +120,7 @@ public class ChunkedReservableWriterP1Tests {
         int large = 500_000; // < 256 * 4096 (1,048,576) 保证可分配
         var span = writer.GetSpan(large);
         Assert.True(span.Length >= large);
+        writer.Advance(0); // release passthrough span before switching to buffered mode
         // 进入缓冲模式后再次测试（通过一个 reservation 强制 chunk 分配，再请求大 span）
         writer.ReserveSpan(16, out int t, null).Clear();
         var span2 = writer.GetSpan(large);

@@ -28,7 +28,6 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     private readonly int _maxChunkSize;
     private int _currentChunkTargetSize; // adaptive growth baseline
     private const double GrowthFactor = 2.0; // simple heuristic; could be optionized later
-    private readonly bool _enforceStrictAdvance;
     private readonly Action<string, string>? _debugLog;
     private readonly string _debugCategory;
 
@@ -145,7 +144,6 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         _minChunkSize = minSize;
         _maxChunkSize = maxSize;
         _currentChunkTargetSize = _minChunkSize;
-        _enforceStrictAdvance = opt.EnforceStrictAdvance;
         _debugLog = opt.DebugLog;
         _debugCategory = string.IsNullOrWhiteSpace(opt.DebugCategory) ? "BinaryLog" : opt.DebugCategory;
     }
@@ -336,6 +334,7 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
 
     public Memory<byte> GetMemory(int sizeHint = 0) {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_hasLastSpan) { throw new InvalidOperationException("Previous buffer not advanced. Call Advance() (or Advance(0)) before requesting another buffer."); }
         sizeHint = Math.Max(sizeHint, 1);
 
         // Passthrough mode
@@ -358,6 +357,7 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
 
     public Span<byte> GetSpan(int sizeHint = 0) {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_hasLastSpan) { throw new InvalidOperationException("Previous buffer not advanced. Call Advance() (or Advance(0)) before requesting another buffer."); }
         sizeHint = Math.Max(sizeHint, 1);
 
         // Passthrough mode
@@ -395,11 +395,7 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         if (count <= 0) { throw new ArgumentOutOfRangeException(nameof(count), "Count must be positive"); }
-        if (_hasLastSpan) {
-            if (_enforceStrictAdvance) { throw new InvalidOperationException("Previous buffer not advanced (strict mode). Call Advance() before ReserveSpan()."); }
-            _hasLastSpan = false; // permissive discard
-            _lastSpanLength = 0;
-        }
+        if (_hasLastSpan) { throw new InvalidOperationException("Previous buffer not advanced. Call Advance() before ReserveSpan()."); }
 
         // Ensure there is a chunk with enough space.
         Chunk chunk = EnsureSpace(count);
