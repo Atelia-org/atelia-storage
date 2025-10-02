@@ -10,6 +10,10 @@
 # Shell scripts: enforce LF in working tree
 *.sh text eol=lf
 
+# Markdown files: allow trailing whitespace (used for hard line breaks)
+*.md -whitespace
+*.mdx -whitespace
+
 # Common binary formats (no line ending normalization)
 *.png -text
 *.jpg -text
