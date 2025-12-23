@@ -1,7 +1,7 @@
 # RBF 二进制格式规范
 
 > **状态**：Draft
-> **版本**：0.5
+> **版本**：0.6
 > **创建日期**：2025-12-22
 > **接口契约**：[rbf-interface.md](rbf-interface.md)
 
@@ -48,63 +48,38 @@
 
 ## 2. 文件结构
 
-### 2.1 Genesis Header（文件头）
+### 2.1 Magic 定义
 
-**`[F-GENESIS-HEADER]`**
+**`[F-MAGIC-DEFINITION]`**
 
-每个 RBF 文件以 4 字节 Magic 开头作为 Genesis Header（创世头），标识文件类型：
-
-| 偏移 | 长度 | 字段 | 值 |
-|------|------|------|-----|
-| 0 | 4 | Magic | `RBF1` (`52 42 46 31`) |
-
-**Magic 值定义**：
-
-| Magic (ASCII) | 字节序列 (Hex) | 说明 |
-|---------------|----------------|------|
-| `RBF1` | `52 42 46 31` | 统一 Magic，不区分文件类型 |
+| 字段 | ASCII | Hex 字节序列 | 编码约定 |
+|------|-------|--------------|----------|
+| Magic | `RBF1` | `52 42 46 31` | ASCII 字节序列写入（非 u32 端序），读取时按字节匹配 |
 
 > **命名说明**：`RBF` = Reversible Binary Framing，`1` = 版本号。
 
-**`[F-MAGIC-BYTE-SEQUENCE]`** Magic 编码约定：
+### 2.2 Genesis Header（文件头）
 
-- Magic 以 **ASCII 字节序列** 写入（非 u32 端序写入）
-- 字节序列定义见上表：`'R'(0x52)`, `'B'(0x42)`, `'F'(0x46)`, `'1'(0x31)`
-- 读取时按字节匹配，不做端序转换
+**`[F-GENESIS-HEADER]`**
+
+每个 RBF 文件以 Magic 开头作为 Genesis Header（创世头）：
+
+- 偏移 0，长度 4 字节
+- 值：见 `[F-MAGIC-DEFINITION]`
 
 **`[F-GENESIS-EMPTY-FILE]`** 空文件约束：
 
 - 新建的 RBF 文件长度为 4 字节（仅含 Genesis Header）
 - `FileLength == 4` 表示"无任何 Frame"
 
-### 2.2 文件整体布局
+### 2.3 文件整体布局
 
 ```
-┌────────────────────────────────────────────┐
-│                 RBF File                    │
-├──────────┬─────────┬─────────┬─────────────┤
-│ Genesis  │ Frame 1 │ Frame 2 │    ...      │
-│ (Magic)  │         │         │             │
-└──────────┴─────────┴─────────┴─────────────┘
-     4B       var       var
+[Genesis][Frame 1][Frame 2][...]
+   4B      var      var
 ```
 
-**EBNF 语法**：
-
-```ebnf
-(* File Framing: Magic-separated log *)
-File    := Genesis (Frame)*
-Genesis := Magic
-Magic   := 4 bytes ("RBF1")   (* see [F-MAGIC-BYTE-SEQUENCE] *)
-
-(* Frame Layout — see [F-FRAME-LAYOUT] for wire format *)
-Frame   := HeadLen Payload Pad TailLen CRC32C Magic
-HeadLen := u32 LE             (* see [F-HEADLEN-FORMULA]; 不含尾部 Magic *)
-Payload := N bytes
-Pad     := 0..3 bytes         (* see [F-PADLEN-FORMULA] *)
-TailLen := u32 LE             (* == HeadLen *)
-CRC32C  := u32 LE             (* see [F-CRC32C-COVERAGE] *)
-```
+每个 Frame 后紧跟一个 Magic 作为分隔符（见 §5）。
 
 ---
 
@@ -114,34 +89,21 @@ CRC32C  := u32 LE             (* see [F-CRC32C-COVERAGE] *)
 
 **`[F-FRAME-LAYOUT]`**
 
-每个 Frame 由以下字段组成：
+| 偏移 | 字段 | 类型 | 长度 | 说明 |
+|------|------|------|------|------|
+| 0 | HeadLen | u32 LE | 4 | Frame 总长度（不含尾部 Magic）|
+| 4 | Payload | bytes | N | Tag(1B) + PayloadBody(N-1B) |
+| 4+N | Pad | bytes | 0-3 | 全 0，使 (N + Pad) 为 4 的倍数 |
+| 4+N+Pad | TailLen | u32 LE | 4 | == HeadLen |
+| 8+N+Pad | CRC32C | u32 LE | 4 | 见 `[F-CRC32C-COVERAGE]` |
+| 12+N+Pad | Magic | bytes | 4 | 见 `[F-MAGIC-DEFINITION]` |
 
-```
-┌──────────┬─────┬──────────────────┬─────────┬──────────┬──────────┬─────────┐
-│ HeadLen  │ Tag │  PayloadBody     │   Pad   │ TailLen  │  CRC32C  │  Magic  │
-│  (u32)   │(1B) │   (N-1 bytes)    │ (0-3B)  │  (u32)   │  (u32)   │  (4B)   │
-└──────────┴─────┴──────────────────┴─────────┴──────────┴──────────┴─────────┘
-    4B       1B       variable         0-3B        4B         4B         4B
-           └──────── Payload ────────┘
-```
+**`[F-FRAMETAG-WIRE-ENCODING]`** Payload 结构：
 
-| 字段 | 类型 | 长度 | 说明 |
-|------|------|------|------|
-| HeadLen | u32 LE | 4 | Frame 总长度（不含尾部 Magic）|
-| Payload | bytes | N | 帧负载（Tag + PayloadBody）|
-| ├─ Tag | u8 | 1 | **FrameTag**（Payload 的第 1 字节）|
-| └─ PayloadBody | bytes | N-1 | 帧实际内容（由上层定义语义）|
-| Pad | bytes | 0-3 | 填充字节（全 0），保证 4B 对齐 |
-| TailLen | u32 LE | 4 | 与 HeadLen 相同（用于逆向扫描）|
-| CRC32C | u32 LE | 4 | 校验和 |
-| Magic | bytes | 4 | 分隔符（与 Genesis 相同）|
-
-**`[F-FRAMETAG-WIRE-ENCODING]`** FrameTag 编码：
-
-- **Tag 是 Payload 的第 1 个字节**（偏移 0）
-- RBF 层负责读写 Tag 字段，但不解释其语义（`0x00` = Padding 除外）
-- Tag 计入 `PayloadLen`（即 `PayloadLen = 1 + PayloadBodyLen`）
-- 关于 FrameTag 的定义和语义，参见 [rbf-interface.md](rbf-interface.md) 的 `[F-FRAMETAG-DEFINITION]`
+- Payload 的第 1 字节为 **Tag**（FrameTag）
+- `PayloadLen = 1 (Tag) + PayloadBodyLen`
+- RBF 层读写 Tag 但不解释语义（`0x00` = Padding 除外）
+- FrameTag 定义见 [rbf-interface.md](rbf-interface.md) 的 `[F-FRAMETAG-DEFINITION]`
 
 ### 3.2 长度字段
 
@@ -483,6 +445,7 @@ Resync 过程:
 
 | 条款 ID | 名称 |
 |---------|------|
+| `[F-MAGIC-DEFINITION]` | Magic 定义 |
 | `[F-GENESIS-HEADER]` | 创世头 |
 | `[F-GENESIS-EMPTY-FILE]` | 空文件 |
 | `[F-FRAME-LAYOUT]` | 帧布局 |
@@ -496,7 +459,6 @@ Resync 过程:
 | `[F-CRC32C-ALGORITHM]` | CRC 算法 |
 | `[F-CRC-FAIL-REJECT]` | CRC 失败 |
 | `[F-FRAMING-FAIL-REJECT]` | Framing 失败 |
-| `[F-MAGIC-BYTE-SEQUENCE]` | Magic 编码 |
 | `[F-MAGIC-IS-FENCE]` | Magic 是栅栏 |
 | `[F-MAGIC-FRAME-SEPARATOR]` | Magic 分隔符 |
 | `[F-FRAME-WRITE-SEQUENCE]` | 写入顺序 |
@@ -575,4 +537,5 @@ Wire format:
 | 0.3 | 2025-12-22 | P1 修订：Magic 编码约定（字节序列）；PadLen 公式简化；CRC/Framing 失败策略条款 |
 | 0.4 | 2025-12-22 | 命名重构：ELOG → RBF (Reversible Binary Framing)；Magic 统一为 `RBF1`；移除双 Magic 设计 |
 | 0.5 | 2025-12-23 | 冗余消除：修复 Magic 条款残留错误；EBNF 语法修复并改为条款引用；测试向量闭合修复；CRC 覆盖改为引用；条款索引简化为纯导航；示例标注 Informative |
+| 0.6 | 2025-12-23 | 结构重构：Magic 单一定义 `[F-MAGIC-DEFINITION]`；删除 EBNF 和 ASCII 图；Frame 布局表增加偏移列成为唯一规范 |
 
