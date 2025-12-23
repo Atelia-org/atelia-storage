@@ -1,6 +1,6 @@
 # RBF 测试向量
 
-> **版本**：0.1
+> **版本**：0.2
 > **状态**：Draft
 > **关联规范**：[rbf-format.md](rbf-format.md)
 
@@ -178,14 +178,15 @@
 
 | 条款 ID | 规范条款 | 对应测试用例 |
 |---------|----------|--------------|
-| `[F-MAGIC-FRAME-SEPARATOR]` | Magic 是 Frame Separator | RBF-EMPTY-001, RBF-SINGLE-001 |
-| `[F-HEADLEN-TAILLEN-SYMMETRY]` | HeadLen == TailLen | RBF-LEN-001, RBF-BAD-001 |
+| `[F-GENESIS]` | Genesis (Header/Empty) | RBF-EMPTY-001 |
+| `[F-FENCE-SEMANTICS]` | Fence 语义 (Magic Separator) | RBF-SINGLE-001, RBF-DOUBLE-001 |
+| `[F-FRAME-LAYOUT]` | FrameBytes 布局 (含 HeadLen==TailLen) | RBF-LEN-001, RBF-BAD-001 |
 | `[F-FRAME-4B-ALIGNMENT]` | Frame 起点 4B 对齐 | RBF-BAD-003 |
-| `[F-PTR64-NULL-AND-ALIGNMENT]` | Ptr64 == 0 表示 null；否则 Ptr64 % 4 == 0 | PTR-OK-001, PTR-BAD-001/002 |
+| `[F-PTR64-WIRE-FORMAT]` | Address/Ptr Wire Format | PTR-OK-001, PTR-BAD-001/002 |
 | `[F-CRC32C-COVERAGE]` | CRC32C 覆盖范围 | RBF-OK-001, RBF-BAD-002 |
 | `[F-VARINT-CANONICAL-ENCODING]` | VarInt canonical 最短编码 | VARINT-OK-001, VARINT-BAD-001/002/003 |
 | `[F-DECODE-ERROR-FAILFAST]` | VarInt 解码错误策略 | VARINT-BAD-001/002/003 |
-| `[R-RESYNC-DISTRUST-TAILLEN]` | Resync 不得信任损坏 TailLen | RBF-TRUNCATE-001/002, RBF-BAD-003/004 |
+| `[R-RESYNC-BEHAVIOR]` | Resync 行为 (不信任 TailLen) | RBF-TRUNCATE-001/002, RBF-BAD-003/004 |
 | `[R-META-AHEAD-BACKTRACK]` | Meta 领先 Data 按撕裂提交处理 | META-RECOVER-002, META-RECOVER-003 |
 | `[R-DATATAIL-TRUNCATE]` | 崩溃恢复截断 | RBF-TRUNCATE-001/002 |
 
@@ -207,4 +208,5 @@
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2025-12-23 | 0.2 | 适配 rbf-format.md v0.9：更新条款 ID 映射（Genesis/Fence/Ptr64/Resync） |
 | 2025-12-22 | 0.1 | 从 mvp-test-vectors.md 提取 Layer 0 测试向量创建独立文档 |
