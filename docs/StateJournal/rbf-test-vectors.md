@@ -1,6 +1,6 @@
 # RBF 测试向量
 
-> **版本**：0.2
+> **版本**：0.5
 > **状态**：Draft
 > **关联规范**：[rbf-format.md](rbf-format.md)
 
@@ -11,7 +11,7 @@
 本文档定义 RBF（Layer 0）的测试向量，覆盖 Frame 编码、逆向扫描、Resync、CRC 校验、Ptr64 和 varint 编码等。
 
 **覆盖范围**：
-- Frame 结构（HeadLen/TailLen/Pad/CRC32C）
+- Frame 结构（HeadLen/FrameTag/TailLen/Pad/CRC32C）
 - Fence-as-Separator 语义
 - 逆向扫描与 Resync
 - Meta 恢复与撕裂提交
@@ -24,11 +24,11 @@
 
 - **Fence-as-Separator**：Fence 是 Frame 分隔符，不属于任何 Frame
 - **文件结构**：`[Fence][Frame1][Fence][Frame2]...[Fence]`
-- **Frame 格式**：`[HeadLen][FrameData][Pad][TailLen][CRC32C]`（不含 Fence）
+- **Frame 格式**：`[HeadLen][FrameTag][Payload][Pad][TailLen][CRC32C]`（不含 Fence）
 - **Ptr64**：指向 Frame 的 `HeadLen` 字段起始位置（第一个 Fence 之后）
 - 字节序：除 varint 外，定长整数均为 little-endian
 - varint：protobuf 风格 base-128，要求 canonical 最短编码
-- CRC32C：覆盖 `FrameData + Pad + TailLen`
+- CRC32C：覆盖 `FrameTag + Payload + Pad + TailLen`
 
 ---
 
@@ -60,23 +60,24 @@
 ### 1.4 HeadLen/TailLen 计算
 
 **用例 RBF-LEN-001**
-- Given：FrameDataLen 分别为 `4k, 4k+1, 4k+2, 4k+3`
+- Given：PayloadLen 分别为 `4k, 4k+1, 4k+2, 4k+3`
 - Then：
-  - PadLen = `(4 - FrameDataLen % 4) % 4`
-  - `HeadLen = 4 + FrameDataLen + PadLen + 4 + 4`（不含 Fence）
+  - PadLen = `(4 - PayloadLen % 4) % 4`
+  - `HeadLen = 4 (HeadLen) + 4 (FrameTag) + PayloadLen + PadLen + 4 (TailLen) + 4 (CRC32C)`
+  - `HeadLen == 16 + PayloadLen + PadLen`
   - `HeadLen == TailLen`
 
 **用例 RBF-LEN-002（PadLen 取值覆盖）**
-- Given：FrameDataLen 分别为 `4k, 4k+1, 4k+2, 4k+3`
+- Given：PayloadLen 分别为 `4k, 4k+1, 4k+2, 4k+3`
 - Then：PadLen 分别为 `0, 3, 2, 1`；下一条 Fence 起点 4B 对齐
 
-### 1.5 FrameData 含 Fence 字节
+### 1.5 Payload 含 Fence 字节
 
-**用例 RBF-FENCE-IN-FRAMEDATA-001**
-- Given：FrameData 恰好包含 `52 42 46 31`（Fence 值 `RBF1`）
+**用例 RBF-FENCE-IN-PAYLOAD-001**
+- Given：Payload（或 FrameTag）恰好包含 `52 42 46 31`（Fence 值 `RBF1`）
 - Then：
   - CRC32C 校验通过时，正常解析
-  - resync 时遇到 FrameData 中的 Fence 值，CRC 校验失败应继续向前扫描
+  - resync 时遇到 Payload 中的 Fence 值，CRC 校验失败应继续向前扫描
 
 ---
 
@@ -85,10 +86,10 @@
 ### 2.1 有效 Frame（正例）
 
 **用例 RBF-OK-001（最小可解析 frame）**
-- Given：`Fence` 值为 `RBF1`（`52 42 46 31`）；FrameData 至少 1 byte（FrameTag）。
-- When：写入 `Fence + HeadLen占位 + FrameData + Pad + TailLen + CRC32C + 回填HeadLen`。
+- Given：`Fence` 值为 `RBF1`（`52 42 46 31`）；Payload 为空（0 bytes）。
+- When：写入 `Fence + HeadLen(16) + FrameTag + (Empty Payload) + Pad(0) + TailLen(16) + CRC32C`。
 - Then：
-  - `HeadLen == TailLen`
+  - `HeadLen == TailLen == 16`
   - `HeadLen % 4 == 0`
   - Frame 起点 4B 对齐
   - CRC32C 校验通过
@@ -101,7 +102,7 @@
 - Then：该 frame 视为损坏；反向扫描应停止在上一条有效 frame
 
 **用例 RBF-BAD-002（CRC32C 不匹配）**
-- Given：只篡改 FrameData 任意 1 byte
+- Given：只篡改 FrameTag 或 Payload 任意 1 byte
 - Then：CRC32C 校验失败；反向扫描不得将其作为有效 head
 
 **用例 RBF-BAD-003（Frame 起点非 4B 对齐）**
@@ -180,10 +181,11 @@
 |---------|----------|--------------|
 | `[F-GENESIS]` | Genesis Fence | RBF-EMPTY-001 |
 | `[F-FENCE-SEMANTICS]` | Fence 语义 | RBF-SINGLE-001, RBF-DOUBLE-001 |
-| `[F-FRAME-LAYOUT]` | FrameBytes 布局 (含 HeadLen==TailLen) | RBF-LEN-001, RBF-BAD-001 |
+| `[F-FRAME-LAYOUT]` | FrameBytes 布局 (含 HeadLen/Tag/TailLen) | RBF-LEN-001, RBF-BAD-001 |
+| `[F-FRAMETAG-WIRE-ENCODING]` | FrameTag 编码 (4B) | RBF-OK-001, RBF-BAD-002 |
 | `[F-FRAME-4B-ALIGNMENT]` | Frame 起点 4B 对齐 | RBF-BAD-003 |
 | `[F-PTR64-WIRE-FORMAT]` | Address/Ptr Wire Format | PTR-OK-001, PTR-BAD-001/002 |
-| `[F-CRC32C-COVERAGE]` | CRC32C 覆盖范围 | RBF-OK-001, RBF-BAD-002 |
+| `[F-CRC32C-COVERAGE]` | CRC32C 覆盖范围 (含 Tag) | RBF-OK-001, RBF-BAD-002 |
 | `[F-VARINT-CANONICAL-ENCODING]` | VarInt canonical 最短编码 | VARINT-OK-001, VARINT-BAD-001/002/003 |
 | `[F-DECODE-ERROR-FAILFAST]` | VarInt 解码错误策略 | VARINT-BAD-001/002/003 |
 | `[R-RESYNC-BEHAVIOR]` | Resync 行为 (不信任 TailLen) | RBF-TRUNCATE-001/002, RBF-BAD-003/004 |
@@ -208,6 +210,7 @@
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2025-12-24 | 0.5 | 适配 rbf-format.md v0.11：FrameTag 扩充为 4B，Payload 偏移调整，CRC 覆盖 Tag |
 | 2025-12-23 | 0.4 | 适配 rbf-format.md v0.10+：术语更新（Payload -> FrameData, Magic -> Fence） |
 | 2025-12-23 | 0.3 | 适配 rbf-format.md v0.10：统一使用 Fence 术语，替换 Magic |
 | 2025-12-23 | 0.2 | 适配 rbf-format.md v0.9：更新条款 ID 映射（Genesis/Fence/Ptr64/Resync） |

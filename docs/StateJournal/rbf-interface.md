@@ -1,7 +1,7 @@
 # RBF Layer Interface Contract
 
 > **状态**：Reviewed（复核通过）
-> **版本**：0.3
+> **版本**：0.4
 > **创建日期**：2025-12-22
 > **设计共识来源**：[agent-team/meeting/2025-12-21-rbf-layer-boundary.md](../../../agent-team/meeting/2025-12-21-rbf-layer-boundary.md)
 > **复核会议**：[agent-team/meeting/2025-12-22-rbf-interface-review.md](../../../agent-team/meeting/2025-12-22-rbf-interface-review.md)
@@ -51,18 +51,20 @@
 
 **`[F-FRAMETAG-DEFINITION]`**
 
-> **FrameTag** 是 1 字节的帧类型标识符。RBF 层不解释其语义，仅作为 payload 的 discriminator 透传。
+> **FrameTag** 是 4 字节的帧类型标识符。RBF 层不解释其语义，仅作为 payload 的 discriminator 透传。
 
 ```csharp
-public readonly record struct FrameTag(byte Value);
+public readonly record struct FrameTag(uint Value);
 ```
 
 **保留值**：
 
 | 值 | 名称 | 语义 |
 |----|------|------|
-| `0x00` | Padding | 可丢弃帧（用于 Auto-Abort 落盘） |
-| `0x01`-`0xFF` | — | 由上层定义 |
+| `0x00000000` | Padding | 可丢弃帧（用于 Auto-Abort 落盘） |
+| `0x00000001`-`0xFFFFFFFF` | — | 由上层定义 |
+
+> **设计理由**：4B 的 FrameTag 保持 Payload 4B 对齐，并支持 fourCC 风格的类型标识（如 `META`, `OBJV`）。
 
 **`[F-FRAMETAG-PADDING-VISIBLE]`**：`IRbfScanner` MUST 产出所有帧，包括 `FrameTag.Padding`。
 
@@ -201,7 +203,7 @@ public ref struct RbfFrameBuilder
 >
 > **物理实现**（双路径）：
 > - **SHOULD（Zero I/O）**：若底层支持 Reservation 且未发生数据外泄（HeadLen 作为首个 Reservation 未提交），丢弃未提交数据，不写入任何字节
-> - **MUST（Padding 墓碑）**：否则，将帧的 FrameTag 覆写为 `Padding (0x00)`，完成帧写入
+> - **MUST（Padding 墓碑）**：否则，将帧的 FrameTag 覆写为 `Padding (0x00000000)`，完成帧写入
 >
 > **后置条件**：
 > - `Dispose()` 后，底层 Writer MUST 可继续写入后续帧
@@ -294,15 +296,15 @@ StateJournal 定义以下 FrameTag 值：
 
 | FrameTag | Record 类型 | 描述 |
 |----------|-------------|------|
-| `0x00` | Padding | RBF 保留，上层 MUST 跳过 |
-| `0x01` | ObjectVersionRecord | 对象版本记录（data payload） |
-| `0x02` | MetaCommitRecord | 提交元数据记录（meta payload） |
-| `0x03`-`0xFF` | — | 未来扩展 |
+| `0x00000000` | Padding | RBF 保留，上层 MUST 跳过 |
+| `0x00000001` | ObjectVersionRecord | 对象版本记录（data payload） |
+| `0x00000002` | MetaCommitRecord | 提交元数据记录（meta payload） |
+| `0x00000003`-`0xFFFFFFFF` | — | 未来扩展 |
 
-> **FrameTag 是唯一判别器**：
-> - FrameTag 是 RBF FrameData（线格式）的第 1 个字节（参见 rbf-format.md `[F-FRAMETAG-WIRE-ENCODING]`）
-> - StateJournal 通过 FrameTag 区分 Record 类型，payload 内不再包含额外的类型字节
-> - 此设计与 mvp-design-v2.md §3.2.1/§3.2.2 的定义一致（2025-12-22 对齐）
+> **FrameTag 是独立字段**：
+> - FrameTag 是 FrameBytes 的独立 4B 字段（参见 rbf-format.md `[F-FRAMETAG-WIRE-ENCODING]`）
+> - StateJournal 通过 FrameTag 区分 Record 类型，Payload 内不再包含额外的类型字节
+> - 此设计与 mvp-design-v2.md §3.2.1/§3.2.2 的定义一致（2025-12-24 对齐）
 
 ### 5.2 使用示例
 
@@ -310,7 +312,7 @@ StateJournal 定义以下 FrameTag 值：
 // 写入 ObjectVersionRecord
 public Address64 WriteObjectVersion(IRbfFramer framer, ObjectVersionPayload payload)
 {
-    using var frame = framer.BeginFrame(new FrameTag(0x01));
+    using var frame = framer.BeginFrame(new FrameTag(0x00000001));
     
     // 使用 ReservablePayload 实现 PairCount 回填
     if (frame.ReservablePayload is { } reservable)
@@ -331,14 +333,14 @@ public void ProcessFrame(IRbfScanner scanner, Address64 addr)
 {
     if (!scanner.TryReadAt(addr, out var frame)) return;
     
-    if (frame.Tag.Value == 0x00) return; // 跳过 Padding
+    if (frame.Tag.Value == 0x00000000) return; // 跳过 Padding
     
     switch (frame.Tag.Value)
     {
-        case 0x01:
+        case 0x00000001:
             ProcessObjectVersion(frame.Payload);
             break;
-        case 0x02:
+        case 0x00000002:
             ProcessCommit(frame.Payload);
             break;
     }
@@ -375,6 +377,7 @@ public void ProcessFrame(IRbfScanner scanner, Address64 addr)
 | 0.1 | 2025-12-22 | 初稿，基于畅谈会共识 |
 | 0.2 | 2025-12-22 | P0/P1 修订：Auto-Abort 改为 Optimistic Clean Abort；Padding 责任边界明确；Flush 不承诺 durability |
 | 0.3 | 2025-12-22 | 命名重构：ELOG → RBF (Reversible Binary Framing) |
+| 0.4 | 2025-12-24 | **Breaking**：FrameTag 从 1B 扩展为 4B（`byte` → `uint`）；Padding 值从 `0x00` 变为 `0x00000000` |
 
 ---
 

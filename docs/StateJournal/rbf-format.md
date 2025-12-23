@@ -1,7 +1,7 @@
 # RBF 二进制格式规范（Layer 0）
 
 > **状态**：Draft
-> **版本**：0.8
+> **版本**：0.11
 > **创建日期**：2025-12-22
 > **接口契约（Layer 1）**：[rbf-interface.md](rbf-interface.md)
 > **测试向量（Layer 0）**：[rbf-test-vectors.md](rbf-test-vectors.md)
@@ -80,30 +80,32 @@ Fence 是 RBF 文件的 **帧分隔符**，不属于任何 Frame。
 | 偏移 | 字段 | 类型 | 长度 | 说明 |
 |------|------|------|------|------|
 | 0 | HeadLen | u32 LE | 4 | FrameBytes 总长度（不含 Fence） |
-| 4 | FrameData | bytes | N | `N >= 1`；第 1 字节为 Tag（FrameTag） |
-| 4+N | Pad | bytes | 0-3 | MUST 全 0，使 `N + PadLen` 为 4 的倍数 |
-| 4+N+PadLen | TailLen | u32 LE | 4 | MUST 等于 HeadLen |
-| 8+N+PadLen | CRC32C | u32 LE | 4 | 见 `[F-CRC32C-COVERAGE]` |
+| 4 | FrameTag | u32 LE | 4 | 帧类型标识符（见 `[F-FRAMETAG-WIRE-ENCODING]`） |
+| 8 | Payload | bytes | N | `N >= 0`；业务数据 |
+| 8+N | Pad | bytes | 0-3 | MUST 全 0，使 `N + PadLen` 为 4 的倍数 |
+| 8+N+PadLen | TailLen | u32 LE | 4 | MUST 等于 HeadLen |
+| 12+N+PadLen | CRC32C | u32 LE | 4 | 见 `[F-CRC32C-COVERAGE]` |
 
 **`[F-FRAMETAG-WIRE-ENCODING]`**
 
-- FrameData 的第 1 字节 MUST 为 Tag（FrameTag）。
-- `FrameDataLen = 1 (Tag) + PayloadLen`。
-- `FrameTag` 的语义定义见 [rbf-interface.md](rbf-interface.md) 的 `[F-FRAMETAG-DEFINITION]`。
+- FrameTag 是 4 字节 u32 LE 帧类型标识符，位于 HeadLen 之后、Payload 之前。
+- `FrameTag = 0x00000000` 为 RBF 保留值（Padding/墓碑帧），上层 MUST 跳过。
+- 其他 FrameTag 值的语义由上层定义。
+- `FrameTag` 的接口层封装见 [rbf-interface.md](rbf-interface.md) 的 `[F-FRAMETAG-DEFINITION]`。
 
 ### 3.3 长度与对齐
 
 **`[F-HEADLEN-FORMULA]`**
 
 ```
-HeadLen = 4 (HeadLen) + FrameDataLen + PadLen + 4 (TailLen) + 4 (CRC32C)
-            = 12 + FrameDataLen + PadLen
+HeadLen = 4 (HeadLen) + 4 (FrameTag) + PayloadLen + PadLen + 4 (TailLen) + 4 (CRC32C)
+        = 16 + PayloadLen + PadLen
 ```
 
 **`[F-PADLEN-FORMULA]`**
 
 ```
-PadLen = (4 - (FrameDataLen % 4)) % 4
+PadLen = (4 - (PayloadLen % 4)) % 4
 ```
 
 **`[F-FRAME-4B-ALIGNMENT]`**
@@ -123,10 +125,10 @@ PadLen = (4 - (FrameDataLen % 4)) % 4
 **`[F-CRC32C-COVERAGE]`**
 
 ```
-CRC32C = crc32c(FrameData + Pad + TailLen)
+CRC32C = crc32c(FrameTag + Payload + Pad + TailLen)
 ```
 
-- CRC32C MUST 覆盖：FrameData（含 Tag）+ Pad + TailLen。
+- CRC32C MUST 覆盖：FrameTag + Payload + Pad + TailLen。
 - CRC32C MUST NOT 覆盖：HeadLen、CRC32C 本身、任何 Fence。
 
 ### 4.2 算法约定
@@ -189,7 +191,7 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 
        c) // 现在 fencePos 指向一个 Fence
             recordEnd = fencePos
-            若 recordEnd < GenesisLen + 16:  // 不足以容纳最小 FrameBytes（HeadLen/Tag/Pad/TailLen/CRC）
+            若 recordEnd < GenesisLen + 20:  // 不足以容纳最小 FrameBytes（HeadLen/FrameTag/TailLen/CRC = 16B，无 Payload）
                   fencePos -= 4
                   continue
 
@@ -211,7 +213,7 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
                   fencePos -= 4
                   continue
 
-            // CRC 覆盖范围是 [frameStart+4, recordEnd-4)
+            // CRC 覆盖范围是 [frameStart+4, recordEnd-4)（含 FrameTag）
             computedCrc = crc32c(bytes[frameStart+4 .. recordEnd-4])
             若 computedCrc != storedCrc:
                   fencePos -= 4
@@ -269,7 +271,7 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 | `[F-GENESIS]` | Genesis Fence |
 | `[F-FENCE-SEMANTICS]` | Fence 语义 |
 | `[F-FRAME-LAYOUT]` | FrameBytes 布局 |
-| `[F-FRAMETAG-WIRE-ENCODING]` | FrameTag 编码 |
+| `[F-FRAMETAG-WIRE-ENCODING]` | FrameTag 编码（4B） |
 | `[F-HEADLEN-FORMULA]` | HeadLen 公式 |
 | `[F-PADLEN-FORMULA]` | PadLen 公式 |
 | `[F-FRAME-4B-ALIGNMENT]` | 4B 对齐 |
@@ -290,6 +292,7 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.11 | 2025-12-24 | **Breaking**：FrameTag 从 1B 扩展为 4B 独立字段；Payload 起始偏移从 +5 变为 +8；更新 HeadLen/PadLen 公式及 CRC 覆盖范围；最小 FrameBytes 从 16B 变为 16B（HeadLen+Tag+TailLen+CRC） |
 | 0.10 | 2025-12-23 | 术语重构：合并 Magic 与 Fence 概念，统一使用 Fence；Magic 降级为 Fence 的值描述 |
 | 0.9 | 2025-12-23 | 条款重构：合并 Genesis/Fence/Ptr64/Resync 相关条款；精简冗余描述 |
 | 0.8 | 2025-12-23 | 消除冗余：删除 `[F-HEADLEN-TAILLEN-SYMMETRY]`（布局表已含）；精简 `[F-FRAME-4B-ALIGNMENT]` 推导；`[F-FRAMING-FAIL-REJECT]` 改为引用式 |
