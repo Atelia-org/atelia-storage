@@ -12,7 +12,7 @@
 
 **覆盖范围**：
 - Frame 结构（HeadLen/TailLen/Pad/CRC32C）
-- Magic-as-Separator 语义
+- Fence-as-Separator 语义
 - 逆向扫描与 Resync
 - Meta 恢复与撕裂提交
 - Ptr64（4B unit pointer）
@@ -24,11 +24,11 @@
 
 - **Fence-as-Separator**：Fence 是 Frame 分隔符，不属于任何 Frame
 - **文件结构**：`[Fence][Frame1][Fence][Frame2]...[Fence]`
-- **Frame 格式**：`[HeadLen][Payload][Pad][TailLen][CRC32C]`（不含 Fence）
+- **Frame 格式**：`[HeadLen][FrameData][Pad][TailLen][CRC32C]`（不含 Fence）
 - **Ptr64**：指向 Frame 的 `HeadLen` 字段起始位置（第一个 Fence 之后）
 - 字节序：除 varint 外，定长整数均为 little-endian
 - varint：protobuf 风格 base-128，要求 canonical 最短编码
-- CRC32C：覆盖 `Payload + Pad + TailLen`
+- CRC32C：覆盖 `FrameData + Pad + TailLen`
 
 ---
 
@@ -60,23 +60,23 @@
 ### 1.4 HeadLen/TailLen 计算
 
 **用例 RBF-LEN-001**
-- Given：PayloadLen 分别为 `4k, 4k+1, 4k+2, 4k+3`
+- Given：FrameDataLen 分别为 `4k, 4k+1, 4k+2, 4k+3`
 - Then：
-  - PadLen = `(4 - PayloadLen % 4) % 4`
-  - `HeadLen = 4 + PayloadLen + PadLen + 4 + 4`（不含 Fence）
+  - PadLen = `(4 - FrameDataLen % 4) % 4`
+  - `HeadLen = 4 + FrameDataLen + PadLen + 4 + 4`（不含 Fence）
   - `HeadLen == TailLen`
 
 **用例 RBF-LEN-002（PadLen 取值覆盖）**
-- Given：PayloadLen 分别为 `4k, 4k+1, 4k+2, 4k+3`
+- Given：FrameDataLen 分别为 `4k, 4k+1, 4k+2, 4k+3`
 - Then：PadLen 分别为 `0, 3, 2, 1`；下一条 Fence 起点 4B 对齐
 
-### 1.5 Payload 含 Fence 字节
+### 1.5 FrameData 含 Fence 字节
 
-**用例 RBF-FENCE-IN-PAYLOAD-001**
-- Given：payload 恰好包含 `52 42 46 31`（Fence 值 `RBF1`）
+**用例 RBF-FENCE-IN-FRAMEDATA-001**
+- Given：FrameData 恰好包含 `52 42 46 31`（Fence 值 `RBF1`）
 - Then：
   - CRC32C 校验通过时，正常解析
-  - resync 时遇到 payload 中的 Fence 值，CRC 校验失败应继续向前扫描
+  - resync 时遇到 FrameData 中的 Fence 值，CRC 校验失败应继续向前扫描
 
 ---
 
@@ -85,8 +85,8 @@
 ### 2.1 有效 Frame（正例）
 
 **用例 RBF-OK-001（最小可解析 frame）**
-- Given：`Fence` 值为 `RBF1`（`52 42 46 31`）；payload 至少 1 byte（FrameTag）。
-- When：写入 `Fence + HeadLen占位 + Payload + Pad + TailLen + CRC32C + 回填HeadLen`。
+- Given：`Fence` 值为 `RBF1`（`52 42 46 31`）；FrameData 至少 1 byte（FrameTag）。
+- When：写入 `Fence + HeadLen占位 + FrameData + Pad + TailLen + CRC32C + 回填HeadLen`。
 - Then：
   - `HeadLen == TailLen`
   - `HeadLen % 4 == 0`
@@ -101,7 +101,7 @@
 - Then：该 frame 视为损坏；反向扫描应停止在上一条有效 frame
 
 **用例 RBF-BAD-002（CRC32C 不匹配）**
-- Given：只篡改 payload 任意 1 byte
+- Given：只篡改 FrameData 任意 1 byte
 - Then：CRC32C 校验失败；反向扫描不得将其作为有效 head
 
 **用例 RBF-BAD-003（Frame 起点非 4B 对齐）**
@@ -208,6 +208,7 @@
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2025-12-23 | 0.4 | 适配 rbf-format.md v0.10+：术语更新（Payload -> FrameData, Magic -> Fence） |
 | 2025-12-23 | 0.3 | 适配 rbf-format.md v0.10：统一使用 Fence 术语，替换 Magic |
 | 2025-12-23 | 0.2 | 适配 rbf-format.md v0.9：更新条款 ID 映射（Genesis/Fence/Ptr64/Resync） |
 | 2025-12-22 | 0.1 | 从 mvp-test-vectors.md 提取 Layer 0 测试向量创建独立文档 |

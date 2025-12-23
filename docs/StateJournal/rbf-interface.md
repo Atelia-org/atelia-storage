@@ -300,7 +300,7 @@ StateJournal 定义以下 FrameTag 值：
 | `0x03`-`0xFF` | — | 未来扩展 |
 
 > **FrameTag 是唯一判别器**：
-> - FrameTag 是 RBF Payload 的第 1 个字节（参见 rbf-format.md `[F-FRAMETAG-WIRE-ENCODING]`）
+> - FrameTag 是 RBF FrameData（线格式）的第 1 个字节（参见 rbf-format.md `[F-FRAMETAG-WIRE-ENCODING]`）
 > - StateJournal 通过 FrameTag 区分 Record 类型，payload 内不再包含额外的类型字节
 > - 此设计与 mvp-design-v2.md §3.2.1/§3.2.2 的定义一致（2025-12-22 对齐）
 

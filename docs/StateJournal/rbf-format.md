@@ -80,15 +80,15 @@ Fence 是 RBF 文件的 **帧分隔符**，不属于任何 Frame。
 | 偏移 | 字段 | 类型 | 长度 | 说明 |
 |------|------|------|------|------|
 | 0 | HeadLen | u32 LE | 4 | FrameBytes 总长度（不含 Fence） |
-| 4 | Payload | bytes | N | `N >= 1`；第 1 字节为 Tag（FrameTag） |
+| 4 | FrameData | bytes | N | `N >= 1`；第 1 字节为 Tag（FrameTag） |
 | 4+N | Pad | bytes | 0-3 | MUST 全 0，使 `N + PadLen` 为 4 的倍数 |
 | 4+N+PadLen | TailLen | u32 LE | 4 | MUST 等于 HeadLen |
 | 8+N+PadLen | CRC32C | u32 LE | 4 | 见 `[F-CRC32C-COVERAGE]` |
 
 **`[F-FRAMETAG-WIRE-ENCODING]`**
 
-- Payload 的第 1 字节 MUST 为 Tag（FrameTag）。
-- `PayloadLen = 1 (Tag) + PayloadBodyLen`。
+- FrameData 的第 1 字节 MUST 为 Tag（FrameTag）。
+- `FrameDataLen = 1 (Tag) + PayloadLen`。
 - `FrameTag` 的语义定义见 [rbf-interface.md](rbf-interface.md) 的 `[F-FRAMETAG-DEFINITION]`。
 
 ### 3.3 长度与对齐
@@ -96,14 +96,14 @@ Fence 是 RBF 文件的 **帧分隔符**，不属于任何 Frame。
 **`[F-HEADLEN-FORMULA]`**
 
 ```
-HeadLen = 4 (HeadLen) + PayloadLen + PadLen + 4 (TailLen) + 4 (CRC32C)
-            = 12 + PayloadLen + PadLen
+HeadLen = 4 (HeadLen) + FrameDataLen + PadLen + 4 (TailLen) + 4 (CRC32C)
+            = 12 + FrameDataLen + PadLen
 ```
 
 **`[F-PADLEN-FORMULA]`**
 
 ```
-PadLen = (4 - (PayloadLen % 4)) % 4
+PadLen = (4 - (FrameDataLen % 4)) % 4
 ```
 
 **`[F-FRAME-4B-ALIGNMENT]`**
@@ -123,10 +123,10 @@ PadLen = (4 - (PayloadLen % 4)) % 4
 **`[F-CRC32C-COVERAGE]`**
 
 ```
-CRC32C = crc32c(Payload + Pad + TailLen)
+CRC32C = crc32c(FrameData + Pad + TailLen)
 ```
 
-- CRC32C MUST 覆盖：Payload（含 Tag）+ Pad + TailLen。
+- CRC32C MUST 覆盖：FrameData（含 Tag）+ Pad + TailLen。
 - CRC32C MUST NOT 覆盖：HeadLen、CRC32C 本身、任何 Fence。
 
 ### 4.2 算法约定
@@ -257,7 +257,7 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 
 恢复时（上层依据其 HEAD/commit record 的语义决定使用哪条 DataTail）：
 1. 若 data 文件实际长度 > DataTail：MUST 截断至 DataTail。
-2. 截断后文件 SHOULD 以 Magic 结尾（若 `DataTail` 来自通过校验的 commit record）。
+2. 截断后文件 SHOULD 以 Fence 结尾（若 `DataTail` 来自通过校验的 commit record）。
 
 ---
 
