@@ -25,7 +25,7 @@
 ┌─────────────────────────────────────┐
 │  mvp-design-v2.md (StateJournal)    │
 │  - 依赖本接口文档                    │
-│  - 定义 RecordKind, ObjectKind 等   │
+│  - 定义 FrameTag 取值, ObjectKind 等 │
 └─────────────────┬───────────────────┘
                   │ 依赖
 ┌─────────────────▼───────────────────┐
@@ -45,7 +45,7 @@
 
 ## 2. 术语表（Layer 0）
 
-> 本节定义 RBF 层的独立术语。上层术语（如 RecordKind）在 mvp-design-v2.md 中定义。
+> 本节定义 RBF 层的独立术语。上层术语（如 FrameTag 取值）在 mvp-design-v2.md 中定义。
 
 ### 2.1 FrameTag
 
@@ -309,7 +309,7 @@ public readonly ref struct RbfFrame
 
 > 本节描述上层如何使用 RBF 接口，但不属于 RBF 层的职责。
 
-### 5.1 FrameTag ↔ RecordKind 映射
+### 5.1 FrameTag 取值映射
 
 **`[S-STATEJOURNAL-FRAMETAG-MAPPING]`**
 
@@ -422,7 +422,7 @@ public void ProcessFrame(IRbfScanner scanner, Address64 addr)
 
 > 以下问题可在实现阶段确认：
 
-1. **FrameTag 具体值**：与 mvp-design-v2.md 的 RecordKind 如何精确对齐？
+1. **FrameTag 具体值**：与 mvp-design-v2.md 的 FrameTag 取值如何精确对齐？
 2. **错误处理**：TryReadAt 失败时是否需要 `RbfReadStatus`（P2）
 3. **ScanReverse 终止条件**：遇到损坏数据时的策略（P2）
 4. **Address64 高位保留**：是否需要预留高 8 位供多文件扩展？

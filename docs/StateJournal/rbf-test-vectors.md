@@ -17,7 +17,7 @@
 - Address64/Ptr64（u64 LE 文件偏移，4B 对齐）
 
 **不在覆盖范围**：
-- 上层语义（如 RecordKind/MetaCommitRecord）
+- 上层语义（如 FrameTag 取值/MetaCommitRecord）
 - varint（未在 rbf-format.md Layer 0 中定义）
 
 ---
