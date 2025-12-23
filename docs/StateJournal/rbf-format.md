@@ -1,7 +1,7 @@
 # RBF 二进制格式规范
 
 > **状态**：Draft
-> **版本**：0.4
+> **版本**：0.5
 > **创建日期**：2025-12-22
 > **接口契约**：[rbf-interface.md](rbf-interface.md)
 
@@ -69,13 +69,12 @@
 **`[F-MAGIC-BYTE-SEQUENCE]`** Magic 编码约定：
 
 - Magic 以 **ASCII 字节序列** 写入（非 u32 端序写入）
-- 即按字符顺序依次写入：`'D'(0x44)`, `'H'(0x48)`, `'D'/'M'(0x44/0x4D)`, `'3'(0x33)`
-- 读取时按字节匹配，不做端序R'(0x52)`, `'B'(0x42)`, `'F'(0x46)`, `'1'(0x31)`
+- 字节序列定义见上表：`'R'(0x52)`, `'B'(0x42)`, `'F'(0x46)`, `'1'(0x31)`
 - 读取时按字节匹配，不做端序转换
 
 **`[F-GENESIS-EMPTY-FILE]`** 空文件约束：
 
-- 新建的 RBF长度为 4 字节
+- 新建的 RBF 文件长度为 4 字节（仅含 Genesis Header）
 - `FileLength == 4` 表示"无任何 Frame"
 
 ### 2.2 文件整体布局
@@ -94,16 +93,17 @@
 
 ```ebnf
 (* File Framing: Magic-separated log *)
-File   := Genesis (Frame)*
+File    := Genesis (Frame)*
 Genesis := Magic
-Magic  := 4 bytes ("RBF1"
-(* Frame Layout *)
-Frame  := HeadLen Payload Pad TailLen CRC32C Magic
-HeadLen := u32 LE        (* == TailLen, frame total bytes *)
+Magic   := 4 bytes ("RBF1")   (* see [F-MAGIC-BYTE-SEQUENCE] *)
+
+(* Frame Layout — see [F-FRAME-LAYOUT] for wire format *)
+Frame   := HeadLen Payload Pad TailLen CRC32C Magic
+HeadLen := u32 LE             (* see [F-HEADLEN-FORMULA]; 不含尾部 Magic *)
 Payload := N bytes
-Pad     := 0..3 bytes    (* align to 4B *)
-TailLen := u32 LE        (* == HeadLen *)
-CRC32C  := u32 LE        (* covers Payload + Pad + TailLen *)
+Pad     := 0..3 bytes         (* see [F-PADLEN-FORMULA] *)
+TailLen := u32 LE             (* == HeadLen *)
+CRC32C  := u32 LE             (* see [F-CRC32C-COVERAGE] *)
 ```
 
 ---
@@ -181,7 +181,7 @@ PadLen = (4 - (PayloadLen % 4)) % 4
 - Reader 可忽略 Pad 内容（仅校验长度）
 - Writer MUST 写入 0 值
 
-**Pad 长度示例**：
+**Pad 长度示例**（Informative，由 `[F-PADLEN-FORMULA]` 推导）：
 
 | PayloadLen | PayloadLen % 4 | PadLen |
 |------------|----------------|--------|
@@ -293,7 +293,7 @@ File: [Magic][Frame1][Magic][Frame2][Magic]...
 | 2 | 顺序写入 Payload | 实际数据 |
 | 3 | 写入 Pad（0-3 字节全 0） | 保证对齐 |
 | 4 | 写入 TailLen | 此时已知总长度 |
-| 5 | 计算并写入 CRC32C | `crc32c(Payload + Pad + TailLen)` |
+| 5 | 计算并写入 CRC32C | 按 `[F-CRC32C-COVERAGE]` |
 | 6 | 回填 HeadLen = TailLen | 首尾长度一致 |
 | 7 | 追加写入 Magic | 作为分隔符 |
 
@@ -479,37 +479,39 @@ Resync 过程:
 
 ### 11.1 格式条款 [F-xxx]
 
-| 条款 ID | 名称 | 说明 |
-|---------|------|------|
-| `[F-GENESIS-HEADER]` | 创世头 | 文件以 4B Magic 开头 |
-| `[F-GENESIS-EMPTY-FILE]` | 空文件 | 最小有效长度 4B |
-| `[F-FRAME-LAYOUT]` | 帧布局 | HeadLen + Payload(Tag+Body) + Pad + TailLen + CRC32C + Magic |
-| `[F-FRAMETAG-WIRE-ENCODING]` | FrameTag 编码 | Tag 是 Payload 的第 1 字节 |
-| `[F-HEADLEN-TAILLEN-SYMMETRY]` | 长度对称 | HeadLen == TailLen |
-| `[F-HEADLEN-FORMULA]` | 长度公式 | HeadLen = 12 + PayloadLen + PadLen |
-| `[F-PADLEN-FORMULA]` | Pad 公式 | PadLen = (4 - (PayloadLen % 4)) % 4 |
-| `[F-FRAME-4B-ALIGNMENT]` | 4B 对齐 | HeadLen % 4 == 0，Frame 起点对齐 |
-| `[F-PAD-ZERO-FILL]` | 填充为零 | Pad 字节全为 0 |
-| `[F-CRC32C-COVERAGE]` | CRC 覆盖 | Payload + Pad + TailLen |
-| `[F-CRC32C-ALGORITHM]` | CRC 算法 | CRC32C (Castagnoli)，Reflected I/O 约定 |
-| `[F-CRC-FAIL-REJECT]` | CRC 失败 | CRC 不匹配 MUST 视为帧损坏 |
-| `[F-FRAMING-FAIL-REJECT]` | Framing 失败 | HeadLen!=TailLen / 非对齐 / 越界 / Magic 不匹配 MUST 视为帧损坏 |
-| `[F-MAGIC-BYTE-SEQUENCE]` | Magic 编码 | ASCII 字节序列写入，非 u32 端序 |
-| `[F-MAGIC-IS-FENCE]` | Magic 是栅栏 | Magic 不属于 Frame |
-| `[F-MAGIC-FRAME-SEPARATOR]` | Magic 分隔符 | 每个 Frame 后追加 Magic |
-| `[F-FRAME-WRITE-SEQUENCE]` | 写入顺序 | 8 步写入流程 |
-| `[F-PTR64-ENCODING]` | Ptr64 编码 | 8B LE 文件偏移 |
-| `[F-PTR64-NULL-AND-ALIGNMENT]` | Ptr64 空值与对齐 | 0 = null，4B 对齐 |
+> 本索引为导航用途；规范性定义见正文各条款。
+
+| 条款 ID | 名称 |
+|---------|------|
+| `[F-GENESIS-HEADER]` | 创世头 |
+| `[F-GENESIS-EMPTY-FILE]` | 空文件 |
+| `[F-FRAME-LAYOUT]` | 帧布局 |
+| `[F-FRAMETAG-WIRE-ENCODING]` | FrameTag 编码 |
+| `[F-HEADLEN-TAILLEN-SYMMETRY]` | 长度对称 |
+| `[F-HEADLEN-FORMULA]` | 长度公式 |
+| `[F-PADLEN-FORMULA]` | Pad 公式 |
+| `[F-FRAME-4B-ALIGNMENT]` | 4B 对齐 |
+| `[F-PAD-ZERO-FILL]` | 填充为零 |
+| `[F-CRC32C-COVERAGE]` | CRC 覆盖 |
+| `[F-CRC32C-ALGORITHM]` | CRC 算法 |
+| `[F-CRC-FAIL-REJECT]` | CRC 失败 |
+| `[F-FRAMING-FAIL-REJECT]` | Framing 失败 |
+| `[F-MAGIC-BYTE-SEQUENCE]` | Magic 编码 |
+| `[F-MAGIC-IS-FENCE]` | Magic 是栅栏 |
+| `[F-MAGIC-FRAME-SEPARATOR]` | Magic 分隔符 |
+| `[F-FRAME-WRITE-SEQUENCE]` | 写入顺序 |
+| `[F-PTR64-ENCODING]` | Ptr64 编码 |
+| `[F-PTR64-NULL-AND-ALIGNMENT]` | Ptr64 空值与对齐 |
 
 ### 11.2 恢复条款 [R-xxx]
 
-| 条款 ID | 名称 | 说明 |
-|---------|------|------|
-| `[R-REVERSE-SCAN-ALGORITHM]` | 逆向扫描 | 从尾到头遍历 Frame |
-| `[R-RESYNC-DISTRUST-TAILLEN]` | 不信任 TailLen | 验证失败时不跳跃 |
-| `[R-RESYNC-SCAN-MAGIC]` | Resync 扫描 | 4B 对齐向前找 Magic |
-| `[R-DATATAIL-DEFINITION]` | DataTail 定义 | data 文件逻辑尾部 |
-| `[R-DATATAIL-TRUNCATE]` | 截断恢复 | 按 DataTail 截断尾部垃圾 |
+| 条款 ID | 名称 |
+|---------|------|
+| `[R-REVERSE-SCAN-ALGORITHM]` | 逆向扫描 |
+| `[R-RESYNC-DISTRUST-TAILLEN]` | 不信任 TailLen |
+| `[R-RESYNC-SCAN-MAGIC]` | Resync 扫描 |
+| `[R-DATATAIL-DEFINITION]` | DataTail 定义 |
+| `[R-DATATAIL-TRUNCATE]` | 截断恢复 |
 
 ---
 
@@ -519,12 +521,14 @@ Resync 过程:
 
 ### 12.1 Frame 编码示例
 
+> 本节示例为 **Informative**（验证用），规范性定义见各条款。
+
 **最小 Frame（空 Payload）**：
 
 ```
 Payload: []
 PadLen: 0 (因为 PayloadLen=0 已对齐)
-HeadLen: 4 + 0 + 0 + 4 + 4 = 12
+HeadLen: 4 + 0 + 0 + 4 + 4 = 12  (* 由 [F-HEADLEN-FORMULA] 推导 *)
 
 Wire format (Magic = "RBF1" = 0x52424631):
 [0C 00 00 00]  HeadLen = 12
@@ -535,7 +539,7 @@ Wire format (Magic = "RBF1" = 0x52424631):
 [52 42 46 31]  Magic "RBF1"
 ```
 
-**带 Payload 的 Frame（5 字节 Payload）**：
+**带 Payload 的 Frame（5 字节 Payload）**（Informative，由 `[F-HEADLEN-FORMULA]` 推导）：
 
 ```
 Payload: [01 02 03 04 05]
@@ -548,7 +552,8 @@ Wire format:
 [00 00 00]     Pad (3 bytes)
 [14 00 00 00]  TailLen = 20
 [XX XX XX XX]  CRC32C
-[52 42 46 31]  Magic "RBF1
+[52 42 46 31]  Magic "RBF1"
+```
 
 ### 12.2 Resync 测试场景
 
@@ -569,4 +574,5 @@ Wire format:
 | 0.2 | 2025-12-22 | P0 修订：CRC32C 多项式表述（normal vs reflected）；逆向扫描边界条件（>= GenesisLen）；FrameTag wire encoding |
 | 0.3 | 2025-12-22 | P1 修订：Magic 编码约定（字节序列）；PadLen 公式简化；CRC/Framing 失败策略条款 |
 | 0.4 | 2025-12-22 | 命名重构：ELOG → RBF (Reversible Binary Framing)；Magic 统一为 `RBF1`；移除双 Magic 设计 |
+| 0.5 | 2025-12-23 | 冗余消除：修复 Magic 条款残留错误；EBNF 语法修复并改为条款引用；测试向量闭合修复；CRC 覆盖改为引用；条款索引简化为纯导航；示例标注 Informative |
 
