@@ -1,7 +1,7 @@
 # RBF 二进制格式规范（Layer 0）
 
 > **状态**：Draft
-> **版本**：0.11
+> **版本**：0.12
 > **创建日期**：2025-12-22
 > **接口契约（Layer 1）**：[rbf-interface.md](rbf-interface.md)
 > **测试向量（Layer 0）**：[rbf-test-vectors.md](rbf-test-vectors.md)
@@ -82,39 +82,63 @@ Fence 是 RBF 文件的 **帧分隔符**，不属于任何 Frame。
 | 0 | HeadLen | u32 LE | 4 | FrameBytes 总长度（不含 Fence） |
 | 4 | FrameTag | u32 LE | 4 | 帧类型标识符（见 `[F-FRAMETAG-WIRE-ENCODING]`） |
 | 8 | Payload | bytes | N | `N >= 0`；业务数据 |
-| 8+N | Pad | bytes | 0-3 | MUST 全 0，使 `N + PadLen` 为 4 的倍数 |
-| 8+N+PadLen | TailLen | u32 LE | 4 | MUST 等于 HeadLen |
-| 12+N+PadLen | CRC32C | u32 LE | 4 | 见 `[F-CRC32C-COVERAGE]` |
+| 8+N | FrameStatus | bytes | 1-4 | 帧状态标记（见 `[F-FRAMESTATUS-VALUES]`），使 `N + StatusLen` 为 4 的倍数 |
+| 8+N+StatusLen | TailLen | u32 LE | 4 | MUST 等于 HeadLen |
+| 12+N+StatusLen | CRC32C | u32 LE | 4 | 见 `[F-CRC32C-COVERAGE]` |
 
 **`[F-FRAMETAG-WIRE-ENCODING]`**
 
 - FrameTag 是 4 字节 u32 LE 帧类型标识符，位于 HeadLen 之后、Payload 之前。
-- `FrameTag = 0x00000000` 为 RBF 保留值（Padding/墓碑帧），上层 MUST 跳过。
-- 其他 FrameTag 值的语义由上层定义。
+- RBF 层不保留任何 FrameTag 值，全部值域由上层定义。
 - `FrameTag` 的接口层封装见 [rbf-interface.md](rbf-interface.md) 的 `[F-FRAMETAG-DEFINITION]`。
+
+**`[F-FRAMESTATUS-VALUES]`**
+
+> **FrameStatus** 是 1-4 字节的帧状态标记，所有字节 MUST 填相同值。
+
+| 值 | 名称 | 语义 |
+|----|------|------|
+| `0x00` | Valid | 正常帧（业务数据） |
+| `0xFF` | Tombstone | 墓碑帧（Auto-Abort / 逻辑删除） |
+| `0x01`-`0xFE` | — | 保留；Reader MUST 视为 Framing 失败（见 `[F-FRAMING-FAIL-REJECT]`） |
+
+> **设计理由**：FrameStatus 承载帧有效性（Layer 0 元信息），FrameTag 承载业务分类（Layer 1）——职责分离。
+> 全字节同值设计提供隐式冗余校验：若字节不一致，可直接判定损坏。
 
 ### 3.3 长度与对齐
 
 **`[F-HEADLEN-FORMULA]`**
 
 ```
-HeadLen = 4 (HeadLen) + 4 (FrameTag) + PayloadLen + PadLen + 4 (TailLen) + 4 (CRC32C)
-        = 16 + PayloadLen + PadLen
+HeadLen = 4 (HeadLen) + 4 (FrameTag) + PayloadLen + StatusLen + 4 (TailLen) + 4 (CRC32C)
+        = 16 + PayloadLen + StatusLen
 ```
 
-**`[F-PADLEN-FORMULA]`**
+> 由于 `StatusLen >= 1`，最小 HeadLen = 17（当 PayloadLen = 0 时，StatusLen = 4）。
+
+**`[F-STATUSLEN-FORMULA]`**
 
 ```
-PadLen = (4 - (PayloadLen % 4)) % 4
+StatusLen = 1 + ((4 - ((PayloadLen + 1) % 4)) % 4)
 ```
+
+> StatusLen ∈ {1, 2, 3, 4}，保证 `(PayloadLen + StatusLen) % 4 == 0`。
+
+| PayloadLen % 4 | StatusLen |
+|----------------|----------|
+| 0 | 4 |
+| 1 | 3 |
+| 2 | 2 |
+| 3 | 1 |
 
 **`[F-FRAME-4B-ALIGNMENT]`**
 
 - Frame 起点（HeadLen 字段位置）MUST 4B 对齐。
 
-**`[F-PAD-ZERO-FILL]`**
+**`[F-FRAMESTATUS-FILL]`**
 
-- Pad 字节 MUST 全为 0。
+- FrameStatus 的所有字节 MUST 填相同值（`0x00` 或 `0xFF`）。
+- 若任意字节与其他字节不一致，视为 Framing 失败。
 
 ---
 
@@ -125,11 +149,13 @@ PadLen = (4 - (PayloadLen % 4)) % 4
 **`[F-CRC32C-COVERAGE]`**
 
 ```
-CRC32C = crc32c(FrameTag + Payload + Pad + TailLen)
+CRC32C = crc32c(FrameTag + Payload + FrameStatus + TailLen)
 ```
 
-- CRC32C MUST 覆盖：FrameTag + Payload + Pad + TailLen。
+- CRC32C MUST 覆盖：FrameTag + Payload + FrameStatus + TailLen。
 - CRC32C MUST NOT 覆盖：HeadLen、CRC32C 本身、任何 Fence。
+
+> 注：FrameStatus 在 CRC 覆盖范围内，Tombstone 标记受 CRC 保护。
 
 ### 4.2 算法约定
 
@@ -149,7 +175,9 @@ CRC 算法为 CRC32C（Castagnoli），采用 Reflected I/O 约定：
 **`[F-FRAMING-FAIL-REJECT]`**
 
 Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 Frame 视为损坏：
-- `[F-FRAME-LAYOUT]`：HeadLen/TailLen 一致性、Pad 全 0
+- `[F-FRAME-LAYOUT]`：HeadLen/TailLen 一致性
+- `[F-FRAMESTATUS-VALUES]`：FrameStatus 值为 `0x00` 或 `0xFF`
+- `[F-FRAMESTATUS-FILL]`：FrameStatus 所有字节一致
 - `[F-HEADLEN-FORMULA]`：长度公式一致性
 - `[F-FRAME-4B-ALIGNMENT]`：Frame 起点 4B 对齐
 - `[F-FENCE-DEFINITION]`：Fence 匹配
@@ -191,7 +219,7 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 
        c) // 现在 fencePos 指向一个 Fence
             recordEnd = fencePos
-            若 recordEnd < GenesisLen + 20:  // 不足以容纳最小 FrameBytes（HeadLen/FrameTag/TailLen/CRC = 16B，无 Payload）
+            若 recordEnd < GenesisLen + 21:  // 不足以容纳最小 FrameBytes（HeadLen+FrameTag+StatusLen+TailLen+CRC = 17B，PayloadLen=0 时 StatusLen=4）
                   fencePos -= 4
                   continue
 
@@ -272,10 +300,11 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 | `[F-FENCE-SEMANTICS]` | Fence 语义 |
 | `[F-FRAME-LAYOUT]` | FrameBytes 布局 |
 | `[F-FRAMETAG-WIRE-ENCODING]` | FrameTag 编码（4B） |
+| `[F-FRAMESTATUS-VALUES]` | FrameStatus 值定义 |
 | `[F-HEADLEN-FORMULA]` | HeadLen 公式 |
-| `[F-PADLEN-FORMULA]` | PadLen 公式 |
+| `[F-STATUSLEN-FORMULA]` | StatusLen 公式 |
 | `[F-FRAME-4B-ALIGNMENT]` | 4B 对齐 |
-| `[F-PAD-ZERO-FILL]` | Pad 全 0 |
+| `[F-FRAMESTATUS-FILL]` | FrameStatus 填充规则 |
 | `[F-CRC32C-COVERAGE]` | CRC 覆盖范围 |
 | `[F-CRC32C-ALGORITHM]` | CRC 算法 |
 | `[F-FRAMING-FAIL-REJECT]` | Framing 失败策略 |
@@ -292,6 +321,7 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.12 | 2025-12-24 | **Breaking**：Pad 重命名为 FrameStatus；长度从 0-3 改为 1-4；值定义（0x00=Valid, 0xFF=Tombstone）；删除 FrameTag=0 保留值；新增 `[F-FRAMESTATUS-VALUES]`/`[F-STATUSLEN-FORMULA]`/`[F-FRAMESTATUS-FILL]` 条款 |
 | 0.11 | 2025-12-24 | **Breaking**：FrameTag 从 1B 扩展为 4B 独立字段；Payload 起始偏移从 +5 变为 +8；更新 HeadLen/PadLen 公式及 CRC 覆盖范围；最小 FrameBytes 从 16B 变为 16B（HeadLen+Tag+TailLen+CRC） |
 | 0.10 | 2025-12-23 | 术语重构：合并 Magic 与 Fence 概念，统一使用 Fence；Magic 降级为 Fence 的值描述 |
 | 0.9 | 2025-12-23 | 条款重构：合并 Genesis/Fence/Ptr64/Resync 相关条款；精简冗余描述 |

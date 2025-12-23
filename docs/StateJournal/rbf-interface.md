@@ -1,7 +1,7 @@
 # RBF Layer Interface Contract
 
 > **状态**：Reviewed（复核通过）
-> **版本**：0.4
+> **版本**：0.5
 > **创建日期**：2025-12-22
 > **设计共识来源**：[agent-team/meeting/2025-12-21-rbf-layer-boundary.md](../../../agent-team/meeting/2025-12-21-rbf-layer-boundary.md)
 > **复核会议**：[agent-team/meeting/2025-12-22-rbf-interface-review.md](../../../agent-team/meeting/2025-12-22-rbf-interface-review.md)
@@ -57,22 +57,38 @@
 public readonly record struct FrameTag(uint Value);
 ```
 
-**保留值**：
-
-| 值 | 名称 | 语义 |
-|----|------|------|
-| `0x00000000` | Padding | 可丢弃帧（用于 Auto-Abort 落盘） |
-| `0x00000001`-`0xFFFFFFFF` | — | 由上层定义 |
+**保留值**：无。RBF 层不保留任何 FrameTag 值，全部值域由上层定义。
 
 > **设计理由**：4B 的 FrameTag 保持 Payload 4B 对齐，并支持 fourCC 风格的类型标识（如 `META`, `OBJV`）。
 
-**`[F-FRAMETAG-PADDING-VISIBLE]`**：`IRbfScanner` MUST 产出所有帧，包括 `FrameTag.Padding`。
+### 2.2 FrameStatus
 
-**`[S-STATEJOURNAL-PADDING-SKIP]`**：上层 Record Reader（StateJournal）MUST 忽略 `FrameTag.Padding` 帧，不将其解释为业务记录。
+**`[F-FRAMESTATUS-DEFINITION]`**
 
-> **设计理由**：Scanner 是"原始帧扫描器"，职责边界清晰；Padding 可见性对诊断/调试有价值。
+> **FrameStatus** 是帧的有效性标记（Layer 0 元信息），存储在帧尾部。
 
-### 2.2 Address64
+```csharp
+public enum FrameStatus : byte
+{
+    Valid = 0x00,      // 正常帧
+    Tombstone = 0xFF   // 墓碑帧（Auto-Abort / 逻辑删除）
+}
+```
+
+**`[S-RBF-TOMBSTONE-VISIBLE]`**
+
+> `IRbfScanner` MUST 产出所有通过 framing/CRC 校验的帧，包括 Tombstone 帧。
+
+**`[S-STATEJOURNAL-TOMBSTONE-SKIP]`**
+
+> 上层 Record Reader（StateJournal）MUST 忽略 `FrameStatus.Tombstone` 帧，不将其解释为业务记录。
+
+> **设计理由**：
+> - Scanner 是“原始帧扫描器”，职责边界清晰；
+> - Tombstone 可见性对诊断/调试有价值；
+> - 过滤责任在 Layer 1，不在 Layer 0。
+
+### 2.3 Address64
 
 **`[F-ADDRESS64-DEFINITION]`**
 
@@ -89,7 +105,7 @@ public readonly record struct Address64(ulong Value) {
 - **`[F-ADDRESS64-ALIGNMENT]`**：有效 Address64 MUST 4 字节对齐（`Value % 4 == 0`）
 - **`[F-ADDRESS64-NULL]`**：`Value == 0` 表示 null（无效地址）
 
-### 2.3 Frame
+### 2.4 Frame
 
 > **Frame** 是 RBF 的基本 I/O 单元，由 Header + Payload + Trailer 组成。
 
@@ -203,9 +219,14 @@ public ref struct RbfFrameBuilder
 >
 > **物理实现**（双路径）：
 > - **SHOULD（Zero I/O）**：若底层支持 Reservation 且未发生数据外泄（HeadLen 作为首个 Reservation 未提交），丢弃未提交数据，不写入任何字节
-> - **MUST（Padding 墓碑）**：否则，将帧的 FrameTag 覆写为 `Padding (0x00000000)`，完成帧写入
+> - **MUST（Tombstone 墓碑帧）**：否则，将帧的 `FrameStatus` 设为 `Tombstone (0xFF)`，完成帧写入
+>
+> **Tombstone 帧的 FrameTag**：
+> - SHOULD 保留原 FrameTag 值（供诊断用）
+> - 上层 MUST NOT 依赖 Tombstone 帧的 FrameTag 值
 >
 > **后置条件**：
+> - Abort 产生的帧 MUST 通过 framing/CRC 校验
 > - `Dispose()` 后，底层 Writer MUST 可继续写入后续帧
 > - 后续 `Append()` / `BeginFrame()` 调用 MUST 成功
 
@@ -296,10 +317,14 @@ StateJournal 定义以下 FrameTag 值：
 
 | FrameTag | Record 类型 | 描述 |
 |----------|-------------|------|
-| `0x00000000` | Padding | RBF 保留，上层 MUST 跳过 |
 | `0x00000001` | ObjectVersionRecord | 对象版本记录（data payload） |
 | `0x00000002` | MetaCommitRecord | 提交元数据记录（meta payload） |
-| `0x00000003`-`0xFFFFFFFF` | — | 未来扩展 |
+| 其他值 | — | 未来扩展 |
+
+> **注意**：
+> - FrameTag 不再有 RBF 保留值，`0x00000000` 可由上层自由使用
+> - 墓碑帧通过 `FrameStatus.Tombstone` 标识，与 FrameTag 无关
+> - StateJournal MUST 先检查 `FrameStatus`，再解释 `FrameTag`
 
 > **FrameTag 是独立字段**：
 > - FrameTag 是 FrameBytes 的独立 4B 字段（参见 rbf-format.md `[F-FRAMETAG-WIRE-ENCODING]`）
@@ -333,7 +358,8 @@ public void ProcessFrame(IRbfScanner scanner, Address64 addr)
 {
     if (!scanner.TryReadAt(addr, out var frame)) return;
     
-    if (frame.Tag.Value == 0x00000000) return; // 跳过 Padding
+    // 先检查帧状态，跳过墓碑帧
+    if (frame.Status == FrameStatus.Tombstone) return;
     
     switch (frame.Tag.Value)
     {
@@ -354,7 +380,7 @@ public void ProcessFrame(IRbfScanner scanner, Address64 addr)
 | 条款 ID | 名称 | 类别 |
 |---------|------|------|
 | `[F-FRAMETAG-DEFINITION]` | FrameTag 定义 | 术语 |
-| `[F-FRAMETAG-PADDING-VISIBLE]` | Padding 帧可见 | 语义 |
+| `[F-FRAMESTATUS-DEFINITION]` | FrameStatus 定义 | 术语 |
 | `[F-ADDRESS64-DEFINITION]` | Address64 定义 | 术语 |
 | `[F-ADDRESS64-ALIGNMENT]` | Address64 对齐 | 格式 |
 | `[F-ADDRESS64-NULL]` | Address64 空值 | 格式 |
@@ -365,8 +391,9 @@ public void ProcessFrame(IRbfScanner scanner, Address64 addr)
 | `[S-RBF-BUILDER-AUTO-ABORT]` | Builder Auto-Abort (Optimistic Clean Abort) | 语义 |
 | `[S-RBF-BUILDER-SINGLE-OPEN]` | Builder 单开 | 语义 |
 | `[S-RBF-FRAMER-NO-FSYNC]` | Flush 不含 Fsync | 语义 |
+| `[S-RBF-TOMBSTONE-VISIBLE]` | Tombstone 帧可见 | 语义 |
 | `[S-STATEJOURNAL-FRAMETAG-MAPPING]` | FrameTag 映射 | 映射 |
-| `[S-STATEJOURNAL-PADDING-SKIP]` | 上层跳过 Padding | 映射 |
+| `[S-STATEJOURNAL-TOMBSTONE-SKIP]` | 上层跳过 Tombstone | 映射 |
 
 ---
 
@@ -374,9 +401,11 @@ public void ProcessFrame(IRbfScanner scanner, Address64 addr)
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
-| 0.1 | 2025-12-22 | 初稿，基于畅谈会共识 |
-| 0.2 | 2025-12-22 | P0/P1 修订：Auto-Abort 改为 Optimistic Clean Abort；Padding 责任边界明确；Flush 不承诺 durability |
+| 0.5 | 2025-12-24 | **Breaking**：墓碑帧机制从 FrameTag=0 改为 FrameStatus；新增 `[F-FRAMESTATUS-DEFINITION]`/`[S-RBF-TOMBSTONE-VISIBLE]`/`[S-STATEJOURNAL-TOMBSTONE-SKIP]`；删除 FrameTag 保留值；RbfFrame 增加 Status 属性；Auto-Abort 改为写 Tombstone 状态 |
+| 0.4 | 2025-12-24 | **Breaking**：FrameTag 从 1B 扩展为 4B（`byte` → `uint`）；Padding 值从 `0x00` 变为 `0x00000000` |
 | 0.3 | 2025-12-22 | 命名重构：ELOG → RBF (Reversible Binary Framing) |
+| 0.2 | 2025-12-22 | P0/P1 修订：Auto-Abort 改为 Optimistic Clean Abort；Padding 责任边界明确；Flush 不承诺 durability |
+| 0.1 | 2025-12-22 | 初稿，基于畅谈会共识 |
 | 0.4 | 2025-12-24 | **Breaking**：FrameTag 从 1B 扩展为 4B（`byte` → `uint`）；Padding 值从 `0x00` 变为 `0x00000000` |
 
 ---
