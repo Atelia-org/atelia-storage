@@ -29,53 +29,57 @@
 
 ---
 
-## 2. 常量与 Magic
+## 2. 常量与 Fence
 
-### 2.1 Magic 定义
+### 2.1 Fence 定义
 
-**`[F-MAGIC-DEFINITION]`**
+**`[F-FENCE-DEFINITION]`**
 
-| 字段 | ASCII | Hex 字节序列 | 编码约定 |
-|------|-------|--------------|----------|
-| Magic | `RBF1` | `52 42 46 31` | ASCII 字节序列写入（非 u32 端序），读取时按字节匹配 |
+Fence 是 RBF 文件的 **帧分隔符**，不属于任何 Frame。
 
-### 2.2 Genesis（创世块）
+| 属性 | 值 |
+|------|-----|
+| 值（Value） | `RBF1`（ASCII: `52 42 46 31`） |
+| 长度 | 4 字节 |
+| 编码 | ASCII 字节序列写入（非 u32 端序），读取时按字节匹配 |
+
+### 2.2 Genesis Fence
 
 **`[F-GENESIS]`**
 
-- 每个 RBF 文件 MUST 以 Magic 开头（偏移 0，长度 4 字节）——称为 **Genesis Fence**。
+- 每个 RBF 文件 MUST 以 Fence 开头（偏移 0，长度 4 字节）——称为 **Genesis Fence**。
 - 新建的 RBF 文件 MUST 仅含 Genesis Fence（长度 = 4 字节，表示“无任何 Frame”）。
 
 ---
 
 ## 3. Wire Layout
 
-### 3.1 Fence（Magic 分隔符）语义
+### 3.1 Fence 语义
 
 **`[F-FENCE-SEMANTICS]`**
 
-- Magic 是 **Fence**（fencepost），不属于任何 Frame。
-- 文件中第一个 Magic（偏移 0）称为 **Genesis Fence**。
-- 每个 Frame 之后 MUST 紧跟一个 Magic 作为 Fence。
+- Fence 是 **帧分隔符**（fencepost），不属于任何 Frame。
+- 文件中第一个 Fence（偏移 0）称为 **Genesis Fence**。
+- 每个 Frame 之后 MUST 紧跟一个 Fence。
 
 文件布局因此为：
 
 ```
-[Magic][FrameBytes][Magic][FrameBytes][Magic]...
+[Fence][FrameBytes][Fence][FrameBytes][Fence]...
 ```
 
-> 注：在崩溃/撕裂写入场景，文件尾部 MAY 不以 Magic 结束；Reader 通过 Resync 处理（见 §6）。
+> 注：在崩溃/撕裂写入场景，文件尾部 MAY 不以 Fence 结束；Reader 通过 Resync 处理（见 §6）。
 
 ### 3.2 FrameBytes（二进制帧体）布局
 
 **`[F-FRAME-LAYOUT]`**
 
 > 下表描述 FrameBytes 的布局（从 Frame 起点的 `HeadLen` 字段开始计偏移）。
-> FrameBytes **不包含** 前后 Fence（Magic）。
+> FrameBytes **不包含** 前后 Fence。
 
 | 偏移 | 字段 | 类型 | 长度 | 说明 |
 |------|------|------|------|------|
-| 0 | HeadLen | u32 LE | 4 | FrameBytes 总长度（不含 Fence Magic） |
+| 0 | HeadLen | u32 LE | 4 | FrameBytes 总长度（不含 Fence） |
 | 4 | Payload | bytes | N | `N >= 1`；第 1 字节为 Tag（FrameTag） |
 | 4+N | Pad | bytes | 0-3 | MUST 全 0，使 `N + PadLen` 为 4 的倍数 |
 | 4+N+PadLen | TailLen | u32 LE | 4 | MUST 等于 HeadLen |
@@ -123,7 +127,7 @@ CRC32C = crc32c(Payload + Pad + TailLen)
 ```
 
 - CRC32C MUST 覆盖：Payload（含 Tag）+ Pad + TailLen。
-- CRC32C MUST NOT 覆盖：HeadLen、CRC32C 本身、任何 Fence Magic。
+- CRC32C MUST NOT 覆盖：HeadLen、CRC32C 本身、任何 Fence。
 
 ### 4.2 算法约定
 
@@ -146,7 +150,7 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 - `[F-FRAME-LAYOUT]`：HeadLen/TailLen 一致性、Pad 全 0
 - `[F-HEADLEN-FORMULA]`：长度公式一致性
 - `[F-FRAME-4B-ALIGNMENT]`：Frame 起点 4B 对齐
-- `[F-MAGIC-DEFINITION]`：Fence Magic 匹配
+- `[F-FENCE-DEFINITION]`：Fence 匹配
 - `[F-GENESIS]`：Frame 位于 Genesis 之后
 
 **`[F-CRC-FAIL-REJECT]`**
@@ -162,7 +166,7 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 
 **`[R-REVERSE-SCAN-ALGORITHM]`**
 
-> 该算法从文件尾部向前扫描 Fence（Magic），并尝试验证其前方的 Frame。
+> 该算法从文件尾部向前扫描 Fence，并尝试验证其前方的 Frame。
 > 当验证失败时，进入 Resync：继续按 4B 对齐向前寻找下一个 Fence。
 
 ```
@@ -179,11 +183,11 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 2) fencePos = alignDown4(fileLength - FenceLen)
 3) while fencePos >= 0:
        a) 若 fencePos == 0: 停止（到达 Genesis Fence）
-       b) 若 bytes[fencePos..fencePos+4] != Magic:
+       b) 若 bytes[fencePos..fencePos+4] != FenceValue:
                fencePos -= 4
                continue   // Resync: 寻找 Fence
 
-       c) // 现在 fencePos 指向一个 Fence Magic（当前 Fence）
+       c) // 现在 fencePos 指向一个 Fence
             recordEnd = fencePos
             若 recordEnd < GenesisLen + 16:  // 不足以容纳最小 FrameBytes（HeadLen/Tag/Pad/TailLen/CRC）
                   fencePos -= 4
@@ -198,7 +202,7 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
                   continue
 
             prevFencePos = frameStart - FenceLen
-            若 prevFencePos < 0 或 bytes[prevFencePos..prevFencePos+4] != Magic:
+            若 prevFencePos < 0 或 bytes[prevFencePos..prevFencePos+4] != FenceValue:
                   fencePos -= 4
                   continue
 
@@ -223,7 +227,7 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 
 当候选 Frame 校验失败时（Framing/CRC）：
 1. Reader MUST NOT 信任该候选的 TailLen 做跳跃。
-2. Reader MUST 进入 Resync 模式：以 4 字节为步长向前搜索 Fence（Magic）。
+2. Reader MUST 进入 Resync 模式：以 4 字节为步长向前搜索 Fence。
 3. Resync 扫描 MUST 在抵达 Genesis Fence（偏移 0）时停止。
 
 ---
@@ -247,7 +251,7 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 **`[R-DATATAIL-DEFINITION]`**
 
 - `DataTail` 是一个地址（见 §7），表示 data 文件的逻辑尾部。
-- `DataTail` MUST 指向“有效数据末尾”，并包含尾部 Fence Magic（即 `DataTail == 有效 EOF`）。
+- `DataTail` MUST 指向“有效数据末尾”，并包含尾部 Fence（即 `DataTail == 有效 EOF`）。
 
 **`[R-DATATAIL-TRUNCATE]`**
 
@@ -261,8 +265,8 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 
 | 条款 ID | 名称 |
 |---------|------|
-| `[F-MAGIC-DEFINITION]` | Magic 定义 |
-| `[F-GENESIS]` | Genesis (Header/Empty) |
+| `[F-FENCE-DEFINITION]` | Fence 定义 |
+| `[F-GENESIS]` | Genesis Fence |
 | `[F-FENCE-SEMANTICS]` | Fence 语义 |
 | `[F-FRAME-LAYOUT]` | FrameBytes 布局 |
 | `[F-FRAMETAG-WIRE-ENCODING]` | FrameTag 编码 |
@@ -286,6 +290,7 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.10 | 2025-12-23 | 术语重构：合并 Magic 与 Fence 概念，统一使用 Fence；Magic 降级为 Fence 的值描述 |
 | 0.9 | 2025-12-23 | 条款重构：合并 Genesis/Fence/Ptr64/Resync 相关条款；精简冗余描述 |
 | 0.8 | 2025-12-23 | 消除冗余：删除 `[F-HEADLEN-TAILLEN-SYMMETRY]`（布局表已含）；精简 `[F-FRAME-4B-ALIGNMENT]` 推导；`[F-FRAMING-FAIL-REJECT]` 改为引用式 |
 | 0.7 | 2025-12-23 | 彻底重写：以布局表/算法条款为 SSOT，删除同义复述；修复“Payload 允许为空”与“Tag 必须存在”的矛盾；修复逆向扫描终止条件与 Resync 入口表述 |

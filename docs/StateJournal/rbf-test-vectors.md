@@ -22,10 +22,10 @@
 
 ## 0. 约定
 
-- **Magic-as-Separator**：Magic 是 Frame 分隔符，不属于任何 Frame
-- **文件结构**：`[Magic][Frame1][Magic][Frame2]...[Magic]`
-- **Frame 格式**：`[HeadLen][Payload][Pad][TailLen][CRC32C]`（不含 Magic）
-- **Ptr64**：指向 Frame 的 `HeadLen` 字段起始位置（第一个 Magic 之后）
+- **Fence-as-Separator**：Fence 是 Frame 分隔符，不属于任何 Frame
+- **文件结构**：`[Fence][Frame1][Fence][Frame2]...[Fence]`
+- **Frame 格式**：`[HeadLen][Payload][Pad][TailLen][CRC32C]`（不含 Fence）
+- **Ptr64**：指向 Frame 的 `HeadLen` 字段起始位置（第一个 Fence 之后）
 - 字节序：除 varint 外，定长整数均为 little-endian
 - varint：protobuf 风格 base-128，要求 canonical 最短编码
 - CRC32C：覆盖 `Payload + Pad + TailLen`
@@ -37,7 +37,7 @@
 ### 1.1 空文件
 
 **用例 RBF-EMPTY-001**
-- Given：文件内容 = `[Magic]`（仅分隔符，4 bytes）
+- Given：文件内容 = `[Fence]`（Genesis Fence，4 bytes）
   - `52 42 46 31`（"RBF1"）
 - Then：
   - `reverse_scan()` 返回 0 条 frame
@@ -46,7 +46,7 @@
 ### 1.2 单条 Frame
 
 **用例 RBF-SINGLE-001**
-- Given：文件结构 = `[Magic][Frame][Magic]`
+- Given：文件结构 = `[Fence][Frame][Fence]`
 - Then：
   - `reverse_scan()` 返回 1 条 frame
   - Frame 起始位置 = 4（Ptr64 指向 HeadLen 字段）
@@ -54,7 +54,7 @@
 ### 1.3 双条 Frame
 
 **用例 RBF-DOUBLE-001**
-- Given：文件结构 = `[Magic][Frame1][Magic][Frame2][Magic]`
+- Given：文件结构 = `[Fence][Frame1][Fence][Frame2][Fence]`
 - Then：`reverse_scan()` 按逆序返回 Frame2, Frame1
 
 ### 1.4 HeadLen/TailLen 计算
@@ -63,20 +63,20 @@
 - Given：PayloadLen 分别为 `4k, 4k+1, 4k+2, 4k+3`
 - Then：
   - PadLen = `(4 - PayloadLen % 4) % 4`
-  - `HeadLen = 4 + PayloadLen + PadLen + 4 + 4`（不含 Magic）
+  - `HeadLen = 4 + PayloadLen + PadLen + 4 + 4`（不含 Fence）
   - `HeadLen == TailLen`
 
 **用例 RBF-LEN-002（PadLen 取值覆盖）**
 - Given：PayloadLen 分别为 `4k, 4k+1, 4k+2, 4k+3`
-- Then：PadLen 分别为 `0, 3, 2, 1`；下一条 Magic 起点 4B 对齐
+- Then：PadLen 分别为 `0, 3, 2, 1`；下一条 Fence 起点 4B 对齐
 
-### 1.5 Payload 含 Magic 字节
+### 1.5 Payload 含 Fence 字节
 
-**用例 RBF-MAGIC-IN-PAYLOAD-001**
-- Given：payload 恰好包含 `52 42 46 31`（Magic `RBF1`）
+**用例 RBF-FENCE-IN-PAYLOAD-001**
+- Given：payload 恰好包含 `52 42 46 31`（Fence 值 `RBF1`）
 - Then：
   - CRC32C 校验通过时，正常解析
-  - resync 时遇到 payload 中的 Magic，CRC 校验失败应继续向前扫描
+  - resync 时遇到 payload 中的 Fence 值，CRC 校验失败应继续向前扫描
 
 ---
 
@@ -85,8 +85,8 @@
 ### 2.1 有效 Frame（正例）
 
 **用例 RBF-OK-001（最小可解析 frame）**
-- Given：`Magic` 为 `RBF1`（`52 42 46 31`）；payload 至少 1 byte（FrameTag）。
-- When：写入 `Magic + HeadLen占位 + Payload + Pad + TailLen + CRC32C + 回填HeadLen`。
+- Given：`Fence` 值为 `RBF1`（`52 42 46 31`）；payload 至少 1 byte（FrameTag）。
+- When：写入 `Fence + HeadLen占位 + Payload + Pad + TailLen + CRC32C + 回填HeadLen`。
 - Then：
   - `HeadLen == TailLen`
   - `HeadLen % 4 == 0`
@@ -115,7 +115,7 @@
 ### 2.3 截断测试
 
 **用例 RBF-TRUNCATE-001**
-- Given：原文件 `[Magic][Frame][Magic]`，截断为 `[Magic][Frame]`
+- Given：原文件 `[Fence][Frame][Fence]`，截断为 `[Fence][Frame]`
 - Then：`Open()` 应回退到上一个有效 commit（或报告空仓库）
 
 **用例 RBF-TRUNCATE-002**
@@ -178,8 +178,8 @@
 
 | 条款 ID | 规范条款 | 对应测试用例 |
 |---------|----------|--------------|
-| `[F-GENESIS]` | Genesis (Header/Empty) | RBF-EMPTY-001 |
-| `[F-FENCE-SEMANTICS]` | Fence 语义 (Magic Separator) | RBF-SINGLE-001, RBF-DOUBLE-001 |
+| `[F-GENESIS]` | Genesis Fence | RBF-EMPTY-001 |
+| `[F-FENCE-SEMANTICS]` | Fence 语义 | RBF-SINGLE-001, RBF-DOUBLE-001 |
 | `[F-FRAME-LAYOUT]` | FrameBytes 布局 (含 HeadLen==TailLen) | RBF-LEN-001, RBF-BAD-001 |
 | `[F-FRAME-4B-ALIGNMENT]` | Frame 起点 4B 对齐 | RBF-BAD-003 |
 | `[F-PTR64-WIRE-FORMAT]` | Address/Ptr Wire Format | PTR-OK-001, PTR-BAD-001/002 |
@@ -208,5 +208,6 @@
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2025-12-23 | 0.3 | 适配 rbf-format.md v0.10：统一使用 Fence 术语，替换 Magic |
 | 2025-12-23 | 0.2 | 适配 rbf-format.md v0.9：更新条款 ID 映射（Genesis/Fence/Ptr64/Resync） |
 | 2025-12-22 | 0.1 | 从 mvp-test-vectors.md 提取 Layer 0 测试向量创建独立文档 |
