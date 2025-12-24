@@ -1,7 +1,7 @@
 # RBF Layer Interface Contract
 
 > **状态**：Reviewed（复核通过）
-> **版本**：0.8
+> **版本**：0.10
 > **创建日期**：2025-12-22
 > **设计共识来源**：[agent-team/meeting/2025-12-21-rbf-layer-boundary.md](../../../agent-team/meeting/2025-12-21-rbf-layer-boundary.md)
 > **复核会议**：[agent-team/meeting/2025-12-22-rbf-interface-review.md](../../../agent-team/meeting/2025-12-22-rbf-interface-review.md)
@@ -173,7 +173,7 @@ public interface IRbfFramer
 /// <para><b>生命周期</b>：必须调用 <see cref="Commit"/> 或 <see cref="Dispose"/>。</para>
 /// <para><b>Auto-Abort（Optimistic Clean Abort）</b>：若未 Commit 就 Dispose，
 /// 逻辑上该帧视为不存在。物理实现可能是 Zero I/O（若底层支持 Reservation 回滚）
-/// 或写入 Padding 墓碑帧（否则）。</para>
+/// 或写入 Tombstone 帧（否则）。</para>
 /// </remarks>
 public ref struct RbfFrameBuilder
 {
@@ -363,6 +363,8 @@ public void ProcessFrame(IRbfScanner scanner, Address64 addr)
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.10 | 2025-12-24 | §9 移除过时条目（FrameTag 对齐）；有序列表改为无序列表 |
+| 0.9 | 2025-12-24 | **术语统一**：Padding 统一为 Tombstone，消除混用（Auto-Abort 描述、已解决问题条目） |
 | 0.8 | 2025-12-24 | 修复 RbfFrame 结构遗漏的 `Status` 属性（配合 v0.5 的 FrameStatus 引入） |
 | 0.7 | 2025-12-24 | **重构**：移除 `[S-STATEJOURNAL-FRAMETAG-MAPPING]` 和 `[S-STATEJOURNAL-TOMBSTONE-SKIP]` 到 mvp-design-v2.md；§5 改为纯示例（Informative）；保持 RBF 层语义无关性 |
 | 0.6 | 2025-12-24 | FrameTag 采用 16/16 位段编码（RecordType/SubType）；ObjectKind 从 Payload 移至 FrameTag 高 16 位 |
@@ -379,16 +381,15 @@ public void ProcessFrame(IRbfScanner scanner, Address64 addr)
 > 复核会议解决的问题：
 
 1. ~~**Flush 语义**~~：已明确 `Flush()` 不承诺 durability，由上层控制 fsync 顺序
-2. ~~**Auto-Abort 机制**~~：已改为 Optimistic Clean Abort（Zero I/O 优先，Padding 保底）
-3. ~~**Padding 责任边界**~~：已明确 Scanner 产出所有帧，上层负责忽略 Padding
+2. ~~**Auto-Abort 机制**~~：已改为 Optimistic Clean Abort（Zero I/O 优先，Tombstone 保底）
+3. ~~**Tombstone 责任边界**~~：已明确 Scanner 产出所有帧，上层负责忽略 Tombstone 帧
 
 ## 9. 待实现时确认
 
 > 以下问题可在实现阶段确认：
 
-1. **FrameTag 具体值**：与 mvp-design-v2.md 的 FrameTag 取值如何精确对齐？
-2. **错误处理**：TryReadAt 失败时是否需要 `RbfReadStatus`（P2）
-3. **ScanReverse 终止条件**：遇到损坏数据时的策略（P2）
-4. **Address64 高位保留**：是否需要预留高 8 位供多文件扩展？
+- **错误处理**：TryReadAt 失败时是否需要 `RbfReadStatus`（P2）
+- **ScanReverse 终止条件**：遇到损坏数据时的策略（P2）
+- **Address64 高位保留**：是否需要预留高 8 位供多文件扩展？
 
 ---
