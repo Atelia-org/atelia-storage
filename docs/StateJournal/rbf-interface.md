@@ -21,25 +21,14 @@
 
 **文档关系**：
 
-```
-┌─────────────────────────────────────┐
-│  mvp-design-v2.md (StateJournal)    │
-│  - 依赖本接口文档                    │
-│  - 定义 FrameTag 取值, ObjectKind 等 │
-└─────────────────┬───────────────────┘
-                  │ 依赖
-┌─────────────────▼───────────────────┐
-│  rbf-interface.md (本文档)           │
-│  - Layer 0/1 的对接契约              │
-│  - 定义 FrameTag, Address64 等       │
-└─────────────────┬───────────────────┘
-                  │ 待拆分后
-┌─────────────────▼───────────────────┐
-│  rbf-format.md (Layer 0)             │
-│  - RBF 二进制线格式规范（wire）       │
-│  - 作为 Layer 0 的 SSOT              │
-└─────────────────────────────────────┘
-```
+- `mvp-design-v2.md` **使用** `rbf-interface.md`（上层 StateJournal 使用接口契约）
+- `rbf-format.md` **实现** `rbf-interface.md`（下层 RBF 线格式实现接口定义）
+
+| 文档 | 层级 | 定义内容 |
+|------|------|----------|
+| `mvp-design-v2.md` | Layer 1 (StateJournal) | FrameTag 取值, ObjectKind 等业务语义 |
+| `rbf-interface.md` | Layer 0/1 边界（本文档） | IRbfFramer, IRbfScanner 等接口契约 |
+| `rbf-format.md` | Layer 0 (RBF) | RBF 二进制线格式规范（wire format） |
 
 ---
 
@@ -363,6 +352,7 @@ public void ProcessFrame(IRbfScanner scanner, Address64 addr)
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.11 | 2025-12-25 | §1 文档关系：ASCII 框图改为关系列表+表格；修正语义错误（接口不依赖实现）；删除过时"待拆分"标注（[畅谈会决议](../../../agent-team/meeting/2025-12-25-llm-friendly-notation-field-test.md)）|
 | 0.10 | 2025-12-24 | §9 移除过时条目（FrameTag 对齐）；有序列表改为无序列表 |
 | 0.9 | 2025-12-24 | **术语统一**：Padding 统一为 Tombstone，消除混用（Auto-Abort 描述、已解决问题条目） |
 | 0.8 | 2025-12-24 | 修复 RbfFrame 结构遗漏的 `Status` 属性（配合 v0.5 的 FrameStatus 引入） |
