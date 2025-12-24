@@ -68,32 +68,60 @@
 **[S-DOC-HIERARCHY-AS-LIST]** 树/层级结构（目录树、概念分解、任务分解、API 路径树）SHOULD 使用嵌套列表作为 SSOT。
 - 若目标是"可复制粘贴的目录结构"，MAY 使用"缩进 + 纯路径名"的代码块；SHOULD NOT 使用 `└──` 等 box-drawing 字符作为 SSOT。
 
-**[S-DOC-RELATIONS-AS-TABLE]** 二维关系/矩阵信息（字段定义、枚举值、对照表、对比矩阵、投票记录）SHOULD 使用 Markdown 表格作为 SSOT。
+**[S-DOC-RELATIONS-AS-TABLE]** 二维关系/矩阵信息（字段定义、枚举值、对照表、对比矩阵、投票记录）**当需要属性列或对照维度时**，SHOULD 使用 Markdown 表格作为 SSOT。
 - 若表格过宽或需要多段落解释，SHOULD 拆为"每项一小节（标题 + key/value 列表）"。
+
+**[S-DOC-RELATIONS-AS-TEXT]** 当需要表达"少量实体之间的少量关系"，且关系的关键在于**边语义（动词）**而非复杂拓扑时，SSOT SHOULD 使用"关系列表（Relation Triples List）"的自然语言描述。
+- **适用门槛**（可判定）：满足以下全部条件时，作者 SHOULD 首选关系列表作为 SSOT：
+  1. **节点数**（distinct subject/object）≤ 6；且
+  2. **关系数**（条目数）≤ 10；且
+  3. 关系条目不需要额外属性列（例如"版本/条件/注释列"）才能保持无歧义。
+- **格式约束**（可判定）：作为 SSOT 的每条关系 MUST 满足：
+  - 单条关系 = 单条 bullet（或单行）；
+  - 以 **SVO**（Subject–Verb–Object）顺序表达；
+  - **动词/谓词 MUST 加粗**（例如 **使用** / **实现** / **依赖**），用于让边语义显式可识别；
+  - Subject/Object SHOULD 使用 code span 或链接（保持实体名稳定）。
+- **升级规则**（可判定）：若关系数 > 10 或节点数 > 6，SSOT SHOULD 升级为表格（当需要属性列）或 Mermaid（当需要表达拓扑/分支/环/多参与者时序）。
 
 **[S-DOC-GRAPHS-AS-MERMAID]** 图类/序列类信息（状态机、流程/依赖、时序）一旦出现分支/环/多参与者/非局部箭头关系，SSOT SHOULD 使用 Mermaid 代码块。
 - 状态机优先 `stateDiagram-v2`；流程/依赖优先 `flowchart`/`graph`；时序优先 `sequenceDiagram`。
 - 若 Mermaid 被选为 SSOT，MUST NOT 再维护等价的 ASCII 框图（避免双写漂移）。
 
 **[S-DOC-SIMPLE-FLOW-INLINE]** "简单线性流程"MAY 使用行内箭头表示（如 `A → B → C`），前提是：无分支、无环、步骤数不超过 5，且不会被后续章节引用为规范性依据。
+- **注意**：该条仅用于线性步骤流程，SHOULD NOT 用于表达依赖/实现/使用等语义关系（此类场景参见 `[S-DOC-RELATIONS-AS-TEXT]`）。
 
-**[S-DOC-BITLAYOUT-AS-TABLE]** 位布局/字节布局（bit layout / wire layout）SSOT SHOULD 使用"范围明确"的表格表示（如 `bit 31..24`、`byte 0..3`，并声明端序与位编号约定）。
-- 为兼顾"视觉直观性"，MAY 使用"视觉表格（Visual Table）"（用列模拟位段）；ASCII 位图若保留 MUST 为 Illustration，且以表格为准。
+**[S-DOC-BITLAYOUT-AS-TABLE]** 位布局/字节布局（bit layout / wire layout）SSOT SHOULD 使用"范围明确"的表格表示，并声明端序与位编号约定。
+- **推荐结构**：**行 = 位段/字段，列 = 属性**（如 位范围、字段名、类型、语义）。这种结构支持任意数量的字段和属性扩展。
+- **视觉表格**（Visual Table，列模拟位段）MAY 作为辅助 Illustration，但 SHOULD NOT 作为 SSOT——因为：(1) 行语义隐式（无行标题）；(2) 字段多时列爆炸；(3) 难以添加属性列。
+- ASCII 位图若保留 MUST 为 Illustration，且以表格为准。
+
+**位布局表格示例**：
+```markdown
+| 位范围 | 字段名 | 类型 | 语义 |
+|--------|--------|------|------|
+| 31..16 | SubType | `u16` | ObjectKind（当适用时） |
+| 15..0 | RecordType | `u16` | Record 顶层类型 |
+
+> **端序**：Little-Endian (LE)
+```
 
 ### 3.3 快速参考
 
 | 信息类型 | 推荐 SSOT | 避免 |
 |----------|-----------|------|
 | 树/层级 | 嵌套列表 | box-drawing 目录树 |
-| 二维关系 | Markdown 表格 | 空格对齐伪表格 |
+| 二维关系（需属性列） | Markdown 表格 | 空格对齐伪表格 |
+| 少量关系（边语义重要） | 关系列表（SVO 文本） | 箭头图（语义不自证） |
 | 状态机/流程图 | Mermaid | ASCII 框图 |
 | 时序图 | Mermaid `sequenceDiagram` | ASCII 箭头图 |
-| 简单流程 | 行内 `A → B → C` | — |
-| 位布局 | 范围表格 / 视觉表格 | ASCII 位图（仅作 Illustration） |
+| 简单线性流程 | 行内 `A → B → C` | — |
+| 位布局 | 范围表格（行=字段，列=属性） | 视觉表格（仅作 Illustration）、ASCII 位图 |
 
 ## 变更日志
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.4 | 2025-12-25 | 细化 `[S-DOC-BITLAYOUT-AS-TABLE]`：明确推荐"行=字段，列=属性"结构；视觉表格降级为 Illustration |
+| 0.3 | 2025-12-25 | 新增 `[S-DOC-RELATIONS-AS-TEXT]` 条款；澄清 `[S-DOC-RELATIONS-AS-TABLE]` 和 `[S-DOC-SIMPLE-FLOW-INLINE]` 的适用边界（[畅谈会决议](../../agent-team/meeting/2025-12-25-llm-friendly-notation-field-test.md)）|
 | 0.2 | 2025-12-24 | 新增第 3 章"信息表示与图表"（LLM-Friendly Notation）|
 | 0.1 | 2025-12-22 | 从 StateJournal mvp-design-v2.md 提取 |
