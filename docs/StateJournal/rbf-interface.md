@@ -1,7 +1,7 @@
 # RBF Layer Interface Contract
 
 > **状态**：Reviewed（复核通过）
-> **版本**：0.5
+> **版本**：0.8
 > **创建日期**：2025-12-22
 > **设计共识来源**：[agent-team/meeting/2025-12-21-rbf-layer-boundary.md](../../../agent-team/meeting/2025-12-21-rbf-layer-boundary.md)
 > **复核会议**：[agent-team/meeting/2025-12-22-rbf-interface-review.md](../../../agent-team/meeting/2025-12-22-rbf-interface-review.md)
@@ -290,6 +290,9 @@ public readonly ref struct RbfFrame
     /// <summary>帧类型标识符</summary>
     public FrameTag Tag { get; }
     
+    /// <summary>帧状态（Valid / Tombstone）</summary>
+    public FrameStatus Status { get; }
+    
     /// <summary>帧负载（生命周期受限）</summary>
     public ReadOnlySpan<byte> Payload { get; }
     
@@ -305,71 +308,30 @@ public readonly ref struct RbfFrame
 
 ---
 
-## 5. 上层映射（StateJournal）
+## 5. 使用示例（Informative）
 
-> 本节描述上层如何使用 RBF 接口，但不属于 RBF 层的职责。
-
-### 5.1 FrameTag 取值映射
-
-**`[S-STATEJOURNAL-FRAMETAG-MAPPING]`**
-
-StateJournal 定义以下 FrameTag 值：
-
-| FrameTag | Record 类型 | 描述 |
-|----------|-------------|------|
-| `0x00000001` | ObjectVersionRecord | 对象版本记录（data payload） |
-| `0x00000002` | MetaCommitRecord | 提交元数据记录（meta payload） |
-| 其他值 | — | 未来扩展 |
-
-> **注意**：
-> - FrameTag 不再有 RBF 保留值，`0x00000000` 可由上层自由使用
-> - 墓碑帧通过 `FrameStatus.Tombstone` 标识，与 FrameTag 无关
-> - StateJournal MUST 先检查 `FrameStatus`，再解释 `FrameTag`
-
-> **FrameTag 是独立字段**：
-> - FrameTag 是 FrameBytes 的独立 4B 字段（参见 rbf-format.md `[F-FRAMETAG-WIRE-ENCODING]`）
-> - StateJournal 通过 FrameTag 区分 Record 类型，Payload 内不再包含额外的类型字节
-> - 此设计与 mvp-design-v2.md §3.2.1/§3.2.2 的定义一致（2025-12-24 对齐）
-
-### 5.2 使用示例
+> 本节为参考示例，不属于 RBF 层规范。FrameTag 的具体取值与语义由上层定义，详见 [mvp-design-v2.md](mvp-design-v2.md)。
 
 ```csharp
-// 写入 ObjectVersionRecord
-public Address64 WriteObjectVersion(IRbfFramer framer, ObjectVersionPayload payload)
+// 写入帧
+public Address64 WriteFrame(IRbfFramer framer, uint tagValue, byte[] payload)
 {
-    using var frame = framer.BeginFrame(new FrameTag(0x00000001));
-    
-    // 使用 ReservablePayload 实现 PairCount 回填
-    if (frame.ReservablePayload is { } reservable)
-    {
-        payload.SerializeTo(reservable);
-    }
-    else
-    {
-        // fallback: 预先序列化
-        payload.SerializeTo(frame.Payload);
-    }
-    
+    using var frame = framer.BeginFrame(new FrameTag(tagValue));
+    payload.CopyTo(frame.Payload);
     return frame.Commit();
 }
 
-// 读取
+// 读取帧
 public void ProcessFrame(IRbfScanner scanner, Address64 addr)
 {
     if (!scanner.TryReadAt(addr, out var frame)) return;
     
-    // 先检查帧状态，跳过墓碑帧
+    // 先检查帧状态，跳过墓碑帧（上层策略）
     if (frame.Status == FrameStatus.Tombstone) return;
     
-    switch (frame.Tag.Value)
-    {
-        case 0x00000001:
-            ProcessObjectVersion(frame.Payload);
-            break;
-        case 0x00000002:
-            ProcessCommit(frame.Payload);
-            break;
-    }
+    // 上层根据 frame.Tag.Value 决定如何解析 frame.Payload
+    // RBF 层不解释 FrameTag 的语义
+    ProcessPayload(frame.Tag.Value, frame.Payload);
 }
 ```
 
@@ -392,8 +354,8 @@ public void ProcessFrame(IRbfScanner scanner, Address64 addr)
 | `[S-RBF-BUILDER-SINGLE-OPEN]` | Builder 单开 | 语义 |
 | `[S-RBF-FRAMER-NO-FSYNC]` | Flush 不含 Fsync | 语义 |
 | `[S-RBF-TOMBSTONE-VISIBLE]` | Tombstone 帧可见 | 语义 |
-| `[S-STATEJOURNAL-FRAMETAG-MAPPING]` | FrameTag 映射 | 映射 |
-| `[S-STATEJOURNAL-TOMBSTONE-SKIP]` | 上层跳过 Tombstone | 映射 |
+
+> **已移除的条款**：`[S-STATEJOURNAL-FRAMETAG-MAPPING]` 和 `[S-STATEJOURNAL-TOMBSTONE-SKIP]` 已移至 [mvp-design-v2.md](mvp-design-v2.md)，因为它们是上层（StateJournal）的语义定义，不属于 RBF 接口契约。
 
 ---
 
@@ -401,12 +363,14 @@ public void ProcessFrame(IRbfScanner scanner, Address64 addr)
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
-| 0.5 | 2025-12-24 | **Breaking**：墓碑帧机制从 FrameTag=0 改为 FrameStatus；新增 `[F-FRAMESTATUS-DEFINITION]`/`[S-RBF-TOMBSTONE-VISIBLE]`/`[S-STATEJOURNAL-TOMBSTONE-SKIP]`；删除 FrameTag 保留值；RbfFrame 增加 Status 属性；Auto-Abort 改为写 Tombstone 状态 |
-| 0.4 | 2025-12-24 | **Breaking**：FrameTag 从 1B 扩展为 4B（`byte` → `uint`）；Padding 值从 `0x00` 变为 `0x00000000` |
+| 0.8 | 2025-12-24 | 修复 RbfFrame 结构遗漏的 `Status` 属性（配合 v0.5 的 FrameStatus 引入） |
+| 0.7 | 2025-12-24 | **重构**：移除 `[S-STATEJOURNAL-FRAMETAG-MAPPING]` 和 `[S-STATEJOURNAL-TOMBSTONE-SKIP]` 到 mvp-design-v2.md；§5 改为纯示例（Informative）；保持 RBF 层语义无关性 |
+| 0.6 | 2025-12-24 | FrameTag 采用 16/16 位段编码（RecordType/SubType）；ObjectKind 从 Payload 移至 FrameTag 高 16 位 |
+| 0.5 | 2025-12-24 | **Breaking**：墓碑帧机制从 FrameTag=0 改为 FrameStatus；新增 `[F-FRAMESTATUS-DEFINITION]`/`[S-RBF-TOMBSTONE-VISIBLE]`；RbfFrame 增加 Status 属性；Auto-Abort 改为写 Tombstone 状态 |
+| 0.4 | 2025-12-24 | **Breaking**：FrameTag 从 1B 扩展为 4B（`byte` → `uint`） |
 | 0.3 | 2025-12-22 | 命名重构：ELOG → RBF (Reversible Binary Framing) |
-| 0.2 | 2025-12-22 | P0/P1 修订：Auto-Abort 改为 Optimistic Clean Abort；Padding 责任边界明确；Flush 不承诺 durability |
+| 0.2 | 2025-12-22 | P0/P1 修订：Auto-Abort 改为 Optimistic Clean Abort |
 | 0.1 | 2025-12-22 | 初稿，基于畅谈会共识 |
-| 0.4 | 2025-12-24 | **Breaking**：FrameTag 从 1B 扩展为 4B（`byte` → `uint`）；Padding 值从 `0x00` 变为 `0x00000000` |
 
 ---
 
