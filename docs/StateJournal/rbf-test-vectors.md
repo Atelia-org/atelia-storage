@@ -1,8 +1,8 @@
 # RBF 测试向量
 
-> **版本**：0.6
+> **版本**：0.7
 > **状态**：Draft
-> **关联规范**：[rbf-format.md](rbf-format.md)
+> **关联规范**：[rbf-format.md](rbf-format.md) v0.14
 
 > 本文档遵循 [Atelia 规范约定](../spec-conventions.md)。
 
@@ -10,8 +10,9 @@
 
 本文档定义 RBF（Layer 0）的测试向量，覆盖 Frame 编码、逆向扫描、Resync、CRC 校验与 Address64/Ptr64 编码。
 
-**覆盖范围**（对齐 rbf-format.md v0.12）：
+**覆盖范围**（对齐 rbf-format.md v0.14）：
 - FrameBytes 结构（HeadLen/FrameTag/Payload/FrameStatus/TailLen/CRC32C）
+- FrameStatus 位域格式（Tombstone bit + StatusLen encoding）
 - Fence-as-Separator 语义
 - Framing/CRC 损坏判定与 Resync
 - Address64/Ptr64（u64 LE 文件偏移，4B 对齐）
@@ -80,6 +81,37 @@
   - CRC32C 校验通过时，正常解析
   - resync 时遇到 Payload 中的 Fence 值，CRC 校验失败应继续向前扫描
 
+### 1.6 FrameStatus 位域格式
+
+> 对应规范条款 `[F-FRAMESTATUS-VALUES]`
+
+**位域布局**（引用自 rbf-format.md）：
+- Bit 7：Tombstone（0=Valid，1=Tombstone）
+- Bit 6-2：Reserved（MVP MUST 为 0）
+- Bit 1-0：StatusLen - 1（`00`=1, `01`=2, `10`=3, `11`=4）
+
+**用例 RBF-STATUS-001（MVP 有效值枚举）**
+
+| 值 | 二进制 | IsTombstone | StatusLen | IsMvpValid |
+|----|--------|-------------|-----------|------------|
+| `0x00` | `0b0000_0000` | false | 1 | ✅ |
+| `0x01` | `0b0000_0001` | false | 2 | ✅ |
+| `0x02` | `0b0000_0010` | false | 3 | ✅ |
+| `0x03` | `0b0000_0011` | false | 4 | ✅ |
+| `0x80` | `0b1000_0000` | true | 1 | ✅ |
+| `0x81` | `0b1000_0001` | true | 2 | ✅ |
+| `0x82` | `0b1000_0010` | true | 3 | ✅ |
+| `0x83` | `0b1000_0011` | true | 4 | ✅ |
+
+**用例 RBF-STATUS-002（无效值：Reserved bits 非零）**
+
+| 值 | 二进制 | 失败原因 |
+|----|--------|----------|
+| `0x04` | `0b0000_0100` | Reserved bit 2 set |
+| `0x7F` | `0b0111_1111` | Reserved bits 2-6 all set |
+| `0xFE` | `0b1111_1110` | Reserved bits 2-6 set |
+| `0xFF` | `0b1111_1111` | Reserved bits 2-6 set（旧版 Tombstone，v0.14 起无效）|
+
 ---
 
 ## 2. 损坏与恢复
@@ -88,20 +120,22 @@
 
 **用例 RBF-OK-001（Valid：PayloadLen=0 → StatusLen=4）**
 - Given：`Fence` 值为 `RBF1`（`52 42 46 31`）；Payload 为空（0 bytes）。
-- When：写入 `Fence + HeadLen(20) + FrameTag + (Empty Payload) + FrameStatus(0x00 x4) + TailLen(20) + CRC32C`。
+- When：写入 `Fence + HeadLen(20) + FrameTag + (Empty Payload) + FrameStatus(0x03 x4) + TailLen(20) + CRC32C`。
+  - FrameStatus = `0x03`：Valid (bit 7=0) + StatusLen=4 (bits 0-1 = 0b11)
 - Then：
   - `HeadLen == TailLen == 20`
-  - `FrameStatus == 0x00` 且 4 字节全相同
+  - `FrameStatus == 0x03` 且 4 字节全相同
   - Frame 起点 4B 对齐
   - CRC32C 校验通过
   - 反向扫描能枚举到该条 frame
 
 **用例 RBF-OK-002（Tombstone：PayloadLen=3 → StatusLen=1）**
 - Given：PayloadLen=3（任意 3 字节 payload）。
-- When：写入 `Fence + HeadLen(20) + FrameTag + Payload(3) + FrameStatus(0xFF x1) + TailLen(20) + CRC32C`。
+- When：写入 `Fence + HeadLen(20) + FrameTag + Payload(3) + FrameStatus(0x80 x1) + TailLen(20) + CRC32C`。
+  - FrameStatus = `0x80`：Tombstone (bit 7=1) + StatusLen=1 (bits 0-1 = 0b00)
 - Then：
   - StatusLen=1（因为 `PayloadLen % 4 == 3`）
-  - `FrameStatus == 0xFF` 且所有字节相同
+  - `FrameStatus == 0x80` 且所有字节相同
   - CRC32C 校验通过
   - 反向扫描能枚举到该条 frame（Scanner MUST 可见 Tombstone 帧；上层是否忽略不属于 Layer 0）
 
@@ -127,12 +161,13 @@
 - Given：`TailLen > fileSize` 或 `TailLen < 16` 或 `TailLen != HeadLen`
 - Then：视为损坏
 
-**用例 RBF-BAD-005（FrameStatus 非法值）**
-- Given：FrameStatus 取值为 `0x01`-`0xFE`（任意）
+**用例 RBF-BAD-005（FrameStatus 非法值：Reserved bits 非零）**
+- Given：FrameStatus 取值满足 `(value & 0x7C) != 0`（即 bits 2-6 任一为 1）
+- Examples：`0x04`, `0x7F`, `0xFE`, `0xFF`（见 §1.6 RBF-STATUS-002）
 - Then：Reader MUST 视为 framing 失败（拒绝该帧）
 
 **用例 RBF-BAD-006（FrameStatus 填充不一致）**
-- Given：FrameStatus 长度为 2-4，且存在至少 1 字节与其他字节不同（例如 `00 FF 00`）
+- Given：FrameStatus 长度为 2-4，且存在至少 1 字节与其他字节不同（例如 `03 01 03`、`80 81 80`）
 - Then：Reader MUST 视为 framing 失败（拒绝该帧）
 
 ### 2.3 截断测试
@@ -171,7 +206,7 @@
 | `[F-FENCE-SEMANTICS]` | Fence 语义 | RBF-SINGLE-001, RBF-DOUBLE-001 |
 | `[F-FRAME-LAYOUT]` | FrameBytes 布局 (含 HeadLen/Tag/Payload/FrameStatus/TailLen/CRC) | RBF-LEN-001, RBF-OK-001/002/003 |
 | `[F-FRAMETAG-WIRE-ENCODING]` | FrameTag 编码 (4B) | RBF-OK-001, RBF-BAD-002 |
-| `[F-FRAMESTATUS-VALUES]` | FrameStatus 值定义 | RBF-OK-001/002, RBF-BAD-005 |
+| `[F-FRAMESTATUS-VALUES]` | FrameStatus 位域格式 | RBF-STATUS-001/002, RBF-OK-001/002, RBF-BAD-005 |
 | `[F-FRAMESTATUS-FILL]` | FrameStatus 填充规则 | RBF-OK-001/002, RBF-BAD-006 |
 | `[F-STATUSLEN-FORMULA]` | StatusLen 公式 | RBF-LEN-001/002, RBF-OK-003 |
 | `[F-FRAME-4B-ALIGNMENT]` | Frame 起点 4B 对齐 | RBF-BAD-003 |
@@ -197,6 +232,7 @@
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2025-12-25 | 0.7 | 适配 rbf-format.md v0.14：FrameStatus 改为位域格式（Bit 7=Tombstone, Bit 0-1=StatusLen-1）；新增 §1.6 位域测试向量；更新 RBF-OK/BAD 用例 |
 | 2025-12-24 | 0.6 | 适配 rbf-format.md v0.12：Pad→FrameStatus（1-4B）；新增 Valid/Tombstone 与 StatusLen(1-4) 覆盖；CRC 覆盖 FrameStatus；移除 Layer 0 未定义的 varint 与上层 meta 恢复用例 |
 | 2025-12-24 | 0.5 | 适配 rbf-format.md v0.11：FrameTag 扩充为 4B，Payload 偏移调整，CRC 覆盖 Tag |
 | 2025-12-23 | 0.4 | 适配 rbf-format.md v0.10+：术语更新（Payload -> FrameData, Magic -> Fence） |

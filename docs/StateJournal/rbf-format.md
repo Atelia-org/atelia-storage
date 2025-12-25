@@ -1,7 +1,7 @@
 # RBF 二进制格式规范（Layer 0）
 
 > **状态**：Draft
-> **版本**：0.12
+> **版本**：0.14
 > **创建日期**：2025-12-22
 > **接口契约（Layer 1）**：[rbf-interface.md](rbf-interface.md)
 > **测试向量（Layer 0）**：[rbf-test-vectors.md](rbf-test-vectors.md)
@@ -95,15 +95,33 @@ Fence 是 RBF 文件的 **帧分隔符**，不属于任何 Frame。
 **`[F-FRAMESTATUS-VALUES]`**
 
 > **FrameStatus** 是 1-4 字节的帧状态标记，所有字节 MUST 填相同值。
+> FrameStatus 采用**位域格式**，同时编码帧状态和 StatusLen。
 
-| 值 | 名称 | 语义 |
-|----|------|------|
-| `0x00` | Valid | 正常帧（业务数据） |
-| `0xFF` | Tombstone | 墓碑帧（Auto-Abort / 逻辑删除） |
-| `0x01`-`0xFE` | — | 保留；Reader MUST 视为 Framing 失败（见 `[F-FRAMING-FAIL-REJECT]`） |
+**位域布局（SSOT）**：
 
-> **设计理由**：FrameStatus 承载帧有效性（Layer 0 元信息），FrameTag 承载业务分类（Layer 1）——职责分离。
-> 全字节同值设计提供隐式冗余校验：若字节不一致，可直接判定损坏。
+| Bit | 名称 | 说明 |
+|-----|------|------|
+| 7 | Tombstone | 0 = Valid（正常帧），1 = Tombstone（墓碑帧） |
+| 6-2 | Reserved | 保留位，MVP MUST 为 0；Reader 遇到非零值 MUST 视为 Framing 失败 |
+| 1-0 | StatusLen | 状态字节数减 1：`00`=1, `01`=2, `10`=3, `11`=4 |
+
+**判断规则（SSOT）**：
+
+```
+IsTombstone = (status & 0x80) != 0
+IsValid     = (status & 0x80) == 0
+StatusLen   = (status & 0x03) + 1
+IsMvpValid  = (status & 0x7C) == 0   // Reserved bits must be zero
+```
+
+> **设计理由**：
+> - 位域格式解决了 HeadLen 无法唯一确定 PayloadLen/StatusLen 边界的问题。
+> - Bit 7 作为 Tombstone 标记，语义清晰，判断高效（符号位检测）。
+> - Bit 0-1 编码 StatusLen，支持 1-4 字节。
+> - Bit 2-6 保留给未来扩展，当前 MUST 为 0。
+> - 全字节同值设计提供隐式冗余校验：若字节不一致，可直接判定损坏。
+>
+> MVP 有效值的完整枚举见 [rbf-test-vectors.md](rbf-test-vectors.md) 的 §1.6。
 
 ### 3.3 长度与对齐
 
@@ -321,11 +339,12 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
-| 0.12 | 2025-12-24 | **Breaking**：Pad 重命名为 FrameStatus；长度从 0-3 改为 1-4；值定义（0x00=Valid, 0xFF=Tombstone）；删除 FrameTag=0 保留值；新增 `[F-FRAMESTATUS-VALUES]`/`[F-STATUSLEN-FORMULA]`/`[F-FRAMESTATUS-FILL]` 条款 |
-| 0.11 | 2025-12-24 | **Breaking**：FrameTag 从 1B 扩展为 4B 独立字段；Payload 起始偏移从 +5 变为 +8；更新 HeadLen/PadLen 公式及 CRC 覆盖范围；最小 FrameBytes 从 16B 变为 16B（HeadLen+Tag+TailLen+CRC） |
-| 0.10 | 2025-12-23 | 术语重构：合并 Magic 与 Fence 概念，统一使用 Fence；Magic 降级为 Fence 的值描述 |
-| 0.9 | 2025-12-23 | 条款重构：合并 Genesis/Fence/Ptr64/Resync 相关条款；精简冗余描述 |
-| 0.8 | 2025-12-23 | 消除冗余：删除 `[F-HEADLEN-TAILLEN-SYMMETRY]`（布局表已含）；精简 `[F-FRAME-4B-ALIGNMENT]` 推导；`[F-FRAMING-FAIL-REJECT]` 改为引用式 |
-| 0.7 | 2025-12-23 | 彻底重写：以布局表/算法条款为 SSOT，删除同义复述；修复“Payload 允许为空”与“Tag 必须存在”的矛盾；修复逆向扫描终止条件与 Resync 入口表述 |
-| 0.6 | 2025-12-23 | 结构重构：Magic 单一定义；删除 EBNF/ASCII 图；布局表增加偏移列 |
-
+| 0.14 | 2025-12-25 | **FrameStatus 位域格式**：Bit 7 = Tombstone，Bit 0-1 = StatusLen-1，Bit 2-6 保留 |
+| 0.13 | 2025-12-25 | FrameStatus 编码 StatusLen（已被 v0.14 取代） |
+| 0.12 | 2025-12-24 | Pad 重命名为 FrameStatus；长度从 0-3 改为 1-4 |
+| 0.11 | 2025-12-24 | FrameTag 从 1B 扩展为 4B 独立字段 |
+| 0.10 | 2025-12-23 | 术语重构：合并 Magic 与 Fence 概念 |
+| 0.9 | 2025-12-23 | 条款重构：合并相关条款 |
+| 0.8 | 2025-12-23 | 消除冗余条款 |
+| 0.7 | 2025-12-23 | 彻底重写：以布局表为 SSOT |
+| 0.6 | 2025-12-23 | 结构重构 |
