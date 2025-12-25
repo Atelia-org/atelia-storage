@@ -16,7 +16,7 @@ public class RbfFrameTests
             FrameTag: 0x12345678,
             PayloadOffset: 108,
             PayloadLength: 10,
-            Status: FrameStatus.Valid);
+            Status: FrameStatus.CreateValid(2)); // PayloadLen=10 → StatusLen=2
 
         // PayloadLen=10, StatusLen=2, FrameLen = 16 + 10 + 2 = 28
         Assert.Equal(28, frame.FrameLength);
@@ -30,7 +30,7 @@ public class RbfFrameTests
             FrameTag: 0x12345678,
             PayloadOffset: 108,
             PayloadLength: 10,
-            Status: FrameStatus.Valid);
+            Status: FrameStatus.CreateValid(2)); // PayloadLen=10 → StatusLen=2
 
         // PayloadLen=10, 10 % 4 = 2, StatusLen = 2
         Assert.Equal(2, frame.StatusLength);
@@ -44,7 +44,7 @@ public class RbfFrameTests
             FrameTag: 1,
             PayloadOffset: 12,
             PayloadLength: 0,
-            Status: FrameStatus.Valid);
+            Status: FrameStatus.CreateValid(4)); // PayloadLen=0 → StatusLen=4
 
         Assert.Equal(20, frame.FrameLength);
         Assert.Equal(4, frame.StatusLength);
@@ -58,8 +58,8 @@ public class RbfFrameTests
             FrameTag: 1,
             PayloadOffset: 12,
             PayloadLength: 0,
-            Status: FrameStatus.Tombstone);
+            Status: FrameStatus.CreateTombstone(4)); // PayloadLen=0 → StatusLen=4
 
-        Assert.Equal(FrameStatus.Tombstone, frame.Status);
+        Assert.True(frame.Status.IsTombstone);
     }
 }

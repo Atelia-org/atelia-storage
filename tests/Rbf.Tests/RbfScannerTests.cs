@@ -54,16 +54,20 @@ public class RbfScannerTests
         payload.CopyTo(frame.AsSpan(offset));
         offset += payloadLen;
 
-        // FrameStatus
+        // FrameStatus - 使用新的位域格式
         if (customStatusBytes != null)
         {
             customStatusBytes.AsSpan(0, statusLen).CopyTo(frame.AsSpan(offset));
         }
         else
         {
+            // 创建正确的位域格式 FrameStatus
+            var actualStatus = status.IsTombstone
+                ? FrameStatus.CreateTombstone(statusLen)
+                : FrameStatus.CreateValid(statusLen);
             for (int i = 0; i < statusLen; i++)
             {
-                frame[offset + i] = (byte)status;
+                frame[offset + i] = actualStatus.Value;
             }
         }
         offset += statusLen;
@@ -183,7 +187,7 @@ public class RbfScannerTests
         frames[0].FileOffset.Should().Be(4); // Genesis Fence 之后
         frames[0].FrameTag.Should().Be(0x12345678);
         frames[0].PayloadLength.Should().Be(3);
-        frames[0].Status.Should().Be(FrameStatus.Valid);
+        frames[0].Status.IsValid.Should().BeTrue();
     }
 
     /// <summary>
@@ -207,7 +211,7 @@ public class RbfScannerTests
         frame.FileOffset.Should().Be(4);
         frame.FrameTag.Should().Be(0xABCD1234);
         frame.PayloadLength.Should().Be(4);
-        frame.Status.Should().Be(FrameStatus.Valid);
+        frame.Status.IsValid.Should().BeTrue();
     }
 
     #endregion
@@ -290,7 +294,7 @@ public class RbfScannerTests
         // Assert
         frames.Should().HaveCount(1);
         frames[0].PayloadLength.Should().Be(0);
-        frames[0].Status.Should().Be(FrameStatus.Valid);
+        frames[0].Status.IsValid.Should().BeTrue();
         frames[0].StatusLength.Should().Be(4);
     }
 
@@ -321,7 +325,7 @@ public class RbfScannerTests
 
         // Assert
         frames.Should().HaveCount(1);
-        frames[0].Status.Should().Be(FrameStatus.Tombstone);
+        frames[0].Status.IsTombstone.Should().BeTrue();
         frames[0].PayloadLength.Should().Be(3);
         frames[0].FrameTag.Should().Be(0x54534E54);
     }
@@ -358,11 +362,11 @@ public class RbfScannerTests
         // Assert
         frames.Should().HaveCount(3);
         frames[0].FrameTag.Should().Be(3);
-        frames[0].Status.Should().Be(FrameStatus.Valid);
+        frames[0].Status.IsValid.Should().BeTrue();
         frames[1].FrameTag.Should().Be(2);
-        frames[1].Status.Should().Be(FrameStatus.Tombstone);
+        frames[1].Status.IsTombstone.Should().BeTrue();
         frames[2].FrameTag.Should().Be(1);
-        frames[2].Status.Should().Be(FrameStatus.Valid);
+        frames[2].Status.IsValid.Should().BeTrue();
     }
 
     #endregion
@@ -414,7 +418,7 @@ public class RbfScannerTests
     public void ScanReverse_HeadLenMismatch_SkipsFrame()
     {
         // Arrange: 手动构建一个 HeadLen != TailLen 的帧
-        var badFrame = BuildRawFrame(0x11111111, [0x01, 0x02, 0x03], FrameStatus.Valid,
+        var badFrame = BuildRawFrame(0x11111111, [0x01, 0x02, 0x03], FrameStatus.CreateValid(1),
             customHeadLen: 20, customTailLen: 24); // 故意不一致
 
         var data = BuildRbfFile(badFrame);
@@ -438,7 +442,7 @@ public class RbfScannerTests
     public void ScanReverse_CrcMismatch_SkipsFrame()
     {
         // Arrange: 篡改 CRC
-        var badFrame = BuildRawFrame(0x22222222, [0xAA, 0xBB], FrameStatus.Valid, corruptCrc: true);
+        var badFrame = BuildRawFrame(0x22222222, [0xAA, 0xBB], FrameStatus.CreateValid(2), corruptCrc: true);
         var data = BuildRbfFile(badFrame);
         var scanner = new RbfScanner(data);
 
@@ -456,7 +460,7 @@ public class RbfScannerTests
     public void TryReadAt_CrcMismatch_ReturnsFalse()
     {
         // Arrange
-        var badFrame = BuildRawFrame(0x33333333, [0xCC], FrameStatus.Valid, corruptCrc: true);
+        var badFrame = BuildRawFrame(0x33333333, [0xCC], FrameStatus.CreateValid(3), corruptCrc: true);
         var data = BuildRbfFile(badFrame);
         var scanner = new RbfScanner(data);
 
@@ -538,10 +542,16 @@ public class RbfScannerTests
     /// <summary>
     /// 测试 RBF-BAD-005: FrameStatus 非法值 → 拒绝。
     /// </summary>
+    /// <remarks>
+    /// 新的位域格式下，非法值是指 Reserved bits (6-2) 不为零的值。
+    /// Valid: 0x00-0x03, 0x80-0x83
+    /// Invalid: 0x04, 0x7F, 0xFE, 0xFF 等
+    /// </remarks>
     [Theory]
-    [InlineData(0x01)]
-    [InlineData(0x7F)]
-    [InlineData(0xFE)]
+    [InlineData(0x04)]  // Reserved bit set
+    [InlineData(0x7F)]  // Multiple reserved bits set
+    [InlineData(0xFE)]  // Tombstone bit + all reserved bits + invalid statusLen bits
+    [InlineData(0xFF)]  // Old Tombstone value - now invalid
     public void ScanReverse_InvalidFrameStatus_SkipsFrame(byte invalidStatus)
     {
         // Arrange: 构建带有非法 FrameStatus 值的帧
@@ -730,7 +740,7 @@ public class RbfScannerTests
 
         // 继续用正常流程写入下一帧（需要新的 Framer 或手动写入）
         // 由于 Framer 状态已改变，我们手动构建第三帧
-        var frame3 = BuildRawFrame(3, [0x03], FrameStatus.Valid);
+        var frame3 = BuildRawFrame(3, [0x03], FrameStatus.CreateValid(1));
         buffer.Write(frame3);
         buffer.Write(RbfConstants.FenceBytes);
 
@@ -858,7 +868,7 @@ public class RbfScannerTests
     public void ScanReverse_MinimalFrame_Succeeds()
     {
         // Arrange: 最小帧 = HeadLen(20) = 16 + 0 + 4
-        var frame = BuildRawFrame(0x4D494E49, [], FrameStatus.Valid); // "MINI"
+        var frame = BuildRawFrame(0x4D494E49, [], FrameStatus.CreateValid(4)); // "MINI"
         var data = BuildRbfFile(frame);
         var scanner = new RbfScanner(data);
 

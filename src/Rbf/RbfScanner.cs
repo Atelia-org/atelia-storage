@@ -226,88 +226,78 @@ public sealed class RbfScanner : IRbfScanner
     /// <summary>
     /// 验证帧的完整性并提取元数据。
     /// </summary>
+    /// <remarks>
+    /// <para><b>[F-FRAMESTATUS-VALUES]</b>: 使用位域格式直接从 FrameStatus 读取 StatusLen。</para>
+    /// </remarks>
     private static bool TryValidateFrame(ReadOnlySpan<byte> span, long frameStart, uint headLen, uint storedCrc, out RbfFrame frame)
     {
         frame = default;
 
         // HeadLen = 16 + PayloadLen + StatusLen
-        // 我们需要找到 PayloadLen 和 StatusLen
-        // StatusLen ∈ {1, 2, 3, 4}，所以我们可以通过 (headLen - 16) 和验证来确定
+        // PayloadLen + StatusLen = HeadLen - 16
+        int payloadPlusStatus = (int)headLen - 16;
+
+        // (PayloadLen + StatusLen) % 4 == 0
+        if (payloadPlusStatus % 4 != 0 || payloadPlusStatus < 1)
+            return false;
 
         // 读取 FrameTag
         long tagOffset = frameStart + 4;
         uint frameTag = BinaryPrimitives.ReadUInt32LittleEndian(span.Slice((int)tagOffset, 4));
 
-        // PayloadLen + StatusLen = HeadLen - 16
-        int payloadPlusStatus = (int)headLen - 16;
+        // [F-FRAMESTATUS-VALUES]: 从 FrameStatus 的第一个字节读取 StatusLen
+        // FrameStatus 位于 [frameStart + 8 + PayloadLen, frameStart + 8 + PayloadLen + StatusLen)
+        // 先读取 TailLen 前面最后一个 FrameStatus 字节的位置
+        // recordEnd = frameStart + headLen, TailLen 位于 recordEnd - 8
+        // FrameStatus 的最后一个字节位于 TailLen 之前 = recordEnd - 8 - 1 = recordEnd - 9
+        // 但我们不知道确切位置...
 
-        // StatusLen = 1 + ((4 - ((PayloadLen + 1) % 4)) % 4)
-        // 这意味着 (PayloadLen + StatusLen) % 4 == 0
-        // 所以 payloadPlusStatus % 4 == 0
-        if (payloadPlusStatus % 4 != 0)
+        // 使用新的位域格式：FrameStatus 所有字节相同，且包含 StatusLen 信息
+        // 我们可以从 recordEnd - 9（TailLen 之前的最后一个字节）读取 FrameStatus
+        long recordEnd = frameStart + headLen;
+
+        // 确保有足够的空间读取
+        if (recordEnd - 9 < frameStart + 8)
             return false;
 
-        // 尝试确定 PayloadLen 和 StatusLen
-        // payloadPlusStatus = PayloadLen + StatusLen
-        // 由于 StatusLen ∈ {1,2,3,4}，PayloadLen 可以是 payloadPlusStatus - 1, -2, -3, -4
-        // 我们需要找到一个使 StatusLen 公式成立且 FrameStatus 有效的组合
-        // 从 StatusLen=4 开始尝试，以正确处理空 Payload 帧（StatusLen=4）
+        // 读取 FrameStatus 的最后一个字节（TailLen 之前）
+        // TailLen 位于 recordEnd - 8，所以 FrameStatus 最后一个字节在 recordEnd - 9
+        byte statusByte = span[(int)(recordEnd - 9)];
+        var status = FrameStatus.FromByte(statusByte);
 
-        int payloadLen = -1;
-        int statusLen = -1;
-        byte validStatusByte = 0;
+        // [F-FRAMESTATUS-VALUES]: 检查是否为 MVP 合法值（保留位为 0）
+        if (!status.IsMvpValid)
+            return false;
 
-        for (int tryStatusLen = 4; tryStatusLen >= 1; tryStatusLen--)
+        int statusLen = status.StatusLen;
+        int payloadLen = payloadPlusStatus - statusLen;
+
+        // 验证 PayloadLen >= 0
+        if (payloadLen < 0)
+            return false;
+
+        // 验证 StatusLen 与公式一致
+        int expectedStatusLen = RbfLayout.CalculateStatusLength(payloadLen);
+        if (expectedStatusLen != statusLen)
+            return false;
+
+        // [F-FRAMESTATUS-FILL]: 验证所有 FrameStatus 字节相同
+        long statusOffset = frameStart + RbfLayout.PayloadOffset + payloadLen;
+        var statusBytes = span.Slice((int)statusOffset, statusLen);
+
+        for (int i = 0; i < statusLen; i++)
         {
-            int tryPayloadLen = payloadPlusStatus - tryStatusLen;
-            if (tryPayloadLen < 0)
-                continue;
-
-            int expectedStatusLen = RbfLayout.CalculateStatusLength(tryPayloadLen);
-            if (expectedStatusLen != tryStatusLen)
-                continue;
-
-            // 找到公式匹配的候选，验证 FrameStatus
-            long statusOffset = frameStart + RbfLayout.PayloadOffset + tryPayloadLen;
-            var statusBytes = span.Slice((int)statusOffset, tryStatusLen);
-
-            byte firstStatusByte = statusBytes[0];
-
-            // [F-FRAMESTATUS-VALUES]: 值必须为 0x00 (Valid) 或 0xFF (Tombstone)
-            if (firstStatusByte != (byte)FrameStatus.Valid && firstStatusByte != (byte)FrameStatus.Tombstone)
-                continue;
-
-            // [F-FRAMESTATUS-FILL]: 所有字节必须相同
-            bool allSame = true;
-            for (int i = 1; i < tryStatusLen; i++)
-            {
-                if (statusBytes[i] != firstStatusByte)
-                {
-                    allSame = false;
-                    break;
-                }
-            }
-
-            if (!allSame)
-                continue;
-
-            // 验证 CRC32C
-            // CRC 覆盖范围: [frameStart+4, recordEnd-4) = FrameTag + Payload + FrameStatus + TailLen
-            long crcStart = frameStart + 4; // FrameTag 起点
-            int crcLen = 4 + tryPayloadLen + tryStatusLen + 4; // FrameTag + Payload + FrameStatus + TailLen
-            var crcData = span.Slice((int)crcStart, crcLen);
-
-            if (!RbfCrc.Verify(crcData, storedCrc))
-                continue;
-
-            // 全部验证通过，找到有效组合
-            payloadLen = tryPayloadLen;
-            statusLen = tryStatusLen;
-            validStatusByte = firstStatusByte;
-            break;
+            if (statusBytes[i] != statusByte)
+                return false;
         }
 
-        if (payloadLen < 0)
+        // 验证 CRC32C
+        // CRC 覆盖范围: [frameStart+4, recordEnd-4) = FrameTag + Payload + FrameStatus + TailLen
+        long crcStart = frameStart + 4; // FrameTag 起点
+        int crcLen = 4 + payloadLen + statusLen + 4; // FrameTag + Payload + FrameStatus + TailLen
+        var crcData = span.Slice((int)crcStart, crcLen);
+
+        if (!RbfCrc.Verify(crcData, storedCrc))
             return false;
 
         // 构建 RbfFrame
@@ -316,7 +306,7 @@ public sealed class RbfScanner : IRbfScanner
             FrameTag: frameTag,
             PayloadOffset: frameStart + RbfLayout.PayloadOffset,
             PayloadLength: payloadLen,
-            Status: (FrameStatus)validStatusByte);
+            Status: status);
 
         return true;
     }

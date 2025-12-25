@@ -48,8 +48,9 @@ public class RbfFramerTests
         // 验证 FrameTag
         BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(8, 4)).Should().Be(0x41424344);
 
-        // 验证 FrameStatus (4 bytes of 0x00)
-        data.Slice(12, 4).ToArray().Should().AllBeEquivalentTo((byte)FrameStatus.Valid);
+        // 验证 FrameStatus (4 bytes of 0x03 for Valid with StatusLen=4)
+        // New format: bit 7=0 (Valid), bits 0-1 = StatusLen-1 = 3 → 0x03
+        data.Slice(12, 4).ToArray().Should().AllBeEquivalentTo((byte)0x03);
 
         // 验证 TailLen = 20
         BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(16, 4)).Should().Be(20);
@@ -94,8 +95,9 @@ public class RbfFramerTests
         // 验证 Payload
         data.Slice(12, 5).ToArray().Should().Equal(payload);
 
-        // 验证 FrameStatus (3 bytes of 0x00) - PayloadLen=5, 5%4=1, StatusLen=3
-        data.Slice(17, 3).ToArray().Should().AllBeEquivalentTo((byte)FrameStatus.Valid);
+        // 验证 FrameStatus (3 bytes of 0x02 for Valid with StatusLen=3)
+        // PayloadLen=5, 5%4=1, StatusLen=3 → bits 0-1 = 2
+        data.Slice(17, 3).ToArray().Should().AllBeEquivalentTo((byte)0x02);
 
         // 验证 TailLen = 24
         BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(20, 4)).Should().Be(24);
@@ -135,10 +137,11 @@ public class RbfFramerTests
         // 验证 HeadLen
         BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(4, 4)).Should().Be((uint)expectedFrameLen);
 
-        // 验证 StatusLen 字节全部相同
+        // 验证 StatusLen 字节全部相同（新位域格式：bits 0-1 = StatusLen-1）
         int statusOffset = 4 + 4 + 4 + payloadLen; // Genesis + HeadLen + FrameTag + Payload
         var statusBytes = data.Slice(statusOffset, expectedStatusLen);
-        statusBytes.ToArray().Should().AllBeEquivalentTo((byte)FrameStatus.Valid);
+        byte expectedStatusByte = (byte)(expectedStatusLen - 1); // Valid with StatusLen encoded
+        statusBytes.ToArray().Should().AllBeEquivalentTo(expectedStatusByte);
     }
 
     /// <summary>
@@ -242,10 +245,10 @@ public class RbfFramerTests
         // Assert
         var data = buffer.WrittenSpan;
 
-        // 验证 FrameStatus = Tombstone (0xFF)
-        // PayloadLen = 2 → StatusLen = 2
+        // 验证 FrameStatus = Tombstone with StatusLen=2
+        // PayloadLen = 2 → StatusLen = 2 → bits 0-1 = 1, bit 7 = 1 → 0x81
         int statusOffset = 4 + 4 + 4 + 2; // Genesis + HeadLen + Tag + Payload
-        data.Slice(statusOffset, 2).ToArray().Should().AllBeEquivalentTo((byte)FrameStatus.Tombstone);
+        data.Slice(statusOffset, 2).ToArray().Should().AllBeEquivalentTo((byte)0x81);
 
         // 验证 CRC 仍然有效
         int frameLen = 16 + 2 + 2; // 20

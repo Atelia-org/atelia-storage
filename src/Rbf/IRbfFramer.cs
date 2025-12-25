@@ -96,7 +96,7 @@ public ref struct RbfFrameBuilder
             throw new InvalidOperationException("Frame has already been committed.");
 
         _committed = true;
-        return _framer.CommitFrame(_frameStart, _tag, FrameStatus.Valid);
+        return _framer.CommitFrame(_frameStart, _tag, FrameStatus.CreateValid(1)); // StatusLen will be recalculated
     }
 
     /// <summary>
@@ -113,7 +113,7 @@ public ref struct RbfFrameBuilder
         if (!_committed)
         {
             // Auto-Abort: 写入 Tombstone 帧
-            _framer.CommitFrame(_frameStart, _tag, FrameStatus.Tombstone);
+            _framer.CommitFrame(_frameStart, _tag, FrameStatus.CreateTombstone(1)); // StatusLen will be recalculated
         }
 
         _framer.EndBuilder();

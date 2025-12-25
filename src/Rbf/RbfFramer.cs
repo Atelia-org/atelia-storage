@@ -56,7 +56,7 @@ public sealed class RbfFramer : IRbfFramer
 
         // 写入帧并立即提交
         var frameStart = _position;
-        WriteFrameComplete(tag, payload, FrameStatus.Valid);
+        WriteFrameComplete(tag, payload, FrameStatus.CreateValid(1)); // StatusLen will be recalculated
         return Address64.FromOffset(frameStart);
     }
 
@@ -132,7 +132,11 @@ public sealed class RbfFramer : IRbfFramer
         offset += payloadLen;
 
         // 4. FrameStatus (1-4 bytes, all same value)
-        var statusByte = (byte)status;
+        // 根据 status 的 IsTombstone 和 statusLen 创建正确的位域值
+        var actualStatus = status.IsTombstone
+            ? FrameStatus.CreateTombstone(statusLen)
+            : FrameStatus.CreateValid(statusLen);
+        var statusByte = actualStatus.Value;
         for (int i = 0; i < statusLen; i++)
         {
             span[offset++] = statusByte;
