@@ -1,9 +1,10 @@
 # AteliaResult 规范文档
 
-> **版本**: 1.0  
-> **日期**: 2025-12-21  
+> **版本**: 1.1  
+> **日期**: 2025-12-26  
 > **状态**: 正式规范（Normative）  
-> **来源**: [LoadObject 命名与返回值设计畅谈会](../../agent-team/meeting/StateJournal/2025-12-21-hideout-loadobject-naming.md)
+> **来源**: [LoadObject 命名与返回值设计畅谈会](../../agent-team/meeting/StateJournal/2025-12-21-hideout-loadobject-naming.md)  
+> **修订**: [AteliaResult 适用边界畅谈会](../../agent-team/meeting/StateJournal/2025-12-26-ateliaresult-boundary.md)
 
 ---
 
@@ -241,24 +242,121 @@ atelia/docs/{Component}/ErrorCodes.md
 
 ## 5. 使用规范
 
-### 5.1 何时使用 Result vs 异常
+### 5.1 何时使用 `bool + out` vs `AteliaResult<T>` vs 异常
 
-| 场景 | 使用方式 | 理由 |
-|------|----------|------|
-| **可预期失败**（Agent 可恢复） | `AteliaResult.Failure` | 不打断控制流，Agent 可选择恢复策略 |
-| **不可恢复故障**（系统级错误） | `AteliaException` | 需要上层 Supervisor 介入 |
+本节定义三类失败表达模式：
 
-**可预期失败示例**：
-- 对象不存在（Agent 可选择创建）
-- 资源锁定（Agent 可选择等待重试）
-- 权限不足（Agent 可选择请求授权）
+| 模式 | 签名形式 | 适用场景 |
+|------|----------|----------|
+| **Classic Try-pattern** | `bool TryX(..., out T value)` | 失败原因单一，无需诊断 payload |
+| **Result-pattern** | `AteliaResult<T> X(...)` | 失败原因多元，需要 ErrorCode/RecoveryHint |
+| **Exception-pattern** | 抛出 `AteliaException` | 不变量破坏或需要上层介入的故障 |
 
-**不可恢复故障示例**：
-- 磁盘满 / IO 错误
+#### [ATELIA-FAILURE-CLASSIFICATION]
+
+> **对外可见的失败 MUST 被归类为以下三类之一：**
+
+1. **Expected Domain Failure（可预期域内失败）**：由输入/状态/权限/业务条件导致，调用方可能据此采取下一步动作。
+2. **Invariant Breach（不变量破坏）**：实现错误、契约被破坏、内部状态不可能、参数违反"必须成立"的前置条件。
+3. **Infrastructure Fault（基础设施故障）**：IO/存储/网络/进程环境等导致的失败，通常需要上层策略介入或重试。
+
+#### [ATELIA-BOOL-OUT-WHEN]
+
+> **API MAY 使用 `bool + out` 形式，当且仅当同时满足：**
+
+- 对调用方而言，失败空间在语义上等价为**单一原因**（即：调用方不需要也不应区分失败原因）；并且
+- 失败时不需要提供结构化诊断 payload（`ErrorCode` / `RecoveryHint` / `Details`）；并且
+- 操作不涉及需要显式表达的 Infrastructure Fault。
+
+约束：
+- `TryX(..., out T value)` 在返回 `false` 时 MUST 将 `value` 置为 `default`。
+- `TryX` 在面对 Expected Domain Failure 时 MUST NOT 以异常表达控制流。
+
+**适用示例**：
+- `Dictionary.TryGetValue` — 失败原因只有"键不存在"
+- `int.TryParse` — 失败原因只有"格式错误"
+- `DurableDict.TryGetValue` — 失败原因只有"键不存在"
+
+#### [ATELIA-RESULT-WHEN]
+
+> **API MUST 使用 `AteliaResult<T>` 形式，当任一条件成立：**
+
+- 失败原因**多元**，且调用方需要区分以选择不同恢复/分支策略；或
+- 失败需要携带可机器判定的键（`ErrorCode`）或可操作的恢复建议（`RecoveryHint`）；或
+- 操作可能遭遇 Infrastructure Fault 且需要以结构化方式呈现给调用方。
+
+约束：
+- `AteliaResult<T>.Failure` MUST 携带 `AteliaError`，且满足本规范 §4.1 的所有 MUST 条款。
+
+**适用示例**：
+- `TryLoadObject` — 失败可能是"不存在"/"已 Detach"/"数据损坏"
+- `TryCommit` — 失败可能是"冲突"/"磁盘满"/"损坏"
+
+#### [ATELIA-EXCEPTION-WHEN]
+
+> **API MUST 抛异常（推荐抛 `AteliaException`）当任一条件成立：**
+
+- 发生 Invariant Breach；或
+- 发生 Infrastructure Fault 且该故障在当前抽象层不应被调用方以"正常分支"处理。
+
+**适用示例**：
 - 数据损坏（CRC 校验失败）
 - 不变量破坏（实现缺陷）
+- 参数违反前置条件（如 null 参数）
 
-### 5.2 派生类使用模式
+#### 直觉测试（Informative）
+
+> 当操作失败时，调用者的第一反应是：
+> - "哦，没有就算了" → `bool + out`
+> - "为什么失败？我需要决定下一步" → `AteliaResult<T>`
+> - "这不应该发生！" → 异常
+
+### 5.2 命名约定
+
+#### [ATELIA-TRY-PREFIX-NONTHROWING]
+
+> **方法名以 `Try` 开头时，对 Expected Domain Failure，方法 MUST NOT 通过异常表达失败。**
+
+允许返回 `false`（Classic Try-pattern）或 `AteliaResult.Failure`（Result-pattern）。
+
+#### [ATELIA-TRY-BOOL-SIGNATURE]
+
+> **若方法返回类型为 `bool` 且用于表达"尝试"，则：**
+
+- 方法名 MUST 以 `Try` 开头
+- 方法 MUST 至少包含一个 `out` 参数承载成功产物
+
+**示例**：
+```csharp
+// ✅ 正确
+bool TryGetValue(ulong key, out TValue? value);
+bool TryParse(string input, out int result);
+
+// ❌ 错误：缺少 out 参数
+bool TryValidate(string input);
+```
+
+#### [ATELIA-RESULT-NAMING-SHOULD]
+
+> **返回 `AteliaResult<T>` 的方法 SHOULD 使用不带 `Try` 的动词名。**
+
+**示例**：
+```csharp
+// ✅ 推荐
+AteliaResult<IDurableObject> LoadObject(ulong objectId);
+AteliaResult<CommitResult> Commit();
+
+// ⚠️ 允许但不推荐
+AteliaResult<IDurableObject> TryLoadObject(ulong objectId);
+```
+
+若出于一致性或历史原因需要保留 `TryXxx(): AteliaResult<T>` 形式：
+- 方法 MUST NOT 使用 `out` 参数承载成功产物（避免与 Classic Try-pattern 混淆）
+- 组件的 ErrorCode Registry MUST 覆盖该方法可能返回的主要 `ErrorCode`
+
+---
+
+### 5.3 派生类使用模式
 
 **库内部（强类型便利）**：
 
@@ -310,7 +408,7 @@ result.Match(
     onFailure: err => LogError(err));
 ```
 
-### 5.3 JSON 序列化示例
+### 5.4 JSON 序列化示例
 
 `AteliaError` 可直接序列化为 JSON，用于跨进程/跨语言通信：
 
