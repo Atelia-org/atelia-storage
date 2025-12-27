@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Buffers.Binary;
+using Atelia.Data;
 
 namespace Atelia.Rbf;
 
@@ -13,9 +14,11 @@ namespace Atelia.Rbf;
 /// </remarks>
 public sealed class RbfFramer : IRbfFramer {
     private readonly IBufferWriter<byte> _output;
-    private readonly PayloadBufferWriter _payloadWriter;
     private long _position;
     private bool _hasOpenBuilder;
+
+    private ChunkedReservableWriter? _activeChunkedWriter;
+    private CrcPositionTrackingBufferWriter? _activeInnerWriter;
 
     /// <summary>
     /// 创建 RbfFramer。
@@ -26,9 +29,10 @@ public sealed class RbfFramer : IRbfFramer {
     public RbfFramer(IBufferWriter<byte> output, long startPosition = 0, bool writeGenesis = true) {
         ArgumentNullException.ThrowIfNull(output);
         _output = output;
-        _payloadWriter = new PayloadBufferWriter();
         _position = startPosition;
         _hasOpenBuilder = false;
+        _activeChunkedWriter = null;
+        _activeInnerWriter = null;
 
         if (writeGenesis) {
             WriteFence();
@@ -43,7 +47,7 @@ public sealed class RbfFramer : IRbfFramer {
     /// <summary>
     /// 内部 Payload 写入器（供 RbfFrameBuilder 使用）。
     /// </summary>
-    internal IBufferWriter<byte> PayloadWriter => _payloadWriter;
+    internal IBufferWriter<byte> PayloadWriter => throw new InvalidOperationException("Use BeginFrame streaming writer.");
 
     /// <inheritdoc/>
     public Address64 Append(FrameTag tag, ReadOnlySpan<byte> payload) {
@@ -60,12 +64,23 @@ public sealed class RbfFramer : IRbfFramer {
         if (_hasOpenBuilder) { throw new InvalidOperationException("A RbfFrameBuilder is already open. Complete it before starting a new one."); }
 
         _hasOpenBuilder = true;
-        _payloadWriter.Reset();
 
-        // 记录帧起始位置（当前位置将是 HeadLen 的位置）
+        // Streaming builder powered by ChunkedReservableWriter (reservation + zero-I/O abort).
+        // The actual bytes are only flushed to _output after the headLen reservation is committed.
         var frameStart = _position;
 
-        return new RbfFrameBuilder(this, frameStart, tag);
+        _activeInnerWriter = new CrcPositionTrackingBufferWriter(this, _output);
+        _activeChunkedWriter = new ChunkedReservableWriter(_activeInnerWriter);
+
+        // Reserve HeadLen (NOT covered by CRC)
+        var headLenSpan = _activeChunkedWriter.ReserveSpan(4, out var headLenToken, tag: "Rbf.HeadLen");
+
+        // Write FrameTag (covered by CRC)
+        Span<byte> tagSpan = _activeChunkedWriter.GetSpan(4);
+        BinaryPrimitives.WriteUInt32LittleEndian(tagSpan, tag.Value);
+        _activeChunkedWriter.Advance(4);
+
+        return new RbfFrameBuilder(this, frameStart, tag, _activeChunkedWriter, headLenToken, headLenSpan);
     }
 
     /// <inheritdoc/>
@@ -78,10 +93,81 @@ public sealed class RbfFramer : IRbfFramer {
     /// 提交帧（供 RbfFrameBuilder 调用）。
     /// </summary>
     internal Address64 CommitFrame(long frameStart, FrameTag tag, FrameStatus status) {
-        // 获取 payload 数据
-        var payload = _payloadWriter.WrittenSpan;
-        WriteFrameComplete(tag, payload, status);
+        throw new NotSupportedException("Non-streaming frame builder is no longer supported; use BeginFrame streaming writer.");
+    }
+
+    internal Address64 CommitFrameStreaming(
+        long frameStart,
+        FrameTag tag,
+        ChunkedReservableWriter writer,
+        int headLenReservationToken,
+        Span<byte> headLenSpan,
+        FrameStatus status
+    ) {
+        if (!_hasOpenBuilder) { throw new InvalidOperationException("No open builder."); }
+        if (!ReferenceEquals(writer, _activeChunkedWriter)) { throw new InvalidOperationException("Mismatched active writer."); }
+
+        // Ensure payload-level reservations are all committed before finalizing frame.
+        // The only allowed pending reservation at this point is the HeadLen reservation.
+        if (writer.PendingReservationCount != 1) { throw new InvalidOperationException($"Uncommitted payload reservations exist: {writer.PendingReservationCount - 1}"); }
+
+        // Layout so far: HeadLen(4 reserved) + FrameTag(4) + Payload(N)
+        var payloadLenLong = writer.WrittenLength - 8;
+        if (payloadLenLong < 0 || payloadLenLong > int.MaxValue) { throw new InvalidOperationException("Payload length out of range."); }
+
+        int payloadLen = (int)payloadLenLong;
+        int statusLen = RbfLayout.CalculateStatusLength(payloadLen);
+        int frameLen = RbfLayout.CalculateFrameLength(payloadLen);
+
+        // FrameStatus (covered by CRC)
+        var actualStatus = status.IsTombstone
+            ? FrameStatus.CreateTombstone(statusLen)
+            : FrameStatus.CreateValid(statusLen);
+        byte statusByte = actualStatus.Value;
+        Span<byte> statusSpan = writer.GetSpan(statusLen);
+        statusSpan.Slice(0, statusLen).Fill(statusByte);
+        writer.Advance(statusLen);
+
+        // TailLen (covered by CRC)
+        Span<byte> tailSpan = writer.GetSpan(4);
+        BinaryPrimitives.WriteUInt32LittleEndian(tailSpan, (uint)frameLen);
+        writer.Advance(4);
+
+        // Backfill HeadLen and commit the reservation (this releases buffered bytes to the underlying writer).
+        BinaryPrimitives.WriteUInt32LittleEndian(headLenSpan, (uint)frameLen);
+        writer.Commit(headLenReservationToken);
+
+        // At this point, the inner writer has observed and CRC'd FrameTag + Payload + FrameStatus + TailLen.
+        uint crc = _activeInnerWriter!.CrcFinal;
+
+        // Write CRC32C (NOT covered by CRC)
+        var crcOut = _output.GetSpan(4);
+        BinaryPrimitives.WriteUInt32LittleEndian(crcOut, crc);
+        _output.Advance(4);
+        _position += 4;
+
+        // Trailing Fence
+        var fenceOut = _output.GetSpan(RbfConstants.FenceLength);
+        RbfConstants.FenceBytes.CopyTo(fenceOut);
+        _output.Advance(RbfConstants.FenceLength);
+        _position += RbfConstants.FenceLength;
+
+        // Cleanup per-frame resources.
+        _activeChunkedWriter?.Dispose();
+        _activeChunkedWriter = null;
+        _activeInnerWriter = null;
+
         return Address64.FromOffset(frameStart);
+    }
+
+    internal void AbortFrameStreaming(ChunkedReservableWriter writer) {
+        if (_activeChunkedWriter is null) { return; }
+        if (!ReferenceEquals(writer, _activeChunkedWriter)) { return; }
+
+        // Drop buffered data without flushing to the underlying writer.
+        _activeChunkedWriter.Dispose();
+        _activeChunkedWriter = null;
+        _activeInnerWriter = null;
     }
 
     /// <summary>
@@ -89,7 +175,6 @@ public sealed class RbfFramer : IRbfFramer {
     /// </summary>
     internal void EndBuilder() {
         _hasOpenBuilder = false;
-        _payloadWriter.Reset();
     }
 
     /// <summary>
@@ -161,41 +246,63 @@ public sealed class RbfFramer : IRbfFramer {
         _position += RbfConstants.FenceLength;
     }
 
-    /// <summary>
-    /// 内部 Payload 缓冲区写入器。
-    /// </summary>
-    private sealed class PayloadBufferWriter : IBufferWriter<byte> {
-        private byte[] _buffer = new byte[256];
-        private int _written;
+    private sealed class CrcPositionTrackingBufferWriter : IBufferWriter<byte> {
+        private readonly RbfFramer _framer;
+        private readonly IBufferWriter<byte> _inner;
 
-        public ReadOnlySpan<byte> WrittenSpan => _buffer.AsSpan(0, _written);
+        private Memory<byte> _lastMemory;
+        private bool _hasLast;
+        private long _frameRelativeOffset;
+        private uint _crcState;
 
-        public void Reset() {
-            _written = 0;
+        public CrcPositionTrackingBufferWriter(RbfFramer framer, IBufferWriter<byte> inner) {
+            _framer = framer;
+            _inner = inner;
+            _lastMemory = default;
+            _hasLast = false;
+            _frameRelativeOffset = 0;
+            _crcState = RbfCrc.Begin();
         }
 
+        public uint CrcFinal => RbfCrc.End(_crcState);
+
         public void Advance(int count) {
-            if (count < 0) { throw new ArgumentOutOfRangeException(nameof(count)); }
-            _written += count;
+            if (!_hasLast) { throw new InvalidOperationException("Advance called without a prior GetSpan/GetMemory."); }
+            if (count < 0 || count > _lastMemory.Length) { throw new ArgumentOutOfRangeException(nameof(count)); }
+
+            if (count > 0) {
+                // CRC covers FrameTag + Payload + FrameStatus + TailLen.
+                // The first 4 bytes (HeadLen) are excluded.
+                var written = _lastMemory.Span.Slice(0, count);
+
+                if (_frameRelativeOffset < 4) {
+                    int skip = (int)Math.Min(4 - _frameRelativeOffset, count);
+                    written = written.Slice(skip);
+                }
+
+                if (!written.IsEmpty) {
+                    _crcState = RbfCrc.Update(_crcState, written);
+                }
+
+                _frameRelativeOffset += count;
+            }
+
+            _inner.Advance(count);
+            _framer._position += count;
+            _hasLast = false;
+            _lastMemory = default;
         }
 
         public Memory<byte> GetMemory(int sizeHint = 0) {
-            EnsureCapacity(sizeHint);
-            return _buffer.AsMemory(_written);
+            if (_hasLast) { throw new InvalidOperationException("Previous buffer not advanced. Call Advance() before requesting another buffer."); }
+            var mem = _inner.GetMemory(sizeHint);
+            _lastMemory = mem;
+            _hasLast = true;
+            return mem;
         }
 
         public Span<byte> GetSpan(int sizeHint = 0) {
-            EnsureCapacity(sizeHint);
-            return _buffer.AsSpan(_written);
-        }
-
-        private void EnsureCapacity(int sizeHint) {
-            if (sizeHint <= 0) { sizeHint = 1; }
-            int required = _written + sizeHint;
-            if (required > _buffer.Length) {
-                int newSize = Math.Max(_buffer.Length * 2, required);
-                Array.Resize(ref _buffer, newSize);
-            }
+            return GetMemory(sizeHint).Span;
         }
     }
 }

@@ -33,6 +33,39 @@ public static class RbfCrc {
     }
 
     /// <summary>
+    /// 开始一个增量 CRC32C 计算。
+    /// </summary>
+    /// <remarks>
+    /// 返回的是“内部状态”（尚未进行最终异或）。
+    /// </remarks>
+    public static uint Begin() {
+        return 0xFFFFFFFF;
+    }
+
+    /// <summary>
+    /// 增量更新 CRC32C 状态。
+    /// </summary>
+    /// <param name="crcState">由 <see cref="Begin"/> 返回或此前 <see cref="Update"/> 返回的状态。</param>
+    /// <param name="data">要追加进 CRC 的数据。</param>
+    /// <returns>更新后的内部状态（尚未最终异或）。</returns>
+    public static uint Update(uint crcState, ReadOnlySpan<byte> data) {
+        uint crc = crcState;
+
+        foreach (byte b in data) {
+            crc = (crc >> 8) ^ _table[(byte)((crc ^ b) & 0xFF)];
+        }
+
+        return crc;
+    }
+
+    /// <summary>
+    /// 结束一个增量 CRC32C 计算并返回最终值。
+    /// </summary>
+    public static uint End(uint crcState) {
+        return crcState ^ 0xFFFFFFFF;
+    }
+
+    /// <summary>
     /// 计算 CRC32C 校验和。
     /// </summary>
     /// <remarks>
@@ -43,13 +76,7 @@ public static class RbfCrc {
     /// <param name="data">要计算校验和的数据。</param>
     /// <returns>CRC32C 校验和（u32）。</returns>
     public static uint Compute(ReadOnlySpan<byte> data) {
-        uint crc = 0xFFFFFFFF; // 初始值
-
-        foreach (byte b in data) {
-            crc = (crc >> 8) ^ _table[(byte)((crc ^ b) & 0xFF)];
-        }
-
-        return crc ^ 0xFFFFFFFF; // 最终异或
+        return End(Update(Begin(), data));
     }
 
     /// <summary>

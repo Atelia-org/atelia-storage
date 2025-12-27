@@ -291,21 +291,15 @@ public class RbfScannerTests {
     /// </summary>
     [Fact]
     public void ScanReverse_TombstoneFrame_IsVisible() {
-        // Arrange: 使用 BeginFrame + Dispose（不 Commit）生成 Tombstone
-        var buffer = new ArrayBufferWriter<byte>();
-        var framer = new RbfFramer(buffer, startPosition: 0, writeGenesis: true);
+        // Arrange: 手动构建一个 Tombstone 帧（Scanner MUST 可见）。
+        var tombstone = BuildRawFrame(
+            0x54534E54,
+            [0xAA, 0xBB, 0xCC],
+            FrameStatus.CreateTombstone(RbfLayout.CalculateStatusLength(3))
+        );
 
-        using (var builder = framer.BeginFrame(new FrameTag(0x54534E54))) // "TNST"
-        {
-            var span = builder.Payload.GetSpan(3);
-            span[0] = 0xAA;
-            span[1] = 0xBB;
-            span[2] = 0xCC;
-            builder.Payload.Advance(3);
-            // 不调用 Commit，触发 Auto-Abort → Tombstone
-        }
-
-        var scanner = new RbfScanner(buffer.WrittenMemory);
+        var data = BuildRbfFile(tombstone);
+        var scanner = new RbfScanner(data);
 
         // Act
         var frames = scanner.ScanReverse().ToList();
@@ -322,24 +316,13 @@ public class RbfScannerTests {
     /// </summary>
     [Fact]
     public void ScanReverse_MixedValidAndTombstone_ReturnsAll() {
-        // Arrange
-        var buffer = new ArrayBufferWriter<byte>();
-        var framer = new RbfFramer(buffer, startPosition: 0, writeGenesis: true);
+        // Arrange: 手动构建 [Valid][Tombstone][Valid]。
+        var frame1 = BuildRawFrame(1, [0x01], FrameStatus.CreateValid(RbfLayout.CalculateStatusLength(1)));
+        var frame2 = BuildRawFrame(2, [0x02], FrameStatus.CreateTombstone(RbfLayout.CalculateStatusLength(1)));
+        var frame3 = BuildRawFrame(3, [0x03], FrameStatus.CreateValid(RbfLayout.CalculateStatusLength(1)));
 
-        // Frame 1: Valid
-        framer.Append(new FrameTag(1), [0x01]);
-
-        // Frame 2: Tombstone
-        using (var builder = framer.BeginFrame(new FrameTag(2))) {
-            builder.Payload.GetSpan(1)[0] = 0x02;
-            builder.Payload.Advance(1);
-            // 不 Commit → Tombstone
-        }
-
-        // Frame 3: Valid
-        framer.Append(new FrameTag(3), [0x03]);
-
-        var scanner = new RbfScanner(buffer.WrittenMemory);
+        var data = BuildRbfFile(frame1, frame2, frame3);
+        var scanner = new RbfScanner(data);
 
         // Act
         var frames = scanner.ScanReverse().ToList();

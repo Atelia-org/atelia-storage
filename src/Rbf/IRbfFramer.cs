@@ -1,4 +1,5 @@
 using System.Buffers;
+using Atelia.Data;
 
 namespace Atelia.Rbf;
 
@@ -52,6 +53,10 @@ public ref struct RbfFrameBuilder {
     private readonly RbfFramer _framer;
     private readonly long _frameStart;
     private readonly FrameTag _tag;
+    private readonly bool _useChunkedWriter;
+    private readonly ChunkedReservableWriter? _chunkedWriter;
+    private readonly int _headLenReservationToken;
+    private readonly Span<byte> _headLenSpan;
     private bool _committed;
     private bool _disposed;
 
@@ -62,6 +67,29 @@ public ref struct RbfFrameBuilder {
         _framer = framer;
         _frameStart = frameStart;
         _tag = tag;
+        _useChunkedWriter = false;
+        _chunkedWriter = null;
+        _headLenReservationToken = 0;
+        _headLenSpan = default;
+        _committed = false;
+        _disposed = false;
+    }
+
+    internal RbfFrameBuilder(
+        RbfFramer framer,
+        long frameStart,
+        FrameTag tag,
+        ChunkedReservableWriter chunkedWriter,
+        int headLenReservationToken,
+        Span<byte> headLenSpan
+    ) {
+        _framer = framer;
+        _frameStart = frameStart;
+        _tag = tag;
+        _useChunkedWriter = true;
+        _chunkedWriter = chunkedWriter;
+        _headLenReservationToken = headLenReservationToken;
+        _headLenSpan = headLenSpan;
         _committed = false;
         _disposed = false;
     }
@@ -69,16 +97,17 @@ public ref struct RbfFrameBuilder {
     /// <summary>
     /// Payload 写入器（标准接口，满足大多数序列化需求）。
     /// </summary>
-    public IBufferWriter<byte> Payload => _framer.PayloadWriter;
+    public IBufferWriter<byte> Payload => _useChunkedWriter ? _chunkedWriter! : throw new InvalidOperationException("Non-streaming builder is not supported.");
 
     /// <summary>
     /// 可预留的 Payload 写入器（可选，供需要 payload 内回填的 codec 使用）。
     /// </summary>
     /// <remarks>
-    /// <para>MVP 实现不支持 Reservation，返回 null。</para>
-    /// <para>若非 null 且底层支持 Reservation 回滚，Abort 时可实现 Zero I/O。</para>
+    /// <para>若返回非 null，则 codec 可以在 payload 内进行预留回填。</para>
+    /// <para><b>Auto-Abort 语义</b>：若底层支持丢弃未提交数据，Abort 可实现 Zero I/O；
+    /// 否则实现可退化为写入 Tombstone 帧。</para>
     /// </remarks>
-    public IReservableBufferWriter? ReservablePayload => null;
+    public IReservableBufferWriter? ReservablePayload => _useChunkedWriter ? _chunkedWriter : null;
 
     /// <summary>
     /// 提交帧。回填 header/CRC，返回帧起始地址。
@@ -91,6 +120,8 @@ public ref struct RbfFrameBuilder {
         if (_committed) { throw new InvalidOperationException("Frame has already been committed."); }
 
         _committed = true;
+        if (_useChunkedWriter) { return _framer.CommitFrameStreaming(_frameStart, _tag, _chunkedWriter!, _headLenReservationToken, _headLenSpan, FrameStatus.CreateValid(1)); }
+
         return _framer.CommitFrame(_frameStart, _tag, FrameStatus.CreateValid(1)); // StatusLen will be recalculated
     }
 
@@ -105,32 +136,16 @@ public ref struct RbfFrameBuilder {
         _disposed = true;
 
         if (!_committed) {
-            // Auto-Abort: 写入 Tombstone 帧
-            _framer.CommitFrame(_frameStart, _tag, FrameStatus.CreateTombstone(1)); // StatusLen will be recalculated
+            if (_useChunkedWriter) {
+                // Zero-I/O abort: drop buffered data without writing to underlying stream.
+                _framer.AbortFrameStreaming(_chunkedWriter!);
+            }
+            else {
+                // Fallback Auto-Abort: 写入 Tombstone 帧
+                _framer.CommitFrame(_frameStart, _tag, FrameStatus.CreateTombstone(1)); // StatusLen will be recalculated
+            }
         }
 
         _framer.EndBuilder();
     }
-}
-
-/// <summary>
-/// 可预留的缓冲区写入器接口（供需要回填的 codec 使用）。
-/// </summary>
-/// <remarks>
-/// MVP 阶段不实现此接口，预留给未来扩展。
-/// </remarks>
-public interface IReservableBufferWriter : IBufferWriter<byte> {
-    /// <summary>
-    /// 预留指定长度的空间，稍后回填。
-    /// </summary>
-    /// <param name="length">预留长度。</param>
-    /// <returns>预留空间的起始偏移（相对于 payload 起点）。</returns>
-    int Reserve(int length);
-
-    /// <summary>
-    /// 回填预留空间。
-    /// </summary>
-    /// <param name="offset">预留时返回的偏移。</param>
-    /// <param name="data">要回填的数据。</param>
-    void Fill(int offset, ReadOnlySpan<byte> data);
 }

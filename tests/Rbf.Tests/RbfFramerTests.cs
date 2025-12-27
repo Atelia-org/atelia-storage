@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Linq;
 using Atelia.Rbf;
 using FluentAssertions;
 using Xunit;
@@ -216,7 +217,7 @@ public class RbfFramerTests {
     /// 测试 [S-RBF-BUILDER-AUTO-ABORT]: 未 Commit 时写入 Tombstone。
     /// </summary>
     [Fact]
-    public void BeginFrame_DisposeWithoutCommit_WritesTombstone() {
+    public void BeginFrame_DisposeWithoutCommit_DoesNotWriteFrame_ZeroIoAbort() {
         // Arrange
         var buffer = new ArrayBufferWriter<byte>();
         var framer = new RbfFramer(buffer, startPosition: 0, writeGenesis: true);
@@ -236,19 +237,9 @@ public class RbfFramerTests {
         // Assert
         var data = buffer.WrittenSpan;
 
-        // 验证 FrameStatus = Tombstone with StatusLen=2
-        // PayloadLen = 2 → StatusLen = 2 → bits 0-1 = 1, bit 7 = 1 → 0x81
-        int statusOffset = 4 + 4 + 4 + 2; // Genesis + HeadLen + Tag + Payload
-        data.Slice(statusOffset, 2).ToArray().Should().AllBeEquivalentTo((byte)0x81);
-
-        // 验证 CRC 仍然有效
-        int frameLen = 16 + 2 + 2; // 20
-        int crcStart = 8;
-        int crcLen = 4 + 2 + 2 + 4; // Tag + Payload + Status + TailLen = 12
-        var crcData = data.Slice(crcStart, crcLen);
-        var computedCrc = RbfCrc.Compute(crcData);
-        var storedCrc = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(4 + frameLen - 4, 4));
-        storedCrc.Should().Be(computedCrc);
+        // Zero I/O abort: should only have Genesis Fence.
+        data.Length.Should().Be(4);
+        data.Slice(0, 4).SequenceEqual(RbfConstants.FenceBytes).Should().BeTrue();
     }
 
     /// <summary>
@@ -361,7 +352,7 @@ public class RbfFramerTests {
     /// 测试 ReservablePayload 返回 null（MVP 实现）。
     /// </summary>
     [Fact]
-    public void BeginFrame_ReservablePayload_ReturnsNull() {
+    public void BeginFrame_ReservablePayload_AllowsReserveAndBackfill() {
         // Arrange
         var buffer = new ArrayBufferWriter<byte>();
         var framer = new RbfFramer(buffer);
@@ -369,8 +360,26 @@ public class RbfFramerTests {
         // Act
         using var builder = framer.BeginFrame(new FrameTag(1));
 
-        // Assert
-        builder.ReservablePayload.Should().BeNull();
+        builder.ReservablePayload.Should().NotBeNull();
+
+        // Reserve a 4-byte length prefix, then write payload, then backfill and commit reservation.
+        var rw = builder.ReservablePayload!;
+        var lenSpan = rw.ReserveSpan(4, out var token, tag: "len");
+        var payload = new byte[] { 0xAA, 0xBB, 0xCC };
+        var span = builder.Payload.GetSpan(payload.Length);
+        payload.CopyTo(span);
+        builder.Payload.Advance(payload.Length);
+
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(lenSpan, payload.Length);
+        rw.Commit(token);
+
+        builder.Commit();
+
+        // Assert framing still valid.
+        var scanner = new RbfScanner(buffer.WrittenMemory);
+        var frames = scanner.ScanReverse().ToList();
+        frames.Should().HaveCount(1);
+        scanner.ReadPayload(frames[0]).Should().Equal(new byte[] { 0x03, 0x00, 0x00, 0x00, 0xAA, 0xBB, 0xCC });
     }
 
     /// <summary>
