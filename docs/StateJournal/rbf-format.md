@@ -1,7 +1,7 @@
 # RBF 二进制格式规范（Layer 0）
 
 > **状态**：Draft
-> **版本**：0.14
+> **版本**：0.15
 > **创建日期**：2025-12-22
 > **接口契约（Layer 1）**：[rbf-interface.md](rbf-interface.md)
 > **测试向量（Layer 0）**：[rbf-test-vectors.md](rbf-test-vectors.md)
@@ -132,7 +132,7 @@ HeadLen = 4 (HeadLen) + 4 (FrameTag) + PayloadLen + StatusLen + 4 (TailLen) + 4 
         = 16 + PayloadLen + StatusLen
 ```
 
-> 由于 `StatusLen >= 1`，最小 HeadLen = 17（当 PayloadLen = 0 时，StatusLen = 4）。
+> 当 PayloadLen = 0 时，StatusLen = 4（见 `[F-STATUSLEN-FORMULA]`），故最小 HeadLen = 20。
 
 **`[F-STATUSLEN-FORMULA]`**
 
@@ -155,8 +155,10 @@ StatusLen = 1 + ((4 - ((PayloadLen + 1) % 4)) % 4)
 
 **`[F-FRAMESTATUS-FILL]`**
 
-- FrameStatus 的所有字节 MUST 填相同值（`0x00` 或 `0xFF`）。
+- FrameStatus 的所有字节 MUST 填相同值。
 - 若任意字节与其他字节不一致，视为 Framing 失败。
+
+> 注：合法值由 `[F-FRAMESTATUS-VALUES]` 位域 SSOT 定义。
 
 ---
 
@@ -194,7 +196,7 @@ CRC 算法为 CRC32C（Castagnoli），采用 Reflected I/O 约定：
 
 Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 Frame 视为损坏：
 - `[F-FRAME-LAYOUT]`：HeadLen/TailLen 一致性
-- `[F-FRAMESTATUS-VALUES]`：FrameStatus 值为 `0x00` 或 `0xFF`
+- `[F-FRAMESTATUS-VALUES]`：FrameStatus 位域合法（IsMvpValid）
 - `[F-FRAMESTATUS-FILL]`：FrameStatus 所有字节一致
 - `[F-HEADLEN-FORMULA]`：长度公式一致性
 - `[F-FRAME-4B-ALIGNMENT]`：Frame 起点 4B 对齐
@@ -237,7 +239,7 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 
        c) // 现在 fencePos 指向一个 Fence
             recordEnd = fencePos
-            若 recordEnd < GenesisLen + 21:  // 不足以容纳最小 FrameBytes（HeadLen+FrameTag+StatusLen+TailLen+CRC = 17B，PayloadLen=0 时 StatusLen=4）
+            若 recordEnd < GenesisLen + 20:  // 最小 FrameBytes = 20（PayloadLen=0, StatusLen=4）
                   fencePos -= 4
                   continue
 
@@ -339,6 +341,7 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.15 | 2025-12-28 | 消除内部矛盾：删除过时的 `0x00/0xFF` 值域枚举，修正最小 HeadLen 为 20 |
 | 0.14 | 2025-12-25 | **FrameStatus 位域格式**：Bit 7 = Tombstone，Bit 0-1 = StatusLen-1，Bit 2-6 保留 |
 | 0.13 | 2025-12-25 | FrameStatus 编码 StatusLen（已被 v0.14 取代） |
 | 0.12 | 2025-12-24 | Pad 重命名为 FrameStatus；长度从 0-3 改为 1-4 |

@@ -1,8 +1,8 @@
 # RBF 测试向量
 
-> **版本**：0.7
+> **版本**：0.8
 > **状态**：Draft
-> **关联规范**：[rbf-format.md](rbf-format.md) v0.14
+> **关联规范**：[rbf-format.md](rbf-format.md) v0.15
 
 > 本文档遵循 [Atelia 规范约定](../spec-conventions.md)。
 
@@ -10,7 +10,7 @@
 
 本文档定义 RBF（Layer 0）的测试向量，覆盖 Frame 编码、逆向扫描、Resync、CRC 校验与 Address64/Ptr64 编码。
 
-**覆盖范围**（对齐 rbf-format.md v0.14）：
+**覆盖范围**（对齐 rbf-format.md v0.15）：
 - FrameBytes 结构（HeadLen/FrameTag/Payload/FrameStatus/TailLen/CRC32C）
 - FrameStatus 位域格式（Tombstone bit + StatusLen encoding）
 - Fence-as-Separator 语义
@@ -158,7 +158,7 @@
 - Then：视为损坏
 
 **用例 RBF-BAD-004（TailLen 超界）**
-- Given：`TailLen > fileSize` 或 `TailLen < 16` 或 `TailLen != HeadLen`
+- Given：`TailLen > fileSize` 或 `TailLen < 20` 或 `TailLen != HeadLen`
 - Then：视为损坏
 
 **用例 RBF-BAD-005（FrameStatus 非法值：Reserved bits 非零）**
@@ -232,6 +232,7 @@
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2025-12-28 | 0.8 | 适配 rbf-format.md v0.15：修正 RBF-BAD-004 最小帧长度边界（16 → 20） |
 | 2025-12-25 | 0.7 | 适配 rbf-format.md v0.14：FrameStatus 改为位域格式（Bit 7=Tombstone, Bit 0-1=StatusLen-1）；新增 §1.6 位域测试向量；更新 RBF-OK/BAD 用例 |
 | 2025-12-24 | 0.6 | 适配 rbf-format.md v0.12：Pad→FrameStatus（1-4B）；新增 Valid/Tombstone 与 StatusLen(1-4) 覆盖；CRC 覆盖 FrameStatus；移除 Layer 0 未定义的 varint 与上层 meta 恢复用例 |
 | 2025-12-24 | 0.5 | 适配 rbf-format.md v0.11：FrameTag 扩充为 4B，Payload 偏移调整，CRC 覆盖 Tag |
