@@ -13,14 +13,12 @@ namespace Atelia.Rbf.Tests;
 /// 覆盖：[A-RBF-FRAMER-INTERFACE], [A-RBF-FRAME-BUILDER], [S-RBF-BUILDER-AUTO-ABORT],
 /// [F-FRAME-LAYOUT], [F-CRC32C-COVERAGE]
 /// </remarks>
-public class RbfFramerTests
-{
+public class RbfFramerTests {
     /// <summary>
     /// 测试 RBF-OK-001: 空 payload 帧写入（PayloadLen=0 → StatusLen=4）。
     /// </summary>
     [Fact]
-    public void Append_EmptyPayload_WritesValidFrame()
-    {
+    public void Append_EmptyPayload_WritesValidFrame() {
         // Arrange
         var buffer = new ArrayBufferWriter<byte>();
         var framer = new RbfFramer(buffer, startPosition: 0, writeGenesis: true);
@@ -68,8 +66,7 @@ public class RbfFramerTests
     /// 测试有 payload 帧写入（PayloadLen=5 → StatusLen=3）。
     /// </summary>
     [Fact]
-    public void Append_WithPayload_WritesValidFrame()
-    {
+    public void Append_WithPayload_WritesValidFrame() {
         // Arrange
         var buffer = new ArrayBufferWriter<byte>();
         var framer = new RbfFramer(buffer, startPosition: 0, writeGenesis: true);
@@ -119,8 +116,7 @@ public class RbfFramerTests
     [InlineData(3, 1)]  // PayloadLen=3, StatusLen=1
     [InlineData(4, 4)]  // PayloadLen=4, StatusLen=4
     [InlineData(5, 3)]  // PayloadLen=5, StatusLen=3
-    public void Append_VariousPayloadLengths_CorrectStatusLen(int payloadLen, int expectedStatusLen)
-    {
+    public void Append_VariousPayloadLengths_CorrectStatusLen(int payloadLen, int expectedStatusLen) {
         // Arrange
         var buffer = new ArrayBufferWriter<byte>();
         var framer = new RbfFramer(buffer, startPosition: 0, writeGenesis: true);
@@ -148,8 +144,7 @@ public class RbfFramerTests
     /// 测试 CRC32C 正确性验证。
     /// </summary>
     [Fact]
-    public void Append_CrcCoversCorrectRange()
-    {
+    public void Append_CrcCoversCorrectRange() {
         // Arrange
         var buffer = new ArrayBufferWriter<byte>();
         var framer = new RbfFramer(buffer, startPosition: 0, writeGenesis: true);
@@ -182,8 +177,7 @@ public class RbfFramerTests
     /// 测试 BeginFrame + Commit 写入帧。
     /// </summary>
     [Fact]
-    public void BeginFrame_Commit_WritesValidFrame()
-    {
+    public void BeginFrame_Commit_WritesValidFrame() {
         // Arrange
         var buffer = new ArrayBufferWriter<byte>();
         var framer = new RbfFramer(buffer, startPosition: 0, writeGenesis: true);
@@ -191,8 +185,7 @@ public class RbfFramerTests
 
         // Act
         Address64 address;
-        using (var builder = framer.BeginFrame(tag))
-        {
+        using (var builder = framer.BeginFrame(tag)) {
             // 写入 payload
             var span = builder.Payload.GetSpan(4);
             span[0] = 0xDE;
@@ -223,16 +216,14 @@ public class RbfFramerTests
     /// 测试 [S-RBF-BUILDER-AUTO-ABORT]: 未 Commit 时写入 Tombstone。
     /// </summary>
     [Fact]
-    public void BeginFrame_DisposeWithoutCommit_WritesTombstone()
-    {
+    public void BeginFrame_DisposeWithoutCommit_WritesTombstone() {
         // Arrange
         var buffer = new ArrayBufferWriter<byte>();
         var framer = new RbfFramer(buffer, startPosition: 0, writeGenesis: true);
         var tag = new FrameTag(0x55667788);
 
         // Act
-        using (var builder = framer.BeginFrame(tag))
-        {
+        using (var builder = framer.BeginFrame(tag)) {
             // 写入一些 payload
             var span = builder.Payload.GetSpan(2);
             span[0] = 0x12;
@@ -264,8 +255,7 @@ public class RbfFramerTests
     /// 测试 [S-RBF-BUILDER-SINGLE-OPEN]: 不允许同时打开多个 Builder。
     /// </summary>
     [Fact]
-    public void BeginFrame_WhileBuilderOpen_ThrowsInvalidOperationException()
-    {
+    public void BeginFrame_WhileBuilderOpen_ThrowsInvalidOperationException() {
         // Arrange
         var buffer = new ArrayBufferWriter<byte>();
         var framer = new RbfFramer(buffer);
@@ -280,8 +270,7 @@ public class RbfFramerTests
     /// 测试 Builder 打开时不能 Append。
     /// </summary>
     [Fact]
-    public void Append_WhileBuilderOpen_ThrowsInvalidOperationException()
-    {
+    public void Append_WhileBuilderOpen_ThrowsInvalidOperationException() {
         // Arrange
         var buffer = new ArrayBufferWriter<byte>();
         var framer = new RbfFramer(buffer);
@@ -296,8 +285,7 @@ public class RbfFramerTests
     /// 测试重复 Commit 抛出异常。
     /// </summary>
     [Fact]
-    public void Commit_Twice_ThrowsInvalidOperationException()
-    {
+    public void Commit_Twice_ThrowsInvalidOperationException() {
         // Arrange
         var buffer = new ArrayBufferWriter<byte>();
         var framer = new RbfFramer(buffer);
@@ -306,18 +294,16 @@ public class RbfFramerTests
 
         // Act & Assert
         InvalidOperationException? ex = null;
-        try
-        {
+        try {
             builder.Commit();
         }
-        catch (InvalidOperationException e)
-        {
+        catch (InvalidOperationException e) {
             ex = e;
         }
-        
+
         ex.Should().NotBeNull();
         ex!.Message.Should().Contain("already been committed");
-        
+
         // Cleanup
         builder.Dispose();
     }
@@ -326,8 +312,7 @@ public class RbfFramerTests
     /// 测试多帧连续写入。
     /// </summary>
     [Fact]
-    public void Append_MultipleFrames_CorrectAddresses()
-    {
+    public void Append_MultipleFrames_CorrectAddresses() {
         // Arrange
         var buffer = new ArrayBufferWriter<byte>();
         var framer = new RbfFramer(buffer, startPosition: 0, writeGenesis: true);
@@ -356,15 +341,13 @@ public class RbfFramerTests
     /// 测试 Address64 对齐验证。
     /// </summary>
     [Fact]
-    public void Append_Returns4ByteAlignedAddress()
-    {
+    public void Append_Returns4ByteAlignedAddress() {
         // Arrange
         var buffer = new ArrayBufferWriter<byte>();
         var framer = new RbfFramer(buffer, startPosition: 0, writeGenesis: true);
 
         // Act
-        for (int i = 0; i < 10; i++)
-        {
+        for (int i = 0; i < 10; i++) {
             var payload = new byte[i];
             var address = framer.Append(new FrameTag((uint)i), payload);
 
@@ -378,8 +361,7 @@ public class RbfFramerTests
     /// 测试 ReservablePayload 返回 null（MVP 实现）。
     /// </summary>
     [Fact]
-    public void BeginFrame_ReservablePayload_ReturnsNull()
-    {
+    public void BeginFrame_ReservablePayload_ReturnsNull() {
         // Arrange
         var buffer = new ArrayBufferWriter<byte>();
         var framer = new RbfFramer(buffer);
@@ -395,8 +377,7 @@ public class RbfFramerTests
     /// 测试无 Genesis Fence 模式。
     /// </summary>
     [Fact]
-    public void Framer_WithoutGenesis_StartsAtPosition0()
-    {
+    public void Framer_WithoutGenesis_StartsAtPosition0() {
         // Arrange
         var buffer = new ArrayBufferWriter<byte>();
         var framer = new RbfFramer(buffer, startPosition: 100, writeGenesis: false);
@@ -406,7 +387,7 @@ public class RbfFramerTests
 
         // Assert
         address.Value.Should().Be(100);
-        
+
         // 验证没有写入 Genesis Fence
         var data = buffer.WrittenSpan;
         // 第一个字节应该是 HeadLen，不是 Fence

@@ -14,8 +14,7 @@ namespace Atelia.Rbf;
 /// </list>
 /// </para>
 /// </remarks>
-public readonly struct FrameStatus : IEquatable<FrameStatus>
-{
+public readonly struct FrameStatus : IEquatable<FrameStatus> {
     /// <summary>
     /// Tombstone 位掩码（Bit 7）。
     /// </summary>
@@ -66,8 +65,7 @@ public readonly struct FrameStatus : IEquatable<FrameStatus>
     /// <param name="statusLen">状态字节数（1-4）。</param>
     /// <returns>FrameStatus 实例。</returns>
     /// <exception cref="ArgumentOutOfRangeException">statusLen 不在 1-4 范围内。</exception>
-    public static FrameStatus CreateValid(int statusLen)
-    {
+    public static FrameStatus CreateValid(int statusLen) {
         ValidateStatusLen(statusLen);
         return new FrameStatus((byte)(statusLen - 1));
     }
@@ -78,8 +76,7 @@ public readonly struct FrameStatus : IEquatable<FrameStatus>
     /// <param name="statusLen">状态字节数（1-4）。</param>
     /// <returns>FrameStatus 实例。</returns>
     /// <exception cref="ArgumentOutOfRangeException">statusLen 不在 1-4 范围内。</exception>
-    public static FrameStatus CreateTombstone(int statusLen)
-    {
+    public static FrameStatus CreateTombstone(int statusLen) {
         ValidateStatusLen(statusLen);
         return new FrameStatus((byte)(TombstoneMask | (statusLen - 1)));
     }
@@ -91,10 +88,8 @@ public readonly struct FrameStatus : IEquatable<FrameStatus>
     /// <returns>FrameStatus 实例。</returns>
     public static FrameStatus FromByte(byte value) => new(value);
 
-    private static void ValidateStatusLen(int statusLen)
-    {
-        if (statusLen < 1 || statusLen > 4)
-            throw new ArgumentOutOfRangeException(nameof(statusLen), statusLen, "StatusLen must be between 1 and 4.");
+    private static void ValidateStatusLen(int statusLen) {
+        if (statusLen < 1 || statusLen > 4) { throw new ArgumentOutOfRangeException(nameof(statusLen), statusLen, "StatusLen must be between 1 and 4."); }
     }
 
     /// <inheritdoc/>

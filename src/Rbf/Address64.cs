@@ -10,8 +10,7 @@ namespace Atelia.Rbf;
 /// <para><b>[F-ADDRESS64-NULL]</b>: Value == 0 表示 null（无效地址）。</para>
 /// </remarks>
 /// <param name="Value">文件偏移量。</param>
-public readonly record struct Address64(ulong Value)
-{
+public readonly record struct Address64(ulong Value) {
     /// <summary>
     /// 空地址（表示无效/不存在）。
     /// </summary>
@@ -46,8 +45,7 @@ public readonly record struct Address64(ulong Value)
     /// <param name="offset">文件偏移（必须非负）。</param>
     /// <returns>Address64 实例。</returns>
     /// <exception cref="ArgumentOutOfRangeException">offset 为负数时抛出。</exception>
-    public static Address64 FromOffset(long offset)
-    {
+    public static Address64 FromOffset(long offset) {
         ArgumentOutOfRangeException.ThrowIfNegative(offset);
         return new Address64((ulong)offset);
     }

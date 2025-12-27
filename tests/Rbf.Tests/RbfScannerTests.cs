@@ -13,15 +13,13 @@ namespace Atelia.Rbf.Tests;
 /// 覆盖：[A-RBF-SCANNER-INTERFACE], [R-REVERSE-SCAN-ALGORITHM], [R-RESYNC-BEHAVIOR],
 /// [S-RBF-TOMBSTONE-VISIBLE], [F-FRAMING-FAIL-REJECT], [F-CRC-FAIL-REJECT]
 /// </remarks>
-public class RbfScannerTests
-{
+public class RbfScannerTests {
     #region Helper Methods
 
     /// <summary>
     /// 使用 RbfFramer 创建测试数据。
     /// </summary>
-    private static byte[] CreateRbfData(Action<RbfFramer> writeAction)
-    {
+    private static byte[] CreateRbfData(Action<RbfFramer> writeAction) {
         var buffer = new ArrayBufferWriter<byte>();
         var framer = new RbfFramer(buffer, startPosition: 0, writeGenesis: true);
         writeAction(framer);
@@ -32,8 +30,8 @@ public class RbfScannerTests
     /// 手动构建 RBF 帧数据（用于测试损坏场景）。
     /// </summary>
     private static byte[] BuildRawFrame(uint tag, byte[] payload, FrameStatus status, bool corruptCrc = false,
-        uint? customHeadLen = null, uint? customTailLen = null, byte[]? customStatusBytes = null)
-    {
+        uint? customHeadLen = null, uint? customTailLen = null, byte[]? customStatusBytes = null
+    ) {
         int payloadLen = payload.Length;
         int statusLen = RbfLayout.CalculateStatusLength(payloadLen);
         int frameLen = RbfLayout.CalculateFrameLength(payloadLen);
@@ -55,18 +53,15 @@ public class RbfScannerTests
         offset += payloadLen;
 
         // FrameStatus - 使用新的位域格式
-        if (customStatusBytes != null)
-        {
+        if (customStatusBytes != null) {
             customStatusBytes.AsSpan(0, statusLen).CopyTo(frame.AsSpan(offset));
         }
-        else
-        {
+        else {
             // 创建正确的位域格式 FrameStatus
             var actualStatus = status.IsTombstone
                 ? FrameStatus.CreateTombstone(statusLen)
                 : FrameStatus.CreateValid(statusLen);
-            for (int i = 0; i < statusLen; i++)
-            {
+            for (int i = 0; i < statusLen; i++) {
                 frame[offset + i] = actualStatus.Value;
             }
         }
@@ -81,8 +76,7 @@ public class RbfScannerTests
         int crcLen = 4 + payloadLen + statusLen + 4;
         var crcData = frame.AsSpan(crcStart, crcLen);
         uint crc = RbfCrc.Compute(crcData);
-        if (corruptCrc)
-        {
+        if (corruptCrc) {
             crc ^= 0xDEADBEEF; // 篡改 CRC
         }
         BinaryPrimitives.WriteUInt32LittleEndian(frame.AsSpan(offset), crc);
@@ -93,12 +87,10 @@ public class RbfScannerTests
     /// <summary>
     /// 构建完整的 RBF 文件数据（手动方式）。
     /// </summary>
-    private static byte[] BuildRbfFile(params byte[][] frames)
-    {
+    private static byte[] BuildRbfFile(params byte[][] frames) {
         // 计算总长度: Genesis Fence + sum(frame + fence)
         int totalLen = RbfConstants.FenceLength;
-        foreach (var frame in frames)
-        {
+        foreach (var frame in frames) {
             totalLen += frame.Length + RbfConstants.FenceLength;
         }
 
@@ -110,8 +102,7 @@ public class RbfScannerTests
         offset += RbfConstants.FenceLength;
 
         // Frames
-        foreach (var frame in frames)
-        {
+        foreach (var frame in frames) {
             frame.CopyTo(data.AsSpan(offset));
             offset += frame.Length;
             RbfConstants.FenceBytes.CopyTo(data.AsSpan(offset));
@@ -129,8 +120,7 @@ public class RbfScannerTests
     /// 测试 RBF-EMPTY-001: 空文件（仅 Genesis）→ 0 帧。
     /// </summary>
     [Fact]
-    public void ScanReverse_EmptyFile_ReturnsNoFrames()
-    {
+    public void ScanReverse_EmptyFile_ReturnsNoFrames() {
         // Arrange: 仅 Genesis Fence
         var data = RbfConstants.FenceBytes.ToArray();
         var scanner = new RbfScanner(data);
@@ -149,8 +139,7 @@ public class RbfScannerTests
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(3)]
-    public void ScanReverse_FileShorterThanGenesis_ReturnsNoFrames(int length)
-    {
+    public void ScanReverse_FileShorterThanGenesis_ReturnsNoFrames(int length) {
         // Arrange
         var data = new byte[length];
         var scanner = new RbfScanner(data);
@@ -170,13 +159,13 @@ public class RbfScannerTests
     /// 测试 RBF-SINGLE-001: 单帧 → 1 帧，起始位置 = 4。
     /// </summary>
     [Fact]
-    public void ScanReverse_SingleFrame_ReturnsOneFrame()
-    {
+    public void ScanReverse_SingleFrame_ReturnsOneFrame() {
         // Arrange
-        var data = CreateRbfData(framer =>
-        {
-            framer.Append(new FrameTag(0x12345678), [0x01, 0x02, 0x03]);
-        });
+        var data = CreateRbfData(
+            framer => {
+                framer.Append(new FrameTag(0x12345678), [0x01, 0x02, 0x03]);
+            }
+        );
         var scanner = new RbfScanner(data);
 
         // Act
@@ -194,13 +183,13 @@ public class RbfScannerTests
     /// 测试 TryReadAt 读取单帧。
     /// </summary>
     [Fact]
-    public void TryReadAt_ValidAddress_ReturnsTrue()
-    {
+    public void TryReadAt_ValidAddress_ReturnsTrue() {
         // Arrange
-        var data = CreateRbfData(framer =>
-        {
-            framer.Append(new FrameTag(0xABCD1234), [0xDE, 0xAD, 0xBE, 0xEF]);
-        });
+        var data = CreateRbfData(
+            framer => {
+                framer.Append(new FrameTag(0xABCD1234), [0xDE, 0xAD, 0xBE, 0xEF]);
+            }
+        );
         var scanner = new RbfScanner(data);
 
         // Act
@@ -222,14 +211,14 @@ public class RbfScannerTests
     /// 测试 RBF-DOUBLE-001: 双帧 → 按逆序返回 Frame2, Frame1。
     /// </summary>
     [Fact]
-    public void ScanReverse_TwoFrames_ReturnsInReverseOrder()
-    {
+    public void ScanReverse_TwoFrames_ReturnsInReverseOrder() {
         // Arrange
-        var data = CreateRbfData(framer =>
-        {
-            framer.Append(new FrameTag(0x11111111), [0x01]);
-            framer.Append(new FrameTag(0x22222222), [0x02, 0x03]);
-        });
+        var data = CreateRbfData(
+            framer => {
+                framer.Append(new FrameTag(0x11111111), [0x01]);
+                framer.Append(new FrameTag(0x22222222), [0x02, 0x03]);
+            }
+        );
         var scanner = new RbfScanner(data);
 
         // Act
@@ -251,16 +240,15 @@ public class RbfScannerTests
     /// 测试多帧连续扫描。
     /// </summary>
     [Fact]
-    public void ScanReverse_MultipleFrames_ReturnsAllInReverseOrder()
-    {
+    public void ScanReverse_MultipleFrames_ReturnsAllInReverseOrder() {
         // Arrange
-        var data = CreateRbfData(framer =>
-        {
-            for (uint i = 1; i <= 5; i++)
-            {
-                framer.Append(new FrameTag(i), new byte[i]);
+        var data = CreateRbfData(
+            framer => {
+                for (uint i = 1; i <= 5; i++) {
+                    framer.Append(new FrameTag(i), new byte[i]);
+                }
             }
-        });
+        );
         var scanner = new RbfScanner(data);
 
         // Act
@@ -279,13 +267,13 @@ public class RbfScannerTests
     /// 测试 RBF-OK-001: 空 payload Valid 帧（PayloadLen=0 → StatusLen=4）。
     /// </summary>
     [Fact]
-    public void ScanReverse_EmptyPayloadValidFrame_Succeeds()
-    {
+    public void ScanReverse_EmptyPayloadValidFrame_Succeeds() {
         // Arrange
-        var data = CreateRbfData(framer =>
-        {
-            framer.Append(new FrameTag(0x41414141), ReadOnlySpan<byte>.Empty);
-        });
+        var data = CreateRbfData(
+            framer => {
+                framer.Append(new FrameTag(0x41414141), ReadOnlySpan<byte>.Empty);
+            }
+        );
         var scanner = new RbfScanner(data);
 
         // Act
@@ -302,8 +290,7 @@ public class RbfScannerTests
     /// 测试 RBF-OK-002: Tombstone 帧可见。
     /// </summary>
     [Fact]
-    public void ScanReverse_TombstoneFrame_IsVisible()
-    {
+    public void ScanReverse_TombstoneFrame_IsVisible() {
         // Arrange: 使用 BeginFrame + Dispose（不 Commit）生成 Tombstone
         var buffer = new ArrayBufferWriter<byte>();
         var framer = new RbfFramer(buffer, startPosition: 0, writeGenesis: true);
@@ -334,8 +321,7 @@ public class RbfScannerTests
     /// 测试 [S-RBF-TOMBSTONE-VISIBLE]: Scanner 产出 Valid 和 Tombstone 帧。
     /// </summary>
     [Fact]
-    public void ScanReverse_MixedValidAndTombstone_ReturnsAll()
-    {
+    public void ScanReverse_MixedValidAndTombstone_ReturnsAll() {
         // Arrange
         var buffer = new ArrayBufferWriter<byte>();
         var framer = new RbfFramer(buffer, startPosition: 0, writeGenesis: true);
@@ -344,8 +330,7 @@ public class RbfScannerTests
         framer.Append(new FrameTag(1), [0x01]);
 
         // Frame 2: Tombstone
-        using (var builder = framer.BeginFrame(new FrameTag(2)))
-        {
+        using (var builder = framer.BeginFrame(new FrameTag(2))) {
             builder.Payload.GetSpan(1)[0] = 0x02;
             builder.Payload.Advance(1);
             // 不 Commit → Tombstone
@@ -383,19 +368,18 @@ public class RbfScannerTests
     [InlineData(0, 4)]  // PayloadLen=0 → StatusLen=4
     [InlineData(4, 4)]  // PayloadLen=4 → StatusLen=4
     [InlineData(5, 3)]  // PayloadLen=5 → StatusLen=3
-    public void ScanReverse_VariousPayloadLengths_CorrectStatusLen(int payloadLen, int expectedStatusLen)
-    {
+    public void ScanReverse_VariousPayloadLengths_CorrectStatusLen(int payloadLen, int expectedStatusLen) {
         // Arrange: 使用非零 Payload 避免与 FrameStatus (0x00) 混淆
         var payload = new byte[payloadLen];
-        for (int i = 0; i < payloadLen; i++)
-        {
+        for (int i = 0; i < payloadLen; i++) {
             payload[i] = (byte)(0x10 + i); // 非零值，避免歧义
         }
 
-        var data = CreateRbfData(framer =>
-        {
-            framer.Append(new FrameTag(0xDEADBEEF), payload);
-        });
+        var data = CreateRbfData(
+            framer => {
+                framer.Append(new FrameTag(0xDEADBEEF), payload);
+            }
+        );
         var scanner = new RbfScanner(data);
 
         // Act
@@ -415,11 +399,11 @@ public class RbfScannerTests
     /// 测试 RBF-BAD-001: HeadLen != TailLen → 跳过。
     /// </summary>
     [Fact]
-    public void ScanReverse_HeadLenMismatch_SkipsFrame()
-    {
+    public void ScanReverse_HeadLenMismatch_SkipsFrame() {
         // Arrange: 手动构建一个 HeadLen != TailLen 的帧
         var badFrame = BuildRawFrame(0x11111111, [0x01, 0x02, 0x03], FrameStatus.CreateValid(1),
-            customHeadLen: 20, customTailLen: 24); // 故意不一致
+            customHeadLen: 20, customTailLen: 24
+        ); // 故意不一致
 
         var data = BuildRbfFile(badFrame);
         var scanner = new RbfScanner(data);
@@ -439,8 +423,7 @@ public class RbfScannerTests
     /// 测试 RBF-BAD-002: CRC32C 不匹配 → 跳过。
     /// </summary>
     [Fact]
-    public void ScanReverse_CrcMismatch_SkipsFrame()
-    {
+    public void ScanReverse_CrcMismatch_SkipsFrame() {
         // Arrange: 篡改 CRC
         var badFrame = BuildRawFrame(0x22222222, [0xAA, 0xBB], FrameStatus.CreateValid(2), corruptCrc: true);
         var data = BuildRbfFile(badFrame);
@@ -457,8 +440,7 @@ public class RbfScannerTests
     /// 测试 TryReadAt 遇到 CRC 错误返回 false。
     /// </summary>
     [Fact]
-    public void TryReadAt_CrcMismatch_ReturnsFalse()
-    {
+    public void TryReadAt_CrcMismatch_ReturnsFalse() {
         // Arrange
         var badFrame = BuildRawFrame(0x33333333, [0xCC], FrameStatus.CreateValid(3), corruptCrc: true);
         var data = BuildRbfFile(badFrame);
@@ -479,13 +461,13 @@ public class RbfScannerTests
     /// 测试 RBF-BAD-003: Frame 起点非 4B 对齐 → 跳过。
     /// </summary>
     [Fact]
-    public void TryReadAt_NonAlignedAddress_ReturnsFalse()
-    {
+    public void TryReadAt_NonAlignedAddress_ReturnsFalse() {
         // Arrange
-        var data = CreateRbfData(framer =>
-        {
-            framer.Append(new FrameTag(1), [0x01]);
-        });
+        var data = CreateRbfData(
+            framer => {
+                framer.Append(new FrameTag(1), [0x01]);
+            }
+        );
         var scanner = new RbfScanner(data);
 
         // Act: 尝试读取非对齐地址
@@ -499,13 +481,13 @@ public class RbfScannerTests
     /// 测试无效地址返回 false。
     /// </summary>
     [Fact]
-    public void TryReadAt_NullAddress_ReturnsFalse()
-    {
+    public void TryReadAt_NullAddress_ReturnsFalse() {
         // Arrange
-        var data = CreateRbfData(framer =>
-        {
-            framer.Append(new FrameTag(1), [0x01]);
-        });
+        var data = CreateRbfData(
+            framer => {
+                framer.Append(new FrameTag(1), [0x01]);
+            }
+        );
         var scanner = new RbfScanner(data);
 
         // Act
@@ -519,13 +501,13 @@ public class RbfScannerTests
     /// 测试地址越界返回 false。
     /// </summary>
     [Fact]
-    public void TryReadAt_AddressBeyondFile_ReturnsFalse()
-    {
+    public void TryReadAt_AddressBeyondFile_ReturnsFalse() {
         // Arrange
-        var data = CreateRbfData(framer =>
-        {
-            framer.Append(new FrameTag(1), [0x01]);
-        });
+        var data = CreateRbfData(
+            framer => {
+                framer.Append(new FrameTag(1), [0x01]);
+            }
+        );
         var scanner = new RbfScanner(data);
 
         // Act
@@ -552,8 +534,7 @@ public class RbfScannerTests
     [InlineData(0x7F)]  // Multiple reserved bits set
     [InlineData(0xFE)]  // Tombstone bit + all reserved bits + invalid statusLen bits
     [InlineData(0xFF)]  // Old Tombstone value - now invalid
-    public void ScanReverse_InvalidFrameStatus_SkipsFrame(byte invalidStatus)
-    {
+    public void ScanReverse_InvalidFrameStatus_SkipsFrame(byte invalidStatus) {
         // Arrange: 构建带有非法 FrameStatus 值的帧
         // PayloadLen=0 → StatusLen=4
         byte[] payload = [];
@@ -572,8 +553,7 @@ public class RbfScannerTests
         offset += 4;
 
         // FrameStatus (填充非法值)
-        for (int i = 0; i < statusLen; i++)
-        {
+        for (int i = 0; i < statusLen; i++) {
             frame[offset++] = invalidStatus;
         }
 
@@ -602,8 +582,7 @@ public class RbfScannerTests
     /// 测试 RBF-BAD-006: FrameStatus 填充不一致 → 拒绝。
     /// </summary>
     [Fact]
-    public void ScanReverse_InconsistentFrameStatus_SkipsFrame()
-    {
+    public void ScanReverse_InconsistentFrameStatus_SkipsFrame() {
         // Arrange: 构建 FrameStatus 非法值的帧
         // 注意：由于 RBF 格式的特性，当多个 (PayloadLen, StatusLen) 组合都满足公式时，
         // 扫描器会尝试所有组合直到找到一个有效的解释。
@@ -667,14 +646,14 @@ public class RbfScannerTests
     /// 测试 RBF-TRUNCATE-001: 截断文件（缺少尾部 Fence）→ Resync。
     /// </summary>
     [Fact]
-    public void ScanReverse_TruncatedFile_MissingTrailingFence_ResyncSucceeds()
-    {
+    public void ScanReverse_TruncatedFile_MissingTrailingFence_ResyncSucceeds() {
         // Arrange: 创建正常文件然后截断尾部 Fence
-        var fullData = CreateRbfData(framer =>
-        {
-            framer.Append(new FrameTag(1), [0x01]);
-            framer.Append(new FrameTag(2), [0x02]);
-        });
+        var fullData = CreateRbfData(
+            framer => {
+                framer.Append(new FrameTag(1), [0x01]);
+                framer.Append(new FrameTag(2), [0x02]);
+            }
+        );
 
         // 截断最后 4 字节（尾部 Fence）
         var truncatedData = fullData.AsSpan(0, fullData.Length - RbfConstants.FenceLength).ToArray();
@@ -692,14 +671,14 @@ public class RbfScannerTests
     /// 测试 RBF-TRUNCATE-002: 截断在帧中间 → Resync 找到更早的有效帧。
     /// </summary>
     [Fact]
-    public void ScanReverse_TruncatedInMiddleOfFrame_ResyncFindsEarlierFrame()
-    {
+    public void ScanReverse_TruncatedInMiddleOfFrame_ResyncFindsEarlierFrame() {
         // Arrange: 创建两帧，截断第二帧中间
-        var fullData = CreateRbfData(framer =>
-        {
-            framer.Append(new FrameTag(1), [0x01]);
-            framer.Append(new FrameTag(2), new byte[20]); // 较长的第二帧
-        });
+        var fullData = CreateRbfData(
+            framer => {
+                framer.Append(new FrameTag(1), [0x01]);
+                framer.Append(new FrameTag(2), new byte[20]); // 较长的第二帧
+            }
+        );
 
         // 截断到第二帧中间（保留第一帧完整）
         // Genesis(4) + Frame1(20+4=24) + Frame2(partial)
@@ -723,8 +702,7 @@ public class RbfScannerTests
     /// 测试 Resync: 损坏帧后的有效帧仍可被扫描到。
     /// </summary>
     [Fact]
-    public void ScanReverse_CorruptFrameFollowedByValid_FindsValidFrame()
-    {
+    public void ScanReverse_CorruptFrameFollowedByValid_FindsValidFrame() {
         // Arrange: 创建 [Valid1][Corrupt][Valid2] 结构
         var buffer = new ArrayBufferWriter<byte>();
         var framer = new RbfFramer(buffer, startPosition: 0, writeGenesis: true);
@@ -759,13 +737,13 @@ public class RbfScannerTests
     /// 测试 Payload 中包含 Fence 字节时仍能正确解析。
     /// </summary>
     [Fact]
-    public void ScanReverse_PayloadContainsFenceBytes_StillParsesCorrectly()
-    {
+    public void ScanReverse_PayloadContainsFenceBytes_StillParsesCorrectly() {
         // Arrange: Payload 包含 "RBF1"
-        var data = CreateRbfData(framer =>
-        {
-            framer.Append(new FrameTag(0xFE11CE01), RbfConstants.FenceBytes.ToArray());
-        });
+        var data = CreateRbfData(
+            framer => {
+                framer.Append(new FrameTag(0xFE11CE01), RbfConstants.FenceBytes.ToArray());
+            }
+        );
         var scanner = new RbfScanner(data);
 
         // Act
@@ -787,14 +765,14 @@ public class RbfScannerTests
     /// 测试 ReadPayload 返回正确的数据。
     /// </summary>
     [Fact]
-    public void ReadPayload_ReturnsCorrectData()
-    {
+    public void ReadPayload_ReturnsCorrectData() {
         // Arrange
         byte[] expectedPayload = [0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE];
-        var data = CreateRbfData(framer =>
-        {
-            framer.Append(new FrameTag(0x12345678), expectedPayload);
-        });
+        var data = CreateRbfData(
+            framer => {
+                framer.Append(new FrameTag(0x12345678), expectedPayload);
+            }
+        );
         var scanner = new RbfScanner(data);
         var frames = scanner.ScanReverse().ToList();
 
@@ -809,13 +787,13 @@ public class RbfScannerTests
     /// 测试 ReadPayload 空 Payload 返回空数组。
     /// </summary>
     [Fact]
-    public void ReadPayload_EmptyPayload_ReturnsEmptyArray()
-    {
+    public void ReadPayload_EmptyPayload_ReturnsEmptyArray() {
         // Arrange
-        var data = CreateRbfData(framer =>
-        {
-            framer.Append(new FrameTag(1), ReadOnlySpan<byte>.Empty);
-        });
+        var data = CreateRbfData(
+            framer => {
+                framer.Append(new FrameTag(1), ReadOnlySpan<byte>.Empty);
+            }
+        );
         var scanner = new RbfScanner(data);
         var frames = scanner.ScanReverse().ToList();
 
@@ -834,22 +812,21 @@ public class RbfScannerTests
     /// 测试 PTR-OK-001: 有效地址可解析。
     /// </summary>
     [Fact]
-    public void TryReadAt_ValidPointer_Succeeds()
-    {
+    public void TryReadAt_ValidPointer_Succeeds() {
         // Arrange
-        var data = CreateRbfData(framer =>
-        {
-            framer.Append(new FrameTag(0x11111111), [0x01, 0x02]);
-            framer.Append(new FrameTag(0x22222222), [0x03, 0x04, 0x05]);
-        });
+        var data = CreateRbfData(
+            framer => {
+                framer.Append(new FrameTag(0x11111111), [0x01, 0x02]);
+                framer.Append(new FrameTag(0x22222222), [0x03, 0x04, 0x05]);
+            }
+        );
         var scanner = new RbfScanner(data);
 
         // 获取所有帧地址
         var frames = scanner.ScanReverse().ToList();
 
         // Act & Assert: 每个帧地址都可解析
-        foreach (var frame in frames)
-        {
+        foreach (var frame in frames) {
             bool success = scanner.TryReadAt(Address64.FromOffset(frame.FileOffset), out var readFrame);
             success.Should().BeTrue();
             readFrame.FrameTag.Should().Be(frame.FrameTag);
@@ -865,8 +842,7 @@ public class RbfScannerTests
     /// 测试最小有效帧（PayloadLen=0）。
     /// </summary>
     [Fact]
-    public void ScanReverse_MinimalFrame_Succeeds()
-    {
+    public void ScanReverse_MinimalFrame_Succeeds() {
         // Arrange: 最小帧 = HeadLen(20) = 16 + 0 + 4
         var frame = BuildRawFrame(0x4D494E49, [], FrameStatus.CreateValid(4)); // "MINI"
         var data = BuildRbfFile(frame);
@@ -885,19 +861,18 @@ public class RbfScannerTests
     /// 测试大 Payload 帧。
     /// </summary>
     [Fact]
-    public void ScanReverse_LargePayload_Succeeds()
-    {
+    public void ScanReverse_LargePayload_Succeeds() {
         // Arrange
         var largePayload = new byte[4096];
-        for (int i = 0; i < largePayload.Length; i++)
-        {
+        for (int i = 0; i < largePayload.Length; i++) {
             largePayload[i] = (byte)(i & 0xFF);
         }
 
-        var data = CreateRbfData(framer =>
-        {
-            framer.Append(new FrameTag(0x4C415247), largePayload); // "LARG"
-        });
+        var data = CreateRbfData(
+            framer => {
+                framer.Append(new FrameTag(0x4C415247), largePayload); // "LARG"
+            }
+        );
         var scanner = new RbfScanner(data);
 
         // Act
@@ -915,13 +890,13 @@ public class RbfScannerTests
     /// 测试 FrameTag 为 0 的帧（RBF 层不保留任何值）。
     /// </summary>
     [Fact]
-    public void ScanReverse_ZeroFrameTag_Succeeds()
-    {
+    public void ScanReverse_ZeroFrameTag_Succeeds() {
         // Arrange
-        var data = CreateRbfData(framer =>
-        {
-            framer.Append(new FrameTag(0), [0x01]);
-        });
+        var data = CreateRbfData(
+            framer => {
+                framer.Append(new FrameTag(0), [0x01]);
+            }
+        );
         var scanner = new RbfScanner(data);
 
         // Act
@@ -936,13 +911,13 @@ public class RbfScannerTests
     /// 测试 FrameTag 最大值。
     /// </summary>
     [Fact]
-    public void ScanReverse_MaxFrameTag_Succeeds()
-    {
+    public void ScanReverse_MaxFrameTag_Succeeds() {
         // Arrange
-        var data = CreateRbfData(framer =>
-        {
-            framer.Append(new FrameTag(0xFFFFFFFF), [0x01]);
-        });
+        var data = CreateRbfData(
+            framer => {
+                framer.Append(new FrameTag(0xFFFFFFFF), [0x01]);
+            }
+        );
         var scanner = new RbfScanner(data);
 
         // Act

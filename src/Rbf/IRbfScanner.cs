@@ -9,8 +9,7 @@ namespace Atelia.Rbf;
 /// <para><b>[R-RESYNC-BEHAVIOR]</b>: 校验失败时按 4B 步长向前搜索下一个 Fence。</para>
 /// <para><b>[S-RBF-TOMBSTONE-VISIBLE]</b>: Scanner MUST 产出所有通过 framing/CRC 校验的帧，包括 Tombstone。</para>
 /// </remarks>
-public interface IRbfScanner
-{
+public interface IRbfScanner {
     /// <summary>
     /// 读取指定地址的帧。
     /// </summary>

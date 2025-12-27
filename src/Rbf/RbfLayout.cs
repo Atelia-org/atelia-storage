@@ -7,8 +7,7 @@ namespace Atelia.Rbf;
 /// <para>提供 FrameBytes 长度、对齐、偏移量的计算方法。</para>
 /// <para>规范依据：[F-HEADLEN-FORMULA], [F-STATUSLEN-FORMULA], [F-FRAME-4B-ALIGNMENT]</para>
 /// </remarks>
-public static class RbfLayout
-{
+public static class RbfLayout {
     /// <summary>
     /// 固定开销：HeadLen(4) + FrameTag(4) + TailLen(4) + CRC32C(4) = 16 字节。
     /// </summary>
@@ -44,8 +43,7 @@ public static class RbfLayout
     /// </remarks>
     /// <param name="payloadLength">Payload 长度。</param>
     /// <returns>StatusLen ∈ {1, 2, 3, 4}。</returns>
-    public static int CalculateStatusLength(int payloadLength)
-    {
+    public static int CalculateStatusLength(int payloadLength) {
         // StatusLen = 1 + ((4 - ((PayloadLen + 1) % 4)) % 4)
         return 1 + ((4 - ((payloadLength + 1) % 4)) % 4);
     }
@@ -59,8 +57,7 @@ public static class RbfLayout
     /// </remarks>
     /// <param name="payloadLength">Payload 长度。</param>
     /// <returns>FrameBytes 总长度（字节）。</returns>
-    public static int CalculateFrameLength(int payloadLength)
-    {
+    public static int CalculateFrameLength(int payloadLength) {
         return FixedOverhead + payloadLength + CalculateStatusLength(payloadLength);
     }
 
@@ -70,8 +67,7 @@ public static class RbfLayout
     /// <param name="frameStart">帧起始偏移（HeadLen 字段位置）。</param>
     /// <param name="payloadLength">Payload 长度。</param>
     /// <returns>FrameStatus 字段的文件偏移。</returns>
-    public static long CalculateStatusOffset(long frameStart, int payloadLength)
-    {
+    public static long CalculateStatusOffset(long frameStart, int payloadLength) {
         return frameStart + PayloadOffset + payloadLength;
     }
 
@@ -81,8 +77,7 @@ public static class RbfLayout
     /// <param name="frameStart">帧起始偏移（HeadLen 字段位置）。</param>
     /// <param name="payloadLength">Payload 长度。</param>
     /// <returns>TailLen 字段的文件偏移。</returns>
-    public static long CalculateTailLenOffset(long frameStart, int payloadLength)
-    {
+    public static long CalculateTailLenOffset(long frameStart, int payloadLength) {
         return frameStart + PayloadOffset + payloadLength + CalculateStatusLength(payloadLength);
     }
 
@@ -92,8 +87,7 @@ public static class RbfLayout
     /// <param name="frameStart">帧起始偏移（HeadLen 字段位置）。</param>
     /// <param name="payloadLength">Payload 长度。</param>
     /// <returns>CRC32C 字段的文件偏移。</returns>
-    public static long CalculateCrcOffset(long frameStart, int payloadLength)
-    {
+    public static long CalculateCrcOffset(long frameStart, int payloadLength) {
         return CalculateTailLenOffset(frameStart, payloadLength) + 4;
     }
 
@@ -103,8 +97,7 @@ public static class RbfLayout
     /// <param name="frameStart">帧起始偏移（HeadLen 字段位置）。</param>
     /// <param name="payloadLength">Payload 长度。</param>
     /// <returns>尾部 Fence 的文件偏移。</returns>
-    public static long CalculateTrailingFenceOffset(long frameStart, int payloadLength)
-    {
+    public static long CalculateTrailingFenceOffset(long frameStart, int payloadLength) {
         return frameStart + CalculateFrameLength(payloadLength);
     }
 

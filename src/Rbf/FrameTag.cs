@@ -10,8 +10,7 @@ namespace Atelia.Rbf;
 /// <para>RBF 层不保留任何 FrameTag 值，全部值域由上层定义。</para>
 /// </remarks>
 /// <param name="Value">帧类型标识符的原始值。</param>
-public readonly record struct FrameTag(uint Value)
-{
+public readonly record struct FrameTag(uint Value) {
     /// <summary>
     /// 从 4 个 ASCII 字符创建 FrameTag（fourCC 风格）。
     /// </summary>
@@ -23,8 +22,7 @@ public readonly record struct FrameTag(uint Value)
     /// <param name="c2">第三个字符。</param>
     /// <param name="c3">第四个字符（最高字节）。</param>
     /// <returns>FrameTag 实例。</returns>
-    public static FrameTag FromChars(char c0, char c1, char c2, char c3)
-    {
+    public static FrameTag FromChars(char c0, char c1, char c2, char c3) {
         uint value = (uint)c0 | ((uint)c1 << 8) | ((uint)c2 << 16) | ((uint)c3 << 24);
         return new FrameTag(value);
     }

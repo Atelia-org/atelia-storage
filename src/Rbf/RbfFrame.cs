@@ -24,8 +24,7 @@ public readonly record struct RbfFrame(
     uint FrameTag,
     long PayloadOffset,
     int PayloadLength,
-    FrameStatus Status)
-{
+    FrameStatus Status) {
     /// <summary>
     /// HeadLen/TailLen 的值（FrameBytes 总长度）。
     /// </summary>

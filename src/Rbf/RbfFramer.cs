@@ -11,8 +11,7 @@ namespace Atelia.Rbf;
 /// <para>写入顺序: Fence → HeadLen → FrameTag → Payload → FrameStatus → TailLen → CRC32C</para>
 /// <para><b>[F-CRC32C-COVERAGE]</b>: CRC 覆盖 FrameTag + Payload + FrameStatus + TailLen</para>
 /// </remarks>
-public sealed class RbfFramer : IRbfFramer
-{
+public sealed class RbfFramer : IRbfFramer {
     private readonly IBufferWriter<byte> _output;
     private readonly PayloadBufferWriter _payloadWriter;
     private long _position;
@@ -24,16 +23,14 @@ public sealed class RbfFramer : IRbfFramer
     /// <param name="output">底层缓冲区写入器。</param>
     /// <param name="startPosition">起始位置（用于计算 Address64）。</param>
     /// <param name="writeGenesis">是否写入 Genesis Fence。</param>
-    public RbfFramer(IBufferWriter<byte> output, long startPosition = 0, bool writeGenesis = true)
-    {
+    public RbfFramer(IBufferWriter<byte> output, long startPosition = 0, bool writeGenesis = true) {
         ArgumentNullException.ThrowIfNull(output);
         _output = output;
         _payloadWriter = new PayloadBufferWriter();
         _position = startPosition;
         _hasOpenBuilder = false;
 
-        if (writeGenesis)
-        {
+        if (writeGenesis) {
             WriteFence();
         }
     }
@@ -49,10 +46,8 @@ public sealed class RbfFramer : IRbfFramer
     internal IBufferWriter<byte> PayloadWriter => _payloadWriter;
 
     /// <inheritdoc/>
-    public Address64 Append(FrameTag tag, ReadOnlySpan<byte> payload)
-    {
-        if (_hasOpenBuilder)
-            throw new InvalidOperationException("Cannot Append while a RbfFrameBuilder is open.");
+    public Address64 Append(FrameTag tag, ReadOnlySpan<byte> payload) {
+        if (_hasOpenBuilder) { throw new InvalidOperationException("Cannot Append while a RbfFrameBuilder is open."); }
 
         // 写入帧并立即提交
         var frameStart = _position;
@@ -61,10 +56,8 @@ public sealed class RbfFramer : IRbfFramer
     }
 
     /// <inheritdoc/>
-    public RbfFrameBuilder BeginFrame(FrameTag tag)
-    {
-        if (_hasOpenBuilder)
-            throw new InvalidOperationException("A RbfFrameBuilder is already open. Complete it before starting a new one.");
+    public RbfFrameBuilder BeginFrame(FrameTag tag) {
+        if (_hasOpenBuilder) { throw new InvalidOperationException("A RbfFrameBuilder is already open. Complete it before starting a new one."); }
 
         _hasOpenBuilder = true;
         _payloadWriter.Reset();
@@ -76,8 +69,7 @@ public sealed class RbfFramer : IRbfFramer
     }
 
     /// <inheritdoc/>
-    public void Flush()
-    {
+    public void Flush() {
         // IBufferWriter 没有 Flush 概念，由上层控制
         // 对于 ArrayBufferWriter，数据已在内存中
     }
@@ -85,8 +77,7 @@ public sealed class RbfFramer : IRbfFramer
     /// <summary>
     /// 提交帧（供 RbfFrameBuilder 调用）。
     /// </summary>
-    internal Address64 CommitFrame(long frameStart, FrameTag tag, FrameStatus status)
-    {
+    internal Address64 CommitFrame(long frameStart, FrameTag tag, FrameStatus status) {
         // 获取 payload 数据
         var payload = _payloadWriter.WrittenSpan;
         WriteFrameComplete(tag, payload, status);
@@ -96,8 +87,7 @@ public sealed class RbfFramer : IRbfFramer
     /// <summary>
     /// 结束 Builder（释放锁）。
     /// </summary>
-    internal void EndBuilder()
-    {
+    internal void EndBuilder() {
         _hasOpenBuilder = false;
         _payloadWriter.Reset();
     }
@@ -105,8 +95,7 @@ public sealed class RbfFramer : IRbfFramer
     /// <summary>
     /// 写入完整的帧（含 Fence）。
     /// </summary>
-    private void WriteFrameComplete(FrameTag tag, ReadOnlySpan<byte> payload, FrameStatus status)
-    {
+    private void WriteFrameComplete(FrameTag tag, ReadOnlySpan<byte> payload, FrameStatus status) {
         int payloadLen = payload.Length;
         int statusLen = RbfLayout.CalculateStatusLength(payloadLen);
         int frameLen = RbfLayout.CalculateFrameLength(payloadLen);
@@ -137,8 +126,7 @@ public sealed class RbfFramer : IRbfFramer
             ? FrameStatus.CreateTombstone(statusLen)
             : FrameStatus.CreateValid(statusLen);
         var statusByte = actualStatus.Value;
-        for (int i = 0; i < statusLen; i++)
-        {
+        for (int i = 0; i < statusLen; i++) {
             span[offset++] = statusByte;
         }
 
@@ -166,8 +154,7 @@ public sealed class RbfFramer : IRbfFramer
     /// <summary>
     /// 写入 Fence。
     /// </summary>
-    private void WriteFence()
-    {
+    private void WriteFence() {
         var span = _output.GetSpan(RbfConstants.FenceLength);
         RbfConstants.FenceBytes.CopyTo(span);
         _output.Advance(RbfConstants.FenceLength);
@@ -177,43 +164,35 @@ public sealed class RbfFramer : IRbfFramer
     /// <summary>
     /// 内部 Payload 缓冲区写入器。
     /// </summary>
-    private sealed class PayloadBufferWriter : IBufferWriter<byte>
-    {
+    private sealed class PayloadBufferWriter : IBufferWriter<byte> {
         private byte[] _buffer = new byte[256];
         private int _written;
 
         public ReadOnlySpan<byte> WrittenSpan => _buffer.AsSpan(0, _written);
 
-        public void Reset()
-        {
+        public void Reset() {
             _written = 0;
         }
 
-        public void Advance(int count)
-        {
-            if (count < 0)
-                throw new ArgumentOutOfRangeException(nameof(count));
+        public void Advance(int count) {
+            if (count < 0) { throw new ArgumentOutOfRangeException(nameof(count)); }
             _written += count;
         }
 
-        public Memory<byte> GetMemory(int sizeHint = 0)
-        {
+        public Memory<byte> GetMemory(int sizeHint = 0) {
             EnsureCapacity(sizeHint);
             return _buffer.AsMemory(_written);
         }
 
-        public Span<byte> GetSpan(int sizeHint = 0)
-        {
+        public Span<byte> GetSpan(int sizeHint = 0) {
             EnsureCapacity(sizeHint);
             return _buffer.AsSpan(_written);
         }
 
-        private void EnsureCapacity(int sizeHint)
-        {
-            if (sizeHint <= 0) sizeHint = 1;
+        private void EnsureCapacity(int sizeHint) {
+            if (sizeHint <= 0) { sizeHint = 1; }
             int required = _written + sizeHint;
-            if (required > _buffer.Length)
-            {
+            if (required > _buffer.Length) {
                 int newSize = Math.Max(_buffer.Length * 2, required);
                 Array.Resize(ref _buffer, newSize);
             }

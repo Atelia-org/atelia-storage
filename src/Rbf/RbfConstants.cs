@@ -7,8 +7,7 @@ namespace Atelia.Rbf;
 /// <para>RBF 是一种 crash-safe 的 append-only 二进制帧格式。</para>
 /// <para>规范文档: atelia/docs/StateJournal/rbf-format.md</para>
 /// </remarks>
-public static class RbfConstants
-{
+public static class RbfConstants {
     /// <summary>
     /// RBF 魔数 "RBF1" 的 little-endian 表示。
     /// 用于帧边界识别和崩溃恢复时的重同步。

@@ -10,8 +10,7 @@ namespace Atelia.Rbf;
 /// <para><b>线程安全</b>：非线程安全，单生产者使用。</para>
 /// <para><b>并发约束</b>：同一时刻最多 1 个 open RbfFrameBuilder。</para>
 /// </remarks>
-public interface IRbfFramer
-{
+public interface IRbfFramer {
     /// <summary>
     /// 追加一个完整的帧（简单场景：payload 已就绪）。
     /// </summary>
@@ -49,8 +48,7 @@ public interface IRbfFramer
 /// <para><b>[S-RBF-BUILDER-AUTO-ABORT]</b>（Optimistic Clean Abort）：若未 Commit 就 Dispose，
 /// 逻辑上该帧视为不存在。物理实现为写入 Tombstone 帧。</para>
 /// </remarks>
-public ref struct RbfFrameBuilder
-{
+public ref struct RbfFrameBuilder {
     private readonly RbfFramer _framer;
     private readonly long _frameStart;
     private readonly FrameTag _tag;
@@ -60,8 +58,7 @@ public ref struct RbfFrameBuilder
     /// <summary>
     /// 创建帧构建器。
     /// </summary>
-    internal RbfFrameBuilder(RbfFramer framer, long frameStart, FrameTag tag)
-    {
+    internal RbfFrameBuilder(RbfFramer framer, long frameStart, FrameTag tag) {
         _framer = framer;
         _frameStart = frameStart;
         _tag = tag;
@@ -89,11 +86,9 @@ public ref struct RbfFrameBuilder
     /// <returns>写入的帧起始地址。</returns>
     /// <exception cref="InvalidOperationException">重复调用 Commit。</exception>
     /// <exception cref="ObjectDisposedException">已 Dispose 后调用。</exception>
-    public Address64 Commit()
-    {
+    public Address64 Commit() {
         ObjectDisposedException.ThrowIf(_disposed, nameof(RbfFrameBuilder));
-        if (_committed)
-            throw new InvalidOperationException("Frame has already been committed.");
+        if (_committed) { throw new InvalidOperationException("Frame has already been committed."); }
 
         _committed = true;
         return _framer.CommitFrame(_frameStart, _tag, FrameStatus.CreateValid(1)); // StatusLen will be recalculated
@@ -105,13 +100,11 @@ public ref struct RbfFrameBuilder
     /// <remarks>
     /// <para><b>[S-RBF-BUILDER-AUTO-ABORT]</b>: 未 Commit 时写入 Tombstone 帧。</para>
     /// </remarks>
-    public void Dispose()
-    {
-        if (_disposed) return;
+    public void Dispose() {
+        if (_disposed) { return; }
         _disposed = true;
 
-        if (!_committed)
-        {
+        if (!_committed) {
             // Auto-Abort: 写入 Tombstone 帧
             _framer.CommitFrame(_frameStart, _tag, FrameStatus.CreateTombstone(1)); // StatusLen will be recalculated
         }
@@ -126,8 +119,7 @@ public ref struct RbfFrameBuilder
 /// <remarks>
 /// MVP 阶段不实现此接口，预留给未来扩展。
 /// </remarks>
-public interface IReservableBufferWriter : IBufferWriter<byte>
-{
+public interface IReservableBufferWriter : IBufferWriter<byte> {
     /// <summary>
     /// 预留指定长度的空间，稍后回填。
     /// </summary>
