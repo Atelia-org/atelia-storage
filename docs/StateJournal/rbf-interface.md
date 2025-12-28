@@ -1,7 +1,7 @@
 # RBF Layer Interface Contract
 
 > **状态**：Reviewed（复核通过）
-> **版本**：0.16
+> **版本**：0.17
 > **创建日期**：2025-12-22
 > **设计共识来源**：[agent-team/meeting/2025-12-21-rbf-layer-boundary.md](../../../agent-team/meeting/2025-12-21-rbf-layer-boundary.md)
 > **复核会议**：[agent-team/meeting/2025-12-22-rbf-interface-review.md](../../../agent-team/meeting/2025-12-22-rbf-interface-review.md)
@@ -38,13 +38,12 @@
 
 ### 2.1 FrameTag
 
-**`[F-FRAMETAG-DEFINITION]`**
-
-> **FrameTag** 是 4 字节的帧类型标识符。RBF 层不解释其语义，仅作为 payload 的 discriminator 透传。
-
-```csharp
-public readonly record struct FrameTag(uint Value);
-```
+> **FrameTag** 是 4 字节（`uint`）的帧类型标识符。RBF 层不解释其语义，仅作为 payload 的 discriminator 透传。
+>
+> **三层视角**：
+> - **存储层**：`uint`（线格式中的 4 字节 LE 字段）
+> - **接口层**：`uint`（本文档定义的 API 参数/返回类型）
+> - **应用层**：上层可自由选择 enum 或其他类型进行打包/解包
 
 **保留值**：无。RBF 层不保留任何 FrameTag 值，全部值域由上层定义。
 
@@ -122,17 +121,17 @@ public interface IRbfFramer {
     /// <summary>
     /// 追加一个完整的帧（简单场景：payload 已就绪）。
     /// </summary>
-    /// <param name="tag">帧类型标识符</param>
+    /// <param name="tag">帧类型标识符（4 字节）</param>
     /// <param name="payload">帧负载（可为空）</param>
     /// <returns>写入的帧起始地址</returns>
-    Address64 Append(FrameTag tag, ReadOnlySpan<byte> payload);
+    Address64 Append(uint tag, ReadOnlySpan<byte> payload);
     
     /// <summary>
     /// 开始构建一个帧（高级场景：流式写入或需要 payload 内回填）。
     /// </summary>
-    /// <param name="tag">帧类型标识符</param>
+    /// <param name="tag">帧类型标识符（4 字节）</param>
     /// <returns>帧构建器（必须 Commit 或 Dispose）</returns>
-    RbfFrameBuilder BeginFrame(FrameTag tag);
+    RbfFrameBuilder BeginFrame(uint tag);
     
     /// <summary>
     /// 将 RBF 缓冲数据推送到底层 Writer/Stream。
@@ -340,8 +339,8 @@ public readonly ref struct RbfReverseSequence {
 /// <para><b>设计理由</b>：ref struct 的限制是"护栏"，防止 use-after-free。</para>
 /// </remarks>
 public readonly ref struct RbfFrame {
-    /// <summary>帧类型标识符</summary>
-    public FrameTag Tag { get; }
+    /// <summary>帧类型标识符（4 字节）</summary>
+    public uint Tag { get; }
     
     /// <summary>是否为墓碑帧（逻辑删除 / Auto-Abort 产物）</summary>
     public bool IsTombstone { get; }
@@ -367,8 +366,8 @@ public readonly ref struct RbfFrame {
 
 ```csharp
 // 写入帧
-public Address64 WriteFrame(IRbfFramer framer, uint tagValue, byte[] payload) {
-    using var builder = framer.BeginFrame(new FrameTag(tagValue));
+public Address64 WriteFrame(IRbfFramer framer, uint tag, byte[] payload) {
+    using var builder = framer.BeginFrame(tag);
     builder.Payload.Write(payload);  // IBufferWriter<byte>.Write 扩展方法
     return builder.Commit();
 }
@@ -380,9 +379,9 @@ public void ProcessFrame(IRbfScanner scanner, Address64 addr) {
     // 先检查帧状态，跳过墓碑帧（上层策略）
     if (frame.IsTombstone) return;
     
-    // 上层根据 frame.Tag.Value 决定如何解析 frame.Payload
+    // 上层根据 frame.Tag 决定如何解析 frame.Payload
     // RBF 层不解释 FrameTag 的语义
-    ProcessPayload(frame.Tag.Value, frame.Payload);
+    ProcessPayload(frame.Tag, frame.Payload);
 }
 ```
 
@@ -392,7 +391,6 @@ public void ProcessFrame(IRbfScanner scanner, Address64 addr) {
 
 | 条款 ID | 名称 | 类别 |
 |---------|------|------|
-| `[F-FRAMETAG-DEFINITION]` | FrameTag 定义 | 术语 |
 | `[F-TOMBSTONE-DEFINITION]` | Tombstone 定义 | 术语 |
 | `[F-ADDRESS64-DEFINITION]` | Address64 定义 | 术语 |
 | `[F-ADDRESS64-ALIGNMENT]` | Address64 对齐 | 格式 |
@@ -421,6 +419,7 @@ public void ProcessFrame(IRbfScanner scanner, Address64 addr) {
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.17 | 2025-12-28 | **FrameTag 接口简化**（[畅谈会决议](../../../agent-team/meeting/2025-12-28-wrapper-type-audit.md)）：移除 `FrameTag` record struct，接口层统一使用 `uint`；移除 `[F-FRAMETAG-DEFINITION]` 条款；§2.1 改为概念描述（三层视角：存储/接口/应用） |
 | 0.16 | 2025-12-28 | **RbfFrameBuilder Payload 接口简化**（[畅谈会决议](../../../agent-team/meeting/2025-12-28-rbf-builder-payload-simplification.md)）：合并 `Payload` 和 `ReservablePayload` 为单一的 `IReservableBufferWriter Payload`；明确 Zero I/O 是实现优化而非类型承诺；新增 `[S-RBF-BUILDER-FLUSH-NO-LEAK]` 条款；`Dispose()` 在 Auto-Abort 分支 MUST NOT 抛异常 |
 | 0.15 | 2025-12-28 | **ScanReverse 返回类型重构**（[畅谈会决议](../../../agent-team/meeting/2025-12-28-scan-reverse-return-type.md)）：`RbfReverseEnumerable` 改为 `RbfReverseSequence`（ref struct）；移除 `IEnumerable<RbfFrame>` 继承（因 RbfFrame 是 ref struct，不能作为泛型参数）；新增 5 条 ScanReverse 语义条款 |
 | 0.14 | 2025-12-28 | **文档修订**：修复条款索引（FrameStatus→Tombstone）；修复§5示例代码；简化§2.4 Frame定义；添加 IReservableBufferWriter/RbfReverseEnumerable 引用 |

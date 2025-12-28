@@ -1,7 +1,7 @@
 # RBF 二进制格式规范（Layer 0）
 
 > **状态**：Draft
-> **版本**：0.15
+> **版本**：0.16
 > **创建日期**：2025-12-22
 > **接口契约（Layer 1）**：[rbf-interface.md](rbf-interface.md)
 > **测试向量（Layer 0）**：[rbf-test-vectors.md](rbf-test-vectors.md)
@@ -90,7 +90,7 @@ Fence 是 RBF 文件的 **帧分隔符**，不属于任何 Frame。
 
 - FrameTag 是 4 字节 u32 LE 帧类型标识符，位于 HeadLen 之后、Payload 之前。
 - RBF 层不保留任何 FrameTag 值，全部值域由上层定义。
-- `FrameTag` 的接口层封装见 [rbf-interface.md](rbf-interface.md) 的 `[F-FRAMETAG-DEFINITION]`。
+- `FrameTag` 的接口层定义见 [rbf-interface.md](rbf-interface.md) §2.1。
 
 **`[F-FRAMESTATUS-VALUES]`**
 
@@ -341,6 +341,7 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.16 | 2025-12-28 | 更新 FrameTag 接口引用：移除过时的 `[F-FRAMETAG-DEFINITION]` 条款引用，改为引用 rbf-interface.md §2.1 |
 | 0.15 | 2025-12-28 | 消除内部矛盾：删除过时的 `0x00/0xFF` 值域枚举，修正最小 HeadLen 为 20 |
 | 0.14 | 2025-12-25 | **FrameStatus 位域格式**：Bit 7 = Tombstone，Bit 0-1 = StatusLen-1，Bit 2-6 保留 |
 | 0.13 | 2025-12-25 | FrameStatus 编码 StatusLen（已被 v0.14 取代） |
