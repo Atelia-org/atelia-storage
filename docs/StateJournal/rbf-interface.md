@@ -1,7 +1,7 @@
 # RBF Layer Interface Contract
 
 > **状态**：Reviewed（复核通过）
-> **版本**：0.15
+> **版本**：0.16
 > **创建日期**：2025-12-22
 > **设计共识来源**：[agent-team/meeting/2025-12-21-rbf-layer-boundary.md](../../../agent-team/meeting/2025-12-21-rbf-layer-boundary.md)
 > **复核会议**：[agent-team/meeting/2025-12-22-rbf-interface-review.md](../../../agent-team/meeting/2025-12-22-rbf-interface-review.md)
@@ -153,31 +153,25 @@ public interface IRbfFramer {
 
 ```csharp
 /// <summary>
-/// 帧构建器。支持流式写入 payload，完成后自动回填 header/CRC。
+/// 帧构建器。支持流式写入 payload，并支持在 payload 内进行预留与回填。
 /// </summary>
 /// <remarks>
-/// <para><b>生命周期</b>：必须调用 <see cref="Commit"/> 或 <see cref="Dispose"/>。</para>
+/// <para><b>生命周期</b>：调用方 MUST 调用 <see cref="Commit"/> 或 <see cref="Dispose"/> 之一来结束构建器生命周期。</para>
 /// <para><b>Auto-Abort（Optimistic Clean Abort）</b>：若未 Commit 就 Dispose，
-/// 逻辑上该帧视为不存在。物理实现可能是 Zero I/O（若底层支持 Reservation 回滚）
-/// 或写入 Tombstone 帧（否则）。</para>
+/// 逻辑上该帧视为不存在；物理实现规则见 <b>[S-RBF-BUILDER-AUTO-ABORT]</b>。</para>
 /// </remarks>
 public ref struct RbfFrameBuilder {
     /// <summary>
-    /// Payload 写入器（标准接口，满足大多数序列化需求）。
-    /// </summary>
-    public IBufferWriter<byte> Payload { get; }
-    
-    /// <summary>
-    /// 可预留的 Payload 写入器（可选，供需要 payload 内回填的 codec 使用）。
+    /// Payload 写入器。
     /// </summary>
     /// <remarks>
-    /// <para>若底层实现不支持，返回 null。上层 codec（如 DiffPayload）可用此接口
-    /// 实现 PairCount 等字段的延后回填。</para>
-    /// <para><b>与 Auto-Abort 的关系</b>：若非 null 且底层支持 Reservation 回滚，
-    /// Abort 时可实现 Zero I/O（不写任何字节）。</para>
+    /// <para>该写入器实现 <see cref="IBufferWriter{Byte}"/>，因此可用于绝大多数序列化场景。</para>
+    /// <para>此外它支持 reservation（预留/回填），供需要在 payload 内延后写入长度/计数等字段的 codec 使用。</para>
     /// <para>接口定义见 <c>atelia/src/Data/IReservableBufferWriter.cs</c>。</para>
+    /// <para><b>注意</b>：Payload 类型本身不承诺 Auto-Abort 一定为 Zero I/O；
+    /// Zero I/O 是否可用由实现决定，见 <b>[S-RBF-BUILDER-AUTO-ABORT]</b>。</para>
     /// </remarks>
-    public IReservableBufferWriter? ReservablePayload { get; }
+    public IReservableBufferWriter Payload { get; }
     
     /// <summary>
     /// 提交帧。回填 header/CRC，返回帧起始地址。
@@ -189,6 +183,10 @@ public ref struct RbfFrameBuilder {
     /// <summary>
     /// 释放构建器。若未 Commit，自动执行 Auto-Abort。
     /// </summary>
+    /// <remarks>
+    /// <para><b>Auto-Abort 分支约束</b>：<see cref="Dispose"/> 在 Auto-Abort 分支 MUST NOT 抛出异常
+    /// （除非出现不可恢复的不变量破坏），并且必须让 framer 回到可继续写状态。</para>
+    /// </remarks>
     public void Dispose();
 }
 ```
@@ -204,8 +202,11 @@ public ref struct RbfFrameBuilder {
 > - 上层 Record Reader 遍历时 MUST 不会看到此帧作为业务记录
 >
 > **物理实现**（双路径）：
-> - **SHOULD（Zero I/O）**：若底层支持 Reservation 且未发生数据外泄（HeadLen 作为首个 Reservation 未提交），丢弃未提交数据，不写入任何字节
+> - **SHOULD（Zero I/O）**：若实现能保证 open builder 期间 payload 不外泄、且在 `Dispose()` 时可丢弃未提交 payload（无论通过 reservation rollback、内部 reset或其他等价机制），则 SHOULD 走 Zero I/O
 > - **MUST（Tombstone 墓碑帧）**：否则，将帧标记为 Tombstone（`IsTombstone == true`），完成帧写入
+>
+> **重要说明**：`Payload` 的类型为 `IReservableBufferWriter` 并不承诺 Zero I/O 必然可用。
+> Zero I/O 是实现优化，不是类型承诺。
 >
 > **Tombstone 帧的 FrameTag**：
 > - SHOULD 保留原 FrameTag 值（供诊断用）
@@ -215,8 +216,13 @@ public ref struct RbfFrameBuilder {
 > - Abort 产生的帧 MUST 通过 framing/CRC 校验
 > - `Dispose()` 后，底层 Writer MUST 可继续写入后续帧
 > - 后续 `Append()` / `BeginFrame()` 调用 MUST 成功
+> - `Dispose()` 在 Auto-Abort 分支 MUST NOT 抛出异常（除非出现不可恢复的不变量破坏）
 
 此机制防止上层异常导致 Writer 死锁，同时在可能时优化为零 I/O。
+
+**`[S-RBF-BUILDER-FLUSH-NO-LEAK]`**
+
+> 当存在 open `RbfFrameBuilder` 时，`IRbfFramer.Flush()` MUST NOT 使任何未 `Commit()` 的字节对下游/扫描器可观测。
 
 **`[S-RBF-FRAMER-NO-FSYNC]`**
 
@@ -397,6 +403,7 @@ public void ProcessFrame(IRbfScanner scanner, Address64 addr) {
 | `[A-RBF-REVERSE-SEQUENCE]` | RbfReverseSequence 结构 | API |
 | `[A-RBF-FRAME-REF-STRUCT]` | RbfFrame 结构 | API |
 | `[S-RBF-BUILDER-AUTO-ABORT]` | Builder Auto-Abort (Optimistic Clean Abort) | 语义 |
+| `[S-RBF-BUILDER-FLUSH-NO-LEAK]` | open builder 期间 Flush 不外泄 | 语义 |
 | `[S-RBF-BUILDER-SINGLE-OPEN]` | Builder 单开 | 语义 |
 | `[S-RBF-FRAMER-NO-FSYNC]` | Flush 不含 Fsync | 语义 |
 | `[S-RBF-TOMBSTONE-VISIBLE]` | Tombstone 帧可见 | 语义 |
@@ -414,6 +421,7 @@ public void ProcessFrame(IRbfScanner scanner, Address64 addr) {
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.16 | 2025-12-28 | **RbfFrameBuilder Payload 接口简化**（[畅谈会决议](../../../agent-team/meeting/2025-12-28-rbf-builder-payload-simplification.md)）：合并 `Payload` 和 `ReservablePayload` 为单一的 `IReservableBufferWriter Payload`；明确 Zero I/O 是实现优化而非类型承诺；新增 `[S-RBF-BUILDER-FLUSH-NO-LEAK]` 条款；`Dispose()` 在 Auto-Abort 分支 MUST NOT 抛异常 |
 | 0.15 | 2025-12-28 | **ScanReverse 返回类型重构**（[畅谈会决议](../../../agent-team/meeting/2025-12-28-scan-reverse-return-type.md)）：`RbfReverseEnumerable` 改为 `RbfReverseSequence`（ref struct）；移除 `IEnumerable<RbfFrame>` 继承（因 RbfFrame 是 ref struct，不能作为泛型参数）；新增 5 条 ScanReverse 语义条款 |
 | 0.14 | 2025-12-28 | **文档修订**：修复条款索引（FrameStatus→Tombstone）；修复§5示例代码；简化§2.4 Frame定义；添加 IReservableBufferWriter/RbfReverseEnumerable 引用 |
 | 0.13 | 2025-12-28 | **移除 FrameStatus 类型**：接口层不再定义 FrameStatus struct，RbfFrame 直接暴露 `bool IsTombstone` 属性（简化接口，消除只有一个属性的中间类型）|

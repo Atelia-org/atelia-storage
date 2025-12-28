@@ -1,8 +1,8 @@
 # RBF 测试向量
 
-> **版本**：0.9
+> **版本**：0.10
 > **状态**：Draft
-> **关联规范**：[rbf-format.md](rbf-format.md) v0.15, [rbf-interface.md](rbf-interface.md) v0.15
+> **关联规范**：[rbf-format.md](rbf-format.md) v0.15, [rbf-interface.md](rbf-interface.md) v0.16
 
 > 本文档遵循 [Atelia 规范约定](../spec-conventions.md)。
 
@@ -364,6 +364,7 @@
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2025-12-28 | 0.10 | 更新关联规范版本：rbf-interface.md v0.15 → v0.16（Payload 接口简化、新增 `[S-RBF-BUILDER-FLUSH-NO-LEAK]`）；无测试向量变更——接口简化不影响 Layer 0 线格式或读取行为 |
 | 2025-12-28 | 0.9 | **新增 §4 ScanReverse 接口行为**（[畅谈会决议](../../../agent-team/meeting/2025-12-28-scan-reverse-return-type.md)）：空序列、Current 生命周期、多次枚举、foreach 兼容性、ref struct 约束测试向量；更新条款映射表 |
 | 2025-12-28 | 0.8 | 适配 rbf-format.md v0.15：修正 RBF-BAD-004 最小帧长度边界（16 → 20） |
 | 2025-12-25 | 0.7 | 适配 rbf-format.md v0.14：FrameStatus 改为位域格式（Bit 7=Tombstone, Bit 0-1=StatusLen-1）；新增 §1.6 位域测试向量；更新 RBF-OK/BAD 用例 |
