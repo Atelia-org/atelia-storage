@@ -1,7 +1,7 @@
 # RBF Layer Interface Contract
 
 > **状态**：Reviewed（复核通过）
-> **版本**：0.10
+> **版本**：0.15
 > **创建日期**：2025-12-22
 > **设计共识来源**：[agent-team/meeting/2025-12-21-rbf-layer-boundary.md](../../../agent-team/meeting/2025-12-21-rbf-layer-boundary.md)
 > **复核会议**：[agent-team/meeting/2025-12-22-rbf-interface-review.md](../../../agent-team/meeting/2025-12-22-rbf-interface-review.md)
@@ -50,19 +50,14 @@ public readonly record struct FrameTag(uint Value);
 
 > **设计理由**：4B 的 FrameTag 保持 Payload 4B 对齐，并支持 fourCC 风格的类型标识（如 `META`, `OBJV`）。
 
-### 2.2 FrameStatus
 
-**`[F-FRAMESTATUS-DEFINITION]`**
+### 2.2 Tombstone（墓碑帧）
 
-> **FrameStatus** 是帧的有效性标记（Layer 0 元信息），存储在帧尾部。
+**`[F-TOMBSTONE-DEFINITION]`**
 
-```csharp
-public enum FrameStatus : byte
-{
-    Valid = 0x00,      // 正常帧
-    Tombstone = 0xFF   // 墓碑帧（Auto-Abort / 逻辑删除）
-}
-```
+> **Tombstone**（墓碑帧）是帧的有效性标记（Layer 0 元信息），表示该帧已被逻辑删除或是 Auto-Abort 的产物。
+
+RbfFrame 通过 `bool IsTombstone` 属性暴露此状态，上层无需关心底层编码细节（编码定义见 rbf-format.md）。
 
 **`[S-RBF-TOMBSTONE-VISIBLE]`**
 
@@ -70,12 +65,13 @@ public enum FrameStatus : byte
 
 **`[S-STATEJOURNAL-TOMBSTONE-SKIP]`**
 
-> 上层 Record Reader（StateJournal）MUST 忽略 `FrameStatus.Tombstone` 帧，不将其解释为业务记录。
+> 上层 Record Reader（StateJournal）MUST 忽略 Tombstone 帧（`IsTombstone == true`），不将其解释为业务记录。
 
 > **设计理由**：
-> - Scanner 是“原始帧扫描器”，职责边界清晰；
+> - Scanner 是"原始帧扫描器"，职责边界清晰；
 > - Tombstone 可见性对诊断/调试有价值；
-> - 过滤责任在 Layer 1，不在 Layer 0。
+> - 过滤责任在 Layer 1，不在 Layer 0；
+> - 接口层隐藏编码细节，上层无需知道 wire format 的具体字节值。
 
 ### 2.3 Address64
 
@@ -96,13 +92,15 @@ public readonly record struct Address64(ulong Value) {
 
 ### 2.4 Frame
 
-> **Frame** 是 RBF 的基本 I/O 单元，由 Header + Payload + Trailer 组成。
+> **Frame** 是 RBF 的基本 I/O 单元。
 
-本接口文档不定义 Frame 的内部结构（将在 rbf-format.md 中定义）。上层只需知道：
+上层只需知道：
 
-- 每个 Frame 有一个 `FrameTag` 和 `Payload`
+- 每个 Frame 有一个 `FrameTag`、`Payload` 和 `IsTombstone` 状态
 - Frame 写入后返回其 `Address64`
 - Frame 读取通过 `Address64` 定位
+
+> Frame 的内部结构（wire format）在 rbf-format.md 中定义，接口层无需关心。
 
 ---
 
@@ -120,8 +118,7 @@ public readonly record struct Address64(ulong Value) {
 /// <para><b>线程安全</b>：非线程安全，单生产者使用。</para>
 /// <para><b>并发约束</b>：同一时刻最多 1 个 open RbfFrameBuilder。</para>
 /// </remarks>
-public interface IRbfFramer
-{
+public interface IRbfFramer {
     /// <summary>
     /// 追加一个完整的帧（简单场景：payload 已就绪）。
     /// </summary>
@@ -164,8 +161,7 @@ public interface IRbfFramer
 /// 逻辑上该帧视为不存在。物理实现可能是 Zero I/O（若底层支持 Reservation 回滚）
 /// 或写入 Tombstone 帧（否则）。</para>
 /// </remarks>
-public ref struct RbfFrameBuilder
-{
+public ref struct RbfFrameBuilder {
     /// <summary>
     /// Payload 写入器（标准接口，满足大多数序列化需求）。
     /// </summary>
@@ -179,6 +175,7 @@ public ref struct RbfFrameBuilder
     /// 实现 PairCount 等字段的延后回填。</para>
     /// <para><b>与 Auto-Abort 的关系</b>：若非 null 且底层支持 Reservation 回滚，
     /// Abort 时可实现 Zero I/O（不写任何字节）。</para>
+    /// <para>接口定义见 <c>atelia/src/Data/IReservableBufferWriter.cs</c>。</para>
     /// </remarks>
     public IReservableBufferWriter? ReservablePayload { get; }
     
@@ -208,7 +205,7 @@ public ref struct RbfFrameBuilder
 >
 > **物理实现**（双路径）：
 > - **SHOULD（Zero I/O）**：若底层支持 Reservation 且未发生数据外泄（HeadLen 作为首个 Reservation 未提交），丢弃未提交数据，不写入任何字节
-> - **MUST（Tombstone 墓碑帧）**：否则，将帧的 `FrameStatus` 设为 `Tombstone (0xFF)`，完成帧写入
+> - **MUST（Tombstone 墓碑帧）**：否则，将帧标记为 Tombstone（`IsTombstone == true`），完成帧写入
 >
 > **Tombstone 帧的 FrameTag**：
 > - SHOULD 保留原 FrameTag 值（供诊断用）
@@ -243,8 +240,7 @@ public ref struct RbfFrameBuilder
 /// <summary>
 /// RBF 帧扫描器。支持随机读取和逆向扫描。
 /// </summary>
-public interface IRbfScanner
-{
+public interface IRbfScanner {
     /// <summary>
     /// 读取指定地址的帧。
     /// </summary>
@@ -256,12 +252,75 @@ public interface IRbfScanner
     /// <summary>
     /// 从文件尾部逆向扫描所有帧。
     /// </summary>
-    /// <returns>帧枚举器（从尾到头）</returns>
-    RbfReverseEnumerable ScanReverse();
+    /// <returns>帧序列（从尾到头）</returns>
+    /// <remarks>
+    /// <para>返回 duck-typed 可枚举序列，支持 foreach。</para>
+    /// <para><b>不实现 IEnumerable</b>：因 RbfFrame 是 ref struct，无法作为泛型接口类型参数。</para>
+    /// <para><b>LINQ 不可用</b>：若需持久化数据，请调用 <see cref="RbfFrame.PayloadToArray"/>。</para>
+    /// </remarks>
+    RbfReverseSequence ScanReverse();
 }
 ```
 
-### 4.2 RbfFrame
+### 4.2 RbfReverseSequence
+
+**`[A-RBF-REVERSE-SEQUENCE]`**
+
+```csharp
+/// <summary>
+/// 逆向扫描的帧序列（瞬态，stack-only）。
+/// </summary>
+/// <remarks>
+/// <para>实现 duck-typed 枚举器模式，支持 foreach 语法。</para>
+/// <para><b>不实现 IEnumerable&lt;T&gt;</b>：因 RbfFrame 是 ref struct。</para>
+/// <para><b>生命周期</b>：序列本身是 ref struct，不能存储到字段或跨 await 边界。</para>
+/// </remarks>
+public readonly ref struct RbfReverseSequence {
+    /// <summary>
+    /// 获取枚举器（duck-typed，支持 foreach）。
+    /// </summary>
+    public Enumerator GetEnumerator();
+    
+    /// <summary>
+    /// 逆向扫描枚举器。
+    /// </summary>
+    public ref struct Enumerator {
+        /// <summary>当前帧（生命周期受限于下次 MoveNext 调用）</summary>
+        public RbfFrame Current { get; }
+        
+        /// <summary>移动到下一帧（实际是前一帧，因逆向扫描）</summary>
+        public bool MoveNext();
+    }
+}
+```
+
+**`[S-RBF-SCANREVERSE-NO-IENUMERABLE]`**
+
+> 由于 `RbfFrame` 为 `ref struct`，`ScanReverse()` 返回类型 MUST NOT 承诺或实现 `IEnumerable<RbfFrame>` / `IEnumerator<RbfFrame>`。
+> 规范文本 MUST NOT 要求调用方使用 LINQ 直接消费。
+
+**`[S-RBF-SCANREVERSE-EMPTY-IS-OK]`**
+
+> 当扫描范围为空（空文件、仅 Genesis Fence、或无有效帧）时，`ScanReverse()` 返回序列 MUST 产生 0 个元素且不得抛出异常。
+> 枚举器首次 `MoveNext()` 返回 `false`。
+
+**`[S-RBF-SCANREVERSE-CURRENT-LIFETIME]`**
+
+> 枚举器 `Current` 返回的 `RbfFrame` 视图的生命周期 MUST 不超过下一次 `MoveNext()` 调用。
+> 调用方若需持久化数据 MUST 显式拷贝（例如调用 `PayloadToArray()`）。
+
+**`[S-RBF-SCANREVERSE-CONCURRENT-MUTATION]`**
+
+> 若底层文件/映射在枚举期间被修改，行为为**未定义**。
+> 调用方 MUST 在稳定快照上使用 `ScanReverse()`。
+> 实现 MAY 选择 fail-fast（抛出异常）但不作为规范要求。
+
+**`[S-RBF-SCANREVERSE-MULTI-GETENUM]`**
+
+> 对同一个 `ScanReverse()` 返回值，多次调用 `GetEnumerator()` MUST 返回互不干扰的枚举器实例。
+> 每个枚举器实例从同一扫描窗口的尾部开始。
+
+### 4.3 RbfFrame
 
 **`[A-RBF-FRAME-REF-STRUCT]`**
 
@@ -274,13 +333,12 @@ public interface IRbfScanner
 /// 若需持久化，必须显式拷贝。</para>
 /// <para><b>设计理由</b>：ref struct 的限制是"护栏"，防止 use-after-free。</para>
 /// </remarks>
-public readonly ref struct RbfFrame
-{
+public readonly ref struct RbfFrame {
     /// <summary>帧类型标识符</summary>
     public FrameTag Tag { get; }
     
-    /// <summary>帧状态（Valid / Tombstone）</summary>
-    public FrameStatus Status { get; }
+    /// <summary>是否为墓碑帧（逻辑删除 / Auto-Abort 产物）</summary>
+    public bool IsTombstone { get; }
     
     /// <summary>帧负载（生命周期受限）</summary>
     public ReadOnlySpan<byte> Payload { get; }
@@ -303,20 +361,18 @@ public readonly ref struct RbfFrame
 
 ```csharp
 // 写入帧
-public Address64 WriteFrame(IRbfFramer framer, uint tagValue, byte[] payload)
-{
-    using var frame = framer.BeginFrame(new FrameTag(tagValue));
-    payload.CopyTo(frame.Payload);
-    return frame.Commit();
+public Address64 WriteFrame(IRbfFramer framer, uint tagValue, byte[] payload) {
+    using var builder = framer.BeginFrame(new FrameTag(tagValue));
+    builder.Payload.Write(payload);  // IBufferWriter<byte>.Write 扩展方法
+    return builder.Commit();
 }
 
 // 读取帧
-public void ProcessFrame(IRbfScanner scanner, Address64 addr)
-{
+public void ProcessFrame(IRbfScanner scanner, Address64 addr) {
     if (!scanner.TryReadAt(addr, out var frame)) return;
     
     // 先检查帧状态，跳过墓碑帧（上层策略）
-    if (frame.Status == FrameStatus.Tombstone) return;
+    if (frame.IsTombstone) return;
     
     // 上层根据 frame.Tag.Value 决定如何解析 frame.Payload
     // RBF 层不解释 FrameTag 的语义
@@ -331,18 +387,24 @@ public void ProcessFrame(IRbfScanner scanner, Address64 addr)
 | 条款 ID | 名称 | 类别 |
 |---------|------|------|
 | `[F-FRAMETAG-DEFINITION]` | FrameTag 定义 | 术语 |
-| `[F-FRAMESTATUS-DEFINITION]` | FrameStatus 定义 | 术语 |
+| `[F-TOMBSTONE-DEFINITION]` | Tombstone 定义 | 术语 |
 | `[F-ADDRESS64-DEFINITION]` | Address64 定义 | 术语 |
 | `[F-ADDRESS64-ALIGNMENT]` | Address64 对齐 | 格式 |
 | `[F-ADDRESS64-NULL]` | Address64 空值 | 格式 |
 | `[A-RBF-FRAMER-INTERFACE]` | IRbfFramer 接口 | API |
 | `[A-RBF-FRAME-BUILDER]` | RbfFrameBuilder 接口 | API |
 | `[A-RBF-SCANNER-INTERFACE]` | IRbfScanner 接口 | API |
+| `[A-RBF-REVERSE-SEQUENCE]` | RbfReverseSequence 结构 | API |
 | `[A-RBF-FRAME-REF-STRUCT]` | RbfFrame 结构 | API |
 | `[S-RBF-BUILDER-AUTO-ABORT]` | Builder Auto-Abort (Optimistic Clean Abort) | 语义 |
 | `[S-RBF-BUILDER-SINGLE-OPEN]` | Builder 单开 | 语义 |
 | `[S-RBF-FRAMER-NO-FSYNC]` | Flush 不含 Fsync | 语义 |
 | `[S-RBF-TOMBSTONE-VISIBLE]` | Tombstone 帧可见 | 语义 |
+| `[S-RBF-SCANREVERSE-NO-IENUMERABLE]` | ScanReverse 不实现 IEnumerable | 语义 |
+| `[S-RBF-SCANREVERSE-EMPTY-IS-OK]` | 空序列合法 | 语义 |
+| `[S-RBF-SCANREVERSE-CURRENT-LIFETIME]` | Current 生命周期 | 语义 |
+| `[S-RBF-SCANREVERSE-CONCURRENT-MUTATION]` | 并发修改行为未定义 | 语义 |
+| `[S-RBF-SCANREVERSE-MULTI-GETENUM]` | 多次 GetEnumerator 独立 | 语义 |
 
 > **已移除的条款**：`[S-STATEJOURNAL-FRAMETAG-MAPPING]` 和 `[S-STATEJOURNAL-TOMBSTONE-SKIP]` 已移至 [mvp-design-v2.md](mvp-design-v2.md)，因为它们是上层（StateJournal）的语义定义，不属于 RBF 接口契约。
 
@@ -352,6 +414,10 @@ public void ProcessFrame(IRbfScanner scanner, Address64 addr)
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.15 | 2025-12-28 | **ScanReverse 返回类型重构**（[畅谈会决议](../../../agent-team/meeting/2025-12-28-scan-reverse-return-type.md)）：`RbfReverseEnumerable` 改为 `RbfReverseSequence`（ref struct）；移除 `IEnumerable<RbfFrame>` 继承（因 RbfFrame 是 ref struct，不能作为泛型参数）；新增 5 条 ScanReverse 语义条款 |
+| 0.14 | 2025-12-28 | **文档修订**：修复条款索引（FrameStatus→Tombstone）；修复§5示例代码；简化§2.4 Frame定义；添加 IReservableBufferWriter/RbfReverseEnumerable 引用 |
+| 0.13 | 2025-12-28 | **移除 FrameStatus 类型**：接口层不再定义 FrameStatus struct，RbfFrame 直接暴露 `bool IsTombstone` 属性（简化接口，消除只有一个属性的中间类型）|
+| 0.12 | 2025-12-28 | FrameStatus 接口重构：从 `enum { 0x00/0xFF }` 改为 `readonly struct { bool IsTombstone }`（已被 v0.13 进一步简化）|
 | 0.11 | 2025-12-25 | §1 文档关系：ASCII 框图改为关系列表+表格；修正语义错误（接口不依赖实现）；删除过时"待拆分"标注（[畅谈会决议](../../../agent-team/meeting/2025-12-25-llm-friendly-notation-field-test.md)）|
 | 0.10 | 2025-12-24 | §9 移除过时条目（FrameTag 对齐）；有序列表改为无序列表 |
 | 0.9 | 2025-12-24 | **术语统一**：Padding 统一为 Tombstone，消除混用（Auto-Abort 描述、已解决问题条目） |

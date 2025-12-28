@@ -1,8 +1,8 @@
 # RBF 测试向量
 
-> **版本**：0.8
+> **版本**：0.9
 > **状态**：Draft
-> **关联规范**：[rbf-format.md](rbf-format.md) v0.15
+> **关联规范**：[rbf-format.md](rbf-format.md) v0.15, [rbf-interface.md](rbf-interface.md) v0.15
 
 > 本文档遵循 [Atelia 规范约定](../spec-conventions.md)。
 
@@ -198,11 +198,137 @@
 
 ---
 
+## 4. ScanReverse 接口行为
+
+> 对应 rbf-interface.md v0.15 的 ScanReverse 语义条款。
+
+### 4.1 空序列
+
+**用例 SCAN-EMPTY-001（空文件返回零元素）**
+- Given：文件内容 = `[Fence]`（仅 Genesis Fence）
+- When：调用 `scanner.ScanReverse()`
+- Then：
+  - `foreach` 循环执行 0 次
+  - `GetEnumerator().MoveNext()` 首次返回 `false`
+  - 不抛出任何异常
+
+**用例 SCAN-EMPTY-002（仅 Tombstone 帧）**
+- Given：文件包含 1 条 Tombstone 帧（`IsTombstone == true`）
+- When：调用 `scanner.ScanReverse()`
+- Then：
+  - 返回 1 条帧（Scanner MUST 产出 Tombstone 帧）
+  - `frame.IsTombstone == true`
+  - 不抛出异常
+
+### 4.2 Current 生命周期
+
+**用例 SCAN-LIFETIME-001（Current 在 MoveNext 后失效）**
+- Given：文件包含 2 条帧 `[Frame1][Frame2]`
+- When：
+  ```csharp
+  var enumerator = scanner.ScanReverse().GetEnumerator();
+  enumerator.MoveNext();
+  var frame1 = enumerator.Current;  // 捕获 Frame2（逆序）
+  enumerator.MoveNext();
+  // 此时 frame1 的 Payload 已失效（生命周期已结束）
+  ```
+- Then：
+  - 规范不保证 `frame1.Payload` 在第二次 `MoveNext()` 后仍有效
+  - 若需保留数据，必须调用 `frame1.PayloadToArray()`
+
+### 4.3 多次 GetEnumerator
+
+**用例 SCAN-MULTI-ENUM-001（独立枚举器）**
+- Given：文件包含 3 条帧 `[Frame1][Frame2][Frame3]`
+- When：
+  ```csharp
+  var seq = scanner.ScanReverse();
+  var enum1 = seq.GetEnumerator();
+  var enum2 = seq.GetEnumerator();
+  enum1.MoveNext(); enum1.MoveNext();  // enum1 前进 2 步
+  enum2.MoveNext();                     // enum2 前进 1 步
+  ```
+- Then：
+  - `enum1.Current` 指向 Frame2（从尾部数第 2 帧）
+  - `enum2.Current` 指向 Frame3（从尾部数第 1 帧）
+  - 两个枚举器互不干扰
+
+### 4.4 foreach 兼容性
+
+**用例 SCAN-FOREACH-001（duck-typed foreach）**
+- Given：文件包含 N 条帧
+- When：
+  ```csharp
+  int count = 0;
+  foreach (var frame in scanner.ScanReverse())
+  {
+      count++;
+      // frame 可正常访问
+  }
+  ```
+- Then：
+  - `count == N`
+  - 每次迭代 `frame` 都是有效的 `RbfFrame`
+
+**用例 SCAN-LINQ-FAIL-001（LINQ 不可用）**
+- Given：调用方尝试使用 LINQ
+- When：
+  ```csharp
+  // 编译错误：RbfReverseSequence 不包含 'Where' 定义
+  var filtered = scanner.ScanReverse().Where(f => !f.IsTombstone);
+  ```
+- Then：编译失败（这是预期行为，非缺陷）
+
+### 4.5 ref struct 约束
+
+**用例 SCAN-REFSTRUCT-001（不能存储到字段）**
+- Given：调用方尝试存储序列到字段
+- When：
+  ```csharp
+  class Holder {
+      // 编译错误：ref struct 不能作为类的字段
+      private RbfReverseSequence _seq;
+  }
+  ```
+- Then：编译失败（ref struct 护栏生效）
+
+**用例 SCAN-REFSTRUCT-002（不能跨 await）**
+- Given：调用方尝试在 async 方法中跨 await 使用
+- When：
+  ```csharp
+  async Task ProcessAsync(IRbfScanner scanner) {
+      var seq = scanner.ScanReverse();
+      await Task.Delay(1);
+      // 编译错误：ref struct 不能跨 await 边界
+      foreach (var frame in seq) { }
+  }
+  ```
+- Then：编译失败（ref struct 不能跨 await 边界）
+
+### 4.6 并发修改行为
+
+**用例 SCAN-MUTATION-001（并发修改行为未定义）**
+- Given：文件包含 N 条帧
+- When：在 `foreach` 枚举期间，另一线程追加新帧到文件
+- Then：
+  - 行为为**未定义**（规范不保证任何特定行为）
+  - 实现 MAY fail-fast（抛出异常）
+  - 调用方 MUST 在稳定快照上使用 `ScanReverse()`
+
+**用例 SCAN-MUTATION-002（稳定快照正例）**
+- Given：先完成所有写入，关闭 Framer，然后打开 Scanner
+- When：调用 `scanner.ScanReverse()` 并完整遍历
+- Then：
+  - 所有帧正常枚举
+  - 无竞争条件风险
+
+---
+
 ## 5. 条款映射
 
 | 条款 ID | 规范条款 | 对应测试用例 |
 |---------|----------|--------------|
-| `[F-GENESIS]` | Genesis Fence | RBF-EMPTY-001 |
+| `[F-GENESIS]` | Genesis Fence | RBF-EMPTY-001, SCAN-EMPTY-001 |
 | `[F-FENCE-SEMANTICS]` | Fence 语义 | RBF-SINGLE-001, RBF-DOUBLE-001 |
 | `[F-FRAME-LAYOUT]` | FrameBytes 布局 (含 HeadLen/Tag/Payload/FrameStatus/TailLen/CRC) | RBF-LEN-001, RBF-OK-001/002/003 |
 | `[F-FRAMETAG-WIRE-ENCODING]` | FrameTag 编码 (4B) | RBF-OK-001, RBF-BAD-002 |
@@ -214,6 +340,12 @@
 | `[F-CRC32C-COVERAGE]` | CRC32C 覆盖范围 (含 Tag/Status/TailLen) | RBF-OK-001/002, RBF-BAD-002 |
 | `[R-RESYNC-BEHAVIOR]` | Resync 行为 (不信任 TailLen) | RBF-TRUNCATE-001/002, RBF-BAD-003/004 |
 | `[R-REVERSE-SCAN-ALGORITHM]` | 逆向扫描 | RBF-SINGLE-001, RBF-DOUBLE-001, RBF-OK-001/002 |
+| `[A-RBF-REVERSE-SEQUENCE]` | RbfReverseSequence (duck-typed) | SCAN-FOREACH-001, SCAN-MULTI-ENUM-001 |
+| `[S-RBF-SCANREVERSE-NO-IENUMERABLE]` | 不实现 IEnumerable | SCAN-LINQ-FAIL-001, SCAN-REFSTRUCT-001/002 |
+| `[S-RBF-SCANREVERSE-EMPTY-IS-OK]` | 空序列合法 | SCAN-EMPTY-001, SCAN-EMPTY-002 |
+| `[S-RBF-SCANREVERSE-CURRENT-LIFETIME]` | Current 生命周期 | SCAN-LIFETIME-001 |
+| `[S-RBF-SCANREVERSE-CONCURRENT-MUTATION]` | 并发修改行为未定义 | SCAN-MUTATION-001/002 |
+| `[S-RBF-SCANREVERSE-MULTI-GETENUM]` | 多次 GetEnumerator 独立 | SCAN-MULTI-ENUM-001 |
 
 ---
 
@@ -232,6 +364,7 @@
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2025-12-28 | 0.9 | **新增 §4 ScanReverse 接口行为**（[畅谈会决议](../../../agent-team/meeting/2025-12-28-scan-reverse-return-type.md)）：空序列、Current 生命周期、多次枚举、foreach 兼容性、ref struct 约束测试向量；更新条款映射表 |
 | 2025-12-28 | 0.8 | 适配 rbf-format.md v0.15：修正 RBF-BAD-004 最小帧长度边界（16 → 20） |
 | 2025-12-25 | 0.7 | 适配 rbf-format.md v0.14：FrameStatus 改为位域格式（Bit 7=Tombstone, Bit 0-1=StatusLen-1）；新增 §1.6 位域测试向量；更新 RBF-OK/BAD 用例 |
 | 2025-12-24 | 0.6 | 适配 rbf-format.md v0.12：Pad→FrameStatus（1-4B）；新增 Valid/Tombstone 与 StatusLen(1-4) 覆盖；CRC 覆盖 FrameStatus；移除 Layer 0 未定义的 varint 与上层 meta 恢复用例 |
