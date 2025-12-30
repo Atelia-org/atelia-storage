@@ -1,4 +1,4 @@
-# 升级 Address64 为 FramePtr
+# FramePtr 数据结构设计
 
 核心相关文档
 - `atelia/docs/Rbf/rbf-interface.md`
@@ -8,18 +8,11 @@
 - 测试向量：`atelia/docs/Rbf/rbf-test-vectors.md`
 - 上层用户：`atelia/docs/StateJournal/mvp-design-v2.md.original`
 
-## 收益
+## 定位
 
-| 维度 | Address64（现有） | FramePtr（提议） |
-|:-----|:------------------|:-----------------|
-| **内容** | 仅偏移量 | 偏移量 + 长度 |
-| **读取效率** | 需两次：先读头（获长度）→ 再读体 | 一次：直接读 offset..offset+len |
-| **写入流程** | 写入时知道偏移量 | 写入完成后知道偏移量+长度 |
-| **序列化** | 8 字节 | 8 字节（打包） |
-
-**收益明确的场景**：
-- ✅ **随机读取**（热路径）：一次系统调用 vs 两次
-- ✅ **Lazy Load**：FramePtr 自描述，无需额外查找
+**FramePtr** 本质上是一个 **Packed Fat Pointer**（胖指针）数据结构。
+它将 `Offset`（偏移量）和 `Length`（长度）压缩存储在一个 `ulong` (64-bit) 中。
+该结构专注于数据的**紧凑存储与位操作算法**，与具体的上层业务语义（如 Null 值、空文件等）解耦。
 
 ## Bit 分配方案
 
@@ -28,26 +21,25 @@
 - 偏移量需要 4B 对齐 → 可节省 2 bit
 - 帧长度也要求 4B 对齐 → 再节省 2 bit
 
-**候选方案**：
+**范围估计**：
 
-| 方案 | 偏移量 bit | 长度 bit | 最大文件 | 最大帧 |
+| 方案 | 偏移量 bit | 长度 bit | 寻址范围 (约数) | 帧长度范围 (约数) |
 |:-----|:-----------|:---------|:---------|:-------|
-| **大文件** | 40 | 24 | 4 TB | 64 MB |
-| **大帧** | 36 | 28 | 256 GB | 1 GB |
+| **大文件** | 40 | 24 | ~4 TB | ~64 MB |
+| **大帧** | 36 | 28 | ~256 GB | ~1 GB |
+
+> 注：表中的“寻址范围”和“长度范围”仅用于直观估算值域规模，精确的最大值由 Bit 数决定（见代码常量）。
 
 **编码示意**（**大帧**方案，36:28 分配）：
 
-**实现约定（偏易用、偏宽松）**：
-- `Packed == 0` 代表 **Empty**（无指针 / None）——它是合法值
-- `offset/length` 以 **字节** 暴露给使用者，但编码时按 4B 对齐打包（值域天然保证 4B 对齐）
-- 允许 `length == 0`（表示空区间）；`Empty` 仍仅由 `Packed == 0` 表达
-- 从 `Packed` 构造不需要 `Parse/TryParse` 校验（任何 `ulong` 都能解包成一个确定的区间）
-- 从 `(offset,length)` 构造提供 `Create/TryCreate`，仅用于帮助调用方在写入时做参数校验
-- `EndOffsetExclusive` 使用 `checked`；`Contains` 使用差值比较避免溢出
+**实现约定**：
+- 纯粹的值类型，不包含任何业务状态（如 Empty/Null）的判断逻辑。
+- `offset/length` 以 **字节** 暴露给使用者，但编码时按 4B 对齐打包（值域天然保证 4B 对齐）。
+- 从 `Packed` 构造不需要 `Parse/TryParse` 校验（任何 `ulong` 都能解包成一个确定的区间）。
+- 从 `(offset,length)` 构造提供 `Create/TryCreate`，仅用于帮助调用方在写入时做参数校验。
+- `EndOffsetExclusive` 使用 `checked`；`Contains` 使用差值比较避免溢出。
 
 ```csharp
-using System;
-
 public readonly record struct FramePtr(ulong Packed) {
     // 偏移量 bit 数（4B 对齐，实际值 = 字段值 × 4）
     public const int OffsetBits = 36;
@@ -61,11 +53,6 @@ public readonly record struct FramePtr(ulong Packed) {
     // 最大可表示范围（注意：字段最大值是 2^bits - 1）
     public const ulong MaxOffset = ((1UL << OffsetBits) - 1UL) << AlignmentShift;
     public const uint MaxLength = (uint)(((1UL << LengthBits) - 1UL) << AlignmentShift);
-
-    // Empty/None 语义：Packed == 0（合法值）
-    public bool IsEmpty => Packed == 0;
-
-    public static FramePtr Empty => default;
 
     // 面向调用者的字节语义（bytes）
     public ulong OffsetBytes => (Packed >> LengthBits) << AlignmentShift;
@@ -117,7 +104,6 @@ public readonly record struct FramePtr(ulong Packed) {
         if (offsetBytes > ulong.MaxValue - lengthBytes)
             throw new ArgumentOutOfRangeException(nameof(offsetBytes), "offsetBytes+lengthBytes overflows.");
 
-        // 允许 lengthBytes == 0（空区间）
         return CreatePackedUnchecked(offsetBytes, lengthBytes);
     }
 
@@ -136,4 +122,26 @@ public readonly record struct FramePtr(ulong Packed) {
         return offsetPart | lengthPart;
     }
 }
+
+## 命名讨论
+
+本节列出该数据结构的候选名称，供团队决策。
+
+### 推荐方案：`BlobPtr`
+
+*   **理由**：
+    *   **Blob** (Binary Large Object) 准确描述了它指向的内容——一段不透明的二进制数据。
+    *   **Ptr** (Pointer) 传达了它是一个“指向者”的语义，符合“胖指针”的定位。
+    *   简短、有力，且在数据库和存储系统中是通用术语。
+*   **语境示例**：`BlobPtr ptr = ...; var data = file.Read(ptr);`
+
+### 备选方案
+
+| 名称 | 侧重点 | 优缺点 |
+|:-----|:-------|:-------|
+| **`SizedOffset`** | **结构本质** | ✅ 极其精确（带大小的偏移量）<br>❌ 略显生硬，像是一个参数名而非类型名 |
+| **`PackedRange`** | **存储形态** | ✅ 强调了“打包”和“区间”<br>❌ 容易与 C# 的 `Range` 类型混淆，且丢失了“指针/引用”的动词感 |
+| **`FramePtr`** | **当前名称** | ✅ 沿用惯例<br>❌ `Frame` 绑定了特定业务（RBF 帧），如果用于非帧场景（如索引块）会显得奇怪 |
+| **AlignedRange** | 突出对齐和区间 | 待分析 |
+
 ```
