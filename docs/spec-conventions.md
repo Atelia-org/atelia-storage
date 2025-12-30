@@ -155,8 +155,8 @@
 
 ### 4.3 缩写大小写规则
 
-**[S-TERM-ABBREV-REGISTRY]** 缩写的大小写 SHOULD 由术语注册表决定：
-1. 注册表中的缩写使用全大写形式
+**[S-TERM-ABBREV-REGISTRY]** 缩写的大小写 SHOULD 由术语注册表决定（以 `agent-team/wiki/terminology-registry.yaml` 为 SSOT）：
+1. 注册表中 `acronyms_uppercase` 列表内的缩写使用全大写形式
 2. 不在注册表中的缩写使用首字母大写形式
 3. 复合术语中的缩写保持其独立形式
 
@@ -165,34 +165,16 @@
 
 ### 4.4 术语注册表管理
 
-**[S-TERM-REGISTRY-MANAGEMENT]** 术语注册表 MUST 作为机器可读的 SSOT，并遵循以下管理原则：
-1. **初始条目**：基于现有高频使用和行业惯例确定
-2. **增删流程**：需通过 PR 评审，记录变更理由
-3. **版本控制**：注册表应有版本号和变更历史
+**[S-TERM-REGISTRY-MANAGEMENT]** 术语注册表 MUST 作为机器可读的 SSOT，并遵循以下管理原则。
 
-**初始注册表示例**：
-\`\`\`yaml
-acronyms_uppercase:
-  # 2字母高频技术缩写
-  - ID    # Identifier
-  - UI    # User Interface
-  - UX    # User Experience
-  - DX    # Developer Experience
-  - AI    # Artificial Intelligence
-  - IO    # Input/Output
-  
-  # 3+字母高频技术缩写
-  - API   # Application Programming Interface
-  - LLM   # Large Language Model
-  - MVP   # Minimum Viable Product
-  - SSOT  # Single Source of Truth
-  - CRC   # Cyclic Redundancy Check
-  - RBF   # (项目特有缩写)
-  - COW   # Copy-On-Write
-  
-  # 其他常见缩写
-  - OK    # Okay (高频使用)
-\`\`\`
+**注册表位置**：`agent-team/wiki/terminology-registry.yaml`（参考链接：[terminology-registry.yaml](../../agent-team/wiki/terminology-registry.yaml)）
+
+**使用方式**：
+1. 工具（lint、DocGraph、IDE）必须从此文件读取规则
+2. 文档中只引用此文件，不重复列出清单
+3. 变更必须通过 PR 评审并更新版本号
+
+**当前版本**：v1.0.0（可通过检查脚本查看最新版本）
 
 ### 4.5 迁移与兼容性
 
@@ -208,6 +190,7 @@ acronyms_uppercase:
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.6 | 2025-12-31 | 明确引用 terminology-registry.yaml，移除重复清单 |
 | 0.5 | 2025-12-31 | 新增第 4 章"术语命名规范"（基于 2025-12-31 畅谈会决策） |
 | 0.4 | 2025-12-25 | 细化 `[S-DOC-BITLAYOUT-AS-TABLE]`：明确推荐"行=字段，列=属性"结构；视觉表格降级为 Illustration |
 | 0.3 | 2025-12-25 | 新增 `[S-DOC-RELATIONS-AS-TEXT]` 条款；澄清 `[S-DOC-RELATIONS-AS-TABLE]` 和 `[S-DOC-SIMPLE-FLOW-INLINE]` 的适用边界（[畅谈会决议](../../agent-team/meeting/2025-12-25-llm-friendly-notation-field-test.md)）|
