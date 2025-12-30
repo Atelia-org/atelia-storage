@@ -125,3 +125,92 @@
 | 0.3 | 2025-12-25 | 新增 `[S-DOC-RELATIONS-AS-TEXT]` 条款；澄清 `[S-DOC-RELATIONS-AS-TABLE]` 和 `[S-DOC-SIMPLE-FLOW-INLINE]` 的适用边界（[畅谈会决议](../../agent-team/meeting/2025-12-25-llm-friendly-notation-field-test.md)）|
 | 0.2 | 2025-12-24 | 新增第 3 章"信息表示与图表"（LLM-Friendly Notation）|
 | 0.1 | 2025-12-22 | 从 StateJournal mvp-design-v2.md 提取 |
+
+## 4. 术语命名规范（Terminology Naming Conventions）
+
+> 本节规范适用于所有设计规范、RFC、提案、会议结论、接口规格等 Markdown 文档中的术语使用。
+> 
+> **背景**：统一的术语命名规范有助于提高文档的可读性、搜索友好性和机器可处理性，为 DocGraph 等工具提供清晰的语义边界。
+> 
+> **参考**：[2025-12-31 畅谈会记录](../../agent-team/meeting/2025-12-31-terminology-naming-convention.md)
+
+### 4.1 分域命名体系
+
+**[S-TERM-DOMAIN-SEPARATION]** 术语命名 SHOULD 遵循分域命名体系，避免跨域污染：
+
+| 域 | 格式 | 示例 | 用途 |
+|:---|:-----|:-----|:-----|
+| **条款锚点域** | `SCREAMING-KEBAB-CASE` | `[F-OBJECTKIND-STANDARD-RANGE]` | 规范性条款标识 |
+| **术语域** | `Title-Kebab`（首字母大写 + 连字符） | `Why-Layer`、`App-For-LLM` | 文档中的概念术语 |
+| **文件名域** | `lower-kebab-case`（全小写 + 连字符） | `why-layer.md`、`app-for-llm.md` | 文件系统路径 |
+| **代码标识符域** | 遵循语言惯例 | `WhyLayer`、`AppForLLM` | 源代码中的标识符 |
+
+### 4.2 多单词术语格式
+
+**[S-TERM-FORMAT-TITLE-KEBAB]** 多单词概念术语 MUST 使用连字符连接的首字母大写形式（Title-Kebab）。
+- 示例：`Why-Layer`、`Shape-Layer`、`App-For-LLM`、`Context-Projection`
+- 例外：文件名使用 `lower-kebab-case`（如 `why-layer.md`）
+
+**[S-TERM-LAYER-CLOSED-SET]** 层级术语（Why-Layer → Craft-Layer）MUST 作为闭集枚举使用，不允许创建新的层级术语。
+
+### 4.3 缩写大小写规则
+
+**[S-TERM-ABBREV-REGISTRY]** 缩写的大小写 SHOULD 由术语注册表决定：
+1. 注册表中的缩写使用全大写形式
+2. 不在注册表中的缩写使用首字母大写形式
+3. 复合术语中的缩写保持其独立形式
+
+**[S-TERM-ABBREV-COMPOUND-PRESERVE]** 复合术语中的缩写 SHOULD 保持其独立形式，不因复合而改变大小写。
+- 示例：`App-For-LLM`（不是 `App-For-Llm`）
+
+### 4.4 术语注册表管理
+
+**[S-TERM-REGISTRY-MANAGEMENT]** 术语注册表 MUST 作为机器可读的 SSOT，并遵循以下管理原则：
+1. **初始条目**：基于现有高频使用和行业惯例确定
+2. **增删流程**：需通过 PR 评审，记录变更理由
+3. **版本控制**：注册表应有版本号和变更历史
+
+**初始注册表示例**：
+\`\`\`yaml
+acronyms_uppercase:
+  # 2字母高频技术缩写
+  - ID    # Identifier
+  - UI    # User Interface
+  - UX    # User Experience
+  - DX    # Developer Experience
+  - AI    # Artificial Intelligence
+  - IO    # Input/Output
+  
+  # 3+字母高频技术缩写
+  - API   # Application Programming Interface
+  - LLM   # Large Language Model
+  - MVP   # Minimum Viable Product
+  - SSOT  # Single Source of Truth
+  - CRC   # Cyclic Redundancy Check
+  - RBF   # (项目特有缩写)
+  - COW   # Copy-On-Write
+  
+  # 其他常见缩写
+  - OK    # Okay (高频使用)
+\`\`\`
+
+### 4.5 迁移与兼容性
+
+**[S-TERM-MIGRATION-GRADUAL]** 术语命名规范的迁移 SHOULD 采用渐进式策略：
+1. **SSOT 层**：立即更新（术语表、模板、规范）
+2. **规范层**：1 周内更新（活跃规范文档）
+3. **活跃文档层**：1 个月内逐步更新
+4. **历史层**：保持原样（历史事实）
+
+**[S-TERM-COMPATIBILITY-ALIAS]** 术语表 SHOULD 维护向后兼容的别名映射，便于历史文档引用。
+
+## 变更日志
+
+| 版本 | 日期 | 变更 |
+|------|------|------|
+| 0.5 | 2025-12-31 | 新增第 4 章"术语命名规范"（基于 2025-12-31 畅谈会决策） |
+| 0.4 | 2025-12-25 | 细化 `[S-DOC-BITLAYOUT-AS-TABLE]`：明确推荐"行=字段，列=属性"结构；视觉表格降级为 Illustration |
+| 0.3 | 2025-12-25 | 新增 `[S-DOC-RELATIONS-AS-TEXT]` 条款；澄清 `[S-DOC-RELATIONS-AS-TABLE]` 和 `[S-DOC-SIMPLE-FLOW-INLINE]` 的适用边界（[畅谈会决议](../../agent-team/meeting/2025-12-25-llm-friendly-notation-field-test.md)）|
+| 0.2 | 2025-12-24 | 新增第 3 章"信息表示与图表"（LLM-Friendly Notation）|
+| 0.1 | 2025-12-22 | 从 StateJournal mvp-design-v2.md 提取 |
+
