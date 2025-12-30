@@ -1,4 +1,4 @@
-# FramePtr 数据结构设计
+# SizedPtr 数据结构设计
 
 核心相关文档
 - `atelia/docs/Rbf/rbf-interface.md`
@@ -10,7 +10,7 @@
 
 ## 定位
 
-**FramePtr** 本质上是一个 **Packed Fat Pointer**（胖指针）数据结构。
+**SizedPtr** 本质上是一个 **Packed Fat Pointer**（胖指针）数据结构。
 它将 `Offset`（偏移量）和 `Length`（长度）压缩存储在一个 `ulong` (64-bit) 中。
 该结构专注于数据的**紧凑存储与位操作算法**，与具体的上层业务语义（如 Null 值、空文件等）解耦。
 
@@ -40,7 +40,7 @@
 - `EndOffsetExclusive` 使用 `checked`；`Contains` 使用差值比较避免溢出。
 
 ```csharp
-public readonly record struct FramePtr(ulong Packed) {
+public readonly record struct SizedPtr(ulong Packed) {
     // 偏移量 bit 数（4B 对齐，实际值 = 字段值 × 4）
     public const int OffsetBits = 36;
 
@@ -61,20 +61,20 @@ public readonly record struct FramePtr(ulong Packed) {
     public ulong EndOffsetExclusive => checked(OffsetBytes + (ulong)LengthBytes);
 
     // 从 packed 直接构造/反序列化：不做校验（校验在 Create/TryCreate 完成）
-    public static FramePtr FromPacked(ulong packed) => new(packed);
+    public static SizedPtr FromPacked(ulong packed) => new(packed);
 
-    public FramePtr(ulong offsetBytes, uint lengthBytes) : this(CreatePacked(offsetBytes, lengthBytes)) {
+    public SizedPtr(ulong offsetBytes, uint lengthBytes) : this(CreatePacked(offsetBytes, lengthBytes)) {
     }
 
-    public static FramePtr Create(ulong offsetBytes, uint lengthBytes) => new(offsetBytes, lengthBytes);
+    public static SizedPtr Create(ulong offsetBytes, uint lengthBytes) => new(offsetBytes, lengthBytes);
 
-    public static bool TryCreate(ulong offsetBytes, uint lengthBytes, out FramePtr ptr) {
+    public static bool TryCreate(ulong offsetBytes, uint lengthBytes, out SizedPtr ptr) {
         if (!IsValidComponents(offsetBytes, lengthBytes)) {
             ptr = default;
             return false;
         }
 
-        ptr = new FramePtr(CreatePackedUnchecked(offsetBytes, lengthBytes));
+        ptr = new SizedPtr(CreatePackedUnchecked(offsetBytes, lengthBytes));
         return true;
     }
 
@@ -122,26 +122,4 @@ public readonly record struct FramePtr(ulong Packed) {
         return offsetPart | lengthPart;
     }
 }
-
-## 命名讨论
-
-本节列出该数据结构的候选名称，供团队决策。
-
-### 推荐方案：`BlobPtr`
-
-*   **理由**：
-    *   **Blob** (Binary Large Object) 准确描述了它指向的内容——一段不透明的二进制数据。
-    *   **Ptr** (Pointer) 传达了它是一个“指向者”的语义，符合“胖指针”的定位。
-    *   简短、有力，且在数据库和存储系统中是通用术语。
-*   **语境示例**：`BlobPtr ptr = ...; var data = file.Read(ptr);`
-
-### 备选方案
-
-| 名称 | 侧重点 | 优缺点 |
-|:-----|:-------|:-------|
-| **`SizedOffset`** | **结构本质** | ✅ 极其精确（带大小的偏移量）<br>❌ 略显生硬，像是一个参数名而非类型名 |
-| **`PackedRange`** | **存储形态** | ✅ 强调了“打包”和“区间”<br>❌ 容易与 C# 的 `Range` 类型混淆，且丢失了“指针/引用”的动词感 |
-| **`FramePtr`** | **当前名称** | ✅ 沿用惯例<br>❌ `Frame` 绑定了特定业务（RBF 帧），如果用于非帧场景（如索引块）会显得奇怪 |
-| **AlignedRange** | 突出对齐和区间 | 待分析 |
-
 ```
