@@ -151,7 +151,7 @@
 - 示例：`Why-Tier`、`Shape-Tier`、`App-For-LLM`、`Context-Projection`
 - 例外：文件名使用 `lower-kebab-case`（如 `why-Tier.md`）
 
-**[S-TERM-Tier-CLOSED-SET]** 层级术语（Why-Tier → Craft-Tier）MUST 作为闭集枚举使用，不允许创建新的层级术语。
+**[S-TERM-TIER-CLOSED-SET]** 层级术语（Why-Tier → Craft-Tier）MUST 作为闭集枚举使用，不允许创建新的层级术语。
 
 ### 4.3 缩写大小写规则
 
