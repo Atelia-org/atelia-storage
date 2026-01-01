@@ -151,7 +151,7 @@
 - 示例：`Resolve-Tier`、`Shape-Tier`、`App-For-LLM`、`Context-Projection`
 - 例外：文件名使用 `lower-kebab-case`（如 `why-Tier.md`）
 
-**[S-TERM-TIER-CLOSED-SET]** 层级术语（Resolve-Tier → Craft-Tier）MUST 作为闭集枚举使用，需畅谈会一致才能创建新的层级术语。
+**[S-TERM-TIER-CLOSED-SET]** 层级术语（Resolve-Tier / Shape-Tier / Rule-Tier / Plan-Tier / Craft-Tier）MUST 作为闭集枚举使用，需畅谈会一致才能创建新的层级术语。
 
 ### 4.3 缩写大小写规则
 
@@ -190,6 +190,7 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.7 | 2026-01-02 | Resolve-Tier 术语迁移：更新层级术语闭集枚举 |
 | 0.6 | 2025-12-31 | 明确引用 terminology-registry.yaml，移除重复清单 |
 | 0.5 | 2025-12-31 | 新增第 4 章"术语命名规范"（基于 2025-12-31 畅谈会决策） |
 | 0.4 | 2025-12-25 | 细化 `[S-DOC-BITLAYOUT-AS-TABLE]`：明确推荐"行=字段，列=属性"结构；视觉表格降级为 Illustration |
