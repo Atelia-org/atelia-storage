@@ -141,17 +141,17 @@
 | 域 | 格式 | 示例 | 用途 |
 |:---|:-----|:-----|:-----|
 | **条款锚点域** | `SCREAMING-KEBAB-CASE` | `[F-OBJECTKIND-STANDARD-RANGE]` | 规范性条款标识 |
-| **术语域** | `Title-Kebab`（首字母大写 + 连字符） | `Why-Tier`、`App-For-LLM` | 文档中的概念术语 |
+| **术语域** | `Title-Kebab`（首字母大写 + 连字符） | `Resolve-Tier`、`App-For-LLM` | 文档中的概念术语 |
 | **文件名域** | `lower-kebab-case`（全小写 + 连字符） | `why-Tier.md`、`app-for-llm.md` | 文件系统路径 |
 | **代码标识符域** | 遵循语言惯例 | `WhyLayer`、`AppForLLM` | 源代码中的标识符 |
 
 ### 4.2 多单词术语格式
 
 **[S-TERM-FORMAT-TITLE-KEBAB]** 多单词概念术语 MUST 使用连字符连接的首字母大写形式（Title-Kebab）。
-- 示例：`Why-Tier`、`Shape-Tier`、`App-For-LLM`、`Context-Projection`
+- 示例：`Resolve-Tier`、`Shape-Tier`、`App-For-LLM`、`Context-Projection`
 - 例外：文件名使用 `lower-kebab-case`（如 `why-Tier.md`）
 
-**[S-TERM-TIER-CLOSED-SET]** 层级术语（Why-Tier → Craft-Tier）MUST 作为闭集枚举使用，不允许创建新的层级术语。
+**[S-TERM-TIER-CLOSED-SET]** 层级术语（Resolve-Tier → Craft-Tier）MUST 作为闭集枚举使用，需畅谈会一致才能创建新的层级术语。
 
 ### 4.3 缩写大小写规则
 
