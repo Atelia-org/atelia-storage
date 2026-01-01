@@ -364,7 +364,7 @@
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
-| 2025-12-28 | 0.11 | 更新关联规范版本：rbf-format.md v0.15 → v0.16, rbf-interface.md v0.16 → v0.17（FrameTag wrapper type 移除）；审计结果：本文档无需变更——测试向量始终将 FrameTag 作为线格式字段（4B uint）描述，不涉及 C# wrapper type |
+| 2025-12-28 | 0.11 | 更新关联规范版本：rbf-format.md v0.15 → v0.16, rbf-interface.md v0.16 → v0.17（FrameTag wrapper type 移除）；核查结果：本文档无需变更——测试向量始终将 FrameTag 作为线格式字段（4B uint）描述，不涉及 C# wrapper type |
 | 2025-12-28 | 0.10 | 更新关联规范版本：rbf-interface.md v0.15 → v0.16（Payload 接口简化、新增 `[S-RBF-BUILDER-FLUSH-NO-LEAK]`）；无测试向量变更——接口简化不影响 Layer 0 线格式或读取行为 |
 | 2025-12-28 | 0.9 | **新增 §4 ScanReverse 接口行为**（[畅谈会决议](../../../agent-team/meeting/2025-12-28-scan-reverse-return-type.md)）：空序列、Current 生命周期、多次枚举、foreach 兼容性、ref struct 约束测试向量；更新条款映射表 |
 | 2025-12-28 | 0.8 | 适配 rbf-format.md v0.15：修正 RBF-BAD-004 最小帧长度边界（16 → 20） |
