@@ -26,11 +26,12 @@
 | 方案 | 偏移量 bit | 长度 bit | 寻址范围 (约数) | 帧长度范围 (约数) |
 |:-----|:-----------|:---------|:---------|:-------|
 | **大文件** | 40 | 24 | ~4 TB | ~64 MB |
+| **均衡** | 38 | 26 | ~1 TB | ~256 MB |
 | **大帧** | 36 | 28 | ~256 GB | ~1 GB |
 
 > 注：表中的“寻址范围”和“长度范围”仅用于直观估算值域规模，精确的最大值由 Bit 数决定（见代码常量）。
 
-**编码示意**（**大帧**方案，36:28 分配）：
+**编码示意**（**均衡**方案，38:26 分配）：
 
 **实现约定**：
 - 纯粹的值类型，不包含任何业务状态（如 Empty/Null）的判断逻辑。
@@ -42,7 +43,7 @@
 ```csharp
 public readonly record struct SizedPtr(ulong Packed) {
     // 偏移量 bit 数（4B 对齐，实际值 = 字段值 × 4）
-    public const int OffsetBits = 36;
+    public const int OffsetBits = 38;
 
     // 长度 bit 数（4B 对齐，实际值 = 字段值 × 4）
     public const int LengthBits = 64 - OffsetBits;
