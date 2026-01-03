@@ -1,12 +1,13 @@
+---
+docId: "W-0004-Brief"
+title: "SizedPtr 数据结构设计"
+produce_by:
+  - "wishes/active/wish-0004-SizedPtr.md"
+---
+
 # SizedPtr 数据结构设计
 
-核心相关文档
-- `atelia/docs/Rbf/rbf-interface.md`
-
-次要相关文档
-- 底层存储：`atelia/docs/Rbf/rbf-format.md`
-- 测试向量：`atelia/docs/Rbf/rbf-test-vectors.md`
-- 上层用户：`atelia/docs/StateJournal/mvp-design-v2.md.original`
+首个目标用户：`atelia/docs/Rbf/rbf-interface.md`
 
 ## 定位
 
