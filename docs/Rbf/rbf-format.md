@@ -1,3 +1,10 @@
+---
+docId: "rbf-format"
+title: "RBF 二进制格式规范（Layer 0）"
+produce_by:
+      - "wish/W-0006-rbf-sizedptr/wish.md"
+---
+
 # RBF 二进制格式规范（Layer 0）
 
 > **状态**：Draft

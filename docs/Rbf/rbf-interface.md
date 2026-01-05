@@ -1,3 +1,10 @@
+---
+docId: "rbf-interface"
+title: "RBF Layer Interface Contract"
+produce_by:
+    - "wish/W-0006-rbf-sizedptr/wish.md"
+---
+
 # RBF Layer Interface Contract
 
 > **状态**：Reviewed（复核通过）

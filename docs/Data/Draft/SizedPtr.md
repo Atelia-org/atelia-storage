@@ -2,7 +2,7 @@
 docId: "W-0004-Brief"
 title: "SizedPtr 数据结构设计"
 produce_by:
-  - "wishes/active/wish-0004-SizedPtr.md"
+  - "wish/W-0004-sizedptr/wish.md"
 ---
 
 # SizedPtr 数据结构设计
