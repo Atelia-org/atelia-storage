@@ -4,11 +4,11 @@
 namespace Atelia;
 
 /// <summary>
-/// 同步层结果类型，支持 ref struct 值。
+/// 异步层结果类型，可用于 Task/ValueTask 返回值。
 /// </summary>
 /// <remarks>
 /// <para>
-/// 这是一个 <c>ref struct</c>，允许 <typeparamref name="T"/> 为 ref struct（如 <c>Span&lt;T&gt;</c>）。
+/// 这是一个 <c>readonly struct</c>，可用于 async 方法返回值。
 /// </para>
 /// <para>
 /// 设计灵感来自 Rust 的 <c>Result&lt;T, E&gt;</c> 和 C# 的 <c>Nullable&lt;T&gt;</c>，
@@ -16,11 +16,11 @@ namespace Atelia;
 /// 以平衡类型安全和使用便利性。
 /// </para>
 /// <para>
-/// 对于异步场景，请使用 <see cref="AteliaAsyncResult{T}"/>。
+/// 对于同步场景（特别是需要 ref struct 值类型），请使用 <see cref="AteliaResult{T}"/>。
 /// </para>
 /// </remarks>
-/// <typeparam name="T">成功值类型，允许 ref struct。</typeparam>
-public ref struct AteliaResult<T> where T : allows ref struct {
+/// <typeparam name="T">成功值类型。</typeparam>
+public readonly struct AteliaAsyncResult<T> {
     private readonly AteliaError? _error;
     private readonly T? _value;
 
@@ -44,7 +44,7 @@ public ref struct AteliaResult<T> where T : allows ref struct {
     /// </summary>
     public AteliaError? Error => _error;
 
-    private AteliaResult(T? value, AteliaError? error) {
+    private AteliaAsyncResult(T? value, AteliaError? error) {
         _value = value;
         _error = error;
     }
@@ -53,16 +53,16 @@ public ref struct AteliaResult<T> where T : allows ref struct {
     /// 创建一个表示成功的结果。
     /// </summary>
     /// <param name="value">成功的值。允许 <c>null</c>（表示"成功返回了空值"）。</param>
-    /// <returns>表示成功的 <see cref="AteliaResult{T}"/>。</returns>
-    public static AteliaResult<T> Success(T? value) => new(value, null);
+    /// <returns>表示成功的 <see cref="AteliaAsyncResult{T}"/>。</returns>
+    public static AteliaAsyncResult<T> Success(T? value) => new(value, null);
 
     /// <summary>
     /// 创建一个表示失败的结果。
     /// </summary>
     /// <param name="error">失败的错误。</param>
-    /// <returns>表示失败的 <see cref="AteliaResult{T}"/>。</returns>
+    /// <returns>表示失败的 <see cref="AteliaAsyncResult{T}"/>。</returns>
     /// <exception cref="ArgumentNullException">当 <paramref name="error"/> 为 <c>null</c> 时抛出。</exception>
-    public static AteliaResult<T> Failure(AteliaError error) {
+    public static AteliaAsyncResult<T> Failure(AteliaError error) {
         ArgumentNullException.ThrowIfNull(error);
         return new(default, error);
     }
@@ -112,25 +112,5 @@ public ref struct AteliaResult<T> where T : allows ref struct {
     /// <summary>
     /// 隐式转换：从 <typeparamref name="T"/> 值创建成功结果。
     /// </summary>
-    public static implicit operator AteliaResult<T>(T value) => Success(value);
-}
-
-/// <summary>
-/// <see cref="AteliaResult{T}"/> 的扩展方法。
-/// </summary>
-public static class AteliaResultExtensions {
-    /// <summary>
-    /// 转换为异步层类型。
-    /// </summary>
-    /// <typeparam name="T">成功值类型。此方法不支持 ref struct 类型。</typeparam>
-    /// <param name="result">要转换的同步结果。</param>
-    /// <remarks>
-    /// 当 <typeparamref name="T"/> 为 ref struct 时，调用此方法将产生编译错误——这是期望行为。
-    /// </remarks>
-    /// <returns>等价的 <see cref="AteliaAsyncResult{T}"/>。</returns>
-    public static AteliaAsyncResult<T> ToAsync<T>(this AteliaResult<T> result) {
-        return result.IsSuccess
-            ? AteliaAsyncResult<T>.Success(result.Value)
-            : AteliaAsyncResult<T>.Failure(result.Error!);
-    }
+    public static implicit operator AteliaAsyncResult<T>(T value) => Success(value);
 }
