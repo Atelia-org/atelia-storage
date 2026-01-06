@@ -1,3 +1,10 @@
+---
+docId: "rbf-format"
+title: "RBF Plan-Tier"
+produce_by:
+      - "wish/W-0009-rbf/wish.md"
+---
+
 # RBF 测试向量
 
 > **版本**：0.11

@@ -1,31 +1,21 @@
 ---
 docId: "rbf-format"
-title: "RBF 二进制格式规范（Layer 0）"
+title: "RBF Rule-Tier"
 produce_by:
-      - "wish/W-0006-rbf-sizedptr/wish.md"
+      - "wish/W-0009-rbf/wish.md"
 ---
 
 # RBF 二进制格式规范（Layer 0）
-
-> **状态**：Draft
-> **版本**：0.16
-> **创建日期**：2025-12-22
-> **接口契约（Layer 1）**：[rbf-interface.md](rbf-interface.md)
-> **测试向量（Layer 0）**：[rbf-test-vectors.md](rbf-test-vectors.md)
-
----
-
 > 本文档遵循 [Atelia 规范约定](../spec-conventions.md)。
 
 ## 1. 范围与分层
-
 本文档（Layer 0）只定义：
 - RBF 文件的 **线格式（wire format）**：Fence/Magic、Frame 字节布局、对齐与 CRC32C
 - 损坏判定（Framing/CRC）与恢复相关的扫描行为（Reverse Scan / Resync）
 
 本文档不定义：
 - Frame payload 的业务语义（由上层定义）
-- `FrameTag`/`Address64` 等接口类型（见 [rbf-interface.md](rbf-interface.md)）
+- `FrameTag`/`SizedPtr` 等接口类型（见 [rbf-interface.md](rbf-interface.md)）
 
 本规范的 **SSOT（Single Source of Truth）** 是：
 - §3 的字段布局表（`[F-FRAME-LAYOUT]`）
@@ -289,17 +279,23 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 
 ---
 
-## 7. Address64 / Ptr64（编码层）
+## 7. SizedPtr（Wire Format）
 
 ### 7.1 Wire Format
 
-**`[F-PTR64-WIRE-FORMAT]`**
+**`[F-SIZEDPTR-WIRE-FORMAT]`**
 
-- **编码**：本规范所称“地址（Address64/Ptr64）”在 wire format 上为 8 字节 u64 LE 文件偏移量，指向 Frame 的 `HeadLen` 字段起始位置。
-- **空值**：`0` 表示 null（无效地址）。
-- **对齐**：非零地址 MUST 4B 对齐（`Value % 4 == 0`）。
+- **编码**：SizedPtr 在 wire format 上为 8 字节 u64 LE 紧凑编码，包含 offset 和 length。
+- **Offset**：指向 Frame 的 `HeadLen` 字段起始位置（38-bit，4B 粒度）。
+- **Length**：Frame 的字节长度（26-bit，4B 粒度）。
+- **空值**：`Packed == 0`（即 `OffsetBytes == 0 && LengthBytes == 0`）表示 null（无效引用）。
+- **对齐**：非零 SizedPtr MUST 4B 对齐。
 
-> 接口层的类型化封装见 [rbf-interface.md](rbf-interface.md) 的 `Address64`（`[F-ADDRESS64-DEFINITION]`）。
+> 接口层的类型定义见 [rbf-interface.md](rbf-interface.md) 的 `SizedPtr`（`[F-SIZEDPTR-DEFINITION]`）。
+
+### 7.2 DataTail 表达
+
+`DataTail` 使用 `SizedPtr.OffsetBytes` 表达文件截断点（length 部分无意义，可为 0）。
 
 ---
 
@@ -307,7 +303,7 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 
 **`[R-DATATAIL-DEFINITION]`**
 
-- `DataTail` 是一个地址（见 §7），表示 data 文件的逻辑尾部。
+- `DataTail` 是一个 `SizedPtr.OffsetBytes`（见 §7），表示 data 文件的逻辑尾部。
 - `DataTail` MUST 指向“有效数据末尾”，并包含尾部 Fence（即 `DataTail == 有效 EOF`）。
 
 **`[R-DATATAIL-TRUNCATE]`**
@@ -318,44 +314,10 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 
 ---
 
-## 9. 条款索引（导航）
-
-| 条款 ID | 名称 |
-|---------|------|
-| `[F-FENCE-DEFINITION]` | Fence 定义 |
-| `[F-GENESIS]` | Genesis Fence |
-| `[F-FENCE-SEMANTICS]` | Fence 语义 |
-| `[F-FRAME-LAYOUT]` | FrameBytes 布局 |
-| `[F-FRAMETAG-WIRE-ENCODING]` | FrameTag 编码（4B） |
-| `[F-FRAMESTATUS-VALUES]` | FrameStatus 值定义 |
-| `[F-HEADLEN-FORMULA]` | HeadLen 公式 |
-| `[F-STATUSLEN-FORMULA]` | StatusLen 公式 |
-| `[F-FRAME-4B-ALIGNMENT]` | 4B 对齐 |
-| `[F-FRAMESTATUS-FILL]` | FrameStatus 填充规则 |
-| `[F-CRC32C-COVERAGE]` | CRC 覆盖范围 |
-| `[F-CRC32C-ALGORITHM]` | CRC 算法 |
-| `[F-FRAMING-FAIL-REJECT]` | Framing 失败策略 |
-| `[F-CRC-FAIL-REJECT]` | CRC 失败策略 |
-| `[F-PTR64-WIRE-FORMAT]` | Address/Ptr Wire Format |
-| `[R-REVERSE-SCAN-ALGORITHM]` | 逆向扫描 |
-| `[R-RESYNC-BEHAVIOR]` | Resync 行为 |
-| `[R-DATATAIL-DEFINITION]` | DataTail 定义 |
-| `[R-DATATAIL-TRUNCATE]` | DataTail 截断 |
-
----
-
-## 10. 变更日志
+## 10. 近期变更
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.17 | 2026-01-06 | **SizedPtr Wire Format**（[W-0006](../../../wish/W-0006-rbf-sizedptr/artifacts/)）：§7 重写为 SizedPtr 编码；`[F-PTR64-WIRE-FORMAT]` 改为 `[F-SIZEDPTR-WIRE-FORMAT]`；新增 §7.2 DataTail 表达 |
 | 0.16 | 2025-12-28 | 更新 FrameTag 接口引用：移除过时的 `[F-FRAMETAG-DEFINITION]` 条款引用，改为引用 rbf-interface.md §2.1 |
 | 0.15 | 2025-12-28 | 消除内部矛盾：删除过时的 `0x00/0xFF` 值域枚举，修正最小 HeadLen 为 20 |
-| 0.14 | 2025-12-25 | **FrameStatus 位域格式**：Bit 7 = Tombstone，Bit 0-1 = StatusLen-1，Bit 2-6 保留 |
-| 0.13 | 2025-12-25 | FrameStatus 编码 StatusLen（已被 v0.14 取代） |
-| 0.12 | 2025-12-24 | Pad 重命名为 FrameStatus；长度从 0-3 改为 1-4 |
-| 0.11 | 2025-12-24 | FrameTag 从 1B 扩展为 4B 独立字段 |
-| 0.10 | 2025-12-23 | 术语重构：合并 Magic 与 Fence 概念 |
-| 0.9 | 2025-12-23 | 条款重构：合并相关条款 |
-| 0.8 | 2025-12-23 | 消除冗余条款 |
-| 0.7 | 2025-12-23 | 彻底重写：以布局表为 SSOT |
-| 0.6 | 2025-12-23 | 结构重构 |
