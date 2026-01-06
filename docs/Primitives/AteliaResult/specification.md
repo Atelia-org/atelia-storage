@@ -1,10 +1,11 @@
-# AteliaResult 规范文档
+# AteliaResult 规范
 
-> **版本**: 1.1  
-> **日期**: 2025-12-26  
+> **版本**: 1.2  
+> **日期**: 2026-01-06  
 > **状态**: 正式规范（Normative）  
-> **来源**: [LoadObject 命名与返回值设计畅谈会](../../agent-team/meeting/StateJournal/2025-12-21-hideout-loadobject-naming.md)  
-> **修订**: [AteliaResult 适用边界畅谈会](../../agent-team/meeting/StateJournal/2025-12-26-ateliaresult-boundary.md)
+> **设计文档**: [design.md](design.md)（双类型架构设计与决策）  
+> **来源**: [LoadObject 命名与返回值设计畅谈会](../../../agent-team/meeting/StateJournal/2025-12-21-hideout-loadobject-naming.md)  
+> **修订**: [AteliaResult 适用边界畅谈会](../../../agent-team/meeting/StateJournal/2025-12-26-ateliaresult-boundary.md)
 
 ---
 
@@ -46,43 +47,25 @@
 
 ## 3. 类型定义
 
-### 3.1 `AteliaResult<T>`
+> **类型签名以代码为准**（Single Source of Truth）。
+> 设计决策详见 [design.md](design.md)。
 
-```csharp
-namespace Atelia;
+### 3.1 双类型架构
 
-public readonly struct AteliaResult<T>
-{
-    public bool IsSuccess { get; }
-    public T? Value { get; }
-    public AteliaError? Error { get; }
-    
-    // 工厂方法
-    public static AteliaResult<T> Success(T value);
-    public static AteliaResult<T> Failure(AteliaError error);
-}
-```
+| 类型 | 代码位置 | 用途 |
+|:-----|:---------|:-----|
+| `AteliaResult<T>` | [AteliaResult.cs](../../src/Primitives/AteliaResult.cs) | 同步层，支持 ref struct 值 |
+| `AteliaAsyncResult<T>` | [AteliaAsyncResult.cs](../../src/Primitives/AteliaAsyncResult.cs) | 异步层，可用于 Task/ValueTask |
 
-**设计决策**：
-- 使用 `readonly struct` 避免装箱开销
-- 单泛型参数 `T`（不是双泛型 `Result<T, E>`），降低使用复杂度
-- Error 类型固定为 `AteliaError` 基类，通过派生类实现扩展
+### 3.2 错误类型
 
-### 3.2 AteliaError
+| 类型 | 代码位置 | 用途 |
+|:-----|:---------|:-----|
+| `AteliaError` | [AteliaError.cs](../../src/Primitives/AteliaError.cs) | 错误基类 |
+| `AteliaException` | [AteliaException.cs](../../src/Primitives/AteliaException.cs) | 异常基类（与 Error 同源同表） |
+| `IAteliaHasError` | [IAteliaHasError.cs](../../src/Primitives/IAteliaHasError.cs) | 统一访问接口 |
 
-```csharp
-namespace Atelia;
-
-public abstract record AteliaError(
-    string ErrorCode,                              // MUST
-    string Message,                                // MUST
-    string? RecoveryHint = null,                   // SHOULD
-    IReadOnlyDictionary<string, string>? Details = null,  // MAY
-    AteliaError? Cause = null                      // MAY
-);
-```
-
-**字段说明**：
+### 3.3 AteliaError 字段说明
 
 | 字段 | 级别 | 说明 |
 |------|------|------|
@@ -91,37 +74,6 @@ public abstract record AteliaError(
 | `RecoveryHint` | SHOULD | 恢复建议，告诉 Agent 下一步可以尝试什么 |
 | `Details` | MAY | 键值对形式的上下文信息（最多 20 个 key） |
 | `Cause` | MAY | 导致此错误的原因错误（最多 5 层深度） |
-
-### 3.3 AteliaException
-
-```csharp
-namespace Atelia;
-
-public abstract class AteliaException : Exception, IAteliaHasError
-{
-    public AteliaError Error { get; }
-    public string ErrorCode => Error.ErrorCode;
-    public string? RecoveryHint => Error.RecoveryHint;
-    
-    protected AteliaException(AteliaError error) : base(error.Message);
-    protected AteliaException(AteliaError error, Exception? innerException);
-}
-```
-
-**设计原则**：异常与 `AteliaResult.Error` **同源同表**——它们共享同一个 `AteliaError` 对象，保证错误协议的一致性。
-
-### 3.4 IAteliaHasError
-
-```csharp
-namespace Atelia;
-
-public interface IAteliaHasError
-{
-    AteliaError Error { get; }
-}
-```
-
-用于统一异常和结构化错误的访问方式。
 
 ---
 
@@ -244,7 +196,9 @@ atelia/docs/{Component}/ErrorCodes.md
 
 ### 5.1 何时使用 `bool + out` vs `AteliaResult<T>` vs 异常
 
-本节定义三类失败表达模式：
+**快速指南请参考 [guide.md](guide.md)。**
+
+本节定义详细的三类失败表达模式：
 
 | 模式 | 签名形式 | 适用场景 |
 |------|----------|----------|
@@ -303,13 +257,6 @@ atelia/docs/{Component}/ErrorCodes.md
 - 数据损坏（CRC 校验失败）
 - 不变量破坏（实现缺陷）
 - 参数违反前置条件（如 null 参数）
-
-#### 直觉测试（Informative）
-
-> 当操作失败时，调用者的第一反应是：
-> - "哦，没有就算了" → `bool + out`
-> - "为什么失败？我需要决定下一步" → `AteliaResult<T>`
-> - "这不应该发生！" → 异常
 
 ### 5.2 命名约定
 
@@ -401,11 +348,6 @@ if (result.Error is StateJournalObjectNotFoundError notFound)
 {
     Console.WriteLine($"Object {notFound.ObjectId} not found");
 }
-
-// 方式 3：使用 Match 方法
-result.Match(
-    onSuccess: obj => ProcessObject(obj),
-    onFailure: err => LogError(err));
 ```
 
 ### 5.4 JSON 序列化示例
@@ -446,37 +388,9 @@ StateJournal 的 `[A-*]` 条款仍然有效，作为 `[ATELIA-*]` 条款在 Stat
 
 ---
 
-## 7. 代码位置
-
-```
-atelia/
-└── src/
-    └── Primitives/              # netstandard2.0
-        ├── AteliaResult.cs      # AteliaResult<T> 定义
-        ├── AteliaError.cs       # AteliaError 基类定义
-        ├── AteliaException.cs   # AteliaException 基类定义
-        └── IAteliaHasError.cs   # 接口定义
-```
-
----
-
-## 附录 A：设计决策摘要
-
-| 议题 | 决策 | 理由 |
-|------|------|------|
-| 机制级别 | Atelia 项目基础机制 | 跨组件统一成功/失败协议 |
-| 泛型设计 | 单泛型 `AteliaResult<T>` | 避免 C# 双泛型的使用负担 |
-| Error 类型 | `AteliaError` 基类 + 派生类 | 协议面稳定，库内可强类型 |
-| 协议层键 | `string ErrorCode` | 可序列化、跨语言、可作文档索引 |
-| Message 语义 | 默认 Agent-Friendly | Atelia 是 LLM-Native 框架 |
-| Details 类型 | `IReadOnlyDictionary<string, string>` | 复杂结构用 JSON-in-string |
-| ErrorCode 命名 | `{Component}.{ErrorName}` | 命名空间隔离，便于查找 |
-
----
-
-## 附录 B：参考资料
+## 附录：参考资料
 
 - [RFC 7807: Problem Details for HTTP APIs](https://tools.ietf.org/html/rfc7807)
 - [Rust std::result](https://doc.rust-lang.org/std/result/)
-- [LoadObject 命名与返回值设计畅谈会](../../agent-team/meeting/StateJournal/2025-12-21-hideout-loadobject-naming.md)
-- [StateJournal MVP 设计 v2](StateJournal/mvp-design-v2.md)
+- [LoadObject 命名与返回值设计畅谈会](../../../agent-team/meeting/StateJournal/2025-12-21-hideout-loadobject-naming.md)
+- [StateJournal MVP 设计 v2](../StateJournal/mvp-design-v2.md)
