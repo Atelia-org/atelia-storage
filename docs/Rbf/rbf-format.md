@@ -25,7 +25,7 @@ produce_by:
 
 本文档不定义：
 - Frame payload 的业务语义（由上层定义）
-- `FrameTag`/`<deleted-place-holder>` 等接口类型（见 [rbf-interface.md](rbf-interface.md)）
+- `FrameTag`/<deleted-place-holder> 等接口类型（见 [rbf-interface.md](rbf-interface.md)）
 
 本规范的 **SSOT（Single Source of Truth）** 是：
 - §3 的字段布局表（`[F-FRAME-LAYOUT]`）
@@ -355,11 +355,11 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 
 **`[F-ADDRESS64-WIRE-FORMAT]`**
 
-- **编码**：`<deleted-place-holder>` 在 wire format 上为 8 字节 u64 LE 文件偏移量，指向 Frame 的 `HeadLen` 字段起始位置。
+- **编码**：<deleted-place-holder> 在 wire format 上为 8 字节 u64 LE 文件偏移量，指向 Frame 的 `HeadLen` 字段起始位置。
 - **空值**：`0` 表示 null（无效地址）。
 - **对齐**：非零地址 MUST 4B 对齐（`Value % 4 == 0`）。
 
-> 接口层的类型化封装见 [rbf-interface.md](rbf-interface.md) 的 `<deleted-place-holder>`（`[F-ADDRESS64-DEFINITION]`）。
+> 接口层的类型化封装见 [rbf-interface.md](rbf-interface.md) 的 <deleted-place-holder>（`[F-ADDRESS64-DEFINITION]`）。
 
 ---
 
@@ -416,7 +416,7 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 | 0.24 | 2026-01-06 | §3.1 `[F-FENCE-SEMANTICS]` 明确 Writer/Reader 语境：Writer MUST 紧跟 Fence；Reader MAY 遇到撕裂文件 |
 | 0.23 | 2026-01-06 | §2.2 `[F-GENESIS]` 明确首帧起始地址为 offset=4（Genesis Fence 之后） |
 | 0.22 | 2026-01-06 | §4.1 `[F-CRC32C-COVERAGE]` 增加 Tombstone 帧（最小帧）CRC 覆盖范围示例 |
-| 0.21 | 2026-01-06 | §7 术语统一：`Ptr64` 改为 `<deleted-place-holder>`，消除与 rbf-interface.md 的命名不一致 |
+| 0.21 | 2026-01-06 | §7 术语统一：`Ptr64` 改为 <deleted-place-holder>，消除与 rbf-interface.md 的命名不一致 |
 | 0.20 | 2026-01-06 | §4.1 `[F-CRC32C-COVERAGE]` 补充精确字节偏移：半开区间 `[frameStart+4, frameStart+HeadLen-4)` |
 | 0.19 | 2026-01-06 | §6.1 伪代码补充 FrameStatus 校验：Reserved bits 合法性 + 全字节一致性（对齐 §5 `[F-FRAMING-FAIL-REJECT]`） |
 | 0.18 | 2026-01-06 | 新增 `[F-STATUSLEN-REVERSE-FORMULA]`：Reader 从 HeadLen 反推 PayloadLen/StatusLen 的算法 |
