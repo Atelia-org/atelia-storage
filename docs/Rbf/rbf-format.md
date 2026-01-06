@@ -1,21 +1,31 @@
 ---
 docId: "rbf-format"
-title: "RBF Rule-Tier"
+title: "RBF 二进制格式规范（Layer 0）"
 produce_by:
-      - "wish/W-0009-rbf/wish.md"
+      - "wish/W-0006-rbf-sizedptr/wish.md"
 ---
 
 # RBF 二进制格式规范（Layer 0）
+
+> **状态**：Draft
+> **版本**：0.27
+> **创建日期**：2025-12-22
+> **接口契约（Layer 1）**：[rbf-interface.md](rbf-interface.md)
+> **测试向量（Layer 0）**：[rbf-test-vectors.md](rbf-test-vectors.md)
+
+---
+
 > 本文档遵循 [Atelia 规范约定](../spec-conventions.md)。
 
 ## 1. 范围与分层
+
 本文档（Layer 0）只定义：
 - RBF 文件的 **线格式（wire format）**：Fence/Magic、Frame 字节布局、对齐与 CRC32C
 - 损坏判定（Framing/CRC）与恢复相关的扫描行为（Reverse Scan / Resync）
 
 本文档不定义：
 - Frame payload 的业务语义（由上层定义）
-- `FrameTag`/`SizedPtr` 等接口类型（见 [rbf-interface.md](rbf-interface.md)）
+- `FrameTag`/`Address64` 等接口类型（见 [rbf-interface.md](rbf-interface.md)）
 
 本规范的 **SSOT（Single Source of Truth）** 是：
 - §3 的字段布局表（`[F-FRAME-LAYOUT]`）
@@ -45,8 +55,15 @@ Fence 是 RBF 文件的 **帧分隔符**，不属于任何 Frame。
 **`[F-GENESIS]`**
 
 - 每个 RBF 文件 MUST 以 Fence 开头（偏移 0，长度 4 字节）——称为 **Genesis Fence**。
-- 新建的 RBF 文件 MUST 仅含 Genesis Fence（长度 = 4 字节，表示“无任何 Frame”）。
+- 新建的 RBF 文件 MUST 仅含 Genesis Fence（长度 = 4 字节，表示"无任何 Frame"）。
+- 首帧（如果存在）的起始地址 MUST 为 `offset=4`（紧跟 Genesis Fence 之后）。
 
+**`[F-FILE-MINIMUM-LENGTH]`**
+
+- 有效 RBF 文件长度 MUST >= 4（至少包含 Genesis Fence）。
+- `fileLength < 4` 表示文件不完整或损坏，Reader MUST fail-soft（返回空序列），MUST NOT 抛出异常。
+
+> **设计理由**：fail-soft 策略与接口层 `[S-RBF-SCANREVERSE-EMPTY-IS-OK]` 保持一致，使上层可以统一处理"无有效帧"的情况，而无需区分"文件不完整"与"文件为空但合法"。
 ---
 
 ## 3. Wire Layout
@@ -57,15 +74,14 @@ Fence 是 RBF 文件的 **帧分隔符**，不属于任何 Frame。
 
 - Fence 是 **帧分隔符**（fencepost），不属于任何 Frame。
 - 文件中第一个 Fence（偏移 0）称为 **Genesis Fence**。
-- 每个 Frame 之后 MUST 紧跟一个 Fence。
+- **Writer** 写完每个 Frame 后 MUST 紧跟一个 Fence。
+- **Reader** 在崩溃恢复场景 MAY 遇到不以 Fence 结束的文件（撕裂写入），通过 Resync 处理（见 §6）。
 
 文件布局因此为：
 
 ```
 [Fence][FrameBytes][Fence][FrameBytes][Fence]...
 ```
-
-> 注：在崩溃/撕裂写入场景，文件尾部 MAY 不以 Fence 结束；Reader 通过 Resync 处理（见 §6）。
 
 ### 3.2 FrameBytes（二进制帧体）布局
 
@@ -146,6 +162,20 @@ StatusLen = 1 + ((4 - ((PayloadLen + 1) % 4)) % 4)
 | 2 | 2 |
 | 3 | 1 |
 
+**`[F-STATUSLEN-REVERSE-FORMULA]`**
+
+> Reader 从 HeadLen 反推 PayloadLen/StatusLen 的算法。
+
+```
+读取路径：
+1. statusByteOffset = frameStart + HeadLen - 9   // TailLen(4) + CRC(4) + 1 = 9
+2. statusByte = bytes[statusByteOffset]          // FrameStatus 最后一字节
+3. StatusLen = (statusByte & 0x03) + 1           // 从位域提取
+4. PayloadLen = HeadLen - 16 - StatusLen         // 反推
+```
+
+> **设计理由**：FrameStatus 位域在 Bit 0-1 编码 StatusLen-1，使得 Reader 只需读取 FrameStatus 的任意字节（全字节同值）即可确定边界，无需额外字段。
+
 **`[F-FRAME-4B-ALIGNMENT]`**
 
 - Frame 起点（HeadLen 字段位置）MUST 4B 对齐。
@@ -172,7 +202,32 @@ CRC32C = crc32c(FrameTag + Payload + FrameStatus + TailLen)
 - CRC32C MUST 覆盖：FrameTag + Payload + FrameStatus + TailLen。
 - CRC32C MUST NOT 覆盖：HeadLen、CRC32C 本身、任何 Fence。
 
+**字节偏移（SSOT）**：
+
+设 `frameStart` 为 FrameBytes 起始地址（即 HeadLen 字段位置），`frameEnd` 为 FrameBytes 末尾（即 CRC32C 字段末尾）：
+
+```
+CRC 输入区间 = [frameStart + 4, frameEnd - 4)   // 半开区间
+             = [frameStart + 4, frameStart + HeadLen - 4)
+```
+
+| 边界 | 偏移 | 说明 |
+|------|------|------|
+| 起始（含） | `frameStart + 4` | 跳过 HeadLen(4B)，从 FrameTag 开始 |
+| 结束（不含） | `frameStart + HeadLen - 4` | 不含 CRC32C(4B) 本身 |
+| 长度 | `HeadLen - 8` | FrameTag(4) + Payload(N) + FrameStatus(S) + TailLen(4) |
+
 > 注：FrameStatus 在 CRC 覆盖范围内，Tombstone 标记受 CRC 保护。
+
+**Tombstone 帧示例**（PayloadLen=0，最小帧）：
+
+```
+HeadLen = 20（最小值），StatusLen = 4（见 [F-STATUSLEN-FORMULA]）
+CRC 覆盖区间 = [frameStart+4, frameStart+16)
+CRC 覆盖内容 = FrameTag(4B) + FrameStatus(4B, 全填 0x83) + TailLen(4B) = 12 字节
+```
+
+> Tombstone 帧虽无 Payload，但其 FrameTag、FrameStatus（含 Tombstone 标记位）、TailLen 均受 CRC 保护。
 
 ### 4.2 算法约定
 
@@ -222,13 +277,15 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 常量:
    GenesisLen = 4
    FenceLen   = 4
+   MinFrameLen = 20  // PayloadLen=0, StatusLen=4 时的最小 FrameBytes
 
 辅助:
-   alignDown4(x) = x - (x % 4)
+   alignDown4(x) = x - (x % 4)   // 前置条件: x >= 0（RBF 地址均为非负）
 
-1) 若 fileLength < GenesisLen: 返回空
-2) fencePos = alignDown4(fileLength - FenceLen)
-3) while fencePos >= 0:
+1) 若 fileLength < GenesisLen: 返回空   // 不完整文件，fail-soft
+2) 若 fileLength == GenesisLen: 返回空  // 仅 Genesis Fence，无 Frame
+3) fencePos = alignDown4(fileLength - FenceLen)
+4) while fencePos >= 0:
        a) 若 fencePos == 0: 停止（到达 Genesis Fence）
        b) 若 bytes[fencePos..fencePos+4] != FenceValue:
                fencePos -= 4
@@ -254,7 +311,7 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
                   continue
 
             读取 headLen @ frameStart
-            若 headLen != tailLen 或 headLen % 4 != 0 或 headLen < 16:
+            若 headLen != tailLen 或 headLen % 4 != 0 或 headLen < 20:
                   fencePos -= 4
                   continue
 
@@ -263,6 +320,19 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
             若 computedCrc != storedCrc:
                   fencePos -= 4
                   continue
+
+            // FrameStatus 校验（见 [F-FRAMESTATUS-VALUES] 和 [F-FRAMESTATUS-FILL]）
+            statusByteOffset = frameStart + headLen - 9
+            statusByte = bytes[statusByteOffset]
+            statusLen = (statusByte & 0x03) + 1
+            若 (statusByte & 0x7C) != 0:   // Reserved bits MUST be zero
+                  fencePos -= 4
+                  continue
+            // 验证 FrameStatus 所有字节一致
+            for i in 1 .. statusLen-1:
+                  若 bytes[statusByteOffset - i] != statusByte:
+                        fencePos -= 4
+                        continue outer   // 跳到外层 while
 
             输出 frameStart
             fencePos = prevFencePos
@@ -279,23 +349,17 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 
 ---
 
-## 7. SizedPtr（Wire Format）
+## 7. Address64（编码层）
 
 ### 7.1 Wire Format
 
-**`[F-SIZEDPTR-WIRE-FORMAT]`**
+**`[F-ADDRESS64-WIRE-FORMAT]`**
 
-- **编码**：SizedPtr 在 wire format 上为 8 字节 u64 LE 紧凑编码，包含 offset 和 length。
-- **Offset**：指向 Frame 的 `HeadLen` 字段起始位置（38-bit，4B 粒度）。
-- **Length**：Frame 的字节长度（26-bit，4B 粒度）。
-- **空值**：`Packed == 0`（即 `OffsetBytes == 0 && LengthBytes == 0`）表示 null（无效引用）。
-- **对齐**：非零 SizedPtr MUST 4B 对齐。
+- **编码**：`Address64` 在 wire format 上为 8 字节 u64 LE 文件偏移量，指向 Frame 的 `HeadLen` 字段起始位置。
+- **空值**：`0` 表示 null（无效地址）。
+- **对齐**：非零地址 MUST 4B 对齐（`Value % 4 == 0`）。
 
-> 接口层的类型定义见 [rbf-interface.md](rbf-interface.md) 的 `SizedPtr`（`[F-SIZEDPTR-DEFINITION]`）。
-
-### 7.2 DataTail 表达
-
-`DataTail` 使用 `SizedPtr.OffsetBytes` 表达文件截断点（length 部分无意义，可为 0）。
+> 接口层的类型化封装见 [rbf-interface.md](rbf-interface.md) 的 `Address64`（`[F-ADDRESS64-DEFINITION]`）。
 
 ---
 
@@ -303,7 +367,7 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 
 **`[R-DATATAIL-DEFINITION]`**
 
-- `DataTail` 是一个 `SizedPtr.OffsetBytes`（见 §7），表示 data 文件的逻辑尾部。
+- `DataTail` 是一个地址（见 §7），表示 data 文件的逻辑尾部。
 - `DataTail` MUST 指向“有效数据末尾”，并包含尾部 Fence（即 `DataTail == 有效 EOF`）。
 
 **`[R-DATATAIL-TRUNCATE]`**
@@ -314,10 +378,57 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 
 ---
 
-## 10. 近期变更
+## 9. 条款索引（导航）
+
+| 条款 ID | 名称 |
+|---------|------|
+| `[F-FENCE-DEFINITION]` | Fence 定义 |
+| `[F-GENESIS]` | Genesis Fence |
+| `[F-FILE-MINIMUM-LENGTH]` | 文件最小长度 |
+| `[F-FENCE-SEMANTICS]` | Fence 语义 |
+| `[F-FRAME-LAYOUT]` | FrameBytes 布局 |
+| `[F-FRAMETAG-WIRE-ENCODING]` | FrameTag 编码（4B） |
+| `[F-FRAMESTATUS-VALUES]` | FrameStatus 值定义 |
+| `[F-HEADLEN-FORMULA]` | HeadLen 公式 |
+| `[F-STATUSLEN-FORMULA]` | StatusLen 公式 |
+| `[F-STATUSLEN-REVERSE-FORMULA]` | StatusLen 反推公式（Reader 路径） |
+| `[F-FRAME-4B-ALIGNMENT]` | 4B 对齐 |
+| `[F-FRAMESTATUS-FILL]` | FrameStatus 填充规则 |
+| `[F-CRC32C-COVERAGE]` | CRC 覆盖范围 |
+| `[F-CRC32C-ALGORITHM]` | CRC 算法 |
+| `[F-FRAMING-FAIL-REJECT]` | Framing 失败策略 |
+| `[F-CRC-FAIL-REJECT]` | CRC 失败策略 |
+| `[F-ADDRESS64-WIRE-FORMAT]` | Address64 Wire Format |
+| `[R-REVERSE-SCAN-ALGORITHM]` | 逆向扫描 |
+| `[R-RESYNC-BEHAVIOR]` | Resync 行为 |
+| `[R-DATATAIL-DEFINITION]` | DataTail 定义 |
+| `[R-DATATAIL-TRUNCATE]` | DataTail 截断 |
+
+---
+
+## 10. 变更日志
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
-| 0.17 | 2026-01-06 | **SizedPtr Wire Format**（[W-0006](../../../wish/W-0006-rbf-sizedptr/artifacts/)）：§7 重写为 SizedPtr 编码；`[F-PTR64-WIRE-FORMAT]` 改为 `[F-SIZEDPTR-WIRE-FORMAT]`；新增 §7.2 DataTail 表达 |
+| 0.27 | 2026-01-06 | §2.2 `[F-FILE-MINIMUM-LENGTH]` 修复与接口层的不一致：`SHOULD fail-soft, MAY throw` → `MUST fail-soft, MUST NOT throw`（与 `[S-RBF-SCANREVERSE-EMPTY-IS-OK]` 对齐） |
+| 0.26 | 2026-01-06 | §6.1 `alignDown4` 辅助函数增加前置条件注释：`x >= 0`（RBF 地址均为非负） |
+| 0.25 | 2026-01-06 | §2.2 新增 `[F-FILE-MINIMUM-LENGTH]` 条款：明确有效 RBF 文件最小长度为 4 字节；§6.1 伪代码增加 `fileLength == GenesisLen` 的显式检查 |
+| 0.24 | 2026-01-06 | §3.1 `[F-FENCE-SEMANTICS]` 明确 Writer/Reader 语境：Writer MUST 紧跟 Fence；Reader MAY 遇到撕裂文件 |
+| 0.23 | 2026-01-06 | §2.2 `[F-GENESIS]` 明确首帧起始地址为 offset=4（Genesis Fence 之后） |
+| 0.22 | 2026-01-06 | §4.1 `[F-CRC32C-COVERAGE]` 增加 Tombstone 帧（最小帧）CRC 覆盖范围示例 |
+| 0.21 | 2026-01-06 | §7 术语统一：`Ptr64` 改为 `Address64`，消除与 rbf-interface.md 的命名不一致 |
+| 0.20 | 2026-01-06 | §4.1 `[F-CRC32C-COVERAGE]` 补充精确字节偏移：半开区间 `[frameStart+4, frameStart+HeadLen-4)` |
+| 0.19 | 2026-01-06 | §6.1 伪代码补充 FrameStatus 校验：Reserved bits 合法性 + 全字节一致性（对齐 §5 `[F-FRAMING-FAIL-REJECT]`） |
+| 0.18 | 2026-01-06 | 新增 `[F-STATUSLEN-REVERSE-FORMULA]`：Reader 从 HeadLen 反推 PayloadLen/StatusLen 的算法 |
+| 0.17 | 2026-01-06 | 修复 §6.1 伪代码中 `headLen < 16` → `headLen < 20`，与 §3.3 最小 HeadLen 约束对齐 |
 | 0.16 | 2025-12-28 | 更新 FrameTag 接口引用：移除过时的 `[F-FRAMETAG-DEFINITION]` 条款引用，改为引用 rbf-interface.md §2.1 |
 | 0.15 | 2025-12-28 | 消除内部矛盾：删除过时的 `0x00/0xFF` 值域枚举，修正最小 HeadLen 为 20 |
+| 0.14 | 2025-12-25 | **FrameStatus 位域格式**：Bit 7 = Tombstone，Bit 0-1 = StatusLen-1，Bit 2-6 保留 |
+| 0.13 | 2025-12-25 | FrameStatus 编码 StatusLen（已被 v0.14 取代） |
+| 0.12 | 2025-12-24 | Pad 重命名为 FrameStatus；长度从 0-3 改为 1-4 |
+| 0.11 | 2025-12-24 | FrameTag 从 1B 扩展为 4B 独立字段 |
+| 0.10 | 2025-12-23 | 术语重构：合并 Magic 与 Fence 概念 |
+| 0.9 | 2025-12-23 | 条款重构：合并相关条款 |
+| 0.8 | 2025-12-23 | 消除冗余条款 |
+| 0.7 | 2025-12-23 | 彻底重写：以布局表为 SSOT |
+| 0.6 | 2025-12-23 | 结构重构 |
