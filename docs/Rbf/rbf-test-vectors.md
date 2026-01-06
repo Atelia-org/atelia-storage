@@ -8,14 +8,14 @@
 
 ## 概述
 
-本文档定义 RBF（Layer 0）的测试向量，覆盖 Frame 编码、逆向扫描、Resync、CRC 校验与 Address64/Ptr64 编码。
+本文档定义 RBF（Layer 0）的测试向量，覆盖 Frame 编码、逆向扫描、Resync、CRC 校验与 <deleted-place-holder>/Ptr64 编码。
 
 **覆盖范围**（对齐 rbf-format.md v0.15）：
 - FrameBytes 结构（HeadLen/FrameTag/Payload/FrameStatus/TailLen/CRC32C）
 - FrameStatus 位域格式（Tombstone bit + StatusLen encoding）
 - Fence-as-Separator 语义
 - Framing/CRC 损坏判定与 Resync
-- Address64/Ptr64（u64 LE 文件偏移，4B 对齐）
+- <deleted-place-holder>/Ptr64（u64 LE 文件偏移，4B 对齐）
 
 **不在覆盖范围**：
 - 上层语义（如 FrameTag 取值/MetaCommitRecord）
