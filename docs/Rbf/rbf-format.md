@@ -353,13 +353,13 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 
 ### 7.1 Wire Format
 
-**`[F-ADDRESS64-WIRE-FORMAT]`**
+**`[F-<deleted-place-holder>-WIRE-FORMAT]`**
 
 - **编码**：<deleted-place-holder> 在 wire format 上为 8 字节 u64 LE 文件偏移量，指向 Frame 的 `HeadLen` 字段起始位置。
 - **空值**：`0` 表示 null（无效地址）。
 - **对齐**：非零地址 MUST 4B 对齐（`Value % 4 == 0`）。
 
-> 接口层的类型化封装见 [rbf-interface.md](rbf-interface.md) 的 <deleted-place-holder>（`[F-ADDRESS64-DEFINITION]`）。
+> 接口层的类型化封装见 [rbf-interface.md](rbf-interface.md) 的 <deleted-place-holder>（`[F-<deleted-place-holder>-DEFINITION]`）。
 
 ---
 
@@ -398,7 +398,7 @@ Reader MUST 验证以下条款所定义的约束，任一不满足时将候选 F
 | `[F-CRC32C-ALGORITHM]` | CRC 算法 |
 | `[F-FRAMING-FAIL-REJECT]` | Framing 失败策略 |
 | `[F-CRC-FAIL-REJECT]` | CRC 失败策略 |
-| `[F-ADDRESS64-WIRE-FORMAT]` | <deleted-place-holder> Wire Format |
+| `[F-<deleted-place-holder>-WIRE-FORMAT]` | <deleted-place-holder> Wire Format |
 | `[R-REVERSE-SCAN-ALGORITHM]` | 逆向扫描 |
 | `[R-RESYNC-BEHAVIOR]` | Resync 行为 |
 | `[R-DATATAIL-DEFINITION]` | DataTail 定义 |

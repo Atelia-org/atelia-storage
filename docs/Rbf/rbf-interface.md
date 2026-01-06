@@ -401,7 +401,7 @@ public void ProcessFrame(IRbfScanner scanner, SizedPtr ptr) {
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
-| 0.18 | 2026-01-06 | **SizedPtr 替代 <deleted-place-holder>**（[W-0006](../../../wish/W-0006-rbf-sizedptr/artifacts/)）：移除 <deleted-place-holder> 类型，引入 SizedPtr 作为核心 Frame 句柄；新增 `[F-SIZEDPTR-DEFINITION]`、`[F-RBF-NULLPTR]`；移除 `[F-ADDRESS64-*]` 条款；`RbfFrame.Address` 改为 `RbfFrame.Ptr` |
+| 0.18 | 2026-01-06 | **SizedPtr 替代 <deleted-place-holder>**（[W-0006](../../../wish/W-0006-rbf-sizedptr/artifacts/)）：移除 <deleted-place-holder> 类型，引入 SizedPtr 作为核心 Frame 句柄；新增 `[F-SIZEDPTR-DEFINITION]`、`[F-RBF-NULLPTR]`；移除 `[F-<deleted-place-holder>-*]` 条款；`RbfFrame.Address` 改为 `RbfFrame.Ptr` |
 | 0.17 | 2025-12-28 | **FrameTag 接口简化**（[畅谈会决议](../../../agent-team/meeting/2025-12-28-wrapper-type-audit.md)）：移除 `FrameTag` record struct，接口层统一使用 `uint`；移除 `[F-FRAMETAG-DEFINITION]` 条款；§2.1 改为概念描述（三层视角：存储/接口/应用） |
 | 0.16 | 2025-12-28 | **RbfFrameBuilder Payload 接口简化**（[畅谈会决议](../../../agent-team/meeting/2025-12-28-rbf-builder-payload-simplification.
 
