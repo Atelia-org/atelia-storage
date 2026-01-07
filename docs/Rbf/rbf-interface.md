@@ -1,5 +1,5 @@
 ---
-docId: "rbf-format"
+docId: "rbf-interface"
 title: "RBF Shape-Tier"
 produce_by:
       - "wish/W-0009-rbf/wish.md"
@@ -8,8 +8,21 @@ produce_by:
 # RBF Layer Interface Contract
 > 本文档遵循 [Atelia 规范约定](../spec-conventions.md)。
 
+> **Decision-Layer（AI 不可修改）**：本规范受 `rbf-decisions.md` 约束。
+
+**`[S-RBF-WRITEPATH-CHUNKEDRESERVABLEWRITER]`**
+
+> 写入路径（MVP）绑定到 `Atelia.Data.ChunkedReservableWriter`（`atelia/src/Data/ChunkedReservableWriter.cs`）作为 streaming 写入（`BeginFrame()` / `RbfFrameBuilder.Payload`）的 SSOT。
+>
+> 该约束由 Decision-Layer 的 **`[S-RBF-DECISION-WRITEPATH-CHUNKEDRESERVABLEWRITER]`** 锁定。
+
 ## 1. 概述
 本文档定义 RBF（Reversible Binary Framing）层与上层（应用/业务层）之间的接口契约。
+
+### 1.1 关键设计决策（Decision-Layer）
+
+本规范的关键设计决策已上移至 **Decision-Layer**：`rbf-decisions.md`。
+本文件仅保留接口契约与其 SSOT（API 签名/语义条款）。
 
 **设计原则**：
 - RBF 是"二进制信封"——只关心如何安全封装 payload，不解释 payload 语义
@@ -71,33 +84,25 @@ RbfFrame 通过 `bool IsTombstone` 属性暴露此状态，上层无需关心底
 
 > **SizedPtr** 是 8 字节紧凑表示的 offset+length 区间，作为 RBF Interface 层的核心 Frame 句柄类型。
 
-**来源**：`Atelia.Data.SizedPtr`（38:26 位分配方案）
+**来源（SSOT）**：`Atelia.Data.SizedPtr`（实现：`atelia/src/Data/SizedPtr.cs`；默认采用 38:26 位分配方案）
+
+**`[S-RBF-SIZEDPTR-CREDENTIAL]`**
+
+> 在 RBF Interface 中，`SizedPtr` 的角色是**“可再次读取的凭据（ticket）”**：
+> - 写入一个 Frame 后返回 `SizedPtr`，上层可保存该凭据以便未来再次读取同一帧。
+> - 上层 MUST 将 `SizedPtr` 视为不透明凭据：以原样**保存/传递/回放**。
+> - `SizedPtr` 不是业务主键；业务主键/索引由上层定义。
+
+> **Wire Mapping**：`SizedPtr` 与 FrameBytes 的跨层对应关系由 `rbf-format.md` 的 `[S-RBF-SIZEDPTR-WIRE-MAPPING]` 定义。
 
 | 属性 | 位数 | 范围 | 说明 |
 |:-----|:-----|:-----|:-----|
-| `OffsetBytes` | 38-bit | ~1TB | 指向 Frame 起点（HeadLen 字段位置） |
+| `OffsetBytes` | 38-bit | ~256GB | 指向 Frame 起点（HeadLen 字段位置） |
 | `LengthBytes` | 26-bit | ~256MB | Frame 的字节长度（含 HeadLen 到 CRC32C） |
 
 **约束**：
 - 有效 SizedPtr MUST 4 字节对齐（`OffsetBytes % 4 == 0` 且 `LengthBytes % 4 == 0`）
 - 超出范围的值在构造时抛出 `ArgumentOutOfRangeException`
-
-**`[F-RBF-NULLPTR]`**
-
-> `default(SizedPtr)`（即 `Packed == 0`）在 RBF 层表示"无效的 Frame 引用"。
-
-```csharp
-// RBF 层的 Null 约定
-public static readonly SizedPtr NullPtr = default;
-
-// 判等方式
-if (ptr == default) { /* 无效引用 */ }
-```
-
-**语义**：
-- `NullPtr.OffsetBytes == 0` 且 `NullPtr.LengthBytes == 0`
-- 方法返回 `NullPtr` 表示"未找到"或操作失败
-- `TryReadAt()` 接收 `NullPtr` 时立即返回 `false`
 
 ### 2.4 Frame
 
@@ -176,7 +181,7 @@ public ref struct RbfFrameBuilder {
     /// <remarks>
     /// <para>该写入器实现 <see cref="IBufferWriter{Byte}"/>，因此可用于绝大多数序列化场景。</para>
     /// <para>此外它支持 reservation（预留/回填），供需要在 payload 内延后写入长度/计数等字段的 codec 使用。</para>
-    /// <para>接口定义见 <c>atelia/src/Data/IReservableBufferWriter.cs</c>。</para>
+    /// <para>接口定义（SSOT）：<c>atelia/src/Data/IReservableBufferWriter.cs</c>（类型：<see cref="IReservableBufferWriter"/>）。</para>
     /// <para><b>注意</b>：Payload 类型本身不承诺 Auto-Abort 一定为 Zero I/O；
     /// Zero I/O 是否可用由实现决定，见 <b>[S-RBF-BUILDER-AUTO-ABORT]</b>。</para>
     /// </remarks>
@@ -256,13 +261,21 @@ public ref struct RbfFrameBuilder {
 /// RBF 帧扫描器。支持随机读取和逆向扫描。
 /// </summary>
 public interface IRbfScanner {
+    **`[A-RBF-SCANNER-READFRAME]`**
+
     /// <summary>
     /// 读取指定位置的帧。
     /// </summary>
     /// <param name="ptr">帧位置（offset+length）</param>
-    /// <param name="frame">输出：帧内容（生命周期受限于底层缓冲区）</param>
-    /// <returns>是否成功读取</returns>
-    bool TryReadAt(SizedPtr ptr, out RbfFrame frame);
+    /// <returns>
+    /// 成功：返回 <see cref="RbfFrame"/> 视图；失败：返回 <see cref="AteliaResult{T}"/> 的 Error。
+    /// </returns>
+    /// <remarks>
+    /// <para><b>返回模式</b>：本方法使用 Result-Pattern（见：<c>atelia/docs/Primitives/AteliaResult/guide.md</c>）。</para>
+    /// <para><b>ref struct 兼容</b>：<c>AteliaResult&lt;RbfFrame&gt;</c> 允许携带 ref struct 成功值。</para>
+    /// <para><b>异常策略</b>：对于可预期的读取失败，本方法 SHOULD 使用 Failure 返回，不应依赖异常控制流。</para>
+    /// </remarks>
+    AteliaResult<RbfFrame> ReadFrame(SizedPtr ptr);
     
     /// <summary>
     /// 从文件尾部逆向扫描所有帧。
@@ -384,7 +397,9 @@ public SizedPtr WriteFrame(IRbfFramer framer, uint tag, byte[] payload) {
 
 // 读取帧
 public void ProcessFrame(IRbfScanner scanner, SizedPtr ptr) {
-    if (!scanner.TryReadAt(ptr, out var frame)) return;
+    var result = scanner.ReadFrame(ptr);
+    if (result.IsFailure) return;
+    var frame = result.Value;
     
     // 先检查帧状态，跳过墓碑帧（上层策略）
     if (frame.IsTombstone) return;
@@ -397,19 +412,21 @@ public void ProcessFrame(IRbfScanner scanner, SizedPtr ptr) {
 
 ---
 
-## 7. 最近变更
+## 6. 最近变更
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
-| 0.18 | 2026-01-06 | **SizedPtr 替代 <deleted-place-holder>**（[W-0006](../../../wish/W-0006-rbf-sizedptr/artifacts/)）：移除 <deleted-place-holder> 类型，引入 SizedPtr 作为核心 Frame 句柄；新增 `[F-SIZEDPTR-DEFINITION]`、`[F-RBF-NULLPTR]`；移除 `[F-<deleted-place-holder>-*]` 条款；`RbfFrame.Address` 改为 `RbfFrame.Ptr` |
+| 0.20 | 2026-01-07 | **移除特殊值语义**：RBF Interface 不再为任何 `SizedPtr` 取值定义特殊语义；读取失败通过 `ReadFrame` 的 `AteliaResult` Failure 表达 |
+| 0.19 | 2026-01-07 | **决策分层 + ReadFrame Result-Pattern**：新增 Decision-Layer 文件 `rbf-decisions.md`（锁定关键决策）；随机读取 API 改为 `ReadFrame` 并返回 `AteliaResult<RbfFrame>`；补齐 `SizedPtr`/`IReservableBufferWriter`/`AteliaResult<T>` 的 SSOT 引用；为 `SizedPtr` 增加 ticket 语义（凭据） |
+| 0.18 | 2026-01-06 | **SizedPtr 替代旧版地址占位类型**（[W-0006](../../../wish/W-0006-rbf-sizedptr/artifacts/)）：移除旧版地址占位类型，引入 SizedPtr 作为核心 Frame 句柄；新增 `[F-SIZEDPTR-DEFINITION]`；移除旧版地址相关条款；`RbfFrame.Address` 改为 `RbfFrame.Ptr` |
 | 0.17 | 2025-12-28 | **FrameTag 接口简化**（[畅谈会决议](../../../agent-team/meeting/2025-12-28-wrapper-type-audit.md)）：移除 `FrameTag` record struct，接口层统一使用 `uint`；移除 `[F-FRAMETAG-DEFINITION]` 条款；§2.1 改为概念描述（三层视角：存储/接口/应用） |
-| 0.16 | 2025-12-28 | **RbfFrameBuilder Payload 接口简化**（[畅谈会决议](../../../agent-team/meeting/2025-12-28-rbf-builder-payload-simplification.
+| 0.16 | 2025-12-28 | **RbfFrameBuilder Payload 接口简化**：`RbfFrameBuilder.Payload` 统一为 `IReservableBufferWriter`（SSOT：`atelia/src/Data/IReservableBufferWriter.cs`） |
 
-## 8. 待实现时确认
+## 7. 待实现时确认
 
 > 以下问题可在实现阶段确认：
 
-- **错误处理**：TryReadAt 失败时是否需要 `RbfReadStatus`（P2）
+- **错误处理**：`ReadFrame()` 的错误码集合与分层边界（P2）
 - **ScanReverse 终止条件**：遇到损坏数据时的策略（P2）
 
 ---

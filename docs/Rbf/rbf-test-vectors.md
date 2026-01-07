@@ -1,21 +1,21 @@
 # RBF 测试向量
 
-> **版本**：0.11
+> **版本**：0.12
 > **状态**：Draft
-> **关联规范**：[rbf-format.md](rbf-format.md) v0.16, [rbf-interface.md](rbf-interface.md) v0.17
+> **关联规范**：[rbf-format.md](rbf-format.md) v0.28, [rbf-interface.md](rbf-interface.md) v0.20
 
 > 本文档遵循 [Atelia 规范约定](../spec-conventions.md)。
 
 ## 概述
 
-本文档定义 RBF（Layer 0）的测试向量，覆盖 Frame 编码、逆向扫描、Resync、CRC 校验与 <deleted-place-holder>/Ptr64 编码。
+本文档定义 RBF（Layer 0）的测试向量，覆盖 Frame 编码、逆向扫描、Resync、CRC 校验与 `SizedPtr` 定位。
 
-**覆盖范围**（对齐 rbf-format.md v0.15）：
+**覆盖范围**（对齐 rbf-format.md v0.28）：
 - FrameBytes 结构（HeadLen/FrameTag/Payload/FrameStatus/TailLen/CRC32C）
 - FrameStatus 位域格式（Tombstone bit + StatusLen encoding）
 - Fence-as-Separator 语义
 - Framing/CRC 损坏判定与 Resync
-- <deleted-place-holder>/Ptr64（u64 LE 文件偏移，4B 对齐）
+- `SizedPtr`：`OffsetBytes` 指向 Frame 的 `HeadLen` 起始位置，`LengthBytes` 等于 `HeadLen`（见 `rbf-format.md` 的 `[S-RBF-SIZEDPTR-WIRE-MAPPING]`）
 
 **不在覆盖范围**：
 - 上层语义（如 FrameTag 取值/MetaCommitRecord）
@@ -28,7 +28,7 @@
 - **Fence-as-Separator**：Fence 是 Frame 分隔符，不属于任何 Frame
 - **文件结构**：`[Fence][Frame1][Fence][Frame2]...[Fence]`
 - **FrameBytes 格式**：`[HeadLen][FrameTag][Payload][FrameStatus][TailLen][CRC32C]`（不含 Fence）
-- **Ptr64**：指向 Frame 的 `HeadLen` 字段起始位置（第一个 Fence 之后）
+- **SizedPtr**：`OffsetBytes` 指向 Frame 的 `HeadLen` 字段起始位置；`LengthBytes` 等于 `HeadLen`
 - 字节序：定长整数均为 little-endian
 - CRC32C：覆盖 `FrameTag + Payload + FrameStatus + TailLen`
 
@@ -51,7 +51,7 @@
 - Given：文件结构 = `[Fence][Frame][Fence]`
 - Then：
   - `reverse_scan()` 返回 1 条 frame
-  - Frame 起始位置 = 4（Ptr64 指向 HeadLen 字段）
+  - Frame 起始位置 = 4（`SizedPtr.OffsetBytes` 指向 HeadLen 字段）
 
 ### 1.3 双条 Frame
 
@@ -182,19 +182,38 @@
 
 ---
 
-## 3. Ptr64 校验
+## 3. SizedPtr / ReadFrame 行为
 
-**用例 PTR-OK-001（指针可解析）**
-- Given：`Ptr64` 指向的 `ByteOffset` 为 4B 对齐且落在文件内，且该处跟随有效 Frame
-- Then：`ReadFrame(ptr)` 成功
+> 对应 `rbf-interface.md` 的 `ReadFrame(SizedPtr)`（Result-Pattern：`AteliaResult<RbfFrame>`）。
 
-**用例 PTR-BAD-001（ByteOffset 越界）**
-- Given：`ByteOffset >= fileSize`
-- Then：必须报错为"不可解引用"
+### 3.1 成功读取（正例）
 
-**用例 PTR-BAD-002（ByteOffset 非 4B 对齐）**
-- Given：构造一个 ptr，使 `ByteOffset % 4 != 0`
-- Then：必须报错（格式错误）
+**用例 READFRAME-OK-001（有效 SizedPtr）**
+- Given：`SizedPtr` 的 `OffsetBytes` 指向一条通过 framing/CRC 校验的帧起点，且 `LengthBytes == HeadLen`
+- When：调用 `scanner.ReadFrame(ptr)`
+- Then：返回 `AteliaResult<RbfFrame>.IsSuccess == true`
+
+### 3.2 读取失败（负例）
+
+**用例 READFRAME-BAD-001（OffsetBytes 越界）**
+- Given：`ptr.OffsetBytes >= fileSize`
+- When：调用 `scanner.ReadFrame(ptr)`
+- Then：返回 `IsFailure == true`
+
+**用例 READFRAME-BAD-002（OffsetBytes 非 4B 对齐）**
+- Given：`ptr.OffsetBytes % 4 != 0`
+- When：调用 `scanner.ReadFrame(ptr)`
+- Then：返回 `IsFailure == true`
+
+**用例 READFRAME-BAD-003（LengthBytes 与 HeadLen 不匹配）**
+- Given：`ptr.OffsetBytes` 指向一条合法帧起点，但 `ptr.LengthBytes != HeadLen`
+- When：调用 `scanner.ReadFrame(ptr)`
+- Then：返回 `IsFailure == true`
+
+**用例 READFRAME-BAD-004（指向位置无合法帧）**
+- Given：`ptr.OffsetBytes` 落在文件内且 4B 对齐，但该位置 framing/CRC 校验失败
+- When：调用 `scanner.ReadFrame(ptr)`
+- Then：返回 `IsFailure == true`
 
 ---
 
@@ -336,7 +355,7 @@
 | `[F-FRAMESTATUS-FILL]` | FrameStatus 填充规则 | RBF-OK-001/002, RBF-BAD-006 |
 | `[F-STATUSLEN-FORMULA]` | StatusLen 公式 | RBF-LEN-001/002, RBF-OK-003 |
 | `[F-FRAME-4B-ALIGNMENT]` | Frame 起点 4B 对齐 | RBF-BAD-003 |
-| `[F-PTR64-WIRE-FORMAT]` | Address/Ptr Wire Format | PTR-OK-001, PTR-BAD-001/002 |
+| `[S-RBF-SIZEDPTR-WIRE-MAPPING]` | SizedPtr 与 Wire Format 的对应关系 | READFRAME-OK-001, READFRAME-BAD-001/002/003/004 |
 | `[F-CRC32C-COVERAGE]` | CRC32C 覆盖范围 (含 Tag/Status/TailLen) | RBF-OK-001/002, RBF-BAD-002 |
 | `[R-RESYNC-BEHAVIOR]` | Resync 行为 (不信任 TailLen) | RBF-TRUNCATE-001/002, RBF-BAD-003/004 |
 | `[R-REVERSE-SCAN-ALGORITHM]` | 逆向扫描 | RBF-SINGLE-001, RBF-DOUBLE-001, RBF-OK-001/002 |
@@ -364,6 +383,7 @@
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2026-01-07 | 0.12 | **SizedPtr 迁移**：将旧版地址指针相关测试向量迁移为 `SizedPtr` + `ReadFrame` 行为向量；对齐 `rbf-format.md` 的 `[S-RBF-SIZEDPTR-WIRE-MAPPING]` |
 | 2025-12-28 | 0.11 | 更新关联规范版本：rbf-format.md v0.15 → v0.16, rbf-interface.md v0.16 → v0.17（FrameTag wrapper type 移除）；核查结果：本文档无需变更——测试向量始终将 FrameTag 作为线格式字段（4B uint）描述，不涉及 C# wrapper type |
 | 2025-12-28 | 0.10 | 更新关联规范版本：rbf-interface.md v0.15 → v0.16（Payload 接口简化、新增 `[S-RBF-BUILDER-FLUSH-NO-LEAK]`）；无测试向量变更——接口简化不影响 Layer 0 线格式或读取行为 |
 | 2025-12-28 | 0.9 | **新增 §4 ScanReverse 接口行为**（[畅谈会决议](../../../agent-team/meeting/2025-12-28-scan-reverse-return-type.md)）：空序列、Current 生命周期、多次枚举、foreach 兼容性、ref struct 约束测试向量；更新条款映射表 |
@@ -373,5 +393,5 @@
 | 2025-12-24 | 0.5 | 适配 rbf-format.md v0.11：FrameTag 扩充为 4B，Payload 偏移调整，CRC 覆盖 Tag |
 | 2025-12-23 | 0.4 | 适配 rbf-format.md v0.10+：术语更新（Payload -> FrameData, Magic -> Fence） |
 | 2025-12-23 | 0.3 | 适配 rbf-format.md v0.10：统一使用 Fence 术语，替换 Magic |
-| 2025-12-23 | 0.2 | 适配 rbf-format.md v0.9：更新条款 ID 映射（Genesis/Fence/Ptr64/Resync） |
+| 2025-12-23 | 0.2 | 适配 rbf-format.md v0.9：更新条款 ID 映射（Genesis/Fence/Address/Resync） |
 | 2025-12-22 | 0.1 | 从 mvp-test-vectors.md 提取 Layer 0 测试向量创建独立文档 |
