@@ -82,6 +82,24 @@ $$\text{StatusLen} = 1 + \big((4 - ((\text{PayloadLen}+1) \bmod 4)) \bmod 4\big)
 
 覆盖内容：`FrameTag(4B) + FrameStatus(4B) + TailLen(4B)`。
 
+## **[D-RBF-FORMAT-CRC-BYTE-OFFSET]** CRC 字节偏移推导（从 `[F-CRC32C-COVERAGE]` 推导）
+**依据 SSOT**：`rbf-format.md` 的 `[F-CRC32C-COVERAGE]`、`[F-FRAME-LAYOUT]`
+
+设 `frameStart` 为 FrameBytes 起始地址（即 HeadLen 字段位置），`frameEnd` 为 FrameBytes 末尾（即 CRC32C 字段末尾）：
+
+```
+CRC 输入区间 = [frameStart + 4, frameEnd - 4)   // 半开区间
+             = [frameStart + 4, frameStart + HeadLen - 4)
+```
+
+> **推导说明**：
+> - 由 `[F-CRC32C-COVERAGE]` 可知 CRC 覆盖 `FrameTag + Payload + FrameStatus + TailLen`，不覆盖 `HeadLen` 和 `CRC32C` 本身。
+> - 由 `[F-FRAME-LAYOUT]` 可知 `frameEnd = frameStart + HeadLen`。
+> - 因此 CRC 输入区间为 `[frameStart + 4, frameStart + HeadLen - 4)`。
+
+> **注**：FrameStatus 在 CRC 覆盖范围内，Tombstone 标记受 CRC 保护。
+> Tombstone 帧虽无 Payload，但其 FrameTag、FrameStatus（含 Tombstone 标记位）、TailLen 均受 CRC 保护。
+
 ## **[D-RBF-FORMAT-CRC-BOUNDARY-TABLE]** CRC 输入区间边界枚举（起始/结束/长度）
 **依据 SSOT**：`rbf-format.md` 的 `[F-CRC32C-COVERAGE]`（半开区间）
 

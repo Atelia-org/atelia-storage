@@ -15,8 +15,8 @@ produce_by:
 
 ## 1. 决策清单（SSOT）
 
-> **说明**：为降低“同一事实双写漂移”的风险，本文件的条款以“锁定规范层（SSOT）中的哪些条款”为主。
-> 规范细节以 `rbf-interface.md` / `rbf-format.md` 为准。
+> **说明**：为降低“同一事实双写漂移”的风险，本文件只锁定“不可随意推翻的关键决策”。
+> 规范细节以规范层（SSOT）文档为准。
 
 **`[S-RBF-DECISION-AI-IMMUTABLE]`**
 本文件中的 Decision 条款为 **AI 不可修改（MVP 固定）**：
@@ -29,27 +29,17 @@ RBF 规范（Interface/Format）MUST 以如下通用底层类型及其源码文�
 - `Atelia.Data.IReservableBufferWriter` → `atelia/src/Data/IReservableBufferWriter.cs`
 - `Atelia.AteliaResult<T>` → `atelia/src/Primitives/AteliaResult.cs`（用法指南：`atelia/docs/Primitives/AteliaResult/guide.md`）
 
-（锁定的 SSOT 位置）
-- `rbf-interface.md`：`[F-SIZEDPTR-DEFINITION]`、`RbfFrameBuilder.Payload` 对 `IReservableBufferWriter` 的引用、`[A-RBF-SCANNER-READFRAME]`
-
 **`[S-RBF-DECISION-SIZEDPTR-CREDENTIAL]`**
 写入路径返回的 `SizedPtr` MUST 作为“再次读取同一帧”的凭据（ticket），并且上层 MUST 将其视为不透明值：
 - 上层 MUST 以原样保存/传递/回放该值。
 - 上层 MUST 将其作为定位读取的输入参数，而不是业务主键。
 
-（锁定的 SSOT 位置）
-- `rbf-interface.md`：`[S-RBF-SIZEDPTR-CREDENTIAL]`
-- `rbf-format.md`：`[S-RBF-SIZEDPTR-WIRE-MAPPING]`
-
 **`[S-RBF-DECISION-READFRAME-RESULTPATTERN]`**
 随机读取 API MUST 使用 Result-Pattern：`IRbfScanner.ReadFrame` MUST 返回 `AteliaResult<RbfFrame>`；不得使用 `TryReadAt` 的 bool 模式。
 
-（锁定的 SSOT 位置）
-- `rbf-interface.md`：`[A-RBF-SCANNER-READFRAME]`
-
 ---
 
-> 下面条款从 `rbf-format.md` 上移为 Decision-Layer（根设计决策）。
+> 下面条款从 wire format 规范上移为 Decision-Layer（根设计决策）。
 > 目的：降低 wire format 的“根常量/根语义”在多个文档中双写漂移的风险。
 
 **`[F-FENCE-DEFINITION]`**
@@ -88,10 +78,6 @@ RBF wire format 的以下三个信息 MUST 以 **4 字节对齐**为基础不变
 - 逆向扫描/Resync 以 4B 步进寻找 Fence；
 - `SizedPtr` 的 4B 对齐约束（offset/length 可用更紧凑的表示并保持热路径简化）。
 
-（锁定的 SSOT 位置）
-- `rbf-decisions.md`：`[F-FENCE-DEFINITION]`、`[F-GENESIS]`、`[F-FENCE-SEMANTICS]`
-- `rbf-format.md`：`[F-FRAME-4B-ALIGNMENT]`、`[F-HEADLEN-FORMULA]`、`[F-STATUSLEN-FORMULA]`
-
 **`[S-RBF-DECISION-WRITEPATH-CHUNKEDRESERVABLEWRITER]`**
 RBF（近期 / MVP）**不追求成为与实现无关的抽象格式**；为效率与一致性，写入路径（尤其是 `BeginFrame()` / `RbfFrameBuilder.Payload` 的 streaming 写入）MUST 绑定采用如下实现作为 SSOT：
 - `Atelia.Data.ChunkedReservableWriter` → `atelia/src/Data/ChunkedReservableWriter.cs`
@@ -100,12 +86,4 @@ RBF（近期 / MVP）**不追求成为与实现无关的抽象格式**；为效�
 - RBF 写入侧的关键语义（reservation 回填、contiguous prefix flush、以及未提交 reservation 的“不可外泄”属性）允许直接依赖 `ChunkedReservableWriter` 的实现语义。
 - 若未来需要支持替代写入路径（例如纯 `PipeWriter` / 纯 `Stream`），必须以新的 Wish 明确提出，并通过新的 Decision 条款锁定其等价语义与验收标准。
 
-（锁定的 SSOT 位置）
-- `rbf-interface.md`：`[S-RBF-WRITEPATH-CHUNKEDRESERVABLEWRITER]`
-
-## 2. 与规范层的关系（导航）
-
-- **规范层（Interface / Layer 0/1 边界）**：`rbf-interface.md`
-- **规范层（Wire Format / Layer 0）**：`rbf-format.md`
-
-> Decision-Layer MAY 引用规范层以指明“决策锁定了哪些条款”；规范层 MUST 引用本文件以声明“受哪些决策约束”。
+> 规范层 MUST 引用本文件以声明“受哪些决策约束”。

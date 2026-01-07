@@ -129,16 +129,6 @@ CRC32C = crc32c(FrameTag + Payload + FrameStatus + TailLen)
 - CRC32C MUST 覆盖：FrameTag + Payload + FrameStatus + TailLen。
 - CRC32C MUST NOT 覆盖：HeadLen、CRC32C 本身、任何 Fence。
 
-**字节偏移（SSOT）**：
-设 `frameStart` 为 FrameBytes 起始地址（即 HeadLen 字段位置），`frameEnd` 为 FrameBytes 末尾（即 CRC32C 字段末尾）：
-
-```
-CRC 输入区间 = [frameStart + 4, frameEnd - 4)   // 半开区间
-             = [frameStart + 4, frameStart + HeadLen - 4)
-```
-> 注：FrameStatus 在 CRC 覆盖范围内，Tombstone 标记受 CRC 保护。
-> Tombstone 帧虽无 Payload，但其 FrameTag、FrameStatus（含 Tombstone 标记位）、TailLen 均受 CRC 保护。
-
 ### 4.2 算法约定
 
 **`[F-CRC32C-ALGORITHM]`**
