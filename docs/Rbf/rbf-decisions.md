@@ -19,13 +19,11 @@ produce_by:
 > 规范细节以 `rbf-interface.md` / `rbf-format.md` 为准。
 
 **`[S-RBF-DECISION-AI-IMMUTABLE]`**
-
 本文件中的 Decision 条款为 **AI 不可修改（MVP 固定）**：
 - **AI MUST NOT 修改**任何 Decision 条款的语义。
 - 如需演进，必须创建新的 Wish + 评审记录，并在相关规范文档的变更日志中显式登记。
 
 **`[S-RBF-DECISION-CORE-TYPES-SSOT]`**
-
 RBF 规范（Interface/Format）MUST 以如下通用底层类型及其源码文件作为 SSOT：
 - `Atelia.Data.SizedPtr` → `atelia/src/Data/SizedPtr.cs`
 - `Atelia.Data.IReservableBufferWriter` → `atelia/src/Data/IReservableBufferWriter.cs`
@@ -35,7 +33,6 @@ RBF 规范（Interface/Format）MUST 以如下通用底层类型及其源码文�
 - `rbf-interface.md`：`[F-SIZEDPTR-DEFINITION]`、`RbfFrameBuilder.Payload` 对 `IReservableBufferWriter` 的引用、`[A-RBF-SCANNER-READFRAME]`
 
 **`[S-RBF-DECISION-SIZEDPTR-CREDENTIAL]`**
-
 写入路径返回的 `SizedPtr` MUST 作为“再次读取同一帧”的凭据（ticket），并且上层 MUST 将其视为不透明值：
 - 上层 MUST 以原样保存/传递/回放该值。
 - 上层 MUST 将其作为定位读取的输入参数，而不是业务主键。
@@ -45,7 +42,6 @@ RBF 规范（Interface/Format）MUST 以如下通用底层类型及其源码文�
 - `rbf-format.md`：`[S-RBF-SIZEDPTR-WIRE-MAPPING]`
 
 **`[S-RBF-DECISION-READFRAME-RESULTPATTERN]`**
-
 随机读取 API MUST 使用 Result-Pattern：`IRbfScanner.ReadFrame` MUST 返回 `AteliaResult<RbfFrame>`；不得使用 `TryReadAt` 的 bool 模式。
 
 （锁定的 SSOT 位置）
@@ -57,7 +53,6 @@ RBF 规范（Interface/Format）MUST 以如下通用底层类型及其源码文�
 > 目的：降低 wire format 的“根常量/根语义”在多个文档中双写漂移的风险。
 
 **`[F-FENCE-DEFINITION]`**
-
 Fence 是 RBF 文件的 **帧分隔符**，不属于任何 Frame。
 
 | 属性 | 值 |
@@ -67,13 +62,11 @@ Fence 是 RBF 文件的 **帧分隔符**，不属于任何 Frame。
 | 编码 | ASCII 字节序列写入（非 u32 端序），读取时按字节匹配 |
 
 **`[F-GENESIS]`**
-
 - 每个 RBF 文件 MUST 以 Fence 开头（偏移 0，长度 4 字节）——称为 **Genesis Fence**。
 - 新建的 RBF 文件 MUST 仅含 Genesis Fence（长度 = 4 字节，表示"无任何 Frame"）。
 - 首帧（如果存在）的起始地址 MUST 为 `offset=4`（紧跟 Genesis Fence 之后）。
 
 **`[F-FENCE-SEMANTICS]`**
-
 - Fence 是 **帧分隔符**（fencepost），不属于任何 Frame。
 - 文件中第一个 Fence（偏移 0）称为 **Genesis Fence**。
 - **Writer** 写完每个 Frame 后 MUST 紧跟一个 Fence。
@@ -86,7 +79,6 @@ Fence 是 RBF 文件的 **帧分隔符**，不属于任何 Frame。
 ```
 
 **`[S-RBF-DECISION-4B-ALIGNMENT-ROOT]`**
-
 RBF wire format 的以下三个信息 MUST 以 **4 字节对齐**为基础不变量（根设计决策）：
 - `[Fence]` 的起始地址（byte offset）
 - `[FrameBytes]` 的起始地址（即 FrameStart / HeadLen 字段位置）
@@ -101,7 +93,6 @@ RBF wire format 的以下三个信息 MUST 以 **4 字节对齐**为基础不变
 - `rbf-format.md`：`[F-FRAME-4B-ALIGNMENT]`、`[F-HEADLEN-FORMULA]`、`[F-STATUSLEN-FORMULA]`
 
 **`[S-RBF-DECISION-WRITEPATH-CHUNKEDRESERVABLEWRITER]`**
-
 RBF（近期 / MVP）**不追求成为与实现无关的抽象格式**；为效率与一致性，写入路径（尤其是 `BeginFrame()` / `RbfFrameBuilder.Payload` 的 streaming 写入）MUST 绑定采用如下实现作为 SSOT：
 - `Atelia.Data.ChunkedReservableWriter` → `atelia/src/Data/ChunkedReservableWriter.cs`
 

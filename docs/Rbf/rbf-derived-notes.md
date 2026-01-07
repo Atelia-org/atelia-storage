@@ -36,7 +36,6 @@ produce_by:
 ---
 
 ## **[D-RBF-FORMAT-MIN-HEADLEN]** 最小 HeadLen（FrameBytes 最小长度）推导
-
 **依据 SSOT**：`rbf-format.md` 的 `[F-HEADLEN-FORMULA]` 与 `[F-STATUSLEN-FORMULA]`
 
 - 当 `PayloadLen = 0` 时，`PayloadLen % 4 = 0`。
@@ -47,7 +46,6 @@ produce_by:
 因此：最小 `HeadLen = 20`。
 
 ## **[D-RBF-FORMAT-STATUSLEN-RANGE-TABLE]** StatusLen 值域枚举（按 PayloadLen%4）
-
 **依据 SSOT**：`rbf-format.md` 的 `[F-STATUSLEN-FORMULA]`
 
 | PayloadLen % 4 | StatusLen |
@@ -58,7 +56,6 @@ produce_by:
 | 3 | 1 |
 
 ## **[D-RBF-FORMAT-STATUSLEN-FORMULA-PROPERTIES]** StatusLen 公式的性质（值域 + 对齐保证）
-
 **依据 SSOT**：`rbf-format.md` 的 `[F-STATUSLEN-FORMULA]`
 
 从公式：
@@ -73,7 +70,6 @@ $$\text{StatusLen} = 1 + \big((4 - ((\text{PayloadLen}+1) \bmod 4)) \bmod 4\big)
             $$ (\text{PayloadLen}+\text{StatusLen}) \bmod 4 = (r-1 + 1 + (4-r)) \bmod 4 = 0 $$
 
 ## **[D-RBF-FORMAT-TOMBSTONE-CRC-EXAMPLE]** Tombstone 最小帧的 CRC 覆盖算例
-
 **依据 SSOT**：`rbf-format.md` 的 `[F-CRC32C-COVERAGE]`、`[F-HEADLEN-FORMULA]`、`[F-FRAMESTATUS-VALUES]`
 
 场景：`PayloadLen = 0`（Tombstone 帧，最小帧）
@@ -87,7 +83,6 @@ $$\text{StatusLen} = 1 + \big((4 - ((\text{PayloadLen}+1) \bmod 4)) \bmod 4\big)
 覆盖内容：`FrameTag(4B) + FrameStatus(4B) + TailLen(4B)`。
 
 ## **[D-RBF-FORMAT-CRC-BOUNDARY-TABLE]** CRC 输入区间边界枚举（起始/结束/长度）
-
 **依据 SSOT**：`rbf-format.md` 的 `[F-CRC32C-COVERAGE]`（半开区间）
 
 | 边界 | 偏移 | 说明 |
@@ -97,7 +92,6 @@ $$\text{StatusLen} = 1 + \big((4 - ((\text{PayloadLen}+1) \bmod 4)) \bmod 4\big)
 | 长度 | `HeadLen - 8` | 半开区间长度（可由上两行相减得到） |
 
 ## **[D-RBF-FORMAT-STATUSLEN-REVERSE]** Reader 反推 PayloadLen/StatusLen 算法（从 HeadLen + FrameStatus）
-
 **依据 SSOT**：`rbf-format.md` 的 `[F-FRAME-LAYOUT]`、`[F-FRAMESTATUS-VALUES]`、`[F-FRAMESTATUS-FILL]`、`[F-HEADLEN-FORMULA]`
 
 ```
@@ -111,7 +105,6 @@ $$\text{StatusLen} = 1 + \big((4 - ((\text{PayloadLen}+1) \bmod 4)) \bmod 4\big)
 > 注：由于 `[F-FRAMESTATUS-FILL]`（FrameStatus 全字节同值），Reader 读取 FrameStatus 的任意一个字节即可得到 `StatusLen`。
 
 ## **[D-RBF-FORMAT-FRAMESTATUS-BITMASK]** FrameStatus 位域的掩码判断规则（可机械推导）
-
 **依据 SSOT**：`rbf-format.md` 的 `[F-FRAMESTATUS-VALUES]`（位域布局表）
 
 ```
@@ -122,7 +115,6 @@ IsMvpValid  = (status & 0x7C) == 0   // Reserved bits must be zero
 ```
 
 ## **[D-RBF-FORMAT-REVERSE-SCAN-PSEUDOCODE]** Reverse Scan / Resync 参考伪代码（Informative）
-
 **依据 SSOT**：`rbf-format.md` 的 `[R-REVERSE-SCAN-ALGORITHM]`、`[R-RESYNC-BEHAVIOR]`、`[F-FRAMING-FAIL-REJECT]`、`[F-CRC-FAIL-REJECT]`
 
 > 本节提供一种可行的参考实现（伪代码），用于帮助实现者快速落地。
