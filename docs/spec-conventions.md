@@ -36,7 +36,56 @@
 - 废弃条款用 `DEPRECATED` 标记，保留原锚点名便于历史追溯
 - 每条规范性条款（MUST/MUST NOT）应能映射到至少一个测试向量或 failpoint 测试
 
-## 3. 信息表示与图表（LLM-Friendly Notation）
+## 3. 文档分层与引用方向（Decision → SSOT → Derived）
+
+> 本节是为“LLM/AI 参与迭代修订”而新增的工程护栏：通过**文件边界**将不同因果层级的信息分离，降低混杂导致的自洽性维护成本。
+
+### 3.1 三层信息模型
+
+**`[S-DOC-LAYERING-DECISION-SSOT-DERIVED]`** 规范文档在信息形态上 MUST 显式区分三层：
+
+1. **Decision-Layer（决策层）**：
+  - 定义“不可随意推翻的关键设计决策”（例如类型选型、错误协议、凭据语义）。
+  - SHOULD 以单独文件承载，并在文件头部写明“AI 不可修改”（当该决策被锁定时）。
+
+2. **SSOT / Normative-Layer（规范层 / 单一事实源）**：
+  - 定义可测试的 wire layout、API 签名、算法步骤、失败语义（MUST/MUST NOT）。
+  - 该层的 SSOT 通常是布局表/公式/伪代码/条款锚点。
+
+3. **Derived / Informative-Layer（推导/澄清层）**：
+  - 只承载从 Decision/SSOT **推断得到**的结论、FAQ、例子、算例、直觉解释。
+  - 该层的内容允许滞后、允许被删改、允许不完整。
+
+### 3.2 单向引用规则
+
+**`[S-DOC-REF-DIRECTION-DECISION-SSOT-DERIVED]`** 文档之间 MUST 遵守单向引用（禁止逆流）：
+
+- Decision-Layer MAY 引用 SSOT/规范层条款（用于声明“决策锁定了哪些规范选择”）。
+- SSOT/规范层 MUST 引用其所遵循的 Decision-Layer（用于声明“本规范受哪些决策约束”）。
+- Derived/推导层 MAY 引用 Decision-Layer 与 SSOT/规范层（用于解释与答疑）。
+- SSOT/规范层 MUST NOT 反向依赖 Derived/推导层作为规范依据（Derived 只能“可选参阅”，不得成为约束来源）。
+
+> **解释**：Derived 层的存在是为了解释和降低沟通成本，但它不应反向塑造规范，否则会形成“双写漂移”。
+
+### 3.3 Derived 层的“允许滞后”约定
+
+**`[S-DOC-DERIVED-LAYER-ALLOW-DRIFT]`** Derived/推导层 MUST 明确标注为（Informative / Derived），并满足：
+
+- 当 Derived 与 SSOT 冲突时，MUST 以 SSOT 为准。
+- Derived 层的内容 MAY 在演进中被删除、重写或暂时缺失，不构成规范缺陷。
+
+**（建议）Derived 条款锚点**：Derived/推导层 MAY 使用 `**[D-NAME]**` 作为导航锚点（仅用于引用与检索），但 `D-*` 不属于规范性条款，不应被解释为 MUST/MUST NOT 约束。
+
+### 3.4 文件命名建议（规范化提示）
+
+**`[S-DOC-LAYER-FILENAME-CONVENTION]`** 当采用“分文件分层”时，文件名 SHOULD 显式体现层级：
+
+- Decision-Layer：`<topic>-decisions.md`
+- Derived-Layer：`<topic>-derived-notes.md`
+
+其中 `<topic>` MUST 使用 `lower-kebab-case`（见 §4.1“文件名域”）。
+
+## 4. 信息表示与图表（LLM-Friendly Notation）
 
 > 本节规范适用于所有设计规范、RFC、提案、会议结论、接口规格等 Markdown 文档。
 > 
@@ -44,7 +93,7 @@
 > 
 > **参考**：[2025-12-24 畅谈会记录](../../agent-team/meeting/2025-12-24-llm-friendly-notation.md)
 
-### 3.1 核心原则
+### 4.1 核心原则
 
 **[S-DOC-ASCIIART-SHOULDNOT]** 规范文档 SHOULD NOT 使用 ASCII art / box-drawing 图承载结构化信息（例如框图、手工画的状态机/流程图/位图）。
 - 若出于教学/情绪/历史原因保留 ASCII art，MUST 标注为（Informative / Illustration），并在相邻位置提供等价的线性 SSOT（列表/表格/Mermaid 代码块）。
@@ -52,7 +101,7 @@
 **[S-DOC-SSOT-NO-DOUBLEWRITE]** 同一事实/约束 MUST 只保留一个 SSOT（Single Source of Truth）表示。
 - 任何非 SSOT 的"辅助表示"（图示、例子、口语复述）MUST NOT 引入新增约束，且 SHOULD 指回 SSOT（章节链接或条款 ID）。
 
-### 3.2 形式选择指导
+### 4.2 形式选择指导
 
 **[S-DOC-FORMAT-MINIMALISM]** 表示形式选择 SHOULD 遵循"最小复杂度（降级）"原则：
 1. 能用**行内文本**讲清的，不用**列表**。
@@ -105,7 +154,7 @@
 > **端序**：Little-Endian (LE)
 ```
 
-### 3.3 快速参考
+### 4.3 快速参考
 
 | 信息类型 | 推荐 SSOT | 避免 |
 |----------|-----------|------|
@@ -121,12 +170,13 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.5 | 2026-01-07 | 新增“文档分层与引用方向（Decision → SSOT → Derived）”协议：单向引用规则 + Derived 允许滞后；新增层级文件命名建议 |
 | 0.4 | 2025-12-25 | 细化 `[S-DOC-BITLAYOUT-AS-TABLE]`：明确推荐"行=字段，列=属性"结构；视觉表格降级为 Illustration |
 | 0.3 | 2025-12-25 | 新增 `[S-DOC-RELATIONS-AS-TEXT]` 条款；澄清 `[S-DOC-RELATIONS-AS-TABLE]` 和 `[S-DOC-SIMPLE-FLOW-INLINE]` 的适用边界（[畅谈会决议](../../agent-team/meeting/2025-12-25-llm-friendly-notation-field-test.md)）|
 | 0.2 | 2025-12-24 | 新增第 3 章"信息表示与图表"（LLM-Friendly Notation）|
 | 0.1 | 2025-12-22 | 从 StateJournal mvp-design-v2.md 提取 |
 
-## 4. 术语命名规范（Terminology Naming Conventions）
+## 5. 术语命名规范（Terminology Naming Conventions）
 
 > 本节规范适用于所有设计规范、RFC、提案、会议结论、接口规格等 Markdown 文档中的术语使用。
 > 
