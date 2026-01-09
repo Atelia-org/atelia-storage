@@ -1,3 +1,10 @@
+---
+docId: "rbf-test-vectors"
+title: "RBF 测试向量"
+produce_by:
+  - "wish/W-0009-rbf/wish.md"
+---
+
 # RBF 测试向量
 
 > **版本**：0.12

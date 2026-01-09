@@ -7,14 +7,15 @@ produce_by:
 
 # RBF Layer Interface Contract
 > 本文档遵循 [Atelia 规范约定](../spec-conventions.md)。
+> 本文档遵循 [AI-Design-DSL](../../../agent-team/wiki/SoftwareDesignModeling/AI-Design-DSL.md) 规范。
 
 > **Decision-Layer（AI 不可修改）**：本规范受 `rbf-decisions.md` 约束。
 
-**`[S-RBF-WRITEPATH-CHUNKEDRESERVABLEWRITER]`**
-
-> 写入路径（MVP）绑定到 `Atelia.Data.ChunkedReservableWriter`（`atelia/src/Data/ChunkedReservableWriter.cs`）作为 streaming 写入（`BeginFrame()` / `RbfFrameBuilder.Payload`）的 SSOT。
->
-> 该约束由 Decision-Layer 的 **`[S-RBF-DECISION-WRITEPATH-CHUNKEDRESERVABLEWRITER]`** 锁定。
+### spec [S-RBF-WRITEPATH-CHUNKEDRESERVABLEWRITER] 写入路径绑定
+```clause-matter
+depends: "@[S-RBF-DECISION-WRITEPATH-CHUNKEDRESERVABLEWRITER](rbf-decisions.md)"
+```
+> 写入路径的实现绑定由 Decision-Layer 锁定，详见 @[S-RBF-DECISION-WRITEPATH-CHUNKEDRESERVABLEWRITER](rbf-decisions.md)。
 
 ## 1. 概述
 本文档定义 RBF（Reversible Binary Framing）层与上层（应用/业务层）之间的接口契约。
@@ -42,7 +43,7 @@ produce_by:
 ## 2. 术语表（Layer 0）
 > 本节定义 RBF 层的独立术语。上层业务语义（如 FrameTag 取值）由上层文档定义。
 
-### 2.1 FrameTag
+## term `FrameTag` 帧类型标识符
 
 > **FrameTag** 是 4 字节（`uint`）的帧类型标识符。RBF 层不解释其语义，仅作为 payload 的 discriminator 透传。
 >
@@ -53,66 +54,60 @@ produce_by:
 
 **保留值**：无。RBF 层不保留任何 FrameTag 值，全部值域由上层定义。
 
-> **设计理由**：4B 的 FrameTag 保持 Payload 4B 对齐，并支持 fourCC 风格的类型标识（如 `META`, `OBJV`）。
+### derived [H-FRAMETAG-4B-ALIGNMENT] FrameTag 4字节对齐设计理由
+> 4B 的 @`FrameTag` 保持 Payload 4B 对齐，并支持 fourCC 风格的类型标识（如 `META`, `OBJV`）。
 
 
-### 2.2 Tombstone（墓碑帧）
+## term `Tombstone` 墓碑帧
 
-**`[F-TOMBSTONE-DEFINITION]`**
-
+### spec [F-TOMBSTONE-DEFINITION] 墓碑帧定义
 > **Tombstone**（墓碑帧）是帧的有效性标记（Layer 0 元信息），表示该帧已被逻辑删除或是 Auto-Abort 的产物。
 
 RbfFrame 通过 `bool IsTombstone` 属性暴露此状态，上层无需关心底层编码细节（编码定义见 rbf-format.md）。
 
-**`[S-RBF-TOMBSTONE-VISIBLE]`**
-
+### spec [S-RBF-TOMBSTONE-VISIBLE] Scanner产出Tombstone
 > `IRbfScanner` MUST 产出所有通过 framing/CRC 校验的帧，包括 Tombstone 帧。
 
-**`[S-UPPERLAYER-TOMBSTONE-SKIP]`**
-
+### spec [S-UPPERLAYER-TOMBSTONE-SKIP] 上层跳过Tombstone
 > 上层记录读取逻辑 MUST 忽略 Tombstone 帧（`IsTombstone == true`），不将其解释为业务记录。
 
-> **设计理由**：
+### derived [H-TOMBSTONE-VISIBILITY-RATIONALE] 墓碑帧可见性设计理由
 > - Scanner 是"原始帧扫描器"，职责边界清晰；
 > - Tombstone 可见性对诊断/调试有价值；
 > - 过滤责任在 Layer 1，不在 Layer 0；
 > - 接口层隐藏编码细节，上层无需知道 wire format 的具体字节值。
 
-### 2.3 SizedPtr
+## term `SizedPtr` 帧句柄
 
-**`[F-SIZEDPTR-DEFINITION]`**
-
+### spec [F-SIZEDPTR-DEFINITION] SizedPtr定义
 > **SizedPtr** 是 8 字节紧凑表示的 offset+length 区间，作为 RBF Interface 层的核心 Frame 句柄类型。
 
 **来源（SSOT）**：`Atelia.Data.SizedPtr`（实现：`atelia/src/Data/SizedPtr.cs`；默认采用 38:26 位分配方案）
 
-**`[S-RBF-SIZEDPTR-CREDENTIAL]`**
+### spec [S-RBF-SIZEDPTR-CREDENTIAL] SizedPtr凭据语义
+```clause-matter
+depends: "@[S-RBF-DECISION-SIZEDPTR-CREDENTIAL](rbf-decisions.md)"
+```
+> 在 RBF Interface 中，`SizedPtr` 作为"可再次读取的凭据（ticket）"。凭据语义由 Decision-Layer 锁定，详见 @[S-RBF-DECISION-SIZEDPTR-CREDENTIAL](rbf-decisions.md)。
 
-> 在 RBF Interface 中，`SizedPtr` 的角色是**“可再次读取的凭据（ticket）”**：
-> - 写入一个 Frame 后返回 `SizedPtr`，上层可保存该凭据以便未来再次读取同一帧。
-> - 上层 MUST 将 `SizedPtr` 视为不透明凭据：以原样**保存/传递/回放**。
-> - `SizedPtr` 不是业务主键；业务主键/索引由上层定义。
+### derived [H-SIZEDPTR-WIRE-MAPPING] SizedPtr与FrameBytes映射
+> **Wire Mapping**：`SizedPtr` 与 FrameBytes 的跨层对应关系由 `rbf-format.md` 的 @[S-RBF-SIZEDPTR-WIRE-MAPPING] 定义。
+>
+> **位分配与范围**：见 SSOT `atelia/src/Data/SizedPtr.cs`（采用 38:26 位分配方案，4B 对齐）。
 
-> **Wire Mapping**：`SizedPtr` 与 FrameBytes 的跨层对应关系由 `rbf-format.md` 的 `[S-RBF-SIZEDPTR-WIRE-MAPPING]` 定义。
+### spec [S-SIZEDPTR-ALIGNMENT-CONSTRAINT] SizedPtr对齐约束
+> - 有效 SizedPtr MUST 4 字节对齐（`OffsetBytes % 4 == 0` 且 `LengthBytes % 4 == 0`）
+> - 超出范围的值在构造时抛出 `ArgumentOutOfRangeException`
 
-| 属性 | 位数 | 范围 | 说明 |
-|:-----|:-----|:-----|:-----|
-| `OffsetBytes` | 38-bit | ~256GB | 指向 Frame 起点（HeadLen 字段位置） |
-| `LengthBytes` | 26-bit | ~256MB | Frame 的字节长度（含 HeadLen 到 CRC32C） |
-
-**约束**：
-- 有效 SizedPtr MUST 4 字节对齐（`OffsetBytes % 4 == 0` 且 `LengthBytes % 4 == 0`）
-- 超出范围的值在构造时抛出 `ArgumentOutOfRangeException`
-
-### 2.4 Frame
+## term `Frame` 帧
 
 > **Frame** 是 RBF 的基本 I/O 单元。
 
 上层只需知道：
 
-- 每个 Frame 有一个 `FrameTag`、`Payload` 和 `IsTombstone` 状态
-- Frame 写入后返回其 `SizedPtr`（包含 offset+length）
-- Frame 读取通过 `SizedPtr` 定位
+- 每个 Frame 有一个 @`FrameTag`、`Payload` 和 `IsTombstone` 状态
+- Frame 写入后返回其 @`SizedPtr`（包含 offset+length）
+- Frame 读取通过 @`SizedPtr` 定位
 
 > Frame 的内部结构（wire format）在 rbf-format.md 中定义，接口层无需关心。
 
@@ -120,9 +115,7 @@ RbfFrame 通过 `bool IsTombstone` 属性暴露此状态，上层无需关心底
 
 ## 3. 写入接口
 
-### 3.1 IRbfFramer
-
-**`[A-RBF-FRAMER-INTERFACE]`**
+### spec [A-RBF-FRAMER-INTERFACE] IRbfFramer接口定义
 
 ```csharp
 /// <summary>
@@ -161,9 +154,7 @@ public interface IRbfFramer {
 }
 ```
 
-### 3.2 RbfFrameBuilder
-
-**`[A-RBF-FRAME-BUILDER]`**
+### spec [A-RBF-FRAME-BUILDER] RbfFrameBuilder定义
 
 ```csharp
 /// <summary>
@@ -172,7 +163,7 @@ public interface IRbfFramer {
 /// <remarks>
 /// <para><b>生命周期</b>：调用方 MUST 调用 <see cref="Commit"/> 或 <see cref="Dispose"/> 之一来结束构建器生命周期。</para>
 /// <para><b>Auto-Abort（Optimistic Clean Abort）</b>：若未 Commit 就 Dispose，
-/// 逻辑上该帧视为不存在；物理实现规则见 <b>[S-RBF-BUILDER-AUTO-ABORT]</b>。</para>
+/// 逻辑上该帧视为不存在；物理实现规则见 @[S-RBF-BUILDER-AUTO-ABORT]。</para>
 /// </remarks>
 public ref struct RbfFrameBuilder {
     /// <summary>
@@ -183,7 +174,7 @@ public ref struct RbfFrameBuilder {
     /// <para>此外它支持 reservation（预留/回填），供需要在 payload 内延后写入长度/计数等字段的 codec 使用。</para>
     /// <para>接口定义（SSOT）：<c>atelia/src/Data/IReservableBufferWriter.cs</c>（类型：<see cref="IReservableBufferWriter"/>）。</para>
     /// <para><b>注意</b>：Payload 类型本身不承诺 Auto-Abort 一定为 Zero I/O；
-    /// Zero I/O 是否可用由实现决定，见 <b>[S-RBF-BUILDER-AUTO-ABORT]</b>。</para>
+    /// Zero I/O 是否可用由实现决定，见 @[S-RBF-BUILDER-AUTO-ABORT]。</para>
     /// </remarks>
     public IReservableBufferWriter Payload { get; }
     
@@ -207,8 +198,7 @@ public ref struct RbfFrameBuilder {
 
 **关键语义**：
 
-**`[S-RBF-BUILDER-AUTO-ABORT]`**（Optimistic Clean Abort）
-
+### spec [S-RBF-BUILDER-AUTO-ABORT] Auto-Abort语义（Optimistic Clean Abort）
 > 若 `RbfFrameBuilder` 未调用 `Commit()` 就执行 `Dispose()`：
 >
 > **逻辑语义**（对外可观测）：
@@ -234,17 +224,14 @@ public ref struct RbfFrameBuilder {
 
 此机制防止上层异常导致 Writer 死锁，同时在可能时优化为零 I/O。
 
-**`[S-RBF-BUILDER-FLUSH-NO-LEAK]`**
-
+### spec [S-RBF-BUILDER-FLUSH-NO-LEAK] Flush不泄露未提交数据
 > 当存在 open `RbfFrameBuilder` 时，`IRbfFramer.Flush()` MUST NOT 使任何未 `Commit()` 的字节对下游/扫描器可观测。
 
-**`[S-RBF-FRAMER-NO-FSYNC]`**
-
+### spec [S-RBF-FRAMER-NO-FSYNC] Flush不执行fsync
 > `IRbfFramer.Flush()` MUST NOT 执行 fsync 操作。
 > Fsync 策略（例如 data→meta 的提交顺序）由上层控制。
 
-**`[S-RBF-BUILDER-SINGLE-OPEN]`**
-
+### spec [S-RBF-BUILDER-SINGLE-OPEN] 单Builder约束
 > 同一 `IRbfFramer` 实例同时最多允许 1 个 open `RbfFrameBuilder`。
 > 在前一个 Builder 完成（Commit 或 Dispose）前调用 `BeginFrame()` MUST 抛出 `InvalidOperationException`。
 
@@ -252,131 +239,100 @@ public ref struct RbfFrameBuilder {
 
 ## 4. 读取接口
 
-### 4.1 IRbfScanner
-
-**`[A-RBF-SCANNER-INTERFACE]`**
+### spec [A-RBF-SCANNER-INTERFACE] IRbfScanner接口定义
 
 ```csharp
 /// <summary>
 /// RBF 帧扫描器。支持随机读取和逆向扫描。
 /// </summary>
+/// <remarks>
+/// <para><b>线程安全</b>：非线程安全，单消费者使用。</para>
+/// </remarks>
 public interface IRbfScanner {
-    **`[A-RBF-SCANNER-READFRAME]`**
-
     /// <summary>
-    /// 读取指定位置的帧。
+    /// 随机读取指定位置的帧。
     /// </summary>
-    /// <param name="ptr">帧位置（offset+length）</param>
-    /// <returns>
-    /// 成功：返回 <see cref="RbfFrame"/> 视图；失败：返回 <see cref="AteliaResult{T}"/> 的 Error。
-    /// </returns>
+    /// <param name="ptr">帧位置（由写入路径返回的凭据）</param>
+    /// <returns>读取结果（成功时包含帧数据，失败时包含错误信息）</returns>
     /// <remarks>
-    /// <para><b>返回模式</b>：本方法使用 Result-Pattern（见：<c>atelia/docs/Primitives/AteliaResult/guide.md</c>）。</para>
-    /// <para><b>ref struct 兼容</b>：<c>AteliaResult&lt;RbfFrame&gt;</c> 允许携带 ref struct 成功值。</para>
-    /// <para><b>异常策略</b>：对于可预期的读取失败，本方法 SHOULD 使用 Failure 返回，不应依赖异常控制流。</para>
+    /// <para><b>[S-RBF-DECISION-READFRAME-RESULTPATTERN]</b>：使用 Result-Pattern 返回。</para>
     /// </remarks>
     AteliaResult<RbfFrame> ReadFrame(SizedPtr ptr);
     
     /// <summary>
     /// 从文件尾部逆向扫描所有帧。
     /// </summary>
-    /// <returns>帧序列（从尾到头）</returns>
+    /// <returns>帧序列（从尾到头，duck-typed 枚举器）</returns>
     /// <remarks>
-    /// <para>返回 duck-typed 可枚举序列，支持 foreach。</para>
-    /// <para><b>不实现 IEnumerable</b>：因 RbfFrame 是 ref struct，无法作为泛型接口类型参数。</para>
-    /// <para><b>LINQ 不可用</b>：若需持久化数据，请调用 <see cref="RbfFrame.PayloadToArray"/>。</para>
+    /// <para><b>[R-REVERSE-SCAN-ALGORITHM]</b>：从尾部向前扫描，遇到损坏时 Resync。</para>
+    /// <para><b>[S-RBF-TOMBSTONE-VISIBLE]</b>：包含 Tombstone 帧。</para>
     /// </remarks>
     RbfReverseSequence ScanReverse();
 }
 ```
 
-### 4.2 RbfReverseSequence
-
-**`[A-RBF-REVERSE-SEQUENCE]`**
+### spec [A-RBF-REVERSE-SEQUENCE] RbfReverseSequence定义
 
 ```csharp
 /// <summary>
-/// 逆向扫描的帧序列（瞬态，stack-only）。
+/// 逆向扫描序列（duck-typed 枚举器，支持 foreach）。
 /// </summary>
 /// <remarks>
-/// <para>实现 duck-typed 枚举器模式，支持 foreach 语法。</para>
-/// <para><b>不实现 IEnumerable&lt;T&gt;</b>：因 RbfFrame 是 ref struct。</para>
-/// <para><b>生命周期</b>：序列本身是 ref struct，不能存储到字段或跨 await 边界。</para>
+/// <para><b>设计说明</b>：返回 ref struct 而非 IEnumerable，因为 RbfFrame 是 ref struct。</para>
+/// <para>上层通过 foreach 消费，不依赖 LINQ。</para>
 /// </remarks>
-public readonly ref struct RbfReverseSequence {
-    /// <summary>
-    /// 获取枚举器（duck-typed，支持 foreach）。
-    /// </summary>
-    public Enumerator GetEnumerator();
+public ref struct RbfReverseSequence {
+    /// <summary>获取枚举器（支持 foreach 语法）。</summary>
+    public RbfReverseEnumerator GetEnumerator();
+}
+
+/// <summary>
+/// 逆向扫描枚举器。
+/// </summary>
+public ref struct RbfReverseEnumerator {
+    /// <summary>当前帧。</summary>
+    public RbfFrame Current { get; }
     
-    /// <summary>
-    /// 逆向扫描枚举器。
-    /// </summary>
-    public ref struct Enumerator {
-        /// <summary>当前帧（生命周期受限于下次 MoveNext 调用）</summary>
-        public RbfFrame Current { get; }
-        
-        /// <summary>移动到下一帧（实际是前一帧，因逆向扫描）</summary>
-        public bool MoveNext();
-    }
+    /// <summary>移动到下一帧。</summary>
+    public bool MoveNext();
 }
 ```
 
-**`[S-RBF-SCANREVERSE-NO-IENUMERABLE]`**
+### spec [S-RBF-SCANREVERSE-NO-IENUMERABLE] ScanReverse不实现IEnumerable
+> `RbfReverseSequence` MUST NOT 实现 `IEnumerable<RbfFrame>`。
+>
+> **原因**：`RbfFrame` 是 `ref struct`，无法作为泛型参数。
 
-> 由于 `RbfFrame` 为 `ref struct`，`ScanReverse()` 返回类型 MUST NOT 承诺或实现 `IEnumerable<RbfFrame>` / `IEnumerator<RbfFrame>`。
-> 规范文本 MUST NOT 要求调用方使用 LINQ 直接消费。
+### spec [S-RBF-SCANREVERSE-EMPTY-IS-OK] 空序列合法
+> 空文件（仅含 Genesis Fence）或无有效帧的文件，`ScanReverse()` MUST 返回空序列（0 元素），MUST NOT 抛出异常。
 
-**`[S-RBF-SCANREVERSE-EMPTY-IS-OK]`**
+### derived [H-SCANREVERSE-CURRENT-LIFETIME] Current生命周期提示
+> `RbfReverseEnumerator.Current` 的生命周期 ≤ 下次 `MoveNext()` 调用。
+> 上层如需持久化帧数据，MUST 在 `MoveNext()` 前显式复制。
 
-> 当扫描范围为空（空文件、仅 Genesis Fence、或无有效帧）时，`ScanReverse()` 返回序列 MUST 产生 0 个元素且不得抛出异常。
-> 枚举器首次 `MoveNext()` 返回 `false`。
-
-**`[S-RBF-SCANREVERSE-CURRENT-LIFETIME]`**
-
-> 枚举器 `Current` 返回的 `RbfFrame` 视图的生命周期 MUST 不超过下一次 `MoveNext()` 调用。
-> 调用方若需持久化数据 MUST 显式拷贝（例如调用 `PayloadToArray()`）。
-
-**`[S-RBF-SCANREVERSE-CONCURRENT-MUTATION]`**
-
-> 若底层文件/映射在枚举期间被修改，行为为**未定义**。
-> 调用方 MUST 在稳定快照上使用 `ScanReverse()`。
-> 实现 MAY 选择 fail-fast（抛出异常）但不作为规范要求。
-
-**`[S-RBF-SCANREVERSE-MULTI-GETENUM]`**
-
-> 对同一个 `ScanReverse()` 返回值，多次调用 `GetEnumerator()` MUST 返回互不干扰的枚举器实例。
-> 每个枚举器实例从同一扫描窗口的尾部开始。
-
-### 4.3 RbfFrame
-
-**`[A-RBF-FRAME-REF-STRUCT]`**
+### spec [A-RBF-FRAME-STRUCT] RbfFrame定义
 
 ```csharp
 /// <summary>
-/// 帧视图（ref struct，生命周期受限）。
+/// RBF 帧数据结构。
 /// </summary>
 /// <remarks>
-/// <para><b>生命周期</b>：Payload 的 Span 生命周期绑定到底层缓冲区（如 mmap view）。
-/// 若需持久化，必须显式拷贝。</para>
-/// <para><b>设计理由</b>：ref struct 的限制是"护栏"，防止 use-after-free。</para>
+/// <para><b>生命周期</b>：Payload 引用的 Span 生命周期由扫描器实现决定。</para>
 /// </remarks>
 public readonly ref struct RbfFrame {
-    /// <summary>帧类型标识符（4 字节）</summary>
-    public uint Tag { get; }
+    /// <summary>帧位置（凭据）。</summary>
+    public SizedPtr Ptr { get; init; }
     
-    /// <summary>是否为墓碑帧（逻辑删除 / Auto-Abort 产物）</summary>
-    public bool IsTombstone { get; }
+    /// <summary>帧类型标识符。</summary>
+    public uint Tag { get; init; }
     
-    /// <summary>帧负载（生命周期受限）</summary>
-    public ReadOnlySpan<byte> Payload { get; }
+    /// <summary>帧负载数据。</summary>
+    public ReadOnlySpan<byte> Payload { get; init; }
     
-    /// <summary>帧位置（offset+length）</summary>
-    public SizedPtr Ptr { get; }
+    /// <summary>是否为墓碑帧。</summary>
+    public bool IsTombstone { get; init; }
     
-    /// <summary>
-    /// 拷贝 Payload 到新分配的数组（显式分配，生命周期脱离底层缓冲区）。
-    /// </summary>
+    /// <summary>将 Payload 复制为数组（便捷方法）。</summary>
     public byte[] PayloadToArray() => Payload.ToArray();
 }
 ```
@@ -416,6 +372,9 @@ public void ProcessFrame(IRbfScanner scanner, SizedPtr ptr) {
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.23 | 2026-01-09 | **一致性修复**：将 @[S-RBF-WRITEPATH-CHUNKEDRESERVABLEWRITER]、@[S-RBF-SIZEDPTR-CREDENTIAL]、@[H-SIZEDPTR-WIRE-MAPPING] 改为纯引用模式，消除与 Decision-Layer 的语义重复；移除易漂移的数值表格（参见 [2026-01-09-rbf-consistency-fix](../../../agent-team/handoffs/implementer/2026-01-09-rbf-consistency-fix.md)） |
+| 0.22 | 2026-01-09 | **AI-Design-DSL 完整迁移**：修复 §4 读取接口损坏内容；补全 IRbfScanner/RbfReverseSequence/RbfFrame 定义；新增 @[A-RBF-REVERSE-SEQUENCE]、@[S-RBF-SCANREVERSE-NO-IENUMERABLE]、@[S-RBF-SCANREVERSE-EMPTY-IS-OK]、@[H-SCANREVERSE-CURRENT-LIFETIME]、@[A-RBF-FRAME-STRUCT] 条款 |
+| 0.21 | 2026-01-09 | **AI-Design-DSL 格式迁移**：将条款标识符转换为 DSL 格式（decision/design/hint + clause-matter）；将设计理由拆分为独立 hint 条款；增加术语定义（term）格式 |
 | 0.20 | 2026-01-07 | **移除特殊值语义**：RBF Interface 不再为任何 `SizedPtr` 取值定义特殊语义；读取失败通过 `ReadFrame` 的 `AteliaResult` Failure 表达 |
 | 0.19 | 2026-01-07 | **决策分层 + ReadFrame Result-Pattern**：新增 Decision-Layer 文件 `rbf-decisions.md`（锁定关键决策）；随机读取 API 改为 `ReadFrame` 并返回 `AteliaResult<RbfFrame>`；补齐 `SizedPtr`/`IReservableBufferWriter`/`AteliaResult<T>` 的 SSOT 引用；为 `SizedPtr` 增加 ticket 语义（凭据） |
 | 0.18 | 2026-01-06 | **SizedPtr 替代旧版地址占位类型**（[W-0006](../../../wish/W-0006-rbf-sizedptr/artifacts/)）：移除旧版地址占位类型，引入 SizedPtr 作为核心 Frame 句柄；新增 `[F-SIZEDPTR-DEFINITION]`；移除旧版地址相关条款；`RbfFrame.Address` 改为 `RbfFrame.Ptr` |

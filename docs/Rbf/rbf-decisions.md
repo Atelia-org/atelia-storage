@@ -42,7 +42,7 @@ RBF 规范（Interface/Format）MUST 以如下通用底层类型及其源码文�
 > 下面条款从 wire format 规范上移为 Decision-Layer（根设计决策）。
 > 目的：降低 wire format 的"根常量/根语义"在多个文档中双写漂移的风险。
 
-## design [F-FENCE-DEFINITION] Fence定义
+## spec [F-FENCE-DEFINITION] Fence定义
 
 Fence 是 RBF 文件的 **帧分隔符**，不属于任何 Frame。
 
@@ -52,13 +52,13 @@ Fence 是 RBF 文件的 **帧分隔符**，不属于任何 Frame。
 | 长度 | 4 字节 |
 | 编码 | ASCII 字节序列写入（非 u32 端序），读取时按字节匹配 |
 
-## design [F-GENESIS] Genesis Fence
+## spec [F-GENESIS] Genesis Fence
 
 - 每个 RBF 文件 MUST 以 Fence 开头（偏移 0，长度 4 字节）——称为 **Genesis Fence**。
 - 新建的 RBF 文件 MUST 仅含 Genesis Fence（长度 = 4 字节，表示"无任何 Frame"）。
 - 首帧（如果存在）的起始地址 MUST 为 `offset=4`（紧跟 Genesis Fence 之后）。
 
-## design [F-FENCE-SEMANTICS] Fence语义
+## spec [F-FENCE-SEMANTICS] Fence语义
 
 - Fence 是 **帧分隔符**（fencepost），不属于任何 Frame。
 - 文件中第一个 Fence（偏移 0）称为 **Genesis Fence**。
