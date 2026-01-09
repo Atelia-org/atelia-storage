@@ -2,7 +2,7 @@
 
 > 本文档定义 Atelia 项目所有设计规范文档的公共约定。
 
-> （Informative）本文档定义"如何写规范"的写作与表示约定：**在满足 Design-DSL 的机读语法约束前提下**，规定正文中 `@Term-ID`、`@Clause-ID` 等标记的书写/编码方式，以及章节组织、图表/表格/Mermaid 等 SSOT 表示与 LLM 友好写法等内容。
+> （Informative）本文档定义"如何写规范"的写作与表示约定：**在满足 Design-DSL 的机读语法约束前提下**，规定正文中 `@Term-ID`、`@Clause-ID` 等标记的书写/编码方式，以及章节组织、图表/表格/Mermaid 等 规范（Spec） 表示与 LLM 友好写法等内容。
 >
 > Design-DSL 的机读语法与解析规则（例如条款类型 `decision/design/hint`、定义/引用区分、依赖图建模）见 [AI-Design-DSL.md](../../agent-team/wiki/SoftwareDesignModeling/AI-Design-DSL.md)。
 
@@ -71,13 +71,13 @@
 
 每条规范性条款（MUST/MUST NOT）SHOULD 能映射到至少一个测试向量或 failpoint 测试。
 
-## 3. 文档分层与引用方向（Decision → SSOT → Derived）
+## 3. 文档分层与引用方向（Decision → Spec (SSOT) → Derived）
 
 > 本节是为“LLM/AI 参与迭代修订”而新增的工程护栏：通过**文件边界**将不同因果层级的信息分离，降低混杂导致的自洽性维护成本。
 
 ### 3.1 三层信息模型
 
-#### design [S-DOC-LAYERING-DECISION-SSOT-DERIVED] 三层信息模型
+#### spec [S-DOC-LAYERING-DECISION-SPEC-DERIVED] 三层信息模型
 
 规范文档在信息形态上 MUST 显式区分三层：
 
@@ -85,26 +85,28 @@
   - 定义"不可随意推翻的关键设计决策"（例如类型选型、错误协议、凭据语义）。
   - SHOULD 以单独文件承载，并在文件头部写明"AI 不可修改"（当该决策被锁定时）。
 
-2. **SSOT-Layer（Normative/规范层）**：
+2. **Spec-Layer（规范层，充当 SSOT）**：
   - 定义可测试的 wire layout、API 签名、算法步骤、失败语义（MUST/MUST NOT）。
-  - 该层的 SSOT 通常是布局表/公式/伪代码/条款锚点。
+  - 该层作为 Single Source of Truth (SSOT)，通常以布局表/公式/伪代码/条款锚点承载。
 
 3. **Derived-Layer（Informative/推导层）**：
   - 只承载从 Decision/SSOT **推断得到**的结论、FAQ、例子、算例、直觉解释。
   - 该层的内容允许滞后、允许被删改、允许不完整。
 
-> （Informative）在采用 Design-DSL 的文档中，常见映射为：`decision` ≈ Decision-Layer，`design` ≈ SSOT-Layer，`hint` ≈ Derived-Layer。
+> （Informative）在采用 Design-DSL 的文档中，映射关系为：
+> *   **Normative-Clauses** (规范性集合) = `decision` (Decision-Layer) + `spec` (Spec-Layer)
+> *   **Derived-Clause** (推导型条款) ≈ `derived` (Derived-Layer)
 
 ### 3.2 单向引用规则
 
-#### design [S-DOC-REF-DIRECTION-DECISION-SSOT-DERIVED] 单向引用规则
+#### spec [S-DOC-REF-DIRECTION-DECISION-SPEC-DERIVED] 单向引用规则
 
 文档之间 MUST 遵守单向引用（禁止逆流）：
 
-- Decision-Layer MAY 引用 SSOT-Layer 条款（用于声明"决策锁定了哪些规范选择"）。
-- SSOT-Layer MUST 引用其所遵循的 Decision-Layer（用于声明"本规范受哪些决策约束"）。
-- Derived-Layer MAY 引用 Decision-Layer 与 SSOT-Layer（用于解释与答疑）。
-- SSOT-Layer MUST NOT 反向依赖 Derived-Layer 作为规范依据（Derived 只能"可选参阅"，不得成为约束来源）。
+- Decision-Layer MAY 引用 Spec-Layer 条款（用于声明"决策锁定了哪些规范选择"）。
+- Spec-Layer MUST 引用其所遵循的 Decision-Layer（用于声明"本规范受哪些决策约束"）。
+- Derived-Layer MAY 引用 Decision-Layer 与 Spec-Layer（用于解释与答疑）。
+- Spec-Layer MUST NOT 反向依赖 Derived-Layer 作为规范依据（Derived 只能"可选参阅"，不得成为约束来源）。
 
 > **解释**：Derived-Layer 的存在是为了解释和降低沟通成本，但它不应反向塑造规范，否则会形成“双写漂移”。
 
@@ -114,7 +116,7 @@
 
 Derived-Layer MUST 明确标注为（Informative / Derived），并满足：
 
-- 当 Derived 与 SSOT 冲突时，MUST 以 SSOT 为准。
+- 当 Derived 与 Normative Clauses (Decision/Spec) 冲突时，MUST 以 Normative Clauses 为准。
 - Derived-Layer 的内容 MAY 在演进中被删除、重写或暂时缺失，不构成规范缺陷。
 
 **（建议）Derived 条款锚点**：Derived-Layer MAY 使用 `**[NAV-NAME]**` 作为导航锚点（仅用于引用与检索），但该类锚点不属于规范性条款，不应被解释为 MUST/MUST NOT 约束。
@@ -143,12 +145,12 @@ Derived-Layer MUST 明确标注为（Informative / Derived），并满足：
 #### design [S-DOC-ASCIIART-SHOULDNOT] 避免 ASCII art 承载结构化信息
 
 规范文档 SHOULD NOT 使用 ASCII art / box-drawing 图承载结构化信息（例如框图、手工画的状态机/流程图/位图）。
-- 若出于教学/情绪/历史原因保留 ASCII art，MUST 标注为（Informative / Illustration），并在相邻位置提供等价的线性 SSOT（列表/表格/Mermaid 代码块）。
+- 若出于教学/情绪/历史原因保留 ASCII art，MUST 标注为（Informative / Illustration），并在相邻位置提供等价的 规范性（Spec）描述（列表/表格/Mermaid 代码块）。
 
 #### design [S-DOC-SSOT-NO-DOUBLEWRITE] 同一事实禁止双写
 
-同一事实/约束 MUST 只保留一个 SSOT（Single Source of Truth）表示。
-- 任何非 SSOT 的"辅助表示"（图示、例子、口语复述）MUST NOT 引入新增约束，且 SHOULD 指回 SSOT（章节链接或条款 ID）。
+同一事实/约束 MUST 只保留一个 权威定义（Canonical Definition / SSOT）。
+- 任何非 规范性（Normative） 的"辅助表示"（图示、例子、口语复述）MUST NOT 引入新增约束，且 SHOULD 指回 权威定义（章节链接或条款 ID）。
 
 ### 4.2 形式选择指导
 
@@ -167,33 +169,33 @@ Derived-Layer MUST 明确标注为（Informative / Derived），并满足：
 
 #### design [S-DOC-HIERARCHY-AS-LIST] 树结构使用列表
 
-树/层级结构（目录树、概念分解、任务分解、API 路径树）SHOULD 使用嵌套列表作为 SSOT。
-- 若目标是"可复制粘贴的目录结构"，MAY 使用"缩进 + 纯路径名"的代码块；SHOULD NOT 使用 `└──` 等 box-drawing 字符作为 SSOT。
+树/层级结构（目录树、概念分解、任务分解、API 路径树）SHOULD 使用嵌套列表作为 规范形式（Spec）。
+- 若目标是"可复制粘贴的目录结构"，MAY 使用"缩进 + 纯路径名"的代码块；SHOULD NOT 使用 `└──` 等 box-drawing 字符作为 规范形式（Spec）。
 
 #### design [S-DOC-RELATIONS-AS-TABLE] 二维关系使用表格
 
-二维关系/矩阵信息（字段定义、枚举值、对照表、对比矩阵、投票记录）**当需要属性列或对照维度时**，SHOULD 使用 Markdown 表格作为 SSOT。
+二维关系/矩阵信息（字段定义、枚举值、对照表、对比矩阵、投票记录）**当需要属性列或对照维度时**，SHOULD 使用 Markdown 表格作为 规范形式（Spec）。
 - 若表格过宽或需要多段落解释，SHOULD 拆为"每项一小节（标题 + key/value 列表）"。
 
 #### design [S-DOC-RELATIONS-AS-TEXT] 少量关系使用 SVO 文本
 
-当需要表达"少量实体之间的少量关系"，且关系的关键在于**边语义（动词）**而非复杂拓扑时，SSOT SHOULD 使用"关系列表（Relation Triples List）"的自然语言描述。
-- **适用门槛**（可判定）：满足以下全部条件时，作者 SHOULD 首选关系列表作为 SSOT：
+当需要表达"少量实体之间的少量关系"，且关系的关键在于**边语义（动词）**而非复杂拓扑时，规范形式（Spec） SHOULD 使用"关系列表（Relation Triples List）"的自然语言描述。
+- **适用门槛**（可判定）：满足以下全部条件时，作者 SHOULD 首选关系列表作为 规范形式（Spec）：
   1. **节点数**（distinct subject/object）≤ 6；且
   2. **关系数**（条目数）≤ 10；且
   3. 关系条目不需要额外属性列（例如"版本/条件/注释列"）才能保持无歧义。
-- **格式约束**（可判定）：作为 SSOT 的每条关系 MUST 满足：
+- **格式约束**（可判定）：作为 规范形式（Spec） 的每条关系 MUST 满足：
   - 单条关系 = 单条 bullet（或单行）；
   - 以 **SVO**（Subject–Verb–Object）顺序表达；
   - **动词/谓词 MUST 加粗**（例如 **使用** / **实现** / **依赖**），用于让边语义显式可识别；
   - Subject/Object SHOULD 使用 code span 或链接（保持实体名稳定）。
-- **升级规则**（可判定）：若关系数 > 10 或节点数 > 6，SSOT SHOULD 升级为表格（当需要属性列）或 Mermaid（当需要表达拓扑/分支/环/多参与者时序）。
+- **升级规则**（可判定）：若关系数 > 10 或节点数 > 6，规范形式（Spec） SHOULD 升级为表格（当需要属性列）或 Mermaid（当需要表达拓扑/分支/环/多参与者时序）。
 
 #### design [S-DOC-GRAPHS-AS-MERMAID] 图使用 Mermaid
 
-图类/序列类信息（状态机、流程/依赖、时序）一旦出现分支/环/多参与者/非局部箭头关系，SSOT SHOULD 使用 Mermaid 代码块。
+图类/序列类信息（状态机、流程/依赖、时序）一旦出现分支/环/多参与者/非局部箭头关系，规范形式（Spec） SHOULD 使用 Mermaid 代码块。
 - 状态机优先 `stateDiagram-v2`；流程/依赖优先 `flowchart`/`graph`；时序优先 `sequenceDiagram`。
-- 若 Mermaid 被选为 SSOT，MUST NOT 再维护等价的 ASCII 框图（避免双写漂移）。
+- 若 Mermaid 被选为 规范形式（Spec），MUST NOT 再维护等价的 ASCII 框图（避免双写漂移）。
 
 #### design [S-DOC-SIMPLE-FLOW-INLINE] 简单线性流程可行内表示
 
@@ -202,9 +204,9 @@ Derived-Layer MUST 明确标注为（Informative / Derived），并满足：
 
 #### design [S-DOC-BITLAYOUT-AS-TABLE] 位布局使用范围表格
 
-位布局/字节布局（bit layout / wire layout）SSOT SHOULD 使用"范围明确"的表格表示，并声明端序与位编号约定。
+位布局/字节布局（bit layout / wire layout）规范形式（Spec） SHOULD 使用"范围明确"的表格表示，并声明端序与位编号约定。
 - **推荐结构**：**行 = 位段/字段，列 = 属性**（如 位范围、字段名、类型、语义）。这种结构支持任意数量的字段和属性扩展。
-- **视觉表格**（Visual Table，列模拟位段）MAY 作为辅助 Illustration，但 SHOULD NOT 作为 SSOT——因为：(1) 行语义隐式（无行标题）；(2) 字段多时列爆炸；(3) 难以添加属性列。
+- **视觉表格**（Visual Table，列模拟位段）MAY 作为辅助 Illustration，但 SHOULD NOT 作为 规范形式（Spec）——因为：(1) 行语义隐式（无行标题）；(2) 字段多时列爆炸；(3) 难以添加属性列。
 - ASCII 位图若保留 MUST 为 Illustration，且以表格为准。
 
 **位布局表格示例**：
@@ -219,7 +221,7 @@ Derived-Layer MUST 明确标注为（Informative / Derived），并满足：
 
 ### 4.3 快速参考
 
-| 信息类型 | 推荐 SSOT | 避免 |
+| 信息类型 | 推荐 规范形式（Spec） | 避免 |
 |----------|-----------|------|
 | 树/层级 | 嵌套列表 | box-drawing 目录树 |
 | 二维关系（需属性列） | Markdown 表格 | 空格对齐伪表格 |
@@ -309,6 +311,7 @@ Derived-Layer MUST 明确标注为（Informative / Derived），并满足：
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 1.0 | 2026-01-09 | 对齐 AI-Design-DSL 更新：SSOT-Layer → Spec-Layer（保留 SSOT 作为概念属性），modifier 映射 `spec`/`derived` 替换 `design`/`hint` |
 | 0.9 | 2026-01-09 | 完成 Design-DSL 格式迁移：第 1-2 章条款化、层级术语统一（SSOT-Layer/Derived-Layer）、RFC 2119 关键字全文加粗、职能说明澄清 |
 | 0.8 | 2026-01-09 | 按 Design-DSL 迁移：为带条款 ID 的条款补齐 `decision/design/hint` ATX Heading，并移除中部重复变更日志 |
 | 0.7 | 2026-01-02 | Resolve-Tier 术语迁移：更新层级术语闭集枚举 |
