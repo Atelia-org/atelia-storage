@@ -4,7 +4,7 @@
 
 > （Informative）本文档定义"如何写规范"的写作与表示约定：**在满足 Design-DSL 的机读语法约束前提下**，规定正文中 `@Term-ID`、`@Clause-ID` 等标记的书写/编码方式，以及章节组织、图表/表格/Mermaid 等 规范（Spec） 表示与 LLM 友好写法等内容。
 >
-> Design-DSL 的机读语法与解析规则（例如条款类型 `decision/design/hint`、定义/引用区分、依赖图建模）见 [AI-Design-DSL.md](../../agent-team/wiki/SoftwareDesignModeling/AI-Design-DSL.md)。
+> Design-DSL 的机读语法与解析规则（例如条款类型 `decision/spec/derived`、定义/引用区分、依赖图建模）见 [AI-Design-DSL.md](../../agent-team/wiki/SoftwareDesignModeling/AI-Design-DSL.md)。
 
 ## 1. 规范语言（Normative Language）
 
@@ -33,6 +33,12 @@
 ### derived [S-DOC-MVP-FIXED-SCOPE-NO-REQID] （MVP 固定）范围说明可不编号
 
 **范围说明性** @`MVP-Fixed` 标注（如"MVP 不支持 X"、"MVP 仅实现 Y"）MAY 仅作标注，不强制编号。
+
+### term `Canonical-Source` （权威源）
+
+> **Canonical Source** 是某一类事实的 canonical definition 所在的**权威载体**（文件/章节/条款）。与 SSOT（属性——"是什么"）区分：Canonical Source 描述"在哪"。
+>
+> 详见 [Decision-Spec-Derived-Model.md §3.3](../../agent-team/wiki/SoftwareDesignModeling/Decision-Spec-Derived-Model.md#33-canonical-source-权威源)。
 
 ## 2. 条款编号（Requirement IDs）
 
@@ -103,7 +109,7 @@
 
 文档之间 MUST 遵守单向引用（禁止逆流）：
 
-- Decision-Layer MAY 引用 Spec-Layer 条款（用于声明"决策锁定了哪些规范选择"）。
+- Decision-Layer MAY **声明性引用** Spec-Layer 条款（仅用于"宣告本决策锁定了哪些规范选择"，而非依赖 Spec 的内容作为决策输入）。
 - Spec-Layer MUST 引用其所遵循的 Decision-Layer（用于声明"本规范受哪些决策约束"）。
 - Derived-Layer MAY 引用 Decision-Layer 与 Spec-Layer（用于解释与答疑）。
 - Spec-Layer MUST NOT 反向依赖 Derived-Layer 作为规范依据（Derived 只能"可选参阅"，不得成为约束来源）。
@@ -118,6 +124,8 @@ Derived-Layer MUST 明确标注为（Informative / Derived），并满足：
 
 - 当 Derived 与 Normative Clauses (Decision/Spec) 冲突时，MUST 以 Normative Clauses 为准。
 - Derived-Layer 的内容 MAY 在演进中被删除、重写或暂时缺失，不构成规范缺陷。
+- Derived-Layer SHOULD 标注其推导输入范围：仅基于 Normative Clauses（Decision/Spec），或 Normative Clauses + 已显式声明的上下文源（以链接列出）。
+- Derived-Layer 若引入假设（assumption），MUST 显式标注；assumption MUST NOT 反向作为 Spec-Layer 的规范依据。
 
 **（建议）Derived 条款锚点**：Derived-Layer MAY 使用 `**[NAV-NAME]**` 作为导航锚点（仅用于引用与检索），但该类锚点不属于规范性条款，不应被解释为 MUST/MUST NOT 约束。
 
@@ -311,9 +319,7 @@ Derived-Layer MUST 明确标注为（Informative / Derived），并满足：
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
-| 1.0 | 2026-01-09 | 对齐 AI-Design-DSL 更新：SSOT-Layer → Spec-Layer（保留 SSOT 作为概念属性），modifier 映射 `spec`/`derived` 替换 `design`/`hint` |
-| 0.9 | 2026-01-09 | 完成 Design-DSL 格式迁移：第 1-2 章条款化、层级术语统一（SSOT-Layer/Derived-Layer）、RFC 2119 关键字全文加粗、职能说明澄清 |
-| 0.8 | 2026-01-09 | 按 Design-DSL 迁移：为带条款 ID 的条款补齐 `decision/design/hint` ATX Heading，并移除中部重复变更日志 |
+| 0.8 | 2026-01-09 | 与 Design-DSL 和 D-S-D 模型对齐 |
 | 0.7 | 2026-01-02 | Resolve-Tier 术语迁移：更新层级术语闭集枚举 |
 | 0.6 | 2025-12-31 | 明确引用 terminology-registry.yaml，移除重复清单 |
 | 0.5 | 2025-12-31 | 新增第 4 章"术语命名规范"（基于 2025-12-31 畅谈会决策） |
