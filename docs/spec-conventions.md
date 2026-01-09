@@ -16,7 +16,7 @@
 - `SHOULD` / `SHOULD NOT`：推荐/不推荐，可在有充分理由时偏离（需在实现文档中说明）
 - `MAY`：可选
 
-### design [S-DOC-NORMATIVE-INFORMATIVE-SEPARATION] 规范性与解释性内容的区分标注
+### spec [S-DOC-NORMATIVE-INFORMATIVE-SEPARATION] 规范性与解释性内容的区分标注
 
 文档中的规范性条款（Normative）与解释性内容（Informative）MUST 通过以下方式区分：
 - 规范性条款：使用上述关键字，或明确标注为"（MVP 固定）"、"（MUST）"
@@ -26,11 +26,11 @@
 
 > **（MVP 固定）的定义**：等价于"MUST for v2.x"，表示当前版本锁死该选择。后续主版本可能演进为 MAY 或改变语义。
 
-### design [S-DOC-MVP-FIXED-NEEDS-REQID] （MVP 固定）规范约束的编号要求
+### spec [S-DOC-MVP-FIXED-NEEDS-REQID] （MVP 固定）规范约束的编号要求
 
 **规范性** @`MVP-Fixed` 约束（即定义 MUST/MUST NOT 行为的）SHOULD 有对应的条款编号。
 
-### hint [S-DOC-MVP-FIXED-SCOPE-NO-REQID] （MVP 固定）范围说明可不编号
+### derived [S-DOC-MVP-FIXED-SCOPE-NO-REQID] （MVP 固定）范围说明可不编号
 
 **范围说明性** @`MVP-Fixed` 标注（如"MVP 不支持 X"、"MVP 仅实现 Y"）MAY 仅作标注，不强制编号。
 
@@ -40,7 +40,7 @@
 
 本项目使用**稳定语义锚点（Stable Semantic Anchors）**标识规范性条款，便于引用和测试映射。
 
-### design [S-DOC-REQID-PREFIXES] Requirement ID 前缀与覆盖范围
+### spec [S-DOC-REQID-PREFIXES] Requirement ID 前缀与覆盖范围
 
 条款编号 MUST 使用以下前缀之一：
 
@@ -51,23 +51,23 @@
 | `[S-NAME]` | **Semantics** | 跨 API/格式的语义不变式（含 commit 语义） |
 | `[R-NAME]` | **Recovery** | 崩溃一致性、resync/scan、损坏判定 |
 
-### design [S-DOC-REQID-NAMING-SCREAMING-KEBAB] Requirement ID 命名格式
+### spec [S-DOC-REQID-NAMING-SCREAMING-KEBAB] Requirement ID 命名格式
 
 条款编号 MUST 使用 `SCREAMING-KEBAB-CASE` 格式（如 `[F-OBJECTKIND-STANDARD-RANGE]`）。
 
-### hint [S-DOC-REQID-NAME-SEMANTIC-HASH] 锚点名应概括核心语义
+### derived [S-DOC-REQID-NAME-SEMANTIC-HASH] 锚点名应概括核心语义
 
 锚点名 SHOULD 能概括条款核心语义，作为"内容哈希"。
 
-### design [S-DOC-REQID-NAME-LENGTH] 锚点名长度约束
+### spec [S-DOC-REQID-NAME-LENGTH] 锚点名长度约束
 
 锚点名 SHOULD 控制在 3-5 个词。
 
-### design [S-DOC-REQID-DEPRECATION] 废弃条款的锚点保留规则
+### spec [S-DOC-REQID-DEPRECATION] 废弃条款的锚点保留规则
 
 废弃条款 MUST 用 `DEPRECATED` 标记，保留原锚点名便于历史追溯。
 
-### design [S-DOC-NORMATIVE-MAP-TO-TEST] 规范性条款的测试映射
+### spec [S-DOC-NORMATIVE-MAP-TO-TEST] 规范性条款的测试映射
 
 每条规范性条款（MUST/MUST NOT）SHOULD 能映射到至少一个测试向量或 failpoint 测试。
 
@@ -112,7 +112,7 @@
 
 ### 3.3 Derived 层的“允许滞后”约定
 
-#### design [S-DOC-DERIVED-LAYER-ALLOW-DRIFT] Derived 层允许滞后
+#### spec [S-DOC-DERIVED-LAYER-ALLOW-DRIFT] Derived 层允许滞后
 
 Derived-Layer MUST 明确标注为（Informative / Derived），并满足：
 
@@ -123,7 +123,7 @@ Derived-Layer MUST 明确标注为（Informative / Derived），并满足：
 
 ### 3.4 文件命名建议（规范化提示）
 
-#### design [S-DOC-LAYER-FILENAME-CONVENTION] 层级文件命名建议
+#### spec [S-DOC-LAYER-FILENAME-CONVENTION] 层级文件命名建议
 
 当采用"分文件分层"时，文件名 SHOULD 显式体现层级：
 
@@ -142,19 +142,19 @@ Derived-Layer MUST 明确标注为（Informative / Derived），并满足：
 
 ### 4.1 核心原则
 
-#### design [S-DOC-ASCIIART-SHOULDNOT] 避免 ASCII art 承载结构化信息
+#### spec [S-DOC-ASCIIART-SHOULDNOT] 避免 ASCII art 承载结构化信息
 
 规范文档 SHOULD NOT 使用 ASCII art / box-drawing 图承载结构化信息（例如框图、手工画的状态机/流程图/位图）。
 - 若出于教学/情绪/历史原因保留 ASCII art，MUST 标注为（Informative / Illustration），并在相邻位置提供等价的 规范性（Spec）描述（列表/表格/Mermaid 代码块）。
 
-#### design [S-DOC-SSOT-NO-DOUBLEWRITE] 同一事实禁止双写
+#### spec [S-DOC-SSOT-NO-DOUBLEWRITE] 同一事实禁止双写
 
 同一事实/约束 MUST 只保留一个 权威定义（Canonical Definition / SSOT）。
 - 任何非 规范性（Normative） 的"辅助表示"（图示、例子、口语复述）MUST NOT 引入新增约束，且 SHOULD 指回 权威定义（章节链接或条款 ID）。
 
 ### 4.2 形式选择指导
 
-#### design [S-DOC-FORMAT-MINIMALISM] 表示形式最小复杂度原则
+#### spec [S-DOC-FORMAT-MINIMALISM] 表示形式最小复杂度原则
 
 表示形式选择 SHOULD 遵循"最小复杂度（降级）"原则：
 1. 能用**行内文本**讲清的，不用**列表**。
@@ -167,17 +167,17 @@ Derived-Layer MUST 明确标注为（Informative / Derived），并满足：
 > - **2D**（属性、对比、网格）→ 表格
 > - **ND**（连接、时序、依赖）→ Mermaid
 
-#### design [S-DOC-HIERARCHY-AS-LIST] 树结构使用列表
+#### spec [S-DOC-HIERARCHY-AS-LIST] 树结构使用列表
 
 树/层级结构（目录树、概念分解、任务分解、API 路径树）SHOULD 使用嵌套列表作为 规范形式（Spec）。
 - 若目标是"可复制粘贴的目录结构"，MAY 使用"缩进 + 纯路径名"的代码块；SHOULD NOT 使用 `└──` 等 box-drawing 字符作为 规范形式（Spec）。
 
-#### design [S-DOC-RELATIONS-AS-TABLE] 二维关系使用表格
+#### spec [S-DOC-RELATIONS-AS-TABLE] 二维关系使用表格
 
 二维关系/矩阵信息（字段定义、枚举值、对照表、对比矩阵、投票记录）**当需要属性列或对照维度时**，SHOULD 使用 Markdown 表格作为 规范形式（Spec）。
 - 若表格过宽或需要多段落解释，SHOULD 拆为"每项一小节（标题 + key/value 列表）"。
 
-#### design [S-DOC-RELATIONS-AS-TEXT] 少量关系使用 SVO 文本
+#### spec [S-DOC-RELATIONS-AS-TEXT] 少量关系使用 SVO 文本
 
 当需要表达"少量实体之间的少量关系"，且关系的关键在于**边语义（动词）**而非复杂拓扑时，规范形式（Spec） SHOULD 使用"关系列表（Relation Triples List）"的自然语言描述。
 - **适用门槛**（可判定）：满足以下全部条件时，作者 SHOULD 首选关系列表作为 规范形式（Spec）：
@@ -191,18 +191,18 @@ Derived-Layer MUST 明确标注为（Informative / Derived），并满足：
   - Subject/Object SHOULD 使用 code span 或链接（保持实体名稳定）。
 - **升级规则**（可判定）：若关系数 > 10 或节点数 > 6，规范形式（Spec） SHOULD 升级为表格（当需要属性列）或 Mermaid（当需要表达拓扑/分支/环/多参与者时序）。
 
-#### design [S-DOC-GRAPHS-AS-MERMAID] 图使用 Mermaid
+#### spec [S-DOC-GRAPHS-AS-MERMAID] 图使用 Mermaid
 
 图类/序列类信息（状态机、流程/依赖、时序）一旦出现分支/环/多参与者/非局部箭头关系，规范形式（Spec） SHOULD 使用 Mermaid 代码块。
 - 状态机优先 `stateDiagram-v2`；流程/依赖优先 `flowchart`/`graph`；时序优先 `sequenceDiagram`。
 - 若 Mermaid 被选为 规范形式（Spec），MUST NOT 再维护等价的 ASCII 框图（避免双写漂移）。
 
-#### design [S-DOC-SIMPLE-FLOW-INLINE] 简单线性流程可行内表示
+#### spec [S-DOC-SIMPLE-FLOW-INLINE] 简单线性流程可行内表示
 
 "简单线性流程"MAY 使用行内箭头表示（如 `A → B → C`），前提是：无分支、无环、步骤数不超过 5，且不会被后续章节引用为规范性依据。
 - **注意**：该条仅用于线性步骤流程，SHOULD NOT 用于表达依赖/实现/使用等语义关系（此类场景参见 @[S-DOC-RELATIONS-AS-TEXT]）。
 
-#### design [S-DOC-BITLAYOUT-AS-TABLE] 位布局使用范围表格
+#### spec [S-DOC-BITLAYOUT-AS-TABLE] 位布局使用范围表格
 
 位布局/字节布局（bit layout / wire layout）规范形式（Spec） SHOULD 使用"范围明确"的表格表示，并声明端序与位编号约定。
 - **推荐结构**：**行 = 位段/字段，列 = 属性**（如 位范围、字段名、类型、语义）。这种结构支持任意数量的字段和属性扩展。
@@ -241,7 +241,7 @@ Derived-Layer MUST 明确标注为（Informative / Derived），并满足：
 
 ### 5.1 分域命名体系
 
-#### design [S-TERM-DOMAIN-SEPARATION] 分域命名体系
+#### spec [S-TERM-DOMAIN-SEPARATION] 分域命名体系
 
 术语命名 SHOULD 遵循分域命名体系，避免跨域污染：
 
@@ -254,7 +254,7 @@ Derived-Layer MUST 明确标注为（Informative / Derived），并满足：
 
 ### 5.2 多单词术语格式
 
-#### design [S-TERM-FORMAT-TITLE-KEBAB] 多单词术语使用 Title-Kebab
+#### spec [S-TERM-FORMAT-TITLE-KEBAB] 多单词术语使用 Title-Kebab
 
 多单词概念术语 MUST 使用连字符连接的首字母大写形式（Title-Kebab）。
 - 示例：`Resolve-Tier`、`Shape-Tier`、`App-For-LLM`、`Context-Projection`
@@ -266,21 +266,21 @@ Derived-Layer MUST 明确标注为（Informative / Derived），并满足：
 
 ### 5.3 缩写大小写规则
 
-#### design [S-TERM-ABBREV-REGISTRY] 缩写大小写由注册表决定
+#### spec [S-TERM-ABBREV-REGISTRY] 缩写大小写由注册表决定
 
 缩写的大小写 SHOULD 由术语注册表决定（以 `agent-team/wiki/terminology-registry.yaml` 为 SSOT）：
 1. 注册表中 `acronyms_uppercase` 列表内的缩写使用全大写形式
 2. 不在注册表中的缩写使用首字母大写形式
 3. 复合术语中的缩写保持其独立形式
 
-#### design [S-TERM-ABBREV-COMPOUND-PRESERVE] 复合术语保持缩写形式
+#### spec [S-TERM-ABBREV-COMPOUND-PRESERVE] 复合术语保持缩写形式
 
 复合术语中的缩写 SHOULD 保持其独立形式，不因复合而改变大小写。
 - 示例：`App-For-LLM`（不是 `App-For-Llm`）
 
 ### 5.4 术语注册表管理
 
-#### design [S-TERM-REGISTRY-MANAGEMENT] 术语注册表管理
+#### spec [S-TERM-REGISTRY-MANAGEMENT] 术语注册表管理
 
 术语注册表 MUST 作为机器可读的 SSOT，并遵循以下管理原则。
 
@@ -295,7 +295,7 @@ Derived-Layer MUST 明确标注为（Informative / Derived），并满足：
 
 ### 5.5 迁移与兼容性
 
-#### design [S-TERM-MIGRATION-GRADUAL] 渐进式迁移策略
+#### spec [S-TERM-MIGRATION-GRADUAL] 渐进式迁移策略
 
 术语命名规范的迁移 SHOULD 采用渐进式策略：
 1. **SSOT 层**：立即更新（术语表、模板、规范）
@@ -303,7 +303,7 @@ Derived-Layer MUST 明确标注为（Informative / Derived），并满足：
 3. **活跃文档层**：1 个月内逐步更新
 4. **历史层**：保持原样（历史事实）
 
-#### design [S-TERM-COMPATIBILITY-ALIAS] 兼容别名映射
+#### spec [S-TERM-COMPATIBILITY-ALIAS] 兼容别名映射
 
 术语表 SHOULD 维护向后兼容的别名映射，便于历史文档引用。
 
