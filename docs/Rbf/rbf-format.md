@@ -8,7 +8,7 @@ produce_by:
 # RBF 二进制格式规范（Layer 0）
 
 > **状态**：Draft
-> **版本**：0.31
+> **版本**：0.32
 > **创建日期**：2025-12-22
 > **接口契约（Layer 1）**：[rbf-interface.md](rbf-interface.md)
 > **测试向量（Layer 0）**：[rbf-test-vectors.md](rbf-test-vectors.md)
@@ -141,11 +141,15 @@ depends: "@[S-RBF-DECISION-4B-ALIGNMENT-ROOT](rbf-decisions.md)"
 
 ### spec [F-CRC32C-ALGORITHM] CRC32C算法约定
 > CRC 算法为 CRC32C（Castagnoli），采用 Reflected I/O 约定：
+> - 多项式（Normal）：`0x1EDC6F41`
+> - 多项式（Reflected）：`0x82F63B78`
 > - 初始值：`0xFFFFFFFF`
 > - 最终异或：`0xFFFFFFFF`
-> - Reflected 多项式：`0x82F63B78`（Normal 形式：`0x1EDC6F41`）
+> - 输入/输出：bit-reflected
 >
-> 等价实现：`.NET System.IO.Hashing.Crc32C`。
+> 规范参考：IETF RFC 3720 Appendix B (iSCSI CRC)。
+>
+> 注（非规范性）：在 .NET（.NET 6+）可使用 `System.Numerics.BitOperations.Crc32C(uint crc, byte data)` 作为逐字节累加原语；需对每字节循环调用，并在开始前应用初始值、结束后应用最终异或。
 
 ---
 
@@ -222,6 +226,7 @@ Reverse Scan MUST 满足：
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.32 | 2026-01-10 | 修正 @[F-CRC32C-ALGORITHM]：删除对不存在的 `.NET System.IO.Hashing.Crc32C` 的引用，改为引用 RFC 3720；添加 `BitOperations.Crc32C` 作为非规范性实现提示 |
 | 0.31 | 2026-01-09 | **AI-Design-DSL 格式迁移**：将所有条款标识符转换为 DSL 格式（design/hint/term）；将设计理由拆分为独立 hint 条款；添加 @`DataTail` 术语定义 |
 | 0.30 | 2026-01-07 | §3.2 @[F-FRAME-LAYOUT] 的 FrameStatus 描述去除对齐语义双写，改为引用 @[F-STATUSLEN-FORMULA]（由公式定义 StatusLen 并保证 payload+status 对齐） |
 | 0.29 | 2026-01-07 | §6.1 将 Reverse Scan 从"参考实现伪代码"收敛为"可观察行为契约（SSOT）" @[R-REVERSE-SCAN-ALGORITHM]（并去除与 @[R-RESYNC-BEHAVIOR] 重复的边界条款）；参考伪代码迁移至 Derived-Layer |
