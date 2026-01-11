@@ -61,9 +61,30 @@
 
 条款编号 MUST 使用 `SCREAMING-KEBAB-CASE` 格式（如 `[F-OBJECTKIND-STANDARD-RANGE]`）。
 
-### derived [S-DOC-REQID-NAME-SEMANTIC-HASH] 锚点名应概括核心语义
+### decision [S-DOC-REQID-STANCE-NAMING] Requirement ID 表达立场（锚点承诺边界）
 
-锚点名 SHOULD 能概括条款核心语义，作为"内容哈希"。
+条款锚点对引用者的承诺边界是：**该条款要求的立场/约束**，而非“讨论了什么话题”。
+
+因此条款编号 MUST 直接表达条款要求的立场（可读作“答案”），避免只写抽象话题名。
+
+示例：用 `CASE-INSENSITIVE` 而非 `CASE-SENSITIVITY`；用 `IMPORT-NON-TRANSITIVE` 而非 `IMPORT-TRANSITIVITY`。
+
+若条款立场发生实质性变更，MUST NOT 复用原锚点名；应按 @[S-DOC-REQID-SEMANTIC-STABILITY-AND-CHANGE] 走新建与废弃流程。
+
+### spec [S-DOC-REQID-SEMANTIC-STABILITY-AND-CHANGE] 锚点语义稳定性与变更规则
+
+锚点名 SHOULD 概括条款核心语义，使其在内容精炼/补充解释时仍成立；锚点名 SHOULD 避免绑定易变细节（具体实现、数值、版本等）。
+
+条款允许措辞精炼与解释补充，且在核心语义未变时 SHOULD 保持锚点名不变。
+
+当条款的核心语义发生实质性变更时，SHOULD 新建条款，并将旧条款标记为 `DEPRECATED` 且指向替代条款。
+
+“实质性变更”至少包括：
+- 规范方向改变（MUST ↔ MUST NOT，或禁止/允许互换）
+- 约束范围显著改变（显著收窄或放宽）
+- 决策立场改变（原先要求的选择被替换为另一选择）
+
+纯编辑性调整（措辞精炼、示例/解释补充、格式/错别字修正）不构成实质性变更。
 
 ### spec [S-DOC-REQID-NAME-LENGTH] 锚点名长度约束
 
@@ -71,7 +92,7 @@
 
 ### spec [S-DOC-REQID-DEPRECATION] 废弃条款的锚点保留规则
 
-废弃条款 MUST 用 `DEPRECATED` 标记，保留原锚点名便于历史追溯。
+废弃条款 MUST 用 `DEPRECATED` 标记，保留原锚点名便于历史追溯，并 SHOULD 指向替代条款。
 
 ### spec [S-DOC-NORMATIVE-MAP-TO-TEST] 规范性条款的测试映射
 
@@ -89,7 +110,7 @@
 
 1. **Decision-Layer（决策层）**：
   - 定义"不可随意推翻的关键设计决策"（例如类型选型、错误协议、凭据语义）。
-  - SHOULD 以单独文件承载，并在文件头部写明"AI 不可修改"（当该决策被锁定时）。
+  - SHOULD 以单独文件承载，并在文件头部写明"AI 不可主动修改"（当该决策被锁定时）。
 
 2. **Spec-Layer（规范层，充当 SSOT）**：
   - 定义可测试的 wire layout、API 签名、算法步骤、失败语义（MUST/MUST NOT）。
@@ -319,6 +340,8 @@ Derived-Layer MUST 明确标注为（Informative / Derived），并满足：
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.10 | 2026-01-11 | 明确条款ID命名风格：具体倾向而非抽象话题（基于畅谈会决策） |
+| 0.9 | 2026-01-11 | 明确条款ID策略：语义锚点+可选内容指纹，分层应用（基于 Seeker 与 Craftsman 的联合研究） |
 | 0.8 | 2026-01-09 | 与 Design-DSL 和 D-S-D 模型对齐 |
 | 0.7 | 2026-01-02 | Resolve-Tier 术语迁移：更新层级术语闭集枚举 |
 | 0.6 | 2025-12-31 | 明确引用 terminology-registry.yaml，移除重复清单 |
