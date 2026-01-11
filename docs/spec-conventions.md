@@ -6,6 +6,9 @@
 >
 > Design-DSL 的机读语法与解析规则（例如条款类型 `decision/spec/derived`、定义/引用区分、依赖图建模）见 [AI-Design-DSL.md](../../agent-team/wiki/SoftwareDesignModeling/AI-Design-DSL.md)。
 
+> **术语迁移锁定**：本文档已完成术语统一（2026-01-12），使用 **Clause-ID（条款ID）** 作为标准术语。
+> 禁止重新引入：章节编号、语义锚点、REQID、Semantic Anchor、Requirement ID。
+
 ## 1. 规范语言（Normative Language）
 
 ### decision [S-DOC-NORMATIVE-LANGUAGE-RFC2119] 规范语言基线
@@ -26,11 +29,11 @@
 
 > **（MVP 固定）的定义**：等价于"MUST for v2.x"，表示当前版本锁死该选择。后续主版本可能演进为 MAY 或改变语义。
 
-### spec [S-DOC-MVP-FIXED-NEEDS-REQID] （MVP 固定）规范约束的编号要求
+### spec [S-DOC-MVP-FIXED-NEEDS-CID] （MVP 固定）规范约束的编号要求
 
 **规范性** @`MVP-Fixed` 约束（即定义 MUST/MUST NOT 行为的）SHOULD 有对应的条款编号。
 
-### derived [S-DOC-MVP-FIXED-SCOPE-NO-REQID] （MVP 固定）范围说明可不编号
+### derived [S-DOC-MVP-FIXED-SCOPE-NO-CID] （MVP 固定）范围说明可不编号
 
 **范围说明性** @`MVP-Fixed` 标注（如"MVP 不支持 X"、"MVP 仅实现 Y"）MAY 仅作标注，不强制编号。
 
@@ -40,13 +43,13 @@
 >
 > 详见 [Decision-Spec-Derived-Model.md §3.3](../../agent-team/wiki/SoftwareDesignModeling/Decision-Spec-Derived-Model.md#33-canonical-source-权威源)。
 
-## 2. 条款编号（Requirement IDs）
+## 2. 条款编号（Clause-IDs）
 
-### decision [S-DOC-STABLE-SEMANTIC-ANCHORS] 使用稳定语义锚点标识规范性条款
+### decision [S-DOC-STABLE-CLAUSE-IDS] 使用稳定条款ID标识规范性条款
 
-本项目使用**稳定语义锚点（Stable Semantic Anchors）**标识规范性条款，便于引用和测试映射。
+本项目使用**稳定条款ID（Stable Clause-IDs）**标识规范性条款，便于引用和测试映射。
 
-### spec [S-DOC-REQID-PREFIXES] Requirement ID 前缀与覆盖范围
+### spec [S-DOC-CID-PREFIXES] Clause-ID 前缀与覆盖范围
 
 条款编号 MUST 使用以下前缀之一：
 
@@ -57,11 +60,11 @@
 | `[S-NAME]` | **Semantics** | 跨 API/格式的语义不变式（含 commit 语义） |
 | `[R-NAME]` | **Recovery** | 崩溃一致性、resync/scan、损坏判定 |
 
-### spec [S-DOC-REQID-NAMING-SCREAMING-KEBAB] Requirement ID 命名格式
+### spec [S-DOC-CID-NAMING-SCREAMING-KEBAB] Clause-ID 命名格式
 
 条款编号 MUST 使用 `SCREAMING-KEBAB-CASE` 格式（如 `[F-OBJECTKIND-STANDARD-RANGE]`）。
 
-### decision [S-DOC-REQID-STANCE-NAMING] Requirement ID 表达立场（锚点承诺边界）
+### decision [S-DOC-CID-STANCE-NAMING] Clause-ID 表达立场（锚点承诺边界）
 
 条款锚点对引用者的承诺边界是：**该条款要求的立场/约束**，而非“讨论了什么话题”。
 
@@ -69,9 +72,9 @@
 
 示例：用 `CASE-INSENSITIVE` 而非 `CASE-SENSITIVITY`；用 `IMPORT-NON-TRANSITIVE` 而非 `IMPORT-TRANSITIVITY`。
 
-若条款立场发生实质性变更，MUST NOT 复用原锚点名；应按 @[S-DOC-REQID-SEMANTIC-STABILITY-AND-CHANGE] 走新建与废弃流程。
+若条款立场发生实质性变更，MUST NOT 复用原锚点名；应按 @[S-DOC-CID-SEMANTIC-STABILITY-AND-CHANGE] 走新建与废弃流程。
 
-### spec [S-DOC-REQID-SEMANTIC-STABILITY-AND-CHANGE] 锚点语义稳定性与变更规则
+### spec [S-DOC-CID-SEMANTIC-STABILITY-AND-CHANGE] 锚点语义稳定性与变更规则
 
 锚点名 SHOULD 概括条款核心语义，使其在内容精炼/补充解释时仍成立；锚点名 SHOULD 避免绑定易变细节（具体实现、数值、版本等）。
 
@@ -86,11 +89,11 @@
 
 纯编辑性调整（措辞精炼、示例/解释补充、格式/错别字修正）不构成实质性变更。
 
-### spec [S-DOC-REQID-NAME-LENGTH] 锚点名长度约束
+### spec [S-DOC-CID-NAME-LENGTH] 锚点名长度约束
 
 锚点名 SHOULD 控制在 3-5 个词。
 
-### spec [S-DOC-REQID-DEPRECATION] 废弃条款的锚点保留规则
+### spec [S-DOC-CID-DEPRECATION] 废弃条款的锚点保留规则
 
 废弃条款 MUST 用 `DEPRECATED` 标记，保留原锚点名便于历史追溯，并 SHOULD 指向替代条款。
 
@@ -340,6 +343,7 @@ Derived-Layer MUST 明确标注为（Informative / Derived），并满足：
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.11 | 2026-01-12 | 术语统一：语义锚点/REQID → Clause-ID/CID（基于白板室讨论决策） |
 | 0.10 | 2026-01-11 | 明确条款ID命名风格：具体倾向而非抽象话题（基于畅谈会决策） |
 | 0.9 | 2026-01-11 | 明确条款ID策略：语义锚点+可选内容指纹，分层应用（基于 Seeker 与 Craftsman 的联合研究） |
 | 0.8 | 2026-01-09 | 与 Design-DSL 和 D-S-D 模型对齐 |
