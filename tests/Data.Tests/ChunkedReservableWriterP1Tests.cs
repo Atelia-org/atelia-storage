@@ -7,13 +7,13 @@ using Xunit;
 namespace Atelia.Data.Tests;
 
 /// <summary>
-/// P1 批次：语义补充分层（不引入额外框架）
-/// 覆盖：
-/// - NonBlockingCommitThenBlockingCommit_FlushesAll
-/// - Reset_ClearsLengthsAndPassthrough
-/// - Dispose_Idempotent
-/// - LargeSizeHint_GetSpan_ReturnsSpanLengthAtLeastSizeHint
-/// - Bijection_TokenUniqueness_NoImmediateCollision
+/// ChunkedReservableWriter P1 优先级测试
+/// 
+/// <para>测试架构：</para>
+/// <list type="bullet">
+/// <item><description>接口级测试（Theory）：LargeSizeHint, TokenUniqueness, Dispose_Idempotent</description></item>
+/// <item><description>实现级测试（Fact）：CRW 特有的 PendingReservationCount, IsPassthrough 等诊断属性</description></item>
+/// </list>
 /// </summary>
 public class ChunkedReservableWriterP1Tests {
     private sealed class CollectingWriter : IBufferWriter<byte> {
@@ -99,63 +99,20 @@ public class ChunkedReservableWriterP1Tests {
     }
 
     /// <summary>
-    /// 轻量 inner writer：追加写入并可读取已写数据
-    /// 同时实现 IBufferWriter&lt;byte&gt;（供 ChunkedReservableWriter）和 IByteSink（供 SinkReservableWriter）
-    /// </summary>
-    private sealed class CollectingWriterWithSink : IBufferWriter<byte>, IByteSink {
-        private MemoryStream _stream = new();
-        private int _pos;
-
-        // ========== IBufferWriter<byte> ==========
-        public void Advance(int count) {
-            _pos += count;
-            if (_pos > _stream.Length) {
-                _stream.SetLength(_pos);
-            }
-        }
-        public Memory<byte> GetMemory(int sizeHint = 0) {
-            int need = _pos + Math.Max(sizeHint, 1);
-            if (_stream.Length < need) {
-                _stream.SetLength(need);
-            }
-
-            return _stream.GetBuffer().AsMemory(_pos, (int)_stream.Length - _pos);
-        }
-        public Span<byte> GetSpan(int sizeHint = 0) => GetMemory(sizeHint).Span;
-
-        // ========== IByteSink ==========
-        public void Push(ReadOnlySpan<byte> data) {
-            int need = _pos + data.Length;
-            if (_stream.Length < need) {
-                _stream.SetLength(need);
-            }
-            data.CopyTo(_stream.GetBuffer().AsSpan(_pos, data.Length));
-            _pos += data.Length;
-        }
-
-        // ========== 辅助方法 ==========
-        public byte[] Data() {
-            var a = new byte[_pos];
-            Array.Copy(_stream.GetBuffer(), 0, a, 0, _pos);
-            return a;
-        }
-    }
-
-    /// <summary>
     /// 用于接口级测试（不涉及 passthrough 断言）
     /// </summary>
     public static TheoryData<string, Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)>> WriterFactories => new() {
         {
             "ChunkedReservableWriter",
             () => {
-                var collector = new CollectingWriterWithSink();
+                var collector = new TestHelpers.CollectingWriter();
                 return (new ChunkedReservableWriter(collector), collector.Data);
             }
         },
         {
             "SinkReservableWriter",
             () => {
-                var collector = new CollectingWriterWithSink();
+                var collector = new TestHelpers.CollectingWriter();
                 return (new SinkReservableWriter(collector), collector.Data);
             }
         },
@@ -167,7 +124,8 @@ public class ChunkedReservableWriterP1Tests {
     [MemberData(nameof(WriterFactories))]
     public void Dispose_Idempotent(
         string name,
-        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory) {
+        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory
+    ) {
         _ = name; // 用于 xUnit 测试名称显示
         var (writer, _) = factory();
         var s = writer.GetSpan(3);
@@ -187,7 +145,8 @@ public class ChunkedReservableWriterP1Tests {
     [MemberData(nameof(WriterFactories))]
     public void LargeSizeHint_GetSpan_ReturnsSpanLengthAtLeastSizeHint(
         string name,
-        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory) {
+        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory
+    ) {
         _ = name;
         var (writer, _) = factory();
         using var disposable = writer as IDisposable;
@@ -196,7 +155,8 @@ public class ChunkedReservableWriterP1Tests {
         int sizeHint = 10 * 1024 * 1024;
         var span = writer.GetSpan(sizeHint);
         Assert.True(span.Length >= sizeHint,
-            $"GetSpan({sizeHint}) returned span of length {span.Length}");
+            $"GetSpan({sizeHint}) returned span of length {span.Length}"
+        );
         writer.Advance(0); // release span
     }
 
@@ -204,7 +164,8 @@ public class ChunkedReservableWriterP1Tests {
     [MemberData(nameof(WriterFactories))]
     public void Bijection_TokenUniqueness_NoImmediateCollision(
         string name,
-        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory) {
+        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory
+    ) {
         _ = name;
         var (writer, _) = factory();
         using var disposable = writer as IDisposable;

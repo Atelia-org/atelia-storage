@@ -1,12 +1,17 @@
 using System;
-using System.Buffers;
-using System.IO;
 using Xunit;
 
 namespace Atelia.Data.Tests;
 
 /// <summary>
 /// 针对 IReservableBufferWriter 实现的健壮性 / 负面路径 / 关键语义补充测试
+/// 
+/// <para>测试架构：</para>
+/// <list type="bullet">
+/// <item><description>接口级测试（Theory）：验证 IReservableBufferWriter 契约，覆盖 ChunkedReservableWriter 和 SinkReservableWriter</description></item>
+/// <item><description>实现级测试（Fact）：验证特定实现的诊断属性和优化行为</description></item>
+/// </list>
+/// 
 /// 覆盖 ChunkedReservableWriter 和 SinkReservableWriter 两种实现：
 /// 1. Commit_InvalidToken_Throws
 /// 2. Commit_DoubleCommit_Throws
@@ -16,54 +21,6 @@ namespace Atelia.Data.Tests;
 /// 6. Reset_InvalidatesOldReservationTokens（具体类型测试）
 /// </summary>
 public class ReservableWriterNegativeTests {
-    /// <summary>
-    /// 轻量 inner writer：追加写入并可读取已写数据
-    /// 同时实现 IBufferWriter&lt;byte&gt;（供 ChunkedReservableWriter）和 IByteSink（供 SinkReservableWriter）
-    /// </summary>
-    private sealed class CollectingWriter : IBufferWriter<byte>, IByteSink {
-        private MemoryStream _stream = new();
-        private int _pos;
-
-        // ========== IBufferWriter<byte> ==========
-        public void Advance(int count) {
-            _pos += count;
-            if (_pos > _stream.Length) {
-                _stream.SetLength(_pos);
-            }
-        }
-        public Memory<byte> GetMemory(int sizeHint = 0) {
-            int need = _pos + Math.Max(sizeHint, 1);
-            if (_stream.Length < need) {
-                _stream.SetLength(need);
-            }
-
-            return _stream.GetBuffer().AsMemory(_pos, (int)_stream.Length - _pos);
-        }
-        public Span<byte> GetSpan(int sizeHint = 0) => GetMemory(sizeHint).Span;
-
-        // ========== IByteSink ==========
-        public void Push(ReadOnlySpan<byte> data) {
-            int need = _pos + data.Length;
-            if (_stream.Length < need) {
-                _stream.SetLength(need);
-            }
-            data.CopyTo(_stream.GetBuffer().AsSpan(_pos, data.Length));
-            _pos += data.Length;
-        }
-
-        // ========== 辅助方法 ==========
-        public byte[] Data() {
-            var a = new byte[_pos];
-            Array.Copy(_stream.GetBuffer(), 0, a, 0, _pos);
-            return a;
-        }
-
-        public void Reset() {
-            _pos = 0;
-            _stream.SetLength(0);
-        }
-    }
-
     // ========== 工厂定义 ==========
     // 使用 Func<(IReservableBufferWriter, Func<byte[]>)> 工厂模式，隐藏 CollectingWriter 实现细节
     // 返回值: (writer 实例, getData 委托用于获取输出数据)
@@ -75,14 +32,14 @@ public class ReservableWriterNegativeTests {
         {
             "ChunkedReservableWriter",
             () => {
-                var collector = new CollectingWriter();
+                var collector = new TestHelpers.CollectingWriter();
                 return (new ChunkedReservableWriter(collector), collector.Data);
             }
         },
         {
             "SinkReservableWriter",
             () => {
-                var collector = new CollectingWriter();
+                var collector = new TestHelpers.CollectingWriter();
                 return (new SinkReservableWriter(collector), collector.Data);
             }
         },
@@ -97,7 +54,7 @@ public class ReservableWriterNegativeTests {
         {
             "ChunkedReservableWriter",
             () => {
-                var collector = new CollectingWriter();
+                var collector = new TestHelpers.CollectingWriter();
                 return (new ChunkedReservableWriter(collector), collector.Data);
             },
             true  // shouldTestPassthrough: 验证 passthrough 优化
@@ -105,7 +62,7 @@ public class ReservableWriterNegativeTests {
         {
             "SinkReservableWriter",
             () => {
-                var collector = new CollectingWriter();
+                var collector = new TestHelpers.CollectingWriter();
                 return (new SinkReservableWriter(collector), collector.Data);
             },
             false  // shouldTestPassthrough: 总是 buffered，跳过 passthrough 断言
@@ -140,7 +97,8 @@ public class ReservableWriterNegativeTests {
     public void Commit_NonBlockingReservation_DoesNotFlushEarlierData(
         string name,
         Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory,
-        bool shouldTestPassthrough) {
+        bool shouldTestPassthrough
+    ) {
         _ = name; // 用于 xUnit 测试名称显示
         var (writer, getData) = factory();
         using var disposable = writer as IDisposable;
@@ -214,7 +172,8 @@ public class ReservableWriterNegativeTests {
     [MemberData(nameof(WriterFactories))]
     public void GetSpanTwiceWithoutAdvance_Throws(
         string name,
-        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory) {
+        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory
+    ) {
         _ = name; // 用于 xUnit 测试名称显示
         var (writer, _) = factory();
         using var disposable = writer as IDisposable;
@@ -228,7 +187,8 @@ public class ReservableWriterNegativeTests {
     [MemberData(nameof(WriterFactories))]
     public void GetMemoryTwiceWithoutAdvance_Throws(
         string name,
-        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory) {
+        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory
+    ) {
         _ = name; // 用于 xUnit 测试名称显示
         var (writer, _) = factory();
         using var disposable = writer as IDisposable;
@@ -242,7 +202,8 @@ public class ReservableWriterNegativeTests {
     [MemberData(nameof(WriterFactories))]
     public void ReserveSpanAfterAdvanceZero_Allows(
         string name,
-        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory) {
+        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory
+    ) {
         _ = name;
         var (writer, getData) = factory();
         using var disposable = writer as IDisposable;
@@ -264,7 +225,7 @@ public class ReservableWriterNegativeTests {
 
     [Fact]
     public void ChunkedReservableWriter_Reset_InvalidatesOldReservationTokens() {
-        var inner = new CollectingWriter();
+        var inner = new TestHelpers.CollectingWriter();
         using var writer = new ChunkedReservableWriter(inner);
         writer.ReserveSpan(4, out int token, "will-reset");
         writer.Reset();
@@ -276,7 +237,7 @@ public class ReservableWriterNegativeTests {
 
     [Fact]
     public void SinkReservableWriter_Reset_InvalidatesOldReservationTokens() {
-        var collector = new CollectingWriter();
+        var collector = new TestHelpers.CollectingWriter();
         using var writer = new SinkReservableWriter(collector);
         writer.ReserveSpan(4, out int token, "will-reset");
         writer.Reset();

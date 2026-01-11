@@ -6,14 +6,19 @@ using Xunit;
 namespace Atelia.Data.Tests;
 
 /// <summary>
-/// Tests covering ChunkedReservableWriterOptions based configurable behaviors.
+/// ChunkedReservableWriter 配置选项测试
+/// 
+/// <para>测试架构：</para>
+/// <list type="bullet">
+/// <item><description>接口级测试（Theory）：StrictContract 验证（passthrough 参数化）</description></item>
+/// <item><description>实现级测试（Fact）：Chunk 配置（MinMaxChunkSize, OversizeRequest, AdaptiveGrowth）</description></item>
+/// </list>
 /// </summary>
 public class ChunkedReservableWriterOptionsTests {
     /// <summary>
-    /// 轻量 inner writer：追加写入并可读取已写数据
-    /// 同时实现 IBufferWriter&lt;byte&gt;（供 ChunkedReservableWriter）和 IByteSink（供 SinkReservableWriter）
+    /// 轻量 inner writer：追加写入并可读取已写数据（仅 IBufferWriter，用于实现级测试）
     /// </summary>
-    private sealed class CollectingWriter : IBufferWriter<byte>, IByteSink {
+    private sealed class CollectingWriter : IBufferWriter<byte> {
         private MemoryStream _ms = new();
         private int _pos;
         public void Advance(int count) {
@@ -31,16 +36,6 @@ public class ChunkedReservableWriterOptionsTests {
         }
         public Span<byte> GetSpan(int sizeHint = 0) => GetMemory(sizeHint).Span;
 
-        // ========== IByteSink ==========
-        public void Push(ReadOnlySpan<byte> data) {
-            int need = _pos + data.Length;
-            if (_ms.Length < need) {
-                _ms.SetLength(need);
-            }
-            data.CopyTo(_ms.GetBuffer().AsSpan(_pos, data.Length));
-            _pos += data.Length;
-        }
-
         public byte[] Data() {
             var a = new byte[_pos];
             Array.Copy(_ms.GetBuffer(), 0, a, 0, _pos);
@@ -57,7 +52,7 @@ public class ChunkedReservableWriterOptionsTests {
         {
             "ChunkedReservableWriter",
             () => {
-                var collector = new CollectingWriter();
+                var collector = new TestHelpers.CollectingWriter();
                 return (new ChunkedReservableWriter(collector), collector.Data);
             },
             true  // shouldTestPassthrough: 验证 passthrough 优化
@@ -65,7 +60,7 @@ public class ChunkedReservableWriterOptionsTests {
         {
             "SinkReservableWriter",
             () => {
-                var collector = new CollectingWriter();
+                var collector = new TestHelpers.CollectingWriter();
                 return (new SinkReservableWriter(collector), collector.Data);
             },
             false  // shouldTestPassthrough: 总是 buffered，跳过 passthrough 断言
@@ -135,7 +130,8 @@ public class ChunkedReservableWriterOptionsTests {
     public void StrictContract_DoesNotBreakFlushSemantics(
         string name,
         Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory,
-        bool shouldTestPassthrough) {
+        bool shouldTestPassthrough
+    ) {
         _ = name;
         var (writer, getData) = factory();
         using var disposable = writer as IDisposable;

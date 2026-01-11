@@ -8,52 +8,15 @@ using Xunit;
 namespace Atelia.Data.Tests;
 
 /// <summary>
-/// IReservableBufferWriter 接口级测试（覆盖 ChunkedReservableWriter 和 SinkReservableWriter）
+/// IReservableBufferWriter 接口核心功能测试
+/// 
+/// <para>测试架构：</para>
+/// <list type="bullet">
+/// <item><description>接口级测试（Theory）：BasicWrite, Reservation, MultipleReservations, Dispose</description></item>
+/// <item><description>实现级测试（Fact）：ChunkedReservableWriter 特有的 passthrough 优化和 Reset 行为</description></item>
+/// </list>
 /// </summary>
 public class ReservableWriterTests {
-    /// <summary>
-    /// 轻量 inner writer：追加写入并可读取已写数据
-    /// 同时实现 IBufferWriter&lt;byte&gt;（供 ChunkedReservableWriter）和 IByteSink（供 SinkReservableWriter）
-    /// </summary>
-    private sealed class CollectingWriter : IBufferWriter<byte>, IByteSink {
-        private MemoryStream _stream = new();
-        private int _pos;
-
-        // ========== IBufferWriter<byte> ==========
-        public void Advance(int count) {
-            _pos += count;
-            if (_pos > _stream.Length) {
-                _stream.SetLength(_pos);
-            }
-        }
-        public Memory<byte> GetMemory(int sizeHint = 0) {
-            int need = _pos + Math.Max(sizeHint, 1);
-            if (_stream.Length < need) {
-                _stream.SetLength(need);
-            }
-
-            return _stream.GetBuffer().AsMemory(_pos, (int)_stream.Length - _pos);
-        }
-        public Span<byte> GetSpan(int sizeHint = 0) => GetMemory(sizeHint).Span;
-
-        // ========== IByteSink ==========
-        public void Push(ReadOnlySpan<byte> data) {
-            int need = _pos + data.Length;
-            if (_stream.Length < need) {
-                _stream.SetLength(need);
-            }
-            data.CopyTo(_stream.GetBuffer().AsSpan(_pos, data.Length));
-            _pos += data.Length;
-        }
-
-        // ========== 辅助方法 ==========
-        public byte[] Data() {
-            var a = new byte[_pos];
-            Array.Copy(_stream.GetBuffer(), 0, a, 0, _pos);
-            return a;
-        }
-    }
-
     /// <summary>
     /// 用于接口级测试（不涉及 passthrough 断言）
     /// </summary>
@@ -61,14 +24,14 @@ public class ReservableWriterTests {
         {
             "ChunkedReservableWriter",
             () => {
-                var collector = new CollectingWriter();
+                var collector = new TestHelpers.CollectingWriter();
                 return (new ChunkedReservableWriter(collector), collector.Data);
             }
         },
         {
             "SinkReservableWriter",
             () => {
-                var collector = new CollectingWriter();
+                var collector = new TestHelpers.CollectingWriter();
                 return (new SinkReservableWriter(collector), collector.Data);
             }
         },
@@ -119,7 +82,8 @@ public class ReservableWriterTests {
     [MemberData(nameof(WriterFactories))]
     public void BasicWriteTest(
         string name,
-        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory) {
+        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory
+    ) {
         _ = name; // 用于 xUnit 测试名称显示
         var (writer, getData) = factory();
         using var disposable = writer as IDisposable;
@@ -138,7 +102,8 @@ public class ReservableWriterTests {
     [MemberData(nameof(WriterFactories))]
     public void ReservationBasicTest(
         string name,
-        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory) {
+        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory
+    ) {
         _ = name; // 用于 xUnit 测试名称显示
         var (writer, getData) = factory();
         using var disposable = writer as IDisposable;
@@ -175,7 +140,8 @@ public class ReservableWriterTests {
     [MemberData(nameof(WriterFactories))]
     public void MultipleReservationsTest(
         string name,
-        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory) {
+        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory
+    ) {
         _ = name; // 用于 xUnit 测试名称显示
         var (writer, getData) = factory();
         using var disposable = writer as IDisposable;
@@ -210,7 +176,8 @@ public class ReservableWriterTests {
     [MemberData(nameof(WriterFactories))]
     public void DisposeTest(
         string name,
-        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory) {
+        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory
+    ) {
         _ = name; // 用于 xUnit 测试名称显示
         var (writer, _) = factory();
 
