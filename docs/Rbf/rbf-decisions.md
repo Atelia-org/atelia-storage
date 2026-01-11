@@ -82,13 +82,13 @@ RBF wire format 的以下三个信息 MUST 以 **4 字节对齐**为基础不变
 - 逆向扫描/Resync 以 4B 步进寻找 Fence；
 - `SizedPtr` 的 4B 对齐约束（offset/length 可用更紧凑的表示并保持热路径简化）。
 
-## decision [S-RBF-DECISION-WRITEPATH-CHUNKEDRESERVABLEWRITER] 写入路径绑定ChunkedReservableWriter
+## decision [S-RBF-DECISION-WRITEPATH-SINKRESERVABLEWRITER] 写入路径绑定SinkReservableWriter
 
 RBF（近期 / MVP）**不追求成为与实现无关的抽象格式**；为效率与一致性，写入路径（尤其是 `BeginFrame()` / `RbfFrameBuilder.Payload` 的 streaming 写入）MUST 绑定采用如下实现作为 SSOT：
-- `Atelia.Data.ChunkedReservableWriter` → `atelia/src/Data/ChunkedReservableWriter.cs`
+- `Atelia.Data.SinkReservableWriter` → `atelia/src/Data/SinkReservableWriter.cs`
 
 该绑定意味着：
-- RBF 写入侧的关键语义（reservation 回填、contiguous prefix flush、以及未提交 reservation 的"不可外泄"属性）允许直接依赖 `ChunkedReservableWriter` 的实现语义。
+- RBF 写入侧的关键语义（reservation 回填、contiguous prefix flush、以及未提交 reservation 的"不可外泄"属性）允许直接依赖 `SinkReservableWriter` 的实现语义。
 - 若未来需要支持替代写入路径（例如纯 `PipeWriter` / 纯 `Stream`），必须以新的 Wish 明确提出，并通过新的 Decision 条款锁定其等价语义与验收标准。
 
 ---
