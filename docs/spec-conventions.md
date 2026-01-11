@@ -49,7 +49,7 @@
 
 本项目使用**稳定条款ID（Stable Clause-IDs）**标识规范性条款，便于引用和测试映射。
 
-### spec [S-DOC-CID-PREFIXES] Clause-ID 前缀与覆盖范围
+### spec [S-DOC-CID-PREFIX-REQUIRED] Clause-ID 前缀与覆盖范围
 
 条款编号 MUST 使用以下前缀之一：
 
@@ -89,11 +89,11 @@
 
 纯编辑性调整（措辞精炼、示例/解释补充、格式/错别字修正）不构成实质性变更。
 
-### spec [S-DOC-CID-NAME-LENGTH] 锚点名长度约束
+### spec [S-DOC-CID-NAME-SHOULD-BE-CONCISE] 锚点名长度约束
 
 锚点名 SHOULD 控制在 3-5 个词。
 
-### spec [S-DOC-CID-DEPRECATION] 废弃条款的锚点保留规则
+### spec [S-DOC-CID-DEPRECATED-RETAIN-ANCHOR] 废弃条款的锚点保留规则
 
 废弃条款 MUST 用 `DEPRECATED` 标记，保留原锚点名便于历史追溯，并 SHOULD 指向替代条款。
 
@@ -155,7 +155,7 @@ Derived-Layer MUST 明确标注为（Informative / Derived），并满足：
 
 ### 3.4 文件命名建议（规范化提示）
 
-#### spec [S-DOC-LAYER-FILENAME-CONVENTION] 层级文件命名建议
+#### spec [S-DOC-LAYER-FILENAME-INDICATE-LAYER] 层级文件命名建议
 
 当采用"分文件分层"时，文件名 SHOULD 显式体现层级：
 
@@ -186,7 +186,7 @@ Derived-Layer MUST 明确标注为（Informative / Derived），并满足：
 
 ### 4.2 形式选择指导
 
-#### spec [S-DOC-FORMAT-MINIMALISM] 表示形式最小复杂度原则
+#### spec [S-DOC-FORMAT-MINIMIZE-COMPLEXITY] 表示形式最小复杂度原则
 
 表示形式选择 SHOULD 遵循"最小复杂度（降级）"原则：
 1. 能用**行内文本**讲清的，不用**列表**。
@@ -298,7 +298,7 @@ Derived-Layer MUST 明确标注为（Informative / Derived），并满足：
 
 ### 5.3 缩写大小写规则
 
-#### spec [S-TERM-ABBREV-REGISTRY] 缩写大小写由注册表决定
+#### spec [S-TERM-ABBREV-CASE-FROM-REGISTRY] 缩写大小写由注册表决定
 
 缩写的大小写 SHOULD 由术语注册表决定（以 `agent-team/wiki/terminology-registry.yaml` 为 SSOT）：
 1. 注册表中 `acronyms_uppercase` 列表内的缩写使用全大写形式
@@ -312,7 +312,7 @@ Derived-Layer MUST 明确标注为（Informative / Derived），并满足：
 
 ### 5.4 术语注册表管理
 
-#### spec [S-TERM-REGISTRY-MANAGEMENT] 术语注册表管理
+#### spec [S-TERM-REGISTRY-MUST-BE-SSOT] 术语注册表管理
 
 术语注册表 MUST 作为机器可读的 SSOT，并遵循以下管理原则。
 
@@ -335,7 +335,7 @@ Derived-Layer MUST 明确标注为（Informative / Derived），并满足：
 3. **活跃文档层**：1 个月内逐步更新
 4. **历史层**：保持原样（历史事实）
 
-#### spec [S-TERM-COMPATIBILITY-ALIAS] 兼容别名映射
+#### spec [S-TERM-ALIAS-PRESERVE-COMPATIBILITY] 兼容别名映射
 
 术语表 SHOULD 维护向后兼容的别名映射，便于历史文档引用。
 
@@ -343,6 +343,7 @@ Derived-Layer MUST 明确标注为（Informative / Derived），并满足：
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.12 | 2026-01-12 | 条款ID立场命名审阅：8个条款改名以符合@[S-DOC-CID-STANCE-NAMING]规则 |
 | 0.11 | 2026-01-12 | 术语统一：语义锚点/REQID → Clause-ID/CID（基于白板室讨论决策） |
 | 0.10 | 2026-01-11 | 明确条款ID命名风格：具体倾向而非抽象话题（基于畅谈会决策） |
 | 0.9 | 2026-01-11 | 明确条款ID策略：语义锚点+可选内容指纹，分层应用（基于 Seeker 与 Craftsman 的联合研究） |
