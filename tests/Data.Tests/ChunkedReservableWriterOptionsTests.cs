@@ -9,7 +9,11 @@ namespace Atelia.Data.Tests;
 /// Tests covering ChunkedReservableWriterOptions based configurable behaviors.
 /// </summary>
 public class ChunkedReservableWriterOptionsTests {
-    private sealed class CollectingWriter : IBufferWriter<byte> {
+    /// <summary>
+    /// 轻量 inner writer：追加写入并可读取已写数据
+    /// 同时实现 IBufferWriter&lt;byte&gt;（供 ChunkedReservableWriter）和 IByteSink（供 SinkReservableWriter）
+    /// </summary>
+    private sealed class CollectingWriter : IBufferWriter<byte>, IByteSink {
         private MemoryStream _ms = new();
         private int _pos;
         public void Advance(int count) {
@@ -26,12 +30,47 @@ public class ChunkedReservableWriterOptionsTests {
             return _ms.GetBuffer().AsMemory(_pos, (int)_ms.Length - _pos);
         }
         public Span<byte> GetSpan(int sizeHint = 0) => GetMemory(sizeHint).Span;
+
+        // ========== IByteSink ==========
+        public void Push(ReadOnlySpan<byte> data) {
+            int need = _pos + data.Length;
+            if (_ms.Length < need) {
+                _ms.SetLength(need);
+            }
+            data.CopyTo(_ms.GetBuffer().AsSpan(_pos, data.Length));
+            _pos += data.Length;
+        }
+
         public byte[] Data() {
             var a = new byte[_pos];
             Array.Copy(_ms.GetBuffer(), 0, a, 0, _pos);
             return a;
         }
     }
+
+    /// <summary>
+    /// 用于 passthrough 相关测试（带 shouldTestPassthrough 标志）
+    /// - ChunkedReservableWriter: shouldTestPassthrough=true，验证 passthrough 优化
+    /// - SinkReservableWriter: shouldTestPassthrough=false，总是 buffered，跳过 passthrough 断言
+    /// </summary>
+    public static TheoryData<string, Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)>, bool> WriterFactoriesWithPassthrough => new() {
+        {
+            "ChunkedReservableWriter",
+            () => {
+                var collector = new CollectingWriter();
+                return (new ChunkedReservableWriter(collector), collector.Data);
+            },
+            true  // shouldTestPassthrough: 验证 passthrough 优化
+        },
+        {
+            "SinkReservableWriter",
+            () => {
+                var collector = new CollectingWriter();
+                return (new SinkReservableWriter(collector), collector.Data);
+            },
+            false  // shouldTestPassthrough: 总是 buffered，跳过 passthrough 断言
+        },
+    };
 
     [Fact]
     public void ReserveSpanAfterUnadvancedGetSpan_Throws() {
@@ -42,37 +81,9 @@ public class ChunkedReservableWriterOptionsTests {
         Assert.Throws<InvalidOperationException>(() => writer.ReserveSpan(4, out _, null));
     }
 
-    [Fact]
-    public void GetSpanTwiceWithoutAdvance_Throws() {
-        var inner = new CollectingWriter();
-        using var writer = new ChunkedReservableWriter(inner);
-        var first = writer.GetSpan(4);
-        first[0] = 42;
-        var ex = Assert.Throws<InvalidOperationException>(() => writer.GetSpan(2));
-        Assert.Contains("Previous buffer not advanced", ex.Message);
-    }
-
-    [Fact]
-    public void GetMemoryTwiceWithoutAdvance_Throws() {
-        var inner = new CollectingWriter();
-        using var writer = new ChunkedReservableWriter(inner);
-        var first = writer.GetMemory(4);
-        first.Span[0] = 11;
-        var ex = Assert.Throws<InvalidOperationException>(() => writer.GetMemory(1));
-        Assert.Contains("Previous buffer not advanced", ex.Message);
-    }
-
-    [Fact]
-    public void ReserveSpanAfterAdvanceZero_Allows() {
-        var inner = new CollectingWriter();
-        using var writer = new ChunkedReservableWriter(inner);
-        writer.GetSpan(16); // acquire
-        writer.Advance(0); // explicitly cancel
-        var r = writer.ReserveSpan(4, out int token, null);
-        r.Fill(0xAB);
-        writer.Commit(token);
-        Assert.Equal(new byte[] { 0xAB, 0xAB, 0xAB, 0xAB }, inner.Data());
-    }
+    // ReserveSpanAfterAdvanceZero_Allows 已移至 ReservableWriterNegativeTests
+    // GetSpanTwiceWithoutAdvance_Throws 已移至 ReservableWriterNegativeTests
+    // GetMemoryTwiceWithoutAdvance_Throws 已移至 ReservableWriterNegativeTests
 
     [Fact]
     public void CustomMinMaxChunkSize_BufferedModeSpanRespectsConfiguredMin() {
@@ -119,21 +130,35 @@ public class ChunkedReservableWriterOptionsTests {
         writer.Commit(t0);
     }
 
-    [Fact]
-    public void StrictContract_DoesNotBreakFlushSemantics() {
-        var inner = new CollectingWriter();
-        using var writer = new ChunkedReservableWriter(inner);
+    [Theory]
+    [MemberData(nameof(WriterFactoriesWithPassthrough))]
+    public void StrictContract_DoesNotBreakFlushSemantics(
+        string name,
+        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory,
+        bool shouldTestPassthrough) {
+        _ = name;
+        var (writer, getData) = factory();
+        using var disposable = writer as IDisposable;
+
         var head = writer.GetSpan(3);
         head[0] = 0x01;
         head[1] = 0x02;
         head[2] = 0x03;
-        writer.Advance(3); // passthrough
+        writer.Advance(3);
+
+        // 验证无 reservation 时 passthrough（仅 ChunkedReservableWriter）
+        if (shouldTestPassthrough) {
+            Assert.Equal(new byte[] { 0x01, 0x02, 0x03 }, getData());
+        }
+
         writer.ReserveSpan(2, out int t, "r").Fill(0x10);
         var tail = writer.GetSpan(2);
         tail[0] = 0xEE;
         tail[1] = 0xEF;
         writer.Advance(2);
         writer.Commit(t);
-        Assert.Equal(new byte[] { 0x01, 0x02, 0x03, 0x10, 0x10, 0xEE, 0xEF }, inner.Data());
+
+        // 最终数据验证（所有实现）
+        Assert.Equal(new byte[] { 0x01, 0x02, 0x03, 0x10, 0x10, 0xEE, 0xEF }, getData());
     }
 }

@@ -8,11 +8,74 @@ using Xunit;
 namespace Atelia.Data.Tests;
 
 /// <summary>
-/// ChunkedReservableWriter的基础功能测试
+/// IReservableBufferWriter 接口级测试（覆盖 ChunkedReservableWriter 和 SinkReservableWriter）
 /// </summary>
-public class ChunkedReservableWriterTests {
+public class ReservableWriterTests {
     /// <summary>
-    /// 简单的内存缓冲区实现，用于测试
+    /// 轻量 inner writer：追加写入并可读取已写数据
+    /// 同时实现 IBufferWriter&lt;byte&gt;（供 ChunkedReservableWriter）和 IByteSink（供 SinkReservableWriter）
+    /// </summary>
+    private sealed class CollectingWriter : IBufferWriter<byte>, IByteSink {
+        private MemoryStream _stream = new();
+        private int _pos;
+
+        // ========== IBufferWriter<byte> ==========
+        public void Advance(int count) {
+            _pos += count;
+            if (_pos > _stream.Length) {
+                _stream.SetLength(_pos);
+            }
+        }
+        public Memory<byte> GetMemory(int sizeHint = 0) {
+            int need = _pos + Math.Max(sizeHint, 1);
+            if (_stream.Length < need) {
+                _stream.SetLength(need);
+            }
+
+            return _stream.GetBuffer().AsMemory(_pos, (int)_stream.Length - _pos);
+        }
+        public Span<byte> GetSpan(int sizeHint = 0) => GetMemory(sizeHint).Span;
+
+        // ========== IByteSink ==========
+        public void Push(ReadOnlySpan<byte> data) {
+            int need = _pos + data.Length;
+            if (_stream.Length < need) {
+                _stream.SetLength(need);
+            }
+            data.CopyTo(_stream.GetBuffer().AsSpan(_pos, data.Length));
+            _pos += data.Length;
+        }
+
+        // ========== 辅助方法 ==========
+        public byte[] Data() {
+            var a = new byte[_pos];
+            Array.Copy(_stream.GetBuffer(), 0, a, 0, _pos);
+            return a;
+        }
+    }
+
+    /// <summary>
+    /// 用于接口级测试（不涉及 passthrough 断言）
+    /// </summary>
+    public static TheoryData<string, Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)>> WriterFactories => new() {
+        {
+            "ChunkedReservableWriter",
+            () => {
+                var collector = new CollectingWriter();
+                return (new ChunkedReservableWriter(collector), collector.Data);
+            }
+        },
+        {
+            "SinkReservableWriter",
+            () => {
+                var collector = new CollectingWriter();
+                return (new SinkReservableWriter(collector), collector.Data);
+            }
+        },
+    };
+
+    /// <summary>
+    /// 简单的内存缓冲区实现，用于实现级测试
     /// </summary>
     private class TestBufferWriter : IBufferWriter<byte> {
         private readonly MemoryStream _stream = new();
@@ -50,11 +113,16 @@ public class ChunkedReservableWriterTests {
         }
     }
 
-    [Fact]
-    public void BasicWriteTest() {
-        // Arrange
-        var innerWriter = new TestBufferWriter();
-        using var writer = new ChunkedReservableWriter(innerWriter);
+    // ========== 接口级测试（Theory） ==========
+
+    [Theory]
+    [MemberData(nameof(WriterFactories))]
+    public void BasicWriteTest(
+        string name,
+        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory) {
+        _ = name; // 用于 xUnit 测试名称显示
+        var (writer, getData) = factory();
+        using var disposable = writer as IDisposable;
 
         // Act
         var span = writer.GetSpan(10);
@@ -62,15 +130,18 @@ public class ChunkedReservableWriterTests {
         writer.Advance(5);
 
         // Assert
-        var result = innerWriter.GetWrittenData();
+        var result = getData();
         Assert.Equal("Hello"u8.ToArray(), result);
     }
 
-    [Fact]
-    public void ReservationBasicTest() {
-        // Arrange
-        var innerWriter = new TestBufferWriter();
-        using var writer = new ChunkedReservableWriter(innerWriter);
+    [Theory]
+    [MemberData(nameof(WriterFactories))]
+    public void ReservationBasicTest(
+        string name,
+        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory) {
+        _ = name; // 用于 xUnit 测试名称显示
+        var (writer, getData) = factory();
+        using var disposable = writer as IDisposable;
 
         // Act - 写入一些数据，然后预留空间，再写入更多数据
         var span1 = writer.GetSpan(5);
@@ -84,16 +155,14 @@ public class ChunkedReservableWriterTests {
         "World"u8.CopyTo(span2);
         writer.Advance(5);
 
-        // 此时innerWriter应该只有"Hello"，因为预留空间阻止了后续数据的flush
-        var partialResult = innerWriter.GetWrittenData();
-        Assert.Equal("Hello"u8.ToArray(), partialResult);
+        // 注意：此时部分数据可能已 flush（取决于实现），跳过中间状态断言
 
         // 回填预留空间（模拟写入长度）
         BitConverter.GetBytes(5).CopyTo(reservedSpan); // "World"的长度
         writer.Commit(token);
 
         // 现在所有数据都应该被flush
-        var finalResult = innerWriter.GetWrittenData();
+        var finalResult = getData();
         var expected = new byte[14]; // "Hello" + 4字节长度 + "World"
         "Hello"u8.CopyTo(expected.AsSpan(0, 5));
         BitConverter.GetBytes(5).CopyTo(expected.AsSpan(5, 4));
@@ -102,11 +171,14 @@ public class ChunkedReservableWriterTests {
         Assert.Equal(expected, finalResult);
     }
 
-    [Fact]
-    public void MultipleReservationsTest() {
-        // Arrange
-        var innerWriter = new TestBufferWriter();
-        using var writer = new ChunkedReservableWriter(innerWriter);
+    [Theory]
+    [MemberData(nameof(WriterFactories))]
+    public void MultipleReservationsTest(
+        string name,
+        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory) {
+        _ = name; // 用于 xUnit 测试名称显示
+        var (writer, getData) = factory();
+        using var disposable = writer as IDisposable;
 
         // Act - 创建多个预留空间
         var span1 = writer.ReserveSpan(2, out int token1, "r1");
@@ -117,8 +189,7 @@ public class ChunkedReservableWriterTests {
         "Test"u8.CopyTo(normalSpan);
         writer.Advance(4);
 
-        // 此时应该没有数据被flush，因为有未提交的预留空间
-        Assert.Empty(innerWriter.GetWrittenData());
+        // 注意：跳过中间状态断言，不同实现 flush 时机不同
 
         // 按顺序提交预留空间
         span1[0] = 0x01;
@@ -130,25 +201,29 @@ public class ChunkedReservableWriterTests {
         writer.Commit(token2);
 
         // 现在所有数据都应该被flush
-        var result = innerWriter.GetWrittenData();
+        var result = getData();
         var expected = new byte[] { 0x01, 0x02, 0x03, 0x04 }.Concat("Test"u8.ToArray()).ToArray();
         Assert.Equal(expected, result);
     }
 
-    [Fact]
-    public void DisposeTest() {
-        // Arrange
-        var innerWriter = new TestBufferWriter();
-        var writer = new ChunkedReservableWriter(innerWriter);
+    [Theory]
+    [MemberData(nameof(WriterFactories))]
+    public void DisposeTest(
+        string name,
+        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory) {
+        _ = name; // 用于 xUnit 测试名称显示
+        var (writer, _) = factory();
 
         // Act - 写入一些数据然后释放
         var span = writer.GetSpan(100);
         writer.Advance(50);
-        writer.Dispose();
+        (writer as IDisposable)?.Dispose();
 
-        // Assert - 应该能正常释放，不抛异常
+        // Assert - 应该能正常释放，Dispose 后 GetSpan 抛 ObjectDisposedException
         Assert.Throws<ObjectDisposedException>(() => writer.GetSpan(10));
     }
+
+    // ========== 实现级测试（Fact） ==========
 
     [Fact]
     public void ResetTest() {

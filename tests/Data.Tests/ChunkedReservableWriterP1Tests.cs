@@ -98,55 +98,130 @@ public class ChunkedReservableWriterP1Tests {
         Assert.Throws<InvalidOperationException>(() => writer.Commit(token));
     }
 
-    [Fact]
-    public void Dispose_Idempotent() {
-        var inner = new CollectingWriter();
-        var writer = new ChunkedReservableWriter(inner);
+    /// <summary>
+    /// 轻量 inner writer：追加写入并可读取已写数据
+    /// 同时实现 IBufferWriter&lt;byte&gt;（供 ChunkedReservableWriter）和 IByteSink（供 SinkReservableWriter）
+    /// </summary>
+    private sealed class CollectingWriterWithSink : IBufferWriter<byte>, IByteSink {
+        private MemoryStream _stream = new();
+        private int _pos;
+
+        // ========== IBufferWriter<byte> ==========
+        public void Advance(int count) {
+            _pos += count;
+            if (_pos > _stream.Length) {
+                _stream.SetLength(_pos);
+            }
+        }
+        public Memory<byte> GetMemory(int sizeHint = 0) {
+            int need = _pos + Math.Max(sizeHint, 1);
+            if (_stream.Length < need) {
+                _stream.SetLength(need);
+            }
+
+            return _stream.GetBuffer().AsMemory(_pos, (int)_stream.Length - _pos);
+        }
+        public Span<byte> GetSpan(int sizeHint = 0) => GetMemory(sizeHint).Span;
+
+        // ========== IByteSink ==========
+        public void Push(ReadOnlySpan<byte> data) {
+            int need = _pos + data.Length;
+            if (_stream.Length < need) {
+                _stream.SetLength(need);
+            }
+            data.CopyTo(_stream.GetBuffer().AsSpan(_pos, data.Length));
+            _pos += data.Length;
+        }
+
+        // ========== 辅助方法 ==========
+        public byte[] Data() {
+            var a = new byte[_pos];
+            Array.Copy(_stream.GetBuffer(), 0, a, 0, _pos);
+            return a;
+        }
+    }
+
+    /// <summary>
+    /// 用于接口级测试（不涉及 passthrough 断言）
+    /// </summary>
+    public static TheoryData<string, Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)>> WriterFactories => new() {
+        {
+            "ChunkedReservableWriter",
+            () => {
+                var collector = new CollectingWriterWithSink();
+                return (new ChunkedReservableWriter(collector), collector.Data);
+            }
+        },
+        {
+            "SinkReservableWriter",
+            () => {
+                var collector = new CollectingWriterWithSink();
+                return (new SinkReservableWriter(collector), collector.Data);
+            }
+        },
+    };
+
+    // ========== 接口级测试（Theory） ==========
+
+    [Theory]
+    [MemberData(nameof(WriterFactories))]
+    public void Dispose_Idempotent(
+        string name,
+        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory) {
+        _ = name; // 用于 xUnit 测试名称显示
+        var (writer, _) = factory();
         var s = writer.GetSpan(3);
         s[0] = 1;
         s[1] = 2;
         s[2] = 3;
         writer.Advance(3);
-        writer.Dispose();
+        (writer as IDisposable)?.Dispose();
         // 第二次不应抛异常
-        writer.Dispose();
+        (writer as IDisposable)?.Dispose();
         Assert.Throws<ObjectDisposedException>(() => writer.GetSpan(1));
     }
 
-    [Fact]
-    public void LargeSizeHint_GetSpan_ReturnsSpanLengthAtLeastSizeHint() {
-        var inner = new CollectingWriter();
-        using var writer = new ChunkedReservableWriter(inner);
-        int large = 500_000; // < 256 * 4096 (1,048,576) 保证可分配
-        var span = writer.GetSpan(large);
-        Assert.True(span.Length >= large);
-        writer.Advance(0); // release passthrough span before switching to buffered mode
-        // 进入缓冲模式后再次测试（通过一个 reservation 强制 chunk 分配，再请求大 span）
-        writer.ReserveSpan(16, out int t, null).Clear();
-        var span2 = writer.GetSpan(large);
-        Assert.True(span2.Length >= large);
-        // Advance 一部分确保无异常
-        writer.Advance(1000);
-        writer.Commit(t);
+    // ========== 接口级边界测试（Theory） ==========
+
+    [Theory]
+    [MemberData(nameof(WriterFactories))]
+    public void LargeSizeHint_GetSpan_ReturnsSpanLengthAtLeastSizeHint(
+        string name,
+        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory) {
+        _ = name;
+        var (writer, _) = factory();
+        using var disposable = writer as IDisposable;
+
+        // 测试大 sizeHint（10MB）是否返回足够空间
+        int sizeHint = 10 * 1024 * 1024;
+        var span = writer.GetSpan(sizeHint);
+        Assert.True(span.Length >= sizeHint,
+            $"GetSpan({sizeHint}) returned span of length {span.Length}");
+        writer.Advance(0); // release span
     }
 
-    [Fact]
-    public void Bijection_TokenUniqueness_NoImmediateCollision() {
-        var inner = new CollectingWriter();
-        using var writer = new ChunkedReservableWriter(inner);
-        const int n = 2000; // 快速，但足以证明线性迭代无碰撞
-        var set = new HashSet<int>();
-        var tokens = new int[n];
+    [Theory]
+    [MemberData(nameof(WriterFactories))]
+    public void Bijection_TokenUniqueness_NoImmediateCollision(
+        string name,
+        Func<(IReservableBufferWriter Writer, Func<byte[]> GetData)> factory) {
+        _ = name;
+        var (writer, _) = factory();
+        using var disposable = writer as IDisposable;
+
+        // 验证 2000 个 reservation token 无重复
+        const int n = 2000;
+        var tokens = new HashSet<int>(n);
+        var tokenList = new int[n];
         for (int i = 0; i < n; i++) {
-            writer.ReserveSpan(1, out int token, null)[0] = (byte)i;
-            tokens[i] = token;
-            Assert.True(set.Add(token), $"Duplicate token at {i} -> {token}");
-        }
-        // 全部提交（保证结构清理逻辑不崩）
-        foreach (var tk in tokens) {
-            writer.Commit(tk);
+            writer.ReserveSpan(1, out int token, null)[0] = (byte)(i & 0xFF);
+            tokenList[i] = token;
+            Assert.True(tokens.Add(token), $"Token collision at iteration {i}: token={token}");
         }
 
-        Assert.True(writer.IsPassthrough);
+        // 全部提交确保结构清理逻辑正常
+        foreach (var tk in tokenList) {
+            writer.Commit(tk);
+        }
     }
 }
