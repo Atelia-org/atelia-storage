@@ -50,7 +50,6 @@ public class ChunkedReservableWriterStatsTests {
         Assert.Equal(4, writer.PendingLength);
         Assert.Equal(1, writer.PendingReservationCount);
         Assert.False(writer.IsPassthrough);
-        Assert.NotNull(writer.BlockingReservationToken);
 
         // Fill & commit
         writer.Commit(token);
@@ -59,11 +58,10 @@ public class ChunkedReservableWriterStatsTests {
         Assert.Equal(0, writer.PendingLength);
         Assert.Equal(0, writer.PendingReservationCount);
         Assert.True(writer.IsPassthrough);
-        Assert.Null(writer.BlockingReservationToken);
     }
 
     [Fact]
-    public void FirstBlockingReservationTokenChangesWithCommitOrder() {
+    public void PendingReservationCountChangesWithCommitOrder() {
         var inner = new DummyWriter();
         using var writer = new ChunkedReservableWriter(inner);
 
@@ -71,17 +69,13 @@ public class ChunkedReservableWriterStatsTests {
         writer.ReserveSpan(2, out int t1, "A");
         writer.ReserveSpan(2, out int t2, "B");
         Assert.Equal(2, writer.PendingReservationCount);
-        var first = writer.BlockingReservationToken;
-        Assert.True(first == t1 || first == t2); // Implementation detail: token scramble; ensure token exists
 
-        // Commit first (whichever is blocking) then second
-        writer.Commit(first!.Value);
+        // Commit first
+        writer.Commit(t1);
         Assert.Equal(1, writer.PendingReservationCount);
-        Assert.NotNull(writer.BlockingReservationToken);
-        Assert.NotEqual(first, writer.BlockingReservationToken); // 应该变化
 
-        writer.Commit(writer.BlockingReservationToken!.Value);
+        // Commit second
+        writer.Commit(t2);
         Assert.Equal(0, writer.PendingReservationCount);
-        Assert.Null(writer.BlockingReservationToken);
     }
 }

@@ -39,9 +39,6 @@ public class ChunkedReservableWriterP2Tests {
         Assert.True(w.FlushedLength <= w.WrittenLength, "Flushed <= Written 违反");
         Assert.Equal(w.WrittenLength - w.FlushedLength, w.PendingLength);
         Assert.True(w.PendingLength >= 0, "PendingLength < 0");
-        if (w.BlockingReservationToken.HasValue) {
-            Assert.True(w.PendingReservationCount > 0, "有阻塞 token 但计数为0");
-        }
 
         if (w.IsPassthrough) {
             Assert.Equal(0, w.PendingReservationCount);

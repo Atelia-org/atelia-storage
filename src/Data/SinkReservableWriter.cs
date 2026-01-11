@@ -23,66 +23,33 @@ namespace Atelia.Data;
 /// </remarks>
 public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable {
     #region Chunked Buffer
-    private readonly int _minChunkSize;
-    private readonly int _maxChunkSize;
-    private int _currentChunkTargetSize;
-    private const double GrowthFactor = 2.0;
+    private ChunkSizingStrategy _sizingStrategy;
 
     private readonly Action<string, string>? _debugLog;
     private readonly string _debugCategory;
 
-    private sealed class Chunk {
-        public byte[] Buffer = null!;
-        public int DataEnd;
-        public int DataBegin;
-        public bool IsRented;
-
-        public int FreeSpace => Buffer.Length - DataEnd;
-        public bool IsFullyFlushed => DataBegin == DataEnd;
-
-        public Span<byte> GetAvailableSpan() => Buffer.AsSpan(DataEnd);
-        public Memory<byte> GetAvailableMemory() => Buffer.AsMemory(DataEnd, FreeSpace);
-    }
-
     private readonly ArrayPool<byte> _pool;
-    private readonly SlidingQueue<Chunk> _chunks = new();
+    private readonly SlidingQueue<ReservableWriterChunk> _chunks = new();
 
     private long _writtenLength;
     private long _pushedLength;
 
-    private Chunk CreateChunk(int sizeHint) {
-        sizeHint = Math.Max(sizeHint, 1);
-        int required = Math.Max(sizeHint, _minChunkSize);
-
-        int size;
-        if (required > _maxChunkSize) {
-            size = required; // oversize direct rent
-        }
-        else {
-            int candidate = Math.Max(required, _currentChunkTargetSize);
-            candidate = (int)BitOperations.RoundUpToPowerOf2((uint)candidate);
-            if (candidate > _maxChunkSize) { candidate = _maxChunkSize; }
-            size = candidate;
-        }
-
+    private ReservableWriterChunk CreateChunk(int sizeHint) {
+        int size = _sizingStrategy.ComputeChunkSize(sizeHint);
         byte[] buffer = _pool.Rent(size);
         if (buffer.Length < sizeHint) { throw new InvalidOperationException($"ArrayPool returned buffer length {buffer.Length} < requested {sizeHint}"); }
 
-        var chunk = new Chunk { Buffer = buffer, DataEnd = 0, DataBegin = 0, IsRented = true };
+        var chunk = new ReservableWriterChunk { Buffer = buffer, DataEnd = 0, DataBegin = 0, IsRented = true };
         _chunks.Enqueue(chunk);
 
-        if (size < _maxChunkSize && _currentChunkTargetSize < _maxChunkSize) {
-            long next = (long)(_currentChunkTargetSize * GrowthFactor);
-            _currentChunkTargetSize = (int)Math.Min(next, _maxChunkSize);
-        }
-
+        _sizingStrategy.NotifyChunkCreated(size);
         return chunk;
     }
 
-    private bool TryGetLastActiveChunk([MaybeNullWhen(false)] out Chunk item) => _chunks.TryPeekLast(out item);
-    private IEnumerable<Chunk> GetActiveChunks() => _chunks;
+    private bool TryGetLastActiveChunk([MaybeNullWhen(false)] out ReservableWriterChunk item) => _chunks.TryPeekLast(out item);
+    private IEnumerable<ReservableWriterChunk> GetActiveChunks() => _chunks;
 
-    private Chunk EnsureSpace(int sizeHint) {
+    private ReservableWriterChunk EnsureSpace(int sizeHint) {
         if (TryGetLastActiveChunk(out var lastChunk) && lastChunk.FreeSpace >= sizeHint) { return lastChunk; }
         return CreateChunk(sizeHint);
     }
@@ -101,14 +68,7 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
         var opt = options.Clone();
 
         _pool = opt.Pool ?? ArrayPool<byte>.Shared;
-        int minSize = opt.MinChunkSize;
-        int maxSize = opt.MaxChunkSize;
-        if (minSize < 1024) { throw new ArgumentException("MinChunkSize must be >= 1024", nameof(options)); }
-        if (maxSize < minSize) { throw new ArgumentException("MaxChunkSize must be >= MinChunkSize", nameof(options)); }
-
-        _minChunkSize = minSize;
-        _maxChunkSize = maxSize;
-        _currentChunkTargetSize = _minChunkSize;
+        _sizingStrategy = new ChunkSizingStrategy(opt.MinChunkSize, opt.MaxChunkSize);
 
         _debugLog = opt.DebugLog;
         _debugCategory = string.IsNullOrWhiteSpace(opt.DebugCategory) ? "BinaryLog" : opt.DebugCategory;
@@ -121,43 +81,13 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
     }
 
     #region Reservation
-    private sealed class Reservation {
-        public readonly Chunk Chunk;
-        public readonly int Offset;
-        public readonly int Length;
-        public readonly long LogicalOffset;
-        public readonly string? Tag;
-
-        public Reservation(Chunk chunk, int offset, int length, long logicalOffset, string? tag) {
-            Chunk = chunk;
-            Offset = offset;
-            Length = length;
-            LogicalOffset = logicalOffset;
-            Tag = tag;
-        }
-    }
-
-    private readonly Dictionary<int, LinkedListNode<Reservation>> _tokenToNode = new();
-    private readonly LinkedList<Reservation> _reservationOrder = new();
-
-    private uint _reservationSerial;
-
-    private int AllocReservationToken() {
-        return unchecked((int)Bijection(++_reservationSerial));
-    }
-
-    public static uint Bijection(uint x) {
-        x ^= x << 13;
-        x ^= x >> 17;
-        x ^= x << 5;
-        return x;
-    }
+    private ReservationTracker _reservations = new();
 
     private bool FlushCommittedData() {
-        Reservation? firstReservation = _reservationOrder.First?.Value;
+        ReservationEntry? firstReservation = _reservations.FirstPending;
         bool pushedAny = false;
 
-        foreach (Chunk chunk in GetActiveChunks()) {
+        foreach (ReservableWriterChunk chunk in GetActiveChunks()) {
             int pushableLength;
             if (firstReservation?.Chunk == chunk) {
                 pushableLength = firstReservation.Offset - chunk.DataBegin;
@@ -179,7 +109,7 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
         return pushedAny;
     }
 
-    private void PushChunkData(Chunk chunk, int length) {
+    private void PushChunkData(ReservableWriterChunk chunk, int length) {
         // Important: If sink throws, do not advance DataBegin/_pushedLength.
         ReadOnlySpan<byte> dataToPush = chunk.Buffer.AsSpan(chunk.DataBegin, length);
         _sink.Push(dataToPush);
@@ -250,7 +180,7 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
         if (_hasLastSpan) { throw new InvalidOperationException("Previous buffer not advanced. Call Advance() (or Advance(0)) before requesting another buffer."); }
         sizeHint = Math.Max(sizeHint, 1);
 
-        Chunk chunk = EnsureSpace(sizeHint);
+        ReservableWriterChunk chunk = EnsureSpace(sizeHint);
         Memory<byte> mem = chunk.GetAvailableMemory();
 
         _lastSpanLength = mem.Length;
@@ -263,7 +193,7 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
         if (_hasLastSpan) { throw new InvalidOperationException("Previous buffer not advanced. Call Advance() (or Advance(0)) before requesting another buffer."); }
         sizeHint = Math.Max(sizeHint, 1);
 
-        Chunk chunk = EnsureSpace(sizeHint);
+        ReservableWriterChunk chunk = EnsureSpace(sizeHint);
         Span<byte> span = chunk.GetAvailableSpan();
 
         if (span.Length < sizeHint) {
@@ -284,15 +214,11 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
         if (count <= 0) { throw new ArgumentOutOfRangeException(nameof(count), "Count must be positive"); }
         if (_hasLastSpan) { throw new InvalidOperationException("Previous buffer not advanced. Call Advance() before ReserveSpan()."); }
 
-        Chunk chunk = EnsureSpace(count);
+        ReservableWriterChunk chunk = EnsureSpace(count);
         int offset = chunk.DataEnd;
         long logicalOffset = _writtenLength;
 
-        var reservation = new Reservation(chunk, offset, count, logicalOffset, tag);
-        reservationToken = AllocReservationToken();
-
-        var node = _reservationOrder.AddLast(reservation);
-        _tokenToNode[reservationToken] = node;
+        reservationToken = _reservations.Add(chunk, offset, count, logicalOffset, tag);
 
         chunk.DataEnd += count;
         _writtenLength += count;
@@ -307,13 +233,10 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
     public void Commit(int reservationToken) {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (!_tokenToNode.TryGetValue(reservationToken, out var node)) { throw new InvalidOperationException("Invalid or already committed reservation token."); }
-
-        _reservationOrder.Remove(node);
-        _tokenToNode.Remove(reservationToken);
+        if (!_reservations.TryCommit(reservationToken, out _)) { throw new InvalidOperationException("Invalid or already committed reservation token."); }
 
         if (_debugLog is not null) {
-            Trace($"Commit token={reservationToken}, remaining={_reservationOrder.Count}");
+            Trace($"Commit token={reservationToken}, remaining={_reservations.PendingCount}");
         }
 
         bool pushed = FlushCommittedData();
@@ -339,8 +262,7 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
         }
         _chunks.Clear();
 
-        _tokenToNode.Clear();
-        _reservationOrder.Clear();
+        _reservations.Clear();
 
         _writtenLength = 0;
         _pushedLength = 0;
@@ -374,11 +296,11 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
     /// </summary>
     public long PendingLength => _writtenLength - _pushedLength;
 
-    public int PendingReservationCount => _reservationOrder.Count;
+    public int PendingReservationCount => _reservations.PendingCount;
 
     /// <summary>
     /// True if there are no pending reservations and no pending buffered bytes.
     /// </summary>
-    public bool IsIdle => PendingLength == 0 && _reservationOrder.Count == 0;
+    public bool IsIdle => PendingLength == 0 && _reservations.PendingCount == 0;
     #endregion
 }
