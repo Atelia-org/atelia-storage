@@ -11,10 +11,9 @@ depends_on:
 ---
 
 # RBF 核心类型骨架 (Type Bone)
-
-> **本文档性质**：Implementation Guide（实现指南），非规范性。
-> 实现者 MAY 在不违反 [rbf-interface.md](rbf-interface.md) 契约的前提下采用不同实现路径。
-> 本文档描述的是"推荐实现方案"，不是"唯一合法实现"。
+**本文档性质**：Implementation Guide（实现指南），非规范性。
+实现者 MAY 在不违反 [rbf-interface.md](rbf-interface.md) 契约的前提下采用不同实现路径。
+本文档描述的是"推荐实现方案"，不是"唯一合法实现"。
 
 本文档定义 RBF 子系统的核心类型设计。
 
@@ -82,9 +81,13 @@ public static class RbfRawOps {
     /// 创建逆向扫描序列。
     /// </summary>
     /// <param name="file">文件句柄。</param>
-    /// <param name="fileLength">文件逻辑长度（扫描起点）。</param>
+    /// <param name="scanOrigin">文件逻辑长度（扫描起点）。</param>
+    /// <param name="showTombstone">是否包含墓碑帧。默认 false。</param>
     /// <returns>逆向扫描序列结构。</returns>
-    public static RbfReverseSequence ScanReverse(SafeFileHandle file, long fileLength);
+    /// <remarks>
+    /// <para>RawOps 层直接实现过滤逻辑，与 Facade 层 @[S-RBF-SCANREVERSE-TOMBSTONE-FILTER] 保持一致。</para>
+    /// </remarks>
+    public static RbfReverseSequence ScanReverse(SafeFileHandle file, long scanOrigin, bool showTombstone = false);
 
     // 写路径 (Write Path)
     
@@ -110,7 +113,7 @@ public static class RbfRawOps {
 **实现说明**：
 - 作为 `ref struct` 实现 Zero-Allocation on Hot Path
 - 生命周期必须涵盖 Payload 写入过程
-- 在 Commit 时一次性调用 RandomAccess.Write 刷入磁盘（或 Flush 内部 Buffer）
+- 在 EndAppend 时一次性调用 RandomAccess.Write 刷入磁盘（或 Flush 内部 Buffer）
 - 内部字段：`SafeFileHandle _file`、`long _offset`、`byte[] _buffer` 等
 
 ### 3.1.1 Auto-Abort 实现路径
@@ -119,7 +122,7 @@ public static class RbfRawOps {
 ```clause-matter
 depends: "@[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME](rbf-interface.md)"
 ```
-> 本条款定义如何实现 @[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME] 的逻辑语义。
+本条款定义如何实现 @[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME] 的逻辑语义。
 
 **物理实现双路径**：
 
@@ -131,7 +134,7 @@ depends: "@[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME](rbf-interface.md)"
 **Tombstone 路径细节**：
 - Tombstone 帧 SHOULD 保留原 FrameTag 值（供诊断用）
 - Tombstone 帧 MUST 通过 framing/CRC 校验
-- ScanReverse MUST 产出 Tombstone 帧（由 interface.md @[S-RBF-TOMBSTONE-VISIBLE] 约束）
+- ScanReverse 默认过滤 Tombstone 帧；只有 `showTombstone=true` 时才产出（由 interface.md @[S-RBF-SCANREVERSE-TOMBSTONE-FILTER] 约束）
 
 **选择逻辑**：
 - MVP 实现 SHOULD 优先尝试 Zero I/O
@@ -162,7 +165,7 @@ depends: "@[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME](rbf-interface.md)"
 - 职责：资源管理 (IDisposable)、状态维护 (TailOffset)、调用转发
 - 写入方法转发到 `RbfRawOps` 并更新内部状态
 - 读取方法直接转发到 `RbfRawOps`（无状态调用）
-- 在 Builder Dispose/Commit 前，TailOffset 不会更新，也不应允许并发 Append
+- 在 Builder Dispose/EndAppend 前，TailOffset 不会更新，也不应允许并发 Append
 
 **工厂方法**：
 - `RbfFile.CreateNew(string path)` — 创建新文件（FailIfExists）
@@ -187,13 +190,12 @@ depends: "@[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME](rbf-interface.md)"
 ### 5.2 RandomAccessByteSink（推荐实现）
 
 ### spec [I-RBF-BYTESINK-IS-MINIMAL-FORWARDER] RandomAccessByteSink类型定义
-```clause-matter
-see-also: "@[A-RBF-IRBFFILE-SHAPE](rbf-interface.md)"
-```
-> `RandomAccessByteSink` 是 RandomAccess → IByteSink 的最小适配器，职责边界：
-> - **Push Forwarding**：将 `Push(ReadOnlySpan<byte>)` 直接转发到 `RandomAccess.Write`
-> - **Sequential Offset Accounting**：维护顺序写入游标 `_writeOffset`，每次 `Push` 后推进
-> - **不做**：reservation/backfill、合并、flush gating、buffer 管理（这些由 SinkReservableWriter 负责）
+see: @[A-RBF-IRBFFILE-SHAPE](rbf-interface.md)
+
+`RandomAccessByteSink` 是 RandomAccess → IByteSink 的最小适配器，职责边界：
+- **Push Forwarding**：将 `Push(ReadOnlySpan<byte>)` 直接转发到 `RandomAccess.Write`
+- **Sequential Offset Accounting**：维护顺序写入游标 `_writeOffset`，每次 `Push` 后推进
+- **不做**：reservation/backfill、合并、flush gating、buffer 管理（这些由 SinkReservableWriter 负责）
 
 **类型签名**：
 
@@ -260,17 +262,14 @@ internal sealed class RandomAccessByteSink : IByteSink {
 ### 5.3 关键实现约束
 
 ### spec [I-RBF-SEQWRITER-HEADLEN-GUARD] HeadLen必须立即reserve
-```clause-matter
-depends: "@[I-RBF-BUILDER-AUTO-ABORT-IMPL]"
-```
-> `RbfFrameBuilder` 创建时 MUST 立即 reserve HeadLen（4 字节），以确保 `SinkReservableWriter` 进入 buffered mode。
-> 若先写 payload 后 reserve，会进入 passthrough mode 导致提前 flush（破坏 Zero I/O Abort）。
+see: @[I-RBF-BUILDER-AUTO-ABORT-IMPL]
+`RbfFrameBuilder` 创建时 MUST 立即 reserve HeadLen（4 字节），以确保 `SinkReservableWriter` 进入 buffered mode。
+若先写 payload 后 reserve，会进入 passthrough mode 导致提前 flush（破坏 Zero I/O Abort）。
 
 ### spec [I-RBF-BYTESINK-PUSH-FORWARDS-AND-ADVANCES-OFFSET] Push推送语义
-> `Push(ReadOnlySpan<byte> data)` MUST 调用 `RandomAccess.Write(_file, data, _writeOffset)` 并推进 `_writeOffset += data.Length`。
+`Push(ReadOnlySpan<byte> data)` MUST 调用 `RandomAccess.Write(_file, data, _writeOffset)` 并推进 `_writeOffset += data.Length`。
 
 **实现模式**（伪代码）：
-
 ```csharp
 // RbfRawOps._BeginFrame()
 internal static RbfFrameBuilder _BeginFrame(SafeFileHandle file, long writeOffset, uint tag) {
@@ -299,8 +298,8 @@ internal static RbfFrameBuilder _BeginFrame(SafeFileHandle file, long writeOffse
 ### 5.4 错误处理
 
 ### spec [I-RBF-BYTESINK-ERROR-THROW] I/O异常直接抛出
-> `Push` 中的 `RandomAccess.Write` 失败时 MUST 直接抛出异常（`IOException` 或 `UnauthorizedAccessException`）。
-> 符合 AteliaResult 规范的 Infra Fault 策略（基础设施故障用异常）。
+`Push` 中的 `RandomAccess.Write` 失败时 MUST 直接抛出异常（`IOException` 或 `UnauthorizedAccessException`）。
+符合 AteliaResult 规范的 Infra Fault 策略（基础设施故障用异常）。
 
 ### 5.5 Tradeoff 汇总
 
@@ -315,7 +314,7 @@ internal static RbfFrameBuilder _BeginFrame(SafeFileHandle file, long writeOffse
 
 ### 5.6 待实现阶段确认（P2）
 
-1. **CRC32C 计算时机**：Commit 时遍历 chunks vs 增量计算
+1. **CRC32C 计算时机**：EndAppend 时遍历 chunks vs 增量计算
 2. ~~异步版本~~：如需异步，实现 `RandomAccessByteSinkAsync` 配合 `RandomAccess.WriteAsync`
 
 ---
