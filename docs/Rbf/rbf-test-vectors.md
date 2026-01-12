@@ -7,11 +7,10 @@ produce_by:
 
 # RBF 测试向量
 
-> **版本**：0.12
-> **状态**：Draft
-> **关联规范**：[rbf-format.md](rbf-format.md) v0.28, [rbf-interface.md](rbf-interface.md) v0.20
-
-> 本文档遵循 [Atelia 规范约定](../spec-conventions.md)。
+> **文档定位**：测试向量，覆盖 Layer 0 的 Frame 编码、扫描、CRC 校验。
+> 文档层级与规范遵循见 [README.md](README.md)。
+>
+> **版本**：0.12 | **状态**：Draft | **对齐规范**：rbf-format.md v0.28, rbf-interface.md v0.20
 
 ## 概述
 
@@ -90,7 +89,7 @@ produce_by:
 
 ### 1.6 FrameStatus 位域格式
 
-> 对应规范条款 `[F-FRAMESTATUS-VALUES]`
+> 对应规范条款 `[F-FRAMESTATUS-RESERVED-BITS-ZERO]`
 
 **位域布局**（引用自 rbf-format.md）：
 - Bit 7：Tombstone（0=Valid，1=Tombstone）
@@ -354,18 +353,18 @@ produce_by:
 
 | 条款 ID | 规范条款 | 对应测试用例 |
 |---------|----------|--------------|
-| `[F-GENESIS]` | Genesis Fence | RBF-EMPTY-001, SCAN-EMPTY-001 |
-| `[F-FENCE-SEMANTICS]` | Fence 语义 | RBF-SINGLE-001, RBF-DOUBLE-001 |
-| `[F-FRAME-LAYOUT]` | FrameBytes 布局 (含 HeadLen/Tag/Payload/FrameStatus/TailLen/CRC) | RBF-LEN-001, RBF-OK-001/002/003 |
+| `[F-FILE-STARTS-WITH-GENESIS-FENCE]` | Genesis Fence | RBF-EMPTY-001, SCAN-EMPTY-001 |
+| `[F-FENCE-IS-SEPARATOR-NOT-FRAME]` | Fence 语义 | RBF-SINGLE-001, RBF-DOUBLE-001 |
+| `[F-FRAMEBYTES-FIELD-OFFSETS]` | FrameBytes 布局 (含 HeadLen/Tag/Payload/FrameStatus/TailLen/CRC) | RBF-LEN-001, RBF-OK-001/002/003 |
 | `[F-FRAMETAG-WIRE-ENCODING]` | FrameTag 编码 (4B) | RBF-OK-001, RBF-BAD-002 |
-| `[F-FRAMESTATUS-VALUES]` | FrameStatus 位域格式 | RBF-STATUS-001/002, RBF-OK-001/002, RBF-BAD-005 |
+| `[F-FRAMESTATUS-RESERVED-BITS-ZERO]` | FrameStatus 位域格式 | RBF-STATUS-001/002, RBF-OK-001/002, RBF-BAD-005 |
 | `[F-FRAMESTATUS-FILL]` | FrameStatus 填充规则 | RBF-OK-001/002, RBF-BAD-006 |
-| `[F-STATUSLEN-FORMULA]` | StatusLen 公式 | RBF-LEN-001/002, RBF-OK-003 |
+| `[F-STATUSLEN-ENSURES-4B-ALIGNMENT]` | StatusLen 公式 | RBF-LEN-001/002, RBF-OK-003 |
 | `[F-FRAME-4B-ALIGNMENT]` | Frame 起点 4B 对齐 | RBF-BAD-003 |
 | `[S-RBF-SIZEDPTR-WIRE-MAPPING]` | SizedPtr 与 Wire Format 的对应关系 | READFRAME-OK-001, READFRAME-BAD-001/002/003/004 |
 | `[F-CRC32C-COVERAGE]` | CRC32C 覆盖范围 (含 Tag/Status/TailLen) | RBF-OK-001/002, RBF-BAD-002 |
-| `[R-RESYNC-BEHAVIOR]` | Resync 行为 (不信任 TailLen) | RBF-TRUNCATE-001/002, RBF-BAD-003/004 |
-| `[R-REVERSE-SCAN-ALGORITHM]` | 逆向扫描 | RBF-SINGLE-001, RBF-DOUBLE-001, RBF-OK-001/002 |
+| `[R-RESYNC-SCAN-BACKWARD-4B-TO-GENESIS]` | Resync 行为 (不信任 TailLen) | RBF-TRUNCATE-001/002, RBF-BAD-003/004 |
+| `[R-REVERSE-SCAN-RETURNS-VALID-FRAMES-TAIL-TO-HEAD]` | 逆向扫描 | RBF-SINGLE-001, RBF-DOUBLE-001, RBF-OK-001/002 |
 | `[A-RBF-REVERSE-SEQUENCE]` | RbfReverseSequence (duck-typed) | SCAN-FOREACH-001, SCAN-MULTI-ENUM-001 |
 | `[S-RBF-SCANREVERSE-NO-IENUMERABLE]` | 不实现 IEnumerable | SCAN-LINQ-FAIL-001, SCAN-REFSTRUCT-001/002 |
 | `[S-RBF-SCANREVERSE-EMPTY-IS-OK]` | 空序列合法 | SCAN-EMPTY-001, SCAN-EMPTY-002 |

@@ -26,7 +26,7 @@ depends_on:
 
 | 类型 | SSOT | 描述 |
 |------|------|------|
-| `IRbfFile` | [rbf-interface.md#A-RBF-FILE-FACADE](rbf-interface.md#A-RBF-FILE-FACADE) | RBF 文件对象门面 |
+| `IRbfFile` | [rbf-interface.md#A-RBF-IRBFFILE-SHAPE](rbf-interface.md#A-RBF-IRBFFILE-SHAPE) | RBF 文件对象门面 |
 | `RbfFrame` | [rbf-interface.md#A-RBF-FRAME-STRUCT](rbf-interface.md#A-RBF-FRAME-STRUCT) | 帧数据结构 |
 | `RbfFrameBuilder` | [rbf-interface.md#A-RBF-FRAME-BUILDER](rbf-interface.md#A-RBF-FRAME-BUILDER) | 帧构建器 |
 | `RbfReverseSequence` | [rbf-interface.md#A-RBF-REVERSE-SEQUENCE](rbf-interface.md#A-RBF-REVERSE-SEQUENCE) | 逆向扫描序列 |
@@ -117,9 +117,9 @@ public static class RbfRawOps {
 
 ### spec [I-RBF-BUILDER-AUTO-ABORT-IMPL] Auto-Abort物理实现
 ```clause-matter
-depends: "@[S-RBF-BUILDER-AUTO-ABORT-SEMANTICS](rbf-interface.md)"
+depends: "@[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME](rbf-interface.md)"
 ```
-> 本条款定义如何实现 @[S-RBF-BUILDER-AUTO-ABORT-SEMANTICS] 的逻辑语义。
+> 本条款定义如何实现 @[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME] 的逻辑语义。
 
 **物理实现双路径**：
 
@@ -156,7 +156,7 @@ depends: "@[S-RBF-BUILDER-AUTO-ABORT-SEMANTICS](rbf-interface.md)"
 
 `IRbfFile` 是应用层（Layer 2）主要交互的对象，负责维护"有状态"的信息（如文件路径、打开的 Handle、当前的 TailOffset）。
 
-**接口定义（SSOT）**：见 [rbf-interface.md](rbf-interface.md) @[A-RBF-FILE-FACADE]
+**接口定义（SSOT）**：见 [rbf-interface.md](rbf-interface.md) @[A-RBF-IRBFFILE-SHAPE]
 
 **实现说明**：
 - 职责：资源管理 (IDisposable)、状态维护 (TailOffset)、调用转发
@@ -186,9 +186,9 @@ depends: "@[S-RBF-BUILDER-AUTO-ABORT-SEMANTICS](rbf-interface.md)"
 
 ### 5.2 RandomAccessByteSink（推荐实现）
 
-### spec [I-RBF-BYTESINK-TYPE] RandomAccessByteSink类型定义
+### spec [I-RBF-BYTESINK-IS-MINIMAL-FORWARDER] RandomAccessByteSink类型定义
 ```clause-matter
-see-also: "@[A-RBF-FILE-FACADE](rbf-interface.md)"
+see-also: "@[A-RBF-IRBFFILE-SHAPE](rbf-interface.md)"
 ```
 > `RandomAccessByteSink` 是 RandomAccess → IByteSink 的最小适配器，职责边界：
 > - **Push Forwarding**：将 `Push(ReadOnlySpan<byte>)` 直接转发到 `RandomAccess.Write`
@@ -266,7 +266,7 @@ depends: "@[I-RBF-BUILDER-AUTO-ABORT-IMPL]"
 > `RbfFrameBuilder` 创建时 MUST 立即 reserve HeadLen（4 字节），以确保 `SinkReservableWriter` 进入 buffered mode。
 > 若先写 payload 后 reserve，会进入 passthrough mode 导致提前 flush（破坏 Zero I/O Abort）。
 
-### spec [I-RBF-BYTESINK-PUSH-SEMANTICS] Push推送语义
+### spec [I-RBF-BYTESINK-PUSH-FORWARDS-AND-ADVANCES-OFFSET] Push推送语义
 > `Push(ReadOnlySpan<byte> data)` MUST 调用 `RandomAccess.Write(_file, data, _writeOffset)` 并推进 `_writeOffset += data.Length`。
 
 **实现模式**（伪代码）：
@@ -324,7 +324,7 @@ internal static RbfFrameBuilder _BeginFrame(SafeFileHandle file, long writeOffse
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
-| 0.4 | 2026-01-11 | **适配器简化**：将 §5 从 `IBufferWriter` 适配器改为 `IByteSink` 适配器；删除 `SequentialRandomAccessBufferWriter`（~80 行）；新增 `RandomAccessByteSink`（~25 行）；删除 `@[I-RBF-SEQWRITER-TYPE]`、`@[I-RBF-SEQWRITER-ADVANCE-IMMEDIATE]`、`@[I-RBF-SEQWRITER-BUFFER-POOL]`、`@[I-RBF-SEQWRITER-DISPOSE-NOEXCEPT]`；新增 `@[I-RBF-BYTESINK-TYPE]`、`@[I-RBF-BYTESINK-PUSH-SEMANTICS]`、`@[I-RBF-BYTESINK-ERROR-THROW]`；来自 [设计报告](../../../agent-team/handoffs/2026-01-11-randomaccess-bytesink-design.md) |
+| 0.4 | 2026-01-11 | **适配器简化**：将 §5 从 `IBufferWriter` 适配器改为 `IByteSink` 适配器；删除 `SequentialRandomAccessBufferWriter`（~80 行）；新增 `RandomAccessByteSink`（~25 行）；删除 `@[I-RBF-SEQWRITER-TYPE]`、`@[I-RBF-SEQWRITER-ADVANCE-IMMEDIATE]`、`@[I-RBF-SEQWRITER-BUFFER-POOL]`、`@[I-RBF-SEQWRITER-DISPOSE-NOEXCEPT]`；新增 `@[I-RBF-BYTESINK-IS-MINIMAL-FORWARDER]`、`@[I-RBF-BYTESINK-PUSH-FORWARDS-AND-ADVANCES-OFFSET]`、`@[I-RBF-BYTESINK-ERROR-THROW]`；来自 [设计报告](../../../agent-team/handoffs/2026-01-11-randomaccess-bytesink-design.md) |
 | 0.3 | 2026-01-11 | **RandomAccess 适配器设计**：新增 §5（SequentialRandomAccessBufferWriter）；定义 @[I-RBF-SEQWRITER-TYPE]、@[I-RBF-SEQWRITER-ADVANCE-IMMEDIATE]、@[I-RBF-SEQWRITER-BUFFER-POOL]、@[I-RBF-SEQWRITER-HEADLEN-GUARD]、@[I-RBF-SEQWRITER-ERROR-THROW]、@[I-RBF-SEQWRITER-DISPOSE-NOEXCEPT]；来自 [畅谈会](../../../agent-team/meeting/2026-01-11-rbf-randomaccess-adapter.md) 决议 |
 | 0.2 | 2026-01-11 | **文档职能分离**：移除与 interface.md 重复的公开类型定义，改为引用；新增 Auto-Abort 实现路径条款 @[I-RBF-BUILDER-AUTO-ABORT-IMPL]；增加快速导航区块；明确为非规范性实现指南 |
 | 0.1 | 2026-01-11 | 初始版本（Type Bone 骨架） |

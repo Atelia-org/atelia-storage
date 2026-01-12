@@ -7,27 +7,10 @@ produce_by:
 
 # RBF 推导与答疑（Derived / Informative）
 
-> 本文档遵循 [Atelia 规范约定](../spec-conventions.md) §3（Decision → SSOT → Derived）。
-> 本文档遵循 [AI-Design-DSL](../../../agent-team/wiki/SoftwareDesignModeling/AI-Design-DSL.md) 规范。
->
-> **状态**：Derived / Informative（允许滞后/可删改）。
-> - 当本文档与规范层（SSOT）冲突时，MUST 以规范层为准。
-> - 本文档 MAY 被删除、重写或暂时缺失，不构成规范缺陷。
+> **文档定位**：Derived-Layer，容纳推导结论、算例、FAQ。与 SSOT 冲突时以 SSOT 为准。
+> 文档层级与规范遵循见 [README.md](README.md)。
 
-## 1. 本文件的角色
-
-本文件用于容纳：
-- 从 `rbf-format.md`（wire layout / 公式 / 算法）与 `rbf-interface.md`（API/语义）**推导得到**的结论；
-- 读者（尤其是 LLM 会话）反复追问但不应写入 SSOT 的澄清；
-- 算例、FAQ、直觉解释。
-
-## 2. 导航（SSOT 在哪里？）
-
-- Decision-Layer：`rbf-decisions.md`
-- SSOT / Interface：`rbf-interface.md`
-- SSOT / Wire Format：`rbf-format.md`
-
-## 3. 示例占位（后续迁移）
+## 1. 示例占位（后续迁移）
 
 > 这里将逐步迁移“可由 SSOT 推导”的重复信息，例如：
 > - 最小帧长度、由公式推出的边界值
@@ -36,24 +19,55 @@ produce_by:
 
 ---
 
+### derived [H-FRAMING-CHECKLIST] Framing校验清单
+> **依据 SSOT**：本清单汇总了 `rbf-format.md` §2 和 §3 中定义的用于 Framing 判定的约束。
+> Reader 在执行 @[F-FRAMING-FAIL-REJECT](rbf-format.md) 时应检查以下项目：
+
+1. **结构一致性**
+    - HeadLen 与 TailLen 必须相等（@[F-FRAMEBYTES-FIELD-OFFSETS](rbf-format.md)）
+    - HeadLen 必须符合计算公式（@[H-HEADLEN-FORMULA](rbf-format.md)）
+2. **值域合法性**
+    - FrameStatus 保留位必须为 0（@[F-FRAMESTATUS-RESERVED-BITS-ZERO](rbf-format.md)）
+    - FrameStatus 所有字节必须相同（@[F-FRAMESTATUS-FILL](rbf-format.md)）
+    - Fence 必须匹配 `RBF1`（@[F-FENCE-VALUE-IS-RBF1-ASCII-4B](rbf-format.md)）
+3. **布局约束**
+    - Frame 起始位置必须 4 字节对齐（@[F-FRAME-4B-ALIGNMENT](rbf-format.md)）
+    - Frame 必须位于 Genesis Fence 之后（@[F-FILE-STARTS-WITH-GENESIS-FENCE](rbf-decisions.md)）
+
+### derived [H-FILE-MINIMUM-LENGTH] 最小文件长度
+> 由 @[F-FILE-STARTS-WITH-GENESIS-FENCE](rbf-decisions.md) 推导：有效 RBF 文件长度 MUST >= 4（至少包含 Genesis Fence）。
+>
+> **Reader 行为**：`fileLength < 4` 时，Reader 遵循 @[S-RBF-SCANREVERSE-EMPTY-IS-OK](rbf-interface.md) 采取 fail-soft 策略（返回空序列），MUST NOT 抛出异常。即：无需区分"文件不完整"与"文件为空但合法"。
+
+### derived [H-HEADLEN-FORMULA] HeadLen计算公式
+> 由 @[F-FRAMEBYTES-FIELD-OFFSETS](rbf-format.md) 推导：`HeadLen = 4 (HeadLen) + 4 (FrameTag) + PayloadLen + StatusLen + 4 (TailLen) + 4 (CRC32C)`
+
 ### derived [D-RBF-FORMAT-MIN-HEADLEN] 最小HeadLen推导
 ```clause-matter
-depends: "@[F-HEADLEN-FORMULA](rbf-format.md), @[F-STATUSLEN-FORMULA](rbf-format.md)"
+depends: "@[H-HEADLEN-FORMULA](rbf-format.md), @[F-STATUSLEN-ENSURES-4B-ALIGNMENT](rbf-format.md)"
 ```
-> **依据 SSOT**：`rbf-format.md` 的 @[F-HEADLEN-FORMULA] 与 @[F-STATUSLEN-FORMULA]
+> **依据 SSOT**：`rbf-format.md` 的 @[H-HEADLEN-FORMULA] 与 @[F-STATUSLEN-ENSURES-4B-ALIGNMENT]
 
 - 当 `PayloadLen = 0` 时，`PayloadLen % 4 = 0`。
-- 代入 @[F-STATUSLEN-FORMULA] 可得 `StatusLen = 4`。
-- 代入 @[F-HEADLEN-FORMULA] 可得：
+- 代入 @[F-STATUSLEN-ENSURES-4B-ALIGNMENT] 可得 `StatusLen = 4`。
+- 代入 @[H-HEADLEN-FORMULA] 可得：
       $$\text{HeadLen} = 16 + \text{PayloadLen} + \text{StatusLen} = 16 + 0 + 4 = 20$$
 
 因此：最小 `HeadLen = 20`。
 
+### spec [F-FRAME-4B-ALIGNMENT] Frame起点4字节对齐
+```clause-matter
+depends: "@[S-RBF-DECISION-4B-ALIGNMENT-ROOT](rbf-decisions.md)"
+```
+> Frame 起点（HeadLen 字段位置）MUST 4B 对齐。
+>
+> 该 4B 对齐不变量属于根设计决策，见 @[S-RBF-DECISION-4B-ALIGNMENT-ROOT]。
+
 ### derived [D-RBF-FORMAT-STATUSLEN-RANGE-TABLE] StatusLen值域枚举
 ```clause-matter
-depends: "@[F-STATUSLEN-FORMULA](rbf-format.md)"
+depends: "@[F-STATUSLEN-ENSURES-4B-ALIGNMENT](rbf-format.md)"
 ```
-> **依据 SSOT**：`rbf-format.md` 的 @[F-STATUSLEN-FORMULA]
+> **依据 SSOT**：`rbf-format.md` 的 @[F-STATUSLEN-ENSURES-4B-ALIGNMENT]
 
 | PayloadLen % 4 | StatusLen |
 |----------------|----------|
@@ -64,9 +78,9 @@ depends: "@[F-STATUSLEN-FORMULA](rbf-format.md)"
 
 ### derived [D-RBF-FORMAT-STATUSLEN-FORMULA-PROPERTIES] StatusLen公式性质
 ```clause-matter
-depends: "@[F-STATUSLEN-FORMULA](rbf-format.md)"
+depends: "@[F-STATUSLEN-ENSURES-4B-ALIGNMENT](rbf-format.md)"
 ```
-> **依据 SSOT**：`rbf-format.md` 的 @[F-STATUSLEN-FORMULA]
+> **依据 SSOT**：`rbf-format.md` 的 @[F-STATUSLEN-ENSURES-4B-ALIGNMENT]
 
 从公式：
 $$\text{StatusLen} = 1 + \big((4 - ((\text{PayloadLen}+1) \bmod 4)) \bmod 4\big)$$
@@ -81,9 +95,9 @@ $$\text{StatusLen} = 1 + \big((4 - ((\text{PayloadLen}+1) \bmod 4)) \bmod 4\big)
 
 ### derived [D-RBF-FORMAT-TOMBSTONE-CRC-EXAMPLE] Tombstone最小帧CRC覆盖算例
 ```clause-matter
-depends: "@[F-CRC32C-COVERAGE](rbf-format.md), @[F-HEADLEN-FORMULA](rbf-format.md), @[F-FRAMESTATUS-VALUES](rbf-format.md)"
+depends: "@[F-CRC32C-COVERAGE](rbf-format.md), @[H-HEADLEN-FORMULA](rbf-format.md), @[F-FRAMESTATUS-RESERVED-BITS-ZERO](rbf-format.md)"
 ```
-> **依据 SSOT**：`rbf-format.md` 的 @[F-CRC32C-COVERAGE]、@[F-HEADLEN-FORMULA]、@[F-FRAMESTATUS-VALUES]
+> **依据 SSOT**：`rbf-format.md` 的 @[F-CRC32C-COVERAGE]、@[H-HEADLEN-FORMULA]、@[F-FRAMESTATUS-RESERVED-BITS-ZERO]
 
 场景：`PayloadLen = 0`（Tombstone 帧，最小帧）
 
@@ -97,9 +111,9 @@ depends: "@[F-CRC32C-COVERAGE](rbf-format.md), @[F-HEADLEN-FORMULA](rbf-format.m
 
 ### derived [D-RBF-FORMAT-CRC-BYTE-OFFSET] CRC字节偏移推导
 ```clause-matter
-depends: "@[F-CRC32C-COVERAGE](rbf-format.md), @[F-FRAME-LAYOUT](rbf-format.md)"
+depends: "@[F-CRC32C-COVERAGE](rbf-format.md), @[F-FRAMEBYTES-FIELD-OFFSETS](rbf-format.md)"
 ```
-> **依据 SSOT**：`rbf-format.md` 的 @[F-CRC32C-COVERAGE]、@[F-FRAME-LAYOUT]
+> **依据 SSOT**：`rbf-format.md` 的 @[F-CRC32C-COVERAGE]、@[F-FRAMEBYTES-FIELD-OFFSETS]
 
 设 `frameStart` 为 FrameBytes 起始地址（即 HeadLen 字段位置），`frameEnd` 为 FrameBytes 末尾（即 CRC32C 字段末尾）：
 
@@ -110,7 +124,7 @@ CRC 输入区间 = [frameStart + 4, frameEnd - 4)   // 半开区间
 
 > **推导说明**：
 > - 由 @[F-CRC32C-COVERAGE] 可知 CRC 覆盖 `FrameTag + Payload + FrameStatus + TailLen`，不覆盖 `HeadLen` 和 `CRC32C` 本身。
-> - 由 @[F-FRAME-LAYOUT] 可知 `frameEnd = frameStart + HeadLen`。
+> - 由 @[F-FRAMEBYTES-FIELD-OFFSETS] 可知 `frameEnd = frameStart + HeadLen`。
 > - 因此 CRC 输入区间为 `[frameStart + 4, frameStart + HeadLen - 4)`。
 
 > **注**：FrameStatus 在 CRC 覆盖范围内，Tombstone 标记受 CRC 保护。
@@ -130,9 +144,9 @@ depends: "@[F-CRC32C-COVERAGE](rbf-format.md)"
 
 ### derived [D-RBF-FORMAT-STATUSLEN-REVERSE] Reader反推PayloadLen/StatusLen算法
 ```clause-matter
-depends: "@[F-FRAME-LAYOUT](rbf-format.md), @[F-FRAMESTATUS-VALUES](rbf-format.md), @[F-FRAMESTATUS-FILL](rbf-format.md), @[F-HEADLEN-FORMULA](rbf-format.md)"
+depends: "@[F-FRAMEBYTES-FIELD-OFFSETS](rbf-format.md), @[F-FRAMESTATUS-RESERVED-BITS-ZERO](rbf-format.md), @[F-FRAMESTATUS-FILL](rbf-format.md), @[H-HEADLEN-FORMULA](rbf-format.md)"
 ```
-> **依据 SSOT**：`rbf-format.md` 的 @[F-FRAME-LAYOUT]、@[F-FRAMESTATUS-VALUES]、@[F-FRAMESTATUS-FILL]、@[F-HEADLEN-FORMULA]
+> **依据 SSOT**：`rbf-format.md` 的 @[F-FRAMEBYTES-FIELD-OFFSETS]、@[F-FRAMESTATUS-RESERVED-BITS-ZERO]、@[F-FRAMESTATUS-FILL]、@[H-HEADLEN-FORMULA]
 
 ```
 读取路径：
@@ -146,9 +160,9 @@ depends: "@[F-FRAME-LAYOUT](rbf-format.md), @[F-FRAMESTATUS-VALUES](rbf-format.m
 
 ### derived [D-RBF-FORMAT-FRAMESTATUS-BITMASK] FrameStatus位域掩码判断规则
 ```clause-matter
-depends: "@[F-FRAMESTATUS-VALUES](rbf-format.md)"
+depends: "@[F-FRAMESTATUS-RESERVED-BITS-ZERO](rbf-format.md)"
 ```
-> **依据 SSOT**：`rbf-format.md` 的 @[F-FRAMESTATUS-VALUES]（位域布局表）
+> **依据 SSOT**：`rbf-format.md` 的 @[F-FRAMESTATUS-RESERVED-BITS-ZERO]（位域布局表）
 
 ```
 IsTombstone = (status & 0x80) != 0
@@ -159,9 +173,9 @@ IsMvpValid  = (status & 0x7C) == 0   // Reserved bits must be zero
 
 ### derived [D-RBF-FORMAT-REVERSE-SCAN-PSEUDOCODE] ReverseScan参考伪代码
 ```clause-matter
-depends: "@[R-REVERSE-SCAN-ALGORITHM](rbf-format.md), @[R-RESYNC-BEHAVIOR](rbf-format.md), @[F-FRAMING-FAIL-REJECT](rbf-format.md), @[F-CRC-FAIL-REJECT](rbf-format.md)"
+depends: "@[R-REVERSE-SCAN-RETURNS-VALID-FRAMES-TAIL-TO-HEAD](rbf-format.md), @[R-RESYNC-SCAN-BACKWARD-4B-TO-GENESIS](rbf-format.md), @[F-FRAMING-FAIL-REJECT](rbf-format.md), @[F-CRC-FAIL-REJECT](rbf-format.md)"
 ```
-> **依据 SSOT**：`rbf-format.md` 的 @[R-REVERSE-SCAN-ALGORITHM]、@[R-RESYNC-BEHAVIOR]、@[F-FRAMING-FAIL-REJECT]、@[F-CRC-FAIL-REJECT]
+> **依据 SSOT**：`rbf-format.md` 的 @[R-REVERSE-SCAN-RETURNS-VALID-FRAMES-TAIL-TO-HEAD]、@[R-RESYNC-SCAN-BACKWARD-4B-TO-GENESIS]、@[F-FRAMING-FAIL-REJECT]、@[F-CRC-FAIL-REJECT]
 
 > 本节提供一种可行的参考实现（伪代码），用于帮助实现者快速落地。
 > 该伪代码 **不是** 唯一实现方式；实现 MAY 采用 mmap / 分块读取 / SIMD 搜索等技巧。
@@ -217,7 +231,7 @@ depends: "@[R-REVERSE-SCAN-ALGORITHM](rbf-format.md), @[R-RESYNC-BEHAVIOR](rbf-f
                   fencePos -= 4
                   continue
 
-            // FrameStatus 校验（见 @[F-FRAMESTATUS-VALUES] 和 @[F-FRAMESTATUS-FILL]）
+            // FrameStatus 校验（见 @[F-FRAMESTATUS-RESERVED-BITS-ZERO] 和 @[F-FRAMESTATUS-FILL]）
             statusByteOffset = frameStart + headLen - 9
             statusByte = bytes[statusByteOffset]
             statusLen = (statusByte & 0x03) + 1
