@@ -10,7 +10,7 @@ produce_by:
 > **文档定位**：测试向量，覆盖 Layer 0 的 Frame 编码、扫描、CRC 校验。
 > 文档层级与规范遵循见 [README.md](README.md)。
 >
-> **版本**：0.12 | **状态**：Draft | **对齐规范**：rbf-format.md v0.28, rbf-interface.md v0.20
+> **版本**：0.13 | **状态**：Draft | **对齐规范**：rbf-format.md v0.32, rbf-interface.md v0.28
 
 ## 概述
 
@@ -143,7 +143,7 @@ produce_by:
   - StatusLen=1（因为 `PayloadLen % 4 == 3`）
   - `FrameStatus == 0x80` 且所有字节相同
   - CRC32C 校验通过
-  - 反向扫描能枚举到该条 frame（Scanner MUST 可见 Tombstone 帧；上层是否忽略不属于 Layer 0）
+  - 反向扫描能枚举到该条 frame（当 `showTombstone=true` 时；默认 `showTombstone=false` 会过滤）
 
 **用例 RBF-OK-003（StatusLen 覆盖：1/2/3/4）**
 - Given：分别构造 4 条通过 framing/CRC 的帧，使 `PayloadLen % 4` 为 `3,2,1,0`
@@ -237,15 +237,32 @@ produce_by:
   - `GetEnumerator().MoveNext()` 首次返回 `false`
   - 不抛出任何异常
 
-**用例 SCAN-EMPTY-002（仅 Tombstone 帧）**
+**用例 SCAN-EMPTY-002（仅 Tombstone 帧 — 测试过滤行为）**
 - Given：文件包含 1 条 Tombstone 帧（`IsTombstone == true`）
-- When：调用 `scanner.ScanReverse()`
-- Then：
-  - 返回 1 条帧（Scanner MUST 产出 Tombstone 帧）
-  - `frame.IsTombstone == true`
-  - 不抛出异常
+- When & Then：
+  - **默认行为**（`showTombstone=false`）：
+    - `scanner.ScanReverse()` 返回空序列（0 条帧）
+    - Tombstone 帧被过滤
+    - 符合 @[S-RBF-SCANREVERSE-TOMBSTONE-FILTER](rbf-interface.md)
+  - **显式包含 Tombstone**（`showTombstone=true`）：
+    - `scanner.ScanReverse(showTombstone: true)` 返回 1 条帧
+    - `frame.IsTombstone == true`
+    - 不抛出异常
 
-### 4.2 Current 生命周期
+### 4.2 Tombstone 过滤行为
+
+**用例 SCAN-TOMBSTONE-FILTER-001（混合序列过滤）**
+- Given：文件包含 3 条帧：`[Valid1][Tombstone][Valid2]`（按写入顺序）
+- When & Then：
+  - **默认过滤**（`showTombstone=false`）：
+    - 逆序返回：Valid2, Valid1（2 条）
+    - Tombstone 帧被跳过
+  - **包含 Tombstone**（`showTombstone=true`）：
+    - 逆序返回：Valid2, Tombstone, Valid1（3 条）
+    - 中间的 Tombstone 帧可见
+- 目的：验证"过滤中间位置 Tombstone"的核心行为
+
+### 4.3 Current 生命周期
 
 **用例 SCAN-LIFETIME-001（Current 在 MoveNext 后失效）**
 - Given：文件包含 2 条帧 `[Frame1][Frame2]`
@@ -261,7 +278,7 @@ produce_by:
   - 规范不保证 `frame1.Payload` 在第二次 `MoveNext()` 后仍有效
   - 若需保留数据，必须调用 `frame1.PayloadToArray()`
 
-### 4.3 多次 GetEnumerator
+### 4.4 多次 GetEnumerator
 
 **用例 SCAN-MULTI-ENUM-001（独立枚举器）**
 - Given：文件包含 3 条帧 `[Frame1][Frame2][Frame3]`
@@ -278,7 +295,7 @@ produce_by:
   - `enum2.Current` 指向 Frame3（从尾部数第 1 帧）
   - 两个枚举器互不干扰
 
-### 4.4 foreach 兼容性
+### 4.5 foreach 兼容性
 
 **用例 SCAN-FOREACH-001（duck-typed foreach）**
 - Given：文件包含 N 条帧
@@ -304,7 +321,7 @@ produce_by:
   ```
 - Then：编译失败（这是预期行为，非缺陷）
 
-### 4.5 ref struct 约束
+### 4.6 ref struct 约束
 
 **用例 SCAN-REFSTRUCT-001（不能存储到字段）**
 - Given：调用方尝试存储序列到字段
@@ -330,7 +347,7 @@ produce_by:
   ```
 - Then：编译失败（ref struct 不能跨 await 边界）
 
-### 4.6 并发修改行为
+### 4.7 并发修改行为
 
 **用例 SCAN-MUTATION-001（并发修改行为未定义）**
 - Given：文件包含 N 条帧
@@ -368,6 +385,7 @@ produce_by:
 | `[A-RBF-REVERSE-SEQUENCE]` | RbfReverseSequence (duck-typed) | SCAN-FOREACH-001, SCAN-MULTI-ENUM-001 |
 | `[S-RBF-SCANREVERSE-NO-IENUMERABLE]` | 不实现 IEnumerable | SCAN-LINQ-FAIL-001, SCAN-REFSTRUCT-001/002 |
 | `[S-RBF-SCANREVERSE-EMPTY-IS-OK]` | 空序列合法 | SCAN-EMPTY-001, SCAN-EMPTY-002 |
+| `[S-RBF-SCANREVERSE-TOMBSTONE-FILTER]` | Tombstone 默认过滤行为 | SCAN-EMPTY-002, SCAN-TOMBSTONE-FILTER-001, RBF-OK-002 |
 | `[S-RBF-SCANREVERSE-CURRENT-LIFETIME]` | Current 生命周期 | SCAN-LIFETIME-001 |
 | `[S-RBF-SCANREVERSE-CONCURRENT-MUTATION]` | 并发修改行为未定义 | SCAN-MUTATION-001/002 |
 | `[S-RBF-SCANREVERSE-MULTI-GETENUM]` | 多次 GetEnumerator 独立 | SCAN-MULTI-ENUM-001 |
@@ -389,6 +407,7 @@ produce_by:
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2026-01-12 | 0.13 | **Tombstone 过滤测试**：更新 SCAN-EMPTY-002 拆分为两个子用例（测试 `showTombstone` 参数）；新增 SCAN-TOMBSTONE-FILTER-001（混合序列过滤）；更新 RBF-OK-002 注释；更新规范版本对齐（rbf-format.md v0.28→v0.32, rbf-interface.md v0.20→v0.28）；条款映射表补充 `[S-RBF-SCANREVERSE-TOMBSTONE-FILTER]` |
 | 2026-01-07 | 0.12 | **SizedPtr 迁移**：将旧版地址指针相关测试向量迁移为 `SizedPtr` + `ReadFrame` 行为向量；对齐 `rbf-format.md` 的 `[S-RBF-SIZEDPTR-WIRE-MAPPING]` |
 | 2025-12-28 | 0.11 | 更新关联规范版本：rbf-format.md v0.15 → v0.16, rbf-interface.md v0.16 → v0.17（FrameTag wrapper type 移除）；核查结果：本文档无需变更——测试向量始终将 FrameTag 作为线格式字段（4B uint）描述，不涉及 C# wrapper type |
 | 2025-12-28 | 0.10 | 更新关联规范版本：rbf-interface.md v0.15 → v0.16（Payload 接口简化、新增 `[S-RBF-BUILDER-FLUSH-NO-LEAK]`）；无测试向量变更——接口简化不影响 Layer 0 线格式或读取行为 |
