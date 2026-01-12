@@ -49,41 +49,21 @@ RbfFrame 通过 `bool IsTombstone` 属性暴露此状态。
 - **可选暴露**：为了诊断、调试或特定审计需求，允许通过参数查看所有物理帧。
 - **职责下沉**：Layer 0 负责过滤系统级标记（Tombstone），简化上层逻辑。
 
-## term `SizedPtr` 帧句柄
-
-### spec [F-SIZEDPTR-IS-8B-OFFSET-LENGTH] SizedPtr定义
-**SizedPtr** 是 8 字节紧凑表示的 offset+length 区间，作为 RBF Interface 层的核心 Frame 句柄类型。
-
-**来源（SSOT）**：`Atelia.Data.SizedPtr`（实现位于 `atelia/src/Data/SizedPtr.cs`）
-
-### spec [S-RBF-SIZEDPTR-CREDENTIAL] SizedPtr凭据语义
-- depends: @[S-RBF-DECISION-SIZEDPTR-CREDENTIAL](rbf-decisions.md)
-在 RBF Interface 中，`SizedPtr` 作为"可再次读取的凭据（ticket）"。凭据语义由 Decision-Layer 锁定，详见 @[S-RBF-DECISION-SIZEDPTR-CREDENTIAL](rbf-decisions.md)。
-
-### derived [H-SIZEDPTR-WIRE-MAPPING] SizedPtr与FrameBytes映射
-**Wire Mapping**：`SizedPtr` 与 FrameBytes 的跨层对应关系由 `rbf-format.md` 的 @[S-RBF-SIZEDPTR-WIRE-MAPPING] 定义。
-
-**位分配与范围**：见 SSOT `atelia/src/Data/SizedPtr.cs`。
-
-### spec [S-SIZEDPTR-ALIGNMENT-CONSTRAINT] SizedPtr对齐约束
-- 有效 SizedPtr MUST 4 字节对齐（`OffsetBytes % 4 == 0` 且 `LengthBytes % 4 == 0`）
-- 超出范围的值在构造时抛出 `ArgumentOutOfRangeException`
+## derived `SizedPtr` 帧句柄
+**引用**：[Atelia.Data.SizedPtr](atelia/src/Data/SizedPtr.cs)
+@[S-RBF-DECISION-SIZEDPTR-CREDENTIAL](rbf-decisions.md)
 
 ## term `Frame` 帧
-
-**Frame** 是 RBF 的基本 I/O 单元。
+**Frame** 是 RBF 的基本 I/O 单元。Frame 的内部结构（wire format）接口层无需关心。
 
 上层只需知道：
-
 - 每个 Frame 有一个 @`FrameTag`、`Payload` 和 `IsTombstone` 状态
 - Frame 写入后返回其 @`SizedPtr`（包含 offset+length）
 - Frame 读取通过 @`SizedPtr` 定位
 
-Frame 的内部结构（wire format）在 rbf-format.md 中定义，接口层无需关心。
-
 ---
 
-## 3. 对外门面（Facade）与写入 (Layer 1 Interface)
+## 3. 对外门面（Facade）(Layer 1 Interface)
 
 ### spec [A-RBF-IRBFFILE-SHAPE] IRbfFile接口定义
 
@@ -140,11 +120,7 @@ public static class RbfFile {
 }
 ```
 
-### spec [S-RBF-READFRAME-RESULTPATTERN] ReadFrame使用Result-Pattern
-```clause-matter
-depends: "@[S-RBF-DECISION-READFRAME-RESULTPATTERN](rbf-decisions.md)"
-```
-随机读取 API MUST 使用 Result-Pattern（返回 `AteliaResult<RbfFrame>`），不得使用 bool 模式。
+*@[S-RBF-DECISION-READFRAME-RESULTPATTERN]，随机读取 API Result-Pattern（返回 `AteliaResult<RbfFrame>`）。*
 
 ### spec [S-RBF-TAILOFFSET-IS-NEXT-WRITE-OFFSET] TailOffset语义
 `IRbfFile.TailOffset` MUST 表示“当前逻辑文件长度（byte length）”，并且等于下一次 `Append/BeginAppend` 的写入起点（byte offset）。
@@ -152,7 +128,7 @@ depends: "@[S-RBF-DECISION-READFRAME-RESULTPATTERN](rbf-decisions.md)"
 ### spec [S-RBF-TAILOFFSET-UPDATE] TailOffset更新规则
 `TailOffset` MUST 只在以下时刻推进：
 - `Append()` 成功返回后；
-- `BeginAppend()` 返回的 `RbfFrameBuilder.Commit()` 成功返回后；
+- `BeginAppend()` 返回的 `RbfFrameBuilder.EndAppend()` 成功返回后；
 - `Truncate()` 成功返回后。
 
 在 open Builder 的生命周期内（`Commit/Dispose` 之前），`TailOffset` MUST NOT 提前更新。
@@ -171,13 +147,15 @@ depends: "@[S-RBF-DECISION-READFRAME-RESULTPATTERN](rbf-decisions.md)"
 
 ### spec [A-RBF-FRAME-BUILDER] RbfFrameBuilder定义
 
+*see:`atelia/src/Data/IReservableBufferWriter.cs`，此类型扩展了标准的`System.Buffers.IBufferWriter<byte>`*
+
 ```csharp
 /// <summary>
 /// 帧构建器。支持流式写入 payload，并支持在 payload 内进行预留与回填。
 /// </summary>
 /// <remarks>
-/// <para><b>生命周期</b>：调用方 MUST 调用 <see cref="Commit"/> 或 <see cref="Dispose"/> 之一来结束构建器生命周期。</para>
-/// <para><b>Auto-Abort（Optimistic Clean Abort）</b>：若未 Commit 就 Dispose，
+/// <para><b>生命周期</b>：调用方 MUST 调用 <see cref="EndAppend"/> 或 <see cref="Dispose"/> 之一来结束构建器生命周期。</para>
+/// <para><b>Auto-Abort（Optimistic Clean Abort）</b>：若未 EndAppend 就 Dispose，
 /// 逻辑上该帧视为不存在；物理实现规则见 @[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME]。</para>
 /// </remarks>
 public ref struct RbfFrameBuilder {
@@ -214,10 +192,7 @@ public ref struct RbfFrameBuilder {
 **关键语义**：
 
 ### spec [S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME] Auto-Abort逻辑语义
-```clause-matter
-see-also: "@[I-RBF-BUILDER-AUTO-ABORT-IMPL](rbf-type-bone.md)"
-```
-若 `RbfFrameBuilder` 未调用 `Commit()` 就执行 `Dispose()`：
+若 `RbfFrameBuilder` 未调用 `EndAppend()` 就执行 `Dispose()`：
 
 **逻辑语义**：
 - 该帧视为**逻辑不存在**（logical non-existence）
@@ -227,8 +202,6 @@ see-also: "@[I-RBF-BUILDER-AUTO-ABORT-IMPL](rbf-type-bone.md)"
 - `Dispose()` 后，底层 MUST 可继续写入后续帧
 - 后续 `Append()` / `BeginAppend()` 调用 MUST 成功
 - `Dispose()` 在此分支 MUST NOT 抛出异常（除非出现不可恢复的不变量破坏）
-
-**实现路径**：见 [rbf-type-bone.md](rbf-type-bone.md) @[I-RBF-BUILDER-AUTO-ABORT-IMPL]
 
 此机制防止上层异常导致 Writer 死锁，同时在可能时优化为零 I/O。
 
@@ -271,9 +244,8 @@ public ref struct RbfReverseEnumerator {
 }
 ```
 
-### spec [S-RBF-SCANREVERSE-NO-IENUMERABLE] ScanReverse不实现IEnumerable
+### derived [S-RBF-SCANREVERSE-NO-IENUMERABLE] ScanReverse不实现IEnumerable
 `RbfReverseSequence` MUST NOT 实现 `IEnumerable<RbfFrame>`。
-
 **原因**：`RbfFrame` 是 `ref struct`，无法作为泛型参数。
 
 ### spec [S-RBF-SCANREVERSE-EMPTY-IS-OK] 空序列合法
@@ -313,8 +285,102 @@ public readonly ref struct RbfFrame {
 
 本节为参考示例，不属于 RBF 层规范。FrameTag 的具体取值与语义由上层定义。
 
+### 5.1 简单写入 (Append)
+
+适用于数据已在内存中准备好的简单场景。
+
 ```csharp
-TODO:
+void SimpleWrite(IRbfFile file, uint myTag, byte[] data) {
+    // 直接写入，原子性（要么全写进，要么全不写进）
+    SizedPtr ptr = file.Append(myTag, data);
+    
+    Console.WriteLine($"Written at: {ptr.Offset}, Length: {ptr.Length}");
+    // 此时 TailOffset 已自动推进
+}
+```
+
+### 5.2 流式/复杂写入 (BeginAppend)
+
+适用于数据量大、需要流式生成或零拷贝拼接的场景。
+建议配合`System.Buffers.BufferExtensions`使用`RbfFrameBuilder.Payload`
+
+```csharp
+void StreamingWrite(IRbfFile file, uint myTag, IEnumerable<byte[]> chunks) {
+    // 1. 开启事务
+    // 注意：builder 是 ref struct，最好配合 using 确保即使异常也能 Dispose
+    using var builder = file.BeginAppend(myTag);
+    
+    // 2. 获取 Writer (IBufferWriter<byte>)
+    var writer = builder.Payload;
+    
+    try {
+        foreach (var chunk in chunks) {
+            // IBufferWriter 标准范式：GetSpan -> CopyTo -> Advance
+            // 不依赖额外的扩展方法，手动管理内存与推进
+            var span = writer.GetSpan(chunk.Length);
+            chunk.CopyTo(span);
+            writer.Advance(chunk.Length);
+        }
+        
+        // 3. 结束追加 (EndAppend)
+        // 只有 EndAppend 后，数据才对 Read 即刻可见，TailOffset 才会推进
+        SizedPtr ptr = builder.EndAppend();
+        
+        // EndAppend 后不能再写入，Dispose 变为无操作
+    }
+    catch (Exception ex) {
+        // 4. 自动回滚 (Auto-Abort)
+        // 若发生异常导致 EndAppend 未被调用，
+        // 退出 using 块触发 Dispose 时，会自动执行 Auto-Abort。
+        // 该帧在物理上可能由部分脏数据残留，但在逻辑上视为“不存在”。
+        Console.WriteLine("Write aborted explicitly or by exception.");
+        throw; 
+    }
+}
+```
+
+### 5.3 随机读取 (ReadFrame)
+
+适用于根据索引（SizedPtr）回查数据的场景。
+
+```csharp
+void RandomAccess(IRbfFile file, SizedPtr ptr) {
+    // ReadFrame 返回 AteliaResult<RbfFrame>
+    var result = file.ReadFrame(ptr);
+
+    if (result.IsFailure) {
+        // 处理错误：可能是 CRC 校验失败、越界或 Magic 损坏
+        Console.WriteLine($"Read failed: {result.Error.Message}");
+        return;
+    }
+
+    // 获取帧（ref struct，生命周期受限于 result 所在作用域）
+    RbfFrame frame = result.Value;
+    
+    // 如需长期持有数据，必须在此拷贝
+    byte[] safePayload = frame.Payload.ToArray();
+}
+```
+
+### 5.4 逆向扫描 (ScanReverse)
+
+适用于恢复、重放或查找最新记录。
+
+```csharp
+void RecoverState(IRbfFile file) {
+    // 默认不显示 Tombstone
+    var sequence = file.ScanReverse(showTombstone: false);
+
+    // 只能使用 foreach (duck-typed)
+    foreach (RbfFrame frame in sequence) {
+        // 这里的 frame 是“经过校验的有效帧”
+        // 损坏的帧已被 Resync 机制自动跳过
+        
+        Console.WriteLine($"Found Frame: Tag={frame.Tag}, Len={frame.Payload.Length}");
+        
+        if (IsStateRestored(frame)) break;
+    }
+}
 ```
 
 ---
@@ -323,18 +389,10 @@ TODO:
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.28 | 2026-01-12 | **方法重命名**：`RbfFrameBuilder.Commit()` →  `EndAppend()`，与 `BeginAppend()` 形成对称配对，最大化 LLM 可预测性；详见[命名讨论会](../../../../agent-team/meeting/2026-01-12-rbf-builder-lifecycle-naming.md) |
 | 0.27 | 2026-01-12 | **Tombstone 默认隐藏**：修改 `ScanReverse` 接口增加 `bool showTombstone = false` 参数；废弃 `[S-RBF-TOMBSTONE-VISIBLE]` 改为 `[S-RBF-SCANREVERSE-TOMBSTONE-FILTER]`，确立默认过滤 Tombstone 的行为 |
 | 0.26 | 2026-01-11 | **文档职能分离**：拆分 Auto-Abort 条款为逻辑语义（本文档 @[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME]）+ 实现路径（type-bone.md @[I-RBF-BUILDER-AUTO-ABORT-IMPL]）；明确本文档为规范性契约，type-bone.md 为非规范性实现指南 |
 | 0.25 | 2026-01-11 | **接口细节对齐**：`Truncate` 参数类型改为 `long`（与 `TailOffset` 一致）；更新文档关系表中 `rbf-type-bone.md` 层级描述；§3 标题增加层级标注；统一 `RbfFrame` 生命周期注释；设计原则位置调整 |
-| 0.24 | 2026-01-11 | **对齐 Type Bone**：以 `IRbfFile` 作为对外 Shape；将复杂写入入口命名为 `BeginAppend`；将落盘语义收敛为 `DurableFlush`；更新 Tombstone/ScanReverse 文字以匹配门面暴露方式；移除对写入路径内部实现绑定的对外暴露 |
-| 0.23 | 2026-01-09 | **一致性修复**：将 @[S-RBF-SIZEDPTR-CREDENTIAL]、@[H-SIZEDPTR-WIRE-MAPPING] 改为纯引用模式，消除与 Decision-Layer 的语义重复；移除易漂移的数值表格（参见 [2026-01-09-rbf-consistency-fix](../../../agent-team/handoffs/implementer/2026-01-09-rbf-consistency-fix.md)） |
-| 0.22 | 2026-01-09 | **AI-Design-DSL 完整迁移**：修复读取接口损坏内容；补全 RbfReverseSequence/RbfFrame 定义；新增 @[A-RBF-REVERSE-SEQUENCE]、@[S-RBF-SCANREVERSE-NO-IENUMERABLE]、@[S-RBF-SCANREVERSE-EMPTY-IS-OK]、@[H-SCANREVERSE-CURRENT-LIFETIME]、@[A-RBF-FRAME-STRUCT] 条款 |
-| 0.21 | 2026-01-09 | **AI-Design-DSL 格式迁移**：将条款标识符转换为 DSL 格式（decision/design/hint + clause-matter）；将设计理由拆分为独立 hint 条款；增加术语定义（term）格式 |
-| 0.20 | 2026-01-07 | **移除特殊值语义**：RBF Interface 不再为任何 `SizedPtr` 取值定义特殊语义；读取失败通过 `ReadFrame` 的 `AteliaResult` Failure 表达 |
-| 0.19 | 2026-01-07 | **决策分层 + ReadFrame Result-Pattern**：新增 Decision-Layer 文件 `rbf-decisions.md`（锁定关键决策）；随机读取 API 改为 `ReadFrame` 并返回 `AteliaResult<RbfFrame>`；补齐 `SizedPtr`/`IReservableBufferWriter`/`AteliaResult<T>` 的 SSOT 引用；为 `SizedPtr` 增加 ticket 语义（凭据） |
-| 0.18 | 2026-01-06 | **SizedPtr 替代旧版地址占位类型**（[W-0006](../../../wish/W-0006-rbf-sizedptr/artifacts/)）：移除旧版地址占位类型，引入 SizedPtr 作为核心 Frame 句柄；新增 `[F-SIZEDPTR-IS-8B-OFFSET-LENGTH]`；移除旧版地址相关条款；`RbfFrame.Address` 改为 `RbfFrame.Ptr` |
-| 0.17 | 2025-12-28 | **FrameTag 接口简化**（[畅谈会决议](../../../agent-team/meeting/2025-12-28-wrapper-type-audit.md)）：移除 `FrameTag` record struct，接口层统一使用 `uint`；移除 `[F-FRAMETAG-DEFINITION]` 条款；§2.1 改为概念描述（三层视角：存储/接口/应用） |
-| 0.16 | 2025-12-28 | **RbfFrameBuilder Payload 接口简化**：`RbfFrameBuilder.Payload` 统一为 `IReservableBufferWriter`（SSOT：`atelia/src/Data/IReservableBufferWriter.cs`） |
 
 ## 7. 待实现时确认
 
