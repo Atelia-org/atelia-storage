@@ -157,8 +157,9 @@ public static class RbfFile {
 /// <para><b>生命周期</b>：调用方 MUST 调用 <see cref="EndAppend"/> 或 <see cref="Dispose"/> 之一来结束构建器生命周期。</para>
 /// <para><b>Auto-Abort（Optimistic Clean Abort）</b>：若未 EndAppend 就 Dispose，
 /// 逻辑上该帧视为不存在；物理实现规则见 @[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME]。</para>
+/// <para><b>IDisposable 声明</b>：显式实现接口用于类型系统表达"需要释放"的语义，与 using 语句的 duck-typed 机制互补。</para>
 /// </remarks>
-public ref struct RbfFrameBuilder {
+public ref struct RbfFrameBuilder : IDisposable {
     /// <summary>
     /// Payload 写入器。
     /// </summary>
@@ -389,6 +390,7 @@ void RecoverState(IRbfFile file) {
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.29 | 2026-01-14 | **IDisposable 显式声明**：`RbfFrameBuilder` 添加 `: IDisposable` 声明，明确类型系统语义；来自团队设计讨论 |
 | 0.28 | 2026-01-12 | **方法重命名**：`RbfFrameBuilder.Commit()` →  `EndAppend()`，与 `BeginAppend()` 形成对称配对，最大化 LLM 可预测性；详见[命名讨论会](../../../../agent-team/meeting/2026-01-12-rbf-builder-lifecycle-naming.md) |
 | 0.27 | 2026-01-12 | **Tombstone 默认隐藏**：修改 `ScanReverse` 接口增加 `bool showTombstone = false` 参数；废弃 `[S-RBF-TOMBSTONE-VISIBLE]` 改为 `[S-RBF-SCANREVERSE-TOMBSTONE-FILTER]`，确立默认过滤 Tombstone 的行为 |
 | 0.26 | 2026-01-11 | **文档职能分离**：拆分 Auto-Abort 条款为逻辑语义（本文档 @[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME]）+ 实现路径（type-bone.md @[I-RBF-BUILDER-AUTO-ABORT-IMPL]）；明确本文档为规范性契约，type-bone.md 为非规范性实现指南 |

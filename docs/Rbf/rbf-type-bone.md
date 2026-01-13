@@ -65,7 +65,7 @@ namespace Atelia.Rbf.Internal;
 /// <summary>
 /// RBF 原始操作集。
 /// </summary>
-public static class RbfRawOps {
+internal static class RbfRawOps {
     // 读路径 (Read Path)
 
     /// <summary>

@@ -1,0 +1,49 @@
+using Atelia.Data;
+
+namespace Atelia.Rbf;
+
+/// <summary>
+/// RBF 文件对象门面。
+/// </summary>
+/// <remarks>
+/// <para>职责：资源管理（Dispose）、状态维护（TailOffset）、调用转发。</para>
+/// <para><b>并发约束</b>：同一实例在任一时刻最多 1 个 open Builder。</para>
+/// </remarks>
+public interface IRbfFile : IDisposable {
+    /// <summary>
+    /// 获取当前文件逻辑长度（也是下一个写入 Offset）。
+    /// </summary>
+    long TailOffset { get; }
+
+    /// <summary>追加完整帧（payload 已就绪）。</summary>
+    SizedPtr Append(uint tag, ReadOnlySpan<byte> payload);
+
+    /// <summary>
+    /// 复杂帧构建（流式写入 payload / payload 内回填）。
+    /// </summary>
+    /// <remarks>
+    /// <para>注意：在 Builder Dispose/EndAppend 前，TailOffset 不会更新。</para>
+    /// <para>注意：存在 open Builder 时，不应允许并发 Append/BeginAppend。</para>
+    /// </remarks>
+    RbfFrameBuilder BeginAppend(uint tag);
+
+    /// <summary>随机读。</summary>
+    AteliaResult<RbfFrame> ReadFrame(SizedPtr ptr);
+
+    /// <summary>逆向扫描。</summary>
+    /// <param name="showTombstone">是否包含墓碑帧。默认 false（不包含）。</param>
+    RbfReverseSequence ScanReverse(bool showTombstone = false);
+
+    /// <summary>
+    /// durable flush（落盘）。
+    /// </summary>
+    /// <remarks>
+    /// <para>用于上层 commit 顺序（例如 data→meta）的 durable 边界。</para>
+    /// </remarks>
+    void DurableFlush();
+
+    /// <summary>
+    /// 截断（恢复用）。
+    /// </summary>
+    void Truncate(long newLengthBytes);
+}
