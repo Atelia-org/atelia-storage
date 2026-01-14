@@ -25,7 +25,7 @@ internal static class RbfRawOps {
     /// </remarks>
     public static int ComputeHeadLen(int payloadLen, out int statusLen) {
         statusLen = FrameStatusHelper.ComputeStatusLen(payloadLen);
-        int headLen = 4 + 4 + payloadLen + statusLen + 4 + 4;
+        int headLen = RbfConstants.FrameBytesFixedOverhead + payloadLen + statusLen;
         return headLen;
     }
 
@@ -42,26 +42,26 @@ internal static class RbfRawOps {
         // HeadLen (offset 0)
         BinaryPrimitives.WriteUInt32LittleEndian(dest, (uint)headLen);
 
-        // Tag (offset 4)
-        BinaryPrimitives.WriteUInt32LittleEndian(dest[4..], tag);
+        // Tag (offset TagFieldOffset)
+        BinaryPrimitives.WriteUInt32LittleEndian(dest[RbfConstants.TagFieldOffset..], tag);
 
-        // Payload (offset 8)
-        payload.CopyTo(dest[8..]);
+        // Payload (offset PayloadFieldOffset)
+        payload.CopyTo(dest[RbfConstants.PayloadFieldOffset..]);
 
-        // Status (offset 8+N)
+        // Status (offset PayloadFieldOffset + payloadLen)
         int payloadLen = payload.Length;
-        int statusOffset = 8 + payloadLen;
+        int statusOffset = RbfConstants.PayloadFieldOffset + payloadLen;
         FrameStatusHelper.FillStatus(dest.Slice(statusOffset, statusLen), isTombstone, statusLen);
 
-        // TailLen (offset 8+N+statusLen)
+        // TailLen (offset statusOffset + statusLen)
         int tailLenOffset = statusOffset + statusLen;
         BinaryPrimitives.WriteUInt32LittleEndian(dest[tailLenOffset..], (uint)headLen);
 
-        // CRC32C (offset headLen-4)
+        // CRC32C (offset headLen - CrcFieldLength)
         // CRC 覆盖：Tag(4) + Payload(N) + Status(1-4) + TailLen(4)
-        var crcInput = dest[4..(headLen - 4)];
+        var crcInput = dest[RbfConstants.TagFieldOffset..(headLen - RbfConstants.CrcFieldLength)];
         uint crc = Crc32CHelper.Compute(crcInput);
-        BinaryPrimitives.WriteUInt32LittleEndian(dest[(headLen - 4)..], crc);
+        BinaryPrimitives.WriteUInt32LittleEndian(dest[(headLen - RbfConstants.CrcFieldLength)..], crc);
     }
 
     internal static SizedPtr _AppendFrame(

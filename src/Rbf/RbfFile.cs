@@ -62,7 +62,7 @@ public static class RbfFile {
             }
 
             // 4B 对齐校验（根不变量）
-            if (fileLength % 4 != 0) {
+            if (fileLength % RbfConstants.FrameAlignment != 0) {
                 throw new InvalidDataException("Invalid RBF file: length is not 4-byte aligned");
             }
 

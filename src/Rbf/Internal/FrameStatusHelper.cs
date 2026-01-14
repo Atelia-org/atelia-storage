@@ -11,6 +11,27 @@ namespace Atelia.Rbf.Internal;
 /// </summary>
 internal static class FrameStatusHelper
 {
+    // === Status 常量 ===
+
+    /// <summary>
+    /// Status 区最小长度（1 字节）。
+    /// </summary>
+    public const int MinStatusLength = 1;
+
+    /// <summary>
+    /// Status 区最大长度（4 字节）。
+    /// </summary>
+    public const int MaxStatusLength = 4;
+
+    /// <summary>
+    /// Status 对齐要求（4 字节）。
+    /// </summary>
+    public const int StatusAlignment = RbfConstants.FrameAlignment;
+
+    /// <summary>
+    /// Tombstone 标志位掩码（Bit7）。
+    /// </summary>
+    public const byte TombstoneMask = 0x80;
     /// <summary>
     /// 计算 StatusLen（状态区字节数）。
     /// </summary>
@@ -28,7 +49,7 @@ internal static class FrameStatusHelper
         }
 
         // StatusLen = 1 + ((4 - ((payloadLen + 1) % 4)) % 4)
-        return 1 + ((4 - ((payloadLen + 1) % 4)) % 4);
+        return MinStatusLength + ((StatusAlignment - ((payloadLen + MinStatusLength) % StatusAlignment)) % StatusAlignment);
     }
 
     /// <summary>
@@ -46,18 +67,18 @@ internal static class FrameStatusHelper
     /// <exception cref="ArgumentOutOfRangeException">statusLen 不在 [1,4] 范围时抛出。</exception>
     internal static byte EncodeStatusByte(bool isTombstone, int statusLen)
     {
-        if (statusLen < 1 || statusLen > 4)
+        if (statusLen < MinStatusLength || statusLen > MaxStatusLength)
         {
             throw new ArgumentOutOfRangeException(nameof(statusLen), statusLen, "statusLen must be in range [1,4].");
         }
 
         // Bit1-0 = statusLen - 1
-        int bits = statusLen - 1;
+        int bits = statusLen - MinStatusLength;
 
         // Bit7 = isTombstone ? 1 : 0
         if (isTombstone)
         {
-            bits |= 0x80;
+            bits |= TombstoneMask;
         }
 
         return (byte)bits;
