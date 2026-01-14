@@ -1,4 +1,6 @@
+using System.Buffers;
 using System.Buffers.Binary;
+using System.IO;
 using Microsoft.Win32.SafeHandles;
 using Atelia.Data;
 
@@ -14,35 +16,25 @@ internal static class RbfRawOps {
     /// 计算 FrameBytes 总长度（HeadLen 字段值）。
     /// </summary>
     /// <param name="payloadLen">Payload 字节数。</param>
-    /// <returns>HeadLen = 4 + 4 + payloadLen + statusLen + 4 + 4</returns>
+    /// <param name="statusLen">输出参数：计算得到的 StatusLen（1-4 字节）。</param>
+    /// <returns>HeadLen = 16 + payloadLen + statusLen（其中 16 = HeadLen(4) + Tag(4) + TailLen(4) + CRC(4)）</returns>
     /// <remarks>
     /// <para>布局：HeadLen(4) + Tag(4) + Payload(N) + Status(1-4) + TailLen(4) + CRC(4)</para>
     /// <para>参见 @[F-FRAMEBYTES-FIELD-OFFSETS]。</para>
+    /// <para>StatusLen 由 @[F-STATUSLEN-ENSURES-4B-ALIGNMENT] 定义的公式计算，保证 4 字节对齐。</para>
     /// </remarks>
-    public static int ComputeHeadLen(int payloadLen) {
-        int statusLen = FrameStatusHelper.ComputeStatusLen(payloadLen);
-        return 4 + 4 + payloadLen + statusLen + 4 + 4;
+    public static int ComputeHeadLen(int payloadLen, out int statusLen) {
+        statusLen = FrameStatusHelper.ComputeStatusLen(payloadLen);
+        int headLen = 4 + 4 + payloadLen + statusLen + 4 + 4;
+        return headLen;
     }
 
-    /// <summary>
-    /// 序列化完整 FrameBytes 到目标缓冲区。
-    /// </summary>
-    /// <param name="dest">目标缓冲区，长度必须 ≥ ComputeHeadLen(payload.Length)。</param>
-    /// <param name="tag">帧类型标识符。</param>
-    /// <param name="payload">业务数据。</param>
-    /// <param name="isTombstone">是否为墓碑帧。默认 false。</param>
-    /// <returns>实际写入字节数（等于 HeadLen）。</returns>
-    /// <remarks>
-    /// <para><b>只写入 FrameBytes，不写入 Fence</b>（Fence 由调用方处理）。</para>
-    /// <para>写入顺序：HeadLen → Tag → Payload → Status → TailLen → CRC。</para>
-    /// <para>CRC 覆盖范围：Tag + Payload + Status + TailLen（@[F-CRC32C-COVERAGE]）。</para>
-    /// </remarks>
-    /// <exception cref="ArgumentException">dest 长度不足。</exception>
-    public static int SerializeFrame(Span<byte> dest, uint tag, ReadOnlySpan<byte> payload, bool isTombstone = false) {
-        int payloadLen = payload.Length;
-        int statusLen = FrameStatusHelper.ComputeStatusLen(payloadLen);
-        int headLen = 4 + 4 + payloadLen + statusLen + 4 + 4;
-
+    private static void SerializeFrameCore(
+        Span<byte> dest,
+        int headLen, uint tag,
+        ReadOnlySpan<byte> payload,
+        bool isTombstone,
+        int statusLen) {
         if (dest.Length < headLen) {
             throw new ArgumentException($"Buffer too small. Required: {headLen}, Actual: {dest.Length}", nameof(dest));
         }
@@ -57,6 +49,7 @@ internal static class RbfRawOps {
         payload.CopyTo(dest[8..]);
 
         // Status (offset 8+N)
+        int payloadLen = payload.Length;
         int statusOffset = 8 + payloadLen;
         FrameStatusHelper.FillStatus(dest.Slice(statusOffset, statusLen), isTombstone, statusLen);
 
@@ -64,13 +57,46 @@ internal static class RbfRawOps {
         int tailLenOffset = statusOffset + statusLen;
         BinaryPrimitives.WriteUInt32LittleEndian(dest[tailLenOffset..], (uint)headLen);
 
-        // CRC32C (offset 8+N+statusLen+4 = headLen-4)
+        // CRC32C (offset headLen-4)
         // CRC 覆盖：Tag(4) + Payload(N) + Status(1-4) + TailLen(4)
         var crcInput = dest[4..(headLen - 4)];
         uint crc = Crc32CHelper.Compute(crcInput);
         BinaryPrimitives.WriteUInt32LittleEndian(dest[(headLen - 4)..], crc);
+    }
 
-        return headLen;
+    internal static SizedPtr _AppendFrame(
+        SafeFileHandle file,
+        long writeOffset,
+        uint tag,
+        ReadOnlySpan<byte> payload,
+        out long nextTailOffset) {
+        int headLen = ComputeHeadLen(payload.Length, out int statusLen);
+        int totalLen = checked(headLen + RbfConstants.FenceLength);
+
+        // 约定：stackalloc 小帧，ArrayPool 大帧
+        const int MaxStackAllocSize = 512;
+        byte[]? rentedBuffer = null;
+        Span<byte> buffer = totalLen <= MaxStackAllocSize
+            ? stackalloc byte[totalLen]
+            : (rentedBuffer = ArrayPool<byte>.Shared.Rent(totalLen)).AsSpan(0, totalLen);
+
+        try {
+            // FrameBytes
+            SerializeFrameCore(buffer, headLen, tag, payload, false, statusLen);
+
+            // Trailing Fence
+            RbfConstants.Fence.CopyTo(buffer.Slice(headLen, RbfConstants.FenceLength));
+
+            // 单次写入：FrameBytes + Fence
+            RandomAccess.Write(file, buffer, writeOffset);
+
+            nextTailOffset = writeOffset + totalLen;
+            return SizedPtr.Create((ulong)writeOffset, (uint)headLen);
+        } finally {
+            if (rentedBuffer != null) {
+                ArrayPool<byte>.Shared.Return(rentedBuffer);
+            }
+        }
     }
 
     // 读路径 (Read Path)
