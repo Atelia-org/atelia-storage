@@ -23,9 +23,9 @@ internal static partial class RbfRawOps {
     /// <para>参见 @[F-FRAMEBYTES-FIELD-OFFSETS]。</para>
     /// <para>StatusLen 由 @[F-STATUSLEN-ENSURES-4B-ALIGNMENT] 定义的公式计算，保证 4 字节对齐。</para>
     /// </remarks>
-    public static int ComputeHeadLen(int payloadLen, out int statusLen) {
+    public static int ComputeFrameLen(int payloadLen, out int statusLen) {
         statusLen = FrameStatusHelper.ComputeStatusLen(payloadLen);
-        int headLen = RbfConstants.FrameBytesFixedOverhead + payloadLen + statusLen;
+        int headLen = RbfConstants.FrameFixedOverheadBytes + payloadLen + statusLen;
         return headLen;
     }
 }

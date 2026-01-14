@@ -66,7 +66,10 @@ internal static class RbfConstants {
     /// <remarks>
     /// 帧总长度 = FrameBytesFixedOverhead + PayloadLength + StatusLength。
     /// </remarks>
-    public const int FrameBytesFixedOverhead = HeadLenFieldLength + TagFieldLength + TailLenFieldLength + CrcFieldLength;
+    public const int FrameFixedOverheadBytes = HeadLenFieldLength + TagFieldLength + TailLenFieldLength + CrcFieldLength;
+
+    public const int MinStatusLen = 1;
+    public const int FrameMiniOverheadBytes = MinStatusLen + FrameFixedOverheadBytes;
 
     // === 对齐 (Alignment) ===
 

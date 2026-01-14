@@ -93,14 +93,34 @@ public class RbfRawOpsTests : IDisposable {
     // ========== 测试用例 ==========
 
     /// <summary>
-    /// 验证单帧写入：完整格式验证（HeadLen/TailLen 对称、CRC、Fence）。
+    /// 验证不同大小 payload 的写入格式正确性。
+    /// 覆盖场景：
+    /// - 空 payload
+    /// - 小 payload
+    /// - 超过 512B (ArrayPool 阈值)
+    /// - 4KB 边界 (分段写入阈值)
+    /// - 8KB 边界 (2次/3次写入阈值)
+    /// - 1MB 大 payload
     /// </summary>
-    [Fact]
-    public void _AppendFrame_SingleFrame_WritesCorrectFormat() {
+    [Theory]
+    [InlineData(0)]                   // Empty
+    [InlineData(3)]                   // Single/Small
+    [InlineData(100)]                 // Small
+    [InlineData(2048)]                // ArrayPool threshold (>512)
+    [InlineData(4095)]                // Segmented write threshold - 1
+    [InlineData(4096)]                // Segmented write threshold
+    [InlineData(4097)]                // Segmented write threshold + 1
+    [InlineData(8171)]                // 2 writes limit
+    [InlineData(8172)]                // 3 writes start
+    [InlineData(1024 * 1024)]         // 1MB Large
+    public void _AppendFrame_VariablePayloads_WritesCorrectFormat(int payloadSize) {
         // Arrange
         var path = GetTempFilePath();
         using var handle = File.OpenHandle(path, FileMode.Create, FileAccess.ReadWrite);
-        byte[] payload = [0x01, 0x02, 0x03]; // 3 字节 payload
+        byte[] payload = new byte[payloadSize];
+        if (payloadSize > 0) {
+            new Random(payloadSize).NextBytes(payload); // Use size as seed for reproducibility
+        }
         uint tag = 0x12345678;
 
         // Act
@@ -109,9 +129,9 @@ public class RbfRawOpsTests : IDisposable {
         // Assert - 4B 对齐根不变量
         AssertAlignment(ptr, nextTailOffset);
 
-        // Assert - SizedPtr 返回值
+        // Assert - SizedPtr
         Assert.Equal(0UL, ptr.OffsetBytes); // 从 offset 0 写入
-        int expectedHeadLen = RbfRawOps.ComputeHeadLen(payload.Length, out _);
+        int expectedHeadLen = RbfRawOps.ComputeFrameLen(payload.Length, out _);
         Assert.Equal((uint)expectedHeadLen, ptr.LengthBytes);
 
         // Assert - nextTailOffset
@@ -139,109 +159,18 @@ public class RbfRawOpsTests : IDisposable {
     }
 
     /// <summary>
-    /// 验证空 payload 边界情况。
+    /// 验证指定 writeOffset 的追加位置正确（参数化测试）。
     /// </summary>
-    [Fact]
-    public void _AppendFrame_EmptyPayload_Succeeds() {
+    [Theory]
+    [InlineData(2, 100)]           // 小 payload，小 offset
+    [InlineData(8 * 1024, 256)]    // 大 payload，中等 offset
+    public void _AppendFrame_WithOffset_WritesAtCorrectPosition(int payloadSize, long writeOffset) {
         // Arrange
         var path = GetTempFilePath();
         using var handle = File.OpenHandle(path, FileMode.Create, FileAccess.ReadWrite);
-        byte[] payload = []; // 空 payload
-        uint tag = 0xDEADBEEF;
-
-        // Act
-        var ptr = RbfRawOps._AppendFrame(handle, 0, tag, payload, out long nextTailOffset);
-
-        // Assert - 4B 对齐根不变量
-        AssertAlignment(ptr, nextTailOffset);
-
-        // Assert - SizedPtr
-        Assert.Equal(0UL, ptr.OffsetBytes);
-        // 空 payload：HeadLen = 4 + 4 + 0 + 4 + 4 + 4 = 20
-        // StatusLen for payload=0: 1 + ((4 - 1) % 4) = 1 + 3 = 4
-        int expectedHeadLen = RbfRawOps.ComputeHeadLen(0, out _);
-        Assert.Equal(20, expectedHeadLen); // 验证计算
-        Assert.Equal((uint)expectedHeadLen, ptr.LengthBytes);
-
-        // Assert - nextTailOffset
-        Assert.Equal(expectedHeadLen + 4, nextTailOffset);
-
-        // Assert - 读取文件内容
-        var data = new byte[nextTailOffset];
-        RandomAccess.Read(handle, data, 0);
-
-        // HeadLen/TailLen 对称性
-        AssertHeadTailSymmetry(data, 0, (uint)expectedHeadLen);
-
-        // CRC
-        AssertCrc(data, 0, (uint)expectedHeadLen);
-
-        // Tag 验证 (offset 4)
-        uint actualTag = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(4));
-        Assert.Equal(tag, actualTag);
-
-        // Trailing Fence (offset headLen)
-        AssertFence(data, expectedHeadLen);
-    }
-
-    /// <summary>
-    /// 验证大 payload（>512B）使用 ArrayPool 路径。
-    /// </summary>
-    [Fact]
-    public void _AppendFrame_LargePayload_UsesArrayPool() {
-        // Arrange
-        var path = GetTempFilePath();
-        using var handle = File.OpenHandle(path, FileMode.Create, FileAccess.ReadWrite);
-        byte[] payload = new byte[2048]; // 2KB payload，超过 512B 阈值
-        new Random(42).NextBytes(payload); // 填充随机数据
-        uint tag = 0xCAFEBABE;
-
-        // Act
-        var ptr = RbfRawOps._AppendFrame(handle, 0, tag, payload, out long nextTailOffset);
-
-        // Assert - 4B 对齐根不变量
-        AssertAlignment(ptr, nextTailOffset);
-
-        // Assert - SizedPtr
-        Assert.Equal(0UL, ptr.OffsetBytes);
-        int expectedHeadLen = RbfRawOps.ComputeHeadLen(payload.Length, out _);
-        Assert.Equal((uint)expectedHeadLen, ptr.LengthBytes);
-
-        // Assert - nextTailOffset
-        Assert.Equal(expectedHeadLen + 4, nextTailOffset);
-
-        // Assert - 读取文件内容
-        var data = new byte[nextTailOffset];
-        RandomAccess.Read(handle, data, 0);
-
-        // HeadLen/TailLen 对称性
-        AssertHeadTailSymmetry(data, 0, (uint)expectedHeadLen);
-
-        // CRC 验证
-        AssertCrc(data, 0, (uint)expectedHeadLen);
-
-        // Tag 验证 (offset 4)
-        uint actualTag = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(4));
-        Assert.Equal(tag, actualTag);
-
-        // Payload 验证（完整比对）
-        Assert.Equal(payload, data.AsSpan(8, payload.Length).ToArray());
-
-        // Trailing Fence
-        AssertFence(data, expectedHeadLen);
-    }
-
-    /// <summary>
-    /// 验证指定 writeOffset 的追加位置正确。
-    /// </summary>
-    [Fact]
-    public void _AppendFrame_WithOffset_WritesAtCorrectPosition() {
-        // Arrange
-        var path = GetTempFilePath();
-        using var handle = File.OpenHandle(path, FileMode.Create, FileAccess.ReadWrite);
-        byte[] payload = [0xAA, 0xBB];
+        byte[] payload = new byte[payloadSize];
+        new Random(payloadSize).NextBytes(payload);
         uint tag = 0x11111111;
-        long writeOffset = 100; // 从偏移 100 开始写
 
         // 预写一些占位数据
         var placeholder = new byte[writeOffset];
@@ -252,7 +181,7 @@ public class RbfRawOpsTests : IDisposable {
 
         // Assert - SizedPtr 指向正确位置
         Assert.Equal((ulong)writeOffset, ptr.OffsetBytes);
-        int expectedHeadLen = RbfRawOps.ComputeHeadLen(payload.Length, out _);
+        int expectedHeadLen = RbfRawOps.ComputeFrameLen(payload.Length, out _);
         Assert.Equal((uint)expectedHeadLen, ptr.LengthBytes);
 
         // Assert - nextTailOffset
@@ -262,9 +191,54 @@ public class RbfRawOpsTests : IDisposable {
         var data = new byte[nextTailOffset];
         RandomAccess.Read(handle, data, 0);
 
-        // 验证帧写在 offset 100 位置
+        // 验证帧写在 offset 位置
         AssertHeadTailSymmetry(data, (int)writeOffset, (uint)expectedHeadLen);
         AssertCrc(data, (int)writeOffset, (uint)expectedHeadLen);
         AssertFence(data, (int)writeOffset + expectedHeadLen);
+
+        // Payload 验证
+        Assert.Equal(payload, data.AsSpan((int)writeOffset + 8, payload.Length).ToArray());
+    }
+
+    /// <summary>
+    /// 验证大帧路径：10MB payload（压力测试）。
+    /// 单独保留以进行非完整比对的快速验证，并作为压力测试用例。
+    /// </summary>
+    [Fact]
+    public void _AppendFrame_VeryLargePayload_Succeeds() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var handle = File.OpenHandle(path, FileMode.Create, FileAccess.ReadWrite);
+        // 10MB payload
+        byte[] payload = new byte[10 * 1024 * 1024];
+        new Random(12345).NextBytes(payload);
+        uint tag = 0xDEADC0DE;
+
+        // Act
+        var ptr = RbfRawOps._AppendFrame(handle, 0, tag, payload, out long nextTailOffset);
+
+        // Assert - 4B 对齐
+        AssertAlignment(ptr, nextTailOffset);
+
+        // Assert - SizedPtr
+        int expectedHeadLen = RbfRawOps.ComputeFrameLen(payload.Length, out _);
+        Assert.Equal((uint)expectedHeadLen, ptr.LengthBytes);
+
+        // Assert - 读取文件内容并验证关键点（不做完整比对以节省时间）
+        var data = new byte[nextTailOffset];
+        RandomAccess.Read(handle, data, 0);
+
+        // HeadLen/TailLen 对称性
+        AssertHeadTailSymmetry(data, 0, (uint)expectedHeadLen);
+
+        // CRC（关键验证）
+        AssertCrc(data, 0, (uint)expectedHeadLen);
+
+        // Payload 首尾验证
+        Assert.Equal(payload[..16], data.AsSpan(8, 16).ToArray());
+        Assert.Equal(payload[^16..], data.AsSpan(8 + payload.Length - 16, 16).ToArray());
+
+        // Fence
+        AssertFence(data, expectedHeadLen);
     }
 }

@@ -56,7 +56,7 @@ public class RbfFacadeTests : IDisposable {
         }
 
         // Assert - 只验证状态和返回值
-        int expectedHeadLen = RbfRawOps.ComputeHeadLen(payload.Length, out _);
+        int expectedHeadLen = RbfRawOps.ComputeFrameLen(payload.Length, out _);
 
         // SizedPtr 指向 Genesis(4) 之后的位置
         Assert.Equal(4UL, ptr.OffsetBytes);
@@ -88,8 +88,8 @@ public class RbfFacadeTests : IDisposable {
         }
 
         // Assert - 只验证状态和返回值
-        int headLen1 = RbfRawOps.ComputeHeadLen(payload1.Length, out _);
-        int headLen2 = RbfRawOps.ComputeHeadLen(payload2.Length, out _);
+        int headLen1 = RbfRawOps.ComputeFrameLen(payload1.Length, out _);
+        int headLen2 = RbfRawOps.ComputeFrameLen(payload2.Length, out _);
 
         // 第一帧位置
         Assert.Equal(4UL, ptr1.OffsetBytes); // Genesis(4) 后
@@ -125,7 +125,7 @@ public class RbfFacadeTests : IDisposable {
         }
 
         // Assert - 只验证状态和返回值
-        int expectedHeadLen = RbfRawOps.ComputeHeadLen(0, out _);
+        int expectedHeadLen = RbfRawOps.ComputeFrameLen(0, out _);
         Assert.Equal(20, expectedHeadLen); // 验证计算
 
         Assert.Equal(4UL, ptr.OffsetBytes);
@@ -152,7 +152,7 @@ public class RbfFacadeTests : IDisposable {
         }
 
         // Assert - 只验证状态和返回值
-        int expectedHeadLen = RbfRawOps.ComputeHeadLen(payload.Length, out _);
+        int expectedHeadLen = RbfRawOps.ComputeFrameLen(payload.Length, out _);
 
         Assert.Equal(4UL, ptr.OffsetBytes);
         Assert.Equal((uint)expectedHeadLen, ptr.LengthBytes);

@@ -172,4 +172,91 @@ public class Crc32CHelperTests
         }
         return crc ^ 0xFFFFFFFF;
     }
+
+    // ========== 增量 API 测试 ==========
+
+    /// <summary>
+    /// 增量 API：分段 Update 应等价于一次性 Compute。
+    /// </summary>
+    [Fact]
+    public void IncrementalApi_SplitUpdate_EqualsCompute()
+    {
+        // Arrange: 模拟 RBF 帧的 CRC 覆盖区域
+        byte[] tag = [0x78, 0x56, 0x34, 0x12]; // Tag (4 bytes)
+        byte[] payload = Encoding.ASCII.GetBytes("Hello, RBF!"); // Payload
+        byte[] statusTailLen = [0x01, 0x00, 0x00, 0x18, 0x00, 0x00, 0x00]; // Status(1) + TailLen(4) + padding
+
+        // 拼接完整数据
+        var fullData = new byte[tag.Length + payload.Length + 5]; // Status(1) + TailLen(4)
+        tag.CopyTo(fullData, 0);
+        payload.CopyTo(fullData, tag.Length);
+        statusTailLen.AsSpan(0, 5).CopyTo(fullData.AsSpan(tag.Length + payload.Length));
+
+        // Act: 一次性计算
+        uint expectedCrc = Crc32CHelper.Compute(fullData);
+
+        // Act: 增量计算
+        uint crc = Crc32CHelper.Init();
+        crc = Crc32CHelper.Update(crc, tag);
+        crc = Crc32CHelper.Update(crc, payload);
+        crc = Crc32CHelper.Update(crc, fullData.AsSpan(tag.Length + payload.Length, 5));
+        uint actualCrc = Crc32CHelper.Finalize(crc);
+
+        // Assert
+        Assert.Equal(expectedCrc, actualCrc);
+    }
+
+    /// <summary>
+    /// 增量 API：空 Update 不改变状态。
+    /// </summary>
+    [Fact]
+    public void IncrementalApi_EmptyUpdate_NoChange()
+    {
+        // Arrange
+        byte[] data = Encoding.ASCII.GetBytes("test");
+
+        // Act
+        uint crc1 = Crc32CHelper.Init();
+        crc1 = Crc32CHelper.Update(crc1, data);
+
+        uint crc2 = Crc32CHelper.Init();
+        crc2 = Crc32CHelper.Update(crc2, ReadOnlySpan<byte>.Empty); // 空更新
+        crc2 = Crc32CHelper.Update(crc2, data);
+        crc2 = Crc32CHelper.Update(crc2, ReadOnlySpan<byte>.Empty); // 空更新
+
+        // Assert
+        Assert.Equal(Crc32CHelper.Finalize(crc1), Crc32CHelper.Finalize(crc2));
+    }
+
+    /// <summary>
+    /// 增量 API：多次小块 Update 等价于 Compute。
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    [InlineData(7)]
+    [InlineData(16)]
+    public void IncrementalApi_ManySmallChunks_EqualsCompute(int chunkSize)
+    {
+        // Arrange
+        var fullData = new byte[100];
+        Random.Shared.NextBytes(fullData);
+
+        // Act: 一次性计算
+        uint expectedCrc = Crc32CHelper.Compute(fullData);
+
+        // Act: 分块计算
+        uint crc = Crc32CHelper.Init();
+        int offset = 0;
+        while (offset < fullData.Length)
+        {
+            int len = Math.Min(chunkSize, fullData.Length - offset);
+            crc = Crc32CHelper.Update(crc, fullData.AsSpan(offset, len));
+            offset += len;
+        }
+        uint actualCrc = Crc32CHelper.Finalize(crc);
+
+        // Assert
+        Assert.Equal(expectedCrc, actualCrc);
+    }
 }
