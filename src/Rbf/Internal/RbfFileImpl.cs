@@ -45,7 +45,7 @@ internal sealed class RbfFileImpl : IRbfFile {
 
     /// <inheritdoc />
     public AteliaResult<RbfFrame> ReadFrame(SizedPtr ptr) {
-        throw new NotImplementedException();
+        return RbfRawOps.ReadFrame(_handle, ptr);
     }
 
     /// <inheritdoc />
