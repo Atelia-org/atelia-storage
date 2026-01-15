@@ -159,4 +159,57 @@ public class RbfFacadeTests : IDisposable {
         Assert.Equal((uint)expectedHeadLen, ptr.LengthBytes);
         Assert.Equal(4 + expectedHeadLen + 4, tailOffset);
     }
+
+    // ========== ReadFrame 集成测试 ==========
+
+    /// <summary>
+    /// 验证 Append 后 ReadFrame 能正确读回帧数据（闭环测试）。
+    /// </summary>
+    [Fact]
+    public void ReadFrame_AfterAppend_ReturnsCorrectFrame() {
+        // Arrange
+        var path = GetTempFilePath();
+        byte[] payload = [0xDE, 0xAD, 0xBE, 0xEF];
+        uint tag = 0x87654321;
+
+        // Act & Assert
+        using (var rbf = RbfFile.CreateNew(path)) {
+            var ptr = rbf.Append(tag, payload);
+
+            // ReadFrame 应该能正确读取刚写入的帧
+            var result = rbf.ReadFrame(ptr);
+
+            Assert.True(result.IsSuccess);
+            var frame = result.Value;
+            Assert.Equal(tag, frame.Tag);
+            Assert.Equal(payload, frame.Payload.ToArray());
+            Assert.False(frame.IsTombstone);
+            Assert.Equal(ptr, frame.Ptr);
+        }
+    }
+
+    /// <summary>
+    /// 验证 ReadFrame 不会改变 TailOffset。
+    /// </summary>
+    [Fact]
+    public void ReadFrame_DoesNotChangeTailOffset() {
+        // Arrange
+        var path = GetTempFilePath();
+        byte[] payload = [0x11, 0x22, 0x33];
+        uint tag = 0xABCDEF00;
+
+        // Act
+        using var rbf = RbfFile.CreateNew(path);
+        var ptr = rbf.Append(tag, payload);
+        long tailOffsetBefore = rbf.TailOffset;
+
+        // 执行 ReadFrame
+        var result = rbf.ReadFrame(ptr);
+        Assert.True(result.IsSuccess);
+
+        long tailOffsetAfter = rbf.TailOffset;
+
+        // Assert - TailOffset 应保持不变
+        Assert.Equal(tailOffsetBefore, tailOffsetAfter);
+    }
 }
