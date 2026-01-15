@@ -33,7 +33,7 @@ internal sealed class RbfFileImpl : IRbfFile {
     public SizedPtr Append(uint tag, ReadOnlySpan<byte> payload) {
         // 门面层只负责：持有句柄 + 维护 TailOffset。
         var frameOffset = _tailOffset;
-        var ptr = RbfRawOps._AppendFrame(_handle, frameOffset, tag, payload, out long nextTailOffset);
+        var ptr = RbfAppendImpl.Append(_handle, frameOffset, tag, payload, out long nextTailOffset);
         _tailOffset = nextTailOffset;
         return ptr;
     }

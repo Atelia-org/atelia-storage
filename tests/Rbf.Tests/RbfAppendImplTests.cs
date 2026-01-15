@@ -16,7 +16,7 @@ namespace Atelia.Rbf.Tests;
 /// - @[F-FENCE-VALUE-IS-RBF1-ASCII-4B] - Fence 必须是 ASCII "RBF1"
 /// - @[F-CRC32C-COVERAGE] - CRC 覆盖范围
 /// </remarks>
-public class RbfRawOpsTests : IDisposable {
+public class RbfAppendImplTests : IDisposable {
     private readonly List<string> _tempFiles = new();
 
     /// <summary>
@@ -34,7 +34,8 @@ public class RbfRawOpsTests : IDisposable {
                 if (File.Exists(path)) {
                     File.Delete(path);
                 }
-            } catch {
+            }
+            catch {
                 // 忽略清理错误
             }
         }
@@ -90,30 +91,27 @@ public class RbfRawOpsTests : IDisposable {
         Assert.Equal(expectedCrc, actualCrc);
     }
 
-    // ========== 测试用例 ==========
+    public static IEnumerable<object[]> GetVariablePayloadSizes() {
+        // 动态获取基于 UnifiedBufferSize 的关键边界值
+        foreach (var size in RbfAppendImpl.GetPayloadEdgeCase()) {
+            yield return new object[] { size };
+        }
+
+        // 补充常见场景
+        yield return new object[] { 0 }; // 典型小包
+        yield return new object[] { 100 }; // 典型小包
+        yield return new object[] { 2048 }; // ArrayPool 阈值
+        yield return new object[] { 4096 }; // 4KB 页对齐
+        yield return new object[] { 1024 * 1024 }; // 1MB 大包
+    }
 
     /// <summary>
     /// 验证不同大小 payload 的写入格式正确性。
-    /// 覆盖场景：
-    /// - 空 payload
-    /// - 小 payload
-    /// - 超过 512B (ArrayPool 阈值)
-    /// - 4KB 边界 (分段写入阈值)
-    /// - 8KB 边界 (2次/3次写入阈值)
-    /// - 1MB 大 payload
+    /// 覆盖场景：空 payload、关键边界（由 _GetKeyAppendPayloadLength 动态提供）、大包等。
     /// </summary>
     [Theory]
-    [InlineData(0)]                   // Empty
-    [InlineData(3)]                   // Single/Small
-    [InlineData(100)]                 // Small
-    [InlineData(2048)]                // ArrayPool threshold (>512)
-    [InlineData(4095)]                // Segmented write threshold - 1
-    [InlineData(4096)]                // Segmented write threshold
-    [InlineData(4097)]                // Segmented write threshold + 1
-    [InlineData(8171)]                // 2 writes limit
-    [InlineData(8172)]                // 3 writes start
-    [InlineData(1024 * 1024)]         // 1MB Large
-    public void _AppendFrame_VariablePayloads_WritesCorrectFormat(int payloadSize) {
+    [MemberData(nameof(GetVariablePayloadSizes))]
+    public void Append_VariablePayloads_WritesCorrectFormat(int payloadSize) {
         // Arrange
         var path = GetTempFilePath();
         using var handle = File.OpenHandle(path, FileMode.Create, FileAccess.ReadWrite);
@@ -124,14 +122,14 @@ public class RbfRawOpsTests : IDisposable {
         uint tag = 0x12345678;
 
         // Act
-        var ptr = RbfRawOps._AppendFrame(handle, 0, tag, payload, out long nextTailOffset);
+        var ptr = RbfAppendImpl.Append(handle, 0, tag, payload, out long nextTailOffset);
 
         // Assert - 4B 对齐根不变量
         AssertAlignment(ptr, nextTailOffset);
 
         // Assert - SizedPtr
         Assert.Equal(0UL, ptr.OffsetBytes); // 从 offset 0 写入
-        int expectedHeadLen = RbfRawOps.ComputeFrameLen(payload.Length, out _);
+        int expectedHeadLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
         Assert.Equal((uint)expectedHeadLen, ptr.LengthBytes);
 
         // Assert - nextTailOffset
@@ -164,7 +162,7 @@ public class RbfRawOpsTests : IDisposable {
     [Theory]
     [InlineData(2, 100)]           // 小 payload，小 offset
     [InlineData(8 * 1024, 256)]    // 大 payload，中等 offset
-    public void _AppendFrame_WithOffset_WritesAtCorrectPosition(int payloadSize, long writeOffset) {
+    public void Append_WithOffset_WritesAtCorrectPosition(int payloadSize, long writeOffset) {
         // Arrange
         var path = GetTempFilePath();
         using var handle = File.OpenHandle(path, FileMode.Create, FileAccess.ReadWrite);
@@ -177,11 +175,11 @@ public class RbfRawOpsTests : IDisposable {
         RandomAccess.Write(handle, placeholder, 0);
 
         // Act
-        var ptr = RbfRawOps._AppendFrame(handle, writeOffset, tag, payload, out long nextTailOffset);
+        var ptr = RbfAppendImpl.Append(handle, writeOffset, tag, payload, out long nextTailOffset);
 
         // Assert - SizedPtr 指向正确位置
         Assert.Equal((ulong)writeOffset, ptr.OffsetBytes);
-        int expectedHeadLen = RbfRawOps.ComputeFrameLen(payload.Length, out _);
+        int expectedHeadLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
         Assert.Equal((uint)expectedHeadLen, ptr.LengthBytes);
 
         // Assert - nextTailOffset
@@ -205,7 +203,7 @@ public class RbfRawOpsTests : IDisposable {
     /// 单独保留以进行非完整比对的快速验证，并作为压力测试用例。
     /// </summary>
     [Fact]
-    public void _AppendFrame_VeryLargePayload_Succeeds() {
+    public void Append_VeryLargePayload_Succeeds() {
         // Arrange
         var path = GetTempFilePath();
         using var handle = File.OpenHandle(path, FileMode.Create, FileAccess.ReadWrite);
@@ -215,13 +213,13 @@ public class RbfRawOpsTests : IDisposable {
         uint tag = 0xDEADC0DE;
 
         // Act
-        var ptr = RbfRawOps._AppendFrame(handle, 0, tag, payload, out long nextTailOffset);
+        var ptr = RbfAppendImpl.Append(handle, 0, tag, payload, out long nextTailOffset);
 
         // Assert - 4B 对齐
         AssertAlignment(ptr, nextTailOffset);
 
         // Assert - SizedPtr
-        int expectedHeadLen = RbfRawOps.ComputeFrameLen(payload.Length, out _);
+        int expectedHeadLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
         Assert.Equal((uint)expectedHeadLen, ptr.LengthBytes);
 
         // Assert - 读取文件内容并验证关键点（不做完整比对以节省时间）
