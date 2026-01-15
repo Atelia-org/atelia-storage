@@ -11,8 +11,7 @@ namespace Atelia.Rbf.Internal;
 /// CRC32C (Castagnoli) 计算工具。
 /// 采用 Reflected I/O 约定，兼容 IETF RFC 3720 (iSCSI CRC)。
 /// </summary>
-internal static class Crc32CHelper
-{
+internal static class Crc32CHelper {
     /// <summary>
     /// CRC32C 初始值。
     /// </summary>
@@ -39,10 +38,8 @@ internal static class Crc32CHelper
     /// 性能优化：优先用 ulong 处理 8 字节块，再用 uint 处理 4 字节块，剩余用 byte 处理。
     /// 使用 Unsafe.ReadUnaligned 确保在所有架构上安全处理非对齐读。
     /// </remarks>
-    internal static uint Update(uint crc, ReadOnlySpan<byte> data)
-    {
-        if (data.IsEmpty)
-        {
+    internal static uint Update(uint crc, ReadOnlySpan<byte> data) {
+        if (data.IsEmpty) {
             return crc;
         }
 
@@ -50,22 +47,19 @@ internal static class Crc32CHelper
         int i = 0;
 
         // 8 字节块处理
-        while (i + 8 <= data.Length)
-        {
+        while (i + 8 <= data.Length) {
             crc = BitOperations.Crc32C(crc, Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref start, i)));
             i += 8;
         }
 
         // 4 字节块处理（剩余 0-7 字节时最多执行一次）
-        if (i + 4 <= data.Length)
-        {
+        if (i + 4 <= data.Length) {
             crc = BitOperations.Crc32C(crc, Unsafe.ReadUnaligned<uint>(ref Unsafe.Add(ref start, i)));
             i += 4;
         }
 
         // 逐字节处理剩余（0-3 字节）
-        while (i < data.Length)
-        {
+        while (i < data.Length) {
             crc = BitOperations.Crc32C(crc, Unsafe.Add(ref start, i++));
         }
 

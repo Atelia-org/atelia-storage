@@ -9,16 +9,14 @@ using Xunit;
 
 namespace Atelia.Rbf.Tests;
 
-public class FrameStatusHelperTests
-{
+public class FrameStatusHelperTests {
     #region ComputeStatusLen Tests
 
     /// <summary>
     /// payloadLen=0: (0+1)%4=1, (4-1)%4=3, 1+3=4
     /// </summary>
     [Fact]
-    public void ComputeStatusLen_PayloadLen0_Returns4()
-    {
+    public void ComputeStatusLen_PayloadLen0_Returns4() {
         // Act
         int result = FrameStatusHelper.ComputeStatusLen(0);
 
@@ -30,8 +28,7 @@ public class FrameStatusHelperTests
     /// payloadLen=1: (1+1)%4=2, (4-2)%4=2, 1+2=3
     /// </summary>
     [Fact]
-    public void ComputeStatusLen_PayloadLen1_Returns3()
-    {
+    public void ComputeStatusLen_PayloadLen1_Returns3() {
         // Act
         int result = FrameStatusHelper.ComputeStatusLen(1);
 
@@ -43,8 +40,7 @@ public class FrameStatusHelperTests
     /// payloadLen=2: (2+1)%4=3, (4-3)%4=1, 1+1=2
     /// </summary>
     [Fact]
-    public void ComputeStatusLen_PayloadLen2_Returns2()
-    {
+    public void ComputeStatusLen_PayloadLen2_Returns2() {
         // Act
         int result = FrameStatusHelper.ComputeStatusLen(2);
 
@@ -56,8 +52,7 @@ public class FrameStatusHelperTests
     /// payloadLen=3: (3+1)%4=0, (4-0)%4=0, 1+0=1
     /// </summary>
     [Fact]
-    public void ComputeStatusLen_PayloadLen3_Returns1()
-    {
+    public void ComputeStatusLen_PayloadLen3_Returns1() {
         // Act
         int result = FrameStatusHelper.ComputeStatusLen(3);
 
@@ -69,8 +64,7 @@ public class FrameStatusHelperTests
     /// payloadLen=4: (4+1)%4=1, (4-1)%4=3, 1+3=4 (循环回 statusLen=4)
     /// </summary>
     [Fact]
-    public void ComputeStatusLen_PayloadLen4_Returns4()
-    {
+    public void ComputeStatusLen_PayloadLen4_Returns4() {
         // Act
         int result = FrameStatusHelper.ComputeStatusLen(4);
 
@@ -94,8 +88,7 @@ public class FrameStatusHelperTests
     [InlineData(101, 3)]  // 101 % 4 == 1
     [InlineData(102, 2)]  // 102 % 4 == 2
     [InlineData(103, 1)]  // 103 % 4 == 3
-    public void ComputeStatusLen_CyclicPattern(int payloadLen, int expectedStatusLen)
-    {
+    public void ComputeStatusLen_CyclicPattern(int payloadLen, int expectedStatusLen) {
         // Act
         int result = FrameStatusHelper.ComputeStatusLen(payloadLen);
 
@@ -114,8 +107,7 @@ public class FrameStatusHelperTests
     [InlineData(4)]
     [InlineData(100)]
     [InlineData(1000)]
-    public void ComputeStatusLen_EnsuresAlignment(int payloadLen)
-    {
+    public void ComputeStatusLen_EnsuresAlignment(int payloadLen) {
         // Act
         int statusLen = FrameStatusHelper.ComputeStatusLen(payloadLen);
 
@@ -131,8 +123,7 @@ public class FrameStatusHelperTests
     /// Valid 帧位域：statusLen=4, notTombstone → 0b00000011 = 0x03
     /// </summary>
     [Fact]
-    public void EncodeStatusByte_NotTombstone_CorrectBits()
-    {
+    public void EncodeStatusByte_NotTombstone_CorrectBits() {
         // statusLen=1, notTombstone → Bit1-0=00, Bit7=0 → 0x00
         Assert.Equal(0x00, FrameStatusHelper.EncodeStatusByte(false, 1));
 
@@ -150,8 +141,7 @@ public class FrameStatusHelperTests
     /// Tombstone 帧位域：Bit7=1
     /// </summary>
     [Fact]
-    public void EncodeStatusByte_Tombstone_CorrectBits()
-    {
+    public void EncodeStatusByte_Tombstone_CorrectBits() {
         // statusLen=1, isTombstone → Bit1-0=00, Bit7=1 → 0x80
         Assert.Equal(0x80, FrameStatusHelper.EncodeStatusByte(true, 1));
 
@@ -177,8 +167,7 @@ public class FrameStatusHelperTests
     [InlineData(true, 2)]
     [InlineData(true, 3)]
     [InlineData(true, 4)]
-    public void EncodeStatusByte_ReservedBitsAlwaysZero(bool isTombstone, int statusLen)
-    {
+    public void EncodeStatusByte_ReservedBitsAlwaysZero(bool isTombstone, int statusLen) {
         // Act
         byte result = FrameStatusHelper.EncodeStatusByte(isTombstone, statusLen);
 
@@ -198,8 +187,7 @@ public class FrameStatusHelperTests
     [InlineData(false, 4)]
     [InlineData(true, 1)]
     [InlineData(true, 4)]
-    public void FillStatus_AllBytesIdentical(bool isTombstone, int statusLen)
-    {
+    public void FillStatus_AllBytesIdentical(bool isTombstone, int statusLen) {
         // Arrange
         byte[] buffer = new byte[statusLen];
         byte expectedByte = FrameStatusHelper.EncodeStatusByte(isTombstone, statusLen);
@@ -208,8 +196,7 @@ public class FrameStatusHelperTests
         FrameStatusHelper.FillStatus(buffer, isTombstone, statusLen);
 
         // Assert
-        for (int i = 0; i < statusLen; i++)
-        {
+        for (int i = 0; i < statusLen; i++) {
             Assert.Equal(expectedByte, buffer[i]);
         }
     }
@@ -218,8 +205,7 @@ public class FrameStatusHelperTests
     /// 验证 FillStatus 正确覆盖现有数据。
     /// </summary>
     [Fact]
-    public void FillStatus_OverwritesExistingData()
-    {
+    public void FillStatus_OverwritesExistingData() {
         // Arrange
         byte[] buffer = [0xFF, 0xFF, 0xFF, 0xFF];
 
@@ -241,8 +227,7 @@ public class FrameStatusHelperTests
     [InlineData(-1)]
     [InlineData(-100)]
     [InlineData(int.MinValue)]
-    public void ComputeStatusLen_NegativePayloadLen_ThrowsArgumentOutOfRange(int payloadLen)
-    {
+    public void ComputeStatusLen_NegativePayloadLen_ThrowsArgumentOutOfRange(int payloadLen) {
         // Act & Assert
         var ex = Assert.Throws<ArgumentOutOfRangeException>(
             () => FrameStatusHelper.ComputeStatusLen(payloadLen));
@@ -257,8 +242,7 @@ public class FrameStatusHelperTests
     [InlineData(-1)]
     [InlineData(5)]
     [InlineData(100)]
-    public void EncodeStatusByte_InvalidStatusLen_ThrowsArgumentOutOfRange(int statusLen)
-    {
+    public void EncodeStatusByte_InvalidStatusLen_ThrowsArgumentOutOfRange(int statusLen) {
         // Act & Assert
         var ex = Assert.Throws<ArgumentOutOfRangeException>(
             () => FrameStatusHelper.EncodeStatusByte(false, statusLen));
@@ -272,8 +256,7 @@ public class FrameStatusHelperTests
     [InlineData(2, 4)]  // dest 太小
     [InlineData(4, 2)]  // dest 太大
     [InlineData(0, 1)]  // dest 为空
-    public void FillStatus_DestLengthMismatch_ThrowsArgumentException(int destLength, int statusLen)
-    {
+    public void FillStatus_DestLengthMismatch_ThrowsArgumentException(int destLength, int statusLen) {
         // Arrange
         byte[] buffer = new byte[destLength];
 

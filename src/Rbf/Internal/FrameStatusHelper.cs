@@ -9,8 +9,7 @@ namespace Atelia.Rbf.Internal;
 /// <summary>
 /// FrameStatus 编码工具。
 /// </summary>
-internal static class FrameStatusHelper
-{
+internal static class FrameStatusHelper {
     // === Status 常量 ===
 
     /// <summary>
@@ -41,10 +40,8 @@ internal static class FrameStatusHelper
     /// 公式确保 (payloadLen + statusLen) % 4 == 0，即 4 字节对齐。
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">payloadLen 为负数时抛出。</exception>
-    internal static int ComputeStatusLen(int payloadLen)
-    {
-        if (payloadLen < 0)
-        {
+    internal static int ComputeStatusLen(int payloadLen) {
+        if (payloadLen < 0) {
             throw new ArgumentOutOfRangeException(nameof(payloadLen), payloadLen, "payloadLen must be non-negative.");
         }
 
@@ -65,10 +62,8 @@ internal static class FrameStatusHelper
     ///   Bit1-0   = StatusLen-1（0-3 表示 1-4 字节）
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">statusLen 不在 [1,4] 范围时抛出。</exception>
-    internal static byte EncodeStatusByte(bool isTombstone, int statusLen)
-    {
-        if (statusLen < MinStatusLength || statusLen > MaxStatusLength)
-        {
+    internal static byte EncodeStatusByte(bool isTombstone, int statusLen) {
+        if (statusLen < MinStatusLength || statusLen > MaxStatusLength) {
             throw new ArgumentOutOfRangeException(nameof(statusLen), statusLen, "statusLen must be in range [1,4].");
         }
 
@@ -76,8 +71,7 @@ internal static class FrameStatusHelper
         int bits = statusLen - MinStatusLength;
 
         // Bit7 = isTombstone ? 1 : 0
-        if (isTombstone)
-        {
+        if (isTombstone) {
             bits |= TombstoneMask;
         }
 
@@ -91,10 +85,8 @@ internal static class FrameStatusHelper
     /// <param name="isTombstone">是否为 Tombstone 帧。</param>
     /// <param name="statusLen">StatusLen 值（1-4）。</param>
     /// <exception cref="ArgumentException">dest.Length 不等于 statusLen 时抛出。</exception>
-    internal static void FillStatus(Span<byte> dest, bool isTombstone, int statusLen)
-    {
-        if (dest.Length != statusLen)
-        {
+    internal static void FillStatus(Span<byte> dest, bool isTombstone, int statusLen) {
+        if (dest.Length != statusLen) {
             throw new ArgumentException($"dest.Length ({dest.Length}) must equal statusLen ({statusLen}).", nameof(dest));
         }
 

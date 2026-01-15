@@ -8,15 +8,13 @@ using Xunit;
 
 namespace Atelia.Rbf.Tests;
 
-public class Crc32CHelperTests
-{
+public class Crc32CHelperTests {
     /// <summary>
     /// 空输入测试：空数据的 CRC32C 应为 0x00000000。
     /// 原因：初始值 0xFFFFFFFF 异或 0xFFFFFFFF = 0x00000000。
     /// </summary>
     [Fact]
-    public void Compute_EmptyInput_ReturnsExpected()
-    {
+    public void Compute_EmptyInput_ReturnsExpected() {
         // Arrange
         ReadOnlySpan<byte> empty = [];
 
@@ -32,8 +30,7 @@ public class Crc32CHelperTests
     /// 这是 IETF RFC 3720 中定义的标准测试向量。
     /// </summary>
     [Fact]
-    public void Compute_KnownVector_ReturnsExpected()
-    {
+    public void Compute_KnownVector_ReturnsExpected() {
         // Arrange
         byte[] data = Encoding.ASCII.GetBytes("123456789");
 
@@ -48,8 +45,7 @@ public class Crc32CHelperTests
     /// 4 字节对齐输入测试：验证 RBF 典型场景（帧数据通常 4B 对齐）。
     /// </summary>
     [Fact]
-    public void Compute_4ByteAligned_Efficient()
-    {
+    public void Compute_4ByteAligned_Efficient() {
         // Arrange: 12 字节数据（4B 对齐）
         byte[] data = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C];
 
@@ -68,12 +64,10 @@ public class Crc32CHelperTests
     /// 8 字节对齐输入测试：验证 ulong 优化路径。
     /// </summary>
     [Fact]
-    public void Compute_8ByteAligned_UsesUlongPath()
-    {
+    public void Compute_8ByteAligned_UsesUlongPath() {
         // Arrange: 16 字节数据（8B 对齐）
         byte[] data = new byte[16];
-        for (int i = 0; i < 16; i++)
-        {
+        for (int i = 0; i < 16; i++) {
             data[i] = (byte)(i + 1);
         }
 
@@ -95,12 +89,10 @@ public class Crc32CHelperTests
     [InlineData(7)]
     [InlineData(9)]
     [InlineData(15)]
-    public void Compute_VariousLengths_Succeeds(int length)
-    {
+    public void Compute_VariousLengths_Succeeds(int length) {
         // Arrange
         byte[] data = new byte[length];
-        for (int i = 0; i < length; i++)
-        {
+        for (int i = 0; i < length; i++) {
             data[i] = (byte)(i + 1);
         }
 
@@ -118,8 +110,7 @@ public class Crc32CHelperTests
     /// 单字节输入测试。
     /// </summary>
     [Fact]
-    public void Compute_SingleByte_ReturnsExpected()
-    {
+    public void Compute_SingleByte_ReturnsExpected() {
         // Arrange
         byte[] data = [0x00];
 
@@ -146,8 +137,7 @@ public class Crc32CHelperTests
     [InlineData(16)]
     [InlineData(17)]
     [InlineData(100)]
-    public void Compute_MatchesBaseline(int length)
-    {
+    public void Compute_MatchesBaseline(int length) {
         // Arrange
         var data = new byte[length];
         Random.Shared.NextBytes(data);
@@ -163,11 +153,9 @@ public class Crc32CHelperTests
     /// <summary>
     /// 纯逐字节基准实现（仅用于测试对比）。
     /// </summary>
-    private static uint ComputeBaseline(ReadOnlySpan<byte> data)
-    {
+    private static uint ComputeBaseline(ReadOnlySpan<byte> data) {
         uint crc = 0xFFFFFFFF;
-        foreach (var b in data)
-        {
+        foreach (var b in data) {
             crc = BitOperations.Crc32C(crc, b);
         }
         return crc ^ 0xFFFFFFFF;
@@ -179,8 +167,7 @@ public class Crc32CHelperTests
     /// 增量 API：分段 Update 应等价于一次性 Compute。
     /// </summary>
     [Fact]
-    public void IncrementalApi_SplitUpdate_EqualsCompute()
-    {
+    public void IncrementalApi_SplitUpdate_EqualsCompute() {
         // Arrange: 模拟 RBF 帧的 CRC 覆盖区域
         byte[] tag = [0x78, 0x56, 0x34, 0x12]; // Tag (4 bytes)
         byte[] payload = Encoding.ASCII.GetBytes("Hello, RBF!"); // Payload
@@ -210,8 +197,7 @@ public class Crc32CHelperTests
     /// 增量 API：空 Update 不改变状态。
     /// </summary>
     [Fact]
-    public void IncrementalApi_EmptyUpdate_NoChange()
-    {
+    public void IncrementalApi_EmptyUpdate_NoChange() {
         // Arrange
         byte[] data = Encoding.ASCII.GetBytes("test");
 
@@ -236,8 +222,7 @@ public class Crc32CHelperTests
     [InlineData(3)]
     [InlineData(7)]
     [InlineData(16)]
-    public void IncrementalApi_ManySmallChunks_EqualsCompute(int chunkSize)
-    {
+    public void IncrementalApi_ManySmallChunks_EqualsCompute(int chunkSize) {
         // Arrange
         var fullData = new byte[100];
         Random.Shared.NextBytes(fullData);
@@ -248,8 +233,7 @@ public class Crc32CHelperTests
         // Act: 分块计算
         uint crc = Crc32CHelper.Init();
         int offset = 0;
-        while (offset < fullData.Length)
-        {
+        while (offset < fullData.Length) {
             int len = Math.Min(chunkSize, fullData.Length - offset);
             crc = Crc32CHelper.Update(crc, fullData.AsSpan(offset, len));
             offset += len;
