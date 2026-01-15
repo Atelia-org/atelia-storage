@@ -31,6 +31,16 @@ internal static class FrameStatusHelper {
     /// Tombstone 标志位掩码（Bit7）。
     /// </summary>
     public const byte TombstoneMask = 0x80;
+
+    /// <summary>
+    /// 保留位掩码（Bit6-2）。
+    /// </summary>
+    public const byte ReservedMask = 0x7C;
+
+    /// <summary>
+    /// StatusLen 字段掩码（Bit1-0）。
+    /// </summary>
+    public const byte StatusLenMask = 0x03;
     /// <summary>
     /// 计算 StatusLen（状态区字节数）。
     /// </summary>
@@ -41,9 +51,7 @@ internal static class FrameStatusHelper {
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">payloadLen 为负数时抛出。</exception>
     internal static int ComputeStatusLen(int payloadLen) {
-        if (payloadLen < 0) {
-            throw new ArgumentOutOfRangeException(nameof(payloadLen), payloadLen, "payloadLen must be non-negative.");
-        }
+        if (payloadLen < 0) { throw new ArgumentOutOfRangeException(nameof(payloadLen), payloadLen, "payloadLen must be non-negative."); }
 
         // StatusLen = 1 + ((4 - ((payloadLen + 1) % 4)) % 4)
         return MinStatusLength + ((StatusAlignment - ((payloadLen + MinStatusLength) % StatusAlignment)) % StatusAlignment);
@@ -63,9 +71,7 @@ internal static class FrameStatusHelper {
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">statusLen 不在 [1,4] 范围时抛出。</exception>
     internal static byte EncodeStatusByte(bool isTombstone, int statusLen) {
-        if (statusLen < MinStatusLength || statusLen > MaxStatusLength) {
-            throw new ArgumentOutOfRangeException(nameof(statusLen), statusLen, "statusLen must be in range [1,4].");
-        }
+        if (statusLen < MinStatusLength || statusLen > MaxStatusLength) { throw new ArgumentOutOfRangeException(nameof(statusLen), statusLen, "statusLen must be in range [1,4]."); }
 
         // Bit1-0 = statusLen - 1
         int bits = statusLen - MinStatusLength;
@@ -86,11 +92,49 @@ internal static class FrameStatusHelper {
     /// <param name="statusLen">StatusLen 值（1-4）。</param>
     /// <exception cref="ArgumentException">dest.Length 不等于 statusLen 时抛出。</exception>
     internal static void FillStatus(Span<byte> dest, bool isTombstone, int statusLen) {
-        if (dest.Length != statusLen) {
-            throw new ArgumentException($"dest.Length ({dest.Length}) must equal statusLen ({statusLen}).", nameof(dest));
-        }
+        if (dest.Length != statusLen) { throw new ArgumentException($"dest.Length ({dest.Length}) must equal statusLen ({statusLen}).", nameof(dest)); }
 
         byte statusByte = EncodeStatusByte(isTombstone, statusLen);
         dest.Fill(statusByte);
+    }
+
+    /// <summary>
+    /// 从 FrameStatus 字节解码信息。
+    /// </summary>
+    /// <param name="statusByte">FrameStatus 的任意一个字节（@[F-FRAMESTATUS-FILL] 保证全字节同值）。</param>
+    /// <param name="isTombstone">输出：是否为墓碑帧（Bit7）。</param>
+    /// <param name="statusLen">输出：StatusLen（1-4，来自 Bit1-0 + 1）。</param>
+    /// <returns>true 如果解码成功（保留位 Bit6-2 为零），false 如果保留位非零。</returns>
+    internal static bool TryDecodeStatusByte(byte statusByte, out bool isTombstone, out int statusLen) {
+        // 检查保留位 Bit6-2 是否为零
+        if ((statusByte & ReservedMask) != 0) {
+            isTombstone = false;
+            statusLen = 0;
+            return false;
+        }
+
+        // Bit7 = Tombstone 标志
+        isTombstone = (statusByte & TombstoneMask) != 0;
+
+        // Bit1-0 = StatusLen - 1，所以 StatusLen = (Bit1-0) + 1
+        statusLen = (statusByte & StatusLenMask) + MinStatusLength;
+
+        return true;
+    }
+
+    /// <summary>
+    /// 验证 FrameStatus 区域的所有字节是否一致（@[F-FRAMESTATUS-FILL]）。
+    /// </summary>
+    /// <param name="statusRegion">状态区域的字节。</param>
+    /// <returns>true 如果所有字节一致，false 如果存在不一致的字节。</returns>
+    internal static bool ValidateStatusBytesConsistent(ReadOnlySpan<byte> statusRegion) {
+        if (statusRegion.Length == 0) { return true; }
+
+        byte first = statusRegion[0];
+        for (int i = 1; i < statusRegion.Length; i++) {
+            if (statusRegion[i] != first) { return false; }
+        }
+
+        return true;
     }
 }

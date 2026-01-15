@@ -230,7 +230,8 @@ public class FrameStatusHelperTests {
     public void ComputeStatusLen_NegativePayloadLen_ThrowsArgumentOutOfRange(int payloadLen) {
         // Act & Assert
         var ex = Assert.Throws<ArgumentOutOfRangeException>(
-            () => FrameStatusHelper.ComputeStatusLen(payloadLen));
+            () => FrameStatusHelper.ComputeStatusLen(payloadLen)
+        );
         Assert.Equal("payloadLen", ex.ParamName);
     }
 
@@ -245,7 +246,8 @@ public class FrameStatusHelperTests {
     public void EncodeStatusByte_InvalidStatusLen_ThrowsArgumentOutOfRange(int statusLen) {
         // Act & Assert
         var ex = Assert.Throws<ArgumentOutOfRangeException>(
-            () => FrameStatusHelper.EncodeStatusByte(false, statusLen));
+            () => FrameStatusHelper.EncodeStatusByte(false, statusLen)
+        );
         Assert.Equal("statusLen", ex.ParamName);
     }
 
@@ -262,8 +264,172 @@ public class FrameStatusHelperTests {
 
         // Act & Assert
         var ex = Assert.Throws<ArgumentException>(
-            () => FrameStatusHelper.FillStatus(buffer, false, statusLen));
+            () => FrameStatusHelper.FillStatus(buffer, false, statusLen)
+        );
         Assert.Equal("dest", ex.ParamName);
+    }
+
+    #endregion
+
+    #region TryDecodeStatusByte Tests
+
+    /// <summary>
+    /// 验证正常解码（statusLen=1,2,3,4，非墓碑）。
+    /// </summary>
+    [Fact]
+    public void TryDecodeStatusByte_ValidByte_ReturnsTrue() {
+        // statusLen=1, notTombstone → 0x00
+        Assert.True(FrameStatusHelper.TryDecodeStatusByte(0x00, out bool tomb1, out int len1));
+        Assert.False(tomb1);
+        Assert.Equal(1, len1);
+
+        // statusLen=2, notTombstone → 0x01
+        Assert.True(FrameStatusHelper.TryDecodeStatusByte(0x01, out bool tomb2, out int len2));
+        Assert.False(tomb2);
+        Assert.Equal(2, len2);
+
+        // statusLen=3, notTombstone → 0x02
+        Assert.True(FrameStatusHelper.TryDecodeStatusByte(0x02, out bool tomb3, out int len3));
+        Assert.False(tomb3);
+        Assert.Equal(3, len3);
+
+        // statusLen=4, notTombstone → 0x03
+        Assert.True(FrameStatusHelper.TryDecodeStatusByte(0x03, out bool tomb4, out int len4));
+        Assert.False(tomb4);
+        Assert.Equal(4, len4);
+    }
+
+    /// <summary>
+    /// 验证保留位非零时返回 false。
+    /// </summary>
+    [Theory]
+    [InlineData(0x04)]  // Bit2=1
+    [InlineData(0x08)]  // Bit3=1
+    [InlineData(0x10)]  // Bit4=1
+    [InlineData(0x20)]  // Bit5=1
+    [InlineData(0x40)]  // Bit6=1
+    [InlineData(0x7C)]  // All reserved bits=1
+    [InlineData(0x7F)]  // All reserved + StatusLen bits
+    [InlineData(0xFC)]  // Tombstone + all reserved
+    public void TryDecodeStatusByte_ReservedBitsNonZero_ReturnsFalse(byte invalidByte) {
+        // Act
+        bool result = FrameStatusHelper.TryDecodeStatusByte(invalidByte, out bool isTombstone, out int statusLen);
+
+        // Assert
+        Assert.False(result);
+        Assert.False(isTombstone);
+        Assert.Equal(0, statusLen);
+    }
+
+    /// <summary>
+    /// 验证墓碑帧正确解码（Bit7=1）。
+    /// </summary>
+    [Fact]
+    public void TryDecodeStatusByte_Tombstone_DecodesCorrectly() {
+        // statusLen=1, isTombstone → 0x80
+        Assert.True(FrameStatusHelper.TryDecodeStatusByte(0x80, out bool tomb1, out int len1));
+        Assert.True(tomb1);
+        Assert.Equal(1, len1);
+
+        // statusLen=2, isTombstone → 0x81
+        Assert.True(FrameStatusHelper.TryDecodeStatusByte(0x81, out bool tomb2, out int len2));
+        Assert.True(tomb2);
+        Assert.Equal(2, len2);
+
+        // statusLen=3, isTombstone → 0x82
+        Assert.True(FrameStatusHelper.TryDecodeStatusByte(0x82, out bool tomb3, out int len3));
+        Assert.True(tomb3);
+        Assert.Equal(3, len3);
+
+        // statusLen=4, isTombstone → 0x83
+        Assert.True(FrameStatusHelper.TryDecodeStatusByte(0x83, out bool tomb4, out int len4));
+        Assert.True(tomb4);
+        Assert.Equal(4, len4);
+    }
+
+    /// <summary>
+    /// 验证 Encode-Decode 往返一致性。
+    /// </summary>
+    [Theory]
+    [InlineData(false, 1)]
+    [InlineData(false, 2)]
+    [InlineData(false, 3)]
+    [InlineData(false, 4)]
+    [InlineData(true, 1)]
+    [InlineData(true, 2)]
+    [InlineData(true, 3)]
+    [InlineData(true, 4)]
+    public void TryDecodeStatusByte_RoundTrip(bool isTombstone, int statusLen) {
+        // Arrange
+        byte encoded = FrameStatusHelper.EncodeStatusByte(isTombstone, statusLen);
+
+        // Act
+        bool success = FrameStatusHelper.TryDecodeStatusByte(encoded, out bool decodedTombstone, out int decodedStatusLen);
+
+        // Assert
+        Assert.True(success);
+        Assert.Equal(isTombstone, decodedTombstone);
+        Assert.Equal(statusLen, decodedStatusLen);
+    }
+
+    #endregion
+
+    #region ValidateStatusBytesConsistent Tests
+
+    /// <summary>
+    /// 验证所有字节相同时返回 true。
+    /// </summary>
+    [Fact]
+    public void ValidateStatusBytesConsistent_AllSame_ReturnsTrue() {
+        // 单字节
+        Assert.True(FrameStatusHelper.ValidateStatusBytesConsistent([0x03]));
+
+        // 两字节相同
+        Assert.True(FrameStatusHelper.ValidateStatusBytesConsistent([0x01, 0x01]));
+
+        // 三字节相同
+        Assert.True(FrameStatusHelper.ValidateStatusBytesConsistent([0x02, 0x02, 0x02]));
+
+        // 四字节相同
+        Assert.True(FrameStatusHelper.ValidateStatusBytesConsistent([0x83, 0x83, 0x83, 0x83]));
+
+        // 空数组
+        Assert.True(FrameStatusHelper.ValidateStatusBytesConsistent([]));
+    }
+
+    /// <summary>
+    /// 验证字节不一致时返回 false。
+    /// </summary>
+    [Fact]
+    public void ValidateStatusBytesConsistent_Different_ReturnsFalse() {
+        // 首尾不同
+        Assert.False(FrameStatusHelper.ValidateStatusBytesConsistent([0x00, 0x01]));
+
+        // 中间不同
+        Assert.False(FrameStatusHelper.ValidateStatusBytesConsistent([0x03, 0x00, 0x03]));
+
+        // 最后一个不同
+        Assert.False(FrameStatusHelper.ValidateStatusBytesConsistent([0x02, 0x02, 0x02, 0x00]));
+
+        // 第一个不同
+        Assert.False(FrameStatusHelper.ValidateStatusBytesConsistent([0xFF, 0x03, 0x03, 0x03]));
+    }
+
+    /// <summary>
+    /// 验证与 FillStatus 产出的数据一致。
+    /// </summary>
+    [Theory]
+    [InlineData(false, 1)]
+    [InlineData(false, 4)]
+    [InlineData(true, 1)]
+    [InlineData(true, 4)]
+    public void ValidateStatusBytesConsistent_WithFillStatus(bool isTombstone, int statusLen) {
+        // Arrange
+        byte[] buffer = new byte[statusLen];
+        FrameStatusHelper.FillStatus(buffer, isTombstone, statusLen);
+
+        // Act & Assert
+        Assert.True(FrameStatusHelper.ValidateStatusBytesConsistent(buffer));
     }
 
     #endregion
