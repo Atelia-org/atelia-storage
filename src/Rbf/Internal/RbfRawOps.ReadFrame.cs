@@ -89,7 +89,7 @@ internal static partial class RbfRawOps {
             int headLen = (int)lengthBytes; // 期望的 HeadLen 值
 
             // 4.1 验证 HeadLen 字段
-            uint headLenFromFile = BinaryPrimitives.ReadUInt32LittleEndian(buffer[..4]);
+            uint headLenFromFile = BinaryPrimitives.ReadUInt32LittleEndian(buffer[..RbfConstants.HeadLenFieldLength]);
             if (headLenFromFile != headLen) {
                 return AteliaResult<RbfFrame>.Failure(new RbfFramingError(
                     $"HeadLen mismatch: file has {headLenFromFile}, expected {headLen}.",
@@ -98,8 +98,8 @@ internal static partial class RbfRawOps {
             }
 
             // 4.2 从 statusByte 推导 StatusLen
-            // statusByte 位于 buffer[headLen - 9]（TailLen(4) + CRC(4) + 最后一个 status 字节(1) = 9）
-            int statusByteOffset = headLen - 9;
+            // statusByte 位于 buffer[headLen - StatusByteFromTailOffset]（TailLen(4) + CRC(4) + 最后一个 status 字节(1) = 9）
+            int statusByteOffset = headLen - RbfConstants.StatusByteFromTailOffset;
             byte statusByte = buffer[statusByteOffset];
 
             if (!FrameStatusHelper.TryDecodeStatusByte(statusByte, out bool isTombstone, out int statusLen)) {
@@ -138,8 +138,8 @@ internal static partial class RbfRawOps {
             }
 
             // 4.5 验证 TailLen
-            int tailLenOffset = headLen - 8; // TailLen(4) + CRC(4) = 8
-            uint tailLen = BinaryPrimitives.ReadUInt32LittleEndian(buffer.Slice(tailLenOffset, 4));
+            int tailLenOffset = headLen - RbfConstants.TailSuffixLength; // TailLen(4) + CRC(4) = 8
+            uint tailLen = BinaryPrimitives.ReadUInt32LittleEndian(buffer.Slice(tailLenOffset, RbfConstants.TailLenFieldLength));
             if (tailLen != headLen) {
                 return AteliaResult<RbfFrame>.Failure(new RbfFramingError(
                     $"TailLen mismatch: TailLen={tailLen}, HeadLen={headLen}.",
@@ -149,10 +149,10 @@ internal static partial class RbfRawOps {
 
             // 5. CRC 校验
             // CRC 覆盖范围：Tag(4) + Payload(N) + Status(1-4) + TailLen(4)
-            // 即 buffer[4..(headLen-4)]
-            int crcOffset = headLen - 4;
-            ReadOnlySpan<byte> crcInput = buffer.Slice(4, headLen - 8); // 从 Tag 到 TailLen（含）
-            uint expectedCrc = BinaryPrimitives.ReadUInt32LittleEndian(buffer.Slice(crcOffset, 4));
+            // 即 buffer[TagFieldOffset..(headLen-CrcFieldLength)]
+            int crcOffset = headLen - RbfConstants.CrcFieldLength;
+            ReadOnlySpan<byte> crcInput = buffer.Slice(RbfConstants.TagFieldOffset, headLen - RbfConstants.TailSuffixLength); // 从 Tag 到 TailLen（含）
+            uint expectedCrc = BinaryPrimitives.ReadUInt32LittleEndian(buffer.Slice(crcOffset, RbfConstants.CrcFieldLength));
             uint computedCrc = Crc32CHelper.Compute(crcInput);
 
             if (expectedCrc != computedCrc) {
@@ -163,7 +163,7 @@ internal static partial class RbfRawOps {
             }
 
             // 6. 构造 RbfFrame 并返回
-            uint tag = BinaryPrimitives.ReadUInt32LittleEndian(buffer.Slice(4, 4));
+            uint tag = BinaryPrimitives.ReadUInt32LittleEndian(buffer.Slice(RbfConstants.TagFieldOffset, RbfConstants.TagFieldLength));
 
             // 重要：RbfFrame 是 ref struct，其 Payload 是 ReadOnlySpan<byte>。
             // 如果使用了 ArrayPool，buffer 在返回后会被归还，Payload 引用将失效！

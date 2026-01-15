@@ -71,6 +71,24 @@ internal static class RbfConstants {
     public const int MinStatusLen = 1;
     public const int FrameMiniOverheadBytes = MinStatusLen + FrameFixedOverheadBytes;
 
+    /// <summary>
+    /// 帧尾固定部分长度 = TailLen(4) + CRC(4) = 8 字节。
+    /// </summary>
+    /// <remarks>
+    /// 用于从 HeadLen 反向计算 TailLen/CRC 偏移：
+    /// - TailLen 偏移 = HeadLen - TailSuffixLength
+    /// - CRC 偏移 = HeadLen - CrcFieldLength
+    /// </remarks>
+    public const int TailSuffixLength = TailLenFieldLength + CrcFieldLength;
+
+    /// <summary>
+    /// 从帧尾到 FrameStatus 最后一字节的偏移 = TailLen(4) + CRC(4) + 1 = 9 字节。
+    /// </summary>
+    /// <remarks>
+    /// StatusByte 偏移 = HeadLen - StatusByteFromTailOffset
+    /// </remarks>
+    public const int StatusByteFromTailOffset = TailSuffixLength + FrameStatusHelper.MinStatusLength;
+
     // === 对齐 (Alignment) ===
 
     /// <summary>

@@ -59,10 +59,10 @@ public class RbfReadFrameTests : IDisposable {
         Span<byte> span = frame;
 
         // HeadLen (offset 0)
-        BinaryPrimitives.WriteUInt32LittleEndian(span[..4], (uint)headLen);
+        BinaryPrimitives.WriteUInt32LittleEndian(span[..RbfConstants.HeadLenFieldLength], (uint)headLen);
 
         // Tag (offset 4)
-        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(4, 4), tag);
+        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(RbfConstants.TagFieldOffset, RbfConstants.TagFieldLength), tag);
 
         // Payload (offset 8)
         payload.CopyTo(span.Slice(8, payload.Length));
@@ -71,16 +71,16 @@ public class RbfReadFrameTests : IDisposable {
         int statusOffset = 8 + payload.Length;
         FrameStatusHelper.FillStatus(span.Slice(statusOffset, statusLen), isTombstone, statusLen);
 
-        // TailLen (offset headLen - 8)
-        int tailLenOffset = headLen - 8;
-        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(tailLenOffset, 4), (uint)headLen);
+        // TailLen (offset headLen - TailSuffixLength)
+        int tailLenOffset = headLen - RbfConstants.TailSuffixLength;
+        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(tailLenOffset, RbfConstants.TailLenFieldLength), (uint)headLen);
 
-        // CRC (offset headLen - 4)
-        // CRC 覆盖范围：Tag(4) + Payload(N) + Status(1-4) + TailLen(4) = frame[4..(headLen-4)]
-        int crcOffset = headLen - 4;
-        ReadOnlySpan<byte> crcInput = span.Slice(4, headLen - 8);
+        // CRC (offset headLen - CrcFieldLength)
+        // CRC 覆盖范围：Tag(4) + Payload(N) + Status(1-4) + TailLen(4) = frame[TagFieldOffset..(headLen-CrcFieldLength)]
+        int crcOffset = headLen - RbfConstants.CrcFieldLength;
+        ReadOnlySpan<byte> crcInput = span.Slice(RbfConstants.TagFieldOffset, headLen - RbfConstants.TailSuffixLength);
         uint crc = Crc32CHelper.Compute(crcInput);
-        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(crcOffset, 4), crc);
+        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(crcOffset, RbfConstants.CrcFieldLength), crc);
 
         return frame;
     }
