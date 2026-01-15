@@ -39,9 +39,7 @@ internal static class Crc32CHelper {
     /// 使用 Unsafe.ReadUnaligned 确保在所有架构上安全处理非对齐读。
     /// </remarks>
     internal static uint Update(uint crc, ReadOnlySpan<byte> data) {
-        if (data.IsEmpty) {
-            return crc;
-        }
+        if (data.IsEmpty) { return crc; }
 
         ref byte start = ref MemoryMarshal.GetReference(data);
         int i = 0;

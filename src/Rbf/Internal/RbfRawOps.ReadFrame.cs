@@ -33,40 +33,50 @@ internal static partial class RbfRawOps {
         uint lengthBytes = ptr.LengthBytes;
 
         if (offsetBytes % RbfConstants.FrameAlignment != 0) {
-            return AteliaResult<RbfFrame>.Failure(new RbfArgumentError(
-                $"Offset ({offsetBytes}) must be 4-byte aligned.",
-                RecoveryHint: "Ensure ptr comes from a valid Append() return value."
-            ));
+            return AteliaResult<RbfFrame>.Failure(
+                new RbfArgumentError(
+                    $"Offset ({offsetBytes}) must be 4-byte aligned.",
+                    RecoveryHint: "Ensure ptr comes from a valid Append() return value."
+                )
+            );
         }
 
         if (lengthBytes % RbfConstants.FrameAlignment != 0) {
-            return AteliaResult<RbfFrame>.Failure(new RbfArgumentError(
-                $"Length ({lengthBytes}) must be 4-byte aligned.",
-                RecoveryHint: "Ensure ptr comes from a valid Append() return value."
-            ));
+            return AteliaResult<RbfFrame>.Failure(
+                new RbfArgumentError(
+                    $"Length ({lengthBytes}) must be 4-byte aligned.",
+                    RecoveryHint: "Ensure ptr comes from a valid Append() return value."
+                )
+            );
         }
 
         if (lengthBytes < MinFrameLength) {
-            return AteliaResult<RbfFrame>.Failure(new RbfArgumentError(
-                $"Length ({lengthBytes}) is less than minimum frame length ({MinFrameLength}).",
-                RecoveryHint: "Minimum valid frame size is 20 bytes (empty payload, 4-byte status)."
-            ));
+            return AteliaResult<RbfFrame>.Failure(
+                new RbfArgumentError(
+                    $"Length ({lengthBytes}) is less than minimum frame length ({MinFrameLength}).",
+                    RecoveryHint: "Minimum valid frame size is 20 bytes (empty payload, 4-byte status)."
+                )
+            );
         }
 
         // 检查 Offset 可表示性（ulong → long 转换安全）
         if (offsetBytes > (ulong)long.MaxValue) {
-            return AteliaResult<RbfFrame>.Failure(new RbfArgumentError(
-                "Offset exceeds representable range.",
-                RecoveryHint: "Offset must be <= long.MaxValue for RandomAccess.Read."
-            ));
+            return AteliaResult<RbfFrame>.Failure(
+                new RbfArgumentError(
+                    "Offset exceeds representable range.",
+                    RecoveryHint: "Offset must be <= long.MaxValue for RandomAccess.Read."
+                )
+            );
         }
 
         // 检查 Length 可表示性（uint → int 转换安全）
         if (lengthBytes > int.MaxValue) {
-            return AteliaResult<RbfFrame>.Failure(new RbfArgumentError(
-                "Length exceeds representable range.",
-                RecoveryHint: "Length must be <= int.MaxValue for buffer allocation."
-            ));
+            return AteliaResult<RbfFrame>.Failure(
+                new RbfArgumentError(
+                    "Length exceeds representable range.",
+                    RecoveryHint: "Length must be <= int.MaxValue for buffer allocation."
+                )
+            );
         }
 
         // 2. 分配 buffer
@@ -79,10 +89,12 @@ internal static partial class RbfRawOps {
             // 3. 读取整个 FrameBytes
             int bytesRead = RandomAccess.Read(file, buffer, (long)offsetBytes);
             if (bytesRead < lengthBytes) {
-                return AteliaResult<RbfFrame>.Failure(new RbfArgumentError(
-                    $"Short read: expected {lengthBytes} bytes but got {bytesRead}.",
-                    RecoveryHint: "The ptr may point beyond end of file or file was truncated."
-                ));
+                return AteliaResult<RbfFrame>.Failure(
+                    new RbfArgumentError(
+                        $"Short read: expected {lengthBytes} bytes but got {bytesRead}.",
+                        RecoveryHint: "The ptr may point beyond end of file or file was truncated."
+                    )
+                );
             }
 
             // 4. Framing 校验
@@ -91,10 +103,12 @@ internal static partial class RbfRawOps {
             // 4.1 验证 HeadLen 字段
             uint headLenFromFile = BinaryPrimitives.ReadUInt32LittleEndian(buffer[..RbfConstants.HeadLenFieldLength]);
             if (headLenFromFile != headLen) {
-                return AteliaResult<RbfFrame>.Failure(new RbfFramingError(
-                    $"HeadLen mismatch: file has {headLenFromFile}, expected {headLen}.",
-                    RecoveryHint: "The frame may be corrupted or ptr.Length is incorrect."
-                ));
+                return AteliaResult<RbfFrame>.Failure(
+                    new RbfFramingError(
+                        $"HeadLen mismatch: file has {headLenFromFile}, expected {headLen}.",
+                        RecoveryHint: "The frame may be corrupted or ptr.Length is incorrect."
+                    )
+                );
             }
 
             // 4.2 从 statusByte 推导 StatusLen
@@ -103,48 +117,58 @@ internal static partial class RbfRawOps {
             byte statusByte = buffer[statusByteOffset];
 
             if (!FrameStatusHelper.TryDecodeStatusByte(statusByte, out bool isTombstone, out int statusLen)) {
-                return AteliaResult<RbfFrame>.Failure(new RbfFramingError(
-                    $"Invalid status byte 0x{statusByte:X2}: reserved bits are non-zero.",
-                    RecoveryHint: "The frame status region is corrupted."
-                ));
+                return AteliaResult<RbfFrame>.Failure(
+                    new RbfFramingError(
+                        $"Invalid status byte 0x{statusByte:X2}: reserved bits are non-zero.",
+                        RecoveryHint: "The frame status region is corrupted."
+                    )
+                );
             }
 
             // 4.3 计算并验证 payloadLen
             int payloadLen = headLen - RbfConstants.FrameFixedOverheadBytes - statusLen;
             if (payloadLen < 0) {
-                return AteliaResult<RbfFrame>.Failure(new RbfFramingError(
-                    $"Invalid frame structure: computed payloadLen={payloadLen} is negative.",
-                    RecoveryHint: "Frame structure is corrupted."
-                ));
+                return AteliaResult<RbfFrame>.Failure(
+                    new RbfFramingError(
+                        $"Invalid frame structure: computed payloadLen={payloadLen} is negative.",
+                        RecoveryHint: "Frame structure is corrupted."
+                    )
+                );
             }
 
             // 验证 StatusLen 与 PayloadLen 的对齐一致性
             int expectedStatusLen = FrameStatusHelper.ComputeStatusLen(payloadLen);
             if (expectedStatusLen != statusLen) {
-                return AteliaResult<RbfFrame>.Failure(new RbfFramingError(
-                    $"StatusLen inconsistency: encoded={statusLen}, computed from payloadLen={expectedStatusLen}.",
-                    RecoveryHint: "The status length field does not match the payload size."
-                ));
+                return AteliaResult<RbfFrame>.Failure(
+                    new RbfFramingError(
+                        $"StatusLen inconsistency: encoded={statusLen}, computed from payloadLen={expectedStatusLen}.",
+                        RecoveryHint: "The status length field does not match the payload size."
+                    )
+                );
             }
 
             // 4.4 验证 FrameStatus 全字节同值
             int statusStartOffset = RbfConstants.PayloadFieldOffset + payloadLen;
             ReadOnlySpan<byte> statusRegion = buffer.Slice(statusStartOffset, statusLen);
             if (!FrameStatusHelper.ValidateStatusBytesConsistent(statusRegion)) {
-                return AteliaResult<RbfFrame>.Failure(new RbfFramingError(
-                    "Status bytes are not consistent (all bytes should be identical).",
-                    RecoveryHint: "The status region is corrupted."
-                ));
+                return AteliaResult<RbfFrame>.Failure(
+                    new RbfFramingError(
+                        "Status bytes are not consistent (all bytes should be identical).",
+                        RecoveryHint: "The status region is corrupted."
+                    )
+                );
             }
 
             // 4.5 验证 TailLen
             int tailLenOffset = headLen - RbfConstants.TailSuffixLength; // TailLen(4) + CRC(4) = 8
             uint tailLen = BinaryPrimitives.ReadUInt32LittleEndian(buffer.Slice(tailLenOffset, RbfConstants.TailLenFieldLength));
             if (tailLen != headLen) {
-                return AteliaResult<RbfFrame>.Failure(new RbfFramingError(
-                    $"TailLen mismatch: TailLen={tailLen}, HeadLen={headLen}.",
-                    RecoveryHint: "The frame boundaries are corrupted."
-                ));
+                return AteliaResult<RbfFrame>.Failure(
+                    new RbfFramingError(
+                        $"TailLen mismatch: TailLen={tailLen}, HeadLen={headLen}.",
+                        RecoveryHint: "The frame boundaries are corrupted."
+                    )
+                );
             }
 
             // 5. CRC 校验
@@ -156,10 +180,12 @@ internal static partial class RbfRawOps {
             uint computedCrc = Crc32CHelper.Compute(crcInput);
 
             if (expectedCrc != computedCrc) {
-                return AteliaResult<RbfFrame>.Failure(new RbfCrcMismatchError(
-                    $"CRC mismatch: expected 0x{expectedCrc:X8}, computed 0x{computedCrc:X8}.",
-                    RecoveryHint: "The frame data is corrupted."
-                ));
+                return AteliaResult<RbfFrame>.Failure(
+                    new RbfCrcMismatchError(
+                        $"CRC mismatch: expected 0x{expectedCrc:X8}, computed 0x{computedCrc:X8}.",
+                        RecoveryHint: "The frame data is corrupted."
+                    )
+                );
             }
 
             // 6. 构造 RbfFrame 并返回

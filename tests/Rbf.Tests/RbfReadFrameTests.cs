@@ -107,7 +107,7 @@ public class RbfReadFrameTests : IDisposable {
 
     /// <summary>
     /// 验证正常帧的读取：Tag、Payload、IsTombstone 正确解码。
-    /// 使用 Append 写入 -> ReadFrame 验证的闭环测试。
+    /// 使用从 Append 写入到 ReadFrame 验证的闭环测试。
     /// </summary>
     [Fact]
     public void ReadFrame_ValidFrame_ReturnsCorrectData() {
@@ -133,7 +133,7 @@ public class RbfReadFrameTests : IDisposable {
 
     /// <summary>
     /// 验证空 payload 帧（最小帧 20B）的读取。
-    /// 使用 Append 写入 -> ReadFrame 验证的闭环测试。
+    /// 使用从 Append 写入到 ReadFrame 验证的闭环测试。
     /// </summary>
     [Fact]
     public void ReadFrame_EmptyPayload_Succeeds() {
@@ -160,8 +160,8 @@ public class RbfReadFrameTests : IDisposable {
     }
 
     /// <summary>
-    /// 验证大 payload（>4KB，触发 ArrayPool 路径）的读取。
-    /// 使用 Append 写入 -> ReadFrame 验证的闭环测试。
+    /// 验证大 payload（大于4KB，触发 ArrayPool 路径）的读取。
+    /// 使用从 Append 写入到 ReadFrame 验证的闭环测试。
     /// </summary>
     [Fact]
     public void ReadFrame_LargePayload_Succeeds() {

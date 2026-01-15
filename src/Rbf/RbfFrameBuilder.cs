@@ -37,9 +37,7 @@ public ref struct RbfFrameBuilder : IDisposable {
     /// <returns>写入的帧位置和长度</returns>
     /// <exception cref="InvalidOperationException">重复调用 EndAppend</exception>
     public SizedPtr EndAppend() {
-        if (_committed) {
-            throw new InvalidOperationException("EndAppend has already been called.");
-        }
+        if (_committed) { throw new InvalidOperationException("EndAppend has already been called."); }
         // TODO: 实现提交逻辑后，在成功路径末尾设置 _committed = true
         throw new NotImplementedException();
     }

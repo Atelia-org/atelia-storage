@@ -20,7 +20,8 @@ public static class RbfFile {
             path,
             FileMode.CreateNew,
             FileAccess.ReadWrite,
-            FileShare.None);
+            FileShare.None
+        );
 
         try {
             // 写入 Genesis Fence
@@ -50,30 +51,24 @@ public static class RbfFile {
             path,
             FileMode.Open,
             FileAccess.ReadWrite,
-            FileShare.None);
+            FileShare.None
+        );
 
         try {
             // 获取文件长度
             long fileLength = RandomAccess.GetLength(handle);
 
             // 边界条件：文件过短
-            if (fileLength < RbfConstants.FenceLength) {
-                throw new InvalidDataException("Invalid RBF file: file too short for Genesis Fence");
-            }
+            if (fileLength < RbfConstants.FenceLength) { throw new InvalidDataException("Invalid RBF file: file too short for Genesis Fence"); }
 
             // 4B 对齐校验（根不变量）
-            if (fileLength % RbfConstants.FrameAlignment != 0) {
-                throw new InvalidDataException("Invalid RBF file: length is not 4-byte aligned");
-            }
+            if (fileLength % RbfConstants.FrameAlignment != 0) { throw new InvalidDataException("Invalid RBF file: length is not 4-byte aligned"); }
 
             // 读取前 4 字节并验证
             Span<byte> buffer = stackalloc byte[RbfConstants.FenceLength];
             int bytesRead = RandomAccess.Read(handle, buffer, 0);
 
-            if (bytesRead < RbfConstants.FenceLength ||
-                !buffer.SequenceEqual(RbfConstants.Fence)) {
-                throw new InvalidDataException("Invalid RBF file: Genesis Fence mismatch");
-            }
+            if (bytesRead < RbfConstants.FenceLength || !buffer.SequenceEqual(RbfConstants.Fence)) { throw new InvalidDataException("Invalid RBF file: Genesis Fence mismatch"); }
 
             return new RbfFileImpl(handle, fileLength);
         }
