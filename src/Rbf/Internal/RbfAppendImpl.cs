@@ -97,9 +97,7 @@ internal static class RbfAppendImpl {
         uint crc = 0;
         // 诊断用，payload分配
         int headPayloadLen = Math.Min(payload.Length, HeadPayloadCap);
-# if DEBUG
         int middlePayloadLen, tailPayloadLen;
-# endif
 
         // 头部Header
         BinaryPrimitives.WriteUInt32LittleEndian(buffer, (uint)frameLen);
