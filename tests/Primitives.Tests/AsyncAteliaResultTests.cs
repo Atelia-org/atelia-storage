@@ -4,12 +4,11 @@
 using Xunit;
 
 namespace Atelia.Tests;
-
-public class AteliaResultTests {
+public class AsyncAteliaResultTests {
     [Fact]
     public void Success_ShouldCreateSuccessResult() {
         // Arrange & Act
-        var result = AteliaResult<int>.Success(42);
+        var result = AsyncAteliaResult<int>.Success(42);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -24,7 +23,7 @@ public class AteliaResultTests {
         var error = new TestError("TEST.ERROR", "Test error message", "Try again");
 
         // Act
-        var result = AteliaResult<int>.Failure(error);
+        var result = AsyncAteliaResult<int>.Failure(error);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -32,20 +31,18 @@ public class AteliaResultTests {
         Assert.Equal(default, result.Value);
         Assert.NotNull(result.Error);
         Assert.Equal("TEST.ERROR", result.Error.ErrorCode);
-        Assert.Equal("Test error message", result.Error.Message);
-        Assert.Equal("Try again", result.Error.RecoveryHint);
     }
 
     [Fact]
     public void Failure_WithNullError_ShouldThrow() {
         // Arrange & Act & Assert
-        Assert.Throws<ArgumentNullException>(() => AteliaResult<int>.Failure(null!));
+        Assert.Throws<ArgumentNullException>(() => AsyncAteliaResult<int>.Failure(null!));
     }
 
     [Fact]
     public void TryGetValue_OnSuccess_ShouldReturnTrueAndValue() {
         // Arrange
-        var result = AteliaResult<string>.Success("hello");
+        var result = AsyncAteliaResult<string>.Success("hello");
 
         // Act
         var success = result.TryGetValue(out var value);
@@ -59,7 +56,7 @@ public class AteliaResultTests {
     public void TryGetValue_OnFailure_ShouldReturnFalse() {
         // Arrange
         var error = new TestError("TEST.ERROR", "Failed");
-        var result = AteliaResult<string>.Failure(error);
+        var result = AsyncAteliaResult<string>.Failure(error);
 
         // Act
         var success = result.TryGetValue(out var value);
@@ -73,7 +70,7 @@ public class AteliaResultTests {
     public void TryGetError_OnFailure_ShouldReturnTrueAndError() {
         // Arrange
         var error = new TestError("TEST.ERROR", "Failed");
-        var result = AteliaResult<string>.Failure(error);
+        var result = AsyncAteliaResult<string>.Failure(error);
 
         // Act
         var hasError = result.TryGetError(out var outError);
@@ -86,7 +83,7 @@ public class AteliaResultTests {
     [Fact]
     public void TryGetError_OnSuccess_ShouldReturnFalse() {
         // Arrange
-        var result = AteliaResult<string>.Success("hello");
+        var result = AsyncAteliaResult<string>.Success("hello");
 
         // Act
         var hasError = result.TryGetError(out var error);
@@ -99,7 +96,7 @@ public class AteliaResultTests {
     [Fact]
     public void GetValueOrDefault_OnSuccess_ShouldReturnValue() {
         // Arrange
-        var result = AteliaResult<int>.Success(42);
+        var result = AsyncAteliaResult<int>.Success(42);
 
         // Act
         var value = result.GetValueOrDefault(0);
@@ -112,7 +109,7 @@ public class AteliaResultTests {
     public void GetValueOrDefault_OnFailure_ShouldReturnDefault() {
         // Arrange
         var error = new TestError("TEST.ERROR", "Failed");
-        var result = AteliaResult<int>.Failure(error);
+        var result = AsyncAteliaResult<int>.Failure(error);
 
         // Act
         var value = result.GetValueOrDefault(99);
@@ -124,7 +121,7 @@ public class AteliaResultTests {
     [Fact]
     public void GetValueOrThrow_OnSuccess_ShouldReturnValue() {
         // Arrange
-        var result = AteliaResult<int>.Success(42);
+        var result = AsyncAteliaResult<int>.Success(42);
 
         // Act
         var value = result.GetValueOrThrow();
@@ -137,24 +134,18 @@ public class AteliaResultTests {
     public void GetValueOrThrow_OnFailure_ShouldThrow() {
         // Arrange
         var error = new TestError("TEST.ERROR", "Test error message");
-        var result = AteliaResult<int>.Failure(error);
+        var result = AsyncAteliaResult<int>.Failure(error);
 
         // Act & Assert
-        // Note: ref struct 不能在 lambda 中使用，所以用 try-catch
-        try {
-            result.GetValueOrThrow();
-            Assert.Fail("Expected InvalidOperationException");
-        }
-        catch (InvalidOperationException ex) {
-            Assert.Contains("TEST.ERROR", ex.Message);
-            Assert.Contains("Test error message", ex.Message);
-        }
+        var ex = Assert.Throws<InvalidOperationException>(() => result.GetValueOrThrow());
+        Assert.Contains("TEST.ERROR", ex.Message);
+        Assert.Contains("Test error message", ex.Message);
     }
 
     [Fact]
     public void ImplicitConversion_FromValue_ShouldCreateSuccess() {
         // Arrange & Act
-        AteliaResult<int> result = 42;
+        AsyncAteliaResult<int> result = 42;
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -164,11 +155,10 @@ public class AteliaResultTests {
     [Fact]
     public void Success_WithNullValue_ShouldCreateSuccessResult() {
         // Arrange & Act
-        var result = AteliaResult<string?>.Success(null);
+        var result = AsyncAteliaResult<string?>.Success(null);
 
         // Assert
         Assert.True(result.IsSuccess);
-        Assert.False(result.IsFailure);
         Assert.Null(result.Value);
         Assert.Null(result.Error);
     }
@@ -176,40 +166,11 @@ public class AteliaResultTests {
     [Fact]
     public void Default_ShouldBeSuccess() {
         // Arrange & Act
-        AteliaResult<int> result = default;
+        AsyncAteliaResult<int> result = default;
 
         // Assert
         Assert.True(result.IsSuccess);  // _error is null → success
         Assert.Equal(0, result.Value);  // default(int)
         Assert.Null(result.Error);
-    }
-
-    [Fact]
-    public void ToAsync_OnSuccess_ShouldConvertCorrectly() {
-        // Arrange
-        var result = AteliaResult<int>.Success(42);
-
-        // Act
-        var asyncResult = result.ToAsync();
-
-        // Assert
-        Assert.True(asyncResult.IsSuccess);
-        Assert.Equal(42, asyncResult.Value);
-        Assert.Null(asyncResult.Error);
-    }
-
-    [Fact]
-    public void ToAsync_OnFailure_ShouldConvertCorrectly() {
-        // Arrange
-        var error = new TestError("TEST.ERROR", "Test error");
-        var result = AteliaResult<int>.Failure(error);
-
-        // Act
-        var asyncResult = result.ToAsync();
-
-        // Assert
-        Assert.False(asyncResult.IsSuccess);
-        Assert.True(asyncResult.IsFailure);
-        Assert.Same(error, asyncResult.Error);
     }
 }
