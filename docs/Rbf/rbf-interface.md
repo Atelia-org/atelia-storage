@@ -50,8 +50,15 @@ RbfFrame 通过 `bool IsTombstone` 属性暴露此状态。
 - **职责下沉**：Layer 0 负责过滤系统级标记（Tombstone），简化上层逻辑。
 
 ## derived `SizedPtr` 帧句柄
-**引用**：[Atelia.Data.SizedPtr](atelia/src/Data/SizedPtr.cs)
+**引用**：[Atelia.Data.SizedPtr](../../src/Data/SizedPtr.cs)
 @[S-RBF-DECISION-SIZEDPTR-CREDENTIAL](rbf-decisions.md)
+
+**属性概要**（详见源文件）：
+| 属性 | 类型 | 说明 |
+|:-----|:-----|:-----|
+| `Offset` | `long` | 以字节表示的起始偏移（4B 对齐） |
+| `Length` | `int` | 以字节表示的区间长度（4B 对齐） |
+| `EndOffsetExclusive` | `long` | 区间结束位置（不含） |
 
 ## term `Frame` 帧
 **Frame** 是 RBF 的基本 I/O 单元。Frame 的内部结构（wire format）接口层无需关心。
@@ -88,13 +95,23 @@ public interface IRbfFile : IDisposable {
     /// 复杂帧构建（流式写入 payload / payload 内回填）。
     /// </summary>
     /// <remarks>
-    /// <para>注意：在 Builder Dispose/Commit 前，TailOffset 不会更新。</para>
+    /// <para>注意：在 Builder Dispose/EndAppend 前，TailOffset 不会更新。</para>
     /// <para>注意：存在 open Builder 时，不应允许并发 Append/BeginAppend。</para>
     /// </remarks>
     RbfFrameBuilder BeginAppend(uint tag);
 
-    /// <summary>随机读。</summary>
-    AteliaResult<RbfFrame> ReadFrame(SizedPtr ptr);
+    /// <summary>读取指定位置的帧到提供的 buffer 中（zero-copy）。</summary>
+    /// <param name="ticket">帧位置凭据。</param>
+    /// <param name="buffer">目标缓冲区，长度必须 &gt;= ticket.Length。</param>
+    /// <returns>成功时返回帧视图（指向 buffer 内部），失败返回错误。</returns>
+    AteliaResult<RbfFrame> ReadFrame(SizedPtr ticket, Span<byte> buffer);
+
+    /// <summary>随机读（从 ArrayPool 借缓存）。</summary>
+    /// <remarks>
+    /// <para>调用方 MUST 调用返回值的 Dispose() 归还 buffer。</para>
+    /// <para>失败时 buffer 已自动归还。</para>
+    /// </remarks>
+    AteliaResult<RbfPooledFrame> ReadPooledFrame(SizedPtr ticket);
 
     /// <summary>逆向扫描。</summary>
     /// <param name="showTombstone">是否包含墓碑帧。默认 false（不包含）。</param>
@@ -171,14 +188,14 @@ public ref struct RbfFrameBuilder : IDisposable {
     /// Zero I/O 是否可用由实现决定，见 @[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME]。</para>
     /// </remarks>
     public IReservableBufferWriter Payload { get; }
-    
+
     /// <summary>
     /// 提交帧。回填 header/CRC，返回帧位置和长度。
     /// </summary>
     /// <returns>写入的帧位置和长度</returns>
     /// <exception cref="InvalidOperationException">重复调用 Commit</exception>
     public SizedPtr Commit();
-    
+
     /// <summary>
     /// 释放构建器。若未 Commit，自动执行 Auto-Abort。
     /// </summary>
@@ -239,7 +256,7 @@ public ref struct RbfReverseSequence {
 public ref struct RbfReverseEnumerator {
     /// <summary>当前帧。</summary>
     public RbfFrame Current { get; }
-    
+
     /// <summary>移动到下一帧。</summary>
     public bool MoveNext();
 }
@@ -256,6 +273,27 @@ public ref struct RbfReverseEnumerator {
 `RbfReverseEnumerator.Current` 的生命周期 MUST NOT 超过下次 `MoveNext()` 调用。
 上层如需持久化帧数据，MUST 在 `MoveNext()` 前显式复制。
 
+### spec [A-RBF-IFRAME] IRbfFrame接口定义
+
+```csharp
+/// <summary>
+/// RBF 帧的公共属性契约。
+/// </summary>
+public interface IRbfFrame {
+    /// <summary>帧位置（凭据）。</summary>
+    SizedPtr Ticket { get; }
+
+    /// <summary>帧类型标识符。</summary>
+    uint Tag { get; }
+
+    /// <summary>帧负载数据。</summary>
+    ReadOnlySpan<byte> Payload { get; }
+
+    /// <summary>是否为墓碑帧。</summary>
+    bool IsTombstone { get; }
+}
+```
+
 ### spec [A-RBF-FRAME-STRUCT] RbfFrame定义
 
 ```csharp
@@ -264,19 +302,49 @@ public ref struct RbfReverseEnumerator {
 /// </summary>
 /// <remarks>
 /// <para>只读引用结构，生命周期受限于产生它的 Scope（如 ReadFrame 的 buffer）。</para>
+/// <para><b>属性契约</b>：遵循 <see cref="IRbfFrame"/> 定义的公共属性集合。</para>
 /// </remarks>
-public readonly ref struct RbfFrame {
-    /// <summary>帧位置（凭据）。</summary>
-    public SizedPtr Ptr { get; init; }
-    
-    /// <summary>帧类型标识符。</summary>
+public readonly ref struct RbfFrame : IRbfFrame {
+    /// <inheritdoc/>
+    public SizedPtr Ticket { get; init; }
+
+    /// <inheritdoc/>
     public uint Tag { get; init; }
-    
-    /// <summary>帧负载数据。</summary>
+
+    /// <inheritdoc/>
     public ReadOnlySpan<byte> Payload { get; init; }
-    
-    /// <summary>是否为墓碑帧。</summary>
+
+    /// <inheritdoc/>
     public bool IsTombstone { get; init; }
+}
+```
+
+### spec [A-RBF-POOLED-FRAME] RbfPooledFrame定义
+
+```csharp
+/// <summary>
+/// 携带 ArrayPool buffer 的 RBF 帧。
+/// </summary>
+/// <remarks>
+/// <para><b>属性契约</b>：遵循 <see cref="IRbfFrame"/> 定义的公共属性集合。</para>
+/// <para>调用方 MUST 调用 <see cref="Dispose"/> 归还 buffer。</para>
+/// <para><b>生命周期警告</b>：Dispose 后 Payload 变为 dangling，不可再访问。</para>
+/// </remarks>
+public sealed class RbfPooledFrame : IRbfFrame, IDisposable {
+    /// <inheritdoc/>
+    public SizedPtr Ticket { get; }
+
+    /// <inheritdoc/>
+    public uint Tag { get; }
+
+    /// <inheritdoc/>
+    public ReadOnlySpan<byte> Payload { get; }
+
+    /// <inheritdoc/>
+    public bool IsTombstone { get; }
+
+    /// <summary>释放 ArrayPool buffer。幂等，可多次调用。</summary>
+    public void Dispose();
 }
 ```
 
@@ -294,7 +362,7 @@ public readonly ref struct RbfFrame {
 void SimpleWrite(IRbfFile file, uint myTag, byte[] data) {
     // 直接写入，原子性（要么全写进，要么全不写进）
     SizedPtr ptr = file.Append(myTag, data);
-    
+
     Console.WriteLine($"Written at: {ptr.Offset}, Length: {ptr.Length}");
     // 此时 TailOffset 已自动推进
 }
@@ -310,10 +378,10 @@ void StreamingWrite(IRbfFile file, uint myTag, IEnumerable<byte[]> chunks) {
     // 1. 开启事务
     // 注意：builder 是 ref struct，最好配合 using 确保即使异常也能 Dispose
     using var builder = file.BeginAppend(myTag);
-    
+
     // 2. 获取 Writer (IBufferWriter<byte>)
     var writer = builder.Payload;
-    
+
     try {
         foreach (var chunk in chunks) {
             // IBufferWriter 标准范式：GetSpan -> CopyTo -> Advance
@@ -322,11 +390,11 @@ void StreamingWrite(IRbfFile file, uint myTag, IEnumerable<byte[]> chunks) {
             chunk.CopyTo(span);
             writer.Advance(chunk.Length);
         }
-        
+
         // 3. 结束追加 (EndAppend)
         // 只有 EndAppend 后，数据才对 Read 即刻可见，TailOffset 才会推进
         SizedPtr ptr = builder.EndAppend();
-        
+
         // EndAppend 后不能再写入，Dispose 变为无操作
     }
     catch (Exception ex) {
@@ -335,31 +403,56 @@ void StreamingWrite(IRbfFile file, uint myTag, IEnumerable<byte[]> chunks) {
         // 退出 using 块触发 Dispose 时，会自动执行 Auto-Abort。
         // 该帧在物理上可能由部分脏数据残留，但在逻辑上视为“不存在”。
         Console.WriteLine("Write aborted explicitly or by exception.");
-        throw; 
+        throw;
     }
 }
 ```
 
-### 5.3 随机读取 (ReadFrame)
+### 5.3 随机读取 (ReadFrame / ReadPooledFrame)
 
-适用于根据索引（SizedPtr）回查数据的场景。
+适用于根据索引（SizedPtr）回查数据的场景。有两种读取方式：
+
+**方式一：Buffer 外置（zero-copy，调用方提供 buffer）**
 
 ```csharp
-void RandomAccess(IRbfFile file, SizedPtr ptr) {
-    // ReadFrame 返回 AteliaResult<RbfFrame>
-    var result = file.ReadFrame(ptr);
+void RandomAccessWithBuffer(IRbfFile file, SizedPtr ticket) {
+    // 调用方提供足够大的 buffer
+    Span<byte> buffer = stackalloc byte[ticket.Length];
+
+    var result = file.ReadFrame(ticket, buffer);
 
     if (result.IsFailure) {
-        // 处理错误：可能是 CRC 校验失败、越界或 Magic 损坏
         Console.WriteLine($"Read failed: {result.Error.Message}");
         return;
     }
 
-    // 获取帧（ref struct，生命周期受限于 result 所在作用域）
+    // 帧视图指向 buffer 内部
     RbfFrame frame = result.Value;
-    
-    // 如需长期持有数据，必须在此拷贝
+    Console.WriteLine($"Tag={frame.Tag}, PayloadLen={frame.Payload.Length}");
+    // frame 生命周期受限于 buffer 作用域
+}
+```
+
+**方式二：Pooled 读取（自动管理 buffer）**
+
+```csharp
+void RandomAccessPooled(IRbfFile file, SizedPtr ticket) {
+    var result = file.ReadPooledFrame(ticket);
+
+    if (result.IsFailure) {
+        // 失败时 buffer 已自动归还
+        Console.WriteLine($"Read failed: {result.Error.Message}");
+        return;
+    }
+
+    // 使用 using 确保 buffer 归还
+    using RbfPooledFrame frame = result.Value;
+
+    Console.WriteLine($"Tag={frame.Tag}, PayloadLen={frame.Payload.Length}");
+
+    // 如需长期持有数据，必须在 Dispose 前拷贝
     byte[] safePayload = frame.Payload.ToArray();
+    // Dispose 后 frame.Payload 不可再访问
 }
 ```
 
@@ -376,9 +469,9 @@ void RecoverState(IRbfFile file) {
     foreach (RbfFrame frame in sequence) {
         // 这里的 frame 是“经过校验的有效帧”
         // 损坏的帧已被 Resync 机制自动跳过
-        
+
         Console.WriteLine($"Found Frame: Tag={frame.Tag}, Len={frame.Payload.Length}");
-        
+
         if (IsStateRestored(frame)) break;
     }
 }
@@ -390,6 +483,7 @@ void RecoverState(IRbfFile file) {
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.30 | 2026-01-17 | **ReadFrame 重构**：移除旧签名 `ReadFrame(SizedPtr)`，新增 `ReadFrame(ticket, buffer)` + `ReadPooledFrame(ticket)`；`RbfFrame.Ptr` → `Ticket`；新增 `IRbfFrame` 接口和 `RbfPooledFrame` 类型；更新 `SizedPtr` 属性引用（`Offset`/`Length`） |
 | 0.29 | 2026-01-14 | **IDisposable 显式声明**：`RbfFrameBuilder` 添加 `: IDisposable` 声明，明确类型系统语义；来自团队设计讨论 |
 | 0.28 | 2026-01-12 | **方法重命名**：`RbfFrameBuilder.Commit()` →  `EndAppend()`，与 `BeginAppend()` 形成对称配对，最大化 LLM 可预测性；详见[命名讨论会](../../../../agent-team/meeting/2026-01-12-rbf-builder-lifecycle-naming.md) |
 | 0.27 | 2026-01-12 | **Tombstone 默认隐藏**：修改 `ScanReverse` 接口增加 `bool showTombstone = false` 参数；废弃 `[S-RBF-TOMBSTONE-VISIBLE]` 改为 `[S-RBF-SCANREVERSE-TOMBSTONE-FILTER]`，确立默认过滤 Tombstone 的行为 |

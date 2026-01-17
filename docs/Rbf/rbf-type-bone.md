@@ -26,7 +26,9 @@ depends_on:
 | 类型 | SSOT | 描述 |
 |------|------|------|
 | `IRbfFile` | [rbf-interface.md#A-RBF-IRBFFILE-SHAPE](rbf-interface.md#A-RBF-IRBFFILE-SHAPE) | RBF 文件对象门面 |
+| `IRbfFrame` | [rbf-interface.md#A-RBF-IFRAME](rbf-interface.md#A-RBF-IFRAME) | 帧公共属性契约 |
 | `RbfFrame` | [rbf-interface.md#A-RBF-FRAME-STRUCT](rbf-interface.md#A-RBF-FRAME-STRUCT) | 帧数据结构 |
+| `RbfPooledFrame` | [rbf-interface.md#A-RBF-POOLED-FRAME](rbf-interface.md#A-RBF-POOLED-FRAME) | 携带 ArrayPool buffer 的帧 |
 | `RbfFrameBuilder` | [rbf-interface.md#A-RBF-FRAME-BUILDER](rbf-interface.md#A-RBF-FRAME-BUILDER) | 帧构建器 |
 | `RbfReverseSequence` | [rbf-interface.md#A-RBF-REVERSE-SEQUENCE](rbf-interface.md#A-RBF-REVERSE-SEQUENCE) | 逆向扫描序列 |
 
@@ -52,30 +54,52 @@ depends_on:
 - 仅仅是对底层内存（栈上 buffer 或 pooled array）的一个视图（View）
 - 生命周期受限于产生它的 Scope（如 ReadFrame 的 buffer）
 
+**接口抽象**：
+- `RbfFrame` 实现 `IRbfFrame` 接口（见 @[A-RBF-IFRAME]），定义帧的公共属性契约
+- 新增 `RbfPooledFrame` 作为 class 实现（见 @[A-RBF-POOLED-FRAME]），携带 ArrayPool buffer 并支持 `IDisposable`
+- 两者通过 `IRbfFrame` 接口统一，但生命周期管理不同：
+  - `RbfFrame`：调用方管理 buffer 生命周期（栈分配或手动传入）
+  - `RbfPooledFrame`：调用方 MUST 调用 `Dispose()` 归还 ArrayPool buffer
+
 ---
 
 ## 2. 底层操作原语 (Low-Level Primitives)
 
-`RbfRawOps` 提供无状态的静态方法，直接操作文件句柄。
+`RbfReadImpl` 提供无状态的静态方法，直接操作文件句柄。
 这是具体实现层（Implementation Layer），**便于进行基于临时文件的集成测试**。
 
 ```csharp
 namespace Atelia.Rbf.Internal;
 
 /// <summary>
-/// RBF 原始操作集。
+/// RBF 读取操作实现。
 /// </summary>
-internal static class RbfRawOps {
+internal static class RbfReadImpl {
     // 读路径 (Read Path)
 
     /// <summary>
-    /// 随机读取指定位置的帧。
+    /// 将帧读入调用方提供的 buffer。
     /// </summary>
     /// <param name="file">文件句柄（需具备 Read 权限）。</param>
-    /// <param name="ptr">帧位置凭据。</param>
-    /// <returns>读取结果（成功含帧，失败含错误码）。</returns>
+    /// <param name="ticket">帧位置凭据（SizedPtr 携带 offset + length）。</param>
+    /// <param name="buffer">调用方提供的缓冲区，长度 MUST >= ticket.Length。</param>
+    /// <returns>读取结果（成功含帧视图，失败含错误码）。</returns>
     /// <remarks>使用 RandomAccess.Read 实现，无状态，并发安全。</remarks>
-    public static AteliaResult<RbfFrame> ReadFrame(SafeFileHandle file, SizedPtr ptr);
+    public static AteliaResult<RbfFrame> ReadFrame(
+        SafeFileHandle file, SizedPtr ticket, Span<byte> buffer);
+
+    /// <summary>
+    /// 从 ArrayPool 借缓存读取帧。调用方 MUST 调用 Dispose() 归还 buffer。
+    /// </summary>
+    /// <param name="file">文件句柄（需具备 Read 权限）。</param>
+    /// <param name="ticket">帧位置凭据（SizedPtr 携带 offset + length）。</param>
+    /// <returns>读取结果（成功含 pooled 帧，失败含错误码）。</returns>
+    /// <remarks>
+    /// <para>返回的 RbfPooledFrame 内部持有 ArrayPool buffer。</para>
+    /// <para>调用方 MUST 调用 Dispose() 归还 buffer，否则内存泄漏。</para>
+    /// </remarks>
+    public static AteliaResult<RbfPooledFrame> ReadPooledFrame(
+        SafeFileHandle file, SizedPtr ticket);
 
     /// <summary>
     /// 创建逆向扫描序列。
@@ -88,9 +112,14 @@ internal static class RbfRawOps {
     /// <para>RawOps 层直接实现过滤逻辑，与 Facade 层 @[S-RBF-SCANREVERSE-TOMBSTONE-FILTER] 保持一致。</para>
     /// </remarks>
     public static RbfReverseSequence ScanReverse(SafeFileHandle file, long scanOrigin, bool showTombstone = false);
+}
 
+/// <summary>
+/// RBF 写入操作实现。
+/// </summary>
+internal static class RbfWriteImpl {
     // 写路径 (Write Path)
-    
+
     /// <summary>
     /// 开始构建一个帧（Complex Path）。
     /// </summary>
@@ -247,7 +276,7 @@ internal sealed class RandomAccessByteSink : IByteSink {
     /// <remarks>
     /// 调用 <see cref="RandomAccess.Write(SafeFileHandle, ReadOnlySpan{byte}, long)"/>
     /// 写入数据并推进 offset。
-    /// 
+    ///
     /// <para><b>错误处理</b>：I/O 异常直接抛出（符合 Infra Fault 策略）。</para>
     /// </remarks>
     public void Push(ReadOnlySpan<byte> data) {
@@ -275,16 +304,16 @@ see: @[I-RBF-BUILDER-AUTO-ABORT-IMPL]
 internal static RbfFrameBuilder _BeginFrame(SafeFileHandle file, long writeOffset, uint tag) {
     var sink = new RandomAccessByteSink(file, writeOffset);
     var chunkedWriter = new SinkReservableWriter(sink);
-    
+
     // 关键：立即 reserve HeadLen（4 字节）
     var headLenSpan = chunkedWriter.ReserveSpan(4, out int headLenToken);
     BinaryPrimitives.WriteUInt32LittleEndian(headLenSpan, 0); // placeholder
-    
+
     // 写 FrameTag（紧跟 HeadLen）
     var tagSpan = chunkedWriter.GetSpan(4);
     BinaryPrimitives.WriteUInt32LittleEndian(tagSpan, tag);
     chunkedWriter.Advance(4);
-    
+
     return new RbfFrameBuilder {
         _chunkedWriter = chunkedWriter,
         _headLenToken = headLenToken,
@@ -323,6 +352,7 @@ internal static RbfFrameBuilder _BeginFrame(SafeFileHandle file, long writeOffse
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.5 | 2026-01-17 | **ReadFrame 重构**：更新 §2 底层原语签名（RbfRawOps → RbfReadImpl/RbfWriteImpl）；新增 IRbfFrame/RbfPooledFrame 引用；参数名 ptr → ticket |
 | 0.4 | 2026-01-11 | **适配器简化**：将 §5 从 `IBufferWriter` 适配器改为 `IByteSink` 适配器；删除 `SequentialRandomAccessBufferWriter`（~80 行）；新增 `RandomAccessByteSink`（~25 行）；删除 `@[I-RBF-SEQWRITER-TYPE]`、`@[I-RBF-SEQWRITER-ADVANCE-IMMEDIATE]`、`@[I-RBF-SEQWRITER-BUFFER-POOL]`、`@[I-RBF-SEQWRITER-DISPOSE-NOEXCEPT]`；新增 `@[I-RBF-BYTESINK-IS-MINIMAL-FORWARDER]`、`@[I-RBF-BYTESINK-PUSH-FORWARDS-AND-ADVANCES-OFFSET]`、`@[I-RBF-BYTESINK-ERROR-THROW]`；来自 [设计报告](../../../agent-team/handoffs/2026-01-11-randomaccess-bytesink-design.md) |
 | 0.3 | 2026-01-11 | **RandomAccess 适配器设计**：新增 §5（SequentialRandomAccessBufferWriter）；定义 @[I-RBF-SEQWRITER-TYPE]、@[I-RBF-SEQWRITER-ADVANCE-IMMEDIATE]、@[I-RBF-SEQWRITER-BUFFER-POOL]、@[I-RBF-SEQWRITER-HEADLEN-GUARD]、@[I-RBF-SEQWRITER-ERROR-THROW]、@[I-RBF-SEQWRITER-DISPOSE-NOEXCEPT]；来自 [畅谈会](../../../agent-team/meeting/2026-01-11-rbf-randomaccess-adapter.md) 决议 |
 | 0.2 | 2026-01-11 | **文档职能分离**：移除与 interface.md 重复的公开类型定义，改为引用；新增 Auto-Abort 实现路径条款 @[I-RBF-BUILDER-AUTO-ABORT-IMPL]；增加快速导航区块；明确为非规范性实现指南 |

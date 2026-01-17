@@ -19,11 +19,11 @@ produce_by:
 
 ### Offset / Length 的含义
 
-- `OffsetBytes`：以 **byte** 表示的起始偏移（必须 4B 对齐）。
-- `LengthBytes`：以 **byte** 表示的区间长度（必须 4B 对齐）。
+- `Offset`：以 **byte** 表示的起始偏移（`long` 类型，必须 4B 对齐且非负）。
+- `Length`：以 **byte** 表示的区间长度（`int` 类型，必须 4B 对齐且非负）。
 - `SizedPtr` 表达一个半开区间：
 
-$$[OffsetBytes,\; OffsetBytes + LengthBytes)$$
+$$[Offset,\; Offset + Length)$$
 
 > 说明：这是一种“纯几何语义”的 byte range 表达，不预设上层概念（不绑定 RBF Frame、payload、record 等）。上层可以把这个区间解释为“某个对象在文件中的 span”，但解释权不属于 SizedPtr。
 
@@ -58,7 +58,7 @@ $$[OffsetBytes,\; OffsetBytes + LengthBytes)$$
 
 ### DL-001：Length 语义（2026-01-04）
 
-**决策**：`LengthBytes` 表示任意 byte range 的长度（纯几何语义），SizedPtr 表达区间 `[OffsetBytes, OffsetBytes + LengthBytes)`，不绑定 RBF/Frame 或其他上层概念。
+**决策**：`Length` 表示任意 byte range 的长度（纯几何语义），SizedPtr 表达区间 `[Offset, Offset + Length)`，不绑定 RBF/Frame 或其他上层概念。
 
 **理由**：
 1. `[offset, offset+length)` 是最大公约数的区间表达，可被多种上层复用。
@@ -69,11 +69,11 @@ $$[OffsetBytes,\; OffsetBytes + LengthBytes)$$
 
 ### DL-002：Bit 分配方案选择（2026-01-04）
 
-**决策**：选择 **38:26**（OffsetBits=38, LengthBits=26）作为默认方案。
+**决策**：选择 **38:26**（OffsetPackedBits=38, LengthPackedBits=26）作为默认方案。
 
 **理由**：
-1. `LengthBytes` 的 256MB 上限提供更大的容错空间，降低“大块数据/大对象 span”场景被硬天花板卡死的风险。
-2. `OffsetBytes` 的 1TB 上限覆盖绝大多数单文件场景；且“多文件分片”是更成熟的绕过手段。
+1. `Length` 的 256MB 上限提供更大的容错空间，降低"大块数据/大对象 span"场景被硬天花板卡死的风险。
+2. `Offset` 的 1TB 上限覆盖绝大多数单文件场景；且"多文件分片"是更成熟的绕过手段。
 3. 在不引入多类型/标记位复杂性的前提下，给两端都保留了合理余量。
 
 **排除**：
@@ -93,10 +93,22 @@ $$[OffsetBytes,\; OffsetBytes + LengthBytes)$$
 
 **实现约定**：
 - 纯粹的值类型，不包含任何业务状态（如 Empty/Null）的判断逻辑。
-- `offset/length` 以 **字节** 暴露给使用者，但编码时按 4B 对齐打包（值域天然保证 4B 对齐）。
+- `Offset`/`Length` 以 **字节** 暴露给使用者，但编码时按 4B 对齐打包（值域天然保证 4B 对齐）。
 - 从 `Packed` 构造不需要 `Parse/TryParse` 校验（任何 `ulong` 都能解包成一个确定的区间）。
-- 从 `(offset,length)` 构造提供 `Create/TryCreate`，仅用于帮助调用方在写入时做参数校验。
+- 从 `(offsetBytes, lengthBytes)` 构造提供 `Create/TryCreate`，仅用于帮助调用方在写入时做参数校验。
 - `EndOffsetExclusive` 使用 `checked`；`Contains` 使用差值比较避免溢出。
+
+### DL-004：类型简化为 long/int（2026-01-17）
+
+**决策**：将 `Offset` 从 `ulong` 改为 `long`，`Length` 从 `uint` 改为 `int`。
+
+**理由**：
+1. .NET I/O API（`RandomAccess.Read`、`Stream.Position`、`Span<T>` 索引）普遍使用有符号类型。
+2. 消除每次 API 调用时的类型转换，减少样板代码。
+3. 38:26 bit 分配不变，仍支持约 1TB 偏移和 256MB 长度。
+4. 负值检查在 `Create`/`TryCreate` 中显式进行，不依赖无符号类型隐式保证。
+
+**排除**：保持 `ulong`/`uint`——与 .NET 生态不一致，每次调用都需要 cast。
 
 ## 测试计划（Plan-Tier 草案）
 
@@ -104,11 +116,12 @@ $$[OffsetBytes,\; OffsetBytes + LengthBytes)$$
 
 最小但高价值的单元测试覆盖建议（摘要）：
 
-- **Pack/Unpack Roundtrip**：`Create(offset,length)` 后 `OffsetBytes/LengthBytes/Packed` 一致；覆盖 (0,0)、任意对齐值、MaxOffset/MaxLength。
+- **Pack/Unpack Roundtrip**：`Create(offset,length)` 后 `Offset/Length/Packed` 一致；覆盖 (0,0)、任意对齐值、MaxOffset/MaxLength。
 - **对齐检查**：offset/length 非 4B 对齐时 `TryCreate` 返回 false，`Create` 抛 `ArgumentOutOfRangeException`。
 - **边界**：`MaxOffset+4` / `MaxLength+4` 必须拒绝；常量推导值正确。
 - **FromPacked**：任意 `ulong` 必须可解包且不抛异常（不做校验）。
-- **区间语义**：`Contains` 为半开区间；`LengthBytes==0` 时永远 false；采用差值比较避免溢出。
+- **区间语义**：`Contains` 为半开区间；`Length==0` 时永远 false；采用差值比较避免溢出。
 - **溢出**：`EndOffsetExclusive` 使用 `checked`；构造阶段拒绝 `offset+length` 溢出。
+- **负值检查**：`Create`/`TryCreate` 拒绝负的 offset 或 length。
 
 > 注：本设计文档描述语义与决策；实现/可执行契约以 `atelia/src/Data/SizedPtr.cs` 与 `atelia/tests/Data.Tests/SizedPtrTests.cs` 为准（SSOT），本文不内嵌“伪实现代码”以避免漂移。

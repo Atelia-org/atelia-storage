@@ -1,10 +1,10 @@
 # AteliaResult 规范
 
-> **版本**: 1.2  
-> **日期**: 2026-01-06  
-> **状态**: 正式规范（Normative）  
-> **设计文档**: [design.md](design.md)（双类型架构设计与决策）  
-> **来源**: [LoadObject 命名与返回值设计畅谈会](../../../agent-team/meeting/StateJournal/2025-12-21-hideout-loadobject-naming.md)  
+> **版本**: 1.2
+> **日期**: 2026-01-06
+> **状态**: 正式规范（Normative）
+> **设计文档**: [design.md](design.md)（双类型架构设计与决策）
+> **来源**: [LoadObject 命名与返回值设计畅谈会](../../../agent-team/meeting/StateJournal/2025-12-21-hideout-loadobject-naming.md)
 > **修订**: [AteliaResult 适用边界畅谈会](../../../agent-team/meeting/StateJournal/2025-12-26-ateliaresult-boundary.md)
 
 ---
@@ -50,12 +50,14 @@
 > **类型签名以代码为准**（Single Source of Truth）。
 > 设计决策详见 [design.md](design.md)。
 
-### 3.1 双类型架构
+### 3.1 类型架构
 
 | 类型 | 代码位置 | 用途 |
 |:-----|:---------|:-----|
-| `AteliaResult<T>` | [AteliaResult.cs](../../src/Primitives/AteliaResult.cs) | 同步层，支持 ref struct 值 |
-| `AteliaAsyncResult<T>` | [AteliaAsyncResult.cs](../../src/Primitives/AteliaAsyncResult.cs) | 异步层，可用于 Task/ValueTask |
+| `AteliaResult<T>` | [AteliaResult.cs](../../../src/Primitives/AteliaResult.cs) | 同步层，`ref struct`，支持 ref struct 值 |
+| `AsyncAteliaResult<T>` | [AsyncAteliaResult.cs](../../../src/Primitives/AsyncAteliaResult.cs) | 异步层，`readonly struct`，可用于 Task/ValueTask |
+| `DisposableAteliaResult<T>` | [DisposableAteliaResult.cs](../../../src/Primitives/DisposableAteliaResult.cs) | 资源所有权层，`sealed class`，支持 using 语法 |
+| `IAteliaResult<T>` | [IAteliaResult.cs](../../../src/Primitives/IAteliaResult.cs) | 公共接口，定义统一契约 |
 
 ### 3.2 错误类型
 
@@ -63,9 +65,63 @@
 |:-----|:---------|:-----|
 | `AteliaError` | [AteliaError.cs](../../src/Primitives/AteliaError.cs) | 错误基类 |
 | `AteliaException` | [AteliaException.cs](../../src/Primitives/AteliaException.cs) | 异常基类（与 Error 同源同表） |
-| `IAteliaHasError` | [IAteliaHasError.cs](../../src/Primitives/IAteliaHasError.cs) | 统一访问接口 |
+| `IAteliaHasError` | [IAteliaHasError.cs](../../../src/Primitives/IAteliaHasError.cs) | 统一访问接口 |
 
-### 3.3 AteliaError 字段说明
+### 3.3 `IAteliaResult<T>` 接口契约
+
+所有结果类型（`AteliaResult<T>`、`AsyncAteliaResult<T>`、`DisposableAteliaResult<T>`）MUST 实现 `IAteliaResult<T>` 接口。
+
+接口定义的成员：
+
+| 成员 | 类型 | 语义 |
+|:-----|:-----|:-----|
+| `IsSuccess` | `bool` | 操作是否成功 |
+| `IsFailure` | `bool` | 操作是否失败（`!IsSuccess`） |
+| `Value` | `T?` | 成功时的值；失败时为 `default` |
+| `Error` | `AteliaError?` | 失败时的错误；成功时为 `null` |
+| `GetValueOrThrow()` | `T` | 成功时返回值；失败时抛出 `InvalidOperationException` |
+| `GetValueOrDefault(T?)` | `T?` | 成功时返回值；失败时返回默认值 |
+| `TryGetValue(out T?)` | `bool` | 尝试获取值 |
+| `TryGetError(out AteliaError?)` | `bool` | 尝试获取错误 |
+
+### 3.4 `DisposableAteliaResult<T>` 语义
+
+#### [ATELIA-DISPOSABLE-RESULT-DISPOSE]
+
+> **`DisposableAteliaResult<T>.Dispose()` 的行为 MUST 遵循以下规则：**
+
+- 成功时（`IsSuccess == true`）：调用 `Value.Dispose()`
+- 失败时（`IsFailure == true`）：静默无操作
+- 重复调用：幂等，仅首次调用生效
+
+#### [ATELIA-DISPOSABLE-RESULT-CONSTRAINT]
+
+> **`DisposableAteliaResult<T>` 的泛型约束：**
+
+- `T` MUST 是 `class`（引用类型）
+- `T` MUST 实现 `IDisposable`
+
+### 3.5 三种结果类型的关系
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    IAteliaResult<T>                         │
+│                    (公共接口契约)                            │
+└─────────────────────────────────────────────────────────────┘
+                              ▲
+           ┌──────────────────┼──────────────────┐
+           │                  │                  │
+┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
+│ AteliaResult<T>  │ │AsyncAteliaResult │ │DisposableAtelia  │
+│   ref struct     │ │  <T> readonly    │ │  Result<T>       │
+│   (同步/栈)       │ │  struct (异步)   │ │  sealed class    │
+│                  │ │                  │ │  (资源所有权)     │
+└──────────────────┘ └──────────────────┘ └──────────────────┘
+        │                                         ▲
+        └────────── .ToDisposable() ──────────────┘
+```
+
+### 3.6 AteliaError 字段说明
 
 | 字段 | 级别 | 说明 |
 |------|------|------|
@@ -101,7 +157,7 @@
 
 **好的示例**：
 ```
-Object 42 not found in VersionIndex. The object may have been deleted 
+Object 42 not found in VersionIndex. The object may have been deleted
 or never committed. Last known checkpoint: epoch 15.
 ```
 

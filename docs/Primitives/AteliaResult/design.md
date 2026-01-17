@@ -1,8 +1,8 @@
 # AteliaResult 设计文档
 
-> **版本**: 1.0  
-> **日期**: 2026-01-06  
-> **状态**: 档案（Archived Design）  
+> **版本**: 1.0
+> **日期**: 2026-01-06
+> **状态**: 档案（Archived Design）
 > **使用规范**: [specification.md](specification.md)
 
 ---
@@ -92,7 +92,51 @@ public bool IsSuccess => _error is null;
 
 ---
 
-## 3. 历史设计摘要
+## 3. `DisposableAteliaResult<T>` 设计理由
+
+### 3.1 为什么需要 `DisposableAteliaResult<T>`？
+
+**触发场景**：RBF 模块引入了 `RbfPooledFrame`——一个从 `ArrayPool<byte>` 借用 buffer 的帧类型。
+
+```csharp
+// 问题：谁负责归还 buffer？
+AteliaResult<RbfPooledFrame> result = file.ReadFrame(ticket);
+if (result.IsFailure) return;  // buffer 泄漏！
+var frame = result.Value;
+// 使用 frame...
+frame.Dispose();  // 容易忘记
+```
+
+**解决方案**：`DisposableAteliaResult<T>` 将资源所有权与结果绑定：
+
+```csharp
+using var result = file.ReadFrame(ticket).ToDisposable();
+if (result.IsFailure) return;  // 安全：没有 buffer 需要释放
+var frame = result.Value;
+// scope 结束自动 Dispose
+```
+
+### 3.2 为什么不让 `AteliaResult<T>` 直接实现 `IDisposable`？
+
+`AteliaResult<T>` 是 `ref struct`，而 `ref struct` 不能实现接口（C# 语言限制）。
+
+即使 C# 13 允许 `ref struct` 实现接口，但 `IDisposable.Dispose()` 需要装箱，这会导致栈上的 `ref struct` 逃逸到堆上——破坏了 `ref struct` 的设计初衷。
+
+### 3.3 `IAteliaResult<T>` 的抽取理由
+
+随着结果类型从 2 个（`AteliaResult<T>` + `AteliaAsyncResult<T>`）扩展到 3 个，需要一个统一的契约：
+
+| 需求 | 解决方案 |
+|:-----|:---------|
+| 泛型方法需要接受任意结果类型 | `IAteliaResult<T>` 作为约束 |
+| 一致的 API 表面 | 接口定义 8 个核心成员 |
+| 文档可引用的契约 | 接口作为规范的形式化表达 |
+
+**注意**：`AteliaResult<T>` 作为 `ref struct` 不能被接口约束，但它的 API 与 `IAteliaResult<T>` 保持一致（鸭子类型）。
+
+---
+
+## 4. 历史设计摘要
 
 以下表格汇总了我们在演进过程中的关键权衡：
 
@@ -104,3 +148,5 @@ public bool IsSuccess => _error is null;
 | Message 语义 | 默认 Agent-Friendly | Atelia 是 LLM-Native 框架 |
 | Details 类型 | `IReadOnlyDictionary<string, string>` | 复杂结构用 JSON-in-string，保持 Payload 扁平 |
 | ErrorCode 命名 | `{Component}.{ErrorName}` | 命名空间隔离，便于查找 |
+| 命名演进 | `AteliaAsyncResult` → `AsyncAteliaResult` | 前缀式命名更易于 IDE 补全和字母排序 |
+| 资源所有权 | 独立类型 `DisposableAteliaResult<T>` | `ref struct` 不能实现 `IDisposable` |

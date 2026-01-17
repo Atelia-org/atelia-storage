@@ -20,10 +20,10 @@
 // 方法签名
 public AteliaResult<MyObject> CreateObject(string name) {
     var obj = new MyObject(name);
-    
+
     // 方式 A: 隐式转换 (推荐)
     return obj;
-    
+
     // 方式 B: 显式调用 (当返回 null 表示成功时)
     return AteliaResult<MyObject>.Success(obj);
 }
@@ -39,7 +39,7 @@ public AteliaResult<MyObject> LoadObject(ulong id) {
         // 方式 A: 使用预定义的强类型错误 (推荐)
         return AteliaResult<MyObject>.Failure(
             new ObjectNotFoundError(id));
-            
+
         // 方式 B: 临时构建 (仅限原型阶段)
         return AteliaResult<MyObject>.Failure(
             new AteliaError("MyComp.NotFound", $"Id {id} missing"));
@@ -61,7 +61,7 @@ if (result.IsFailure) {
 }
 
 // 获取值 (result.Value 在失败时为 default!)
-var obj = result.Value; 
+var obj = result.Value;
 // 或者
 var obj = result.GetValueOrThrow();
 ```
@@ -77,7 +77,7 @@ var obj = result.GetValueOrThrow();
 **模板：**
 
 ```csharp
-public sealed record ConfigurationMissingError(string ConfigPath) 
+public sealed record ConfigurationMissingError(string ConfigPath)
     : AteliaError(
         ErrorCode: "MyComponent.ConfigurationMissing",
         Message: $"Configuration file not found at '{ConfigPath}'",
@@ -85,13 +85,41 @@ public sealed record ConfigurationMissingError(string ConfigPath)
     );
 ```
 
-## 4. 常见问题 (FAQ)
+## 4. 带资源所有权的结果
+
+当返回值是需要 `Dispose` 的资源（如池化的 buffer）时，使用 `DisposableAteliaResult<T>`：
+
+```csharp
+// 典型使用模式
+using var result = api.GetResource().ToDisposable();
+if (result.IsFailure) {
+    Console.WriteLine(result.Error.Message);
+    return;
+}
+var resource = result.Value;  // 安全使用
+// scope 结束自动 Dispose
+```
+
+**Dispose 语义**：
+- 成功时：调用 `Value.Dispose()`
+- 失败时：静默无操作（Value 为 null）
+
+**从 `AteliaResult<T>` 转换**：
+```csharp
+AteliaResult<MyResource> syncResult = GetResource();
+using var disposable = syncResult.ToDisposable();
+```
+
+## 5. 常见问题 (FAQ)
 
 - **Q: 为什么不能用 `var`?**
   A: `AteliaResult` 是 `ref struct` (在同步版中)，使用时限制较多，但在栈上零分配。
-  
+
 - **Q: 异步方法怎么办?**
-  A: 使用 `AteliaAsyncResult<T>`。除了名字带 `Async` 且不是 `ref struct` 外，用法完全一致。
-  
+  A: 使用 `AsyncAteliaResult<T>`。除了名字带 `Async` 且不是 `ref struct` 外，用法完全一致。
+
 - **Q: 怎么把同步 Result 转异步?**
   A: `.ToAsync()` 扩展方法。
+
+- **Q: 什么时候用 `DisposableAteliaResult<T>`?**
+  A: 当 `T` 实现 `IDisposable` 且你希望用 `using` 语法管理生命周期时。典型场景：从对象池借用的 buffer。
