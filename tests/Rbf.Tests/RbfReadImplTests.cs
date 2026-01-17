@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using Microsoft.Win32.SafeHandles;
 using Atelia.Data;
 using Atelia.Rbf.Internal;
 using Xunit;
@@ -6,7 +7,7 @@ using Xunit;
 namespace Atelia.Rbf.Tests;
 
 /// <summary>
-/// RbfRawOps.ReadFrame 格式验证测试。
+/// RbfReadImpl.ReadFrame 格式验证测试。
 /// </summary>
 /// <remarks>
 /// 职责：验证 RawOps 层 ReadFrame 的帧解码符合规范。
@@ -17,7 +18,7 @@ namespace Atelia.Rbf.Tests;
 /// - @[F-FRAMESTATUS-RESERVED-BITS-ZERO] - FrameStatus 保留位
 /// - @[F-FRAMESTATUS-FILL] - FrameStatus 全字节同值
 /// </remarks>
-public class RbfReadFrameTests : IDisposable {
+public class RbfReadImplTests : IDisposable {
     private readonly List<string> _tempFiles = new();
 
     /// <summary>
@@ -43,6 +44,14 @@ public class RbfReadFrameTests : IDisposable {
     }
 
     // ========== 辅助方法 ==========
+
+    /// <summary>
+    /// 辅助方法：分配 buffer 并调用 ReadFrameInto。
+    /// </summary>
+    private static AteliaResult<RbfFrame> ReadFrameIntoHelper(SafeFileHandle handle, SizedPtr ptr) {
+        byte[] buffer = new byte[ptr.Length]; // 用堆数组避免 ref struct 生命周期问题
+        return RbfReadImpl.ReadFrame(handle, ptr, buffer);
+    }
 
     /// <summary>
     /// 构造一个有效帧的字节数组。
@@ -107,10 +116,10 @@ public class RbfReadFrameTests : IDisposable {
 
     /// <summary>
     /// 验证正常帧的读取：Tag、Payload、IsTombstone 正确解码。
-    /// 使用从 Append 写入到 ReadFrame 验证的闭环测试。
+    /// 使用从 Append 写入到 ReadPooledFrame 验证的闭环测试。
     /// </summary>
     [Fact]
-    public void ReadFrame_ValidFrame_ReturnsCorrectData() {
+    public void ReadPooledFrame_ValidFrame_ReturnsCorrectData() {
         // Arrange: 使用 Append 写入帧
         var path = GetTempFilePath();
         byte[] payload = [0x01, 0x02, 0x03, 0x04, 0x05];
@@ -119,24 +128,25 @@ public class RbfReadFrameTests : IDisposable {
         using var rbfFile = RbfFile.CreateNew(path);
         var ptr = rbfFile.Append(tag, payload);
 
-        // Act: 使用 ReadFrame 读取
-        var result = rbfFile.ReadFrame(ptr);
+        // Act: 使用 ReadPooledFrame 读取
+        var result = rbfFile.ReadPooledFrame(ptr);
 
         // Assert
         Assert.True(result.IsSuccess);
-        var frame = result.Value;
+        Assert.NotNull(result.Value);
+        using var frame = result.Value;
         Assert.Equal(tag, frame.Tag);
         Assert.Equal(payload, frame.Payload.ToArray());
         Assert.False(frame.IsTombstone);
-        Assert.Equal(ptr, frame.Ptr);
+        Assert.Equal(ptr, frame.Ticket);
     }
 
     /// <summary>
     /// 验证空 payload 帧（最小帧 20B）的读取。
-    /// 使用从 Append 写入到 ReadFrame 验证的闭环测试。
+    /// 使用从 Append 写入到 ReadPooledFrame 验证的闭环测试。
     /// </summary>
     [Fact]
-    public void ReadFrame_EmptyPayload_Succeeds() {
+    public void ReadPooledFrame_EmptyPayload_Succeeds() {
         // Arrange: 使用 Append 写入空 payload 帧
         var path = GetTempFilePath();
         byte[] payload = [];
@@ -146,14 +156,15 @@ public class RbfReadFrameTests : IDisposable {
         var ptr = rbfFile.Append(tag, payload);
 
         // 验证最小帧长度
-        Assert.Equal(20u, ptr.LengthBytes);
+        Assert.Equal(20, ptr.Length);
 
-        // Act: 使用 ReadFrame 读取
-        var result = rbfFile.ReadFrame(ptr);
+        // Act: 使用 ReadPooledFrame 读取
+        var result = rbfFile.ReadPooledFrame(ptr);
 
         // Assert
         Assert.True(result.IsSuccess);
-        var frame = result.Value;
+        Assert.NotNull(result.Value);
+        using var frame = result.Value;
         Assert.Equal(tag, frame.Tag);
         Assert.Empty(frame.Payload.ToArray());
         Assert.False(frame.IsTombstone);
@@ -161,10 +172,10 @@ public class RbfReadFrameTests : IDisposable {
 
     /// <summary>
     /// 验证大 payload（大于4KB，触发 ArrayPool 路径）的读取。
-    /// 使用从 Append 写入到 ReadFrame 验证的闭环测试。
+    /// 使用从 Append 写入到 ReadPooledFrame 验证的闭环测试。
     /// </summary>
     [Fact]
-    public void ReadFrame_LargePayload_Succeeds() {
+    public void ReadPooledFrame_LargePayload_Succeeds() {
         // Arrange: 使用 Append 写入大 payload 帧
         var path = GetTempFilePath();
         byte[] payload = new byte[8192]; // 8KB，超过 MaxStackAllocSize(4096)
@@ -174,12 +185,13 @@ public class RbfReadFrameTests : IDisposable {
         using var rbfFile = RbfFile.CreateNew(path);
         var ptr = rbfFile.Append(tag, payload);
 
-        // Act: 使用 ReadFrame 读取
-        var result = rbfFile.ReadFrame(ptr);
+        // Act: 使用 ReadPooledFrame 读取
+        var result = rbfFile.ReadPooledFrame(ptr);
 
         // Assert
         Assert.True(result.IsSuccess);
-        var frame = result.Value;
+        Assert.NotNull(result.Value);
+        using var frame = result.Value;
         Assert.Equal(tag, frame.Tag);
         Assert.Equal(payload, frame.Payload.ToArray());
         Assert.False(frame.IsTombstone);
@@ -200,10 +212,10 @@ public class RbfReadFrameTests : IDisposable {
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
 
         int frameLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
-        var ptr = SizedPtr.Create(RbfConstants.GenesisLength, (uint)frameLen);
+        var ptr = SizedPtr.Create(RbfConstants.GenesisLength, frameLen);
 
         // Act
-        var result = RbfRawOps.ReadFrame(handle, ptr);
+        var result = ReadFrameIntoHelper(handle, ptr);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -234,7 +246,7 @@ public class RbfReadFrameTests : IDisposable {
         var ptr = SizedPtr.Create(4, 16);
 
         // Act
-        var result = RbfRawOps.ReadFrame(handle, ptr);
+        var result = ReadFrameIntoHelper(handle, ptr);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -258,7 +270,7 @@ public class RbfReadFrameTests : IDisposable {
         var ptr = SizedPtr.Create(1000, 20);
 
         // Act
-        var result = RbfRawOps.ReadFrame(handle, ptr);
+        var result = ReadFrameIntoHelper(handle, ptr);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -289,10 +301,10 @@ public class RbfReadFrameTests : IDisposable {
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
 
         int frameLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
-        var ptr = SizedPtr.Create(RbfConstants.GenesisLength, (uint)frameLen);
+        var ptr = SizedPtr.Create(RbfConstants.GenesisLength, frameLen);
 
         // Act
-        var result = RbfRawOps.ReadFrame(handle, ptr);
+        var result = ReadFrameIntoHelper(handle, ptr);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -322,10 +334,10 @@ public class RbfReadFrameTests : IDisposable {
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
 
-        var ptr = SizedPtr.Create(RbfConstants.GenesisLength, (uint)frameLen);
+        var ptr = SizedPtr.Create(RbfConstants.GenesisLength, frameLen);
 
         // Act
-        var result = RbfRawOps.ReadFrame(handle, ptr);
+        var result = ReadFrameIntoHelper(handle, ptr);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -357,10 +369,10 @@ public class RbfReadFrameTests : IDisposable {
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
 
-        var ptr = SizedPtr.Create(RbfConstants.GenesisLength, (uint)frameLen);
+        var ptr = SizedPtr.Create(RbfConstants.GenesisLength, frameLen);
 
         // Act
-        var result = RbfRawOps.ReadFrame(handle, ptr);
+        var result = ReadFrameIntoHelper(handle, ptr);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -395,10 +407,10 @@ public class RbfReadFrameTests : IDisposable {
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
 
         int frameLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
-        var ptr = SizedPtr.Create(RbfConstants.GenesisLength, (uint)frameLen);
+        var ptr = SizedPtr.Create(RbfConstants.GenesisLength, frameLen);
 
         // Act
-        var result = RbfRawOps.ReadFrame(handle, ptr);
+        var result = ReadFrameIntoHelper(handle, ptr);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -434,10 +446,10 @@ public class RbfReadFrameTests : IDisposable {
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
 
-        var ptr = SizedPtr.Create(RbfConstants.GenesisLength, (uint)frameLen);
+        var ptr = SizedPtr.Create(RbfConstants.GenesisLength, frameLen);
 
         // Act
-        var result = RbfRawOps.ReadFrame(handle, ptr);
+        var result = ReadFrameIntoHelper(handle, ptr);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -472,10 +484,10 @@ public class RbfReadFrameTests : IDisposable {
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
 
         int frameLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
-        var ptr = SizedPtr.Create(RbfConstants.GenesisLength, (uint)frameLen);
+        var ptr = SizedPtr.Create(RbfConstants.GenesisLength, frameLen);
 
         // Act
-        var result = RbfRawOps.ReadFrame(handle, ptr);
+        var result = ReadFrameIntoHelper(handle, ptr);
 
         // Assert
         Assert.True(result.IsSuccess, $"Failed for payloadLen={payloadLen}: {result.Error?.Message}");
@@ -484,4 +496,71 @@ public class RbfReadFrameTests : IDisposable {
         Assert.Equal(payload, frame.Payload.ToArray());
         Assert.False(frame.IsTombstone);
     }
+
+    // ========== Buffer 相关测试 ==========
+
+    /// <summary>
+    /// 验证 buffer 太小时返回 RbfBufferTooSmallError。
+    /// </summary>
+    [Fact]
+    public void ReadFrameInto_BufferTooSmall_ReturnsBufferError() {
+        // Arrange
+        var path = GetTempFilePath();
+        byte[] payload = [0x01, 0x02, 0x03, 0x04, 0x05];
+        uint tag = 0x12345678;
+        byte[] fileContent = CreateValidFileWithFrame(tag, payload);
+        File.WriteAllBytes(path, fileContent);
+
+        using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+
+        int frameLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
+        var ptr = SizedPtr.Create(RbfConstants.GenesisLength, frameLen);
+
+        // Act: 提供太小的 buffer（只有10字节，但需要24字节）
+        Span<byte> tooSmallBuffer = stackalloc byte[10];
+        var result = RbfReadImpl.ReadFrame(handle, ptr, tooSmallBuffer);
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.IsType<RbfBufferTooSmallError>(result.Error);
+
+        var error = (RbfBufferTooSmallError)result.Error!;
+        Assert.Equal(frameLen, error.RequiredBytes);
+        Assert.Equal(10, error.ProvidedBytes);
+    }
+
+    /// <summary>
+    /// 验证 ReadFrameInto 的 zero-copy 特性：Payload 直接引用 buffer。
+    /// </summary>
+    [Fact]
+    public void ReadFrameInto_ValidBuffer_PayloadIsSlice() {
+        // Arrange
+        var path = GetTempFilePath();
+        byte[] payload = [0xAA, 0xBB, 0xCC, 0xDD];
+        uint tag = 0x12345678;
+        byte[] fileContent = CreateValidFileWithFrame(tag, payload);
+        File.WriteAllBytes(path, fileContent);
+
+        using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+
+        int frameLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
+        var ptr = SizedPtr.Create(RbfConstants.GenesisLength, frameLen);
+
+        // Act: 提供足够大的 buffer
+        byte[] buffer = new byte[frameLen];
+        var result = RbfReadImpl.ReadFrame(handle, ptr, buffer);
+
+        // Assert: Payload 应该是 buffer 的切片
+        Assert.True(result.IsSuccess);
+        var frame = result.Value;
+
+        // 验证 Payload 数据正确
+        Assert.Equal(payload, frame.Payload.ToArray());
+
+        // 验证 zero-copy：修改 buffer 应该影响 Payload
+        // Payload 位于 buffer 的 offset 8 处（HeadLen(4) + Tag(4) = 8）
+        buffer[8] = 0xFF; // 修改 Payload 第一个字节
+        Assert.Equal(0xFF, frame.Payload[0]); // 应该能看到修改（证明是引用）
+    }
 }
+

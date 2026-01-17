@@ -27,8 +27,20 @@ public interface IRbfFile : IDisposable {
     /// </remarks>
     RbfFrameBuilder BeginAppend(uint tag);
 
-    /// <summary>随机读。</summary>
-    AteliaResult<RbfFrame> ReadFrame(SizedPtr ptr);
+    /// <summary>随机读（从 ArrayPool 借缓存）。</summary>
+    /// <remarks>
+    /// <para>调用方 MUST 调用返回值的 Dispose() 归还 buffer。</para>
+    /// <para>失败时 buffer 已自动归还。</para>
+    /// </remarks>
+    AteliaResult<RbfPooledFrame> ReadPooledFrame(SizedPtr ptr);
+
+    /// <summary>
+    /// 读取指定位置的帧到提供的 buffer 中。
+    /// </summary>
+    /// <param name="ptr">帧位置凭据。</param>
+    /// <param name="buffer">目标缓冲区，长度必须 &gt;= ptr.LengthBytes。</param>
+    /// <returns>成功时返回帧视图（指向 buffer 内部），失败返回错误。</returns>
+    AteliaResult<RbfFrame> ReadFrame(SizedPtr ptr, Span<byte> buffer);
 
     /// <summary>逆向扫描。</summary>
     /// <param name="showTombstone">是否包含墓碑帧。默认 false（不包含）。</param>

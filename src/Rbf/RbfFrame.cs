@@ -11,7 +11,7 @@ namespace Atelia.Rbf;
 /// </remarks>
 public readonly ref struct RbfFrame : IRbfFrame {
     /// <inheritdoc/>
-    public SizedPtr Ptr { get; init; }
+    public SizedPtr Ticket { get; init; }
 
     /// <inheritdoc/>
     public uint Tag { get; init; }

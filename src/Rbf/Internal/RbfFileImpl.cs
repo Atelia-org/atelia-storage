@@ -44,8 +44,13 @@ internal sealed class RbfFileImpl : IRbfFile {
     }
 
     /// <inheritdoc />
-    public AteliaResult<RbfFrame> ReadFrame(SizedPtr ptr) {
-        return RbfRawOps.ReadFrame(_handle, ptr);
+    public AteliaResult<RbfPooledFrame> ReadPooledFrame(SizedPtr ptr) {
+        return RbfReadImpl.ReadPooledFrame(_handle, ptr);
+    }
+
+    /// <inheritdoc />
+    public AteliaResult<RbfFrame> ReadFrame(SizedPtr ptr, Span<byte> buffer) {
+        return RbfReadImpl.ReadFrame(_handle, ptr, buffer);
     }
 
     /// <inheritdoc />

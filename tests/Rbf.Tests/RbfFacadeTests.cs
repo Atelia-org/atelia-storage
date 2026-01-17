@@ -160,13 +160,13 @@ public class RbfFacadeTests : IDisposable {
         Assert.Equal(4 + expectedHeadLen + 4, tailOffset);
     }
 
-    // ========== ReadFrame 集成测试 ==========
+    // ========== ReadPooledFrame 集成测试 ==========
 
     /// <summary>
-    /// 验证 Append 后 ReadFrame 能正确读回帧数据（闭环测试）。
+    /// 验证 Append 后 ReadPooledFrame 能正确读回帧数据（闭环测试）。
     /// </summary>
     [Fact]
-    public void ReadFrame_AfterAppend_ReturnsCorrectFrame() {
+    public void ReadPooledFrame_AfterAppend_ReturnsCorrectFrame() {
         // Arrange
         var path = GetTempFilePath();
         byte[] payload = [0xDE, 0xAD, 0xBE, 0xEF];
@@ -176,23 +176,24 @@ public class RbfFacadeTests : IDisposable {
         using (var rbf = RbfFile.CreateNew(path)) {
             var ptr = rbf.Append(tag, payload);
 
-            // ReadFrame 应该能正确读取刚写入的帧
-            var result = rbf.ReadFrame(ptr);
+            // ReadPooledFrame 应该能正确读取刚写入的帧
+            var result = rbf.ReadPooledFrame(ptr);
 
             Assert.True(result.IsSuccess);
-            var frame = result.Value;
+            Assert.NotNull(result.Value);
+            using var frame = result.Value;
             Assert.Equal(tag, frame.Tag);
             Assert.Equal(payload, frame.Payload.ToArray());
             Assert.False(frame.IsTombstone);
-            Assert.Equal(ptr, frame.Ptr);
+            Assert.Equal(ptr, frame.Ticket);
         }
     }
 
     /// <summary>
-    /// 验证 ReadFrame 不会改变 TailOffset。
+    /// 验证 ReadPooledFrame 不会改变 TailOffset。
     /// </summary>
     [Fact]
-    public void ReadFrame_DoesNotChangeTailOffset() {
+    public void ReadPooledFrame_DoesNotChangeTailOffset() {
         // Arrange
         var path = GetTempFilePath();
         byte[] payload = [0x11, 0x22, 0x33];
@@ -203,9 +204,11 @@ public class RbfFacadeTests : IDisposable {
         var ptr = rbf.Append(tag, payload);
         long tailOffsetBefore = rbf.TailOffset;
 
-        // 执行 ReadFrame
-        var result = rbf.ReadFrame(ptr);
+        // 执行 ReadPooledFrame
+        var result = rbf.ReadPooledFrame(ptr);
         Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value);
+        using var frame = result.Value;  // 确保 Dispose
 
         long tailOffsetAfter = rbf.TailOffset;
 

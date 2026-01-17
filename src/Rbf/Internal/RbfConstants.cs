@@ -89,12 +89,15 @@ internal static class RbfConstants {
     /// </remarks>
     public const int StatusByteFromTailOffset = TailSuffixLength + FrameStatusHelper.MinStatusLength;
 
+    public const int MinFrameLength = FrameFixedOverheadBytes + FrameStatusHelper.MaxStatusLength;
+
     // === 对齐 (Alignment) ===
 
     /// <summary>
     /// 帧 4 字节对齐要求。
     /// </summary>
     public const int FrameAlignment = 4;
+
     // 帧布局计算 (Frame Layout)
     /// <summary>
     /// 计算 FrameBytes 总长度（HeadLen 字段值）。

@@ -32,3 +32,32 @@ internal sealed record RbfCrcMismatchError(
     IReadOnlyDictionary<string, string>? Details = null,
     AteliaError? Cause = null
 ) : AteliaError("Rbf.CrcMismatch", Message, RecoveryHint, Details, Cause);
+
+/// <summary>
+/// RBF Buffer 长度不足错误。
+/// </summary>
+internal sealed record RbfBufferTooSmallError : AteliaError {
+    public int RequiredBytes { get; init; }
+    public int ProvidedBytes { get; init; }
+
+    public RbfBufferTooSmallError(
+        string Message,
+        int RequiredBytes,
+        int ProvidedBytes,
+        string? RecoveryHint = null,
+        IReadOnlyDictionary<string, string>? Details = null,
+        AteliaError? Cause = null
+    ) : base(
+        "Rbf.BufferTooSmall",
+        Message,
+        RecoveryHint,
+        Details ?? new Dictionary<string, string> {
+            ["RequiredBytes"] = RequiredBytes.ToString(),
+            ["ProvidedBytes"] = ProvidedBytes.ToString()
+        },
+        Cause
+    ) {
+        this.RequiredBytes = RequiredBytes;
+        this.ProvidedBytes = ProvidedBytes;
+    }
+}

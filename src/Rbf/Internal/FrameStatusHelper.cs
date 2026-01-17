@@ -121,20 +121,4 @@ internal static class FrameStatusHelper {
 
         return true;
     }
-
-    /// <summary>
-    /// 验证 FrameStatus 区域的所有字节是否一致（@[F-FRAMESTATUS-FILL]）。
-    /// </summary>
-    /// <param name="statusRegion">状态区域的字节。</param>
-    /// <returns>true 如果所有字节一致，false 如果存在不一致的字节。</returns>
-    internal static bool ValidateStatusBytesConsistent(ReadOnlySpan<byte> statusRegion) {
-        if (statusRegion.Length == 0) { return true; }
-
-        byte first = statusRegion[0];
-        for (int i = 1; i < statusRegion.Length; i++) {
-            if (statusRegion[i] != first) { return false; }
-        }
-
-        return true;
-    }
 }

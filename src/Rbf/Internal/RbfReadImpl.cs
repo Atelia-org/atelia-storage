@@ -1,0 +1,222 @@
+using System.Buffers;
+using System.Buffers.Binary;
+using Microsoft.Win32.SafeHandles;
+using Atelia.Data;
+using System.Diagnostics;
+
+namespace Atelia.Rbf.Internal;
+
+/// <summary>
+/// RBF 原始操作集。
+/// </summary>
+internal static class RbfReadImpl {
+    /// <summary>
+    /// 从 ArrayPool 借缓存读取帧。调用方 MUST 调用 Dispose() 归还 buffer。
+    /// </summary>
+    /// <param name="file">文件句柄。</param>
+    /// <param name="ticket">帧位置凭据。</param>
+    /// <returns>成功时返回 RbfPooledFrame，失败时返回错误（buffer 已自动归还）。</returns>
+    /// <remarks>
+    /// 生命周期：成功时，调用方拥有 buffer 所有权，MUST 调用 Dispose。
+    /// 失败路径：buffer 在方法内部自动归还，调用方无需处理。
+    /// </remarks>
+    public static AteliaResult<RbfPooledFrame> ReadPooledFrame(SafeFileHandle file, SizedPtr ticket) {
+        // 1. 参数校验（不含 buffer 长度）
+        var error = CheckTicket(ticket, out long offset, out int ticketLength);
+        if (error != null) { return AteliaResult<RbfPooledFrame>.Failure(error); }
+
+        // 2. 从 ArrayPool 借 buffer
+        byte[] rentedBuffer = ArrayPool<byte>.Shared.Rent(ticketLength);
+
+        try {
+            // 3. 调用 ReadFrameCore（限定 Span 长度）
+            var result = ReadFrameCore(file, offset, ticketLength, rentedBuffer.AsSpan(0, ticketLength), ticket);
+
+            // 4. 失败路径：归还 buffer 并返回错误
+            if (!result.IsSuccess) {
+                ArrayPool<byte>.Shared.Return(rentedBuffer);
+                return AteliaResult<RbfPooledFrame>.Failure(result.Error!);
+            }
+
+            // 5. 成功路径：直接构造 RbfPooledFrame（class 直接持有 buffer）
+            var frame = result.Value;
+            var pooledFrame = new RbfPooledFrame(
+                buffer: rentedBuffer,
+                ptr: frame.Ticket,
+                tag: frame.Tag,
+                payloadOffset: RbfConstants.PayloadFieldOffset,
+                payloadLength: frame.Payload.Length,
+                isTombstone: frame.IsTombstone
+            );
+
+            return AteliaResult<RbfPooledFrame>.Success(pooledFrame);
+        }
+        catch {
+            // 异常路径：归还 buffer 避免泄漏
+            ArrayPool<byte>.Shared.Return(rentedBuffer);
+            throw;
+        }
+    }
+    private static AteliaError? CheckTicket(SizedPtr ticket, out long offset, out int length) {
+        offset = ticket.Offset;
+        length = ticket.Length;
+
+        // 由SizedPtr的契约与表示方式确保
+        Debug.Assert(offset % RbfConstants.FrameAlignment == 0);
+        Debug.Assert(length % RbfConstants.FrameAlignment == 0);
+
+        if (length < RbfConstants.MinFrameLength) {
+            return new RbfArgumentError(
+                $"Length ({length}) is less than minimum frame length ({RbfConstants.MinFrameLength}).",
+                RecoveryHint: $"Minimum valid frame size is {RbfConstants.MinFrameLength} bytes (empty payload, 4-byte status)."
+            );
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 将帧读入调用方提供的 buffer，返回解析后的 RbfFrame。
+    /// </summary>
+    /// <param name="file">文件句柄。</param>
+    /// <param name="ticket">帧位置凭据。</param>
+    /// <param name="buffer">调用方提供的 buffer，长度 MUST &gt;= ptr.LengthBytes。</param>
+    /// <returns>成功时返回 RbfFrame（Payload 指向 buffer 子区间），失败时返回错误。</returns>
+    /// <remarks>
+    /// 生命周期警告：返回的 RbfFrame.Payload 直接引用 buffer，
+    /// 调用方 MUST 确保 buffer 在使用 Payload 期间有效。
+    /// 使用 RandomAccess.Read 实现，无状态，并发安全。
+    /// </remarks>
+    public static AteliaResult<RbfFrame> ReadFrame(SafeFileHandle file, SizedPtr ticket, Span<byte> buffer) {
+        var error = CheckTicket(ticket, out long offset, out int ticketLength) ?? CheckBufferLength(ticket.Length, buffer.Length);
+        if (error != null) { return AteliaResult<RbfFrame>.Failure(error); }
+
+        return ReadFrameCore(file, offset, ticketLength, buffer[..ticketLength], ticket);
+    }
+    private static AteliaError? CheckBufferLength(int ticketLength, int bufferLength) {
+        // Buffer 长度校验
+        if (bufferLength < ticketLength) {
+            return new RbfBufferTooSmallError(
+                $"Buffer too small: required {ticketLength} bytes, provided {bufferLength} bytes.",
+                RequiredBytes: ticketLength,
+                ProvidedBytes: bufferLength,
+                RecoveryHint: "Ensure buffer is large enough to hold the entire frame."
+            );
+        }
+
+        return null;
+    }
+
+    private static AteliaResult<RbfFrame> ReadFrameCore(SafeFileHandle file, long offset, int ticketLength, Span<byte> frameBuffer, SizedPtr ticket) {
+        // 1. 准备
+        Debug.Assert(ticketLength == frameBuffer.Length); // 为简化实现，要求传入恰好长度的buffer
+
+        // 2. 调用 ReadRaw，只读取帧所需的字节
+        int bytesRead = RandomAccess.Read(file, frameBuffer, offset);
+
+        // 3. 检查短读
+        if (bytesRead < ticketLength) {
+            return AteliaResult<RbfFrame>.Failure(
+                new RbfArgumentError(
+                    $"Short read: expected {ticketLength} bytes but got {bytesRead}.",
+                    RecoveryHint: "The ptr may point beyond end of file or file was truncated."
+                )
+            );
+        }
+
+        // 4. 构造结果
+        return ValidateAndParseCore(ticketLength, frameBuffer, ticket);
+    }
+
+    private static AteliaResult<RbfFrame> ValidateAndParseCore(int ticketLength, ReadOnlySpan<byte> frameBuffer, SizedPtr ticket) {
+        // 1. 准备
+        Debug.Assert(ticketLength == frameBuffer.Length);
+
+        // 2. 验证基本帧格式 HeadLen == TailLen == ticketLength
+        uint headLen = BinaryPrimitives.ReadUInt32LittleEndian(frameBuffer[..RbfConstants.HeadLenFieldLength]);
+        if (headLen != ticketLength) {
+            return AteliaResult<RbfFrame>.Failure(
+                new RbfFramingError(
+                    $"HeadLen mismatch: file has {headLen}, expected {ticketLength}.",
+                    RecoveryHint: "The frame may be corrupted or ptr.Length is incorrect."
+                )
+            );
+        }
+        int tailLenOffset = ticketLength - RbfConstants.TailSuffixLength;
+        uint tailLen = BinaryPrimitives.ReadUInt32LittleEndian(frameBuffer.Slice(tailLenOffset, RbfConstants.TailLenFieldLength));
+        if (tailLen != ticketLength) {
+            return AteliaResult<RbfFrame>.Failure(
+                new RbfFramingError(
+                    $"TailLen mismatch: TailLen={tailLen}, HeadLen={ticketLength}.",
+                    RecoveryHint: "The frame boundaries are corrupted."
+                )
+            );
+        }
+
+        // 3. 从 statusByte 解码 statusLen
+        int statusByteOffset = ticketLength - RbfConstants.StatusByteFromTailOffset;
+        byte statusByte = frameBuffer[statusByteOffset];
+
+        if (!FrameStatusHelper.TryDecodeStatusByte(statusByte, out bool isTombstone, out int statusLen)) {
+            return AteliaResult<RbfFrame>.Failure(
+                new RbfFramingError(
+                    $"Invalid status byte 0x{statusByte:X2}: reserved bits are non-zero.",
+                    RecoveryHint: "The frame status region is corrupted."
+                )
+            );
+        }
+
+        // 4. 计算并验证 payloadLen
+        int payloadLen = ticketLength - RbfConstants.FrameFixedOverheadBytes - statusLen;
+        if (payloadLen < 0) {
+            return AteliaResult<RbfFrame>.Failure(
+                new RbfFramingError(
+                    $"Invalid frame structure: computed payloadLen={payloadLen} is negative.",
+                    RecoveryHint: "Frame structure is corrupted."
+                )
+            );
+        }
+
+        // 6. 验证 FrameStatus 全字节同值
+        int statusStartOffset = RbfConstants.PayloadFieldOffset + payloadLen;
+        ReadOnlySpan<byte> statusRegion = frameBuffer.Slice(statusStartOffset, statusLen);
+        if (MemoryExtensions.IndexOfAnyExcept(statusRegion, statusByte) >= 0) {
+            return AteliaResult<RbfFrame>.Failure(
+                new RbfFramingError(
+                    "Status bytes are not consistent (all bytes should be identical).",
+                    RecoveryHint: "The status region is corrupted."
+                )
+            );
+        }
+
+        // 8. CRC 校验
+        int crcOffset = ticketLength - RbfConstants.CrcFieldLength;
+        // 计算范围：[Tag .. TailLen]，即不包含 HeadLen 和 CRC
+        int crcInputLen = ticketLength - RbfConstants.TagFieldOffset - RbfConstants.CrcFieldLength;
+        ReadOnlySpan<byte> crcInput = frameBuffer.Slice(RbfConstants.TagFieldOffset, crcInputLen);
+        uint expectedCrc = BinaryPrimitives.ReadUInt32LittleEndian(frameBuffer.Slice(crcOffset, RbfConstants.CrcFieldLength));
+        uint computedCrc = Crc32CHelper.Compute(crcInput);
+
+        if (expectedCrc != computedCrc) {
+            return AteliaResult<RbfFrame>.Failure(
+                new RbfCrcMismatchError(
+                    $"CRC mismatch: expected 0x{expectedCrc:X8}, computed 0x{computedCrc:X8}.",
+                    RecoveryHint: "The frame data is corrupted."
+                )
+            );
+        }
+
+        // 9. 构造 RbfFrame 并返回
+        uint tag = BinaryPrimitives.ReadUInt32LittleEndian(frameBuffer.Slice(RbfConstants.TagFieldOffset, RbfConstants.TagFieldLength));
+        ReadOnlySpan<byte> payload = frameBuffer.Slice(RbfConstants.PayloadFieldOffset, payloadLen);
+
+        var frame = new RbfFrame {
+            Ticket = ticket,
+            Tag = tag,
+            Payload = payload,
+            IsTombstone = isTombstone
+        };
+
+        return AteliaResult<RbfFrame>.Success(frame);
+    }
+}

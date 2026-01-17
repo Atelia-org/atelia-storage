@@ -1,0 +1,309 @@
+using System.Buffers;
+using System.Buffers.Binary;
+using Microsoft.Win32.SafeHandles;
+using Atelia.Data;
+using Atelia.Rbf.Internal;
+using Xunit;
+
+namespace Atelia.Rbf.Tests;
+
+/// <summary>
+/// RbfPooledFrame 和 ReadPooledFrame 测试。
+/// </summary>
+/// <remarks>
+/// 测试内容：
+/// - ReadPooledFrame 成功路径
+/// - RbfPooledFrame.Dispose 归还 buffer
+/// - 幂等 Dispose（多次调用安全）
+/// - struct 复制后 Dispose 安全
+/// </remarks>
+public class RbfPooledFrameTests : IDisposable {
+    private readonly List<string> _tempFiles = new();
+
+    private string GetTempFilePath() {
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        _tempFiles.Add(path);
+        return path;
+    }
+
+    public void Dispose() {
+        foreach (var path in _tempFiles) {
+            try {
+                if (File.Exists(path)) { File.Delete(path); }
+            }
+            catch { /* 忽略清理错误 */ }
+        }
+    }
+
+    // ========== 辅助方法 ==========
+
+    /// <summary>
+    /// 构造一个有效帧的字节数组。
+    /// </summary>
+    private static byte[] CreateValidFrameBytes(uint tag, ReadOnlySpan<byte> payload, bool isTombstone = false) {
+        int statusLen = FrameStatusHelper.ComputeStatusLen(payload.Length);
+        int headLen = RbfConstants.FrameFixedOverheadBytes + payload.Length + statusLen;
+
+        byte[] frame = new byte[headLen];
+        Span<byte> span = frame;
+
+        // HeadLen (offset 0)
+        BinaryPrimitives.WriteUInt32LittleEndian(span[..RbfConstants.HeadLenFieldLength], (uint)headLen);
+
+        // Tag (offset 4)
+        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(RbfConstants.TagFieldOffset, RbfConstants.TagFieldLength), tag);
+
+        // Payload (offset 8)
+        payload.CopyTo(span.Slice(8, payload.Length));
+
+        // Status (offset 8 + payloadLen)
+        int statusOffset = 8 + payload.Length;
+        FrameStatusHelper.FillStatus(span.Slice(statusOffset, statusLen), isTombstone, statusLen);
+
+        // TailLen (offset headLen - TailSuffixLength)
+        int tailLenOffset = headLen - RbfConstants.TailSuffixLength;
+        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(tailLenOffset, RbfConstants.TailLenFieldLength), (uint)headLen);
+
+        // CRC
+        int crcOffset = headLen - RbfConstants.CrcFieldLength;
+        ReadOnlySpan<byte> crcInput = span.Slice(RbfConstants.TagFieldOffset, headLen - RbfConstants.TailSuffixLength);
+        uint crc = Crc32CHelper.Compute(crcInput);
+        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(crcOffset, RbfConstants.CrcFieldLength), crc);
+
+        return frame;
+    }
+
+    /// <summary>
+    /// 构造带 Genesis + Frame + Fence 的完整文件内容。
+    /// </summary>
+    private static byte[] CreateValidFileWithFrame(uint tag, ReadOnlySpan<byte> payload, bool isTombstone = false) {
+        byte[] frameBytes = CreateValidFrameBytes(tag, payload, isTombstone);
+        int totalLen = RbfConstants.GenesisLength + frameBytes.Length + RbfConstants.FenceLength;
+        byte[] file = new byte[totalLen];
+
+        RbfConstants.Fence.CopyTo(file.AsSpan(0, 4));
+        frameBytes.CopyTo(file.AsSpan(RbfConstants.GenesisLength));
+        RbfConstants.Fence.CopyTo(file.AsSpan(RbfConstants.GenesisLength + frameBytes.Length, 4));
+
+        return file;
+    }
+
+    // ========== 测试用例 ==========
+
+    /// <summary>
+    /// 验证 ReadPooledFrame 成功时返回带 Owner 的帧。
+    /// </summary>
+    [Fact]
+    public void ReadPooledFrame_Success_ReturnsFrameWithOwner() {
+        // Arrange
+        var path = GetTempFilePath();
+        byte[] payload = [0x01, 0x02, 0x03, 0x04, 0x05];
+        uint tag = 0x12345678;
+
+        using var rbfFile = RbfFile.CreateNew(path);
+        var ptr = rbfFile.Append(tag, payload);
+
+        // Act
+        var result = rbfFile.ReadPooledFrame(ptr);
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value);
+        using var frame = result.Value;
+
+        Assert.Equal(tag, frame.Tag);
+        Assert.Equal(payload, frame.Payload.ToArray());
+        Assert.False(frame.IsTombstone);
+        Assert.Equal(ptr, frame.Ticket);
+        // class 版本无需校验 internal Owner，Dispose 行为由测试覆盖
+    }
+
+    /// <summary>
+    /// 验证 RbfPooledFrame.Dispose 归还 buffer（无异常）。
+    /// </summary>
+    [Fact]
+    public void RbfPooledFrame_Dispose_ReturnsBuffer() {
+        // Arrange
+        var path = GetTempFilePath();
+        byte[] payload = [0xAA, 0xBB, 0xCC];
+        uint tag = 0xDEADBEEF;
+
+        using var rbfFile = RbfFile.CreateNew(path);
+        var ptr = rbfFile.Append(tag, payload);
+
+        var result = rbfFile.ReadPooledFrame(ptr);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value);
+        var frame = result.Value;
+
+        // 保存 Payload 数据用于对比
+        byte[] payloadCopy = frame.Payload.ToArray();
+
+        // Act: Dispose 应该归还 buffer
+        frame!.Dispose();
+
+        // Assert: Dispose 成功完成（无异常）
+        // 注：Dispose 后 Payload 变为 dangling，不再访问
+        Assert.Equal(payload, payloadCopy); // 验证之前数据正确
+    }
+
+    /// <summary>
+    /// 验证 RbfPooledFrame 多次 Dispose 安全（幂等）。
+    /// </summary>
+    [Fact]
+    public void RbfPooledFrame_DoubleDispose_Safe() {
+        // Arrange
+        var path = GetTempFilePath();
+        byte[] payload = [0x11, 0x22, 0x33, 0x44];
+        uint tag = 0xCAFEBABE;
+
+        using var rbfFile = RbfFile.CreateNew(path);
+        var ptr = rbfFile.Append(tag, payload);
+
+        var result = rbfFile.ReadPooledFrame(ptr);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value);
+        var frame = result.Value;
+
+        // Act: 多次 Dispose
+        frame.Dispose();
+        frame.Dispose();
+        frame.Dispose();
+
+        // Assert: 无异常（幂等性）
+    }
+
+    /// <summary>
+    /// 验证 struct 复制后双方 Dispose 都安全。
+    /// </summary>
+    [Fact]
+    public void RbfPooledFrame_CopyThenBothDispose_Safe() {
+        // Arrange
+        var path = GetTempFilePath();
+        byte[] payload = [0x55, 0x66, 0x77, 0x88];
+        uint tag = 0xFACEFACE;
+
+        using var rbfFile = RbfFile.CreateNew(path);
+        var ptr = rbfFile.Append(tag, payload);
+
+        var result = rbfFile.ReadPooledFrame(ptr);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value);
+        var frame1 = result.Value;
+
+        // 复制 struct（共享同一 Owner）
+        var frame2 = frame1;
+
+        // Act: 两个副本都 Dispose
+        frame1.Dispose();
+        frame2.Dispose();
+
+        // Assert: 无异常（PooledBufferOwner 保证幂等释放）
+    }
+
+    /// <summary>
+    /// 验证 ReadPooledFrame 失败时 buffer 已自动归还。
+    /// </summary>
+    [Fact]
+    public void ReadPooledFrame_Failure_BufferReturned() {
+        // Arrange
+        var path = GetTempFilePath();
+        byte[] fileContent = CreateValidFileWithFrame(0x12345678, [0x01, 0x02, 0x03]);
+        File.WriteAllBytes(path, fileContent);
+
+        using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+
+        // 尝试从超出文件尾的位置读取（会导致短读错误）
+        var ptr = SizedPtr.Create(1000, 20);
+
+        // Act
+        var result = RbfReadImpl.ReadPooledFrame(handle, ptr);
+
+        // Assert: 失败，且无需调用 Dispose（buffer 已在内部归还）
+        Assert.False(result.IsSuccess);
+        Assert.NotNull(result.Error);
+        Assert.IsType<RbfArgumentError>(result.Error);
+        // 注：无法直接验证 buffer 已归还，但代码路径确保了这一点
+    }
+
+    /// <summary>
+    /// 验证 ReadPooledFrame 大 payload（触发真正的 ArrayPool 使用）。
+    /// </summary>
+    [Fact]
+    public void ReadPooledFrame_LargePayload_Succeeds() {
+        // Arrange
+        var path = GetTempFilePath();
+        byte[] payload = new byte[8192]; // 8KB
+        new Random(42).NextBytes(payload);
+        uint tag = 0xB16F4A7E;
+
+        using var rbfFile = RbfFile.CreateNew(path);
+        var ptr = rbfFile.Append(tag, payload);
+
+        // Act
+        var result = rbfFile.ReadPooledFrame(ptr);
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value);
+        using var frame = result.Value;
+
+        Assert.Equal(tag, frame.Tag);
+        Assert.Equal(payload, frame.Payload.ToArray());
+    }
+
+    /// <summary>
+    /// 验证 ReadPooledFrame 空 payload。
+    /// </summary>
+    [Fact]
+    public void ReadPooledFrame_EmptyPayload_Succeeds() {
+        // Arrange
+        var path = GetTempFilePath();
+        byte[] payload = [];
+        uint tag = 0xE7737700;
+
+        using var rbfFile = RbfFile.CreateNew(path);
+        var ptr = rbfFile.Append(tag, payload);
+
+        // Act
+        var result = rbfFile.ReadPooledFrame(ptr);
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value);
+        using var frame = result.Value;
+
+        Assert.Equal(tag, frame.Tag);
+        Assert.Empty(frame.Payload.ToArray());
+    }
+
+    /// <summary>
+    /// 验证 ReadPooledFrame 墓碑帧解码正确。
+    /// </summary>
+    [Fact]
+    public void ReadPooledFrame_Tombstone_DecodesCorrectly() {
+        // Arrange
+        var path = GetTempFilePath();
+        byte[] payload = [0xAA, 0xBB, 0xCC];
+        uint tag = 0x11223344;
+        byte[] fileContent = CreateValidFileWithFrame(tag, payload, isTombstone: true);
+        File.WriteAllBytes(path, fileContent);
+
+        using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+
+        int frameLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
+        var ptr = SizedPtr.Create(RbfConstants.GenesisLength, frameLen);
+
+        // Act
+        var result = RbfReadImpl.ReadPooledFrame(handle, ptr);
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value);
+        using var frame = result.Value;
+
+        Assert.Equal(tag, frame.Tag);
+        Assert.Equal(payload, frame.Payload.ToArray());
+        Assert.True(frame.IsTombstone);
+    }
+}
