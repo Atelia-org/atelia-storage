@@ -6,18 +6,19 @@ namespace Atelia.Rbf;
 /// RBF 帧数据结构。
 /// </summary>
 /// <remarks>
-/// <para>只读引用结构，生命周期受限于产生它的 Scope（如 ReadFrame 的 buffer）。</para>
+/// <para>只读引用结构，生命周期受限于产生它的 Scope（如 ReadFrameInto 的 buffer）。</para>
+/// <para><b>属性契约</b>：遵循 <see cref="IRbfFrame"/> 定义的公共属性集合。</para>
 /// </remarks>
-public readonly ref struct RbfFrame {
-    /// <summary>帧位置（凭据）。</summary>
+public readonly ref struct RbfFrame : IRbfFrame {
+    /// <inheritdoc/>
     public SizedPtr Ptr { get; init; }
 
-    /// <summary>帧类型标识符。</summary>
+    /// <inheritdoc/>
     public uint Tag { get; init; }
 
-    /// <summary>帧负载数据。</summary>
+    /// <inheritdoc/>
     public ReadOnlySpan<byte> Payload { get; init; }
 
-    /// <summary>是否为墓碑帧。</summary>
+    /// <inheritdoc/>
     public bool IsTombstone { get; init; }
 }

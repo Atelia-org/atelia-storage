@@ -60,8 +60,8 @@ public class RbfFacadeTests : IDisposable {
         int expectedHeadLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
 
         // SizedPtr 指向 Genesis(4) 之后的位置
-        Assert.Equal(4UL, ptr.OffsetBytes);
-        Assert.Equal((uint)expectedHeadLen, ptr.LengthBytes);
+        Assert.Equal(4L, ptr.Offset);
+        Assert.Equal(expectedHeadLen, ptr.Length);
 
         // TailOffset = Genesis(4) + Frame + Fence(4)
         Assert.Equal(4 + expectedHeadLen + 4, tailOffset);
@@ -93,14 +93,14 @@ public class RbfFacadeTests : IDisposable {
         int headLen2 = RbfConstants.ComputeFrameLen(payload2.Length, out _);
 
         // 第一帧位置
-        Assert.Equal(4UL, ptr1.OffsetBytes); // Genesis(4) 后
-        Assert.Equal((uint)headLen1, ptr1.LengthBytes);
+        Assert.Equal(4L, ptr1.Offset); // Genesis(4) 后
+        Assert.Equal(headLen1, ptr1.Length);
 
         // 第二帧位置
         // secondFrameOffset = Genesis(4) + headLen1 + Fence(4)
         long expectedOffset2 = 4 + headLen1 + 4;
-        Assert.Equal((ulong)expectedOffset2, ptr2.OffsetBytes);
-        Assert.Equal((uint)headLen2, ptr2.LengthBytes);
+        Assert.Equal(expectedOffset2, ptr2.Offset);
+        Assert.Equal(headLen2, ptr2.Length);
 
         // TailOffset
         long expectedTailOffset = 4 + headLen1 + 4 + headLen2 + 4; // Genesis + F1 + Fence + F2 + Fence
@@ -129,8 +129,8 @@ public class RbfFacadeTests : IDisposable {
         int expectedHeadLen = RbfConstants.ComputeFrameLen(0, out _);
         Assert.Equal(20, expectedHeadLen); // 验证计算
 
-        Assert.Equal(4UL, ptr.OffsetBytes);
-        Assert.Equal((uint)expectedHeadLen, ptr.LengthBytes);
+        Assert.Equal(4L, ptr.Offset);
+        Assert.Equal(expectedHeadLen, ptr.Length);
         Assert.Equal(4 + expectedHeadLen + 4, tailOffset);
     }
 
@@ -155,8 +155,8 @@ public class RbfFacadeTests : IDisposable {
         // Assert - 只验证状态和返回值
         int expectedHeadLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
 
-        Assert.Equal(4UL, ptr.OffsetBytes);
-        Assert.Equal((uint)expectedHeadLen, ptr.LengthBytes);
+        Assert.Equal(4L, ptr.Offset);
+        Assert.Equal(expectedHeadLen, ptr.Length);
         Assert.Equal(4 + expectedHeadLen + 4, tailOffset);
     }
 

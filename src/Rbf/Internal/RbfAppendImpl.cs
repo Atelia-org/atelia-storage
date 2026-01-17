@@ -159,6 +159,6 @@ internal static class RbfAppendImpl {
 
         Debug.Assert(headWriteLen + middlePayloadLen + tailWriteLen == totalWriteLen);
         Debug.Assert(headPayloadLen + middlePayloadLen + tailPayloadLen == payload.Length);
-        return SizedPtr.Create((ulong)writeOffset, (uint)frameLen);
+        return SizedPtr.Create(writeOffset, frameLen);
     }
 }

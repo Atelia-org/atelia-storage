@@ -7,33 +7,33 @@ public class SizedPtrTests {
     // ========== P0: Roundtrip ==========
 
     [Theory]
-    [InlineData(0UL, 0U)]
-    [InlineData(0UL, 4U)]
-    [InlineData(4UL, 0U)]
-    [InlineData(4UL, 4U)]
-    [InlineData(1024UL, 256U)]
-    [InlineData(SizedPtr.MaxOffset, 0U)]
-    [InlineData(0UL, SizedPtr.MaxLength)]
+    [InlineData(0L, 0)]
+    [InlineData(0L, 4)]
+    [InlineData(4L, 0)]
+    [InlineData(4L, 4)]
+    [InlineData(1024L, 256)]
+    [InlineData(SizedPtr.MaxOffset, 0)]
+    [InlineData(0L, SizedPtr.MaxLength)]
     [InlineData(SizedPtr.MaxOffset, SizedPtr.MaxLength)]
-    public void Create_Roundtrip_PreservesValues(ulong offsetBytes, uint lengthBytes) {
+    public void Create_Roundtrip_PreservesValues(long offsetBytes, int lengthBytes) {
         var ptr = SizedPtr.Create(offsetBytes, lengthBytes);
 
-        Assert.Equal(offsetBytes, ptr.OffsetBytes);
-        Assert.Equal(lengthBytes, ptr.LengthBytes);
+        Assert.Equal(offsetBytes, ptr.Offset);
+        Assert.Equal(lengthBytes, ptr.Length);
     }
 
     [Fact]
     public void Create_MaxOffset_Roundtrips() {
         var ptr = SizedPtr.Create(SizedPtr.MaxOffset, 0);
-        Assert.Equal(SizedPtr.MaxOffset, ptr.OffsetBytes);
-        Assert.Equal(0U, ptr.LengthBytes);
+        Assert.Equal(SizedPtr.MaxOffset, ptr.Offset);
+        Assert.Equal(0, ptr.Length);
     }
 
     [Fact]
     public void Create_MaxLength_Roundtrips() {
         var ptr = SizedPtr.Create(0, SizedPtr.MaxLength);
-        Assert.Equal(0UL, ptr.OffsetBytes);
-        Assert.Equal(SizedPtr.MaxLength, ptr.LengthBytes);
+        Assert.Equal(0L, ptr.Offset);
+        Assert.Equal(SizedPtr.MaxLength, ptr.Length);
     }
 
     [Fact]
@@ -41,30 +41,30 @@ public class SizedPtrTests {
         bool success = SizedPtr.TryCreate(1024, 256, out var ptr);
 
         Assert.True(success);
-        Assert.Equal(1024UL, ptr.OffsetBytes);
-        Assert.Equal(256U, ptr.LengthBytes);
+        Assert.Equal(1024L, ptr.Offset);
+        Assert.Equal(256, ptr.Length);
     }
 
     // ========== P0: Alignment Checks ==========
 
     [Theory]
-    [InlineData(1UL, 0U)]   // offset not aligned
-    [InlineData(2UL, 0U)]   // offset not aligned
-    [InlineData(3UL, 0U)]   // offset not aligned
-    [InlineData(0UL, 1U)]   // length not aligned
-    [InlineData(0UL, 2U)]   // length not aligned
-    [InlineData(0UL, 3U)]   // length not aligned
-    [InlineData(5UL, 7U)]   // both not aligned
-    public void Create_NonAligned_ThrowsArgumentOutOfRange(ulong offsetBytes, uint lengthBytes) {
+    [InlineData(1L, 0)]   // offset not aligned
+    [InlineData(2L, 0)]   // offset not aligned
+    [InlineData(3L, 0)]   // offset not aligned
+    [InlineData(0L, 1)]   // length not aligned
+    [InlineData(0L, 2)]   // length not aligned
+    [InlineData(0L, 3)]   // length not aligned
+    [InlineData(5L, 7)]   // both not aligned
+    public void Create_NonAligned_ThrowsArgumentOutOfRange(long offsetBytes, int lengthBytes) {
         var ex = Assert.Throws<ArgumentOutOfRangeException>(() => SizedPtr.Create(offsetBytes, lengthBytes));
         Assert.Contains("4B-aligned", ex.Message);
     }
 
     [Theory]
-    [InlineData(1UL, 0U)]
-    [InlineData(0UL, 1U)]
-    [InlineData(5UL, 7U)]
-    public void TryCreate_NonAligned_ReturnsFalse(ulong offsetBytes, uint lengthBytes) {
+    [InlineData(1L, 0)]
+    [InlineData(0L, 1)]
+    [InlineData(5L, 7)]
+    public void TryCreate_NonAligned_ReturnsFalse(long offsetBytes, int lengthBytes) {
         bool success = SizedPtr.TryCreate(offsetBytes, lengthBytes, out var ptr);
 
         Assert.False(success);
@@ -74,8 +74,20 @@ public class SizedPtrTests {
     // ========== P0: Boundary Checks ==========
 
     [Fact]
+    public void Create_NegativeOffset_Throws() {
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => SizedPtr.Create(-4, 0));
+        Assert.Contains("non-negative", ex.Message);
+    }
+
+    [Fact]
+    public void Create_NegativeLength_Throws() {
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => SizedPtr.Create(0, -4));
+        Assert.Contains("non-negative", ex.Message);
+    }
+
+    [Fact]
     public void Create_OffsetExceedsMax_Throws() {
-        ulong tooLarge = SizedPtr.MaxOffset + 4; // 下一个对齐值
+        long tooLarge = SizedPtr.MaxOffset + 4; // 下一个对齐值
 
         var ex = Assert.Throws<ArgumentOutOfRangeException>(() => SizedPtr.Create(tooLarge, 0));
         Assert.Contains("MaxOffset", ex.Message);
@@ -83,7 +95,7 @@ public class SizedPtrTests {
 
     [Fact]
     public void Create_LengthExceedsMax_Throws() {
-        uint tooLarge = SizedPtr.MaxLength + 4; // 下一个对齐值
+        int tooLarge = SizedPtr.MaxLength + 4; // 下一个对齐值
 
         var ex = Assert.Throws<ArgumentOutOfRangeException>(() => SizedPtr.Create(0, tooLarge));
         Assert.Contains("MaxLength", ex.Message);
@@ -91,14 +103,14 @@ public class SizedPtrTests {
 
     [Fact]
     public void TryCreate_OffsetExceedsMax_ReturnsFalse() {
-        ulong tooLarge = SizedPtr.MaxOffset + 4;
+        long tooLarge = SizedPtr.MaxOffset + 4;
 
         Assert.False(SizedPtr.TryCreate(tooLarge, 0, out _));
     }
 
     [Fact]
     public void TryCreate_LengthExceedsMax_ReturnsFalse() {
-        uint tooLarge = SizedPtr.MaxLength + 4;
+        int tooLarge = SizedPtr.MaxLength + 4;
 
         Assert.False(SizedPtr.TryCreate(0, tooLarge, out _));
     }
@@ -114,8 +126,8 @@ public class SizedPtrTests {
         var ptr = SizedPtr.FromPacked(packed);
 
         // 验证可以解包，不抛异常
-        _ = ptr.OffsetBytes;
-        _ = ptr.LengthBytes;
+        _ = ptr.Offset;
+        _ = ptr.Length;
     }
 
     [Fact]
@@ -131,8 +143,8 @@ public class SizedPtrTests {
         var original = SizedPtr.Create(1024, 256);
         var restored = SizedPtr.FromPacked(original.Packed);
 
-        Assert.Equal(original.OffsetBytes, restored.OffsetBytes);
-        Assert.Equal(original.LengthBytes, restored.LengthBytes);
+        Assert.Equal(original.Offset, restored.Offset);
+        Assert.Equal(original.Length, restored.Length);
         Assert.Equal(original.Packed, restored.Packed);
     }
 
@@ -194,9 +206,9 @@ public class SizedPtrTests {
 
     [Fact]
     public void OffsetPlusLength_CannotOverflow_UnderCurrentBitAllocation() {
-        // Under the current 38:26 allocation, MaxOffset and MaxLength are far below ulong.MaxValue,
+        // Under the current 38:26 allocation, MaxOffset and MaxLength are far below long.MaxValue,
         // so (offset+length) overflow is not reachable when inputs are within the allowed range.
-        Assert.True(SizedPtr.MaxOffset + (ulong)SizedPtr.MaxLength < ulong.MaxValue);
+        Assert.True(SizedPtr.MaxOffset + (long)SizedPtr.MaxLength < long.MaxValue);
     }
 
     [Fact]
@@ -204,14 +216,14 @@ public class SizedPtrTests {
         // Under the current bit allocation, overflow is not reachable for valid inputs.
         // This test verifies the value semantics (end-exclusive).
         var ptr = SizedPtr.Create(1000, 500);
-        Assert.Equal(1500UL, ptr.EndOffsetExclusive);
+        Assert.Equal(1500L, ptr.EndOffsetExclusive);
     }
 
     [Fact]
     public void EndOffsetExclusive_MaxValues_DoesNotOverflow() {
         // MaxOffset + MaxLength 在值域内不溢出
         var ptr = SizedPtr.Create(SizedPtr.MaxOffset, SizedPtr.MaxLength);
-        ulong end = ptr.EndOffsetExclusive;
+        long end = ptr.EndOffsetExclusive;
         Assert.Equal(SizedPtr.MaxOffset + SizedPtr.MaxLength, end);
     }
 
@@ -219,15 +231,15 @@ public class SizedPtrTests {
 
     [Fact]
     public void Constants_AreCorrect() {
-        Assert.Equal(38, SizedPtr.OffsetBits);
-        Assert.Equal(26, SizedPtr.LengthBits);
+        Assert.Equal(38, SizedPtr.OffsetPackedBits);
+        Assert.Equal(26, SizedPtr.LengthPackedBits);
 
         // MaxOffset = (2^38 - 1) * 4
-        ulong expectedMaxOffset = ((1UL << 38) - 1) << 2;
+        long expectedMaxOffset = (long)(((1UL << 38) - 1) << 2);
         Assert.Equal(SizedPtr.MaxOffset, expectedMaxOffset);
 
         // MaxLength = (2^26 - 1) * 4
-        uint expectedMaxLength = (uint)(((1UL << 26) - 1) << 2);
+        int expectedMaxLength = (int)(((1UL << 26) - 1) << 2);
         Assert.Equal(SizedPtr.MaxLength, expectedMaxLength);
     }
 
@@ -235,16 +247,16 @@ public class SizedPtrTests {
     public void MaxOffset_IsApproximately1TB() {
         // 1 TB = 2^40 bytes = 1,099,511,627,776
         // MaxOffset = (2^38 - 1) * 4 = 1,099,511,627,772
-        Assert.True(SizedPtr.MaxOffset > 1_000_000_000_000UL); // > 1 TB
-        Assert.True(SizedPtr.MaxOffset < 1_100_000_000_000UL); // < 1.1 TB
+        Assert.True(SizedPtr.MaxOffset > 1_000_000_000_000L); // > 1 TB
+        Assert.True(SizedPtr.MaxOffset < 1_100_000_000_000L); // < 1.1 TB
     }
 
     [Fact]
     public void MaxLength_IsApproximately256MB() {
         // 256 MB = 2^28 bytes = 268,435,456
         // MaxLength = (2^26 - 1) * 4 = 268,435,452
-        Assert.True(SizedPtr.MaxLength > 250_000_000U); // > 250 MB
-        Assert.True(SizedPtr.MaxLength < 270_000_000U); // < 270 MB
+        Assert.True(SizedPtr.MaxLength > 250_000_000); // > 250 MB
+        Assert.True(SizedPtr.MaxLength < 270_000_000); // < 270 MB
     }
 
     // ========== P1: Deconstruct ==========
@@ -255,8 +267,8 @@ public class SizedPtrTests {
 
         var (offset, length) = ptr;
 
-        Assert.Equal(2048UL, offset);
-        Assert.Equal(512U, length);
+        Assert.Equal(2048L, offset);
+        Assert.Equal(512, length);
     }
 
     // ========== P1: Record Struct Equality ==========
@@ -287,8 +299,8 @@ public class SizedPtrTests {
         var ptr = default(SizedPtr);
 
         Assert.Equal(0UL, ptr.Packed);
-        Assert.Equal(0UL, ptr.OffsetBytes);
-        Assert.Equal(0U, ptr.LengthBytes);
+        Assert.Equal(0L, ptr.Offset);
+        Assert.Equal(0, ptr.Length);
     }
 
     // ========== P1: Contains with Large Values (Overflow Safety) ==========
@@ -307,10 +319,10 @@ public class SizedPtrTests {
     }
 
     [Fact]
-    public void Contains_PositionNearUlongMax_NoOverflow() {
+    public void Contains_PositionNearLongMax_NoOverflow() {
         // 即使 position 很大，差值比较也不会溢出
         var ptr = SizedPtr.Create(0, 100);
 
-        Assert.False(ptr.Contains(ulong.MaxValue)); // 差值会很大，但不会溢出
+        Assert.False(ptr.Contains(long.MaxValue)); // 差值会很大，但不会溢出
     }
 }

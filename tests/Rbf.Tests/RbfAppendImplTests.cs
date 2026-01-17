@@ -47,8 +47,8 @@ public class RbfAppendImplTests : IDisposable {
     /// 验证 4B 对齐根不变量 @[S-RBF-DECISION-4B-ALIGNMENT-ROOT]。
     /// </summary>
     private static void AssertAlignment(SizedPtr ptr, long tailOffset) {
-        Assert.Equal(0UL, ptr.OffsetBytes % 4);
-        Assert.Equal(0U, ptr.LengthBytes % 4);
+        Assert.Equal(0L, ptr.Offset % 4);
+        Assert.Equal(0, ptr.Length % 4);
         Assert.Equal(0L, tailOffset % 4);
     }
 
@@ -128,9 +128,9 @@ public class RbfAppendImplTests : IDisposable {
         AssertAlignment(ptr, nextTailOffset);
 
         // Assert - SizedPtr
-        Assert.Equal(0UL, ptr.OffsetBytes); // 从 offset 0 写入
+        Assert.Equal(0L, ptr.Offset); // 从 offset 0 写入
         int expectedHeadLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
-        Assert.Equal((uint)expectedHeadLen, ptr.LengthBytes);
+        Assert.Equal(expectedHeadLen, ptr.Length);
 
         // Assert - nextTailOffset
         Assert.Equal(expectedHeadLen + 4, nextTailOffset); // Frame + Fence(4)
@@ -178,9 +178,9 @@ public class RbfAppendImplTests : IDisposable {
         var ptr = RbfAppendImpl.Append(handle, writeOffset, tag, payload, out long nextTailOffset);
 
         // Assert - SizedPtr 指向正确位置
-        Assert.Equal((ulong)writeOffset, ptr.OffsetBytes);
+        Assert.Equal(writeOffset, ptr.Offset);
         int expectedHeadLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
-        Assert.Equal((uint)expectedHeadLen, ptr.LengthBytes);
+        Assert.Equal(expectedHeadLen, ptr.Length);
 
         // Assert - nextTailOffset
         Assert.Equal(writeOffset + expectedHeadLen + 4, nextTailOffset);
@@ -220,7 +220,7 @@ public class RbfAppendImplTests : IDisposable {
 
         // Assert - SizedPtr
         int expectedHeadLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
-        Assert.Equal((uint)expectedHeadLen, ptr.LengthBytes);
+        Assert.Equal(expectedHeadLen, ptr.Length);
 
         // Assert - 读取文件内容并验证关键点（不做完整比对以节省时间）
         var data = new byte[nextTailOffset];
