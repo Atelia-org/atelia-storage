@@ -44,7 +44,7 @@ internal static class RbfReadImpl {
                 buffer: rentedBuffer,
                 ptr: frame.Ticket,
                 tag: frame.Tag,
-                payloadOffset: RbfConstants.PayloadFieldOffset,
+                payloadOffset: FrameLayout.PayloadOffset,
                 payloadLength: frame.Payload.Length,
                 isTombstone: frame.IsTombstone
             );
@@ -62,13 +62,13 @@ internal static class RbfReadImpl {
         length = ticket.Length;
 
         // 由SizedPtr的契约与表示方式确保
-        Debug.Assert(offset % RbfConstants.FrameAlignment == 0);
-        Debug.Assert(length % RbfConstants.FrameAlignment == 0);
+        Debug.Assert(offset % RbfLayout.Alignment == 0);
+        Debug.Assert(length % RbfLayout.Alignment == 0);
 
-        if (length < RbfConstants.MinFrameLength) {
+        if (length < FrameLayout.MinFrameLength) {
             return new RbfArgumentError(
-                $"Length ({length}) is less than minimum frame length ({RbfConstants.MinFrameLength}).",
-                RecoveryHint: $"Minimum valid frame size is {RbfConstants.MinFrameLength} bytes (empty payload, 4-byte status)."
+                $"Length ({length}) is less than minimum frame length ({FrameLayout.MinFrameLength}).",
+                RecoveryHint: $"Minimum valid frame size is {FrameLayout.MinFrameLength} bytes (empty payload, 4-byte status)."
             );
         }
 
@@ -133,7 +133,7 @@ internal static class RbfReadImpl {
         Debug.Assert(ticketLength == frameBuffer.Length);
 
         // 2. 验证基本帧格式 HeadLen == TailLen == ticketLength
-        uint headLen = BinaryPrimitives.ReadUInt32LittleEndian(frameBuffer[..RbfConstants.HeadLenFieldLength]);
+        uint headLen = BinaryPrimitives.ReadUInt32LittleEndian(frameBuffer[..FrameLayout.HeadLenSize]);
         if (headLen != ticketLength) {
             return AteliaResult<RbfFrame>.Failure(
                 new RbfFramingError(
@@ -142,59 +142,33 @@ internal static class RbfReadImpl {
                 )
             );
         }
-        int tailLenOffset = ticketLength - RbfConstants.TailSuffixLength;
-        uint tailLen = BinaryPrimitives.ReadUInt32LittleEndian(frameBuffer.Slice(tailLenOffset, RbfConstants.TailLenFieldLength));
-        if (tailLen != ticketLength) {
+
+        // 3. 从 Trailer 推导布局（包含 StatusLen 解码与 TailLen 合法性检查）
+        var layoutResult = FrameLayout.ResultFromTrailer(frameBuffer, out bool isTombstone, out _);
+        if (!layoutResult.IsSuccess) {
+            return AteliaResult<RbfFrame>.Failure(layoutResult.Error!);
+        }
+
+        var layout = layoutResult.Value;
+        if (layout.FrameLength != ticketLength) {
             return AteliaResult<RbfFrame>.Failure(
                 new RbfFramingError(
-                    $"TailLen mismatch: TailLen={tailLen}, HeadLen={ticketLength}.",
+                    $"TailLen mismatch: TailLen={layout.FrameLength}, HeadLen={ticketLength}.",
                     RecoveryHint: "The frame boundaries are corrupted."
                 )
             );
         }
 
-        // 3. 从 statusByte 解码 statusLen
-        int statusByteOffset = ticketLength - RbfConstants.StatusByteFromTailOffset;
-        byte statusByte = frameBuffer[statusByteOffset];
-
-        if (!FrameStatusHelper.TryDecodeStatusByte(statusByte, out bool isTombstone, out int statusLen)) {
-            return AteliaResult<RbfFrame>.Failure(
-                new RbfFramingError(
-                    $"Invalid status byte 0x{statusByte:X2}: reserved bits are non-zero.",
-                    RecoveryHint: "The frame status region is corrupted."
-                )
-            );
+        // 4. 验证 FrameStatus 全字节同值
+        var statusError = layout.ValidateStatusConsistency(frameBuffer);
+        if (statusError != null) {
+            return AteliaResult<RbfFrame>.Failure(statusError);
         }
 
-        // 4. 计算并验证 payloadLen
-        int payloadLen = ticketLength - RbfConstants.FrameFixedOverheadBytes - statusLen;
-        if (payloadLen < 0) {
-            return AteliaResult<RbfFrame>.Failure(
-                new RbfFramingError(
-                    $"Invalid frame structure: computed payloadLen={payloadLen} is negative.",
-                    RecoveryHint: "Frame structure is corrupted."
-                )
-            );
-        }
-
-        // 6. 验证 FrameStatus 全字节同值
-        int statusStartOffset = RbfConstants.PayloadFieldOffset + payloadLen;
-        ReadOnlySpan<byte> statusRegion = frameBuffer.Slice(statusStartOffset, statusLen);
-        if (MemoryExtensions.IndexOfAnyExcept(statusRegion, statusByte) >= 0) {
-            return AteliaResult<RbfFrame>.Failure(
-                new RbfFramingError(
-                    "Status bytes are not consistent (all bytes should be identical).",
-                    RecoveryHint: "The status region is corrupted."
-                )
-            );
-        }
-
-        // 8. CRC 校验
-        int crcOffset = ticketLength - RbfConstants.CrcFieldLength;
+        // 5. CRC 校验
         // 计算范围：[Tag .. TailLen]，即不包含 HeadLen 和 CRC
-        int crcInputLen = ticketLength - RbfConstants.TagFieldOffset - RbfConstants.CrcFieldLength;
-        ReadOnlySpan<byte> crcInput = frameBuffer.Slice(RbfConstants.TagFieldOffset, crcInputLen);
-        uint expectedCrc = BinaryPrimitives.ReadUInt32LittleEndian(frameBuffer.Slice(crcOffset, RbfConstants.CrcFieldLength));
+        ReadOnlySpan<byte> crcInput = frameBuffer[FrameLayout.CrcCoverageStart..layout.CrcCoverageEnd];
+        uint expectedCrc = BinaryPrimitives.ReadUInt32LittleEndian(frameBuffer.Slice(layout.CrcOffset, FrameLayout.CrcSize));
         uint computedCrc = Crc32CHelper.Compute(crcInput);
 
         if (expectedCrc != computedCrc) {
@@ -206,9 +180,9 @@ internal static class RbfReadImpl {
             );
         }
 
-        // 9. 构造 RbfFrame 并返回
-        uint tag = BinaryPrimitives.ReadUInt32LittleEndian(frameBuffer.Slice(RbfConstants.TagFieldOffset, RbfConstants.TagFieldLength));
-        ReadOnlySpan<byte> payload = frameBuffer.Slice(RbfConstants.PayloadFieldOffset, payloadLen);
+        // 6. 构造 RbfFrame 并返回
+        uint tag = BinaryPrimitives.ReadUInt32LittleEndian(frameBuffer.Slice(FrameLayout.TagOffset, FrameLayout.TagSize));
+        ReadOnlySpan<byte> payload = frameBuffer.Slice(FrameLayout.PayloadOffset, layout.PayloadLength);
 
         var frame = new RbfFrame {
             Ticket = ticket,

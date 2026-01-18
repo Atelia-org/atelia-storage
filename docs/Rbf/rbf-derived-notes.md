@@ -63,20 +63,6 @@ see: @[F-STATUSLEN-ENSURES-4B-ALIGNMENT](rbf-format.md)"
 | 2 | 2 |
 | 3 | 1 |
 
-### derived [D-RBF-FORMAT-STATUSLEN-FORMULA-PROPERTIES] StatusLen公式性质
-see: @[F-STATUSLEN-ENSURES-4B-ALIGNMENT](rbf-format.md)
-
-从公式：
-$$\text{StatusLen} = 1 + \big((4 - ((\text{PayloadLen}+1) \bmod 4)) \bmod 4\big)$$
-
-可知：
-- `StatusLen ∈ {1, 2, 3, 4}`（因为括号内的值域为 `{0,1,2,3}`）。
-- `(PayloadLen + StatusLen) % 4 == 0`：
-      - 令 $r = (\text{PayloadLen}+1) \bmod 4$，则 $r \in \{0,1,2,3\}$。
-      - 由公式可得 $\text{StatusLen}-1 = (4-r) \bmod 4$。
-      - 因此：
-            $$ (\text{PayloadLen}+\text{StatusLen}) \bmod 4 = (r-1 + 1 + (4-r)) \bmod 4 = 0 $$
-
 ### derived [D-RBF-FORMAT-TOMBSTONE-CRC-EXAMPLE] Tombstone最小帧CRC覆盖算例
 see: @[F-CRC32C-COVERAGE](rbf-format.md), @[H-HEADLEN-FORMULA](rbf-format.md), @[F-FRAMESTATUS-RESERVED-BITS-ZERO](rbf-format.md)
 

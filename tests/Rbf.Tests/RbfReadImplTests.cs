@@ -61,35 +61,33 @@ public class RbfReadImplTests : IDisposable {
     /// <param name="isTombstone">是否为墓碑帧。</param>
     /// <returns>完整帧字节数组（不含 HeaderFence/Fence）。</returns>
     private static byte[] CreateValidFrameBytes(uint tag, ReadOnlySpan<byte> payload, bool isTombstone = false) {
-        int statusLen = FrameStatusHelper.ComputeStatusLen(payload.Length);
-        int headLen = RbfConstants.FrameFixedOverheadBytes + payload.Length + statusLen;
+        var layout = new FrameLayout(payload.Length);
+        int headLen = layout.FrameLength;
+        int statusLen = layout.StatusLength;
 
         byte[] frame = new byte[headLen];
         Span<byte> span = frame;
 
         // HeadLen (offset 0)
-        BinaryPrimitives.WriteUInt32LittleEndian(span[..RbfConstants.HeadLenFieldLength], (uint)headLen);
+        BinaryPrimitives.WriteUInt32LittleEndian(span[..FrameLayout.HeadLenSize], (uint)headLen);
 
         // Tag (offset 4)
-        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(RbfConstants.TagFieldOffset, RbfConstants.TagFieldLength), tag);
+        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(FrameLayout.TagOffset, FrameLayout.TagSize), tag);
 
         // Payload (offset 8)
-        payload.CopyTo(span.Slice(8, payload.Length));
+        payload.CopyTo(span.Slice(FrameLayout.PayloadOffset, payload.Length));
 
-        // Status (offset 8 + payloadLen)
-        int statusOffset = 8 + payload.Length;
-        FrameStatusHelper.FillStatus(span.Slice(statusOffset, statusLen), isTombstone, statusLen);
+        // Status
+        FrameStatusHelper.FillStatus(span.Slice(layout.StatusOffset, statusLen), isTombstone, statusLen);
 
-        // TailLen (offset headLen - TailSuffixLength)
-        int tailLenOffset = headLen - RbfConstants.TailSuffixLength;
-        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(tailLenOffset, RbfConstants.TailLenFieldLength), (uint)headLen);
+        // TailLen
+        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(layout.TailLenOffset, FrameLayout.TailLenSize), (uint)headLen);
 
-        // CRC (offset headLen - CrcFieldLength)
-        // CRC 覆盖范围：Tag(4) + Payload(N) + Status(1-4) + TailLen(4) = frame[TagFieldOffset..(headLen-CrcFieldLength)]
-        int crcOffset = headLen - RbfConstants.CrcFieldLength;
-        ReadOnlySpan<byte> crcInput = span.Slice(RbfConstants.TagFieldOffset, headLen - RbfConstants.TailSuffixLength);
+        // CRC
+        // CRC 覆盖范围：Tag(4) + Payload(N) + Status(1-4) + TailLen(4) = frame[CrcCoverageStart..CrcCoverageEnd]
+        ReadOnlySpan<byte> crcInput = span[FrameLayout.CrcCoverageStart..layout.CrcCoverageEnd];
         uint crc = Crc32CHelper.Compute(crcInput);
-        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(crcOffset, RbfConstants.CrcFieldLength), crc);
+        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(layout.CrcOffset, FrameLayout.CrcSize), crc);
 
         return frame;
     }
@@ -99,15 +97,15 @@ public class RbfReadImplTests : IDisposable {
     /// </summary>
     private static byte[] CreateValidFileWithFrame(uint tag, ReadOnlySpan<byte> payload, bool isTombstone = false) {
         byte[] frameBytes = CreateValidFrameBytes(tag, payload, isTombstone);
-        int totalLen = RbfConstants.FenceLength + frameBytes.Length + RbfConstants.FenceLength;
+        int totalLen = RbfLayout.FenceSize + frameBytes.Length + RbfLayout.FenceSize;
         byte[] file = new byte[totalLen];
 
         // HeaderFence
-        RbfConstants.Fence.CopyTo(file.AsSpan(0, 4));
+        RbfLayout.Fence.CopyTo(file.AsSpan(0, RbfLayout.FenceSize));
         // Frame
-        frameBytes.CopyTo(file.AsSpan(RbfConstants.FenceLength));
+        frameBytes.CopyTo(file.AsSpan(RbfLayout.FenceSize));
         // Fence
-        RbfConstants.Fence.CopyTo(file.AsSpan(RbfConstants.FenceLength + frameBytes.Length, 4));
+        RbfLayout.Fence.CopyTo(file.AsSpan(RbfLayout.FenceSize + frameBytes.Length, RbfLayout.FenceSize));
 
         return file;
     }
@@ -156,7 +154,7 @@ public class RbfReadImplTests : IDisposable {
         var ptr = rbfFile.Append(tag, payload);
 
         // 验证最小帧长度
-        Assert.Equal(20, ptr.Length);
+        Assert.Equal(FrameLayout.MinFrameLength, ptr.Length);
 
         // Act: 使用 ReadPooledFrame 读取
         var result = rbfFile.ReadPooledFrame(ptr);
@@ -211,8 +209,8 @@ public class RbfReadImplTests : IDisposable {
 
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
 
-        int frameLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
-        var ptr = SizedPtr.Create(RbfConstants.FenceLength, frameLen);
+        int frameLen = new FrameLayout(payload.Length).FrameLength;
+        var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
 
         // Act
         var result = ReadFrameIntoHelper(handle, ptr);
@@ -243,7 +241,7 @@ public class RbfReadImplTests : IDisposable {
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
 
         // Length = 16，小于最小帧长度 20
-        var ptr = SizedPtr.Create(4, 16);
+        var ptr = SizedPtr.Create(RbfLayout.FenceSize, FrameLayout.OverheadLenButStatus);
 
         // Act
         var result = ReadFrameIntoHelper(handle, ptr);
@@ -291,17 +289,17 @@ public class RbfReadImplTests : IDisposable {
         byte[] fileContent = CreateValidFileWithFrame(0x12345678, payload);
 
         // 修改 HeadLen 字段为错误值
-        int frameOffset = RbfConstants.FenceLength;
+        int frameOffset = RbfLayout.FenceSize;
         BinaryPrimitives.WriteUInt32LittleEndian(
-            fileContent.AsSpan(frameOffset, 4),
+            fileContent.AsSpan(frameOffset, FrameLayout.HeadLenSize),
             999 // 错误的 HeadLen
         );
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
 
-        int frameLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
-        var ptr = SizedPtr.Create(RbfConstants.FenceLength, frameLen);
+        int frameLen = new FrameLayout(payload.Length).FrameLength;
+        var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
 
         // Act
         var result = ReadFrameIntoHelper(handle, ptr);
@@ -323,18 +321,19 @@ public class RbfReadImplTests : IDisposable {
         byte[] fileContent = CreateValidFileWithFrame(0x12345678, payload);
 
         // 修改 TailLen 字段为错误值
-        int frameOffset = RbfConstants.FenceLength;
-        int frameLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
-        int tailLenOffset = frameOffset + frameLen - 8;
+        int frameOffset = RbfLayout.FenceSize;
+        var layout = new FrameLayout(payload.Length);
+        int frameLen = layout.FrameLength;
+        int tailLenOffset = frameOffset + layout.TailLenOffset;
         BinaryPrimitives.WriteUInt32LittleEndian(
-            fileContent.AsSpan(tailLenOffset, 4),
+            fileContent.AsSpan(tailLenOffset, FrameLayout.TailLenSize),
             999 // 错误的 TailLen
         );
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
 
-        var ptr = SizedPtr.Create(RbfConstants.FenceLength, frameLen);
+        var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
 
         // Act
         var result = ReadFrameIntoHelper(handle, ptr);
@@ -356,9 +355,11 @@ public class RbfReadImplTests : IDisposable {
         byte[] fileContent = CreateValidFileWithFrame(0x12345678, payload);
 
         // 修改 Status 字节的保留位
-        int frameOffset = RbfConstants.FenceLength;
-        int frameLen = RbfConstants.ComputeFrameLen(payload.Length, out int statusLen);
-        int statusOffset = frameOffset + 8 + payload.Length;
+        int frameOffset = RbfLayout.FenceSize;
+        var layout = new FrameLayout(payload.Length);
+        int frameLen = layout.FrameLength;
+        int statusLen = layout.StatusLength;
+        int statusOffset = frameOffset + layout.StatusOffset;
 
         // 设置保留位（Bit6-2）为非零
         byte invalidStatus = 0x04; // Bit2 = 1，保留位非零
@@ -369,7 +370,7 @@ public class RbfReadImplTests : IDisposable {
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
 
-        var ptr = SizedPtr.Create(RbfConstants.FenceLength, frameLen);
+        var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
 
         // Act
         var result = ReadFrameIntoHelper(handle, ptr);
@@ -392,12 +393,13 @@ public class RbfReadImplTests : IDisposable {
         byte[] fileContent = CreateValidFileWithFrame(0x12345678, payload);
 
         // 验证 statusLen = 4
-        int statusLen = FrameStatusHelper.ComputeStatusLen(payload.Length);
+        int statusLen = new FrameLayout(payload.Length).StatusLength;
         Assert.Equal(4, statusLen);
 
         // 修改 Status 区域的第一个字节，使其与其他字节不一致
-        int frameOffset = RbfConstants.FenceLength;
-        int statusOffset = frameOffset + 8 + payload.Length;
+        int frameOffset = RbfLayout.FenceSize;
+        var layout = new FrameLayout(payload.Length);
+        int statusOffset = frameOffset + layout.StatusOffset;
 
         // 原始 status 字节 = 0x03（statusLen=4，非墓碑）
         // 修改第一个字节为不同值（但保留位仍为零）
@@ -406,8 +408,8 @@ public class RbfReadImplTests : IDisposable {
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
 
-        int frameLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
-        var ptr = SizedPtr.Create(RbfConstants.FenceLength, frameLen);
+        int frameLen = new FrameLayout(payload.Length).FrameLength;
+        var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
 
         // Act
         var result = ReadFrameIntoHelper(handle, ptr);
@@ -435,18 +437,19 @@ public class RbfReadImplTests : IDisposable {
         byte[] fileContent = CreateValidFileWithFrame(0x12345678, payload);
 
         // 修改 CRC 字段为错误值
-        int frameOffset = RbfConstants.FenceLength;
-        int frameLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
-        int crcOffset = frameOffset + frameLen - 4;
+        int frameOffset = RbfLayout.FenceSize;
+        var layout = new FrameLayout(payload.Length);
+        int frameLen = layout.FrameLength;
+        int crcOffset = frameOffset + layout.CrcOffset;
         BinaryPrimitives.WriteUInt32LittleEndian(
-            fileContent.AsSpan(crcOffset, 4),
+            fileContent.AsSpan(crcOffset, FrameLayout.CrcSize),
             0xDEADBEEF // 错误的 CRC
         );
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
 
-        var ptr = SizedPtr.Create(RbfConstants.FenceLength, frameLen);
+        var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
 
         // Act
         var result = ReadFrameIntoHelper(handle, ptr);
@@ -483,8 +486,8 @@ public class RbfReadImplTests : IDisposable {
 
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
 
-        int frameLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
-        var ptr = SizedPtr.Create(RbfConstants.FenceLength, frameLen);
+        int frameLen = new FrameLayout(payload.Length).FrameLength;
+        var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
 
         // Act
         var result = ReadFrameIntoHelper(handle, ptr);
@@ -513,8 +516,8 @@ public class RbfReadImplTests : IDisposable {
 
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
 
-        int frameLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
-        var ptr = SizedPtr.Create(RbfConstants.FenceLength, frameLen);
+        int frameLen = new FrameLayout(payload.Length).FrameLength;
+        var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
 
         // Act: 提供太小的 buffer（只有10字节，但需要24字节）
         Span<byte> tooSmallBuffer = stackalloc byte[10];
@@ -543,8 +546,8 @@ public class RbfReadImplTests : IDisposable {
 
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
 
-        int frameLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
-        var ptr = SizedPtr.Create(RbfConstants.FenceLength, frameLen);
+        int frameLen = new FrameLayout(payload.Length).FrameLength;
+        var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
 
         // Act: 提供足够大的 buffer
         byte[] buffer = new byte[frameLen];
@@ -559,7 +562,7 @@ public class RbfReadImplTests : IDisposable {
 
         // 验证 zero-copy：修改 buffer 应该影响 Payload
         // Payload 位于 buffer 的 offset 8 处（HeadLen(4) + Tag(4) = 8）
-        buffer[8] = 0xFF; // 修改 Payload 第一个字节
+        buffer[FrameLayout.PayloadOffset] = 0xFF; // 修改 Payload 第一个字节
         Assert.Equal(0xFF, frame.Payload[0]); // 应该能看到修改（证明是引用）
     }
 }

@@ -4,58 +4,28 @@
 //   @[F-FRAMESTATUS-RESERVED-BITS-ZERO]：Bit7=Tombstone, Bit6-2=Reserved(0), Bit1-0=StatusLen-1
 //   @[F-FRAMESTATUS-FILL]：全字节同值
 
+using System.Diagnostics;
+
 namespace Atelia.Rbf.Internal;
 
 /// <summary>
 /// FrameStatus 编码工具。
 /// </summary>
 internal static class FrameStatusHelper {
-    // === Status 常量 ===
-
-    /// <summary>
-    /// Status 区最小长度（1 字节）。
-    /// </summary>
-    public const int MinStatusLength = 1;
-
-    /// <summary>
-    /// Status 区最大长度（4 字节）。
-    /// </summary>
-    public const int MaxStatusLength = 4;
-
-    /// <summary>
-    /// Status 对齐要求（4 字节）。
-    /// </summary>
-    public const int StatusAlignment = RbfConstants.FrameAlignment;
-
     /// <summary>
     /// Tombstone 标志位掩码（Bit7）。
     /// </summary>
-    public const byte TombstoneMask = 0x80;
+    internal const byte TombstoneMask = 0x80;
 
     /// <summary>
     /// 保留位掩码（Bit6-2）。
     /// </summary>
-    public const byte ReservedMask = 0x7C;
+    internal const byte ReservedMask = 0x7C;
 
     /// <summary>
     /// StatusLen 字段掩码（Bit1-0）。
     /// </summary>
-    public const byte StatusLenMask = 0x03;
-    /// <summary>
-    /// 计算 StatusLen（状态区字节数）。
-    /// </summary>
-    /// <param name="payloadLen">Payload 长度。</param>
-    /// <returns>StatusLen，范围 1-4。</returns>
-    /// <remarks>
-    /// 公式确保 (payloadLen + statusLen) % 4 == 0，即 4 字节对齐。
-    /// </remarks>
-    /// <exception cref="ArgumentOutOfRangeException">payloadLen 为负数时抛出。</exception>
-    internal static int ComputeStatusLen(int payloadLen) {
-        if (payloadLen < 0) { throw new ArgumentOutOfRangeException(nameof(payloadLen), payloadLen, "payloadLen must be non-negative."); }
-
-        // StatusLen = 1 + ((4 - ((payloadLen + 1) % 4)) % 4)
-        return MinStatusLength + ((StatusAlignment - ((payloadLen + MinStatusLength) % StatusAlignment)) % StatusAlignment);
-    }
+    internal const byte StatusLenMask = 0x03;
 
     /// <summary>
     /// 编码单个状态字节。
@@ -69,9 +39,9 @@ internal static class FrameStatusHelper {
     ///   Bit6-2   = Reserved（必须为 0）
     ///   Bit1-0   = StatusLen-1（0-3 表示 1-4 字节）
     /// </remarks>
-    /// <exception cref="ArgumentOutOfRangeException">statusLen 不在 [1,4] 范围时抛出。</exception>
     internal static byte EncodeStatusByte(bool isTombstone, int statusLen) {
-        if (statusLen < MinStatusLength || statusLen > MaxStatusLength) { throw new ArgumentOutOfRangeException(nameof(statusLen), statusLen, "statusLen must be in range [1,4]."); }
+        const int MinStatusLength = FrameLayout.MinStatusLength, MaxStatusLength = FrameLayout.MaxStatusLength;
+        Debug.Assert(MinStatusLength <= statusLen && statusLen <= MaxStatusLength, $"statusLen must be in range [{MinStatusLength},{MaxStatusLength}].");
 
         // Bit1-0 = statusLen - 1
         int bits = statusLen - MinStatusLength;
@@ -92,7 +62,7 @@ internal static class FrameStatusHelper {
     /// <param name="statusLen">StatusLen 值（1-4）。</param>
     /// <exception cref="ArgumentException">dest.Length 不等于 statusLen 时抛出。</exception>
     internal static void FillStatus(Span<byte> dest, bool isTombstone, int statusLen) {
-        if (dest.Length != statusLen) { throw new ArgumentException($"dest.Length ({dest.Length}) must equal statusLen ({statusLen}).", nameof(dest)); }
+        Debug.Assert(dest.Length == statusLen, $"dest.Length ({dest.Length}) must equal statusLen ({statusLen}).", nameof(dest));
 
         byte statusByte = EncodeStatusByte(isTombstone, statusLen);
         dest.Fill(statusByte);
@@ -104,21 +74,22 @@ internal static class FrameStatusHelper {
     /// <param name="statusByte">FrameStatus 的任意一个字节（@[F-FRAMESTATUS-FILL] 保证全字节同值）。</param>
     /// <param name="isTombstone">输出：是否为墓碑帧（Bit7）。</param>
     /// <param name="statusLen">输出：StatusLen（1-4，来自 Bit1-0 + 1）。</param>
-    /// <returns>true 如果解码成功（保留位 Bit6-2 为零），false 如果保留位非零。</returns>
-    internal static bool TryDecodeStatusByte(byte statusByte, out bool isTombstone, out int statusLen) {
-        // 检查保留位 Bit6-2 是否为零
-        if ((statusByte & ReservedMask) != 0) {
-            isTombstone = false;
-            statusLen = 0;
-            return false;
-        }
-
+    internal static AteliaError? DecodeStatusByte(byte statusByte, out bool isTombstone, out int statusLen) {
         // Bit7 = Tombstone 标志
         isTombstone = (statusByte & TombstoneMask) != 0;
 
         // Bit1-0 = StatusLen - 1，所以 StatusLen = (Bit1-0) + 1
-        statusLen = (statusByte & StatusLenMask) + MinStatusLength;
+        statusLen = (statusByte & StatusLenMask) + FrameLayout.MinStatusLength;
 
-        return true;
+        // 后置检查，以多返回一些诊断信息。
+        return CheckStatusByte(statusByte);
+    }
+
+    internal static AteliaError? CheckStatusByte(byte statusByte) {
+        // 检查保留位 Bit6-2 是否为零
+        if ((statusByte & ReservedMask) != 0) {
+            return new RbfFramingError($"Invalid status byte 0x{statusByte:X2}: reserved bits are non-zero.");
+        }
+        return null;
     }
 }

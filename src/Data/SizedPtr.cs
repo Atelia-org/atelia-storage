@@ -23,18 +23,20 @@ public readonly record struct SizedPtr(ulong Packed) {
     public const int LengthPackedBits = sizeof(ulong) * 8 - OffsetPackedBits; // 26
 
     /// <summary>对齐位移（4B 对齐 = 2 bit）。</summary>
-    private const int AlignmentShift = 2;
+    public const int AlignmentShift = 2;
+
+    public const int Alignment = 1 << AlignmentShift;
 
     /// <summary>对齐掩码（0b11）。</summary>
-    private const long AlignmentMask = (1L << AlignmentShift) - 1L; // 0x3
+    public const int AlignmentMask = Alignment - 1; // 0x3
 
     /// <summary>长度字段掩码。</summary>
     private const ulong LengthPackedMask = (1UL << LengthPackedBits) - 1UL;
 
-    /// <summary>最大可表示偏移量（字节），约 1TB。</summary>
+    /// <summary>最大可表示偏移量（字节），1TB - 4B。</summary>
     public const long MaxOffset = (long)(((1UL << OffsetPackedBits) - 1UL) << AlignmentShift);
 
-    /// <summary>最大可表示长度（字节），约 256MB。</summary>
+    /// <summary>最大可表示长度（字节），256MB - 4B。</summary>
     public const int MaxLength = (int)(((1UL << LengthPackedBits) - 1UL) << AlignmentShift);
 
     /// <summary>以字节表示的起始偏移（4B 对齐）。</summary>
@@ -46,8 +48,7 @@ public readonly record struct SizedPtr(ulong Packed) {
     /// <summary>
     /// 区间结束位置（不含），使用 checked 算术。
     /// </summary>
-    /// <exception cref="OverflowException">当 OffsetBytes + LengthBytes 溢出时抛出。</exception>
-    public long EndOffsetExclusive => checked(Offset + (long)Length);
+    public long EndOffsetExclusive => Offset + Length; // 由位分配保证不会溢出，最大`1TB - 4B + 256MB - 4B`。
 
     /// <summary>
     /// 从 packed ulong 直接构造，不做任何校验。

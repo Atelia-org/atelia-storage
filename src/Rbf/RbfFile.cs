@@ -25,8 +25,8 @@ public static class RbfFile {
 
         try {
             // 写入 HeaderFence
-            RandomAccess.Write(handle, RbfConstants.Fence, 0);
-            return new RbfFileImpl(handle, RbfConstants.HeaderOnlyFileLength);
+            RandomAccess.Write(handle, RbfLayout.Fence, 0);
+            return new RbfFileImpl(handle, RbfLayout.HeaderOnlyLength);
         }
         catch {
             // 失败路径：确保句柄关闭
@@ -59,16 +59,16 @@ public static class RbfFile {
             long fileLength = RandomAccess.GetLength(handle);
 
             // 边界条件：文件过短
-            if (fileLength < RbfConstants.FenceLength) { throw new InvalidDataException("Invalid RBF file: file too short for HeaderFence"); }
+            if (fileLength < RbfLayout.FenceSize) { throw new InvalidDataException("Invalid RBF file: file too short for HeaderFence"); }
 
             // 4B 对齐校验（根不变量）
-            if (fileLength % RbfConstants.FrameAlignment != 0) { throw new InvalidDataException("Invalid RBF file: length is not 4-byte aligned"); }
+            if (fileLength % RbfLayout.Alignment != 0) { throw new InvalidDataException("Invalid RBF file: length is not 4-byte aligned"); }
 
             // 读取前 4 字节并验证
-            Span<byte> buffer = stackalloc byte[RbfConstants.FenceLength];
+            Span<byte> buffer = stackalloc byte[RbfLayout.FenceSize];
             int bytesRead = RandomAccess.Read(handle, buffer, 0);
 
-            if (bytesRead < RbfConstants.FenceLength || !buffer.SequenceEqual(RbfConstants.Fence)) { throw new InvalidDataException("Invalid RBF file: HeaderFence mismatch"); }
+            if (bytesRead < RbfLayout.FenceSize || !buffer.SequenceEqual(RbfLayout.Fence)) { throw new InvalidDataException("Invalid RBF file: HeaderFence mismatch"); }
 
             return new RbfFileImpl(handle, fileLength);
         }

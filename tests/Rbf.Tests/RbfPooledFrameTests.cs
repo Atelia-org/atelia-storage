@@ -41,34 +41,32 @@ public class RbfPooledFrameTests : IDisposable {
     /// 构造一个有效帧的字节数组。
     /// </summary>
     private static byte[] CreateValidFrameBytes(uint tag, ReadOnlySpan<byte> payload, bool isTombstone = false) {
-        int statusLen = FrameStatusHelper.ComputeStatusLen(payload.Length);
-        int headLen = RbfConstants.FrameFixedOverheadBytes + payload.Length + statusLen;
+        var layout = new FrameLayout(payload.Length);
+        int frameLen = layout.FrameLength;
+        int statusLen = layout.StatusLength;
 
-        byte[] frame = new byte[headLen];
+        byte[] frame = new byte[frameLen];
         Span<byte> span = frame;
 
         // 1. HeadLen
-        BinaryPrimitives.WriteUInt32LittleEndian(span[..RbfConstants.HeadLenFieldLength], (uint)headLen);
+        BinaryPrimitives.WriteUInt32LittleEndian(span[..FrameLayout.HeadLenSize], (uint)frameLen);
 
         // 2. Tag
-        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(RbfConstants.TagFieldOffset, RbfConstants.TagFieldLength), tag);
+        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(FrameLayout.TagOffset, FrameLayout.TagSize), tag);
 
         // 3. Payload
-        payload.CopyTo(span.Slice(RbfConstants.PayloadFieldOffset, payload.Length));
+        payload.CopyTo(span.Slice(FrameLayout.PayloadOffset, payload.Length));
 
         // 4. Status
-        int statusOffset = RbfConstants.PayloadFieldOffset + payload.Length;
-        FrameStatusHelper.FillStatus(span.Slice(statusOffset, statusLen), isTombstone, statusLen);
+        FrameStatusHelper.FillStatus(span.Slice(layout.StatusOffset, statusLen), isTombstone, statusLen);
 
-        // 5. TailLen (offset headLen - TailSuffixLength)
-        int tailLenOffset = headLen - RbfConstants.TailSuffixLength;
-        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(tailLenOffset, RbfConstants.TailLenFieldLength), (uint)headLen);
+        // 5. TailLen
+        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(layout.TailLenOffset, FrameLayout.TailLenSize), (uint)frameLen);
 
         // 6. CRC
-        int crcOffset = headLen - RbfConstants.CrcFieldLength;
-        ReadOnlySpan<byte> crcInput = span.Slice(RbfConstants.TagFieldOffset, headLen - RbfConstants.TailSuffixLength);
+        ReadOnlySpan<byte> crcInput = span[FrameLayout.CrcCoverageStart..layout.CrcCoverageEnd];
         uint crc = Crc32CHelper.Compute(crcInput);
-        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(crcOffset, RbfConstants.CrcFieldLength), crc);
+        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(layout.CrcOffset, FrameLayout.CrcSize), crc);
 
         return frame;
     }
@@ -78,12 +76,12 @@ public class RbfPooledFrameTests : IDisposable {
     /// </summary>
     private static byte[] CreateValidFileWithFrame(uint tag, ReadOnlySpan<byte> payload, bool isTombstone = false) {
         byte[] frameBytes = CreateValidFrameBytes(tag, payload, isTombstone);
-        int totalLen = RbfConstants.FenceLength + frameBytes.Length + RbfConstants.FenceLength;
+        int totalLen = RbfLayout.FenceSize + frameBytes.Length + RbfLayout.FenceSize;
         byte[] file = new byte[totalLen];
 
-        RbfConstants.Fence.CopyTo(file.AsSpan(0, 4));
-        frameBytes.CopyTo(file.AsSpan(RbfConstants.FenceLength));
-        RbfConstants.Fence.CopyTo(file.AsSpan(RbfConstants.FenceLength + frameBytes.Length, 4));
+        RbfLayout.Fence.CopyTo(file.AsSpan(0, RbfLayout.FenceSize));
+        frameBytes.CopyTo(file.AsSpan(RbfLayout.FenceSize));
+        RbfLayout.Fence.CopyTo(file.AsSpan(RbfLayout.FenceSize + frameBytes.Length, RbfLayout.FenceSize));
 
         return file;
     }
@@ -291,8 +289,8 @@ public class RbfPooledFrameTests : IDisposable {
 
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
 
-        int frameLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
-        var ptr = SizedPtr.Create(RbfConstants.FenceLength, frameLen);
+        int frameLen = new FrameLayout(payload.Length).FrameLength;
+        var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
 
         // Act
         var result = RbfReadImpl.ReadPooledFrame(handle, ptr);

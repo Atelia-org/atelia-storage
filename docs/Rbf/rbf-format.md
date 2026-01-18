@@ -77,7 +77,7 @@ FrameStatus 的所有字节 MUST 填相同值。
 ### spec [F-STATUSLEN-ENSURES-4B-ALIGNMENT] StatusLen计算公式
 **depends:[S-RBF-DECISION-4B-ALIGNMENT-ROOT]**
 **depends:[F-FRAMEBYTES-FIELD-OFFSETS]**
-> StatusLen = 1 + ((4 - ((PayloadLen + 1) % 4)) % 4)
+> StatusLen = Alignment - (PayloadLen % Alignment)
 
 ---
 

@@ -57,14 +57,14 @@ public class RbfFacadeTests : IDisposable {
         }
 
         // Assert - 只验证状态和返回值
-        int expectedHeadLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
+        int expectedHeadLen = new FrameLayout(payload.Length).FrameLength;
 
         // SizedPtr 指向 HeaderFence(4) 之后的位置
-        Assert.Equal(4L, ptr.Offset);
+        Assert.Equal(RbfLayout.FirstFrameOffset, ptr.Offset);
         Assert.Equal(expectedHeadLen, ptr.Length);
 
         // TailOffset = HeaderFence(4) + Frame + Fence(4)
-        Assert.Equal(4 + expectedHeadLen + 4, tailOffset);
+        Assert.Equal(RbfLayout.FenceSize + expectedHeadLen + RbfLayout.FenceSize, tailOffset);
     }
 
     /// <summary>
@@ -89,21 +89,21 @@ public class RbfFacadeTests : IDisposable {
         }
 
         // Assert - 只验证状态和返回值
-        int headLen1 = RbfConstants.ComputeFrameLen(payload1.Length, out _);
-        int headLen2 = RbfConstants.ComputeFrameLen(payload2.Length, out _);
+        int headLen1 = new FrameLayout(payload1.Length).FrameLength;
+        int headLen2 = new FrameLayout(payload2.Length).FrameLength;
 
         // 第一帧位置
-        Assert.Equal(4L, ptr1.Offset); // HeaderFence(4) 后
+        Assert.Equal(RbfLayout.FirstFrameOffset, ptr1.Offset); // HeaderFence 后
         Assert.Equal(headLen1, ptr1.Length);
 
         // 第二帧位置
         // secondFrameOffset = HeaderFence(4) + headLen1 + Fence(4)
-        long expectedOffset2 = 4 + headLen1 + 4;
+        long expectedOffset2 = RbfLayout.FenceSize + headLen1 + RbfLayout.FenceSize;
         Assert.Equal(expectedOffset2, ptr2.Offset);
         Assert.Equal(headLen2, ptr2.Length);
 
         // TailOffset
-        long expectedTailOffset = 4 + headLen1 + 4 + headLen2 + 4; // HeaderFence + F1 + Fence + F2 + Fence
+        long expectedTailOffset = RbfLayout.FenceSize + headLen1 + RbfLayout.FenceSize + headLen2 + RbfLayout.FenceSize; // HeaderFence + F1 + Fence + F2 + Fence
         Assert.Equal(expectedTailOffset, tailOffset);
     }
 
@@ -126,12 +126,12 @@ public class RbfFacadeTests : IDisposable {
         }
 
         // Assert - 只验证状态和返回值
-        int expectedHeadLen = RbfConstants.ComputeFrameLen(0, out _);
+        int expectedHeadLen = new FrameLayout(0).FrameLength;
         Assert.Equal(20, expectedHeadLen); // 验证计算
 
-        Assert.Equal(4L, ptr.Offset);
+        Assert.Equal(RbfLayout.FirstFrameOffset, ptr.Offset);
         Assert.Equal(expectedHeadLen, ptr.Length);
-        Assert.Equal(4 + expectedHeadLen + 4, tailOffset);
+        Assert.Equal(RbfLayout.FenceSize + expectedHeadLen + RbfLayout.FenceSize, tailOffset);
     }
 
     /// <summary>
@@ -153,11 +153,11 @@ public class RbfFacadeTests : IDisposable {
         }
 
         // Assert - 只验证状态和返回值
-        int expectedHeadLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
+        int expectedHeadLen = new FrameLayout(payload.Length).FrameLength;
 
-        Assert.Equal(4L, ptr.Offset);
+        Assert.Equal(RbfLayout.FirstFrameOffset, ptr.Offset);
         Assert.Equal(expectedHeadLen, ptr.Length);
-        Assert.Equal(4 + expectedHeadLen + 4, tailOffset);
+        Assert.Equal(RbfLayout.FenceSize + expectedHeadLen + RbfLayout.FenceSize, tailOffset);
     }
 
     // ========== ReadPooledFrame 集成测试 ==========

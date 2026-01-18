@@ -71,7 +71,10 @@ public class RbfAppendImplTests : IDisposable {
         Assert.Equal(expectedHeadLen, headLen);
 
         // 读取 TailLen (headLen - 8 处，即 CRC 前 4 字节)
-        int tailLenOffset = frameOffset + (int)headLen - 8;
+        int payloadLen = (int)headLen - FrameLayout.OverheadLenButStatus - (RbfLayout.Alignment - ((int)headLen - FrameLayout.OverheadLenButStatus) % RbfLayout.Alignment) % RbfLayout.Alignment;
+        // 简化：直接用 FrameLayout 计算
+        // 由于 headLen 已知，反推 payloadLen 比较复杂，这里直接计算 tailLenOffset
+        int tailLenOffset = frameOffset + (int)headLen - FrameLayout.CrcSize - FrameLayout.TailLenSize;
         uint tailLen = BinaryPrimitives.ReadUInt32LittleEndian(data[tailLenOffset..]);
         Assert.Equal(expectedHeadLen, tailLen);
     }
@@ -82,11 +85,13 @@ public class RbfAppendImplTests : IDisposable {
     private static void AssertCrc(ReadOnlySpan<byte> data, int frameOffset, uint headLen) {
         // CRC 覆盖：Tag(4) + Payload(N) + Status(1-4) + TailLen(4)
         // 即从 offset+4 到 offset+headLen-4
-        var crcInput = data.Slice(frameOffset + 4, (int)headLen - 8);
+        int crcInputStart = frameOffset + FrameLayout.CrcCoverageStart;
+        int crcInputEnd = frameOffset + (int)headLen - FrameLayout.CrcSize;
+        var crcInput = data[crcInputStart..crcInputEnd];
         uint expectedCrc = Crc32CHelper.Compute(crcInput);
 
         // 读取实际 CRC (在 headLen-4 处)
-        int crcOffset = frameOffset + (int)headLen - 4;
+        int crcOffset = frameOffset + (int)headLen - FrameLayout.CrcSize;
         uint actualCrc = BinaryPrimitives.ReadUInt32LittleEndian(data[crcOffset..]);
         Assert.Equal(expectedCrc, actualCrc);
     }
@@ -129,11 +134,12 @@ public class RbfAppendImplTests : IDisposable {
 
         // Assert - SizedPtr
         Assert.Equal(0L, ptr.Offset); // 从 offset 0 写入
-        int expectedHeadLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
+        var layout = new FrameLayout(payload.Length);
+        int expectedHeadLen = layout.FrameLength;
         Assert.Equal(expectedHeadLen, ptr.Length);
 
         // Assert - nextTailOffset
-        Assert.Equal(expectedHeadLen + 4, nextTailOffset); // Frame + Fence(4)
+        Assert.Equal(expectedHeadLen + RbfLayout.FenceSize, nextTailOffset); // Frame + Fence
 
         // Assert - 读取文件内容，完整验证格式
         var data = new byte[nextTailOffset];
@@ -146,11 +152,11 @@ public class RbfAppendImplTests : IDisposable {
         AssertCrc(data, 0, (uint)expectedHeadLen);
 
         // Tag 验证 (offset 4)
-        uint actualTag = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(4));
+        uint actualTag = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(FrameLayout.TagOffset));
         Assert.Equal(tag, actualTag);
 
         // Payload 验证 (offset 8)
-        Assert.Equal(payload, data.AsSpan(8, payload.Length).ToArray());
+        Assert.Equal(payload, data.AsSpan(FrameLayout.PayloadOffset, payload.Length).ToArray());
 
         // Trailing Fence (offset headLen)
         AssertFence(data, expectedHeadLen);
@@ -179,11 +185,11 @@ public class RbfAppendImplTests : IDisposable {
 
         // Assert - SizedPtr 指向正确位置
         Assert.Equal(writeOffset, ptr.Offset);
-        int expectedHeadLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
+        int expectedHeadLen = new FrameLayout(payload.Length).FrameLength;
         Assert.Equal(expectedHeadLen, ptr.Length);
 
         // Assert - nextTailOffset
-        Assert.Equal(writeOffset + expectedHeadLen + 4, nextTailOffset);
+        Assert.Equal(writeOffset + expectedHeadLen + RbfLayout.FenceSize, nextTailOffset);
 
         // Assert - 验证文件内容在正确位置
         var data = new byte[nextTailOffset];
@@ -195,7 +201,7 @@ public class RbfAppendImplTests : IDisposable {
         AssertFence(data, (int)writeOffset + expectedHeadLen);
 
         // Payload 验证
-        Assert.Equal(payload, data.AsSpan((int)writeOffset + 8, payload.Length).ToArray());
+        Assert.Equal(payload, data.AsSpan((int)writeOffset + FrameLayout.PayloadOffset, payload.Length).ToArray());
     }
 
     /// <summary>
@@ -219,7 +225,7 @@ public class RbfAppendImplTests : IDisposable {
         AssertAlignment(ptr, nextTailOffset);
 
         // Assert - SizedPtr
-        int expectedHeadLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
+        int expectedHeadLen = new FrameLayout(payload.Length).FrameLength;
         Assert.Equal(expectedHeadLen, ptr.Length);
 
         // Assert - 读取文件内容并验证关键点（不做完整比对以节省时间）
@@ -233,8 +239,8 @@ public class RbfAppendImplTests : IDisposable {
         AssertCrc(data, 0, (uint)expectedHeadLen);
 
         // Payload 首尾验证
-        Assert.Equal(payload[..16], data.AsSpan(8, 16).ToArray());
-        Assert.Equal(payload[^16..], data.AsSpan(8 + payload.Length - 16, 16).ToArray());
+        Assert.Equal(payload[..16], data.AsSpan(FrameLayout.PayloadOffset, 16).ToArray());
+        Assert.Equal(payload[^16..], data.AsSpan(FrameLayout.PayloadOffset + payload.Length - 16, 16).ToArray());
 
         // Fence
         AssertFence(data, expectedHeadLen);

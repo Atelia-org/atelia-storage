@@ -13,19 +13,19 @@ internal static class RbfAppendImpl {
     /// 当 <c>crcFinalize</c> 为 true 时，会在写盘前回填 CRC 并推进 <paramref name="fileOffset"/>。
     /// </summary>
     private static void WriteWithCrc(SafeFileHandle handle, Span<byte> buffer, ref long fileOffset, ref uint crc, bool crcInitialize, bool crcFinalize) {
-        const int crcToTail = RbfConstants.CrcFieldLength + RbfConstants.FenceLength; // 跳过尾部的CRC和Fence
+        const int bufferAfterCrcCoverage = FrameLayout.LengthAfterCrcCoverage + RbfLayout.FenceSize; // 跳过尾部的CRC和Fence
         var crcBuffer = buffer;
         if (crcInitialize) {
             crc = Crc32CHelper.Init();
-            crcBuffer = crcBuffer[RbfConstants.HeadLenFieldLength..]; // 跳过HeadLen
+            crcBuffer = crcBuffer[FrameLayout.CrcCoverageStart..]; // 跳过HeadLen
         }
         if (crcFinalize) {
-            crcBuffer = crcBuffer[..^crcToTail]; // 停在CrcField前
+            crcBuffer = crcBuffer[..^bufferAfterCrcCoverage]; // 停在CrcField前
         }
         crc = Crc32CHelper.Update(crc, crcBuffer);
         if (crcFinalize) {
             crc = Crc32CHelper.Finalize(crc);
-            BinaryPrimitives.WriteUInt32LittleEndian(buffer[^crcToTail..], crc); // 填CRC
+            BinaryPrimitives.WriteUInt32LittleEndian(buffer[^bufferAfterCrcCoverage..], crc); // 填CRC
         }
         RandomAccess.Write(handle, buffer, fileOffset);
         fileOffset += buffer.Length;
@@ -44,28 +44,18 @@ internal static class RbfAppendImpl {
 
     public static int[] GetPayloadEdgeCase() {
         // 由UnifiedBufferSize是4的倍数且Rbf按4B对齐保证
-        const int OneMax = MaxBufferSize - RbfConstants.FrameMiniOverheadBytes;
+        const int OneMax = MaxBufferSize - FrameLayout.MinOverheadLen;
         const int TwoMin = OneMax + 1;
-        const int TwoMax = 2 * MaxBufferSize - RbfConstants.FrameMiniOverheadBytes;
+        const int TwoMax = 2 * MaxBufferSize - FrameLayout.MinOverheadLen;
         const int ThreeMin = TwoMax + 1;
         return [OneMax, TwoMin, TwoMax, ThreeMin];
     }
 
-    private static void FillTrailer(Span<byte> buffer, ref int bufferUsed, int statusLen, int frameLen) {
-        // Status
-        FrameStatusHelper.FillStatus(buffer.Slice(bufferUsed, statusLen), isTombstone: false, statusLen);
-        bufferUsed += statusLen;
-
-        // TailLen
-        BinaryPrimitives.WriteUInt32LittleEndian(buffer[bufferUsed..], (uint)frameLen);
-        bufferUsed += RbfConstants.TailLenFieldLength;
-
-        // CRC hole（CRC 会由 WriteWithCrc 在最终写入前回填）
-        bufferUsed += RbfConstants.CrcFieldLength;
-
+    private static void FillTrailerAndFence(Span<byte> buffer, ref int bufferUsed, in FrameLayout layout) {
+        layout.FillTrailer(buffer, ref bufferUsed);
         // Fence
-        RbfConstants.Fence.CopyTo(buffer[bufferUsed..]);
-        bufferUsed += RbfConstants.FenceLength;
+        RbfLayout.Fence.CopyTo(buffer[bufferUsed..]);
+        bufferUsed += RbfLayout.FenceSize;
     }
 
     /// <summary>
@@ -79,14 +69,14 @@ internal static class RbfAppendImpl {
         ReadOnlySpan<byte> payload,
         out long nextTailOffset
     ) {
-        int frameLen = RbfConstants.ComputeFrameLen(payload.Length, out int statusLen);
-        int totalWriteLen = checked(frameLen + RbfConstants.FenceLength);
+        FrameLayout layout = new FrameLayout(payload.Length);
+        int totalWriteLen = checked(layout.FrameLength + RbfLayout.FenceSize);
         int actualBufferSize = Math.Min(totalWriteLen, MaxBufferSize);
 
         // write buffer，复用于 header 和 trailer
         Span<byte> buffer = stackalloc byte[actualBufferSize];
         // 头部能容纳的 payload 长度
-        const int HeadPayloadCap = MaxBufferSize - RbfConstants.PayloadFieldOffset;
+        const int HeadPayloadCap = MaxBufferSize - FrameLayout.PayloadOffset;
 
         // 必要，文件游标
         nextTailOffset = writeOffset;
@@ -100,14 +90,14 @@ internal static class RbfAppendImpl {
         int middlePayloadLen, tailPayloadLen;
 
         // 头部Header
-        BinaryPrimitives.WriteUInt32LittleEndian(buffer, (uint)frameLen);
-        headWriteLen = RbfConstants.HeadLenFieldLength;
+        BinaryPrimitives.WriteUInt32LittleEndian(buffer, (uint)layout.FrameLength);
+        headWriteLen = FrameLayout.HeadLenSize;
 
-        BinaryPrimitives.WriteUInt32LittleEndian(buffer[RbfConstants.HeadLenFieldLength..], tag);
-        headWriteLen += RbfConstants.TagFieldLength;
+        BinaryPrimitives.WriteUInt32LittleEndian(buffer[FrameLayout.HeadLenSize..], tag);
+        headWriteLen += FrameLayout.TagSize;
 
         // 头部Payload
-        payload[..headPayloadLen].CopyTo(buffer[RbfConstants.PayloadFieldOffset..]);
+        payload[..headPayloadLen].CopyTo(buffer[FrameLayout.PayloadOffset..]);
         headWriteLen += headPayloadLen;
 
         // 剩余 payload
@@ -117,7 +107,7 @@ internal static class RbfAppendImpl {
             Debug.Assert(remainingPayloadLen == 0);
             // 1次就能写完的情况
             // Header和Trailer直接写在一个buffer里
-            FillTrailer(buffer, ref headWriteLen, statusLen, frameLen);
+            FillTrailerAndFence(buffer, ref headWriteLen, in layout);
             // 是Header所以crcInitialize，又是Trailer所以crcFinalize
             WriteWithCrc(file, buffer[..headWriteLen], ref nextTailOffset, ref crc, crcInitialize: true, crcFinalize: true);
 
@@ -131,9 +121,9 @@ internal static class RbfAppendImpl {
             WriteWithCrc(file, buffer[..headWriteLen], ref nextTailOffset, ref crc, crcInitialize: true, crcFinalize: false);
             tailWriteLen = 0;// 初始化尾游标
 
-            int trailerLen = statusLen + RbfConstants.TailLenFieldLength + RbfConstants.CrcFieldLength + RbfConstants.FenceLength;
+            int trailerAndFenceLen = layout.TrailerLength + RbfLayout.FenceSize;
             if (MaxBufferSize * 2 < totalWriteLen) {
-                Debug.Assert(MaxBufferSize < remainingPayloadLen + trailerLen);
+                Debug.Assert(MaxBufferSize < remainingPayloadLen + trailerAndFenceLen);
                 // 2次写不完，无论在中段和尾段间如何分配剩余payload都不会减少写入次数
                 // 为避免copy payload到buffer，把剩下的payload全都写到中段
                 middlePayloadLen = remainingPayloadLen;
@@ -141,7 +131,7 @@ internal static class RbfAppendImpl {
                 WriteWithCrc(file, payload.Slice(headPayloadLen, remainingPayloadLen), ref nextTailOffset, ref crc);
             }
             else {
-                Debug.Assert(remainingPayloadLen + trailerLen <= MaxBufferSize);
+                Debug.Assert(remainingPayloadLen + trailerAndFenceLen <= MaxBufferSize);
                 middlePayloadLen = 0;
                 tailPayloadLen = remainingPayloadLen; // 诊断信息
                 if (0 < remainingPayloadLen) {
@@ -153,12 +143,12 @@ internal static class RbfAppendImpl {
             }
 
             // 填尾Buffer并落盘
-            FillTrailer(buffer, ref tailWriteLen, statusLen, frameLen);
+            FillTrailerAndFence(buffer, ref tailWriteLen, in layout);
             WriteWithCrc(file, buffer[..tailWriteLen], ref nextTailOffset, ref crc, crcInitialize: false, crcFinalize: true);
         }
 
         Debug.Assert(headWriteLen + middlePayloadLen + tailWriteLen == totalWriteLen);
         Debug.Assert(headPayloadLen + middlePayloadLen + tailPayloadLen == payload.Length);
-        return SizedPtr.Create(writeOffset, frameLen);
+        return SizedPtr.Create(writeOffset, layout.FrameLength);
     }
 }
