@@ -32,10 +32,10 @@ Reader 在执行 @[F-FRAMING-FAIL-REJECT](rbf-format.md) 时应检查以下项�
     - Fence 必须匹配 `RBF1`（@[F-FENCE-VALUE-IS-RBF1-ASCII-4B](rbf-format.md)）
 3. **布局约束**
     - Frame 起始位置必须 4 字节对齐（@[F-FRAME-4B-ALIGNMENT](rbf-format.md)）
-    - Frame 必须位于 Genesis Fence 之后（@[F-FILE-STARTS-WITH-GENESIS-FENCE](rbf-decisions.md)）
+    - Frame 必须位于 HeaderFence 之后（@[F-FILE-STARTS-WITH-HEADER-FENCE](rbf-decisions.md)）
 
 ### derived [H-FILE-MINIMUM-LENGTH] 最小文件长度
-由 @[F-FILE-STARTS-WITH-GENESIS-FENCE](rbf-decisions.md) 推导：有效 RBF 文件长度 >= 4（至少包含 Genesis Fence）。
+由 @[F-FILE-STARTS-WITH-HEADER-FENCE](rbf-decisions.md) 推导：有效 RBF 文件长度 >= 4（至少包含 HeaderFence）。
 
 ### derived [H-HEADLEN-FORMULA] HeadLen计算公式
 由 @[F-FRAMEBYTES-FIELD-OFFSETS](rbf-format.md) 推导：`HeadLen = 4 (HeadLen) + 4 (FrameTag) + PayloadLen + StatusLen + 4 (TailLen) + 4 (CRC32C)`
@@ -132,7 +132,7 @@ IsMvpValid  = (status & 0x7C) == 0   // Reserved bits must be zero
 ```
 
 ### derived [D-RBF-FORMAT-REVERSE-SCAN-PSEUDOCODE] ReverseScan参考伪代码
-see: @[R-REVERSE-SCAN-RETURNS-VALID-FRAMES-TAIL-TO-HEAD](rbf-format.md), @[R-RESYNC-SCAN-BACKWARD-4B-TO-GENESIS](rbf-format.md), @[F-FRAMING-FAIL-REJECT](rbf-format.md), @[F-CRC-FAIL-REJECT](rbf-format.md)"
+see: @[R-REVERSE-SCAN-RETURNS-VALID-FRAMES-TAIL-TO-HEAD](rbf-format.md), @[R-RESYNC-SCAN-BACKWARD-4B-TO-HEADER-FENCE](rbf-format.md), @[F-FRAMING-FAIL-REJECT](rbf-format.md), @[F-CRC-FAIL-REJECT](rbf-format.md)"
 
 本节提供一种可行的参考实现（伪代码），用于帮助实现者快速落地。
 该伪代码 **不是** 唯一实现方式；实现 MAY 采用 mmap / 分块读取 / SIMD 搜索等技巧。
@@ -142,25 +142,25 @@ see: @[R-REVERSE-SCAN-RETURNS-VALID-FRAMES-TAIL-TO-HEAD](rbf-format.md), @[R-RES
 输入: fileLength
 输出: 通过校验的 Frame 起始地址列表（从尾到头）
 常量:
-   GenesisLen = 4
+   HeaderFenceLen = 4
    FenceLen   = 4
    MinFrameLen = 20  // @[D-RBF-FORMAT-MIN-HEADLEN]
 
 辅助:
    alignDown4(x) = x - (x % 4)   // 前置条件: x >= 0（RBF 地址均为非负）
 
-1) 若 fileLength < GenesisLen: 返回空   // 不完整文件，fail-soft
-2) 若 fileLength == GenesisLen: 返回空  // 仅 Genesis Fence，无 Frame
+1) 若 fileLength < HeaderFenceLen: 返回空   // 不完整文件，fail-soft
+2) 若 fileLength == HeaderFenceLen: 返回空  // 仅 HeaderFence，无 Frame
 3) fencePos = alignDown4(fileLength - FenceLen)
 4) while fencePos >= 0:
-       a) 若 fencePos == 0: 停止（到达 Genesis Fence）
+       a) 若 fencePos == 0: 停止（到达 HeaderFence）
        b) 若 bytes[fencePos..fencePos+4] != FenceValue:
                fencePos -= 4
                continue   // Resync: 寻找 Fence
 
        c) // 现在 fencePos 指向一个 Fence
             recordEnd = fencePos
-            若 recordEnd < GenesisLen + MinFrameLen:
+            若 recordEnd < HeaderFenceLen + MinFrameLen:
                   fencePos -= 4
                   continue
 
@@ -168,7 +168,7 @@ see: @[R-REVERSE-SCAN-RETURNS-VALID-FRAMES-TAIL-TO-HEAD](rbf-format.md), @[R-RES
             读取 storedCrc @ (recordEnd - 4)
             frameStart = recordEnd - tailLen
 
-            若 frameStart < GenesisLen 或 frameStart % 4 != 0:
+            若 frameStart < HeaderFenceLen 或 frameStart % 4 != 0:
                   fencePos -= 4
                   continue
 

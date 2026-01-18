@@ -133,7 +133,7 @@ public interface IRbfFile : IDisposable {
 
 public static class RbfFile {
     public static IRbfFile CreateNew(string path);       // FailIfExists
-    public static IRbfFile OpenExisting(string path);    // 验证 Genesis
+    public static IRbfFile OpenExisting(string path);    // 验证 HeaderFence
 }
 ```
 
@@ -267,7 +267,7 @@ public ref struct RbfReverseEnumerator {
 **原因**：`RbfFrame` 是 `ref struct`，无法作为泛型参数。
 
 ### spec [S-RBF-SCANREVERSE-EMPTY-IS-OK] 空序列合法
-当文件为空（仅含 Genesis Fence）或 **根据过滤条件无可见帧** 时，`ScanReverse()` MUST 返回空序列（0 元素），MUST NOT 抛出异常。
+当文件为空（仅含 HeaderFence）或 **根据过滤条件无可见帧** 时，`ScanReverse()` MUST 返回空序列（0 元素），MUST NOT 抛出异常。
 
 ### spec [S-RBF-SCANREVERSE-CURRENT-LIFETIME] Current生命周期约束
 `RbfReverseEnumerator.Current` 的生命周期 MUST NOT 超过下次 `MoveNext()` 调用。

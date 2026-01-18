@@ -45,7 +45,7 @@ produce_by:
 ### 1.1 空文件
 
 **用例 RBF-EMPTY-001**
-- Given：文件内容 = `[Fence]`（Genesis Fence，4 bytes）
+- Given：文件内容 = `[Fence]`（HeaderFence，4 bytes）
   - `52 42 46 31`（"RBF1"）
 - Then：
   - `reverse_scan()` 返回 0 条 frame
@@ -230,7 +230,7 @@ produce_by:
 ### 4.1 空序列
 
 **用例 SCAN-EMPTY-001（空文件返回零元素）**
-- Given：文件内容 = `[Fence]`（仅 Genesis Fence）
+- Given：文件内容 = `[Fence]`（仅 HeaderFence）
 - When：调用 `scanner.ScanReverse()`
 - Then：
   - `foreach` 循环执行 0 次
@@ -370,7 +370,7 @@ produce_by:
 
 | 条款 ID | 规范条款 | 对应测试用例 |
 |---------|----------|--------------|
-| `[F-FILE-STARTS-WITH-GENESIS-FENCE]` | Genesis Fence | RBF-EMPTY-001, SCAN-EMPTY-001 |
+| `[F-FILE-STARTS-WITH-HEADER-FENCE]` | HeaderFence | RBF-EMPTY-001, SCAN-EMPTY-001 |
 | `[F-FENCE-IS-SEPARATOR-NOT-FRAME]` | Fence 语义 | RBF-SINGLE-001, RBF-DOUBLE-001 |
 | `[F-FRAMEBYTES-FIELD-OFFSETS]` | FrameBytes 布局 (含 HeadLen/Tag/Payload/FrameStatus/TailLen/CRC) | RBF-LEN-001, RBF-OK-001/002/003 |
 | `[F-FRAMETAG-WIRE-ENCODING]` | FrameTag 编码 (4B) | RBF-OK-001, RBF-BAD-002 |
@@ -380,7 +380,7 @@ produce_by:
 | `[F-FRAME-4B-ALIGNMENT]` | Frame 起点 4B 对齐 | RBF-BAD-003 |
 | `[S-RBF-SIZEDPTR-WIRE-MAPPING]` | SizedPtr 与 Wire Format 的对应关系 | READFRAME-OK-001, READFRAME-BAD-001/002/003/004 |
 | `[F-CRC32C-COVERAGE]` | CRC32C 覆盖范围 (含 Tag/Status/TailLen) | RBF-OK-001/002, RBF-BAD-002 |
-| `[R-RESYNC-SCAN-BACKWARD-4B-TO-GENESIS]` | Resync 行为 (不信任 TailLen) | RBF-TRUNCATE-001/002, RBF-BAD-003/004 |
+| `[R-RESYNC-SCAN-BACKWARD-4B-TO-HEADER-FENCE]` | Resync 行为 (不信任 TailLen) | RBF-TRUNCATE-001/002, RBF-BAD-003/004 |
 | `[R-REVERSE-SCAN-RETURNS-VALID-FRAMES-TAIL-TO-HEAD]` | 逆向扫描 | RBF-SINGLE-001, RBF-DOUBLE-001, RBF-OK-001/002 |
 | `[A-RBF-REVERSE-SEQUENCE]` | RbfReverseSequence (duck-typed) | SCAN-FOREACH-001, SCAN-MULTI-ENUM-001 |
 | `[S-RBF-SCANREVERSE-NO-IENUMERABLE]` | 不实现 IEnumerable | SCAN-LINQ-FAIL-001, SCAN-REFSTRUCT-001/002 |
@@ -418,5 +418,5 @@ produce_by:
 | 2025-12-24 | 0.5 | 适配 rbf-format.md v0.11：FrameTag 扩充为 4B，Payload 偏移调整，CRC 覆盖 Tag |
 | 2025-12-23 | 0.4 | 适配 rbf-format.md v0.10+：术语更新（Payload -> FrameData, Magic -> Fence） |
 | 2025-12-23 | 0.3 | 适配 rbf-format.md v0.10：统一使用 Fence 术语，替换 Magic |
-| 2025-12-23 | 0.2 | 适配 rbf-format.md v0.9：更新条款 ID 映射（Genesis/Fence/Address/Resync） |
+| 2025-12-23 | 0.2 | 适配 rbf-format.md v0.9：更新条款 ID 映射（HeaderFence/Fence/Address/Resync） |
 | 2025-12-22 | 0.1 | 从 mvp-test-vectors.md 提取 Layer 0 测试向量创建独立文档 |

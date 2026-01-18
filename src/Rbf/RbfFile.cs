@@ -13,7 +13,7 @@ public static class RbfFile {
     /// <param name="path">文件路径。</param>
     /// <returns>RBF 文件对象。</returns>
     /// <remarks>
-    /// 规范引用：@[F-FILE-STARTS-WITH-GENESIS-FENCE] - 新文件仅含 Genesis Fence。
+    /// 规范引用：@[F-FILE-STARTS-WITH-HEADER-FENCE] - 新文件仅含 HeaderFence。
     /// </remarks>
     public static IRbfFile CreateNew(string path) {
         SafeFileHandle handle = File.OpenHandle(
@@ -24,9 +24,9 @@ public static class RbfFile {
         );
 
         try {
-            // 写入 Genesis Fence
+            // 写入 HeaderFence
             RandomAccess.Write(handle, RbfConstants.Fence, 0);
-            return new RbfFileImpl(handle, RbfConstants.GenesisLength);
+            return new RbfFileImpl(handle, RbfConstants.HeaderOnlyFileLength);
         }
         catch {
             // 失败路径：确保句柄关闭
@@ -36,14 +36,14 @@ public static class RbfFile {
     }
 
     /// <summary>
-    /// 打开已有的 RBF 文件（验证 Genesis）。
+    /// 打开已有的 RBF 文件（验证 HeaderFence）。
     /// </summary>
     /// <param name="path">文件路径。</param>
     /// <returns>RBF 文件对象。</returns>
-    /// <exception cref="InvalidDataException">Genesis Fence 验证失败、文件过短或长度非 4B 对齐。</exception>
+    /// <exception cref="InvalidDataException">HeaderFence 验证失败、文件过短或长度非 4B 对齐。</exception>
     /// <remarks>
     /// 规范引用：
-    /// - @[F-FILE-STARTS-WITH-GENESIS-FENCE] - 文件 MUST 以 Genesis Fence 开头。
+    /// - @[F-FILE-STARTS-WITH-HEADER-FENCE] - 文件 MUST 以 HeaderFence 开头。
     /// - @[S-RBF-DECISION-4B-ALIGNMENT-ROOT] - 文件长度 MUST 4B 对齐。
     /// </remarks>
     public static IRbfFile OpenExisting(string path) {
@@ -59,7 +59,7 @@ public static class RbfFile {
             long fileLength = RandomAccess.GetLength(handle);
 
             // 边界条件：文件过短
-            if (fileLength < RbfConstants.FenceLength) { throw new InvalidDataException("Invalid RBF file: file too short for Genesis Fence"); }
+            if (fileLength < RbfConstants.FenceLength) { throw new InvalidDataException("Invalid RBF file: file too short for HeaderFence"); }
 
             // 4B 对齐校验（根不变量）
             if (fileLength % RbfConstants.FrameAlignment != 0) { throw new InvalidDataException("Invalid RBF file: length is not 4-byte aligned"); }
@@ -68,7 +68,7 @@ public static class RbfFile {
             Span<byte> buffer = stackalloc byte[RbfConstants.FenceLength];
             int bytesRead = RandomAccess.Read(handle, buffer, 0);
 
-            if (bytesRead < RbfConstants.FenceLength || !buffer.SequenceEqual(RbfConstants.Fence)) { throw new InvalidDataException("Invalid RBF file: Genesis Fence mismatch"); }
+            if (bytesRead < RbfConstants.FenceLength || !buffer.SequenceEqual(RbfConstants.Fence)) { throw new InvalidDataException("Invalid RBF file: HeaderFence mismatch"); }
 
             return new RbfFileImpl(handle, fileLength);
         }

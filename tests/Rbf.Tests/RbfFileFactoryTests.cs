@@ -31,10 +31,10 @@ public class RbfFileFactoryTests : IDisposable {
     }
 
     /// <summary>
-    /// CreateNew 创建的文件长度为 4，内容为 Genesis Fence (0x52 0x42 0x46 0x31)。
+    /// CreateNew 创建的文件长度为 4，内容为 HeaderFence (0x52 0x42 0x46 0x31)。
     /// </summary>
     [Fact]
-    public void CreateNew_CreatesFileWithGenesisFence() {
+    public void CreateNew_CreatesFileWithHeaderFence() {
         // Arrange
         var path = GetTempFilePath();
 
@@ -84,17 +84,17 @@ public class RbfFileFactoryTests : IDisposable {
     }
 
     /// <summary>
-    /// OpenExisting 在 Genesis Fence 不匹配时抛出 InvalidDataException。
+    /// OpenExisting 在 HeaderFence 不匹配时抛出 InvalidDataException。
     /// </summary>
     [Fact]
-    public void OpenExisting_FailsWithInvalidGenesis() {
+    public void OpenExisting_FailsWithInvalidHeaderFence() {
         // Arrange - 创建内容非 RBF1 的文件
         var path = GetTempFilePath();
         File.WriteAllBytes(path, new byte[] { 0x00, 0x00, 0x00, 0x00 });
 
         // Act & Assert
         var ex = Assert.Throws<InvalidDataException>(() => RbfFile.OpenExisting(path));
-        Assert.Contains("Genesis Fence mismatch", ex.Message);
+        Assert.Contains("HeaderFence mismatch", ex.Message);
     }
 
     /// <summary>
@@ -130,7 +130,7 @@ public class RbfFileFactoryTests : IDisposable {
     /// <remarks>规范引用：@[S-RBF-DECISION-4B-ALIGNMENT-ROOT]</remarks>
     [Fact]
     public void OpenExisting_FailsWhenLengthNotAligned() {
-        // Arrange - 创建有效 Genesis 但长度非 4B 对齐的文件 (5 字节)
+        // Arrange - 创建有效 HeaderFence 但长度非 4B 对齐的文件 (5 字节)
         var path = GetTempFilePath();
         File.WriteAllBytes(path, new byte[] { 0x52, 0x42, 0x46, 0x31, 0xFF }); // 5 字节
 

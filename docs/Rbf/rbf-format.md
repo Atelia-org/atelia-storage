@@ -23,9 +23,12 @@ produce_by:
 
 ## 2. 常量与 Fence
 
-### 2.1 Fence / Genesis（Decision-Layer）
+### 2.1 Fence 常量定义
 
-## spec [F-FENCE-VALUE-IS-RBF1-ASCII-4B] Fence定义
+本节定义 @`Fence` 的线格式常量值。
+关于 @`Fence` 的布局模式与 @`HeaderFence` 定义，参见 @[F-FENCE-IS-SEPARATOR-NOT-FRAME](rbf-decisions.md)。
+
+## spec [F-FENCE-VALUE-IS-RBF1-ASCII-4B] Fence值定义
 
 | 属性 | 值 |
 |------|-----|
@@ -107,7 +110,7 @@ CRC 算法为 CRC32C（Castagnoli），采用 Reflected I/O 约定：
 
 ### spec [F-FRAMING-FAIL-REJECT] Framing校验失败策略
 Reader MUST 验证{§2、§3、§4}中定义的所有结构、对齐与值域约束。*完整清单见推导条款 @[H-FRAMING-CHECKLIST](rbf-derived-notes.md)。*
-任何违反上述 SSOT 约束的情况（包括但不限于 HeadLen/TailLen 不一致、保留位非零、对齐错误或 Fence 不匹配），Reader MUST 视为 Framing 校验失败（损坏），并按 @[R-RESYNC-SCAN-BACKWARD-4B-TO-GENESIS] 进入 Resync。
+任何违反上述 SSOT 约束的情况（包括但不限于 HeadLen/TailLen 不一致、保留位非零、对齐错误或 Fence 不匹配），Reader MUST 视为 Framing 校验失败（损坏），并按 @[R-RESYNC-SCAN-BACKWARD-4B-TO-HEADER-FENCE] 进入 Resync。
 
 ### spec [F-CRC-FAIL-REJECT] CRC校验失败策略
 CRC32C 校验不匹配 MUST 视为帧损坏。
@@ -125,15 +128,15 @@ Reader MUST NOT 将损坏帧作为有效数据返回。
 Reverse Scan MUST 满足：
 1. **输出定义**：输出为"通过 framing/CRC 校验的 Frame 起始地址序列"，顺序 MUST 为 **从尾到头**（最新在前）。
 2. **合法性判定（SSOT）**：候选 Frame 是否有效 MUST 以 §5 的 @[F-FRAMING-FAIL-REJECT] 与 @[F-CRC-FAIL-REJECT] 为准。
-3. **Resync 行为（SSOT）**：当候选 Frame 校验失败时，Reader MUST 进入 Resync，且 Resync 行为 MUST 遵循 @[R-RESYNC-SCAN-BACKWARD-4B-TO-GENESIS]。
+3. **Resync 行为（SSOT）**：当候选 Frame 校验失败时，Reader MUST 进入 Resync，且 Resync 行为 MUST 遵循 @[R-RESYNC-SCAN-BACKWARD-4B-TO-HEADER-FENCE]。
 
 ### 6.2 Resync 规则
 
-### spec [R-RESYNC-SCAN-BACKWARD-4B-TO-GENESIS] Resync行为规则
+### spec [R-RESYNC-SCAN-BACKWARD-4B-TO-HEADER-FENCE] Resync行为规则
 当候选 Frame 校验失败时（Framing/CRC）：
 1. Reader MUST NOT 信任该候选的 TailLen 做跳跃。
 2. Reader MUST 进入 Resync 模式：以 4 字节为步长向前搜索 Fence。
-3. Resync 扫描 MUST 在抵达 Genesis Fence（偏移 0）时停止。
+3. Resync 扫描 MUST 在抵达 HeaderFence（偏移 0）时停止。
 
 ---
 

@@ -25,27 +25,28 @@ RBF 规范（Interface/Format）MUST 以如下通用底层类型及其源码文�
 
 ---
 
-## decision [F-FENCE-IS-SEPARATOR-NOT-FRAME] Fence语义
-- Fence 是 **帧分隔符**（fencepost），不属于任何 Frame。
-- 文件中第一个 Fence（偏移 0）称为 **Genesis Fence**。
-- **Writer** 写完每个 Frame 后 MUST 紧跟一个 Fence。
-- **Reader** 在崩溃恢复场景 MAY 遇到不以 Fence 结束的文件（撕裂写入），通过 Resync 处理（见 wire format 的扫描章节）。
+## term `Fence` 栅栏
+RBF 文件中用于界定 @`Frame` 边界的定长分隔符。
 
-文件布局因此为：
-```
-[Fence][FrameBytes][Fence][FrameBytes][Fence]...
-```
+### decision [F-FENCE-IS-SEPARATOR-NOT-FRAME] Fence布局模式
+RBF 数据流 MUST 符合如下交替布局模式：
+`[Fence] ([Frame] [Fence])*`
 
-## decision [F-FILE-STARTS-WITH-GENESIS-FENCE] Genesis Fence
-- 每个 RBF 文件 MUST 以 Fence 开头（偏移 0，长度 4 字节）——称为 **Genesis Fence**。
-- 新建的 RBF 文件 MUST 仅含 Genesis Fence（长度 = 4 字节，表示"无任何 Frame"）。
-- 首帧（如果存在）的起始地址 MUST 为 `offset=4`（紧跟 Genesis Fence 之后）。
+这意味着：
+1. **统一性**：流中所有的 @`Fence` 均具有完全相同的物理结构与长度。
+2. **起始约束**：文件 MUST 以一个 @`Fence` 开头（Offset 0），此位置的实例特称为 @`HeaderFence`。
+3. **闭合约束**：Writer 写完任意 @`Frame` 后，MUST 紧跟写入一个 @`Fence`。
+
+### decision [F-FILE-STARTS-WITH-FENCE] 文件初始化状态
+基于 @[F-FENCE-IS-SEPARATOR-NOT-FRAME] 规则，当数据流中不包含任何 @`Frame` 时（即新建空文件状态）：
+- 文件 MUST 包含且仅包含 @`HeaderFence`。
+- 文件大小恰好等于 1 个 @`Fence` 的长度。
 
 ## decision [S-RBF-DECISION-4B-ALIGNMENT-ROOT] 4字节对齐根决策
 RBF wire format 的以下三个信息 MUST 以 **4 字节对齐**为基础不变量（根设计决策）：
 - `[Fence]` 的起始地址（byte offset）
-- `[FrameBytes]` 的起始地址（即 FrameStart / HeadLen 字段位置）
-- `lengthOf([FrameBytes])`（即 HeadLen）
+- `[Frame]` 的起始地址（即 @`Frame` 头部字段位置）
+- `lengthOf([Frame])`（即 HeadLen）
 
 该不变量用于支撑：
 - 逆向扫描/Resync 以 4B 步进寻找 Fence；

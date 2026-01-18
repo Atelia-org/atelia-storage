@@ -47,24 +47,24 @@ public class RbfPooledFrameTests : IDisposable {
         byte[] frame = new byte[headLen];
         Span<byte> span = frame;
 
-        // HeadLen (offset 0)
+        // 1. HeadLen
         BinaryPrimitives.WriteUInt32LittleEndian(span[..RbfConstants.HeadLenFieldLength], (uint)headLen);
 
-        // Tag (offset 4)
+        // 2. Tag
         BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(RbfConstants.TagFieldOffset, RbfConstants.TagFieldLength), tag);
 
-        // Payload (offset 8)
-        payload.CopyTo(span.Slice(8, payload.Length));
+        // 3. Payload
+        payload.CopyTo(span.Slice(RbfConstants.PayloadFieldOffset, payload.Length));
 
-        // Status (offset 8 + payloadLen)
-        int statusOffset = 8 + payload.Length;
+        // 4. Status
+        int statusOffset = RbfConstants.PayloadFieldOffset + payload.Length;
         FrameStatusHelper.FillStatus(span.Slice(statusOffset, statusLen), isTombstone, statusLen);
 
-        // TailLen (offset headLen - TailSuffixLength)
+        // 5. TailLen (offset headLen - TailSuffixLength)
         int tailLenOffset = headLen - RbfConstants.TailSuffixLength;
         BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(tailLenOffset, RbfConstants.TailLenFieldLength), (uint)headLen);
 
-        // CRC
+        // 6. CRC
         int crcOffset = headLen - RbfConstants.CrcFieldLength;
         ReadOnlySpan<byte> crcInput = span.Slice(RbfConstants.TagFieldOffset, headLen - RbfConstants.TailSuffixLength);
         uint crc = Crc32CHelper.Compute(crcInput);
@@ -74,16 +74,16 @@ public class RbfPooledFrameTests : IDisposable {
     }
 
     /// <summary>
-    /// 构造带 Genesis + Frame + Fence 的完整文件内容。
+    /// 构造带 HeaderFence + Frame + Fence 的完整文件内容。
     /// </summary>
     private static byte[] CreateValidFileWithFrame(uint tag, ReadOnlySpan<byte> payload, bool isTombstone = false) {
         byte[] frameBytes = CreateValidFrameBytes(tag, payload, isTombstone);
-        int totalLen = RbfConstants.GenesisLength + frameBytes.Length + RbfConstants.FenceLength;
+        int totalLen = RbfConstants.FenceLength + frameBytes.Length + RbfConstants.FenceLength;
         byte[] file = new byte[totalLen];
 
         RbfConstants.Fence.CopyTo(file.AsSpan(0, 4));
-        frameBytes.CopyTo(file.AsSpan(RbfConstants.GenesisLength));
-        RbfConstants.Fence.CopyTo(file.AsSpan(RbfConstants.GenesisLength + frameBytes.Length, 4));
+        frameBytes.CopyTo(file.AsSpan(RbfConstants.FenceLength));
+        RbfConstants.Fence.CopyTo(file.AsSpan(RbfConstants.FenceLength + frameBytes.Length, 4));
 
         return file;
     }
@@ -292,7 +292,7 @@ public class RbfPooledFrameTests : IDisposable {
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
 
         int frameLen = RbfConstants.ComputeFrameLen(payload.Length, out _);
-        var ptr = SizedPtr.Create(RbfConstants.GenesisLength, frameLen);
+        var ptr = SizedPtr.Create(RbfConstants.FenceLength, frameLen);
 
         // Act
         var result = RbfReadImpl.ReadPooledFrame(handle, ptr);

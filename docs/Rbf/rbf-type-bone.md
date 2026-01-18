@@ -198,7 +198,7 @@ depends: "@[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME](rbf-interface.md)"
 
 **工厂方法**：
 - `RbfFile.CreateNew(string path)` — 创建新文件（FailIfExists）
-- `RbfFile.OpenExisting(string path)` — 打开已有文件（验证 Genesis）
+- `RbfFile.OpenExisting(string path)` — 打开已有文件（验证 HeaderFence）
 
 ---
 

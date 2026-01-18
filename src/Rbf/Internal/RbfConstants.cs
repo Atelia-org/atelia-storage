@@ -7,44 +7,50 @@ namespace Atelia.Rbf.Internal;
 /// 规范引用：@[F-FENCE-VALUE-IS-RBF1-ASCII-4B]
 /// </remarks>
 internal static class RbfConstants {
-    // === Fence / Genesis ===
+    // === Fence ===
 
     /// <summary>
-    /// Fence / Genesis 值：ASCII "RBF1" (0x52 0x42 0x46 0x31)。
+    /// Fence 值：ASCII "RBF1" (0x52 0x42 0x46 0x31)。
     /// </summary>
     public static ReadOnlySpan<byte> Fence => "RBF1"u8;
 
     /// <summary>
     /// Fence 长度（字节）。
     /// </summary>
-    public const int FenceLength = 4;
+    public const int FenceLength = sizeof(uint);
 
     /// <summary>
-    /// Genesis Fence 长度（字节）—— 语义别名，等于 <see cref="FenceLength"/>。
+    /// 初始文件长度（仅含 HeaderFence）。
     /// </summary>
-    public const int GenesisLength = FenceLength;
+    public const int HeaderOnlyFileLength = FenceLength;
+
+    /// <summary>
+    /// 首个 Frame 的起始偏移（OFFSET=4）。
+    /// </summary>
+    /// <remarks>等于 <see cref="FenceLength"/>。</remarks>
+    public const int FirstFrameOffset = HeaderOnlyFileLength;
 
     // === 字段长度 (Field Lengths) ===
 
     /// <summary>
     /// HeadLen 字段长度（4 字节）。
     /// </summary>
-    public const int HeadLenFieldLength = 4;
+    public const int HeadLenFieldLength = sizeof(uint);
 
     /// <summary>
     /// Tag 字段长度（4 字节）。
     /// </summary>
-    public const int TagFieldLength = 4;
+    public const int TagFieldLength = sizeof(uint);
 
     /// <summary>
     /// TailLen 字段长度（4 字节）。
     /// </summary>
-    public const int TailLenFieldLength = 4;
+    public const int TailLenFieldLength = HeadLenFieldLength;
 
     /// <summary>
     /// CRC32C 字段长度（4 字节）。
     /// </summary>
-    public const int CrcFieldLength = 4;
+    public const int CrcFieldLength = sizeof(uint);
 
     // === 偏移量 (Field Offsets) ===
 
