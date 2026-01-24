@@ -9,7 +9,7 @@ produce_by:
 **文档定位**：Layer 0，定义 RBF 文件的线格式（wire format）。
 文档层级与规范遵循见 [README.md](README.md)。
 
-**状态**：Draft | **版本**：0.33 | **创建日期**：2025-12-22
+**状态**：Draft | **版本**：0.40 | **创建日期**：2025-12-22
 
 ## 1. 范围与分层
 本文档（Layer 0）只定义：
@@ -77,6 +77,14 @@ FrameDescriptor 是 Frame 尾部 TrailerCodeword 中的 4 字节控制字（u32 
 
 ### spec [F-TRAILER-CRC-BIG-ENDIAN] TrailerCrc32C按大端序存储
 为了逆序用CRC扫描Codeword时兼容检查固定CRC residual的算法，TrailerCrc32C MUST 按BigEndian存储。*逐字节逆序CRC时，等效于顺序LE。*
+
+**反误用护栏（Normative）**：仅 `TrailerCrc32C` 为 BE 存储；TrailerCodeword 中其余字段（`FrameDescriptor`、`FrameTag`、`TailLen`）仍按各自 u32 **LE** 解码。
+
+*示例（Informative）*：给定 TrailerCodeword 字节序列 `[AA BB CC DD] [11 22 33 44] [55 66 77 88] [99 AA BB CC]`：
+- `TrailerCrc32C` = `0xAABBCCDD`（按 BE 读取前 4 字节）
+- `FrameDescriptor` = `0x44332211`（按 LE 读取第 5-8 字节）
+- `FrameTag` = `0x88776655`（按 LE 读取第 9-12 字节）
+- `TailLen` = `0xCCBBAA99`（按 LE 读取第 13-16 字节）
 
 ### spec [F-TRAILERCRC-COVERAGE] TrailerCrc32C覆盖范围
 `TrailerCrc32C` MUST 覆盖 TrailerCodeword 中除自身以外的所有字段。

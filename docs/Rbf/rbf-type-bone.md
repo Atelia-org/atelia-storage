@@ -82,6 +82,17 @@ depends_on:
 `RbfReadImpl` 提供无状态的静态方法，直接操作文件句柄。
 这是具体实现层（Implementation Layer），**便于进行基于临时文件的集成测试**。
 
+**核心职责**：
+- **ReadFrame**: 将帧读入调用方提供的 buffer，执行完整 CRC 校验（Payload + Trailer）。
+- **ReadPooledFrame**: 从 ArrayPool 借缓存读取帧，携带 IDisposable 语义。
+- **ReadInfoBefore**: 仅读取帧元信息（读取 Trailer + FrameDescriptor），只做 Framing 校验和 TrailerCrc32C 校验，**不校验 Payload**。
+- **ScanReverse**: 反向扫描原语，使用 "Tail-Only Reverse Scan" 策略，依赖 Trailer 结构进行快速定位。
+
+**并发模型**：
+- 所有方法均为纯函数（Pure Functions）或无副作用操作。
+- 依赖 OS 文件系统的原子性（RandomAccess APIs）。
+- 支持多线程并发读取（只要 Handle 具备 Read 权限）。
+
 ```csharp
 namespace Atelia.Rbf.Internal;
 
@@ -89,96 +100,14 @@ namespace Atelia.Rbf.Internal;
 /// RBF 读取操作实现。
 /// </summary>
 internal static class RbfReadImpl {
-    // 读路径 (Read Path)
-
-    /// <summary>
-    /// 将帧读入调用方提供的 buffer。
-    /// </summary>
-    /// <param name="file">文件句柄（需具备 Read 权限）。</param>
-    /// <param name="ticket">帧位置凭据（SizedPtr 携带 offset + length）。</param>
-    /// <param name="buffer">调用方提供的缓冲区，长度 MUST >= ticket.Length。</param>
-    /// <returns>读取结果（成功含帧视图，失败含错误码）。</returns>
-    /// <remarks>使用 RandomAccess.Read 实现，无状态，并发安全；执行 CRC 校验。</remarks>
-    public static AteliaResult<RbfFrame> ReadFrame(
-        SafeFileHandle file, SizedPtr ticket, Span<byte> buffer);
-
-    /// <summary>
-    /// 基于帧元信息读取完整帧（zero-copy）。
-    /// </summary>
-    /// <param name="file">文件句柄（需具备 Read 权限）。</param>
-    /// <param name="info">帧元信息。</param>
-    /// <param name="buffer">调用方提供的缓冲区，长度 MUST >= info.Ticket.Length。</param>
-    /// <returns>读取结果（成功含帧视图，失败含错误码）。</returns>
-    /// <remarks>使用 RandomAccess.Read 实现，无状态，并发安全；执行 CRC 校验。</remarks>
-    public static AteliaResult<RbfFrame> ReadFrame(
-        SafeFileHandle file, in RbfFrameInfo info, Span<byte> buffer);
-
-    /// <summary>
-    /// 从 ArrayPool 借缓存读取帧。调用方 MUST 调用 Dispose() 归还 buffer。
-    /// </summary>
-    /// <param name="file">文件句柄（需具备 Read 权限）。</param>
-    /// <param name="ticket">帧位置凭据（SizedPtr 携带 offset + length）。</param>
-    /// <returns>读取结果（成功含 pooled 帧，失败含错误码）。</returns>
-    /// <remarks>
-    /// <para>返回的 RbfPooledFrame 内部持有 ArrayPool buffer。</para>
-    /// <para>调用方 MUST 调用 Dispose() 归还 buffer，否则内存泄漏。</para>
-    /// <para>此路径执行 CRC 校验。</para>
-    /// </remarks>
-    public static AteliaResult<RbfPooledFrame> ReadPooledFrame(
-        SafeFileHandle file, SizedPtr ticket);
-
-    /// <summary>
-    /// 基于帧元信息从 ArrayPool 借缓存读取帧。调用方 MUST 调用 Dispose() 归还 buffer。
-    /// </summary>
-    /// <param name="file">文件句柄（需具备 Read 权限）。</param>
-    /// <param name="info">帧元信息。</param>
-    /// <returns>读取结果（成功含 pooled 帧，失败含错误码）。</returns>
-    /// <remarks>
-    /// <para>返回的 RbfPooledFrame 内部持有 ArrayPool buffer。</para>
-    /// <para>调用方 MUST 调用 Dispose() 归还 buffer，否则内存泄漏。</para>
-    /// <para>此路径执行 CRC 校验。</para>
-    /// </remarks>
-    public static AteliaResult<RbfPooledFrame> ReadPooledFrame(
-        SafeFileHandle file, in RbfFrameInfo info);
-
-    /// <summary>
-    /// 读取给定 Fence 之前一帧的元信息。
-    /// </summary>
-    /// <param name="file">文件句柄（需具备 Read 权限）。</param>
-    /// <param name="fenceEndOffset">帧尾 Fence 的 EndOffsetExclusive。</param>
-    /// <returns>读取结果（成功含帧元信息，失败含错误码）。</returns>
-    /// <remarks>仅做 Framing 校验 + TrailerCrc32C 校验，不进行 PayloadCrc32C 校验。</remarks>
-    public static AteliaResult<RbfFrameInfo> ReadInfoBefore(
-        SafeFileHandle file, long fenceEndOffset);
-
-    /// <summary>
-    /// 创建逆向扫描序列。
-    /// </summary>
-    /// <param name="file">文件句柄。</param>
-    /// <param name="scanOrigin">文件逻辑长度（扫描起点）。</param>
-    /// <param name="showTombstone">是否包含墓碑帧。默认 false。</param>
-    /// <returns>逆向扫描序列结构（产出 RbfFrameInfo）。</returns>
-    /// <remarks>
-    /// <para>RawOps 层直接实现过滤逻辑，与 Facade 层 @[S-RBF-SCANREVERSE-TOMBSTONE-FILTER] 保持一致。</para>
-    /// <para>仅做 Framing 校验 + TrailerCrc32C 校验，不进行 PayloadCrc32C 校验。</para>
-    /// </remarks>
-    public static RbfReverseSequence ScanReverse(SafeFileHandle file, long scanOrigin, bool showTombstone = false);
+    // 方法实现见源码 atelia/src/Rbf/Internal/RbfReadImpl.cs
 }
 
 /// <summary>
 /// RBF 写入操作实现。
 /// </summary>
 internal static class RbfWriteImpl {
-    // 写路径 (Write Path)
-
-    /// <summary>
-    /// 开始构建一个帧（Complex Path）。
-    /// </summary>
-    /// <remarks>
-    /// <para><b>[Internal]</b>：仅限程序集内调用。</para>
-    /// <para>返回的 Builder 内部持有 file 引用和 writeOffset。</para>
-    /// </remarks>
-    internal static RbfFrameBuilder _BeginFrame(SafeFileHandle file, long writeOffset, uint tag);
+    // 方法实现见源码 atelia/src/Rbf/Internal/RbfRawOps.cs
 }
 ```
 
@@ -279,67 +208,10 @@ see: @[A-RBF-IRBFFILE-SHAPE](rbf-interface.md)
 - **Sequential Offset Accounting**：维护顺序写入游标 `_writeOffset`，每次 `Push` 后推进
 - **不做**：reservation/backfill、合并、flush gating、buffer 管理（这些由 SinkReservableWriter 负责）
 
-**类型签名**：
-
-```csharp
-namespace Atelia.Rbf.Internal;
-
-using System;
-using System.IO;
-using Microsoft.Win32.SafeHandles;
-using Atelia.Data;
-
-/// <summary>
-/// RandomAccess → IByteSink 适配器
-/// </summary>
-/// <remarks>
-/// <para><b>职责边界</b>：仅做 Push → RandomAccess.Write 转发 + offset 记账。</para>
-/// <para>
-/// <b>设计简化</b>：由于 <see cref="IByteSink"/> 是推式接口（调用者持有数据），
-/// 无需持有 buffer、无需 ArrayPool 管理、无需三步舞（GetSpan/GetMemory/Advance）。
-/// </para>
-/// <para>
-/// <b>并发</b>：非线程安全，依赖 <c>[S-RBF-BUILDER-SINGLE-OPEN]</c> 契约
-/// （同一时刻只有一个活跃 Builder）。
-/// </para>
-/// </remarks>
-internal sealed class RandomAccessByteSink : IByteSink {
-    private readonly SafeFileHandle _file;
-    private long _writeOffset;
-
-    /// <summary>
-    /// 创建 RandomAccess 写入适配器
-    /// </summary>
-    /// <param name="file">文件句柄（需具备 Write 权限）</param>
-    /// <param name="startOffset">起始写入位置（byte offset）</param>
-    /// <exception cref="ArgumentNullException"><paramref name="file"/> 为 null</exception>
-    public RandomAccessByteSink(SafeFileHandle file, long startOffset) {
-        _file = file ?? throw new ArgumentNullException(nameof(file));
-        _writeOffset = startOffset;
-    }
-
-    /// <summary>当前写入位置（byte offset）</summary>
-    /// <remarks>
-    /// Builder 层可用于计算已写入字节数（CurrentOffset - StartOffset）
-    /// 以及最终 HeadLen 回填。
-    /// </remarks>
-    public long CurrentOffset => _writeOffset;
-
-    /// <summary>推送数据到文件</summary>
-    /// <remarks>
-    /// 调用 <see cref="RandomAccess.Write(SafeFileHandle, ReadOnlySpan{byte}, long)"/>
-    /// 写入数据并推进 offset。
-    ///
-    /// <para><b>错误处理</b>：I/O 异常直接抛出（符合 Infra Fault 策略）。</para>
-    /// </remarks>
-    public void Push(ReadOnlySpan<byte> data) {
-        if (data.IsEmpty) return;
-
-        RandomAccess.Write(_file, data, _writeOffset);
-        _writeOffset += data.Length;
-    }
-}
-```
+**实现参考**：
+- 代码位置：`atelia/src/Rbf/Internal/RandomAccessByteSink.cs`
+- **Concurrency**: 非线程安全，依赖 Builder 契约保证单线程使用。
+- **Error Handling**: I/O 异常直接抛出。
 
 ### 5.3 关键实现约束
 
@@ -351,28 +223,9 @@ see: @[I-RBF-BUILDER-AUTO-ABORT-IMPL]
 ### spec [I-RBF-BYTESINK-PUSH-FORWARDS-AND-ADVANCES-OFFSET] Push推送语义
 `Push(ReadOnlySpan<byte> data)` MUST 调用 `RandomAccess.Write(_file, data, _writeOffset)` 并推进 `_writeOffset += data.Length`。
 
-**实现模式**（伪代码）：
-```csharp
-// RbfRawOps._BeginFrame()
-internal static RbfFrameBuilder _BeginFrame(SafeFileHandle file, long writeOffset, uint tag) {
-    var sink = new RandomAccessByteSink(file, writeOffset);
-    var chunkedWriter = new SinkReservableWriter(sink);
-
-    // 关键：立即 reserve HeadLen（4 字节）
-    var headLenSpan = chunkedWriter.ReserveSpan(4, out int headLenToken);
-    BinaryPrimitives.WriteUInt32LittleEndian(headLenSpan, 0); // placeholder
-
-    // 注意：FrameTag 已移至 Trailer，此处不再写入
-
-    return new RbfFrameBuilder {
-        _chunkedWriter = chunkedWriter,
-        _headLenToken = headLenToken,
-        _startOffset = writeOffset,
-        _sink = sink,  // 保留引用以便查询 CurrentOffset
-        // ...
-    };
-}
-```
+**实现模式**：
+在 `BeginFrame` 时，需立即通过 `SinkReservableWriter.ReserveSpan(4)` 预留 HeadLen 空间（填入 placeholder），确保 Writer 进入 buffered 模式，从而支持后续的 Zero I/O Abort。
+注意：FrameTag 不在此处写入，已随 Wire Format 变更移至 Trailer。
 
 ### 5.4 错误处理
 

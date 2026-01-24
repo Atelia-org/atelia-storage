@@ -90,76 +90,76 @@ int userMetaLen = (int)(descriptor & 0xFFFF);
 bool reservedIsZero = (descriptor & 0x1FFF0000) == 0;
 ```
 
-### derived [D-RBF-FORMAT-REVERSE-SCAN-PSEUDOCODE] ReverseScan参考伪代码
+### derived [D-RBF-FORMAT-REVERSE-SCAN-PSEUDOCODE] ReverseScan逻辑流程
 see: @[R-REVERSE-SCAN-RETURNS-VALID-FRAMES-TAIL-TO-HEAD](rbf-format.md), @[R-RESYNC-SCAN-BACKWARD-4B-TO-HEADER-FENCE](rbf-format.md)
 
+**核心策略**：从文件末尾向前搜索 Fence 标记，并验证 Trailer 结构。
+
+1. **初始化**：
+   - 从 `FileLength - 4` 开始向前搜索（4 为 Fence 长度）。
+   - 确保起始位置 4 字节对齐（`alignDown4`）。
+
+2. **主循环 (Scan Loop)**：
+   - **Step 1: 定位 Fence**
+     - 检查当前位置是否为 Fence (`RBF1`)。
+     - 若不是或位置 < `HeaderFence`：向前移动 4 字节，继续下一轮。
+     - 若位置 == 0（HeaderFence）：扫描结束。
+
+   - **Step 2: 读取 Trailer**
+     - 读取 Fence 前的 16 字节 (`TrailerCodeword`)。
+     - 解析出 `TailLen`, `FrameTag`, `FrameDescriptor`, `TrailerCrc32C`。
+
+   - **Step 3: 候选帧定位**
+     - 计算 `FrameStart = FenceEnd - TailLen`。
+     - 验证 `FrameStart` 合法性（>= 4 且 4B 对齐）。
+
+   - **Step 4: 完整性校验 (Framing Check)**
+     - **HeadLen**：读取 `FrameStart` 处的 HeadLen，必须等于 `TailLen` 且 >= 24。
+     - **Pre-Fence**：检查 `FrameStart - 4` 处是否存在前置 Fence。
+     - **TrailerCRC**：计算 `TrailerCodeword` 后 12 字节的 CRC32C，必须匹配 `TrailerCrc32C` (Big-Endian)。
+     - **Descriptor**：保留位必须为 0。
+
+   - **Step 5: 产出与迭代**
+     - 若所有校验通过：产出该帧信息，将扫描游标移动到 `Pre-Fence` 位置。
+     - 若任一校验失败：视为损坏或偶然匹配，仅将扫描游标向前移动 4 字节（Resync）。
+
+**注意**：此流程完全依赖元信息，不读取 `Payload` 内容，也不校验 `PayloadCrc32C`。
+
+### derived [R-REVERSE-SCAN-FRAMING-CHECKLIST] 逆向扫描Framing校验清单
+Reverse Scan MUST 按如下清单执行 framing 校验（规范性）：
+
+**MUST 读取**：
+- TrailerCodeword（固定 16 字节，从帧末尾 -16B 位置开始）
+
+**MUST 验证**：
+- `TrailerCrc32C` 校验通过（覆盖 FrameDescriptor + FrameTag + TailLen）
+- `FrameDescriptor` 保留位（bit 28-16）为 0
+- `TailLen` 满足：`MinFrameLength <= TailLen <= MaxFrameLength` 且 4B 对齐
+- `PaddingLen`（bit 30-29）在 0-3 范围内（位宽天然保证）
+
+**MUST NOT 读取/验证**：
+- `HeadLen`（位于 PayloadCodeword 头部）
+- `HeadLen == TailLen` 交叉校验
+- `PayloadCrc32C`（完整帧校验由随机读取路径负责）
+
+### derived [S-RBF-PAYLOADLENGTH-FORMULA] PayloadLength计算公式
+从 TrailerCodeword 解码 `PayloadLength` 时，MUST 使用如下公式：
+
 ```
-输入: fileLength
-输出: 通过校验的 Frame 起始地址列表（从尾到头）
-常量:
-   HeaderFenceLen = 4
-   FenceLen   = 4
-   MinFrameLen = 24  // @[D-RBF-FORMAT-MIN-HEADLEN]
-   TrailerSize = 16
-
-辅助:
-   alignDown4(x) = x - (x % 4)   // 前置条件: x >= 0
-
-1) 若 fileLength < HeaderFenceLen: 返回空
-2) 若 fileLength == HeaderFenceLen: 返回空
-3) fencePos = alignDown4(fileLength - FenceLen)
-4) while fencePos >= 0:
-       a) 若 fencePos == 0: 停止（到达 HeaderFence）
-       b) 若 bytes[fencePos..fencePos+4] != FenceValue:
-               fencePos -= 4
-               continue   // Resync
-
-       c) // 尝试识别 Frame
-            recordEnd = fencePos
-            若 recordEnd < HeaderFenceLen + MinFrameLen:
-                  fencePos -= 4
-                  continue
-
-            // 读取 TrailerCodeword (16 bytes)
-            // Layout: TrailerCrc(4) + FrameDescriptor(4) + FrameTag(4) + TailLen(4)
-            trailerBytes = read(recordEnd - 16, 16)
-            tailLen = read_u32_le(trailerBytes, 12)
-            frameTag = read_u32_le(trailerBytes, 8)
-            descriptor = read_u32_le(trailerBytes, 4)
-            storedTrailerCrc = read_u32_be(trailerBytes, 0) // 注意 BE
-
-            frameStart = recordEnd - tailLen
-
-            // 1. 基础对齐与长度检查
-            若 frameStart < HeaderFenceLen 或 frameStart % 4 != 0:
-                  fencePos -= 4
-                  continue
-
-            // 2. HeadLen 匹配检查
-            headLen = read_u32_le(frameStart)
-            若 headLen != tailLen 或 headLen < MinFrameLen:
-                  fencePos -= 4
-                  continue
-
-            // 3. 前置 Fence 检查
-            prevFencePos = frameStart - FenceLen
-            若 prevFencePos < 0 或 bytes[prevFencePos..prevFencePos+4] != FenceValue:
-                  fencePos -= 4
-                  continue
-
-            // 4. Trailer CRC 检查
-            // 覆盖: Descriptor(4) + Tag(4) + TailLen(4)
-            computedCrc = crc32c(trailerBytes[4..16]) // 12 bytes
-            若 computedCrc != storedTrailerCrc:
-                  fencePos -= 4
-                  continue
-
-            // 5. Descriptor 合法性检查
-            // 保留位必须为 0
-            若 (descriptor & 0x1FFF0000) != 0:
-                  fencePos -= 4
-                  continue
-
-            输出 frameStart (yield return)
-            fencePos = prevFencePos
+PayloadLength = TailLen - FixedOverhead - UserMetaLen - PaddingLen
 ```
+
+其中：
+- `FixedOverhead = 4 (HeadLen) + 4 (PayloadCrc32C) + 16 (TrailerCodeword) = 24`
+- `UserMetaLen = FrameDescriptor.UserMetaLen`（bit 15-0）
+- `PaddingLen = FrameDescriptor.PaddingLen`（bit 30-29）
+
+**后置条件**：`PayloadLength >= 0`，否则视为 framing 校验失败。
+
+*示例（Informative）*：
+| TailLen | UserMetaLen | PaddingLen | PayloadLength |
+|---------|-------------|------------|---------------|
+| 28      | 0           | 0          | 4             |
+| 32      | 0           | 0          | 8             |
+| 48      | 8           | 0          | 16            |
+| 36      | 4           | 3          | 5             |
