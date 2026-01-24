@@ -25,104 +25,73 @@ Reader 在执行 @[F-FRAMING-FAIL-REJECT](rbf-format.md) 时应检查以下项�
 
 1. **结构一致性**
     - HeadLen 与 TailLen 必须相等（@[F-FRAMEBYTES-FIELD-OFFSETS](rbf-format.md)）
-    - HeadLen 必须符合计算公式（@[H-HEADLEN-FORMULA](rbf-format.md)）
+    - HeadLen 必须 >= 24（MinFrameLen，见 @[D-RBF-FORMAT-MIN-HEADLEN]）
+    - HeadLen 必须是 4 的倍数（@[S-RBF-DECISION-4B-ALIGNMENT-ROOT](rbf-decisions.md)）
 2. **值域合法性**
-    - FrameStatus 保留位必须为 0（@[F-FRAMESTATUS-RESERVED-BITS-ZERO](rbf-format.md)）
-    - FrameStatus 所有字节必须相同（@[F-FRAMESTATUS-FILL](rbf-format.md)）
     - Fence 必须匹配 `RBF1`（@[F-FENCE-VALUE-IS-RBF1-ASCII-4B](rbf-format.md)）
+    - FrameDescriptor 保留位必须为 0（@[F-FRAMEDESCRIPTOR-LAYOUT](rbf-format.md)）
+    - Padding 字节必须全为 0（@[F-PADDING-CALCULATION](rbf-format.md)）
 3. **布局约束**
-    - Frame 起始位置必须 4 字节对齐（@[F-FRAME-4B-ALIGNMENT](rbf-format.md)）
-    - Frame 必须位于 HeaderFence 之后（@[F-FILE-STARTS-WITH-HEADER-FENCE](rbf-decisions.md)）
+    - Frame 起始位置必须 4 字节对齐（@[S-RBF-DECISION-4B-ALIGNMENT-ROOT](rbf-decisions.md)）
+    - Frame 必须位于 HeaderFence 之后（@[F-FILE-STARTS-WITH-FENCE](rbf-decisions.md)）
+4. **CRC 校验**
+    - TrailerCrc32C 校验必须通过（@[F-TRAILERCRC-COVERAGE](rbf-format.md)）
+    - (Content 读取时) PayloadCrc32C 校验必须通过（@[F-CRC32C-COVERAGE](rbf-format.md)）
 
 ### derived [H-FILE-MINIMUM-LENGTH] 最小文件长度
-由 @[F-FILE-STARTS-WITH-HEADER-FENCE](rbf-decisions.md) 推导：有效 RBF 文件长度 >= 4（至少包含 HeaderFence）。
+由 @[F-FILE-STARTS-WITH-FENCE](rbf-decisions.md) 推导：有效 RBF 文件长度 >= 4（至少包含 HeaderFence）。
 
 ### derived [H-HEADLEN-FORMULA] HeadLen计算公式
-由 @[F-FRAMEBYTES-FIELD-OFFSETS](rbf-format.md) 推导：`HeadLen = 4 (HeadLen) + 4 (FrameTag) + PayloadLen + StatusLen + 4 (TailLen) + 4 (CRC32C)`
+由 @[F-FRAMEBYTES-FIELD-OFFSETS](rbf-format.md) 推导：
+`HeadLen = 4 (HeadLen) + PayloadLen + UserMetaLen + PaddingLen + 4 (PayloadCrc32C) + 16 (TrailerCodeword)`
+即：`HeadLen = 24 + PayloadLen + UserMetaLen + PaddingLen`
 
 ### derived [D-RBF-FORMAT-MIN-HEADLEN] 最小HeadLen推导
-see: @[H-HEADLEN-FORMULA](rbf-format.md), @[F-STATUSLEN-ENSURES-4B-ALIGNMENT](rbf-format.md)
+see: @[H-HEADLEN-FORMULA], @[F-PADDING-CALCULATION](rbf-format.md)
 
-- 当 `PayloadLen = 0` 时，`PayloadLen % 4 = 0`。
-- 代入 @[F-STATUSLEN-ENSURES-4B-ALIGNMENT] 可得 `StatusLen = 4`。
+- 当 `PayloadLen = 0` 且 `UserMetaLen = 0` 时：
+    - `(PayloadLen + UserMetaLen) % 4 = 0`
+    - `PaddingLen = (4 - 0) % 4 = 0`
 - 代入 @[H-HEADLEN-FORMULA] 可得：
-      $$\text{HeadLen} = 16 + \text{PayloadLen} + \text{StatusLen} = 16 + 0 + 4 = 20$$
+      $$\text{HeadLen} = 24 + 0 + 0 + 0 = 24$$
 
-因此：最小 `HeadLen = 20`。
+因此：最小 `HeadLen = 24`（Tombstone 帧或空 Payload 帧）。
 
-### derived [D-RBF-FORMAT-STATUSLEN-RANGE-TABLE] StatusLen值域枚举
-```clause-matter
-see: @[F-STATUSLEN-ENSURES-4B-ALIGNMENT](rbf-format.md)"
-```
-**依据 SSOT**：`rbf-format.md` 的 @[F-STATUSLEN-ENSURES-4B-ALIGNMENT]
+### derived [D-RBF-FORMAT-PADDING-TABLE] PaddingLen值域枚举
+**依据 SSOT**：`rbf-format.md` 的 @[F-PADDING-CALCULATION]
 
-| PayloadLen % 4 | StatusLen |
-|----------------|----------|
-| 0 | 4 |
+| (PayloadLen + UserMetaLen) % 4 | PaddingLen |
+|--------------------------------|------------|
+| 0 | 0 |
 | 1 | 3 |
 | 2 | 2 |
 | 3 | 1 |
 
-### derived [D-RBF-FORMAT-TOMBSTONE-CRC-EXAMPLE] Tombstone最小帧CRC覆盖算例
-see: @[F-CRC32C-COVERAGE](rbf-format.md), @[H-HEADLEN-FORMULA](rbf-format.md), @[F-FRAMESTATUS-RESERVED-BITS-ZERO](rbf-format.md)
+### derived [D-RBF-FORMAT-TOMBSTONE-EXAMPLE] Tombstone最小帧算例
+see: @[F-FRAMEDESCRIPTOR-LAYOUT](rbf-format.md), @[D-RBF-FORMAT-MIN-HEADLEN]
 
-场景：`PayloadLen = 0`（Tombstone 帧，最小帧）
+场景：`PayloadLen = 0`, `UserMetaLen = 0`, `IsTombstone = 1`
 
-- 由 @[D-RBF-FORMAT-MIN-HEADLEN] 得：`HeadLen = 20`，因此 `StatusLen = 4`。
-- CRC 覆盖区间（半开区间）：
-      - 起始（含）：`frameStart + 4`（从 FrameTag 开始）
-      - 结束（不含）：`frameStart + HeadLen - 4 = frameStart + 16`
-      - 覆盖长度：`HeadLen - 8 = 12` 字节
+- `HeadLen = 24`
+- `FrameDescriptor`:
+    - `IsTombstone = 1`
+    - `PaddingLen = 0`
+    - `UserMetaLen = 0`
+    - Value = `0x80000000` (u32 LE)
 
-覆盖内容：`FrameTag(4B) + FrameStatus(4B) + TailLen(4B)`。
+### derived [D-RBF-FORMAT-FRAMEDESCRIPTOR-BITMASK] FrameDescriptor位域解析规则
+see: @[F-FRAMEDESCRIPTOR-LAYOUT](rbf-format.md)
 
-### derived [D-RBF-FORMAT-CRC-BYTE-OFFSET] CRC字节偏移推导
-see: @[F-CRC32C-COVERAGE](rbf-format.md), @[F-FRAMEBYTES-FIELD-OFFSETS](rbf-format.md)
-
-设 `frameStart` 为 FrameBytes 起始地址（即 HeadLen 字段位置），`frameEnd` 为 FrameBytes 末尾（即 CRC32C 字段末尾）：
-
-```
-CRC 输入区间 = [frameStart + 4, frameEnd - 4)   // 半开区间
-             = [frameStart + 4, frameStart + HeadLen - 4)
-```
-
-**推导说明**：
-- 由 @[F-CRC32C-COVERAGE] 可知 CRC 覆盖 `FrameTag + Payload + FrameStatus + TailLen`，不覆盖 `HeadLen` 和 `CRC32C` 本身。
-- 由 @[F-FRAMEBYTES-FIELD-OFFSETS] 可知 `frameEnd = frameStart + HeadLen`。
-- 因此 CRC 输入区间为 `[frameStart + 4, frameStart + HeadLen - 4)`。
-
-**注**：FrameStatus 在 CRC 覆盖范围内，Tombstone 标记受 CRC 保护。
-Tombstone 帧虽无 Payload，但其 FrameTag、FrameStatus（含 Tombstone 标记位）、TailLen 均受 CRC 保护。
-
-### derived [D-RBF-FORMAT-STATUSLEN-REVERSE] Reader反推PayloadLen/StatusLen算法
-see: @[F-FRAMEBYTES-FIELD-OFFSETS](rbf-format.md), @[F-FRAMESTATUS-RESERVED-BITS-ZERO](rbf-format.md), @[F-FRAMESTATUS-FILL](rbf-format.md), @[H-HEADLEN-FORMULA](rbf-format.md)
-
-读取路径：
-```
-1. statusByteOffset = frameStart + HeadLen - 9   // TailLen(4) + CRC(4) + 1 = 9
-2. statusByte = bytes[statusByteOffset]          // FrameStatus 最后一字节
-3. StatusLen = (statusByte & 0x03) + 1           // 从位域提取
-4. PayloadLen = HeadLen - 16 - StatusLen         // 反推
-```
-
-注：由于 @[F-FRAMESTATUS-FILL]（FrameStatus 全字节同值），Reader 读取 FrameStatus 的任意一个字节即可得到 `StatusLen`。
-
-### derived [D-RBF-FORMAT-FRAMESTATUS-BITMASK] FrameStatus位域掩码判断规则
-see: @[F-FRAMESTATUS-RESERVED-BITS-ZERO](rbf-format.md)
-
-```
-IsTombstone = (status & 0x80) != 0
-IsValid     = (status & 0x80) == 0
-StatusLen   = (status & 0x03) + 1
-IsMvpValid  = (status & 0x7C) == 0   // Reserved bits must be zero
+```csharp
+uint descriptor = ...;
+bool isTombstone = (descriptor & 0x80000000) != 0;
+int paddingLen = (int)((descriptor >> 29) & 0x03);
+int userMetaLen = (int)(descriptor & 0xFFFF);
+bool reservedIsZero = (descriptor & 0x1FFF0000) == 0;
 ```
 
 ### derived [D-RBF-FORMAT-REVERSE-SCAN-PSEUDOCODE] ReverseScan参考伪代码
-see: @[R-REVERSE-SCAN-RETURNS-VALID-FRAMES-TAIL-TO-HEAD](rbf-format.md), @[R-RESYNC-SCAN-BACKWARD-4B-TO-HEADER-FENCE](rbf-format.md), @[F-FRAMING-FAIL-REJECT](rbf-format.md), @[F-CRC-FAIL-REJECT](rbf-format.md)"
-
-本节提供一种可行的参考实现（伪代码），用于帮助实现者快速落地。
-该伪代码 **不是** 唯一实现方式；实现 MAY 采用 mmap / 分块读取 / SIMD 搜索等技巧。
-验收时以 SSOT 中的“可观察行为契约”和 framing/CRC 判定为准。
+see: @[R-REVERSE-SCAN-RETURNS-VALID-FRAMES-TAIL-TO-HEAD](rbf-format.md), @[R-RESYNC-SCAN-BACKWARD-4B-TO-HEADER-FENCE](rbf-format.md)
 
 ```
 输入: fileLength
@@ -130,63 +99,67 @@ see: @[R-REVERSE-SCAN-RETURNS-VALID-FRAMES-TAIL-TO-HEAD](rbf-format.md), @[R-RES
 常量:
    HeaderFenceLen = 4
    FenceLen   = 4
-   MinFrameLen = 20  // @[D-RBF-FORMAT-MIN-HEADLEN]
+   MinFrameLen = 24  // @[D-RBF-FORMAT-MIN-HEADLEN]
+   TrailerSize = 16
 
 辅助:
-   alignDown4(x) = x - (x % 4)   // 前置条件: x >= 0（RBF 地址均为非负）
+   alignDown4(x) = x - (x % 4)   // 前置条件: x >= 0
 
-1) 若 fileLength < HeaderFenceLen: 返回空   // 不完整文件，fail-soft
-2) 若 fileLength == HeaderFenceLen: 返回空  // 仅 HeaderFence，无 Frame
+1) 若 fileLength < HeaderFenceLen: 返回空
+2) 若 fileLength == HeaderFenceLen: 返回空
 3) fencePos = alignDown4(fileLength - FenceLen)
 4) while fencePos >= 0:
        a) 若 fencePos == 0: 停止（到达 HeaderFence）
        b) 若 bytes[fencePos..fencePos+4] != FenceValue:
                fencePos -= 4
-               continue   // Resync: 寻找 Fence
+               continue   // Resync
 
-       c) // 现在 fencePos 指向一个 Fence
+       c) // 尝试识别 Frame
             recordEnd = fencePos
             若 recordEnd < HeaderFenceLen + MinFrameLen:
                   fencePos -= 4
                   continue
 
-            读取 tailLen @ (recordEnd - 8)
-            读取 storedCrc @ (recordEnd - 4)
+            // 读取 TrailerCodeword (16 bytes)
+            // Layout: TrailerCrc(4) + FrameDescriptor(4) + FrameTag(4) + TailLen(4)
+            trailerBytes = read(recordEnd - 16, 16)
+            tailLen = read_u32_le(trailerBytes, 12)
+            frameTag = read_u32_le(trailerBytes, 8)
+            descriptor = read_u32_le(trailerBytes, 4)
+            storedTrailerCrc = read_u32_be(trailerBytes, 0) // 注意 BE
+
             frameStart = recordEnd - tailLen
 
+            // 1. 基础对齐与长度检查
             若 frameStart < HeaderFenceLen 或 frameStart % 4 != 0:
                   fencePos -= 4
                   continue
 
+            // 2. HeadLen 匹配检查
+            headLen = read_u32_le(frameStart)
+            若 headLen != tailLen 或 headLen < MinFrameLen:
+                  fencePos -= 4
+                  continue
+
+            // 3. 前置 Fence 检查
             prevFencePos = frameStart - FenceLen
             若 prevFencePos < 0 或 bytes[prevFencePos..prevFencePos+4] != FenceValue:
                   fencePos -= 4
                   continue
 
-            读取 headLen @ frameStart
-            若 headLen != tailLen 或 headLen % 4 != 0 或 headLen < MinFrameLen:
+            // 4. Trailer CRC 检查
+            // 覆盖: Descriptor(4) + Tag(4) + TailLen(4)
+            computedCrc = crc32c(trailerBytes[4..16]) // 12 bytes
+            若 computedCrc != storedTrailerCrc:
                   fencePos -= 4
                   continue
 
-            // CRC 覆盖范围是 [frameStart+4, recordEnd-4)
-            computedCrc = crc32c(bytes[frameStart+4 .. recordEnd-4])
-            若 computedCrc != storedCrc:
+            // 5. Descriptor 合法性检查
+            // 保留位必须为 0
+            若 (descriptor & 0x1FFF0000) != 0:
                   fencePos -= 4
                   continue
 
-            // FrameStatus 校验（见 @[F-FRAMESTATUS-RESERVED-BITS-ZERO] 和 @[F-FRAMESTATUS-FILL]）
-            statusByteOffset = frameStart + headLen - 9
-            statusByte = bytes[statusByteOffset]
-            statusLen = (statusByte & 0x03) + 1
-            若 (statusByte & 0x7C) != 0:   // Reserved bits MUST be zero
-                  fencePos -= 4
-                  continue
-            // 验证 FrameStatus 所有字节一致
-            for i in 1 .. statusLen-1:
-                  若 bytes[statusByteOffset - i] != statusByte:
-                        fencePos -= 4
-                        continue outer   // 跳到外层 while
-
-            输出 frameStart
+            输出 frameStart (yield return)
             fencePos = prevFencePos
 ```

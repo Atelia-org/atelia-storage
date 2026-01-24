@@ -60,3 +60,13 @@ RBF（近期 / MVP）**不追求成为与实现无关的抽象格式**；为效�
 - RBF 写入侧的关键语义（reservation 回填、contiguous prefix flush、以及未提交 reservation 的"不可外泄"属性）允许直接依赖 `SinkReservableWriter` 的实现语义。
 
 ---
+
+## decision [S-RBF-DECISION-REVERSESCAN-TAIL-ORIENTED] 逆向扫描尾部导向
+RBF 的逆向扫描（Reverse Scan / `ScanReverse`）MUST 以“尽量只触碰 Frame 尾部附近字节”为目标进行设计：
+- 逆向扫描 MUST 能在不读取 Frame 头部字段的前提下，完成元信息迭代所需的定位、解析与校验。
+- 逆向扫描 MAY 通过引入尾部校验字段（如 Trailer CRC）替代对头部字段的交叉校验。
+- 本决策仅锁定“尾部导向”的目标与约束，不限定具体线格式布局与编码方案。
+
+**设计直觉（Informative）**：在“从尾到头”的读取需求下，将传统 Header 的职责镜像到 Trailer，可显著降低大帧场景下的 I/O 与解析成本。
+
+---

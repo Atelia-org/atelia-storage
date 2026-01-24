@@ -30,7 +30,8 @@ depends_on:
 | `RbfFrame` | [rbf-interface.md#A-RBF-FRAME-STRUCT](rbf-interface.md#A-RBF-FRAME-STRUCT) | 帧数据结构 |
 | `RbfPooledFrame` | [rbf-interface.md#A-RBF-POOLED-FRAME](rbf-interface.md#A-RBF-POOLED-FRAME) | 携带 ArrayPool buffer 的帧 |
 | `RbfFrameBuilder` | [rbf-interface.md#A-RBF-FRAME-BUILDER](rbf-interface.md#A-RBF-FRAME-BUILDER) | 帧构建器 |
-| `RbfReverseSequence` | [rbf-interface.md#A-RBF-REVERSE-SEQUENCE](rbf-interface.md#A-RBF-REVERSE-SEQUENCE) | 逆向扫描序列 |
+| `RbfFrameInfo` | [rbf-interface.md#A-RBF-FRAME-INFO](rbf-interface.md#A-RBF-FRAME-INFO) | 帧元信息 |
+| `RbfReverseSequence` | [rbf-interface.md#A-RBF-REVERSE-SEQUENCE](rbf-interface.md#A-RBF-REVERSE-SEQUENCE) | 逆向扫描元信息序列 |
 
 ---
 
@@ -63,6 +64,19 @@ depends_on:
 
 ---
 
+### 1.2 帧元信息 (FrameInfo)
+
+`RbfFrameInfo` 是逆向扫描的产出类型，用于“只看元信息、不读 payload”的场景。
+
+**类型定义（SSOT）**：见 [rbf-interface.md](rbf-interface.md) @[A-RBF-FRAME-INFO]
+
+**实现说明**：
+- 以 `record struct` 表达值语义，避免 GC 分配
+- 包含 `Ticket`/`Tag`/`PayloadLength`/`UserMetaLength`/`IsTombstone`
+- **不含 Payload**：读取完整帧需使用 `ReadFrame`/`ReadPooledFrame`（这些路径执行完整 CRC 校验）
+
+---
+
 ## 2. 底层操作原语 (Low-Level Primitives)
 
 `RbfReadImpl` 提供无状态的静态方法，直接操作文件句柄。
@@ -84,9 +98,20 @@ internal static class RbfReadImpl {
     /// <param name="ticket">帧位置凭据（SizedPtr 携带 offset + length）。</param>
     /// <param name="buffer">调用方提供的缓冲区，长度 MUST >= ticket.Length。</param>
     /// <returns>读取结果（成功含帧视图，失败含错误码）。</returns>
-    /// <remarks>使用 RandomAccess.Read 实现，无状态，并发安全。</remarks>
+    /// <remarks>使用 RandomAccess.Read 实现，无状态，并发安全；执行 CRC 校验。</remarks>
     public static AteliaResult<RbfFrame> ReadFrame(
         SafeFileHandle file, SizedPtr ticket, Span<byte> buffer);
+
+    /// <summary>
+    /// 基于帧元信息读取完整帧（zero-copy）。
+    /// </summary>
+    /// <param name="file">文件句柄（需具备 Read 权限）。</param>
+    /// <param name="info">帧元信息。</param>
+    /// <param name="buffer">调用方提供的缓冲区，长度 MUST >= info.Ticket.Length。</param>
+    /// <returns>读取结果（成功含帧视图，失败含错误码）。</returns>
+    /// <remarks>使用 RandomAccess.Read 实现，无状态，并发安全；执行 CRC 校验。</remarks>
+    public static AteliaResult<RbfFrame> ReadFrame(
+        SafeFileHandle file, in RbfFrameInfo info, Span<byte> buffer);
 
     /// <summary>
     /// 从 ArrayPool 借缓存读取帧。调用方 MUST 调用 Dispose() 归还 buffer。
@@ -97,9 +122,34 @@ internal static class RbfReadImpl {
     /// <remarks>
     /// <para>返回的 RbfPooledFrame 内部持有 ArrayPool buffer。</para>
     /// <para>调用方 MUST 调用 Dispose() 归还 buffer，否则内存泄漏。</para>
+    /// <para>此路径执行 CRC 校验。</para>
     /// </remarks>
     public static AteliaResult<RbfPooledFrame> ReadPooledFrame(
         SafeFileHandle file, SizedPtr ticket);
+
+    /// <summary>
+    /// 基于帧元信息从 ArrayPool 借缓存读取帧。调用方 MUST 调用 Dispose() 归还 buffer。
+    /// </summary>
+    /// <param name="file">文件句柄（需具备 Read 权限）。</param>
+    /// <param name="info">帧元信息。</param>
+    /// <returns>读取结果（成功含 pooled 帧，失败含错误码）。</returns>
+    /// <remarks>
+    /// <para>返回的 RbfPooledFrame 内部持有 ArrayPool buffer。</para>
+    /// <para>调用方 MUST 调用 Dispose() 归还 buffer，否则内存泄漏。</para>
+    /// <para>此路径执行 CRC 校验。</para>
+    /// </remarks>
+    public static AteliaResult<RbfPooledFrame> ReadPooledFrame(
+        SafeFileHandle file, in RbfFrameInfo info);
+
+    /// <summary>
+    /// 读取给定 Fence 之前一帧的元信息。
+    /// </summary>
+    /// <param name="file">文件句柄（需具备 Read 权限）。</param>
+    /// <param name="fenceEndOffset">帧尾 Fence 的 EndOffsetExclusive。</param>
+    /// <returns>读取结果（成功含帧元信息，失败含错误码）。</returns>
+    /// <remarks>仅做 Framing 校验 + TrailerCrc32C 校验，不进行 PayloadCrc32C 校验。</remarks>
+    public static AteliaResult<RbfFrameInfo> ReadInfoBefore(
+        SafeFileHandle file, long fenceEndOffset);
 
     /// <summary>
     /// 创建逆向扫描序列。
@@ -107,9 +157,10 @@ internal static class RbfReadImpl {
     /// <param name="file">文件句柄。</param>
     /// <param name="scanOrigin">文件逻辑长度（扫描起点）。</param>
     /// <param name="showTombstone">是否包含墓碑帧。默认 false。</param>
-    /// <returns>逆向扫描序列结构。</returns>
+    /// <returns>逆向扫描序列结构（产出 RbfFrameInfo）。</returns>
     /// <remarks>
     /// <para>RawOps 层直接实现过滤逻辑，与 Facade 层 @[S-RBF-SCANREVERSE-TOMBSTONE-FILTER] 保持一致。</para>
+    /// <para>仅做 Framing 校验 + TrailerCrc32C 校验，不进行 PayloadCrc32C 校验。</para>
     /// </remarks>
     public static RbfReverseSequence ScanReverse(SafeFileHandle file, long scanOrigin, bool showTombstone = false);
 }
@@ -177,10 +228,12 @@ depends: "@[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME](rbf-interface.md)"
 
 **实现说明**：
 - 作为 `ref struct` 实现（如同 Span）
-- 内部持有 handle 和 range
-- 内部实现：维护一个 Read Window (e.g. 64KB)，在窗口内反向解析
-- 调用 RandomAccess.Read 填充窗口
-- `Current` 指向内部 Window Buffer 的切片
+- 内部持有 handle 和 range/游标
+- 产出 `RbfFrameInfo`，不读取 payload；如需 payload，调用 `ReadFrame`/`ReadPooledFrame`
+- MVP 可直接用多次 `RandomAccess.Read` 完成 framing 校验；缓存层可后置
+- 仅做 framing 校验，不进行 CRC 校验
+- `Current` 为值语义快照（不依赖内部 buffer 生命周期）
+- `MoveNext()` 返回 `false` 时，`TerminationError` 为空表示正常结束；非空表示硬停止错误
 
 ---
 
@@ -192,8 +245,8 @@ depends: "@[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME](rbf-interface.md)"
 
 **实现说明**：
 - 职责：资源管理 (IDisposable)、状态维护 (TailOffset)、调用转发
-- 写入方法转发到 `RbfRawOps` 并更新内部状态
-- 读取方法直接转发到 `RbfRawOps`（无状态调用）
+- 写入方法转发到 `RbfWriteImpl` 并更新内部状态
+- 读取方法直接转发到 `RbfReadImpl`（无状态调用）
 - 在 Builder Dispose/EndAppend 前，TailOffset 不会更新，也不应允许并发 Append
 
 **工厂方法**：
@@ -309,10 +362,7 @@ internal static RbfFrameBuilder _BeginFrame(SafeFileHandle file, long writeOffse
     var headLenSpan = chunkedWriter.ReserveSpan(4, out int headLenToken);
     BinaryPrimitives.WriteUInt32LittleEndian(headLenSpan, 0); // placeholder
 
-    // 写 FrameTag（紧跟 HeadLen）
-    var tagSpan = chunkedWriter.GetSpan(4);
-    BinaryPrimitives.WriteUInt32LittleEndian(tagSpan, tag);
-    chunkedWriter.Advance(4);
+    // 注意：FrameTag 已移至 Trailer，此处不再写入
 
     return new RbfFrameBuilder {
         _chunkedWriter = chunkedWriter,
@@ -343,7 +393,7 @@ internal static RbfFrameBuilder _BeginFrame(SafeFileHandle file, long writeOffse
 
 ### 5.6 待实现阶段确认（P2）
 
-1. **CRC32C 计算时机**：EndAppend 时遍历 chunks vs 增量计算
+1. **CRC32C 计算时机**：EndAppend 时遍历 chunks 计算 PayloadCrc 与 TrailerCrc
 2. ~~异步版本~~：如需异步，实现 `RandomAccessByteSinkAsync` 配合 `RandomAccess.WriteAsync`
 
 ---
@@ -352,6 +402,7 @@ internal static RbfFrameBuilder _BeginFrame(SafeFileHandle file, long writeOffse
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.6 | 2026-01-24 | **Format对齐**：更新 `ScanReverse` 描述（TrailerCrc32C）；更新 `FrameInfo` 字段（UserMetaLength）；修正 `_BeginFrame` 伪代码（移除 FrameTag 头部写入） |
 | 0.5 | 2026-01-17 | **ReadFrame 重构**：更新 §2 底层原语签名（RbfRawOps → RbfReadImpl/RbfWriteImpl）；新增 IRbfFrame/RbfPooledFrame 引用；参数名 ptr → ticket |
 | 0.4 | 2026-01-11 | **适配器简化**：将 §5 从 `IBufferWriter` 适配器改为 `IByteSink` 适配器；删除 `SequentialRandomAccessBufferWriter`（~80 行）；新增 `RandomAccessByteSink`（~25 行）；删除 `@[I-RBF-SEQWRITER-TYPE]`、`@[I-RBF-SEQWRITER-ADVANCE-IMMEDIATE]`、`@[I-RBF-SEQWRITER-BUFFER-POOL]`、`@[I-RBF-SEQWRITER-DISPOSE-NOEXCEPT]`；新增 `@[I-RBF-BYTESINK-IS-MINIMAL-FORWARDER]`、`@[I-RBF-BYTESINK-PUSH-FORWARDS-AND-ADVANCES-OFFSET]`、`@[I-RBF-BYTESINK-ERROR-THROW]`；来自 [设计报告](../../../agent-team/handoffs/2026-01-11-randomaccess-bytesink-design.md) |
 | 0.3 | 2026-01-11 | **RandomAccess 适配器设计**：新增 §5（SequentialRandomAccessBufferWriter）；定义 @[I-RBF-SEQWRITER-TYPE]、@[I-RBF-SEQWRITER-ADVANCE-IMMEDIATE]、@[I-RBF-SEQWRITER-BUFFER-POOL]、@[I-RBF-SEQWRITER-HEADLEN-GUARD]、@[I-RBF-SEQWRITER-ERROR-THROW]、@[I-RBF-SEQWRITER-DISPOSE-NOEXCEPT]；来自 [畅谈会](../../../agent-team/meeting/2026-01-11-rbf-randomaccess-adapter.md) 决议 |

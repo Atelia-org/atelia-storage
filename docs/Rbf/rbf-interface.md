@@ -106,6 +106,12 @@ public interface IRbfFile : IDisposable {
     /// <returns>成功时返回帧视图（指向 buffer 内部），失败返回错误。</returns>
     AteliaResult<RbfFrame> ReadFrame(SizedPtr ticket, Span<byte> buffer);
 
+    /// <summary>根据帧元信息读取完整帧（zero-copy）。</summary>
+    /// <param name="info">帧元信息。</param>
+    /// <param name="buffer">目标缓冲区，长度必须 &gt;= info.Ticket.Length。</param>
+    /// <returns>成功时返回帧视图（指向 buffer 内部），失败返回错误。</returns>
+    AteliaResult<RbfFrame> ReadFrame(in RbfFrameInfo info, Span<byte> buffer);
+
     /// <summary>随机读（从 ArrayPool 借缓存）。</summary>
     /// <remarks>
     /// <para>调用方 MUST 调用返回值的 Dispose() 归还 buffer。</para>
@@ -113,8 +119,19 @@ public interface IRbfFile : IDisposable {
     /// </remarks>
     AteliaResult<RbfPooledFrame> ReadPooledFrame(SizedPtr ticket);
 
-    /// <summary>逆向扫描。</summary>
+    /// <summary>根据帧元信息读取完整帧（自动管理 buffer）。</summary>
+    /// <remarks>
+    /// <para>调用方 MUST 调用返回值的 Dispose() 归还 buffer。</para>
+    /// <para>失败时 buffer 已自动归还。</para>
+    /// </remarks>
+    AteliaResult<RbfPooledFrame> ReadPooledFrame(in RbfFrameInfo info);
+
+    /// <summary>逆向扫描，返回帧元信息序列。</summary>
     /// <param name="showTombstone">是否包含墓碑帧。默认 false（不包含）。</param>
+    /// <remarks>
+    /// <para><b>CRC 职责分离</b>：ScanReverse 只做 Framing 校验，不校验 PayloadCRC32C。</para>
+    /// <para>如需完整校验，请对返回的 Ticket 调用 ReadFrame/ReadPooledFrame。</para>
+    /// </remarks>
     RbfReverseSequence ScanReverse(bool showTombstone = false);
 
     /// <summary>
@@ -193,11 +210,11 @@ public ref struct RbfFrameBuilder : IDisposable {
     /// 提交帧。回填 header/CRC，返回帧位置和长度。
     /// </summary>
     /// <returns>写入的帧位置和长度</returns>
-    /// <exception cref="InvalidOperationException">重复调用 Commit</exception>
-    public SizedPtr Commit();
+    /// <exception cref="InvalidOperationException">重复调用 EndAppend</exception>
+    public SizedPtr EndAppend();
 
     /// <summary>
-    /// 释放构建器。若未 Commit，自动执行 Auto-Abort。
+    /// 释放构建器。若未 EndAppend，自动执行 Auto-Abort。
     /// </summary>
     /// <remarks>
     /// <para><b>Auto-Abort 分支约束</b>：<see cref="Dispose"/> 在 Auto-Abort 分支 MUST NOT 抛出异常
@@ -232,8 +249,34 @@ public ref struct RbfFrameBuilder : IDisposable {
 
 ## 4. 读取与扫描（通过 IRbfFile 暴露）
 
-`ReadFrame()` 与 `ScanReverse()` 的 framing/CRC 与 Resync 行为由 [rbf-format.md](rbf-format.md) 定义。
+`ReadFrame()` 的 framing/CRC 校验由 [rbf-format.md](rbf-format.md) 定义。
+`ScanReverse()` 仅做 Framing 校验并输出元信息，不做 CRC 校验。
 本节只约束上层可观察到的结果形态与序列语义。
+
+### spec [A-RBF-FRAME-INFO] RbfFrameInfo定义
+
+```csharp
+/// <summary>
+/// 帧元信息（不含 Payload）。
+/// </summary>
+/// <remarks>
+/// <para>用于 ScanReverse 产出，支持不读取 payload 的元信息迭代。</para>
+/// <para>PayloadLength 与 UserMetaLength 由 Trailer 字段解码得出。</para>
+/// </remarks>
+public readonly record struct RbfFrameInfo(
+    SizedPtr Ticket,
+    uint Tag,
+    int PayloadLength,
+    int UserMetaLength,
+    bool IsTombstone
+);
+```
+
+### spec [S-RBF-FRAMEINFO-USERMETALEN-RANGE] UserMetaLength值域
+`RbfFrameInfo.UserMetaLength` MUST 满足：`0 <= UserMetaLength`。
+
+### derived [H-RBF-FRAMEINFO-USERMETA-READING] 读取UserMeta
+调用方如需读取 `UserMeta` 数据，SHOULD 使用 `Ticket` 配合 `PayloadLength` 进行偏移计算与范围读取（`UserMeta` 紧随 `Payload` 之后），并自行决定是否执行完整 `ReadFrame`（`PayloadCrc32C`）校验。
 
 ### spec [A-RBF-REVERSE-SEQUENCE] RbfReverseSequence定义
 
@@ -242,7 +285,7 @@ public ref struct RbfFrameBuilder : IDisposable {
 /// 逆向扫描序列（duck-typed 枚举器，支持 foreach）。
 /// </summary>
 /// <remarks>
-/// <para><b>设计说明</b>：返回 ref struct 而非 IEnumerable，因为 RbfFrame 是 ref struct。</para>
+/// <para><b>设计说明</b>：返回 ref struct 以避免堆分配并满足栈上生命周期约束。</para>
 /// <para>上层通过 foreach 消费，不依赖 LINQ。</para>
 /// </remarks>
 public ref struct RbfReverseSequence {
@@ -254,24 +297,45 @@ public ref struct RbfReverseSequence {
 /// 逆向扫描枚举器。
 /// </summary>
 public ref struct RbfReverseEnumerator {
-    /// <summary>当前帧。</summary>
-    public RbfFrame Current { get; }
+    /// <summary>当前帧元信息。</summary>
+    public RbfFrameInfo Current { get; }
 
     /// <summary>移动到下一帧。</summary>
     public bool MoveNext();
+
+    /// <summary>迭代终止原因。null 表示正常结束。</summary>
+    public AteliaError? TerminationError { get; }
 }
 ```
 
 ### derived [S-RBF-SCANREVERSE-NO-IENUMERABLE] ScanReverse不实现IEnumerable
-`RbfReverseSequence` MUST NOT 实现 `IEnumerable<RbfFrame>`。
-**原因**：`RbfFrame` 是 `ref struct`，无法作为泛型参数。
+`RbfReverseSequence` MUST NOT 实现 `IEnumerable<T>`。
+**原因**：该序列与枚举器为 `ref struct`，以避免堆分配并满足栈上生命周期约束。
+
+### spec [S-RBF-READFRAME-ALWAYS-CRC] ReadFrame始终执行CRC校验
+`ReadFrame(...)` / `ReadPooledFrame(...)` MUST 对帧执行 CRC 校验。
+当 CRC 校验失败时，MUST 通过 `AteliaResult` 返回失败（错误类型由实现定义）。
+
+### spec [S-RBF-SCANREVERSE-NO-CRC] ScanReverse不进行PayloadCRC校验
+`ScanReverse(...)` MUST NOT 执行 `PayloadCrc32C` 校验。
+`ScanReverse(...)` MUST 执行 framing 校验 + 尾部元信息校验（`TrailerCrc32C`）并输出 `RbfFrameInfo`。
+如需完整校验，调用方 MUST 使用返回的 `Ticket` 调用 `ReadFrame` / `ReadPooledFrame`。
 
 ### spec [S-RBF-SCANREVERSE-EMPTY-IS-OK] 空序列合法
 当文件为空（仅含 HeaderFence）或 **根据过滤条件无可见帧** 时，`ScanReverse()` MUST 返回空序列（0 元素），MUST NOT 抛出异常。
 
-### spec [S-RBF-SCANREVERSE-CURRENT-LIFETIME] Current生命周期约束
-`RbfReverseEnumerator.Current` 的生命周期 MUST NOT 超过下次 `MoveNext()` 调用。
-上层如需持久化帧数据，MUST 在 `MoveNext()` 前显式复制。
+### spec [S-RBF-SCANREVERSE-TERMINATION-ERROR] 终止错误语义
+当 `MoveNext()` 返回 `false` 时：
+- 若 `TerminationError` 为 `null`，表示正常结束；
+- 若 `TerminationError` 非 `null`，表示因 framing 损坏或读取失败而提前终止。
+
+### spec [S-RBF-SCANREVERSE-CURRENT-LIFETIME] DEPRECATED
+该条款源于 `Current` 返回 `RbfFrame` 的旧契约。
+现已改为 `RbfFrameInfo` 值语义，不再受 buffer 生命周期约束。
+
+### spec [S-RBF-SCANREVERSE-CURRENT-VALUE] Current为值快照
+`RbfReverseEnumerator.Current` MUST 返回 `RbfFrameInfo` 的值快照，
+其生命周期不依赖底层 buffer，可安全跨越后续 `MoveNext()` 调用。
 
 ### spec [A-RBF-IFRAME] IRbfFrame接口定义
 
@@ -466,13 +530,19 @@ void RecoverState(IRbfFile file) {
     var sequence = file.ScanReverse(showTombstone: false);
 
     // 只能使用 foreach (duck-typed)
-    foreach (RbfFrame frame in sequence) {
-        // 这里的 frame 是“经过校验的有效帧”
-        // 损坏的帧已被 Resync 机制自动跳过
+    foreach (RbfFrameInfo info in sequence) {
+        // 这里的 info 只包含元信息（不含 payload）
+        Console.WriteLine($"Found Frame: Tag={info.Tag}, PayloadLen={info.PayloadLength}");
 
-        Console.WriteLine($"Found Frame: Tag={frame.Tag}, Len={frame.Payload.Length}");
+        // 如需完整数据与 CRC 校验，显式读取
+        Span<byte> buffer = stackalloc byte[info.Ticket.Length];
+        var result = file.ReadFrame(in info, buffer);
+        if (result.IsFailure) {
+            Console.WriteLine($"Read failed: {result.Error.Message}");
+            break;
+        }
 
-        if (IsStateRestored(frame)) break;
+        if (IsStateRestored(result.Value)) break;
     }
 }
 ```
@@ -483,6 +553,7 @@ void RecoverState(IRbfFile file) {
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.31 | 2026-01-24 | **Format对齐**：`RbfFrameInfo` 字段重命名 `MetaTrailerLength` -> `UserMetaLength` 以适配 wire-format；更新 ScanReverse 校验描述（适配 `TrailerCrc32C`）；修正 `RbfFrameBuilder` 签名为 `EndAppend`；废弃 PayloadTrailer 相关描述 |
 | 0.30 | 2026-01-17 | **ReadFrame 重构**：移除旧签名 `ReadFrame(SizedPtr)`，新增 `ReadFrame(ticket, buffer)` + `ReadPooledFrame(ticket)`；`RbfFrame.Ptr` → `Ticket`；新增 `IRbfFrame` 接口和 `RbfPooledFrame` 类型；更新 `SizedPtr` 属性引用（`Offset`/`Length`） |
 | 0.29 | 2026-01-14 | **IDisposable 显式声明**：`RbfFrameBuilder` 添加 `: IDisposable` 声明，明确类型系统语义；来自团队设计讨论 |
 | 0.28 | 2026-01-12 | **方法重命名**：`RbfFrameBuilder.Commit()` →  `EndAppend()`，与 `BeginAppend()` 形成对称配对，最大化 LLM 可预测性；详见[命名讨论会](../../../../agent-team/meeting/2026-01-12-rbf-builder-lifecycle-naming.md) |
