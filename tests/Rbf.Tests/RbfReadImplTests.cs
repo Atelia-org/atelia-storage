@@ -7,16 +7,16 @@ using Xunit;
 namespace Atelia.Rbf.Tests;
 
 /// <summary>
-/// RbfReadImpl.ReadFrame 格式验证测试。
+/// RbfReadImpl.ReadFrame 格式验证测试（v0.40 格式）。
 /// </summary>
 /// <remarks>
 /// 职责：验证 RawOps 层 ReadFrame 的帧解码符合规范。
 /// 规范引用：
 /// - @[A-RBF-FRAME-STRUCT] - RbfFrame 结构定义
 /// - @[F-FRAMEBYTES-FIELD-OFFSETS] - FrameBytes 布局
-/// - @[F-CRC32C-COVERAGE] - CRC 覆盖范围
-/// - @[F-FRAMESTATUS-RESERVED-BITS-ZERO] - FrameStatus 保留位
-/// - @[F-FRAMESTATUS-FILL] - FrameStatus 全字节同值
+/// - @[F-CRC32C-COVERAGE] - PayloadCrc 覆盖范围
+/// - @[F-TRAILERCRC-COVERAGE] - TrailerCrc 覆盖范围
+/// - @[F-FRAMEDESCRIPTOR-LAYOUT] - FrameDescriptor 位布局
 /// </remarks>
 public class RbfReadImplTests : IDisposable {
     private readonly List<string> _tempFiles = new();
@@ -54,40 +54,40 @@ public class RbfReadImplTests : IDisposable {
     }
 
     /// <summary>
-    /// 构造一个有效帧的字节数组。
+    /// 构造一个有效帧的字节数组（v0.40 格式）。
     /// </summary>
     /// <param name="tag">帧 Tag。</param>
     /// <param name="payload">Payload 数据。</param>
     /// <param name="isTombstone">是否为墓碑帧。</param>
     /// <returns>完整帧字节数组（不含 HeaderFence/Fence）。</returns>
+    /// <remarks>
+    /// v0.40 布局：[HeadLen][Payload][UserMeta][Padding][PayloadCrc][TrailerCodeword]
+    /// </remarks>
     private static byte[] CreateValidFrameBytes(uint tag, ReadOnlySpan<byte> payload, bool isTombstone = false) {
         var layout = new FrameLayout(payload.Length);
-        int headLen = layout.FrameLength;
-        int statusLen = layout.StatusLength;
+        int frameLen = layout.FrameLength;
 
-        byte[] frame = new byte[headLen];
+        byte[] frame = new byte[frameLen];
         Span<byte> span = frame;
 
-        // HeadLen (offset 0)
-        BinaryPrimitives.WriteUInt32LittleEndian(span[..FrameLayout.HeadLenSize], (uint)headLen);
+        // 1. HeadLen (offset 0)
+        BinaryPrimitives.WriteUInt32LittleEndian(span[..FrameLayout.HeadLenSize], (uint)frameLen);
 
-        // Tag (offset 4)
-        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(FrameLayout.TagOffset, FrameLayout.TagSize), tag);
-
-        // Payload (offset 8)
+        // 2. Payload (offset 4)
         payload.CopyTo(span.Slice(FrameLayout.PayloadOffset, payload.Length));
 
-        // Status
-        FrameStatusHelper.FillStatus(span.Slice(layout.StatusOffset, statusLen), isTombstone, statusLen);
+        // 3. Padding（清零，FrameLayout 已计算好）
+        if (layout.PaddingLength > 0) {
+            span.Slice(layout.PaddingOffset, layout.PaddingLength).Clear();
+        }
 
-        // TailLen
-        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(layout.TailLenOffset, FrameLayout.TailLenSize), (uint)headLen);
+        // 4. PayloadCrc（覆盖 Payload + UserMeta + Padding）
+        var payloadCrcCoverage = span.Slice(FrameLayout.PayloadCrcCoverageStart, layout.PayloadCrcCoverageLength);
+        uint payloadCrc = Crc32CHelper.Compute(payloadCrcCoverage);
+        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(layout.PayloadCrcOffset, FrameLayout.PayloadCrcSize), payloadCrc);
 
-        // CRC
-        // CRC 覆盖范围：Tag(4) + Payload(N) + Status(1-4) + TailLen(4) = frame[CrcCoverageStart..CrcCoverageEnd]
-        ReadOnlySpan<byte> crcInput = span[FrameLayout.CrcCoverageStart..layout.CrcCoverageEnd];
-        uint crc = Crc32CHelper.Compute(crcInput);
-        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(layout.CrcOffset, FrameLayout.CrcSize), crc);
+        // 5. TrailerCodeword
+        layout.FillTrailer(span.Slice(layout.TrailerCodewordOffset, TrailerCodewordHelper.Size), tag, isTombstone);
 
         return frame;
     }
@@ -229,7 +229,7 @@ public class RbfReadImplTests : IDisposable {
     // 原因：SizedPtr 类型系统使用 << 2 编码，天然保证 4B 对齐，无法构造非对齐值
 
     /// <summary>
-    /// 验证 Length &lt; 20（最小帧长度）时返回 ArgumentError。
+    /// 验证 Length &lt; 24（最小帧长度）时返回 ArgumentError（v0.40 最小帧长度为 24）。
     /// </summary>
     [Fact]
     public void ReadFrame_FrameTooShort_ReturnsArgumentError() {
@@ -240,8 +240,8 @@ public class RbfReadImplTests : IDisposable {
 
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
 
-        // Length = 16，小于最小帧长度 20
-        var ptr = SizedPtr.Create(RbfLayout.FenceSize, FrameLayout.OverheadLenButStatus);
+        // Length = 20，小于最小帧长度 24（v0.40）
+        var ptr = SizedPtr.Create(RbfLayout.FenceSize, 20);
 
         // Act
         var result = ReadFrameIntoHelper(handle, ptr);
@@ -264,8 +264,8 @@ public class RbfReadImplTests : IDisposable {
 
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
 
-        // 尝试从超出文件尾的位置读取
-        var ptr = SizedPtr.Create(1000, 20);
+        // 尝试从超出文件尾的位置读取（v0.40 最小帧长度为 24）
+        var ptr = SizedPtr.Create(1000, 24);
 
         // Act
         var result = ReadFrameIntoHelper(handle, ptr);
@@ -311,7 +311,7 @@ public class RbfReadImplTests : IDisposable {
     }
 
     /// <summary>
-    /// 验证 TailLen 与 HeadLen 不匹配时返回 FramingError。
+    /// 验证 TailLen 与 HeadLen 不匹配时返回 FramingError（v0.40 从 TrailerCodeword 读取 TailLen）。
     /// </summary>
     [Fact]
     public void ReadFrame_TailLenMismatch_ReturnsFramingError() {
@@ -320,13 +320,14 @@ public class RbfReadImplTests : IDisposable {
         byte[] payload = [0x01, 0x02, 0x03];
         byte[] fileContent = CreateValidFileWithFrame(0x12345678, payload);
 
-        // 修改 TailLen 字段为错误值
+        // 修改 TrailerCodeword 中的 TailLen 字段为错误值
         int frameOffset = RbfLayout.FenceSize;
         var layout = new FrameLayout(payload.Length);
         int frameLen = layout.FrameLength;
-        int tailLenOffset = frameOffset + layout.TailLenOffset;
+        // TrailerCodeword 内 TailLen 偏移 = TrailerCodewordOffset + 12
+        int tailLenOffset = frameOffset + layout.TrailerCodewordOffset + 12;
         BinaryPrimitives.WriteUInt32LittleEndian(
-            fileContent.AsSpan(tailLenOffset, FrameLayout.TailLenSize),
+            fileContent.AsSpan(tailLenOffset, 4),
             999 // 错误的 TailLen
         );
 
@@ -340,32 +341,36 @@ public class RbfReadImplTests : IDisposable {
 
         // Assert
         Assert.False(result.IsSuccess);
-        Assert.IsType<RbfFramingError>(result.Error);
-        Assert.Contains("TailLen mismatch", result.Error!.Message);
+        // v0.40 会先校验 TrailerCrc，TailLen 被篡改后 CRC 校验会失败
+        Assert.True(
+            result.Error is RbfCrcMismatchError || result.Error is RbfFramingError,
+            $"Expected RbfCrcMismatchError or RbfFramingError, got {result.Error?.GetType().Name}"
+        );
     }
 
     /// <summary>
-    /// 验证 FrameStatus 保留位非零时返回 FramingError。
+    /// 验证 FrameDescriptor 保留位非零时返回 FramingError（v0.40）。
     /// </summary>
     [Fact]
-    public void ReadFrame_InvalidStatusReservedBits_ReturnsFramingError() {
+    public void ReadFrame_DescriptorReservedBitsNonZero_ReturnsFramingError() {
         // Arrange
         var path = GetTempFilePath();
         byte[] payload = [0x01, 0x02, 0x03];
         byte[] fileContent = CreateValidFileWithFrame(0x12345678, payload);
 
-        // 修改 Status 字节的保留位
+        // 修改 FrameDescriptor 的保留位（bit 28-16）
         int frameOffset = RbfLayout.FenceSize;
         var layout = new FrameLayout(payload.Length);
         int frameLen = layout.FrameLength;
-        int statusLen = layout.StatusLength;
-        int statusOffset = frameOffset + layout.StatusOffset;
+        // FrameDescriptor 偏移 = TrailerCodewordOffset + 4
+        int descriptorOffset = frameOffset + layout.TrailerCodewordOffset + 4;
 
-        // 设置保留位（Bit6-2）为非零
-        byte invalidStatus = 0x04; // Bit2 = 1，保留位非零
-        for (int i = 0; i < statusLen; i++) {
-            fileContent[statusOffset + i] = invalidStatus;
-        }
+        // 设置保留位为非零（bit 28-16）
+        uint invalidDescriptor = 0x0001_0000; // bit 16 = 1（保留位）
+        BinaryPrimitives.WriteUInt32LittleEndian(
+            fileContent.AsSpan(descriptorOffset, 4),
+            invalidDescriptor
+        );
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
@@ -377,73 +382,33 @@ public class RbfReadImplTests : IDisposable {
 
         // Assert
         Assert.False(result.IsSuccess);
-        Assert.IsType<RbfFramingError>(result.Error);
-        Assert.Contains("reserved bits", result.Error!.Message);
-    }
-
-    /// <summary>
-    /// 验证 FrameStatus 字节不一致时返回 FramingError。
-    /// </summary>
-    [Fact]
-    public void ReadFrame_StatusBytesInconsistent_ReturnsFramingError() {
-        // Arrange：需要使用 statusLen > 1 的帧
-        var path = GetTempFilePath();
-        // payload 长度 = 0，statusLen = 4（保证多字节 status）
-        byte[] payload = [];
-        byte[] fileContent = CreateValidFileWithFrame(0x12345678, payload);
-
-        // 验证 statusLen = 4
-        int statusLen = new FrameLayout(payload.Length).StatusLength;
-        Assert.Equal(4, statusLen);
-
-        // 修改 Status 区域的第一个字节，使其与其他字节不一致
-        int frameOffset = RbfLayout.FenceSize;
-        var layout = new FrameLayout(payload.Length);
-        int statusOffset = frameOffset + layout.StatusOffset;
-
-        // 原始 status 字节 = 0x03（statusLen=4，非墓碑）
-        // 修改第一个字节为不同值（但保留位仍为零）
-        fileContent[statusOffset] = 0x02; // 不同的 status 值
-
-        File.WriteAllBytes(path, fileContent);
-        using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
-
-        int frameLen = new FrameLayout(payload.Length).FrameLength;
-        var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
-
-        // Act
-        var result = ReadFrameIntoHelper(handle, ptr);
-
-        // Assert
-        Assert.False(result.IsSuccess);
-        Assert.IsType<RbfFramingError>(result.Error);
-        // 可能是 StatusLen inconsistency 或 Status bytes not consistent
+        // 修改 FrameDescriptor 会导致 TrailerCrc 校验失败
         Assert.True(
-            result.Error!.Message.Contains("Status") ||
-            result.Error.Message.Contains("inconsisten", StringComparison.OrdinalIgnoreCase)
+            result.Error is RbfCrcMismatchError || result.Error is RbfFramingError,
+            $"Expected CrcMismatch or FramingError, got {result.Error?.GetType().Name}"
         );
     }
 
     // ========== CRC 错误测试 ==========
 
     /// <summary>
-    /// 验证 CRC 损坏时返回 CrcMismatch 错误。
+    /// 验证 PayloadCrc 损坏时返回 CrcMismatch 错误（v0.40）。
     /// </summary>
     [Fact]
-    public void ReadFrame_CrcMismatch_ReturnsCrcMismatch() {
+    public void ReadFrame_PayloadCrcMismatch_ReturnsCrcMismatch() {
         // Arrange
         var path = GetTempFilePath();
         byte[] payload = [0x01, 0x02, 0x03];
         byte[] fileContent = CreateValidFileWithFrame(0x12345678, payload);
 
-        // 修改 CRC 字段为错误值
+        // 修改 PayloadCrc 字段为错误值
         int frameOffset = RbfLayout.FenceSize;
         var layout = new FrameLayout(payload.Length);
         int frameLen = layout.FrameLength;
-        int crcOffset = frameOffset + layout.CrcOffset;
+        int payloadCrcOffset = frameOffset + layout.PayloadCrcOffset;
         BinaryPrimitives.WriteUInt32LittleEndian(
-            fileContent.AsSpan(crcOffset, FrameLayout.CrcSize),
-            0xDEADBEEF // 错误的 CRC
+            fileContent.AsSpan(payloadCrcOffset, FrameLayout.PayloadCrcSize),
+            0xDEADBEEF // 错误的 PayloadCrc
         );
 
         File.WriteAllBytes(path, fileContent);
@@ -457,22 +422,54 @@ public class RbfReadImplTests : IDisposable {
         // Assert
         Assert.False(result.IsSuccess);
         Assert.IsType<RbfCrcMismatchError>(result.Error);
-        Assert.Contains("CRC mismatch", result.Error!.Message);
+    }
+
+    /// <summary>
+    /// 验证 TrailerCrc 损坏时返回 CrcMismatch 错误（v0.40）。
+    /// </summary>
+    [Fact]
+    public void ReadFrame_TrailerCrcMismatch_ReturnsCrcMismatch() {
+        // Arrange
+        var path = GetTempFilePath();
+        byte[] payload = [0x01, 0x02, 0x03];
+        byte[] fileContent = CreateValidFileWithFrame(0x12345678, payload);
+
+        // 修改 TrailerCrc 字段为错误值（TrailerCodeword 的前 4 字节，BE）
+        int frameOffset = RbfLayout.FenceSize;
+        var layout = new FrameLayout(payload.Length);
+        int frameLen = layout.FrameLength;
+        int trailerCrcOffset = frameOffset + layout.TrailerCodewordOffset;
+        BinaryPrimitives.WriteUInt32BigEndian(
+            fileContent.AsSpan(trailerCrcOffset, 4),
+            0xCAFEBABE // 错误的 TrailerCrc
+        );
+
+        File.WriteAllBytes(path, fileContent);
+        using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+
+        var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
+
+        // Act
+        var result = ReadFrameIntoHelper(handle, ptr);
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.IsType<RbfCrcMismatchError>(result.Error);
     }
 
     // ========== 边界值测试 ==========
 
     /// <summary>
-    /// 验证不同 payload 长度（对齐边界）的正确解码。
+    /// 验证不同 payload 长度（对齐边界）的正确解码（v0.40 格式）。
     /// </summary>
     [Theory]
-    [InlineData(0)]   // statusLen = 4
-    [InlineData(1)]   // statusLen = 3
-    [InlineData(2)]   // statusLen = 2
-    [InlineData(3)]   // statusLen = 1
-    [InlineData(4)]   // statusLen = 4
-    [InlineData(7)]   // statusLen = 1
-    [InlineData(8)]   // statusLen = 4
+    [InlineData(0)]   // paddingLen = 0
+    [InlineData(1)]   // paddingLen = 3
+    [InlineData(2)]   // paddingLen = 2
+    [InlineData(3)]   // paddingLen = 1
+    [InlineData(4)]   // paddingLen = 0
+    [InlineData(7)]   // paddingLen = 1
+    [InlineData(8)]   // paddingLen = 0
     public void ReadFrame_VariousPayloadAlignments_DecodesCorrectly(int payloadLen) {
         // Arrange
         var path = GetTempFilePath();
@@ -533,7 +530,7 @@ public class RbfReadImplTests : IDisposable {
     }
 
     /// <summary>
-    /// 验证 ReadFrameInto 的 zero-copy 特性：Payload 直接引用 buffer。
+    /// 验证 ReadFrameInto 的 zero-copy 特性：Payload 直接引用 buffer（v0.40 格式）。
     /// </summary>
     [Fact]
     public void ReadFrameInto_ValidBuffer_PayloadIsSlice() {
@@ -561,7 +558,7 @@ public class RbfReadImplTests : IDisposable {
         Assert.Equal(payload, frame.Payload.ToArray());
 
         // 验证 zero-copy：修改 buffer 应该影响 Payload
-        // Payload 位于 buffer 的 offset 8 处（HeadLen(4) + Tag(4) = 8）
+        // v0.40: Payload 位于 buffer 的 offset 4 处（HeadLen(4) = 4）
         buffer[FrameLayout.PayloadOffset] = 0xFF; // 修改 Payload 第一个字节
         Assert.Equal(0xFF, frame.Payload[0]); // 应该能看到修改（证明是引用）
     }

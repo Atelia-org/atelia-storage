@@ -6,15 +6,16 @@ using Xunit;
 namespace Atelia.Rbf.Tests;
 
 /// <summary>
-/// RbfRawOps 格式单元测试。
+/// RbfRawOps 格式单元测试（v0.40 格式）。
 /// </summary>
 /// <remarks>
 /// 职责：验证 RawOps 层输出的字节序列符合规范。
 /// 规范引用：
 /// - @[S-RBF-DECISION-4B-ALIGNMENT-ROOT] - 4B 对齐根不变量
-/// - @[F-FRAMEBYTES-FIELD-OFFSETS] - FrameBytes 布局、HeadLen/TailLen 对称性
+/// - @[F-FRAMEBYTES-FIELD-OFFSETS] - FrameBytes 布局（v0.40）
 /// - @[F-FENCE-VALUE-IS-RBF1-ASCII-4B] - Fence 必须是 ASCII "RBF1"
-/// - @[F-CRC32C-COVERAGE] - CRC 覆盖范围
+/// - @[F-CRC32C-COVERAGE] - PayloadCrc 覆盖范围
+/// - @[F-TRAILERCRC-COVERAGE] - TrailerCrc 覆盖范围
 /// </remarks>
 public class RbfAppendImplTests : IDisposable {
     private readonly List<string> _tempFiles = new();
@@ -63,37 +64,56 @@ public class RbfAppendImplTests : IDisposable {
     }
 
     /// <summary>
-    /// 验证 HeadLen/TailLen 对称性 @[F-FRAMEBYTES-FIELD-OFFSETS]。
+    /// 验证 HeadLen/TailLen 对称性 @[F-FRAMEBYTES-FIELD-OFFSETS]（v0.40 格式）。
     /// </summary>
+    /// <remarks>
+    /// v0.40 布局：[HeadLen][Payload][UserMeta][Padding][PayloadCrc][TrailerCodeword]
+    /// TrailerCodeword: [TrailerCrc(4)][FrameDescriptor(4)][FrameTag(4)][TailLen(4)]
+    /// </remarks>
     private static void AssertHeadTailSymmetry(ReadOnlySpan<byte> data, int frameOffset, uint expectedHeadLen) {
         // 读取 HeadLen (offset 0)
         uint headLen = BinaryPrimitives.ReadUInt32LittleEndian(data[frameOffset..]);
         Assert.Equal(expectedHeadLen, headLen);
 
-        // 读取 TailLen (headLen - 8 处，即 CRC 前 4 字节)
-        int payloadLen = (int)headLen - FrameLayout.OverheadLenButStatus - (RbfLayout.Alignment - ((int)headLen - FrameLayout.OverheadLenButStatus) % RbfLayout.Alignment) % RbfLayout.Alignment;
-        // 简化：直接用 FrameLayout 计算
-        // 由于 headLen 已知，反推 payloadLen 比较复杂，这里直接计算 tailLenOffset
-        int tailLenOffset = frameOffset + (int)headLen - FrameLayout.CrcSize - FrameLayout.TailLenSize;
+        // 读取 TailLen (TrailerCodeword 末尾 4 字节)
+        // TailLen 位于 frameOffset + headLen - 4
+        int tailLenOffset = frameOffset + (int)headLen - 4;
         uint tailLen = BinaryPrimitives.ReadUInt32LittleEndian(data[tailLenOffset..]);
         Assert.Equal(expectedHeadLen, tailLen);
     }
 
     /// <summary>
-    /// 验证 CRC32C 校验和 @[F-CRC32C-COVERAGE]。
+    /// 验证 PayloadCrc32C（v0.40 格式）。
     /// </summary>
-    private static void AssertCrc(ReadOnlySpan<byte> data, int frameOffset, uint headLen) {
-        // CRC 覆盖：Tag(4) + Payload(N) + Status(1-4) + TailLen(4)
-        // 即从 offset+4 到 offset+headLen-4
-        int crcInputStart = frameOffset + FrameLayout.CrcCoverageStart;
-        int crcInputEnd = frameOffset + (int)headLen - FrameLayout.CrcSize;
-        var crcInput = data[crcInputStart..crcInputEnd];
+    /// <remarks>
+    /// PayloadCrc 覆盖：Payload + UserMeta + Padding
+    /// 即从 offset+4 到 PayloadCrcOffset
+    /// </remarks>
+    private static void AssertPayloadCrc(ReadOnlySpan<byte> data, int frameOffset, FrameLayout layout) {
+        // PayloadCrc 覆盖范围：Payload + UserMeta + Padding
+        int crcInputStart = frameOffset + FrameLayout.PayloadCrcCoverageStart;
+        int crcInputLen = layout.PayloadCrcCoverageLength;
+        var crcInput = data.Slice(crcInputStart, crcInputLen);
         uint expectedCrc = Crc32CHelper.Compute(crcInput);
 
-        // 读取实际 CRC (在 headLen-4 处)
-        int crcOffset = frameOffset + (int)headLen - FrameLayout.CrcSize;
-        uint actualCrc = BinaryPrimitives.ReadUInt32LittleEndian(data[crcOffset..]);
+        // 读取实际 PayloadCrc
+        int payloadCrcOffset = frameOffset + layout.PayloadCrcOffset;
+        uint actualCrc = BinaryPrimitives.ReadUInt32LittleEndian(data[payloadCrcOffset..]);
         Assert.Equal(expectedCrc, actualCrc);
+    }
+
+    /// <summary>
+    /// 验证 TrailerCrc32C（v0.40 格式）。
+    /// </summary>
+    private static void AssertTrailerCrc(ReadOnlySpan<byte> data, int frameOffset, FrameLayout layout) {
+        // TrailerCodeword 位于帧末尾 16 字节
+        int trailerOffset = frameOffset + layout.TrailerCodewordOffset;
+        var trailerCodeword = data.Slice(trailerOffset, TrailerCodewordHelper.Size);
+
+        // 验证 TrailerCrc
+        Span<byte> temp = stackalloc byte[TrailerCodewordHelper.Size];
+        trailerCodeword.CopyTo(temp);
+        Assert.True(Atelia.Data.Hashing.RollingCrc.CheckCodewordBackward(temp), "TrailerCrc32C verification failed");
     }
 
     public static IEnumerable<object[]> GetVariablePayloadSizes() {
@@ -111,7 +131,7 @@ public class RbfAppendImplTests : IDisposable {
     }
 
     /// <summary>
-    /// 验证不同大小 payload 的写入格式正确性。
+    /// 验证不同大小 payload 的写入格式正确性（v0.40 格式）。
     /// 覆盖场景：空 payload、关键边界（由 _GetKeyAppendPayloadLength 动态提供）、大包等。
     /// </summary>
     [Theory]
@@ -148,14 +168,18 @@ public class RbfAppendImplTests : IDisposable {
         // HeadLen/TailLen 对称性
         AssertHeadTailSymmetry(data, 0, (uint)expectedHeadLen);
 
-        // CRC
-        AssertCrc(data, 0, (uint)expectedHeadLen);
+        // PayloadCrc
+        AssertPayloadCrc(data, 0, layout);
 
-        // Tag 验证 (offset 4)
-        uint actualTag = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(FrameLayout.TagOffset));
+        // TrailerCrc
+        AssertTrailerCrc(data, 0, layout);
+
+        // Tag 验证（v0.40: Tag 在 TrailerCodeword 中，偏移 = TrailerCodewordOffset + 8）
+        int tagOffset = layout.TrailerCodewordOffset + 8;
+        uint actualTag = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(tagOffset));
         Assert.Equal(tag, actualTag);
 
-        // Payload 验证 (offset 8)
+        // Payload 验证 (offset 4)
         Assert.Equal(payload, data.AsSpan(FrameLayout.PayloadOffset, payload.Length).ToArray());
 
         // Trailing Fence (offset headLen)
@@ -163,7 +187,7 @@ public class RbfAppendImplTests : IDisposable {
     }
 
     /// <summary>
-    /// 验证指定 writeOffset 的追加位置正确（参数化测试）。
+    /// 验证指定 writeOffset 的追加位置正确（参数化测试，v0.40 格式）。
     /// </summary>
     [Theory]
     [InlineData(2, 100)]           // 小 payload，小 offset
@@ -185,7 +209,8 @@ public class RbfAppendImplTests : IDisposable {
 
         // Assert - SizedPtr 指向正确位置
         Assert.Equal(writeOffset, ptr.Offset);
-        int expectedHeadLen = new FrameLayout(payload.Length).FrameLength;
+        var layout = new FrameLayout(payload.Length);
+        int expectedHeadLen = layout.FrameLength;
         Assert.Equal(expectedHeadLen, ptr.Length);
 
         // Assert - nextTailOffset
@@ -197,7 +222,8 @@ public class RbfAppendImplTests : IDisposable {
 
         // 验证帧写在 offset 位置
         AssertHeadTailSymmetry(data, (int)writeOffset, (uint)expectedHeadLen);
-        AssertCrc(data, (int)writeOffset, (uint)expectedHeadLen);
+        AssertPayloadCrc(data, (int)writeOffset, layout);
+        AssertTrailerCrc(data, (int)writeOffset, layout);
         AssertFence(data, (int)writeOffset + expectedHeadLen);
 
         // Payload 验证
@@ -205,7 +231,7 @@ public class RbfAppendImplTests : IDisposable {
     }
 
     /// <summary>
-    /// 验证大帧路径：10MB payload（压力测试）。
+    /// 验证大帧路径：10MB payload（压力测试，v0.40 格式）。
     /// 单独保留以进行非完整比对的快速验证，并作为压力测试用例。
     /// </summary>
     [Fact]
@@ -225,7 +251,8 @@ public class RbfAppendImplTests : IDisposable {
         AssertAlignment(ptr, nextTailOffset);
 
         // Assert - SizedPtr
-        int expectedHeadLen = new FrameLayout(payload.Length).FrameLength;
+        var layout = new FrameLayout(payload.Length);
+        int expectedHeadLen = layout.FrameLength;
         Assert.Equal(expectedHeadLen, ptr.Length);
 
         // Assert - 读取文件内容并验证关键点（不做完整比对以节省时间）
@@ -235,8 +262,11 @@ public class RbfAppendImplTests : IDisposable {
         // HeadLen/TailLen 对称性
         AssertHeadTailSymmetry(data, 0, (uint)expectedHeadLen);
 
-        // CRC（关键验证）
-        AssertCrc(data, 0, (uint)expectedHeadLen);
+        // PayloadCrc（关键验证）
+        AssertPayloadCrc(data, 0, layout);
+
+        // TrailerCrc（关键验证）
+        AssertTrailerCrc(data, 0, layout);
 
         // Payload 首尾验证
         Assert.Equal(payload[..16], data.AsSpan(FrameLayout.PayloadOffset, 16).ToArray());

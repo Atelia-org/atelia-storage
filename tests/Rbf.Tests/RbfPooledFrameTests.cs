@@ -8,7 +8,7 @@ using Xunit;
 namespace Atelia.Rbf.Tests;
 
 /// <summary>
-/// RbfPooledFrame 和 ReadPooledFrame 测试。
+/// RbfPooledFrame 和 ReadPooledFrame 测试（v0.40 格式）。
 /// </summary>
 /// <remarks>
 /// 测试内容：
@@ -38,35 +38,36 @@ public class RbfPooledFrameTests : IDisposable {
     // ========== 辅助方法 ==========
 
     /// <summary>
-    /// 构造一个有效帧的字节数组。
+    /// 构造一个有效帧的字节数组（v0.40 格式）。
     /// </summary>
+    /// <remarks>
+    /// v0.40 布局：[HeadLen][Payload][UserMeta][Padding][PayloadCrc][TrailerCodeword]
+    /// </remarks>
     private static byte[] CreateValidFrameBytes(uint tag, ReadOnlySpan<byte> payload, bool isTombstone = false) {
         var layout = new FrameLayout(payload.Length);
         int frameLen = layout.FrameLength;
-        int statusLen = layout.StatusLength;
 
         byte[] frame = new byte[frameLen];
         Span<byte> span = frame;
 
-        // 1. HeadLen
+        // 1. HeadLen (offset 0)
         BinaryPrimitives.WriteUInt32LittleEndian(span[..FrameLayout.HeadLenSize], (uint)frameLen);
 
-        // 2. Tag
-        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(FrameLayout.TagOffset, FrameLayout.TagSize), tag);
-
-        // 3. Payload
+        // 2. Payload (offset 4)
         payload.CopyTo(span.Slice(FrameLayout.PayloadOffset, payload.Length));
 
-        // 4. Status
-        FrameStatusHelper.FillStatus(span.Slice(layout.StatusOffset, statusLen), isTombstone, statusLen);
+        // 3. Padding（清零）
+        if (layout.PaddingLength > 0) {
+            span.Slice(layout.PaddingOffset, layout.PaddingLength).Clear();
+        }
 
-        // 5. TailLen
-        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(layout.TailLenOffset, FrameLayout.TailLenSize), (uint)frameLen);
+        // 4. PayloadCrc（覆盖 Payload + UserMeta + Padding）
+        var payloadCrcCoverage = span.Slice(FrameLayout.PayloadCrcCoverageStart, layout.PayloadCrcCoverageLength);
+        uint payloadCrc = Crc32CHelper.Compute(payloadCrcCoverage);
+        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(layout.PayloadCrcOffset, FrameLayout.PayloadCrcSize), payloadCrc);
 
-        // 6. CRC
-        ReadOnlySpan<byte> crcInput = span[FrameLayout.CrcCoverageStart..layout.CrcCoverageEnd];
-        uint crc = Crc32CHelper.Compute(crcInput);
-        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(layout.CrcOffset, FrameLayout.CrcSize), crc);
+        // 5. TrailerCodeword
+        layout.FillTrailer(span.Slice(layout.TrailerCodewordOffset, TrailerCodewordHelper.Size), tag, isTombstone);
 
         return frame;
     }

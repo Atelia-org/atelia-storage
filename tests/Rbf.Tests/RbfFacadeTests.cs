@@ -108,7 +108,7 @@ public class RbfFacadeTests : IDisposable {
     }
 
     /// <summary>
-    /// 验证空 payload 场景的状态更新。
+    /// 验证空 payload 场景的状态更新（v0.40 格式）。
     /// </summary>
     [Fact]
     public void Append_EmptyPayload_UpdatesTailOffset() {
@@ -127,7 +127,7 @@ public class RbfFacadeTests : IDisposable {
 
         // Assert - 只验证状态和返回值
         int expectedHeadLen = new FrameLayout(0).FrameLength;
-        Assert.Equal(20, expectedHeadLen); // 验证计算
+        Assert.Equal(24, expectedHeadLen); // v0.40 最小帧长度为 24
 
         Assert.Equal(RbfLayout.FirstFrameOffset, ptr.Offset);
         Assert.Equal(expectedHeadLen, ptr.Length);

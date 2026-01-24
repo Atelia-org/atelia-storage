@@ -140,72 +140,7 @@ internal readonly struct FrameLayout {
     internal int PayloadCrcCoverageLength => _payloadLength + _userMetaLength + _paddingLength;
     #endregion
 
-    #region DEPRECATED (旧格式兼容层，将在 Task 6.3/6.4/6.5 中移除)
-    // 以下常量仅为临时编译兼容，不应在新代码中使用。
-
-    /// <summary>[DEPRECATED] 旧格式的 Tag 大小。v0.40 Tag 已移至 TrailerCodeword。</summary>
-    [Obsolete("v0.40 格式中 Tag 不在头部，将在 Task 6.3 中移除")]
-    internal const int TagSize = sizeof(uint);
-
-    /// <summary>[DEPRECATED] 旧格式的 Tag 偏移。v0.40 Tag 已移至 TrailerCodeword。</summary>
-    [Obsolete("v0.40 格式中 Tag 不在头部，将在 Task 6.3 中移除")]
-    internal const int TagOffset = HeadLenOffset + HeadLenSize;
-
-    /// <summary>[DEPRECATED] 旧格式的 CRC 大小。</summary>
-    [Obsolete("v0.40 使用双 CRC（PayloadCrc + TrailerCrc），将在 Task 6.3/6.4 中重构")]
-    internal const int CrcSize = sizeof(uint);
-
-    /// <summary>[DEPRECATED] 旧格式的 CRC 覆盖起始。</summary>
-    [Obsolete("v0.40 使用 PayloadCrcCoverageStart，将在 Task 6.3/6.4 中重构")]
-    internal const int CrcCoverageStart = PayloadOffset;
-
-    /// <summary>[DEPRECATED] 旧格式的 CRC 覆盖结束。</summary>
-    [Obsolete("v0.40 使用 PayloadCrcCoverageEnd，将在 Task 6.4 中重构")]
-    internal int CrcCoverageEnd => PayloadCrcOffset;
-
-    /// <summary>[DEPRECATED] 旧格式 CRC 后长度。</summary>
-    [Obsolete("v0.40 布局不再使用此常量，将在 Task 6.3 中移除")]
-    internal const int LengthAfterCrcCoverage = CrcSize;
-
-    /// <summary>[DEPRECATED] 旧格式最小状态长度。</summary>
-    [Obsolete("v0.40 使用 Padding 替代 Status，将在 Task 6.5 中移除")]
-    internal const int MinStatusLength = 1;
-
-    /// <summary>[DEPRECATED] 旧格式最大状态长度。</summary>
-    [Obsolete("v0.40 使用 Padding 替代 Status，将在 Task 6.5 中移除")]
-    internal const int MaxStatusLength = RbfLayout.Alignment;
-
-    /// <summary>[DEPRECATED] 旧格式最小开销（不含状态）。</summary>
-    [Obsolete("v0.40 使用 FixedOverhead，将在 Task 6.3 中移除")]
-    internal const int MinOverheadLen = FixedOverhead;
-
-    /// <summary>[DEPRECATED] 旧格式开销（不含 Status）= HeadLen(4) + Tag(4) + TailLen(4) + CRC(4) = 16。</summary>
-    [Obsolete("v0.40 使用 FixedOverhead，将在 Task 6.5 中移除")]
-    internal const int OverheadLenButStatus = 16;
-
-    /// <summary>[DEPRECATED] 旧格式最小 Trailer 长度。</summary>
-    [Obsolete("v0.40 使用 TrailerCodewordSize，将在 Task 6.4 中移除")]
-    internal const int MinTrailerLength = MinStatusLength + TailLenSize + CrcSize;
-
-    /// <summary>[DEPRECATED] 旧格式 CRC 偏移（实例属性）。</summary>
-    [Obsolete("v0.40 使用 PayloadCrcOffset，将在 Task 6.4 中移除")]
-    internal int CrcOffset => PayloadCrcOffset;
-
-    /// <summary>[DEPRECATED] 旧格式状态长度（实例属性）。</summary>
-    [Obsolete("v0.40 使用 PaddingLength，将在 Task 6.3/6.4 中移除")]
-    internal int StatusLength => _paddingLength > 0 ? _paddingLength : RbfLayout.Alignment;
-
-    /// <summary>[DEPRECATED] 旧格式状态偏移。</summary>
-    [Obsolete("v0.40 使用 PaddingOffset，将在 Task 6.3/6.4 中移除")]
-    internal int StatusOffset => PaddingOffset;
-
-    /// <summary>[DEPRECATED] 旧格式 TailLen 偏移。</summary>
-    [Obsolete("v0.40 TailLen 在 TrailerCodeword 内部，将在 Task 6.4 中移除")]
-    internal int TailLenOffset => TrailerCodewordOffset + 12; // TrailerCodeword 内 TailLen 的偏移
-
-    /// <summary>[DEPRECATED] 旧格式 Trailer 长度。</summary>
-    [Obsolete("v0.40 使用 TrailerCodewordSize，将在 Task 6.3 中移除")]
-    internal int TrailerLength => PayloadCrcSize + TrailerCodewordSize;
+    #region TrailerCodeword 操作
 
     /// <summary>
     /// 从完整帧 buffer 解析 TrailerCodeword 并构造 FrameLayout（v0.40 格式）。
@@ -294,7 +229,7 @@ internal readonly struct FrameLayout {
             );
         }
 
-        // 7. 计算 PayloadLength
+        // 8. 计算 PayloadLength
         // PayloadLength = TailLen - FixedOverhead - UserMetaLen - PaddingLen
         int payloadLength = (int)trailer.TailLen - FixedOverhead - trailer.UserMetaLen - trailer.PaddingLen;
         if (payloadLength < 0) {
@@ -306,7 +241,7 @@ internal readonly struct FrameLayout {
             );
         }
 
-        // 8. 构造 FrameLayout
+        // 9. 构造 FrameLayout
         return AteliaResult<FrameLayout>.Success(new FrameLayout(payloadLength, trailer.UserMetaLen));
     }
 
@@ -339,20 +274,6 @@ internal readonly struct FrameLayout {
 
         // 计算并写入 TrailerCrc（使用 RollingCrc.SealCodewordBackward）
         TrailerCodewordHelper.SealTrailerCrc(buffer);
-    }
-
-    /// <summary>[DEPRECATED] 旧格式 FillTrailer。</summary>
-    [Obsolete("v0.40 需要重写填充逻辑，已被新的 FillTrailer(buffer, tag, isTombstone) 替代")]
-    internal void FillTrailer(Span<byte> buffer, ref int offset, bool isTombstone = false) {
-        // 临时 stub：抛出异常，强制使用新 API
-        throw new NotSupportedException("FillTrailer(buffer, ref offset, isTombstone) is deprecated in v0.40. Use FillTrailer(buffer, tag, isTombstone) instead.");
-    }
-
-    /// <summary>[DEPRECATED] 旧格式 ValidateStatusConsistency。</summary>
-    [Obsolete("v0.40 使用 Padding 替代 Status，将在 Task 6.4 中移除")]
-    internal AteliaError? ValidateStatusConsistency(ReadOnlySpan<byte> frameBuffer) {
-        // 临时 stub：总是返回 null（不校验）
-        return null;
     }
     #endregion
 }

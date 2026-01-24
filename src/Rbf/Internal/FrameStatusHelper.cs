@@ -1,5 +1,9 @@
-// FrameStatus 编码工具类
-// 规范引用: rbf-format.md
+// [DEPRECATED] FrameStatus 编码工具类
+// v0.40 使用 TrailerCodeword 中的 FrameDescriptor 替代 FrameStatus。
+// 本文件保留仅为兼容旧代码，将在下一个版本中删除。
+// 参见 TrailerCodewordHelper.cs 获取 v0.40 格式的实现。
+//
+// 规范引用（旧格式）: rbf-format.md
 //   @[F-STATUSLEN-ENSURES-4B-ALIGNMENT]：StatusLen = 1 + ((4 - ((PayloadLen + 1) % 4)) % 4)
 //   @[F-FRAMESTATUS-RESERVED-BITS-ZERO]：Bit7=Tombstone, Bit6-2=Reserved(0), Bit1-0=StatusLen-1
 //   @[F-FRAMESTATUS-FILL]：全字节同值
@@ -9,8 +13,13 @@ using System.Diagnostics;
 namespace Atelia.Rbf.Internal;
 
 /// <summary>
-/// FrameStatus 编码工具。
+/// [DEPRECATED] FrameStatus 编码工具（v0.40 已废弃）。
 /// </summary>
+/// <remarks>
+/// v0.40 使用 <see cref="TrailerCodewordHelper"/> 替代本类。
+/// IsTombstone 现在存储在 FrameDescriptor 的 bit31。
+/// </remarks>
+[Obsolete("v0.40 使用 TrailerCodewordHelper 替代 FrameStatusHelper，将在下一个版本中删除")]
 internal static class FrameStatusHelper {
     /// <summary>
     /// Tombstone 标志位掩码（Bit7）。
