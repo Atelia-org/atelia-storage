@@ -57,13 +57,15 @@ internal readonly struct TrailerCodewordData {
 /// </remarks>
 internal static class TrailerCodewordHelper {
     /// <summary>TrailerCodeword 固定大小（16 字节）。</summary>
-    public const int Size = 16;
+    public const int Size = RbfLayout.TrailerCodewordSize;
 
-    // 字段偏移
+    // 字段偏移（派生自 UInt32Size）
+    private const int UInt32Size = sizeof(uint);
+
     private const int TrailerCrcOffset = 0;
-    private const int DescriptorOffset = 4;
-    private const int TagOffset = 8;
-    private const int TailLenOffset = 12;
+    private const int DescriptorOffset = TrailerCrcOffset + UInt32Size;
+    private const int TagOffset = DescriptorOffset + UInt32Size;
+    private const int TailLenOffset = TagOffset + UInt32Size;
 
     // FrameDescriptor 位掩码
     private const uint TombstoneMask = 0x8000_0000u;      // bit 31
@@ -132,7 +134,7 @@ internal static class TrailerCodewordHelper {
         }
 
         // 清零 CRC 位置（便于后续 Seal）
-        buffer[TrailerCrcOffset..(TrailerCrcOffset + sizeof(uint))].Clear();
+        buffer[TrailerCrcOffset..DescriptorOffset].Clear();
 
         // 写入各字段（LE）
         BinaryPrimitives.WriteUInt32LittleEndian(buffer[DescriptorOffset..], descriptor);

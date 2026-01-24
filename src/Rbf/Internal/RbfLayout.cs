@@ -39,7 +39,7 @@ internal static class RbfLayout {
     /// 最小帧长度 = HeadLen(4) + PayloadCrc(4) + TrailerCodeword(16) = 24 字节。
     /// 参见 @[F-FRAMEBYTES-FIELD-OFFSETS]。
     /// </summary>
-    internal const int MinFrameLength = 24;
+    internal const int MinFrameLength = sizeof(uint) + PayloadCrcSize + TrailerCodewordSize;
 }
 
 /// <summary>
@@ -104,10 +104,10 @@ internal readonly struct FrameLayout {
     /// <summary>固定开销 = HeadLen(4) + PayloadCrc(4) + TrailerCodeword(16) = 24。</summary>
     internal const int FixedOverhead = HeadLenSize + PayloadCrcSize + TrailerCodewordSize;
 
-    internal const int MinFrameLength = RbfLayout.MinFrameLength; // 24
+    internal const int MinFrameLength = FixedOverhead;
     internal const int MaxFrameLength = SizedPtr.MaxLength;
     internal const int MaxPayloadLength = SizedPtr.MaxLength - FixedOverhead;
-    internal const int MaxUserMetaLength = 65535; // 16-bit，参见 @[F-FRAMEDESCRIPTOR-LAYOUT]
+    internal const int MaxUserMetaLength = ushort.MaxValue; // 16-bit，参见 @[F-FRAMEDESCRIPTOR-LAYOUT]
     internal const int MaxPaddingLength = 3; // 2-bit，参见 @[F-FRAMEDESCRIPTOR-LAYOUT]
     #endregion
 
