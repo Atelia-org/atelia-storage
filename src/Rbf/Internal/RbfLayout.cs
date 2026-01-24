@@ -207,15 +207,107 @@ internal readonly struct FrameLayout {
     [Obsolete("v0.40 使用 TrailerCodewordSize，将在 Task 6.3 中移除")]
     internal int TrailerLength => PayloadCrcSize + TrailerCodewordSize;
 
-    /// <summary>[DEPRECATED] 旧格式 ResultFromTrailer。</summary>
-    [Obsolete("v0.40 需要重写解析逻辑，将在 Task 6.4 中实现")]
-    internal static AteliaResult<FrameLayout> ResultFromTrailer(ReadOnlySpan<byte> buffer, out bool isTombstone, out int statusLength) {
-        // 临时 stub：返回错误，强制使用新 API
-        isTombstone = false;
-        statusLength = 1;
-        return AteliaResult<FrameLayout>.Failure(
-            new RbfFramingError("ResultFromTrailer is deprecated in v0.40. Use TrailerCodewordHelper.Parse instead.")
-        );
+    /// <summary>
+    /// 从完整帧 buffer 解析 TrailerCodeword 并构造 FrameLayout（v0.40 格式）。
+    /// </summary>
+    /// <param name="frameBuffer">完整帧数据（从 HeadLen 到 TrailerCodeword 末尾）。</param>
+    /// <param name="trailer">输出：解析后的 TrailerCodeword 数据。</param>
+    /// <returns>成功时返回 FrameLayout，失败时返回错误。</returns>
+    /// <remarks>
+    /// <para>Framing 校验：</para>
+    /// <list type="bullet">
+    ///   <item>FrameDescriptor 保留位 (bit 28-16) 为 0</item>
+    ///   <item>TrailerCrc32C 校验通过</item>
+    ///   <item>PayloadLength &gt;= 0</item>
+    ///   <item>TailLen &gt;= MinFrameLength</item>
+    ///   <item>TailLen 4B 对齐</item>
+    /// </list>
+    /// </remarks>
+    internal static AteliaResult<FrameLayout> ResultFromTrailer(ReadOnlySpan<byte> frameBuffer, out TrailerCodewordData trailer) {
+        // 1. 确保 buffer 足够大
+        if (frameBuffer.Length < MinFrameLength) {
+            trailer = default;
+            return AteliaResult<FrameLayout>.Failure(
+                new RbfFramingError(
+                    $"Frame buffer too small: {frameBuffer.Length} bytes, minimum {MinFrameLength} bytes.",
+                    RecoveryHint: "The frame data is truncated."
+                )
+            );
+        }
+
+        // 2. 定位 TrailerCodeword（帧末尾 16 字节）
+        var trailerSpan = frameBuffer.Slice(frameBuffer.Length - TrailerCodewordSize, TrailerCodewordSize);
+
+        // 3. 验证 TrailerCrc32C
+        // @[F-TRAILERCRC-COVERAGE]: TrailerCrc 覆盖 FrameDescriptor + FrameTag + TailLen
+        if (!TrailerCodewordHelper.CheckTrailerCrc(trailerSpan)) {
+            trailer = default;
+            return AteliaResult<FrameLayout>.Failure(
+                new RbfCrcMismatchError(
+                    "TrailerCrc32C verification failed.",
+                    RecoveryHint: "The frame trailer is corrupted."
+                )
+            );
+        }
+
+        // 4. 解析 TrailerCodeword
+        trailer = TrailerCodewordHelper.Parse(trailerSpan);
+
+        // 5. 验证 FrameDescriptor 保留位
+        // @[F-FRAMEDESCRIPTOR-LAYOUT]: bit 28-16 MUST 为 0
+        if (!TrailerCodewordHelper.ValidateReservedBits(trailer.FrameDescriptor)) {
+            return AteliaResult<FrameLayout>.Failure(
+                new RbfFramingError(
+                    $"FrameDescriptor reserved bits are not zero: 0x{trailer.FrameDescriptor:X8}.",
+                    RecoveryHint: "The frame descriptor is invalid or from a newer format version."
+                )
+            );
+        }
+
+        // 6. 验证 TailLen == frameBuffer.Length（完整帧契约）
+        // 调用方承诺传入完整帧数据，TailLen 必须与实际长度匹配
+        if (trailer.TailLen != (uint)frameBuffer.Length) {
+            return AteliaResult<FrameLayout>.Failure(
+                new RbfFramingError(
+                    $"TailLen ({trailer.TailLen}) does not match frame buffer length ({frameBuffer.Length}).",
+                    RecoveryHint: "The frame data is incomplete or TailLen is corrupted."
+                )
+            );
+        }
+
+        // 7. 验证 TailLen 基本合法性
+        if (trailer.TailLen < MinFrameLength) {
+            return AteliaResult<FrameLayout>.Failure(
+                new RbfFramingError(
+                    $"TailLen too small: {trailer.TailLen}, minimum {MinFrameLength}.",
+                    RecoveryHint: "The frame length field is corrupted."
+                )
+            );
+        }
+
+        if ((trailer.TailLen & RbfLayout.AlignmentMask) != 0) {
+            return AteliaResult<FrameLayout>.Failure(
+                new RbfFramingError(
+                    $"TailLen not 4-byte aligned: {trailer.TailLen}.",
+                    RecoveryHint: "The frame length field is corrupted."
+                )
+            );
+        }
+
+        // 7. 计算 PayloadLength
+        // PayloadLength = TailLen - FixedOverhead - UserMetaLen - PaddingLen
+        int payloadLength = (int)trailer.TailLen - FixedOverhead - trailer.UserMetaLen - trailer.PaddingLen;
+        if (payloadLength < 0) {
+            return AteliaResult<FrameLayout>.Failure(
+                new RbfFramingError(
+                    $"Computed PayloadLength is negative: {payloadLength} (TailLen={trailer.TailLen}, UserMetaLen={trailer.UserMetaLen}, PaddingLen={trailer.PaddingLen}).",
+                    RecoveryHint: "The frame descriptor fields are inconsistent."
+                )
+            );
+        }
+
+        // 8. 构造 FrameLayout
+        return AteliaResult<FrameLayout>.Success(new FrameLayout(payloadLength, trailer.UserMetaLen));
     }
 
     /// <summary>

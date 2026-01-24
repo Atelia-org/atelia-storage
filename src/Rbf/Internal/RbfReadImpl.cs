@@ -128,11 +128,27 @@ internal static class RbfReadImpl {
         return ValidateAndParseCore(ticketLength, frameBuffer, ticket);
     }
 
+    /// <summary>
+    /// 解析并验证帧数据（v0.40 布局）。
+    /// </summary>
+    /// <remarks>
+    /// <para>v0.40 帧布局：[HeadLen][Payload][UserMeta][Padding][PayloadCrc][TrailerCodeword]</para>
+    /// <para>Framing 校验清单：</para>
+    /// <list type="bullet">
+    ///   <item>HeadLen == TailLen</item>
+    ///   <item>FrameDescriptor 保留位 (bit 28-16) 为 0</item>
+    ///   <item>UserMetaLen &lt;= 65535（16-bit 值域）</item>
+    ///   <item>PaddingLen &lt;= 3（2-bit 值域）</item>
+    ///   <item>PayloadCrc32C 校验通过</item>
+    ///   <item>TrailerCrc32C 校验通过</item>
+    ///   <item>PayloadLength &gt;= 0</item>
+    /// </list>
+    /// </remarks>
     private static AteliaResult<RbfFrame> ValidateAndParseCore(int ticketLength, ReadOnlySpan<byte> frameBuffer, SizedPtr ticket) {
         // 1. 准备
         Debug.Assert(ticketLength == frameBuffer.Length);
 
-        // 2. 验证基本帧格式 HeadLen == TailLen == ticketLength
+        // 2. 验证基本帧格式：HeadLen == ticketLength
         uint headLen = BinaryPrimitives.ReadUInt32LittleEndian(frameBuffer[..FrameLayout.HeadLenSize]);
         if (headLen != ticketLength) {
             return AteliaResult<RbfFrame>.Failure(
@@ -143,52 +159,48 @@ internal static class RbfReadImpl {
             );
         }
 
-        // 3. 从 Trailer 推导布局（包含 StatusLen 解码与 TailLen 合法性检查）
-        var layoutResult = FrameLayout.ResultFromTrailer(frameBuffer, out bool isTombstone, out _);
-        if (!layoutResult.IsSuccess) {
-            return AteliaResult<RbfFrame>.Failure(layoutResult.Error!);
+        // 3. 从 TrailerCodeword 解析并验证（v0.40）
+        var trailerResult = FrameLayout.ResultFromTrailer(frameBuffer, out var trailer);
+        if (!trailerResult.IsSuccess) {
+            return AteliaResult<RbfFrame>.Failure(trailerResult.Error!);
         }
 
-        var layout = layoutResult.Value;
-        if (layout.FrameLength != ticketLength) {
+        var layout = trailerResult.Value;
+
+        // 4. 验证 HeadLen == TailLen
+        if (trailer.TailLen != ticketLength) {
             return AteliaResult<RbfFrame>.Failure(
                 new RbfFramingError(
-                    $"TailLen mismatch: TailLen={layout.FrameLength}, HeadLen={ticketLength}.",
+                    $"TailLen mismatch: TailLen={trailer.TailLen}, HeadLen={ticketLength}.",
                     RecoveryHint: "The frame boundaries are corrupted."
                 )
             );
         }
 
-        // 4. 验证 FrameStatus 全字节同值
-        var statusError = layout.ValidateStatusConsistency(frameBuffer);
-        if (statusError != null) {
-            return AteliaResult<RbfFrame>.Failure(statusError);
-        }
+        // 5. PayloadCrc32C 校验
+        // @[F-CRC32C-COVERAGE]: 覆盖 Payload + UserMeta + Padding
+        ReadOnlySpan<byte> payloadCrcCoverage = frameBuffer.Slice(FrameLayout.PayloadCrcCoverageStart, layout.PayloadCrcCoverageLength);
+        uint expectedPayloadCrc = BinaryPrimitives.ReadUInt32LittleEndian(frameBuffer.Slice(layout.PayloadCrcOffset, FrameLayout.PayloadCrcSize));
+        uint computedPayloadCrc = Crc32CHelper.Compute(payloadCrcCoverage);
 
-        // 5. CRC 校验
-        // 计算范围：[Tag .. TailLen]，即不包含 HeadLen 和 CRC
-        ReadOnlySpan<byte> crcInput = frameBuffer[FrameLayout.CrcCoverageStart..layout.CrcCoverageEnd];
-        uint expectedCrc = BinaryPrimitives.ReadUInt32LittleEndian(frameBuffer.Slice(layout.CrcOffset, FrameLayout.CrcSize));
-        uint computedCrc = Crc32CHelper.Compute(crcInput);
-
-        if (expectedCrc != computedCrc) {
+        if (expectedPayloadCrc != computedPayloadCrc) {
             return AteliaResult<RbfFrame>.Failure(
                 new RbfCrcMismatchError(
-                    $"CRC mismatch: expected 0x{expectedCrc:X8}, computed 0x{computedCrc:X8}.",
-                    RecoveryHint: "The frame data is corrupted."
+                    $"PayloadCrc mismatch: expected 0x{expectedPayloadCrc:X8}, computed 0x{computedPayloadCrc:X8}.",
+                    RecoveryHint: "The frame payload data is corrupted."
                 )
             );
         }
 
         // 6. 构造 RbfFrame 并返回
-        uint tag = BinaryPrimitives.ReadUInt32LittleEndian(frameBuffer.Slice(FrameLayout.TagOffset, FrameLayout.TagSize));
+        // Tag 从 TrailerCodeword 读取（v0.40 Tag 不在头部）
         ReadOnlySpan<byte> payload = frameBuffer.Slice(FrameLayout.PayloadOffset, layout.PayloadLength);
 
         var frame = new RbfFrame {
             Ticket = ticket,
-            Tag = tag,
+            Tag = trailer.FrameTag,
             Payload = payload,
-            IsTombstone = isTombstone
+            IsTombstone = trailer.IsTombstone
         };
 
         return AteliaResult<RbfFrame>.Success(frame);
