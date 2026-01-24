@@ -1,0 +1,189 @@
+using System.Buffers.Binary;
+using Atelia.Data.Hashing;
+
+namespace Atelia.Rbf.Internal;
+
+/// <summary>
+/// TrailerCodeword 解析结果（值类型，统一解码一次）。
+/// </summary>
+/// <remarks>
+/// <para>调用 <c>TrailerCodewordHelper.Parse()</c> 一次即可获得所有字段，无需再调用 DecodeDescriptor。</para>
+/// <para>FrameDescriptor 的位字段已展开为只读属性，避免重复解码。</para>
+/// <para>参见设计文档 design-draft.md §3.2。</para>
+/// </remarks>
+internal readonly struct TrailerCodewordData {
+    /// <summary>TrailerCrc32C（已从 BE 解码）。</summary>
+    public uint TrailerCrc32C { get; init; }
+
+    /// <summary>FrameDescriptor 原始值（LE 解码）。</summary>
+    public uint FrameDescriptor { get; init; }
+
+    /// <summary>FrameTag（LE 解码）。</summary>
+    public uint FrameTag { get; init; }
+
+    /// <summary>TailLen（LE 解码）。</summary>
+    public uint TailLen { get; init; }
+
+    // 从 FrameDescriptor 解码的字段（一次解码，多次使用）
+    // @[F-FRAMEDESCRIPTOR-LAYOUT]: bit31=IsTombstone, bit30-29=PaddingLen, bit28-16=Reserved, bit15-0=UserMetaLen
+
+    /// <summary>是否为墓碑帧（bit 31）。</summary>
+    public bool IsTombstone => (FrameDescriptor >> 31) != 0;
+
+    /// <summary>Padding 长度（bit 30-29，值域 0-3）。</summary>
+    public int PaddingLen => (int)((FrameDescriptor >> 29) & 0x3);
+
+    /// <summary>UserMeta 长度（bit 15-0，值域 0-65535）。</summary>
+    public int UserMetaLen => (int)(FrameDescriptor & 0xFFFF);
+}
+
+/// <summary>
+/// TrailerCodeword 编解码辅助类。
+/// </summary>
+/// <remarks>
+/// <para>TrailerCodeword 布局（固定 16 字节）：</para>
+/// <code>
+/// ┌───────────────┬─────────────────┬──────────┬─────────┐
+/// │ TrailerCrc32C │ FrameDescriptor │ FrameTag │ TailLen │
+/// │   4B **BE**   │     4B LE       │  4B LE   │  4B LE  │
+/// └───────────────┴─────────────────┴──────────┴─────────┘
+/// </code>
+/// <para>规范引用：</para>
+/// <list type="bullet">
+///   <item>@[F-TRAILER-CRC-BIG-ENDIAN]: TrailerCrc32C 按 BE 存储</item>
+///   <item>@[F-FRAMEDESCRIPTOR-LAYOUT]: FrameDescriptor 位布局</item>
+///   <item>@[F-TRAILERCRC-COVERAGE]: TrailerCrc 覆盖 FrameDescriptor + FrameTag + TailLen</item>
+/// </list>
+/// </remarks>
+internal static class TrailerCodewordHelper {
+    /// <summary>TrailerCodeword 固定大小（16 字节）。</summary>
+    public const int Size = 16;
+
+    // 字段偏移
+    private const int TrailerCrcOffset = 0;
+    private const int DescriptorOffset = 4;
+    private const int TagOffset = 8;
+    private const int TailLenOffset = 12;
+
+    // FrameDescriptor 位掩码
+    private const uint TombstoneMask = 0x8000_0000u;      // bit 31
+    private const uint PaddingLenMask = 0x6000_0000u;     // bit 30-29
+    private const int PaddingLenShift = 29;
+    private const uint ReservedMask = 0x1FFF_0000u;       // bit 28-16 (MUST=0)
+    private const uint UserMetaLenMask = 0x0000_FFFFu;    // bit 15-0
+
+    /// <summary>
+    /// 从完整 16 字节 buffer 解析 TrailerCodeword。
+    /// </summary>
+    /// <param name="buffer">MUST 为完整 16 字节 TrailerCodeword。</param>
+    /// <returns>解析后的结构体（字段已从各自端序解码，FrameDescriptor 已展开为属性）。</returns>
+    /// <exception cref="ArgumentException">buffer 长度不足 16 字节时抛出。</exception>
+    public static TrailerCodewordData Parse(ReadOnlySpan<byte> buffer) {
+        if (buffer.Length < Size) {
+            throw new ArgumentException($"Buffer must be at least {Size} bytes.", nameof(buffer));
+        }
+
+        return new TrailerCodewordData {
+            TrailerCrc32C = BinaryPrimitives.ReadUInt32BigEndian(buffer[TrailerCrcOffset..]),
+            FrameDescriptor = BinaryPrimitives.ReadUInt32LittleEndian(buffer[DescriptorOffset..]),
+            FrameTag = BinaryPrimitives.ReadUInt32LittleEndian(buffer[TagOffset..]),
+            TailLen = BinaryPrimitives.ReadUInt32LittleEndian(buffer[TailLenOffset..])
+        };
+    }
+
+    /// <summary>
+    /// 构建 FrameDescriptor。
+    /// </summary>
+    /// <param name="isTombstone">是否为墓碑帧。</param>
+    /// <param name="paddingLen">Padding 长度（0-3）。</param>
+    /// <param name="userMetaLen">UserMeta 长度（0-65535）。</param>
+    /// <returns>组装后的 FrameDescriptor。</returns>
+    /// <exception cref="ArgumentOutOfRangeException">paddingLen 或 userMetaLen 超出值域时抛出。</exception>
+    public static uint BuildDescriptor(bool isTombstone, int paddingLen, int userMetaLen) {
+        if (paddingLen < 0 || paddingLen > 3) {
+            throw new ArgumentOutOfRangeException(nameof(paddingLen), paddingLen, "PaddingLen must be 0-3.");
+        }
+        if (userMetaLen < 0 || userMetaLen > 65535) {
+            throw new ArgumentOutOfRangeException(nameof(userMetaLen), userMetaLen, "UserMetaLen must be 0-65535.");
+        }
+
+        uint descriptor = 0;
+        if (isTombstone) {
+            descriptor |= TombstoneMask;
+        }
+        descriptor |= ((uint)paddingLen << PaddingLenShift) & PaddingLenMask;
+        descriptor |= (uint)userMetaLen & UserMetaLenMask;
+        // Reserved bits (bit 28-16) 保持为 0
+
+        return descriptor;
+    }
+
+    /// <summary>
+    /// 序列化 TrailerCodeword（不含 CRC，CRC 由 <see cref="SealTrailerCrc"/> 写入）。
+    /// </summary>
+    /// <param name="buffer">目标 buffer，MUST 至少 16 字节。前 4 字节（CRC 位置）将被清零。</param>
+    /// <param name="descriptor">FrameDescriptor 值。</param>
+    /// <param name="tag">FrameTag 值。</param>
+    /// <param name="tailLen">TailLen 值。</param>
+    /// <exception cref="ArgumentException">buffer 长度不足 16 字节时抛出。</exception>
+    public static void SerializeWithoutCrc(Span<byte> buffer, uint descriptor, uint tag, uint tailLen) {
+        if (buffer.Length < Size) {
+            throw new ArgumentException($"Buffer must be at least {Size} bytes.", nameof(buffer));
+        }
+
+        // 清零 CRC 位置（便于后续 Seal）
+        buffer[TrailerCrcOffset..(TrailerCrcOffset + sizeof(uint))].Clear();
+
+        // 写入各字段（LE）
+        BinaryPrimitives.WriteUInt32LittleEndian(buffer[DescriptorOffset..], descriptor);
+        BinaryPrimitives.WriteUInt32LittleEndian(buffer[TagOffset..], tag);
+        BinaryPrimitives.WriteUInt32LittleEndian(buffer[TailLenOffset..], tailLen);
+    }
+
+    /// <summary>
+    /// 计算并写入 TrailerCrc32C（使用 RollingCrc.SealCodewordBackward）。
+    /// </summary>
+    /// <param name="trailerCodeword">完整 16 字节 TrailerCodeword，前 4 字节将被写入 CRC（BE）。</param>
+    /// <returns>计算出的 CRC 值。</returns>
+    /// <exception cref="ArgumentException">buffer 长度不足 16 字节时抛出。</exception>
+    /// <remarks>
+    /// <para>使用 RollingCrc.SealCodewordBackward，该方法会：</para>
+    /// <list type="number">
+    ///   <item>计算 buffer[4..16] 的 backward CRC32C</item>
+    ///   <item>将 CRC 以 BE 写入 buffer[0..4]</item>
+    /// </list>
+    /// </remarks>
+    public static uint SealTrailerCrc(Span<byte> trailerCodeword) {
+        if (trailerCodeword.Length < Size) {
+            throw new ArgumentException($"Buffer must be at least {Size} bytes.", nameof(trailerCodeword));
+        }
+
+        return RollingCrc.SealCodewordBackward(trailerCodeword[..Size]);
+    }
+
+    /// <summary>
+    /// 验证 TrailerCrc32C（使用 RollingCrc.CheckCodewordBackward）。
+    /// </summary>
+    /// <param name="trailerCodeword">完整 16 字节 TrailerCodeword。</param>
+    /// <returns>CRC 校验是否通过。</returns>
+    /// <exception cref="ArgumentException">buffer 长度不足 16 字节时抛出。</exception>
+    public static bool CheckTrailerCrc(ReadOnlySpan<byte> trailerCodeword) {
+        if (trailerCodeword.Length < Size) {
+            throw new ArgumentException($"Buffer must be at least {Size} bytes.", nameof(trailerCodeword));
+        }
+
+        // CheckCodewordBackward 需要 Span<byte>，所以我们需要复制
+        Span<byte> temp = stackalloc byte[Size];
+        trailerCodeword[..Size].CopyTo(temp);
+        return RollingCrc.CheckCodewordBackward(temp);
+    }
+
+    /// <summary>
+    /// 验证 FrameDescriptor 的保留位是否为 0。
+    /// </summary>
+    /// <param name="descriptor">FrameDescriptor 值。</param>
+    /// <returns>保留位是否为 0。</returns>
+    public static bool ValidateReservedBits(uint descriptor) {
+        return (descriptor & ReservedMask) == 0;
+    }
+}

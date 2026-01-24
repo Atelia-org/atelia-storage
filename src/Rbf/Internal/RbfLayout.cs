@@ -179,6 +179,10 @@ internal readonly struct FrameLayout {
     [Obsolete("v0.40 使用 FixedOverhead，将在 Task 6.3 中移除")]
     internal const int MinOverheadLen = FixedOverhead;
 
+    /// <summary>[DEPRECATED] 旧格式开销（不含 Status）= HeadLen(4) + Tag(4) + TailLen(4) + CRC(4) = 16。</summary>
+    [Obsolete("v0.40 使用 FixedOverhead，将在 Task 6.5 中移除")]
+    internal const int OverheadLenButStatus = 16;
+
     /// <summary>[DEPRECATED] 旧格式最小 Trailer 长度。</summary>
     [Obsolete("v0.40 使用 TrailerCodewordSize，将在 Task 6.4 中移除")]
     internal const int MinTrailerLength = MinStatusLength + TailLenSize + CrcSize;
