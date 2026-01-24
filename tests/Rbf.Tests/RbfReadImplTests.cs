@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using Microsoft.Win32.SafeHandles;
 using Atelia.Data;
+using Atelia.Data.Hashing;
 using Atelia.Rbf.Internal;
 using Xunit;
 
@@ -83,7 +84,7 @@ public class RbfReadImplTests : IDisposable {
 
         // 4. PayloadCrc（覆盖 Payload + UserMeta + Padding）
         var payloadCrcCoverage = span.Slice(FrameLayout.PayloadCrcCoverageStart, layout.PayloadCrcCoverageLength);
-        uint payloadCrc = Crc32CHelper.Compute(payloadCrcCoverage);
+        uint payloadCrc = RollingCrc.CrcForward(payloadCrcCoverage);
         BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(layout.PayloadCrcOffset, FrameLayout.PayloadCrcSize), payloadCrc);
 
         // 5. TrailerCodeword

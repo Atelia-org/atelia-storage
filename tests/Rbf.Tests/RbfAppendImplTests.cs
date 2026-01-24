@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using Atelia.Data;
+using Atelia.Data.Hashing;
 using Atelia.Rbf.Internal;
 using Xunit;
 
@@ -94,7 +95,7 @@ public class RbfAppendImplTests : IDisposable {
         int crcInputStart = frameOffset + FrameLayout.PayloadCrcCoverageStart;
         int crcInputLen = layout.PayloadCrcCoverageLength;
         var crcInput = data.Slice(crcInputStart, crcInputLen);
-        uint expectedCrc = Crc32CHelper.Compute(crcInput);
+        uint expectedCrc = RollingCrc.CrcForward(crcInput);
 
         // 读取实际 PayloadCrc
         int payloadCrcOffset = frameOffset + layout.PayloadCrcOffset;

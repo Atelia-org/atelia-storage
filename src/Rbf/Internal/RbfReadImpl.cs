@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Buffers.Binary;
 using Microsoft.Win32.SafeHandles;
 using Atelia.Data;
+using Atelia.Data.Hashing;
 using System.Diagnostics;
 
 namespace Atelia.Rbf.Internal;
@@ -320,7 +321,7 @@ internal static class RbfReadImpl {
         // @[F-CRC32C-COVERAGE]: 覆盖 Payload + UserMeta + Padding
         ReadOnlySpan<byte> payloadCrcCoverage = frameBuffer.Slice(FrameLayout.PayloadCrcCoverageStart, layout.PayloadCrcCoverageLength);
         uint expectedPayloadCrc = BinaryPrimitives.ReadUInt32LittleEndian(frameBuffer.Slice(layout.PayloadCrcOffset, FrameLayout.PayloadCrcSize));
-        uint computedPayloadCrc = Crc32CHelper.Compute(payloadCrcCoverage);
+        uint computedPayloadCrc = RollingCrc.CrcForward(payloadCrcCoverage);
 
         if (expectedPayloadCrc != computedPayloadCrc) {
             return AteliaResult<RbfFrame>.Failure(

@@ -81,8 +81,8 @@ internal static class RbfAppendImpl {
         // 必要，缓存游标
         int headWriteLen, tailWriteLen;
 
-        // PayloadCrc 状态
-        uint payloadCrc = Crc32CHelper.Init();
+        // PayloadCrc 状态（使用 RollingCrc）
+        uint payloadCrc = RollingCrc.DefaultInitValue;
 
         // payload 分配
         int headPayloadLen = Math.Min(payload.Length, HeadPayloadCap);
@@ -122,8 +122,8 @@ internal static class RbfAppendImpl {
             // 计算 PayloadCrc：覆盖 Payload + UserMeta + Padding
             // @[F-CRC32C-COVERAGE]
             var payloadCrcCoverage = buffer.Slice(FrameLayout.PayloadCrcCoverageStart, layout.PayloadCrcCoverageLength);
-            payloadCrc = Crc32CHelper.Update(payloadCrc, payloadCrcCoverage);
-            payloadCrc = Crc32CHelper.Finalize(payloadCrc);
+            payloadCrc = RollingCrc.CrcForward(payloadCrc, payloadCrcCoverage);
+            payloadCrc ^= RollingCrc.DefaultFinalXor;
 
             // 写入 PayloadCrc（LE）
             BinaryPrimitives.WriteUInt32LittleEndian(buffer[layout.PayloadCrcOffset..], payloadCrc);
@@ -149,7 +149,7 @@ internal static class RbfAppendImpl {
             nextTailOffset += headWriteLen;
 
             // 更新 PayloadCrc：头部 Payload 部分
-            payloadCrc = Crc32CHelper.Update(payloadCrc, buffer.Slice(FrameLayout.PayloadOffset, headPayloadLen));
+            payloadCrc = RollingCrc.CrcForward(payloadCrc, buffer.Slice(FrameLayout.PayloadOffset, headPayloadLen));
 
             tailWriteLen = 0; // 初始化尾游标
 
@@ -169,7 +169,7 @@ internal static class RbfAppendImpl {
                 nextTailOffset += middlePayload.Length;
 
                 // 更新 PayloadCrc
-                payloadCrc = Crc32CHelper.Update(payloadCrc, middlePayload);
+                payloadCrc = RollingCrc.CrcForward(payloadCrc, middlePayload);
             }
             else {
                 Debug.Assert(remainingPayloadLen + userMetaPaddingTrailerFenceLen <= MaxBufferSize);
@@ -204,9 +204,9 @@ internal static class RbfAppendImpl {
             int tailCrcCoverageStart = 0; // 从 buffer 开始
             int tailCrcCoverageLen = tailPayloadLen + userMeta.Length + layout.PaddingLength;
             if (tailCrcCoverageLen > 0) {
-                payloadCrc = Crc32CHelper.Update(payloadCrc, buffer.Slice(tailCrcCoverageStart, tailCrcCoverageLen));
+                payloadCrc = RollingCrc.CrcForward(payloadCrc, buffer.Slice(tailCrcCoverageStart, tailCrcCoverageLen));
             }
-            payloadCrc = Crc32CHelper.Finalize(payloadCrc);
+            payloadCrc ^= RollingCrc.DefaultFinalXor;
 
             // 写入 PayloadCrc（LE）
             BinaryPrimitives.WriteUInt32LittleEndian(buffer[tailWriteLen..], payloadCrc);

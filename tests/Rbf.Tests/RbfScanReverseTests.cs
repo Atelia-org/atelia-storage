@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using Atelia.Data;
+using Atelia.Data.Hashing;
 using Atelia.Rbf.Internal;
 using Xunit;
 
@@ -104,7 +105,7 @@ public class RbfScanReverseTests : IDisposable {
         }
         // PayloadCrc
         var payloadCrcCoverage = span.Slice(FrameLayout.PayloadCrcCoverageStart, layout.PayloadCrcCoverageLength);
-        uint payloadCrc = Crc32CHelper.Compute(payloadCrcCoverage);
+        uint payloadCrc = RollingCrc.CrcForward(payloadCrcCoverage);
         BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(layout.PayloadCrcOffset, FrameLayout.PayloadCrcSize), payloadCrc);
         // TrailerCodeword
         layout.FillTrailer(span.Slice(layout.TrailerCodewordOffset, TrailerCodewordHelper.Size), tag, isTombstone);
