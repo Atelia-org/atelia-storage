@@ -10,12 +10,12 @@ namespace Atelia.Rbf.Internal;
 /// <remarks>
 /// 规范引用：
 /// - @[F-FENCE-VALUE-IS-RBF1-ASCII-4B]
-/// - @[F-STATUSLEN-ENSURES-4B-ALIGNMENT]
+/// - @[F-FRAMEBYTES-FIELD-OFFSETS]
 /// </remarks>
 internal static class RbfLayout {
     // === Alignment ===
     internal const int Alignment = 1 << SizedPtr.AlignmentShift;
-    internal const int AlignmentMask = Alignment-1;
+    internal const int AlignmentMask = Alignment - 1;
 
     // === Fence ===
     internal static ReadOnlySpan<byte> Fence => "RBF1"u8;
@@ -25,133 +25,207 @@ internal static class RbfLayout {
     internal const int HeaderFenceOffset = 0;
     internal const int HeaderOnlyLength = HeaderFenceOffset + FenceSize;
     internal const int FirstFrameOffset = HeaderOnlyLength;
+
+    // === TrailerCodeword (v0.40) ===
+    /// <summary>TrailerCodeword 固定 16 字节。</summary>
+    internal const int TrailerCodewordSize = 16;
+
+    // === PayloadCrc (v0.40) ===
+    /// <summary>PayloadCrc32C 大小（4 字节）。</summary>
+    internal const int PayloadCrcSize = sizeof(uint);
+
+    // === MinFrameLength (v0.40) ===
+    /// <summary>
+    /// 最小帧长度 = HeadLen(4) + PayloadCrc(4) + TrailerCodeword(16) = 24 字节。
+    /// 参见 @[F-FRAMEBYTES-FIELD-OFFSETS]。
+    /// </summary>
+    internal const int MinFrameLength = 24;
 }
 
 /// <summary>
-/// 关于数据长度命名：定长又不可分的用Size，变成或复合的用Length
+/// 帧布局计算器（v0.40 格式）。
 /// </summary>
-/// /// <remarks>
-/// 规范引用：
-/// - @[F-FRAMEBYTES-FIELD-OFFSETS]
-/// - @[F-CRC32C-COVERAGE]
+/// <remarks>
+/// <para>关于数据长度命名：定长又不可分的用 Size，变长或复合的用 Length。</para>
+/// <para>v0.40 布局：[HeadLen][Payload][UserMeta][Padding][PayloadCrc][TrailerCodeword]</para>
+/// <para>规范引用：</para>
+/// <list type="bullet">
+///   <item>@[F-FRAMEBYTES-FIELD-OFFSETS]</item>
+///   <item>@[F-CRC32C-COVERAGE]</item>
+///   <item>@[F-PADDING-CALCULATION]</item>
+/// </list>
 /// </remarks>
 internal readonly struct FrameLayout {
-    readonly int _payloadLength;
-    internal FrameLayout(int payloadLength) {
-        Debug.Assert(0 <= payloadLength, "in FrameLayout(int payloadLength) Assert(0 < payloadLength)");
-        Debug.Assert(payloadLength <= MaxPayloadLength, "in FrameLayout(int payloadLength) Assert(payloadLength <= MaxPayloadLength)");
+    private readonly int _payloadLength;
+    private readonly int _userMetaLength;
+    private readonly int _paddingLength;
+
+    internal FrameLayout(int payloadLength, int userMetaLength = 0) {
+        Debug.Assert(0 <= payloadLength, "payloadLength must be non-negative");
+        Debug.Assert(payloadLength <= MaxPayloadLength, "payloadLength exceeds MaxPayloadLength");
+        Debug.Assert(0 <= userMetaLength, "userMetaLength must be non-negative");
+        Debug.Assert(userMetaLength <= MaxUserMetaLength, "userMetaLength exceeds MaxUserMetaLength");
+
         _payloadLength = payloadLength;
+        _userMetaLength = userMetaLength;
+        // @[F-PADDING-CALCULATION]: PaddingLen = (4 - ((payloadLen + userMetaLen) % 4)) % 4
+        _paddingLength = (RbfLayout.Alignment - ((payloadLength + userMetaLength) & RbfLayout.AlignmentMask)) & RbfLayout.AlignmentMask;
+
+        // 确保 FrameLength 不超过 MaxFrameLength（防止 payloadLength + userMetaLength 接近上限时溢出）
+        Debug.Assert(FrameLength <= MaxFrameLength, "FrameLength exceeds MaxFrameLength");
     }
+
     #region Field Size / Length
     // === Frame Header ===
     internal const int FrameLenSize = sizeof(uint);
     internal const int HeadLenSize = FrameLenSize;
-    internal const int TagSize = sizeof(uint);
 
     // === Frame Payload ===
     internal int PayloadLength => _payloadLength;
 
-    // === Frame Trailer ===
-    internal int StatusLength => RbfLayout.Alignment - (PayloadLength & RbfLayout.AlignmentMask);
+    // === UserMeta ===
+    internal int UserMetaLength => _userMetaLength;
+
+    // === Padding ===
+    internal int PaddingLength => _paddingLength;
+
+    // === Frame Trailer (v0.40) ===
+    internal const int PayloadCrcSize = RbfLayout.PayloadCrcSize;
+    internal const int TrailerCodewordSize = RbfLayout.TrailerCodewordSize;
     internal const int TailLenSize = FrameLenSize;
-    internal const int CrcSize = sizeof(uint);
-    internal int FrameLength => PayloadLength + StatusLength + OverheadLenButStatus;
+
+    /// <summary>
+    /// 帧总长度 = HeadLen + Payload + UserMeta + Padding + PayloadCrc + TrailerCodeword。
+    /// </summary>
+    internal int FrameLength => HeadLenSize + _payloadLength + _userMetaLength + _paddingLength + PayloadCrcSize + TrailerCodewordSize;
     #endregion
+
     #region Statistics
-    internal const int OverheadLenButStatus = FrameLenSize + TagSize + TailLenSize + CrcSize;
-    internal const int MinStatusLength = 1; // 充要条件是：`(PayloadLength % RbfLayout.Alignment) == RbfLayout.AlignmentMask - 1`
-    internal const int MaxStatusLength = RbfLayout.Alignment; // 充要条件是：`(PayloadLength % RbfLayout.Alignment) == 0`
-    internal const int MinOverheadLen = OverheadLenButStatus + MinStatusLength;
-    internal const int MinFrameLength = OverheadLenButStatus + MaxStatusLength;
+    /// <summary>固定开销 = HeadLen(4) + PayloadCrc(4) + TrailerCodeword(16) = 24。</summary>
+    internal const int FixedOverhead = HeadLenSize + PayloadCrcSize + TrailerCodewordSize;
+
+    internal const int MinFrameLength = RbfLayout.MinFrameLength; // 24
     internal const int MaxFrameLength = SizedPtr.MaxLength;
-    internal const int MinTrailerLength = MinStatusLength + TailLenSize + CrcSize;
-    internal const int MaxPayloadLength = SizedPtr.MaxLength - MinOverheadLen;
+    internal const int MaxPayloadLength = SizedPtr.MaxLength - FixedOverhead;
+    internal const int MaxUserMetaLength = 65535; // 16-bit，参见 @[F-FRAMEDESCRIPTOR-LAYOUT]
+    internal const int MaxPaddingLength = 3; // 2-bit，参见 @[F-FRAMEDESCRIPTOR-LAYOUT]
     #endregion
+
     #region Relative To FrameStart
     internal const int HeadLenOffset = 0;
+    /// <summary>Payload 起始偏移 = HeadLenSize (4)。v0.40 格式中 Tag 不在头部。</summary>
+    internal const int PayloadOffset = HeadLenSize;
+
+    /// <summary>UserMeta 起始偏移。</summary>
+    internal int UserMetaOffset => PayloadOffset + _payloadLength;
+
+    /// <summary>Padding 起始偏移。</summary>
+    internal int PaddingOffset => UserMetaOffset + _userMetaLength;
+
+    /// <summary>PayloadCrc32C 偏移。</summary>
+    internal int PayloadCrcOffset => PaddingOffset + _paddingLength;
+
+    /// <summary>TrailerCodeword 偏移。</summary>
+    internal int TrailerCodewordOffset => PayloadCrcOffset + PayloadCrcSize;
+    #endregion
+
+    #region PayloadCrc Coverage
+    /// <summary>PayloadCrc 覆盖起始 = Payload 起始。</summary>
+    internal const int PayloadCrcCoverageStart = PayloadOffset;
+
+    /// <summary>PayloadCrc 覆盖结束 = PayloadCrc 偏移（不含 PayloadCrc 本身）。</summary>
+    internal int PayloadCrcCoverageEnd => PayloadCrcOffset;
+
+    /// <summary>PayloadCrc 覆盖长度 = Payload + UserMeta + Padding。</summary>
+    internal int PayloadCrcCoverageLength => _payloadLength + _userMetaLength + _paddingLength;
+    #endregion
+
+    #region DEPRECATED (旧格式兼容层，将在 Task 6.3/6.4/6.5 中移除)
+    // 以下常量仅为临时编译兼容，不应在新代码中使用。
+
+    /// <summary>[DEPRECATED] 旧格式的 Tag 大小。v0.40 Tag 已移至 TrailerCodeword。</summary>
+    [Obsolete("v0.40 格式中 Tag 不在头部，将在 Task 6.3 中移除")]
+    internal const int TagSize = sizeof(uint);
+
+    /// <summary>[DEPRECATED] 旧格式的 Tag 偏移。v0.40 Tag 已移至 TrailerCodeword。</summary>
+    [Obsolete("v0.40 格式中 Tag 不在头部，将在 Task 6.3 中移除")]
     internal const int TagOffset = HeadLenOffset + HeadLenSize;
-    internal const int PayloadOffset = TagOffset + TagSize;
-    internal int StatusOffset => PayloadOffset + PayloadLength;
-    internal int TailLenOffset => StatusOffset + StatusLength;
-    internal int CrcOffset => TailLenOffset + TailLenSize;
-    #endregion
-    #region Crc
-    internal const int CrcCoverageStart = TagOffset;
-    internal int CrcCoverageEnd => CrcOffset;
+
+    /// <summary>[DEPRECATED] 旧格式的 CRC 大小。</summary>
+    [Obsolete("v0.40 使用双 CRC（PayloadCrc + TrailerCrc），将在 Task 6.3/6.4 中重构")]
+    internal const int CrcSize = sizeof(uint);
+
+    /// <summary>[DEPRECATED] 旧格式的 CRC 覆盖起始。</summary>
+    [Obsolete("v0.40 使用 PayloadCrcCoverageStart，将在 Task 6.3/6.4 中重构")]
+    internal const int CrcCoverageStart = PayloadOffset;
+
+    /// <summary>[DEPRECATED] 旧格式的 CRC 覆盖结束。</summary>
+    [Obsolete("v0.40 使用 PayloadCrcCoverageEnd，将在 Task 6.4 中重构")]
+    internal int CrcCoverageEnd => PayloadCrcOffset;
+
+    /// <summary>[DEPRECATED] 旧格式 CRC 后长度。</summary>
+    [Obsolete("v0.40 布局不再使用此常量，将在 Task 6.3 中移除")]
     internal const int LengthAfterCrcCoverage = CrcSize;
-    #endregion
-    #region Trailer
-    /// <summary>Trailer 长度 = Status + TailLen + CRC（不含 Fence）</summary>
-    internal int TrailerLength => StatusLength + TailLenSize + CrcSize;
 
-    /// <summary>
-    /// 将 Trailer 字节填入缓冲区指定位置。
-    /// </summary>
-    /// <param name="buffer">目标缓冲区</param>
-    /// <param name="offset">写入起始偏移（会被推进）</param>
-    /// <param name="isTombstone">是否为墓碑帧</param>
-    /// <remarks>不含 CRC 回填（由调用方在写盘前完成）和 Fence。</remarks>
-    internal void FillTrailer(Span<byte> buffer, ref int offset, bool isTombstone = false) {
-        // Status
-        FrameStatusHelper.FillStatus(buffer.Slice(offset, StatusLength), isTombstone, StatusLength);
-        offset += StatusLength;
+    /// <summary>[DEPRECATED] 旧格式最小状态长度。</summary>
+    [Obsolete("v0.40 使用 Padding 替代 Status，将在 Task 6.5 中移除")]
+    internal const int MinStatusLength = 1;
 
-        // TailLen
-        BinaryPrimitives.WriteUInt32LittleEndian(buffer[offset..], (uint)FrameLength);
-        offset += TailLenSize;
+    /// <summary>[DEPRECATED] 旧格式最大状态长度。</summary>
+    [Obsolete("v0.40 使用 Padding 替代 Status，将在 Task 6.5 中移除")]
+    internal const int MaxStatusLength = RbfLayout.Alignment;
 
-        // CRC hole（CRC 会由调用方在最终写入前回填）
-        offset += CrcSize;
-    }
+    /// <summary>[DEPRECATED] 旧格式最小开销（不含状态）。</summary>
+    [Obsolete("v0.40 使用 FixedOverhead，将在 Task 6.3 中移除")]
+    internal const int MinOverheadLen = FixedOverhead;
 
-    /// <summary>
-    /// 校验 Status 区域是否全字节同值。
-    /// </summary>
-    /// <param name="frameBuffer">完整帧缓冲区（长度 == FrameLength）</param>
-    /// <returns>校验失败时返回错误，成功返回 null。</returns>
-    internal AteliaError? ValidateStatusConsistency(ReadOnlySpan<byte> frameBuffer) {
-        byte statusByte = frameBuffer[TailLenOffset - 1];
-        ReadOnlySpan<byte> statusRegion = frameBuffer.Slice(StatusOffset, StatusLength);
-        if (MemoryExtensions.IndexOfAnyExcept(statusRegion, statusByte) >= 0) {
-            return new RbfFramingError(
-                "Status bytes are not consistent (all bytes should be identical).",
-                RecoveryHint: "The status region is corrupted."
-            );
-        }
-        return null;
-    }
-    #endregion
-    #region Relative To FrameEnd
+    /// <summary>[DEPRECATED] 旧格式最小 Trailer 长度。</summary>
+    [Obsolete("v0.40 使用 TrailerCodewordSize，将在 Task 6.4 中移除")]
+    internal const int MinTrailerLength = MinStatusLength + TailLenSize + CrcSize;
+
+    /// <summary>[DEPRECATED] 旧格式 CRC 偏移（实例属性）。</summary>
+    [Obsolete("v0.40 使用 PayloadCrcOffset，将在 Task 6.4 中移除")]
+    internal int CrcOffset => PayloadCrcOffset;
+
+    /// <summary>[DEPRECATED] 旧格式状态长度（实例属性）。</summary>
+    [Obsolete("v0.40 使用 PaddingLength，将在 Task 6.3/6.4 中移除")]
+    internal int StatusLength => _paddingLength > 0 ? _paddingLength : RbfLayout.Alignment;
+
+    /// <summary>[DEPRECATED] 旧格式状态偏移。</summary>
+    [Obsolete("v0.40 使用 PaddingOffset，将在 Task 6.3/6.4 中移除")]
+    internal int StatusOffset => PaddingOffset;
+
+    /// <summary>[DEPRECATED] 旧格式 TailLen 偏移。</summary>
+    [Obsolete("v0.40 TailLen 在 TrailerCodeword 内部，将在 Task 6.4 中移除")]
+    internal int TailLenOffset => TrailerCodewordOffset + 12; // TrailerCodeword 内 TailLen 的偏移
+
+    /// <summary>[DEPRECATED] 旧格式 Trailer 长度。</summary>
+    [Obsolete("v0.40 使用 TrailerCodewordSize，将在 Task 6.3 中移除")]
+    internal int TrailerLength => PayloadCrcSize + TrailerCodewordSize;
+
+    /// <summary>[DEPRECATED] 旧格式 ResultFromTrailer。</summary>
+    [Obsolete("v0.40 需要重写解析逻辑，将在 Task 6.4 中实现")]
     internal static AteliaResult<FrameLayout> ResultFromTrailer(ReadOnlySpan<byte> buffer, out bool isTombstone, out int statusLength) {
+        // 临时 stub：返回错误，强制使用新 API
         isTombstone = false;
-        statusLength = MinStatusLength;
+        statusLength = 1;
+        return AteliaResult<FrameLayout>.Failure(
+            new RbfFramingError("ResultFromTrailer is deprecated in v0.40. Use TrailerCodewordHelper.Parse instead.")
+        );
+    }
 
-        int frameEnd = buffer.Length;
-        if (frameEnd < MinTrailerLength) {
-            return AteliaResult<FrameLayout>.Failure(
-                new RbfFramingError($"Buffer too small for trailer. Length:{frameEnd}, MinTrailerLength:{MinTrailerLength}")
-            );
-        }
+    /// <summary>[DEPRECATED] 旧格式 FillTrailer。</summary>
+    [Obsolete("v0.40 需要重写填充逻辑，将在 Task 6.3 中实现")]
+    internal void FillTrailer(Span<byte> buffer, ref int offset, bool isTombstone = false) {
+        // 临时 stub：抛出异常，强制使用新 API
+        throw new NotSupportedException("FillTrailer is deprecated in v0.40. Use TrailerCodewordHelper instead.");
+    }
 
-        int endLenOffset = frameEnd - CrcSize - TailLenSize;
-        int statusTailOffset = endLenOffset - 1;
-        byte statusTail = buffer[statusTailOffset];
-        var statusError = FrameStatusHelper.DecodeStatusByte(statusTail, out isTombstone, out statusLength);
-        if (statusError != null) {
-            return AteliaResult<FrameLayout>.Failure(statusError);
-        }
-
-        uint endLen = BinaryPrimitives.ReadUInt32LittleEndian(buffer[endLenOffset..]);
-        if (MaxFrameLength < endLen || endLen < MinFrameLength) {
-            return AteliaResult<FrameLayout>.Failure(new RbfFramingError($"Invalid RBF frame TailLen:{endLen}. Valid range:[{MinFrameLength}, {MaxFrameLength}]"));
-        }
-
-        int payloadLength = (int)endLen - statusLength - OverheadLenButStatus;
-        if (payloadLength < 0) {
-            return AteliaResult<FrameLayout>.Failure(new RbfFramingError($"Negative PayloadLength:{payloadLength}. StatusTail:{statusTail}, TailLen:{endLen}"));
-        }
-
-        return AteliaResult<FrameLayout>.Success(new FrameLayout(payloadLength));
+    /// <summary>[DEPRECATED] 旧格式 ValidateStatusConsistency。</summary>
+    [Obsolete("v0.40 使用 Padding 替代 Status，将在 Task 6.4 中移除")]
+    internal AteliaError? ValidateStatusConsistency(ReadOnlySpan<byte> frameBuffer) {
+        // 临时 stub：总是返回 null（不校验）
+        return null;
     }
     #endregion
 }
