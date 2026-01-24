@@ -218,11 +218,42 @@ internal readonly struct FrameLayout {
         );
     }
 
+    /// <summary>
+    /// 填充 TrailerCodeword（v0.40 格式）。
+    /// </summary>
+    /// <param name="buffer">目标 buffer，MUST 至少 16 字节。</param>
+    /// <param name="tag">帧标签。</param>
+    /// <param name="isTombstone">是否为墓碑帧。</param>
+    /// <remarks>
+    /// <para>TrailerCodeword 布局（固定 16 字节）：</para>
+    /// <code>
+    /// [0-3]   TrailerCrc32C   (u32 BE)  ← SealTrailerCrc 计算并写入
+    /// [4-7]   FrameDescriptor (u32 LE)
+    /// [8-11]  FrameTag        (u32 LE)
+    /// [12-15] TailLen         (u32 LE)  ← 等于 FrameLength
+    /// </code>
+    /// <para>规范引用：</para>
+    /// <list type="bullet">
+    ///   <item>@[F-TRAILER-CRC-BIG-ENDIAN]: TrailerCrc 按 BE 存储</item>
+    ///   <item>@[F-TRAILERCRC-COVERAGE]: TrailerCrc 覆盖 FrameDescriptor + FrameTag + TailLen</item>
+    /// </list>
+    /// </remarks>
+    internal void FillTrailer(Span<byte> buffer, uint tag, bool isTombstone = false) {
+        // 构建 FrameDescriptor
+        uint descriptor = TrailerCodewordHelper.BuildDescriptor(isTombstone, _paddingLength, _userMetaLength);
+
+        // 序列化（不含 CRC）
+        TrailerCodewordHelper.SerializeWithoutCrc(buffer, descriptor, tag, (uint)FrameLength);
+
+        // 计算并写入 TrailerCrc（使用 RollingCrc.SealCodewordBackward）
+        TrailerCodewordHelper.SealTrailerCrc(buffer);
+    }
+
     /// <summary>[DEPRECATED] 旧格式 FillTrailer。</summary>
-    [Obsolete("v0.40 需要重写填充逻辑，将在 Task 6.3 中实现")]
+    [Obsolete("v0.40 需要重写填充逻辑，已被新的 FillTrailer(buffer, tag, isTombstone) 替代")]
     internal void FillTrailer(Span<byte> buffer, ref int offset, bool isTombstone = false) {
         // 临时 stub：抛出异常，强制使用新 API
-        throw new NotSupportedException("FillTrailer is deprecated in v0.40. Use TrailerCodewordHelper instead.");
+        throw new NotSupportedException("FillTrailer(buffer, ref offset, isTombstone) is deprecated in v0.40. Use FillTrailer(buffer, tag, isTombstone) instead.");
     }
 
     /// <summary>[DEPRECATED] 旧格式 ValidateStatusConsistency。</summary>
