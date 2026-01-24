@@ -55,7 +55,7 @@ internal sealed class RbfFileImpl : IRbfFile {
 
     /// <inheritdoc />
     public RbfReverseSequence ScanReverse(bool showTombstone = false) {
-        throw new NotImplementedException();
+        return new RbfReverseSequence(_handle, _tailOffset, showTombstone);
     }
 
     /// <inheritdoc />
