@@ -59,6 +59,16 @@ internal sealed class RbfFileImpl : IRbfFile {
     }
 
     /// <inheritdoc />
+    public AteliaResult<RbfFrame> ReadFrame(in RbfFrameInfo info, Span<byte> buffer) {
+        return ReadFrame(info.Ticket, buffer);
+    }
+
+    /// <inheritdoc />
+    public AteliaResult<RbfPooledFrame> ReadPooledFrame(in RbfFrameInfo info) {
+        return ReadPooledFrame(info.Ticket);
+    }
+
+    /// <inheritdoc />
     public void DurableFlush() {
         throw new NotImplementedException();
     }
