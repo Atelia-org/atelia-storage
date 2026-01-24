@@ -12,7 +12,7 @@ partial class RollingCrc {
         Debug.Assert((winSz & (stepSz - 1)) == 0);
         Debug.Assert((cursor & (stepSz - 1)) == 0);
     }
-    public static partial uint CrcForward(uint crc, Span<byte> payload) {
+    public static partial uint CrcForward(uint crc, ReadOnlySpan<byte> payload) {
         var remain = payload;
         while (remain.Length >= sizeof(ulong)) {
             crc = BitOperations.Crc32C(crc, BinaryPrimitives.ReadUInt64LittleEndian(remain));
@@ -31,13 +31,13 @@ partial class RollingCrc {
         }
         return crc;
     }
-    public static partial bool CheckCodewordForward(Span<byte> codeword, uint initValue, uint finalXor) {
+    public static partial bool CheckCodewordForward(ReadOnlySpan<byte> codeword, uint initValue, uint finalXor) {
         uint actualCrc = CrcForward(codeword[..^sizeof(uint)], initValue, finalXor);
         uint expectedCrc = BinaryPrimitives.ReadUInt32LittleEndian(codeword[^sizeof(uint)..]);
         return actualCrc == expectedCrc;
     }
 
-    public static partial uint CrcBackward(uint crc, Span<byte> payload) {
+    public static partial uint CrcBackward(uint crc, ReadOnlySpan<byte> payload) {
         var remainLen = payload.Length;
         while (remainLen >= sizeof(ulong)) {
             crc = BitOperations.Crc32C(crc, BinaryPrimitives.ReadUInt64BigEndian(payload[(remainLen -= sizeof(ulong))..]));

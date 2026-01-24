@@ -11,10 +11,10 @@ public static partial class RollingCrc {
 
     public static uint GetFinalResidue(uint initValue = DefaultInitValue, uint finalXor = DefaultFinalXor) => BitOperations.Crc32C(initValue, initValue ^ finalXor) ^ finalXor;
 
-    public static partial uint CrcForward(uint crc, Span<byte> payload);
-    public static uint CrcForward(Span<byte> payload, uint initValue = DefaultInitValue, uint finalXor = DefaultFinalXor) => CrcForward(initValue, payload) ^ finalXor;
-    public static partial uint CrcBackward(uint crc, Span<byte> payload);
-    public static uint CrcBackward(Span<byte> payload, uint initValue = DefaultInitValue, uint finalXor = DefaultFinalXor) => CrcBackward(initValue, payload) ^ finalXor;
+    public static partial uint CrcForward(uint crc, ReadOnlySpan<byte> payload);
+    public static uint CrcForward(ReadOnlySpan<byte> payload, uint initValue = DefaultInitValue, uint finalXor = DefaultFinalXor) => CrcForward(initValue, payload) ^ finalXor;
+    public static partial uint CrcBackward(uint crc, ReadOnlySpan<byte> payload);
+    public static uint CrcBackward(ReadOnlySpan<byte> payload, uint initValue = DefaultInitValue, uint finalXor = DefaultFinalXor) => CrcBackward(initValue, payload) ^ finalXor;
 
     #region Seal / Check Codeword
     public static uint SealCodewordForward(Span<byte> codeword, uint initValue = DefaultInitValue, uint finalXor = DefaultFinalXor) {
@@ -22,10 +22,10 @@ public static partial class RollingCrc {
         BinaryPrimitives.WriteUInt32LittleEndian(codeword[^sizeof(uint)..], crc);
         return crc;
     }
-    public static partial bool CheckCodewordForward(Span<byte> codeword, uint initValue = DefaultInitValue, uint finalXor = DefaultFinalXor);
+    public static partial bool CheckCodewordForward(ReadOnlySpan<byte> codeword, uint initValue = DefaultInitValue, uint finalXor = DefaultFinalXor);
 
     public static partial uint SealCodewordBackward(Span<byte> codeword, uint initValue = DefaultInitValue, uint finalXor = DefaultFinalXor);
-    public static bool CheckCodewordBackward(Span<byte> codeword, uint initValue = DefaultInitValue, uint finalXor = DefaultFinalXor) {
+    public static bool CheckCodewordBackward(ReadOnlySpan<byte> codeword, uint initValue = DefaultInitValue, uint finalXor = DefaultFinalXor) {
         uint actualCrc = CrcBackward(codeword[sizeof(uint)..], initValue, finalXor);
         uint expectedCrc = BinaryPrimitives.ReadUInt32BigEndian(codeword);
         return actualCrc == expectedCrc;
