@@ -7,15 +7,11 @@ using System.Diagnostics;
 
 namespace Atelia.Rbf.Internal;
 
-/// <summary>
-/// RBF 原始操作集。
-/// </summary>
+/// <summary>RBF 原始操作集。</summary>
 internal static class RbfReadImpl {
     #region ReadTrailerBefore（ScanReverse 核心方法）
 
-    /// <summary>
-    /// 读取指定位置之前的帧元信息（只读 TrailerCodeword，不校验 PayloadCrc）。
-    /// </summary>
+    /// <summary>读取指定位置之前的帧元信息（只读 TrailerCodeword，不校验 PayloadCrc）。</summary>
     /// <param name="file">RBF 文件句柄。</param>
     /// <param name="fenceEndOffset">帧尾 Fence 的 EndOffsetExclusive。</param>
     /// <returns>成功时返回 RbfFrameInfo，失败时返回错误。</returns>
@@ -35,7 +31,8 @@ internal static class RbfReadImpl {
     /// </remarks>
     internal static AteliaResult<RbfFrameInfo> ReadTrailerBefore(
         SafeFileHandle file,
-        long fenceEndOffset) {
+        long fenceEndOffset
+    ) {
         const int TrailerAndFenceSize = TrailerCodewordHelper.Size + RbfLayout.FenceSize; // 20B
 
         // 1. 边界检查：fenceEndOffset 必须容纳 HeaderFence + MinFrame + Fence
@@ -98,7 +95,7 @@ internal static class RbfReadImpl {
         }
 
         // 7. 验证 TailLen（包含 int 可表示性检查）
-        // @[F-FRAMEBYTES-FIELD-OFFSETS]: MinFrameLength = 24
+        // @[F-FRAMEBYTES-LAYOUT]: MinFrameLength = 24
         // TailLen MUST 在 [MinFrameLength, int.MaxValue] 且 4B 对齐
         if (trailer.TailLen < RbfLayout.MinFrameLength ||
             trailer.TailLen > int.MaxValue ||
@@ -124,13 +121,13 @@ internal static class RbfReadImpl {
         }
 
         // 9. 计算 PayloadLength
-        // PayloadLength = TailLen - FixedOverhead - UserMetaLen - PaddingLen
+        // PayloadLength = TailLen - FixedOverhead - TailMetaLen - PaddingLen
         // FixedOverhead = HeadLen(4) + PayloadCrc(4) + TrailerCodeword(16) = 24
-        int payloadLen = (int)trailer.TailLen - FrameLayout.FixedOverhead - trailer.UserMetaLen - trailer.PaddingLen;
+        int payloadLen = (int)trailer.TailLen - FrameLayout.FixedOverhead - trailer.TailMetaLen - trailer.PaddingLen;
         if (payloadLen < 0) {
             return AteliaResult<RbfFrameInfo>.Failure(
                 new RbfFramingError(
-                    $"Computed PayloadLength is negative: {payloadLen} (TailLen={trailer.TailLen}, UserMetaLen={trailer.UserMetaLen}, PaddingLen={trailer.PaddingLen}).",
+                    $"Computed PayloadLength is negative: {payloadLen} (TailLen={trailer.TailLen}, TailMetaLen={trailer.TailMetaLen}, PaddingLen={trailer.PaddingLen}).",
                     RecoveryHint: "The frame descriptor fields are inconsistent."
                 )
             );
@@ -143,16 +140,14 @@ internal static class RbfReadImpl {
                 Ticket: ticket,
                 Tag: trailer.FrameTag,
                 PayloadLength: payloadLen,
-                UserMetaLength: trailer.UserMetaLen,
+                TailMetaLength: trailer.TailMetaLen,
                 IsTombstone: trailer.IsTombstone
             )
         );
     }
 
     #endregion
-    /// <summary>
-    /// 从 ArrayPool 借缓存读取帧。调用方 MUST 调用 Dispose() 归还 buffer。
-    /// </summary>
+    /// <summary>从 ArrayPool 借缓存读取帧。调用方 MUST 调用 Dispose() 归还 buffer。</summary>
     /// <param name="file">文件句柄。</param>
     /// <param name="ticket">帧位置凭据。</param>
     /// <returns>成功时返回 RbfPooledFrame，失败时返回错误（buffer 已自动归还）。</returns>
@@ -185,7 +180,8 @@ internal static class RbfReadImpl {
                 ptr: frame.Ticket,
                 tag: frame.Tag,
                 payloadOffset: FrameLayout.PayloadOffset,
-                payloadLength: frame.Payload.Length,
+                payloadAndMetaLength: frame.PayloadAndMeta.Length,
+                tailMetaLength: frame.TailMetaLength,
                 isTombstone: frame.IsTombstone
             );
 
@@ -215,9 +211,7 @@ internal static class RbfReadImpl {
         return null;
     }
 
-    /// <summary>
-    /// 将帧读入调用方提供的 buffer，返回解析后的 RbfFrame。
-    /// </summary>
+    /// <summary>将帧读入调用方提供的 buffer，返回解析后的 RbfFrame。</summary>
     /// <param name="file">文件句柄。</param>
     /// <param name="ticket">帧位置凭据。</param>
     /// <param name="buffer">调用方提供的 buffer，长度 MUST &gt;= ptr.LengthBytes。</param>
@@ -268,16 +262,14 @@ internal static class RbfReadImpl {
         return ValidateAndParseCore(ticketLength, frameBuffer, ticket);
     }
 
-    /// <summary>
-    /// 解析并验证帧数据（v0.40 布局）。
-    /// </summary>
+    /// <summary>解析并验证帧数据（v0.40 布局）。</summary>
     /// <remarks>
-    /// <para>v0.40 帧布局：[HeadLen][Payload][UserMeta][Padding][PayloadCrc][TrailerCodeword]</para>
+    /// <para>v0.40 帧布局：[HeadLen][Payload][TailMeta][Padding][PayloadCrc][TrailerCodeword]</para>
     /// <para>Framing 校验清单：</para>
     /// <list type="bullet">
     ///   <item>HeadLen == TailLen</item>
     ///   <item>FrameDescriptor 保留位 (bit 28-16) 为 0</item>
-    ///   <item>UserMetaLen &lt;= 65535（16-bit 值域）</item>
+    ///   <item>TailMetaLen &lt;= 65535（16-bit 值域）</item>
     ///   <item>PaddingLen &lt;= 3（2-bit 值域）</item>
     ///   <item>PayloadCrc32C 校验通过</item>
     ///   <item>TrailerCrc32C 校验通过</item>
@@ -301,9 +293,7 @@ internal static class RbfReadImpl {
 
         // 3. 从 TrailerCodeword 解析并验证（v0.40）
         var trailerResult = FrameLayout.ResultFromTrailer(frameBuffer, out var trailer);
-        if (!trailerResult.IsSuccess) {
-            return AteliaResult<RbfFrame>.Failure(trailerResult.Error!);
-        }
+        if (!trailerResult.IsSuccess) { return AteliaResult<RbfFrame>.Failure(trailerResult.Error!); }
 
         var layout = trailerResult.Value;
 
@@ -318,7 +308,7 @@ internal static class RbfReadImpl {
         }
 
         // 5. PayloadCrc32C 校验
-        // @[F-CRC32C-COVERAGE]: 覆盖 Payload + UserMeta + Padding
+        // @[F-PAYLOAD-CRC-COVERAGE]: 覆盖 Payload + TailMeta + Padding
         ReadOnlySpan<byte> payloadCrcCoverage = frameBuffer.Slice(FrameLayout.PayloadCrcCoverageStart, layout.PayloadCrcCoverageLength);
         uint expectedPayloadCrc = BinaryPrimitives.ReadUInt32LittleEndian(frameBuffer.Slice(layout.PayloadCrcOffset, FrameLayout.PayloadCrcSize));
         uint computedPayloadCrc = RollingCrc.CrcForward(payloadCrcCoverage);
@@ -334,12 +324,13 @@ internal static class RbfReadImpl {
 
         // 6. 构造 RbfFrame 并返回
         // Tag 从 TrailerCodeword 读取（v0.40 Tag 不在头部）
-        ReadOnlySpan<byte> payload = frameBuffer.Slice(FrameLayout.PayloadOffset, layout.PayloadLength);
+        ReadOnlySpan<byte> payloadAndMeta = frameBuffer.Slice(FrameLayout.PayloadOffset, layout.PayloadAndMetaLength);
 
         var frame = new RbfFrame {
             Ticket = ticket,
             Tag = trailer.FrameTag,
-            Payload = payload,
+            PayloadAndMeta = payloadAndMeta,
+            TailMetaLength = layout.TailMetaLength,
             IsTombstone = trailer.IsTombstone
         };
 

@@ -35,12 +35,13 @@ public class RbfAppendBenchmarks {
 
     // Reuse the same file handle and overwrite offset 0 to mock high-throughput appending
     // while avoiding disk space explosion during the benchmark.
-    // Real-world scenario would append, but for allocator tuning, overwriting is a valid proxy 
+    // Real-world scenario would append, but for allocator tuning, overwriting is a valid proxy
     // for CPU/Memory overhead.
 
     [Benchmark]
     public void Append() {
-        RbfAppendImpl.Append(_fileHandle!, 0, 0x1234, _payload!, out _);
+        long offset = 0;
+        RbfAppendImpl.Append(_fileHandle!, ref offset, _payload!, default, 0x1234);
     }
 }
 

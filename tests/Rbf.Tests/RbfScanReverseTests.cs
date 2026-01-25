@@ -6,9 +6,7 @@ using Xunit;
 
 namespace Atelia.Rbf.Tests;
 
-/// <summary>
-/// RbfFileImpl.ScanReverse 集成测试。
-/// </summary>
+/// <summary>RbfFileImpl.ScanReverse 集成测试。</summary>
 /// <remarks>
 /// 职责：验证 ScanReverse 迭代器的正确性，包括：
 /// <list type="bullet">
@@ -33,16 +31,14 @@ public class RbfScanReverseTests : IDisposable {
 
     public void Dispose() {
         foreach (var path in _tempFiles) {
-            try { if (File.Exists(path)) File.Delete(path); }
+            try { if (File.Exists(path)) { File.Delete(path); } }
             catch { /* 忽略清理错误 */ }
         }
     }
 
     #region 辅助方法
 
-    /// <summary>
-    /// 创建一个新的 RBF 文件并写入指定帧数据。
-    /// </summary>
+    /// <summary>创建一个新的 RBF 文件并写入指定帧数据。</summary>
     private IRbfFile CreateRbfWithFrames(string path, params (uint tag, byte[] payload, bool isTombstone)[] frames) {
         var rbf = RbfFile.CreateNew(path);
         foreach (var (tag, payload, isTombstone) in frames) {
@@ -57,9 +53,7 @@ public class RbfScanReverseTests : IDisposable {
         return rbf;
     }
 
-    /// <summary>
-    /// 手动构造并追加墓碑帧（绕过标准 API）。
-    /// </summary>
+    /// <summary>手动构造并追加墓碑帧（绕过标准 API）。</summary>
     private void AppendTombstoneFrame(IRbfFile rbf, uint tag, ReadOnlySpan<byte> payload) {
         // 关闭当前文件，手动追加墓碑帧，再重新打开
         var path = GetFilePath(rbf);
@@ -76,18 +70,14 @@ public class RbfScanReverseTests : IDisposable {
         stream.Flush();
     }
 
-    /// <summary>
-    /// 获取 RbfFile 对应的文件路径（通过反射或重新打开）。
-    /// </summary>
+    /// <summary>获取 RbfFile 对应的文件路径（通过反射或重新打开）。</summary>
     private static string GetFilePath(IRbfFile rbf) {
         // 这是一个测试辅助方法，依赖内部实现
         // 实际测试中，我们直接用 path 变量
         throw new NotImplementedException("Use path variable directly");
     }
 
-    /// <summary>
-    /// 构造一个有效帧的字节数组（v0.40 格式）。
-    /// </summary>
+    /// <summary>构造一个有效帧的字节数组（v0.40 格式）。</summary>
     private static byte[] CreateFrameBytes(uint tag, ReadOnlySpan<byte> payload, bool isTombstone = false) {
         var layout = new FrameLayout(payload.Length);
         int frameLen = layout.FrameLength;
@@ -113,9 +103,7 @@ public class RbfScanReverseTests : IDisposable {
         return frame;
     }
 
-    /// <summary>
-    /// 在文件指定位置手动写入帧（用于构造带墓碑帧的测试文件）。
-    /// </summary>
+    /// <summary>在文件指定位置手动写入帧（用于构造带墓碑帧的测试文件）。</summary>
     private static void WriteFrameAt(FileStream stream, long offset, uint tag, ReadOnlySpan<byte> payload, bool isTombstone = false) {
         stream.Seek(offset, SeekOrigin.Begin);
         byte[] frameBytes = CreateFrameBytes(tag, payload, isTombstone);
@@ -123,9 +111,7 @@ public class RbfScanReverseTests : IDisposable {
         stream.Write(RbfLayout.Fence);
     }
 
-    /// <summary>
-    /// 创建一个带有多种帧类型的测试文件（包括正常帧和墓碑帧）。
-    /// </summary>
+    /// <summary>创建一个带有多种帧类型的测试文件（包括正常帧和墓碑帧）。</summary>
     private string CreateTestFileWithMixedFrames(params (uint tag, byte[] payload, bool isTombstone)[] frames) {
         var path = GetTempFilePath();
 
@@ -142,9 +128,7 @@ public class RbfScanReverseTests : IDisposable {
         return path;
     }
 
-    /// <summary>
-    /// 损坏文件中指定帧的 TrailerCrc。
-    /// </summary>
+    /// <summary>损坏文件中指定帧的 TrailerCrc。</summary>
     private static void CorruptTrailerCrcAt(string path, long frameOffset, int payloadLen) {
         using var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite);
         var layout = new FrameLayout(payloadLen);
@@ -161,9 +145,7 @@ public class RbfScanReverseTests : IDisposable {
 
     #region 正常路径测试
 
-    /// <summary>
-    /// 验证多帧文件逆向遍历顺序正确（从尾到头）。
-    /// </summary>
+    /// <summary>验证多帧文件逆向遍历顺序正确（从尾到头）。</summary>
     [Fact]
     public void ScanReverse_MultipleFrames_ReturnsInReverseOrder() {
         // Arrange: 写入 3 帧
@@ -196,9 +178,7 @@ public class RbfScanReverseTests : IDisposable {
         Assert.Equal((tag1, payload1.Length), frames[2]);
     }
 
-    /// <summary>
-    /// 验证 ScanReverse 返回的 Ticket 可用于 ReadFrame。
-    /// </summary>
+    /// <summary>验证 ScanReverse 返回的 Ticket 可用于 ReadFrame。</summary>
     [Fact]
     public void ScanReverse_TicketUsableForReadFrame() {
         // Arrange
@@ -227,18 +207,16 @@ public class RbfScanReverseTests : IDisposable {
         Assert.True(result2.IsSuccess);
         using var frame2 = result2.Value!;
         Assert.Equal(tag2, frame2.Tag);
-        Assert.Equal(payload2, frame2.Payload.ToArray());
+        Assert.Equal(payload2, frame2.PayloadAndMeta.ToArray());
 
         var result1 = rbfRead.ReadPooledFrame(infos[1]); // Frame1
         Assert.True(result1.IsSuccess);
         using var frame1 = result1.Value!;
         Assert.Equal(tag1, frame1.Tag);
-        Assert.Equal(payload1, frame1.Payload.ToArray());
+        Assert.Equal(payload1, frame1.PayloadAndMeta.ToArray());
     }
 
-    /// <summary>
-    /// 验证 ScanReverse 正常结束时 TerminationError 为 null。
-    /// </summary>
+    /// <summary>验证 ScanReverse 正常结束时 TerminationError 为 null。</summary>
     [Fact]
     public void ScanReverse_NormalCompletion_TerminationErrorIsNull() {
         // Arrange
@@ -262,9 +240,7 @@ public class RbfScanReverseTests : IDisposable {
 
     #region 空文件测试
 
-    /// <summary>
-    /// 验证空文件（只有 HeaderFence）返回空序列。
-    /// </summary>
+    /// <summary>验证空文件（只有 HeaderFence）返回空序列。</summary>
     [Fact]
     public void ScanReverse_EmptyFile_ReturnsEmptySequence() {
         // Arrange: 创建只有 HeaderFence 的空文件
@@ -284,9 +260,7 @@ public class RbfScanReverseTests : IDisposable {
         Assert.Empty(frames);
     }
 
-    /// <summary>
-    /// 验证空文件扫描后 TerminationError 为 null（正常到达文件头）。
-    /// </summary>
+    /// <summary>验证空文件扫描后 TerminationError 为 null（正常到达文件头）。</summary>
     [Fact]
     public void ScanReverse_EmptyFile_TerminationErrorIsNull() {
         // Arrange
@@ -309,9 +283,7 @@ public class RbfScanReverseTests : IDisposable {
 
     #region Tombstone 过滤测试
 
-    /// <summary>
-    /// 验证 showTombstone=false 时跳过 Tombstone 帧。
-    /// </summary>
+    /// <summary>验证 showTombstone=false 时跳过 Tombstone 帧。</summary>
     [Fact]
     public void ScanReverse_ShowTombstoneFalse_SkipsTombstones() {
         // Arrange: 创建混合帧文件（正常帧 + 墓碑帧）
@@ -334,9 +306,7 @@ public class RbfScanReverseTests : IDisposable {
         Assert.Equal((0x11111111u, false), frames[1]); // Frame1
     }
 
-    /// <summary>
-    /// 验证 showTombstone=true 时包含 Tombstone 帧。
-    /// </summary>
+    /// <summary>验证 showTombstone=true 时包含 Tombstone 帧。</summary>
     [Fact]
     public void ScanReverse_ShowTombstoneTrue_IncludesTombstones() {
         // Arrange: 创建混合帧文件
@@ -360,9 +330,7 @@ public class RbfScanReverseTests : IDisposable {
         Assert.Equal((0x11111111u, false), frames[2]); // Frame1
     }
 
-    /// <summary>
-    /// 验证全部是 Tombstone 时 showTombstone=false 返回空序列。
-    /// </summary>
+    /// <summary>验证全部是 Tombstone 时 showTombstone=false 返回空序列。</summary>
     [Fact]
     public void ScanReverse_AllTombstones_ShowFalse_ReturnsEmpty() {
         // Arrange: 创建全墓碑文件
@@ -386,9 +354,7 @@ public class RbfScanReverseTests : IDisposable {
 
     #region 损坏停止测试
 
-    /// <summary>
-    /// 验证 TrailerCrc 损坏时硬停止，TerminationError 非空。
-    /// </summary>
+    /// <summary>验证 TrailerCrc 损坏时硬停止，TerminationError 非空。</summary>
     [Fact]
     public void ScanReverse_CorruptedTrailerCrc_HardStopsWithError() {
         // Arrange: 创建 3 帧文件，损坏第 2 帧的 TrailerCrc
@@ -426,9 +392,7 @@ public class RbfScanReverseTests : IDisposable {
         Assert.IsType<RbfFramingError>(enumerator.TerminationError);
     }
 
-    /// <summary>
-    /// 验证硬停止语义：损坏帧之前的帧仍正确产出（不 Resync）。
-    /// </summary>
+    /// <summary>验证硬停止语义：损坏帧之前的帧仍正确产出（不 Resync）。</summary>
     [Fact]
     public void ScanReverse_CorruptedMiddleFrame_PrecedingFramesStillCorrect() {
         // Arrange: 创建 5 帧文件，损坏第 3 帧
@@ -471,9 +435,7 @@ public class RbfScanReverseTests : IDisposable {
         Assert.NotNull(enumerator.TerminationError);
     }
 
-    /// <summary>
-    /// 验证第一帧（最新帧）损坏时立即停止，返回空序列但有错误。
-    /// </summary>
+    /// <summary>验证第一帧（最新帧）损坏时立即停止，返回空序列但有错误。</summary>
     [Fact]
     public void ScanReverse_FirstFrameCorrupted_ImmediateStopWithError() {
         // Arrange: 创建 2 帧文件，损坏最后一帧（逆向扫描的第一帧）
@@ -508,9 +470,7 @@ public class RbfScanReverseTests : IDisposable {
 
     #region 边界值测试
 
-    /// <summary>
-    /// 验证单帧文件的逆向扫描。
-    /// </summary>
+    /// <summary>验证单帧文件的逆向扫描。</summary>
     [Fact]
     public void ScanReverse_SingleFrame_ReturnsOneFrame() {
         // Arrange
@@ -536,9 +496,7 @@ public class RbfScanReverseTests : IDisposable {
         Assert.False(frames[0].IsTombstone);
     }
 
-    /// <summary>
-    /// 验证最小帧（空 payload，24B）的逆向扫描。
-    /// </summary>
+    /// <summary>验证最小帧（空 payload，24B）的逆向扫描。</summary>
     [Fact]
     public void ScanReverse_MinimalFrame_EmptyPayload() {
         // Arrange: 空 payload 帧
@@ -564,9 +522,7 @@ public class RbfScanReverseTests : IDisposable {
         Assert.Equal(FrameLayout.MinFrameLength, frames[0].Ticket.Length); // 24B
     }
 
-    /// <summary>
-    /// 验证大 payload 帧的逆向扫描。
-    /// </summary>
+    /// <summary>验证大 payload 帧的逆向扫描。</summary>
     [Fact]
     public void ScanReverse_LargePayloadFrame() {
         // Arrange: 64KB payload
@@ -592,9 +548,7 @@ public class RbfScanReverseTests : IDisposable {
         Assert.Equal(payload.Length, frames[0].PayloadLength);
     }
 
-    /// <summary>
-    /// 验证不同 payload 对齐的帧（padding 边界测试）。
-    /// </summary>
+    /// <summary>验证不同 payload 对齐的帧（padding 边界测试）。</summary>
     [Theory]
     [InlineData(0)]   // paddingLen = 0
     [InlineData(1)]   // paddingLen = 3
@@ -607,7 +561,7 @@ public class RbfScanReverseTests : IDisposable {
         // Arrange
         var path = GetTempFilePath();
         byte[] payload = new byte[payloadLen];
-        if (payloadLen > 0) new Random(payloadLen).NextBytes(payload);
+        if (payloadLen > 0) { new Random(payloadLen).NextBytes(payload); }
         uint tag = (uint)(0x10000000 + payloadLen);
 
         using (var rbf = RbfFile.CreateNew(path)) {
@@ -627,9 +581,7 @@ public class RbfScanReverseTests : IDisposable {
         Assert.Equal(payloadLen, frames[0].PayloadLength);
     }
 
-    /// <summary>
-    /// 验证多帧逆向扫描时 Ticket.Offset 正确（每帧偏移递减）。
-    /// </summary>
+    /// <summary>验证多帧逆向扫描时 Ticket.Offset 正确（每帧偏移递减）。</summary>
     [Fact]
     public void ScanReverse_MultipleFrames_TicketOffsetsAreDecreasing() {
         // Arrange
@@ -657,9 +609,7 @@ public class RbfScanReverseTests : IDisposable {
 
     #region ReadFrame(in RbfFrameInfo, ...) 便捷重载测试
 
-    /// <summary>
-    /// 验证 ReadFrame(in RbfFrameInfo, Span) 重载正确工作。
-    /// </summary>
+    /// <summary>验证 ReadFrame(in RbfFrameInfo, Span) 重载正确工作。</summary>
     [Fact]
     public void ReadFrame_WithFrameInfo_ReturnsCorrectFrame() {
         // Arrange
@@ -688,12 +638,10 @@ public class RbfScanReverseTests : IDisposable {
         Assert.True(result.IsSuccess);
         var frame = result.Value;
         Assert.Equal(tag, frame.Tag);
-        Assert.Equal(payload, frame.Payload.ToArray());
+        Assert.Equal(payload, frame.PayloadAndMeta.ToArray());
     }
 
-    /// <summary>
-    /// 验证 ReadPooledFrame(in RbfFrameInfo) 重载正确工作。
-    /// </summary>
+    /// <summary>验证 ReadPooledFrame(in RbfFrameInfo) 重载正确工作。</summary>
     [Fact]
     public void ReadPooledFrame_WithFrameInfo_ReturnsCorrectFrame() {
         // Arrange
@@ -722,16 +670,14 @@ public class RbfScanReverseTests : IDisposable {
         Assert.NotNull(result.Value);
         using var frame = result.Value;
         Assert.Equal(tag, frame.Tag);
-        Assert.Equal(payload, frame.Payload.ToArray());
+        Assert.Equal(payload, frame.PayloadAndMeta.ToArray());
     }
 
     #endregion
 
     #region PayloadCrc 不校验测试
 
-    /// <summary>
-    /// 验证 ScanReverse 不校验 PayloadCrc（@[S-RBF-SCANREVERSE-NO-PAYLOADCRC]）。
-    /// </summary>
+    /// <summary>验证 ScanReverse 不校验 PayloadCrc（@[S-RBF-SCANREVERSE-NO-PAYLOADCRC]）。</summary>
     /// <remarks>
     /// 当 Payload 被破坏但 TrailerCodeword 完好时，ScanReverse 仍应成功返回帧信息。
     /// </remarks>
@@ -778,9 +724,7 @@ public class RbfScanReverseTests : IDisposable {
 
     #region 写入边界测试
 
-    /// <summary>
-    /// 验证 ScanReverse 能处理跨缓冲区边界的帧（使用 RbfAppendImpl 边界向量）。
-    /// </summary>
+    /// <summary>验证 ScanReverse 能处理跨缓冲区边界的帧（使用 RbfAppendImpl 边界向量）。</summary>
     [Fact]
     public void ScanReverse_AcrossBufferBoundaries_WorksCorrectly() {
         // Arrange: 使用 RbfAppendImpl 的边界向量

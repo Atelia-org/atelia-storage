@@ -6,8 +6,6 @@ using Atelia.Data;
 
 namespace Atelia.Rbf.Internal;
 
-/// <summary>
-/// RBF 原始操作集。
-/// </summary>
+/// <summary>RBF 原始操作集。</summary>
 internal static partial class RbfRawOps {
 }

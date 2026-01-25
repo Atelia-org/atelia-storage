@@ -4,13 +4,11 @@ using Atelia.Data;
 
 namespace Atelia.Rbf.Internal;
 
-/// <summary>
-/// RBF wire format 的偏移与长度定义（集中管理）。
-/// </summary>
+/// <summary>RBF wire format 的偏移与长度定义（集中管理）。</summary>
 /// <remarks>
 /// 规范引用：
-/// - @[F-FENCE-VALUE-IS-RBF1-ASCII-4B]
-/// - @[F-FRAMEBYTES-FIELD-OFFSETS]
+/// - @[F-FENCE-RBF1-ASCII-4B]
+/// - @[F-FRAMEBYTES-LAYOUT]
 /// </remarks>
 internal static class RbfLayout {
     // === Alignment ===
@@ -35,43 +33,39 @@ internal static class RbfLayout {
     internal const int PayloadCrcSize = sizeof(uint);
 
     // === MinFrameLength (v0.40) ===
-    /// <summary>
-    /// 最小帧长度 = HeadLen(4) + PayloadCrc(4) + TrailerCodeword(16) = 24 字节。
-    /// 参见 @[F-FRAMEBYTES-FIELD-OFFSETS]。
-    /// </summary>
+    /// <summary>最小帧长度 = HeadLen(4) + PayloadCrc(4) + TrailerCodeword(16) = 24 字节。
+    /// 参见 @[F-FRAMEBYTES-LAYOUT]。</summary>
     internal const int MinFrameLength = sizeof(uint) + PayloadCrcSize + TrailerCodewordSize;
 }
 
-/// <summary>
-/// 帧布局计算器（v0.40 格式）。
-/// </summary>
+/// <summary>帧布局计算器（v0.40 格式）。</summary>
 /// <remarks>
 /// <para>关于数据长度命名：定长又不可分的用 Size，变长或复合的用 Length。</para>
-/// <para>v0.40 布局：[HeadLen][Payload][UserMeta][Padding][PayloadCrc][TrailerCodeword]</para>
+/// <para>v0.40 布局：[HeadLen][Payload][TailMeta][Padding][PayloadCrc][TrailerCodeword]</para>
 /// <para>规范引用：</para>
 /// <list type="bullet">
-///   <item>@[F-FRAMEBYTES-FIELD-OFFSETS]</item>
-///   <item>@[F-CRC32C-COVERAGE]</item>
+///   <item>@[F-FRAMEBYTES-LAYOUT]</item>
+///   <item>@[F-PAYLOAD-CRC-COVERAGE]</item>
 ///   <item>@[F-PADDING-CALCULATION]</item>
 /// </list>
 /// </remarks>
 internal readonly struct FrameLayout {
     private readonly int _payloadLength;
-    private readonly int _userMetaLength;
+    private readonly int _tailMetaLength;
     private readonly int _paddingLength;
 
-    internal FrameLayout(int payloadLength, int userMetaLength = 0) {
+    internal FrameLayout(int payloadLength, int tailMetaLength = 0) {
+        Debug.Assert(0 <= tailMetaLength, "tailMetaLength must be non-negative");
+        Debug.Assert(tailMetaLength <= MaxTailMetaLength, "tailMetaLength exceeds MaxTailMetaLength");
         Debug.Assert(0 <= payloadLength, "payloadLength must be non-negative");
-        Debug.Assert(payloadLength <= MaxPayloadLength, "payloadLength exceeds MaxPayloadLength");
-        Debug.Assert(0 <= userMetaLength, "userMetaLength must be non-negative");
-        Debug.Assert(userMetaLength <= MaxUserMetaLength, "userMetaLength exceeds MaxUserMetaLength");
+        Debug.Assert(payloadLength + tailMetaLength <= MaxPayloadAndMetaLength, "payloadLength exceeds MaxPayloadLength");
 
         _payloadLength = payloadLength;
-        _userMetaLength = userMetaLength;
-        // @[F-PADDING-CALCULATION]: PaddingLen = (4 - ((payloadLen + userMetaLen) % 4)) % 4
-        _paddingLength = (RbfLayout.Alignment - ((payloadLength + userMetaLength) & RbfLayout.AlignmentMask)) & RbfLayout.AlignmentMask;
+        _tailMetaLength = tailMetaLength;
+        // @[F-PADDING-CALCULATION]: PaddingLen = (4 - ((payloadLen + tailMetaLen) % 4)) % 4
+        _paddingLength = (RbfLayout.Alignment - ((payloadLength + tailMetaLength) & RbfLayout.AlignmentMask)) & RbfLayout.AlignmentMask;
 
-        // 确保 FrameLength 不超过 MaxFrameLength（防止 payloadLength + userMetaLength 接近上限时溢出）
+        // 确保 FrameLength 不超过 MaxFrameLength（防止 payloadLength + tailMetaLength 接近上限时溢出）
         Debug.Assert(FrameLength <= MaxFrameLength, "FrameLength exceeds MaxFrameLength");
     }
 
@@ -83,21 +77,21 @@ internal readonly struct FrameLayout {
     // === Frame Payload ===
     internal int PayloadLength => _payloadLength;
 
-    // === UserMeta ===
-    internal int UserMetaLength => _userMetaLength;
+    // === TailMeta ===
+    internal int TailMetaLength => _tailMetaLength;
 
     // === Padding ===
     internal int PaddingLength => _paddingLength;
+
+    internal int PayloadAndMetaLength => _payloadLength + _tailMetaLength;
 
     // === Frame Trailer (v0.40) ===
     internal const int PayloadCrcSize = RbfLayout.PayloadCrcSize;
     internal const int TrailerCodewordSize = RbfLayout.TrailerCodewordSize;
     internal const int TailLenSize = FrameLenSize;
 
-    /// <summary>
-    /// 帧总长度 = HeadLen + Payload + UserMeta + Padding + PayloadCrc + TrailerCodeword。
-    /// </summary>
-    internal int FrameLength => HeadLenSize + _payloadLength + _userMetaLength + _paddingLength + PayloadCrcSize + TrailerCodewordSize;
+    /// <summary>帧总长度 = HeadLen + Payload + TailMeta + Padding + PayloadCrc + TrailerCodeword。</summary>
+    internal int FrameLength => HeadLenSize + _payloadLength + _tailMetaLength + _paddingLength + PayloadCrcSize + TrailerCodewordSize;
     #endregion
 
     #region Statistics
@@ -106,9 +100,9 @@ internal readonly struct FrameLayout {
 
     internal const int MinFrameLength = FixedOverhead;
     internal const int MaxFrameLength = SizedPtr.MaxLength;
-    internal const int MaxPayloadLength = SizedPtr.MaxLength - FixedOverhead;
-    internal const int MaxUserMetaLength = ushort.MaxValue; // 16-bit，参见 @[F-FRAMEDESCRIPTOR-LAYOUT]
-    internal const int MaxPaddingLength = 3; // 2-bit，参见 @[F-FRAMEDESCRIPTOR-LAYOUT]
+    internal const int MaxPayloadAndMetaLength = SizedPtr.MaxLength - FixedOverhead;
+    internal const int MaxTailMetaLength = ushort.MaxValue; // 16-bit，参见 @[F-FRAME-DESCRIPTOR-LAYOUT]
+    internal const int MaxPaddingLength = 3; // 2-bit，参见 @[F-FRAME-DESCRIPTOR-LAYOUT]
     #endregion
 
     #region Relative To FrameStart
@@ -116,11 +110,11 @@ internal readonly struct FrameLayout {
     /// <summary>Payload 起始偏移 = HeadLenSize (4)。v0.40 格式中 Tag 不在头部。</summary>
     internal const int PayloadOffset = HeadLenSize;
 
-    /// <summary>UserMeta 起始偏移。</summary>
-    internal int UserMetaOffset => PayloadOffset + _payloadLength;
+    /// <summary>TailMeta 起始偏移。</summary>
+    internal int TailMetaOffset => PayloadOffset + _payloadLength;
 
     /// <summary>Padding 起始偏移。</summary>
-    internal int PaddingOffset => UserMetaOffset + _userMetaLength;
+    internal int PaddingOffset => TailMetaOffset + _tailMetaLength;
 
     /// <summary>PayloadCrc32C 偏移。</summary>
     internal int PayloadCrcOffset => PaddingOffset + _paddingLength;
@@ -136,15 +130,14 @@ internal readonly struct FrameLayout {
     /// <summary>PayloadCrc 覆盖结束 = PayloadCrc 偏移（不含 PayloadCrc 本身）。</summary>
     internal int PayloadCrcCoverageEnd => PayloadCrcOffset;
 
-    /// <summary>PayloadCrc 覆盖长度 = Payload + UserMeta + Padding。</summary>
-    internal int PayloadCrcCoverageLength => _payloadLength + _userMetaLength + _paddingLength;
+    /// <summary>PayloadCrc 覆盖长度 = Payload + TailMeta + Padding。</summary>
+    internal int PayloadCrcCoverageLength => _payloadLength + _tailMetaLength + _paddingLength;
+    internal const int LengthAfterPayloadCrcCoverage = PayloadCrcSize + TrailerCodewordSize;
     #endregion
 
     #region TrailerCodeword 操作
 
-    /// <summary>
-    /// 从完整帧 buffer 解析 TrailerCodeword 并构造 FrameLayout（v0.40 格式）。
-    /// </summary>
+    /// <summary>从完整帧 buffer 解析 TrailerCodeword 并构造 FrameLayout（v0.40 格式）。</summary>
     /// <param name="frameBuffer">完整帧数据（从 HeadLen 到 TrailerCodeword 末尾）。</param>
     /// <param name="trailer">输出：解析后的 TrailerCodeword 数据。</param>
     /// <returns>成功时返回 FrameLayout，失败时返回错误。</returns>
@@ -174,7 +167,7 @@ internal readonly struct FrameLayout {
         var trailerSpan = frameBuffer.Slice(frameBuffer.Length - TrailerCodewordSize, TrailerCodewordSize);
 
         // 3. 验证 TrailerCrc32C
-        // @[F-TRAILERCRC-COVERAGE]: TrailerCrc 覆盖 FrameDescriptor + FrameTag + TailLen
+        // @[F-TRAILER-CRC-COVERAGE]: TrailerCrc 覆盖 FrameDescriptor + FrameTag + TailLen
         if (!TrailerCodewordHelper.CheckTrailerCrc(trailerSpan)) {
             trailer = default;
             return AteliaResult<FrameLayout>.Failure(
@@ -189,7 +182,7 @@ internal readonly struct FrameLayout {
         trailer = TrailerCodewordHelper.Parse(trailerSpan);
 
         // 5. 验证 FrameDescriptor 保留位
-        // @[F-FRAMEDESCRIPTOR-LAYOUT]: bit 28-16 MUST 为 0
+        // @[F-FRAME-DESCRIPTOR-LAYOUT]: bit 28-16 MUST 为 0
         if (!TrailerCodewordHelper.ValidateReservedBits(trailer.FrameDescriptor)) {
             return AteliaResult<FrameLayout>.Failure(
                 new RbfFramingError(
@@ -230,24 +223,22 @@ internal readonly struct FrameLayout {
         }
 
         // 8. 计算 PayloadLength
-        // PayloadLength = TailLen - FixedOverhead - UserMetaLen - PaddingLen
-        int payloadLength = (int)trailer.TailLen - FixedOverhead - trailer.UserMetaLen - trailer.PaddingLen;
+        // PayloadLength = TailLen - FixedOverhead - TailMetaLen - PaddingLen
+        int payloadLength = (int)trailer.TailLen - FixedOverhead - trailer.TailMetaLen - trailer.PaddingLen;
         if (payloadLength < 0) {
             return AteliaResult<FrameLayout>.Failure(
                 new RbfFramingError(
-                    $"Computed PayloadLength is negative: {payloadLength} (TailLen={trailer.TailLen}, UserMetaLen={trailer.UserMetaLen}, PaddingLen={trailer.PaddingLen}).",
+                    $"Computed PayloadLength is negative: {payloadLength} (TailLen={trailer.TailLen}, TailMetaLen={trailer.TailMetaLen}, PaddingLen={trailer.PaddingLen}).",
                     RecoveryHint: "The frame descriptor fields are inconsistent."
                 )
             );
         }
 
         // 9. 构造 FrameLayout
-        return AteliaResult<FrameLayout>.Success(new FrameLayout(payloadLength, trailer.UserMetaLen));
+        return AteliaResult<FrameLayout>.Success(new FrameLayout(payloadLength, trailer.TailMetaLen));
     }
 
-    /// <summary>
-    /// 填充 TrailerCodeword（v0.40 格式）。
-    /// </summary>
+    /// <summary>填充 TrailerCodeword（v0.40 格式）。</summary>
     /// <param name="buffer">目标 buffer，MUST 至少 16 字节。</param>
     /// <param name="tag">帧标签。</param>
     /// <param name="isTombstone">是否为墓碑帧。</param>
@@ -262,12 +253,12 @@ internal readonly struct FrameLayout {
     /// <para>规范引用：</para>
     /// <list type="bullet">
     ///   <item>@[F-TRAILER-CRC-BIG-ENDIAN]: TrailerCrc 按 BE 存储</item>
-    ///   <item>@[F-TRAILERCRC-COVERAGE]: TrailerCrc 覆盖 FrameDescriptor + FrameTag + TailLen</item>
+    ///   <item>@[F-TRAILER-CRC-COVERAGE]: TrailerCrc 覆盖 FrameDescriptor + FrameTag + TailLen</item>
     /// </list>
     /// </remarks>
     internal void FillTrailer(Span<byte> buffer, uint tag, bool isTombstone = false) {
         // 构建 FrameDescriptor
-        uint descriptor = TrailerCodewordHelper.BuildDescriptor(isTombstone, _paddingLength, _userMetaLength);
+        uint descriptor = TrailerCodewordHelper.BuildDescriptor(isTombstone, _paddingLength, _tailMetaLength);
 
         // 序列化（不含 CRC）
         TrailerCodewordHelper.SerializeWithoutCrc(buffer, descriptor, tag, (uint)FrameLength);

@@ -4,9 +4,7 @@ using Atelia.Data;
 
 namespace Atelia.Rbf.Internal;
 
-/// <summary>
-/// RandomAccess → IByteSink 适配器
-/// </summary>
+/// <summary>RandomAccess → IByteSink 适配器</summary>
 /// <remarks>
 /// <para><b>职责边界</b>：仅做 Push → RandomAccess.Write 转发 + offset 记账。</para>
 /// <para>
@@ -22,9 +20,7 @@ internal sealed class RandomAccessByteSink : IByteSink {
     private readonly SafeFileHandle _file;
     private long _writeOffset;
 
-    /// <summary>
-    /// 创建 RandomAccess 写入适配器
-    /// </summary>
+    /// <summary>创建 RandomAccess 写入适配器</summary>
     /// <param name="file">文件句柄（需具备 Write 权限）</param>
     /// <param name="startOffset">起始写入位置（byte offset）</param>
     /// <exception cref="ArgumentNullException"><paramref name="file"/> 为 null</exception>
@@ -44,7 +40,7 @@ internal sealed class RandomAccessByteSink : IByteSink {
     /// <remarks>
     /// 调用 <see cref="RandomAccess.Write(SafeFileHandle, ReadOnlySpan{byte}, long)"/>
     /// 写入数据并推进 offset。
-    /// 
+    ///
     /// <para><b>错误处理</b>：I/O 异常直接抛出（符合 Infra Fault 策略）。</para>
     /// </remarks>
     public void Push(ReadOnlySpan<byte> data) {

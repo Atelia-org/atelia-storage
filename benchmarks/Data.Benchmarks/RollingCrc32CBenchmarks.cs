@@ -1,5 +1,5 @@
 using System.Runtime.InteropServices;
-using Atelia.Data;
+using Atelia.Data.Hashing;
 using BenchmarkDotNet.Attributes;
 
 /// <summary>
@@ -8,14 +8,14 @@ using BenchmarkDotNet.Attributes;
 // [MemoryDiagnoser]
 [OperationsPerSecond]
 public class RollingCrc32CBenchmarks {
-    private RollingCrcTable _roller = null!;
+    private RollingCrc.Table _roller = null!;
     private byte[] _data = null!;
     private const int WindowSize = 64;
     public const int DataSize = 1024 * 1024;
 
     [GlobalSetup]
     public void Setup() {
-        _roller = new RollingCrcTable(WindowSize);
+        _roller = new RollingCrc.Table(WindowSize);
         _data = new byte[DataSize];
         new Random(42).NextBytes(_data);
     }

@@ -3,9 +3,7 @@ using Microsoft.Win32.SafeHandles;
 
 namespace Atelia.Rbf;
 
-/// <summary>
-/// 逆向扫描枚举器。
-/// </summary>
+/// <summary>逆向扫描枚举器。</summary>
 /// <remarks>
 /// <para>从 <c>dataTail</c> 开始，调用 <c>ReadTrailerBefore</c> 逐帧往回迭代。</para>
 /// <para>当 <c>dataTail</c> 到达 <c>MinValidOffset</c> 或 <c>ReadTrailerBefore</c> 失败时停止。</para>
@@ -18,9 +16,7 @@ public ref struct RbfReverseEnumerator {
     private RbfFrameInfo _current;
     private AteliaError? _terminationError;
 
-    /// <summary>
-    /// 初始化逆向扫描枚举器。
-    /// </summary>
+    /// <summary>初始化逆向扫描枚举器。</summary>
     /// <param name="handle">RBF 文件句柄。</param>
     /// <param name="dataTail">扫描起始位置（文件逻辑尾部）。</param>
     /// <param name="showTombstone">是否包含墓碑帧。</param>
@@ -35,9 +31,7 @@ public ref struct RbfReverseEnumerator {
     /// <summary>当前帧元信息。</summary>
     public RbfFrameInfo Current => _current;
 
-    /// <summary>
-    /// 迭代终止时的错误（如有）。
-    /// </summary>
+    /// <summary>迭代终止时的错误（如有）。</summary>
     /// <remarks>
     /// <para>正常到达文件头部时为 <c>null</c>。</para>
     /// <para>遇到损坏帧时为非空，包含具体错误信息。</para>

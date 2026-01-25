@@ -6,13 +6,9 @@ using Atelia.Data;
 
 namespace Atelia.Rbf.Internal;
 
-/// <summary>
-/// RBF 原始操作集。
-/// </summary>
+/// <summary>RBF 原始操作集。</summary>
 internal static partial class RbfRawOps {
-    /// <summary>
-    /// 创建逆向扫描序列。
-    /// </summary>
+    /// <summary>创建逆向扫描序列。</summary>
     /// <param name="file">文件句柄。</param>
     /// <param name="scanOrigin">文件逻辑长度（扫描起点）。</param>
     /// <param name="showTombstone">是否包含墓碑帧。默认 false。</param>

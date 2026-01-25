@@ -3,9 +3,7 @@
 
 namespace Atelia.Rbf.Internal;
 
-/// <summary>
-/// RBF 参数错误（Offset/Length 非对齐、越界等）。
-/// </summary>
+/// <summary>RBF 参数错误（Offset/Length 非对齐、越界等）。</summary>
 internal sealed record RbfArgumentError(
     string Message,
     string? RecoveryHint = null,
@@ -13,9 +11,7 @@ internal sealed record RbfArgumentError(
     AteliaError? Cause = null
 ) : AteliaError("Rbf.ArgumentError", Message, RecoveryHint, Details, Cause);
 
-/// <summary>
-/// RBF Framing 错误（HeadLen/TailLen 不匹配、Status 异常等）。
-/// </summary>
+/// <summary>RBF Framing 错误（HeadLen/TailLen 不匹配、Status 异常等）。</summary>
 internal sealed record RbfFramingError(
     string Message,
     string? RecoveryHint = null,
@@ -23,9 +19,7 @@ internal sealed record RbfFramingError(
     AteliaError? Cause = null
 ) : AteliaError("Rbf.FramingError", Message, RecoveryHint, Details, Cause);
 
-/// <summary>
-/// RBF CRC 校验失败（数据损坏）。
-/// </summary>
+/// <summary>RBF CRC 校验失败（数据损坏）。</summary>
 internal sealed record RbfCrcMismatchError(
     string Message,
     string? RecoveryHint = null,
@@ -33,9 +27,7 @@ internal sealed record RbfCrcMismatchError(
     AteliaError? Cause = null
 ) : AteliaError("Rbf.CrcMismatch", Message, RecoveryHint, Details, Cause);
 
-/// <summary>
-/// RBF Buffer 长度不足错误。
-/// </summary>
+/// <summary>RBF Buffer 长度不足错误。</summary>
 internal sealed record RbfBufferTooSmallError : AteliaError {
     public int RequiredBytes { get; init; }
     public int ProvidedBytes { get; init; }

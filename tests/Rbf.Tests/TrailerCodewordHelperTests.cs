@@ -5,9 +5,7 @@ using Xunit;
 
 namespace Atelia.Rbf.Tests;
 
-/// <summary>
-/// TrailerCodewordHelper 单元测试。
-/// </summary>
+/// <summary>TrailerCodewordHelper 单元测试。</summary>
 /// <remarks>
 /// 覆盖：
 /// - Parse: 端序验证（TrailerCrc32C=BE，其他=LE）
@@ -43,7 +41,7 @@ public class TrailerCodewordHelperTests {
     [Fact]
     public void Parse_FrameDescriptorFields_DecodedCorrectly() {
         // FrameDescriptor 位布局:
-        // bit31=IsTombstone=1, bit30-29=PaddingLen=2 (0b10), bit28-16=Reserved=0, bit15-0=UserMetaLen=1234
+        // bit31=IsTombstone=1, bit30-29=PaddingLen=2 (0b10), bit28-16=Reserved=0, bit15-0=TailMetaLen=1234
         // = 0x80000000 | (2 << 29) | 1234
         // = 0x80000000 | 0x40000000 | 0x04D2
         // = 0xC00004D2
@@ -58,12 +56,12 @@ public class TrailerCodewordHelperTests {
 
         Assert.True(data.IsTombstone);
         Assert.Equal(2, data.PaddingLen);
-        Assert.Equal(1234, data.UserMetaLen);
+        Assert.Equal(1234, data.TailMetaLen);
     }
 
     [Fact]
-    public void Parse_NonTombstone_ZeroPadding_ZeroUserMeta() {
-        // FrameDescriptor: IsTombstone=0, PaddingLen=0, UserMetaLen=0 -> 0x00000000
+    public void Parse_NonTombstone_ZeroPadding_ZeroTailMeta() {
+        // FrameDescriptor: IsTombstone=0, PaddingLen=0, TailMetaLen=0 -> 0x00000000
         byte[] buffer = new byte[16];
         BinaryPrimitives.WriteUInt32LittleEndian(buffer.AsSpan(4), 0u);
 
@@ -71,12 +69,12 @@ public class TrailerCodewordHelperTests {
 
         Assert.False(data.IsTombstone);
         Assert.Equal(0, data.PaddingLen);
-        Assert.Equal(0, data.UserMetaLen);
+        Assert.Equal(0, data.TailMetaLen);
     }
 
     [Fact]
-    public void Parse_MaxPaddingLen_MaxUserMetaLen() {
-        // FrameDescriptor: IsTombstone=0, PaddingLen=3, UserMetaLen=65535
+    public void Parse_MaxPaddingLen_MaxTailMetaLen() {
+        // FrameDescriptor: IsTombstone=0, PaddingLen=3, TailMetaLen=65535
         // = (3 << 29) | 65535
         // = 0x6000FFFF
         uint descriptor = 0x6000_FFFFu;
@@ -87,7 +85,7 @@ public class TrailerCodewordHelperTests {
 
         Assert.False(data.IsTombstone);
         Assert.Equal(3, data.PaddingLen);
-        Assert.Equal(65535, data.UserMetaLen);
+        Assert.Equal(65535, data.TailMetaLen);
     }
 
     [Fact]
@@ -104,17 +102,17 @@ public class TrailerCodewordHelperTests {
 
     [Fact]
     public void BuildDescriptor_AllCombinations_CorrectBitLayout() {
-        // Test: IsTombstone=true, PaddingLen=1, UserMetaLen=100
+        // Test: IsTombstone=true, PaddingLen=1, TailMetaLen=100
         uint descriptor = TrailerCodewordHelper.BuildDescriptor(true, 1, 100);
         // Expected: 0x80000000 | (1 << 29) | 100 = 0x80000000 | 0x20000000 | 0x64 = 0xA0000064
         Assert.Equal(0xA000_0064u, descriptor);
 
-        // Test: IsTombstone=false, PaddingLen=3, UserMetaLen=65535
+        // Test: IsTombstone=false, PaddingLen=3, TailMetaLen=65535
         descriptor = TrailerCodewordHelper.BuildDescriptor(false, 3, 65535);
         // Expected: (3 << 29) | 65535 = 0x6000FFFF
         Assert.Equal(0x6000_FFFFu, descriptor);
 
-        // Test: IsTombstone=false, PaddingLen=0, UserMetaLen=0
+        // Test: IsTombstone=false, PaddingLen=0, TailMetaLen=0
         descriptor = TrailerCodewordHelper.BuildDescriptor(false, 0, 0);
         Assert.Equal(0u, descriptor);
     }
@@ -126,7 +124,7 @@ public class TrailerCodewordHelperTests {
     }
 
     [Fact]
-    public void BuildDescriptor_UserMetaLenOutOfRange_ThrowsArgumentOutOfRangeException() {
+    public void BuildDescriptor_TailMetaLenOutOfRange_ThrowsArgumentOutOfRangeException() {
         Assert.Throws<ArgumentOutOfRangeException>(() => TrailerCodewordHelper.BuildDescriptor(false, 0, -1));
         Assert.Throws<ArgumentOutOfRangeException>(() => TrailerCodewordHelper.BuildDescriptor(false, 0, 65536));
     }
@@ -166,8 +164,9 @@ public class TrailerCodewordHelperTests {
     public void SerializeWithoutCrc_BufferTooShort_ThrowsArgumentException() {
         byte[] shortBuffer = new byte[15];
 
-        var ex = Assert.Throws<ArgumentException>(() =>
-            TrailerCodewordHelper.SerializeWithoutCrc(shortBuffer, 0, 0, 0));
+        var ex = Assert.Throws<ArgumentException>(
+            () => TrailerCodewordHelper.SerializeWithoutCrc(shortBuffer, 0, 0, 0)
+        );
         Assert.Contains("16", ex.Message);
     }
 
@@ -240,8 +239,9 @@ public class TrailerCodewordHelperTests {
     public void SealTrailerCrc_BufferTooShort_ThrowsArgumentException() {
         byte[] shortBuffer = new byte[15];
 
-        var ex = Assert.Throws<ArgumentException>(() =>
-            TrailerCodewordHelper.SealTrailerCrc(shortBuffer));
+        var ex = Assert.Throws<ArgumentException>(
+            () => TrailerCodewordHelper.SealTrailerCrc(shortBuffer)
+        );
         Assert.Contains("16", ex.Message);
     }
 
@@ -249,8 +249,9 @@ public class TrailerCodewordHelperTests {
     public void CheckTrailerCrc_BufferTooShort_ThrowsArgumentException() {
         byte[] shortBuffer = new byte[15];
 
-        var ex = Assert.Throws<ArgumentException>(() =>
-            TrailerCodewordHelper.CheckTrailerCrc(shortBuffer));
+        var ex = Assert.Throws<ArgumentException>(
+            () => TrailerCodewordHelper.CheckTrailerCrc(shortBuffer)
+        );
         Assert.Contains("16", ex.Message);
     }
 
@@ -305,7 +306,7 @@ public class TrailerCodewordHelperTests {
     [Fact]
     public void ValidateReservedBits_ZeroReserved_ReturnsTrue() {
         // 保留位为 0
-        uint descriptor = 0x8000_FFFFu; // IsTombstone=1, PaddingLen=0, Reserved=0, UserMetaLen=65535
+        uint descriptor = 0x8000_FFFFu; // IsTombstone=1, PaddingLen=0, Reserved=0, TailMetaLen=65535
         Assert.True(TrailerCodewordHelper.ValidateReservedBits(descriptor));
     }
 
@@ -331,9 +332,9 @@ public class TrailerCodewordHelperTests {
     [InlineData(true, 3, 65535, 0xFFFFFFFFu, 0x00100000u)]
     [InlineData(false, 2, 1000, 0x42u, 100u)]
     [InlineData(true, 1, 123, 0xDEADBEEFu, 0x1234u)]
-    public void Roundtrip_SerializeParseSealCheck(bool isTombstone, int paddingLen, int userMetaLen, uint tag, uint tailLen) {
+    public void Roundtrip_SerializeParseSealCheck(bool isTombstone, int paddingLen, int tailMetaLen, uint tag, uint tailLen) {
         // Build
-        uint descriptor = TrailerCodewordHelper.BuildDescriptor(isTombstone, paddingLen, userMetaLen);
+        uint descriptor = TrailerCodewordHelper.BuildDescriptor(isTombstone, paddingLen, tailMetaLen);
 
         // Serialize
         byte[] buffer = new byte[16];
@@ -351,7 +352,7 @@ public class TrailerCodewordHelperTests {
         // Verify
         Assert.Equal(isTombstone, data.IsTombstone);
         Assert.Equal(paddingLen, data.PaddingLen);
-        Assert.Equal(userMetaLen, data.UserMetaLen);
+        Assert.Equal(tailMetaLen, data.TailMetaLen);
         Assert.Equal(tag, data.FrameTag);
         Assert.Equal(tailLen, data.TailLen);
         Assert.True(TrailerCodewordHelper.ValidateReservedBits(data.FrameDescriptor));

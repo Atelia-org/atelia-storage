@@ -38,7 +38,7 @@ void SimpleWrite(IRbfFile file, uint myTag, byte[] data) {
 void StreamingWrite(IRbfFile file, uint myTag, IEnumerable<byte[]> chunks) {
     // 1. 开启事务
     // 注意：builder 是 ref struct，最好配合 using 确保即使异常也能 Dispose
-    using var builder = file.BeginAppend(myTag);
+    using var builder = file.BeginAppend();
 
     // 2. 获取 Writer (IBufferWriter<byte>)
     var writer = builder.Payload;
@@ -54,7 +54,7 @@ void StreamingWrite(IRbfFile file, uint myTag, IEnumerable<byte[]> chunks) {
 
         // 3. 结束追加 (EndAppend)
         // 只有 EndAppend 后，数据才对 Read 即刻可见，TailOffset 才会推进
-        SizedPtr ptr = builder.EndAppend();
+        SizedPtr ptr = builder.EndAppend(myTag);
 
         // EndAppend 后不能再写入，Dispose 变为无操作
     }

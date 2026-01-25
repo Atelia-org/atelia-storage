@@ -3,9 +3,7 @@ using Microsoft.Win32.SafeHandles;
 
 namespace Atelia.Rbf.Internal;
 
-/// <summary>
-/// <see cref="IRbfFile"/> 的内部实现类。
-/// </summary>
+/// <summary><see cref="IRbfFile"/> 的内部实现类。</summary>
 /// <remarks>
 /// <para>职责边界：</para>
 /// <para>- <b>RbfFileImpl = Facade</b>：资源管理 + TailOffset 状态 + 参数校验/并发约束</para>
@@ -16,9 +14,7 @@ internal sealed class RbfFileImpl : IRbfFile {
     private long _tailOffset;
     private bool _disposed;
 
-    /// <summary>
-    /// 初始化 <see cref="RbfFileImpl"/> 实例。
-    /// </summary>
+    /// <summary>初始化 <see cref="RbfFileImpl"/> 实例。</summary>
     /// <param name="handle">已打开的文件句柄（所有权转移给此实例）。</param>
     /// <param name="tailOffset">初始 TailOffset（文件逻辑长度）。</param>
     internal RbfFileImpl(SafeFileHandle handle, long tailOffset) {
@@ -30,16 +26,16 @@ internal sealed class RbfFileImpl : IRbfFile {
     public long TailOffset => _tailOffset;
 
     /// <inheritdoc />
-    public SizedPtr Append(uint tag, ReadOnlySpan<byte> payload) {
+    public SizedPtr Append(uint tag, ReadOnlySpan<byte> payload, ReadOnlySpan<byte> tailMeta) {
+        long tailOffset = _tailOffset;
         // 门面层只负责：持有句柄 + 维护 TailOffset。
-        var frameOffset = _tailOffset;
-        var ptr = RbfAppendImpl.Append(_handle, frameOffset, tag, payload, out long nextTailOffset);
-        _tailOffset = nextTailOffset;
-        return ptr;
+        var ret = RbfAppendImpl.Append(_handle, ref tailOffset, payload, tailMeta, tag);
+        _tailOffset = tailOffset;
+        return ret;
     }
 
     /// <inheritdoc />
-    public RbfFrameBuilder BeginAppend(uint tag) {
+    public RbfFrameBuilder BeginAppend() {
         throw new NotImplementedException();
     }
 

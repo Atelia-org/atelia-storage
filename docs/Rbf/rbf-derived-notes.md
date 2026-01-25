@@ -24,33 +24,33 @@ produce_by:
 Reader 在执行 @[F-FRAMING-FAIL-REJECT](rbf-format.md) 时应检查以下项目：
 
 1. **结构一致性**
-    - HeadLen 与 TailLen 必须相等（@[F-FRAMEBYTES-FIELD-OFFSETS](rbf-format.md)）
+    - HeadLen 与 TailLen 必须相等（@[F-FRAMEBYTES-LAYOUT](rbf-format.md)）
     - HeadLen 必须 >= 24（MinFrameLen，见 @[D-RBF-FORMAT-MIN-HEADLEN]）
     - HeadLen 必须是 4 的倍数（@[S-RBF-DECISION-4B-ALIGNMENT-ROOT](rbf-decisions.md)）
 2. **值域合法性**
-    - Fence 必须匹配 `RBF1`（@[F-FENCE-VALUE-IS-RBF1-ASCII-4B](rbf-format.md)）
-    - FrameDescriptor 保留位必须为 0（@[F-FRAMEDESCRIPTOR-LAYOUT](rbf-format.md)）
+    - Fence 必须匹配 `RBF1`（@[F-FENCE-RBF1-ASCII-4B](rbf-format.md)）
+    - FrameDescriptor 保留位必须为 0（@[F-FRAME-DESCRIPTOR-LAYOUT](rbf-format.md)）
     - Padding 字节必须全为 0（@[F-PADDING-CALCULATION](rbf-format.md)）
 3. **布局约束**
     - Frame 起始位置必须 4 字节对齐（@[S-RBF-DECISION-4B-ALIGNMENT-ROOT](rbf-decisions.md)）
     - Frame 必须位于 HeaderFence 之后（@[F-FILE-STARTS-WITH-FENCE](rbf-decisions.md)）
 4. **CRC 校验**
-    - TrailerCrc32C 校验必须通过（@[F-TRAILERCRC-COVERAGE](rbf-format.md)）
-    - (Content 读取时) PayloadCrc32C 校验必须通过（@[F-CRC32C-COVERAGE](rbf-format.md)）
+    - TrailerCrc32C 校验必须通过（@[F-TRAILER-CRC-COVERAGE](rbf-format.md)）
+    - (Content 读取时) PayloadCrc32C 校验必须通过（@[F-PAYLOAD-CRC-COVERAGE](rbf-format.md)）
 
 ### derived [H-FILE-MINIMUM-LENGTH] 最小文件长度
 由 @[F-FILE-STARTS-WITH-FENCE](rbf-decisions.md) 推导：有效 RBF 文件长度 >= 4（至少包含 HeaderFence）。
 
 ### derived [H-HEADLEN-FORMULA] HeadLen计算公式
-由 @[F-FRAMEBYTES-FIELD-OFFSETS](rbf-format.md) 推导：
-`HeadLen = 4 (HeadLen) + PayloadLen + UserMetaLen + PaddingLen + 4 (PayloadCrc32C) + 16 (TrailerCodeword)`
-即：`HeadLen = 24 + PayloadLen + UserMetaLen + PaddingLen`
+由 @[F-FRAMEBYTES-LAYOUT](rbf-format.md) 推导：
+`HeadLen = 4 (HeadLen) + PayloadLen + TailMetaLen + PaddingLen + 4 (PayloadCrc32C) + 16 (TrailerCodeword)`
+即：`HeadLen = 24 + PayloadLen + TailMetaLen + PaddingLen`
 
 ### derived [D-RBF-FORMAT-MIN-HEADLEN] 最小HeadLen推导
 see: @[H-HEADLEN-FORMULA], @[F-PADDING-CALCULATION](rbf-format.md)
 
-- 当 `PayloadLen = 0` 且 `UserMetaLen = 0` 时：
-    - `(PayloadLen + UserMetaLen) % 4 = 0`
+- 当 `PayloadLen = 0` 且 `TailMetaLen = 0` 时：
+    - `(PayloadLen + TailMetaLen) % 4 = 0`
     - `PaddingLen = (4 - 0) % 4 = 0`
 - 代入 @[H-HEADLEN-FORMULA] 可得：
       $$\text{HeadLen} = 24 + 0 + 0 + 0 = 24$$
@@ -60,7 +60,7 @@ see: @[H-HEADLEN-FORMULA], @[F-PADDING-CALCULATION](rbf-format.md)
 ### derived [D-RBF-FORMAT-PADDING-TABLE] PaddingLen值域枚举
 **依据 SSOT**：`rbf-format.md` 的 @[F-PADDING-CALCULATION]
 
-| (PayloadLen + UserMetaLen) % 4 | PaddingLen |
+| (PayloadLen + TailMetaLen) % 4 | PaddingLen |
 |--------------------------------|------------|
 | 0 | 0 |
 | 1 | 3 |
@@ -68,25 +68,25 @@ see: @[H-HEADLEN-FORMULA], @[F-PADDING-CALCULATION](rbf-format.md)
 | 3 | 1 |
 
 ### derived [D-RBF-FORMAT-TOMBSTONE-EXAMPLE] Tombstone最小帧算例
-see: @[F-FRAMEDESCRIPTOR-LAYOUT](rbf-format.md), @[D-RBF-FORMAT-MIN-HEADLEN]
+see: @[F-FRAME-DESCRIPTOR-LAYOUT](rbf-format.md), @[D-RBF-FORMAT-MIN-HEADLEN]
 
-场景：`PayloadLen = 0`, `UserMetaLen = 0`, `IsTombstone = 1`
+场景：`PayloadLen = 0`, `TailMetaLen = 0`, `IsTombstone = 1`
 
 - `HeadLen = 24`
 - `FrameDescriptor`:
     - `IsTombstone = 1`
     - `PaddingLen = 0`
-    - `UserMetaLen = 0`
+    - `TailMetaLen = 0`
     - Value = `0x80000000` (u32 LE)
 
 ### derived [D-RBF-FORMAT-FRAMEDESCRIPTOR-BITMASK] FrameDescriptor位域解析规则
-see: @[F-FRAMEDESCRIPTOR-LAYOUT](rbf-format.md)
+see: @[F-FRAME-DESCRIPTOR-LAYOUT](rbf-format.md)
 
 ```csharp
 uint descriptor = ...;
 bool isTombstone = (descriptor & 0x80000000) != 0;
 int paddingLen = (int)((descriptor >> 29) & 0x03);
-int userMetaLen = (int)(descriptor & 0xFFFF);
+int tailMetaLen = (int)(descriptor & 0xFFFF);
 bool reservedIsZero = (descriptor & 0x1FFF0000) == 0;
 ```
 
@@ -146,18 +146,18 @@ Reverse Scan MUST 按如下清单执行 framing 校验（规范性）：
 从 TrailerCodeword 解码 `PayloadLength` 时，MUST 使用如下公式：
 
 ```
-PayloadLength = TailLen - FixedOverhead - UserMetaLen - PaddingLen
+PayloadLength = TailLen - FixedOverhead - TailMetaLen - PaddingLen
 ```
 
 其中：
 - `FixedOverhead = 4 (HeadLen) + 4 (PayloadCrc32C) + 16 (TrailerCodeword) = 24`
-- `UserMetaLen = FrameDescriptor.UserMetaLen`（bit 15-0）
+- `TailMetaLen = FrameDescriptor.TailMetaLen`（bit 15-0）
 - `PaddingLen = FrameDescriptor.PaddingLen`（bit 30-29）
 
 **后置条件**：`PayloadLength >= 0`，否则视为 framing 校验失败。
 
 *示例（Informative）*：
-| TailLen | UserMetaLen | PaddingLen | PayloadLength |
+| TailLen | TailMetaLen | PaddingLen | PayloadLength |
 |---------|-------------|------------|---------------|
 | 28      | 0           | 0          | 4             |
 | 32      | 0           | 0          | 8             |

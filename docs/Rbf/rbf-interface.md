@@ -75,30 +75,24 @@ RbfFrame 通过 `bool IsTombstone` 属性暴露此状态。
 ### spec [A-RBF-IRBFFILE-SHAPE] IRbfFile接口定义
 
 ```csharp
-/// <summary>
-/// RBF 文件对象门面。
-/// </summary>
+/// <summary>RBF 文件对象门面。</summary>
 /// <remarks>
 /// <para>职责：资源管理（Dispose）、状态维护（TailOffset）、调用转发。</para>
 /// <para><b>并发约束</b>：同一实例在任一时刻最多 1 个 open Builder。</para>
 /// </remarks>
 public interface IRbfFile : IDisposable {
-    /// <summary>
-    /// 获取当前文件逻辑长度（也是下一个写入 Offset）。
-    /// </summary>
+    /// <summary>获取当前文件逻辑长度（也是下一个写入 Offset）。</summary>
     long TailOffset { get; }
 
     /// <summary>追加完整帧（payload 已就绪）。</summary>
-    SizedPtr Append(uint tag, ReadOnlySpan<byte> payload);
+    SizedPtr Append(uint tag, ReadOnlySpan<byte> payload, ReadOnlySpan<byte> tailMeta = default);
 
-    /// <summary>
-    /// 复杂帧构建（流式写入 payload / payload 内回填）。
-    /// </summary>
+    /// <summary>复杂帧构建（流式写入 payload / payload 内回填）。</summary>
     /// <remarks>
     /// <para>注意：在 Builder Dispose/EndAppend 前，TailOffset 不会更新。</para>
     /// <para>注意：存在 open Builder 时，不应允许并发 Append/BeginAppend。</para>
     /// </remarks>
-    RbfFrameBuilder BeginAppend(uint tag);
+    RbfFrameBuilder BeginAppend();
 
     /// <summary>读取指定位置的帧到提供的 buffer 中（zero-copy）。</summary>
     /// <param name="ticket">帧位置凭据。</param>
@@ -134,17 +128,13 @@ public interface IRbfFile : IDisposable {
     /// </remarks>
     RbfReverseSequence ScanReverse(bool showTombstone = false);
 
-    /// <summary>
-    /// durable flush（落盘）。
-    /// </summary>
+    /// <summary>durable flush（落盘）。</summary>
     /// <remarks>
     /// <para>用于上层 commit 顺序（例如 data→meta）的 durable 边界。</para>
     /// </remarks>
     void DurableFlush();
 
-    /// <summary>
-    /// 截断（恢复用）。
-    /// </summary>
+    /// <summary>截断（恢复用）。</summary>
     void Truncate(long newLengthBytes);
 }
 
@@ -184,9 +174,7 @@ public static class RbfFile {
 *see:`atelia/src/Data/IReservableBufferWriter.cs`，此类型扩展了标准的`System.Buffers.IBufferWriter<byte>`*
 
 ```csharp
-/// <summary>
-/// 帧构建器。支持流式写入 payload，并支持在 payload 内进行预留与回填。
-/// </summary>
+/// <summary>帧构建器。支持流式写入 payload，并支持在 payload 内进行预留与回填。</summary>
 /// <remarks>
 /// <para><b>生命周期</b>：调用方 MUST 调用 <see cref="EndAppend"/> 或 <see cref="Dispose"/> 之一来结束构建器生命周期。</para>
 /// <para><b>Auto-Abort（Optimistic Clean Abort）</b>：若未 EndAppend 就 Dispose，
@@ -194,9 +182,7 @@ public static class RbfFile {
 /// <para><b>IDisposable 声明</b>：显式实现接口用于类型系统表达"需要释放"的语义，与 using 语句的 duck-typed 机制互补。</para>
 /// </remarks>
 public ref struct RbfFrameBuilder : IDisposable {
-    /// <summary>
-    /// Payload 写入器。
-    /// </summary>
+    /// <summary>Payload 写入器。</summary>
     /// <remarks>
     /// <para>该写入器实现 <see cref="IBufferWriter<byte>"/>，因此可用于绝大多数序列化场景。</para>
     /// <para>此外它支持 reservation（预留/回填），供需要在 payload 内延后写入长度/计数等字段的 codec 使用。</para>
@@ -204,18 +190,14 @@ public ref struct RbfFrameBuilder : IDisposable {
     /// <para><b>注意</b>：Payload 类型本身不承诺 Auto-Abort 一定为 Zero I/O；
     /// Zero I/O 是否可用由实现决定，见 @[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME]。</para>
     /// </remarks>
-    public IReservableBufferWriter Payload { get; }
+    public IReservableBufferWriter PayloadAndMeta { get; }
 
-    /// <summary>
-    /// 提交帧。回填 header/CRC，返回帧位置和长度。
-    /// </summary>
+    /// <summary>提交帧。回填 header/CRC，返回帧位置和长度。</summary>
     /// <returns>写入的帧位置和长度</returns>
     /// <exception cref="InvalidOperationException">重复调用 EndAppend</exception>
-    public SizedPtr EndAppend();
+    public SizedPtr EndAppend(uint tag, int tailMetaLength = 0);
 
-    /// <summary>
-    /// 释放构建器。若未 EndAppend，自动执行 Auto-Abort。
-    /// </summary>
+    /// <summary>释放构建器。若未 EndAppend，自动执行 Auto-Abort。</summary>
     /// <remarks>
     /// <para><b>Auto-Abort 分支约束</b>：<see cref="Dispose"/> 在 Auto-Abort 分支 MUST NOT 抛出异常
     /// （除非出现不可恢复的不变量破坏），并且必须让 File Facade 回到可继续写状态。</para>
@@ -256,41 +238,37 @@ public ref struct RbfFrameBuilder : IDisposable {
 ### spec [A-RBF-FRAME-INFO] RbfFrameInfo定义
 
 ```csharp
-/// <summary>
-/// 帧元信息（不含 Payload）。
-/// </summary>
+/// <summary>帧元信息（不含 Payload）。</summary>
 /// <remarks>
 /// <para>用于 ScanReverse 产出，支持不读取 payload 的元信息迭代。</para>
-/// <para>PayloadLength 与 UserMetaLength 由 Trailer 字段解码得出。</para>
+/// <para>PayloadLength 与 TailMetaLength 由 Trailer 字段解码得出。</para>
 /// </remarks>
 public readonly record struct RbfFrameInfo(
     SizedPtr Ticket,
     uint Tag,
     int PayloadLength,
-    int UserMetaLength,
+    int TailMetaLength,
     bool IsTombstone
 );
 ```
 
-### spec [S-RBF-FRAMEINFO-USERMETALEN-RANGE] UserMetaLength值域
-`RbfFrameInfo.UserMetaLength` MUST 满足：`0 <= UserMetaLength <= 65535`。
+### spec [S-RBF-FRAMEINFO-USERMETALEN-RANGE] TailMetaLength值域
+`RbfFrameInfo.TailMetaLength` MUST 满足：`0 <= TailMetaLength <= 65535`。
 
-**上限来源**：`FrameDescriptor.UserMetaLen` 字段为 16-bit（SSOT：[rbf-format.md](rbf-format.md) @[F-FRAMEDESCRIPTOR-LAYOUT]）。
+**上限来源**：`FrameDescriptor.TailMetaLen` 字段为 16-bit（SSOT：[rbf-format.md](rbf-format.md) @[F-FRAME-DESCRIPTOR-LAYOUT]）。
 
 ### spec [S-RBF-FRAMEINFO-PAYLOADLEN-RANGE] PayloadLength值域
 `RbfFrameInfo.PayloadLength` MUST 满足：`0 <= PayloadLength <= MaxPayloadLength`。
 
 **上限来源**：受 `TailLen(u32)` 与 `SizedPtr.Length(int)` 共同约束；具体计算见 [rbf-format.md](rbf-format.md) @[S-RBF-PAYLOADLENGTH-FORMULA]。
 
-### derived [H-RBF-FRAMEINFO-USERMETA-READING] 读取UserMeta
-调用方如需读取 `UserMeta` 数据，SHOULD 使用 `Ticket` 配合 `PayloadLength` 进行偏移计算与范围读取（`UserMeta` 紧随 `Payload` 之后），并自行决定是否执行完整 `ReadFrame`（`PayloadCrc32C`）校验。
+### derived [H-RBF-FRAMEINFO-USERMETA-READING] 读取TailMeta
+调用方如需读取 `TailMeta` 数据，SHOULD 使用 `Ticket` 配合 `PayloadLength` 进行偏移计算与范围读取（`TailMeta` 紧随 `Payload` 之后），并自行决定是否执行完整 `ReadFrame`（`PayloadCrc32C`）校验。
 
 ### spec [A-RBF-REVERSE-SEQUENCE] RbfReverseSequence定义
 
 ```csharp
-/// <summary>
-/// 逆向扫描序列（duck-typed 枚举器，支持 foreach）。
-/// </summary>
+/// <summary>逆向扫描序列（duck-typed 枚举器，支持 foreach）。</summary>
 /// <remarks>
 /// <para><b>设计说明</b>：返回 ref struct 以避免堆分配并满足栈上生命周期约束。</para>
 /// <para>上层通过 foreach 消费，不依赖 LINQ。</para>
@@ -300,9 +278,7 @@ public ref struct RbfReverseSequence {
     public RbfReverseEnumerator GetEnumerator();
 }
 
-/// <summary>
-/// 逆向扫描枚举器。
-/// </summary>
+/// <summary>逆向扫描枚举器。</summary>
 public ref struct RbfReverseEnumerator {
     /// <summary>当前帧元信息。</summary>
     public RbfFrameInfo Current { get; }
@@ -352,9 +328,7 @@ public ref struct RbfReverseEnumerator {
 ### spec [A-RBF-IFRAME] IRbfFrame接口定义
 
 ```csharp
-/// <summary>
-/// RBF 帧的公共属性契约。
-/// </summary>
+/// <summary>RBF 帧的公共属性契约。</summary>
 public interface IRbfFrame {
     /// <summary>帧位置（凭据）。</summary>
     SizedPtr Ticket { get; }
@@ -365,6 +339,9 @@ public interface IRbfFrame {
     /// <summary>帧负载数据。</summary>
     ReadOnlySpan<byte> Payload { get; }
 
+    /// <summary>用户元数据。</summary>
+    ReadOnlySpan<byte> TailMeta { get; }
+
     /// <summary>是否为墓碑帧。</summary>
     bool IsTombstone { get; }
 }
@@ -373,9 +350,7 @@ public interface IRbfFrame {
 ### spec [A-RBF-FRAME-STRUCT] RbfFrame定义
 
 ```csharp
-/// <summary>
-/// RBF 帧数据结构。
-/// </summary>
+/// <summary>RBF 帧数据结构。</summary>
 /// <remarks>
 /// <para>只读引用结构，生命周期受限于产生它的 Scope（如 ReadFrame 的 buffer）。</para>
 /// <para><b>属性契约</b>：遵循 <see cref="IRbfFrame"/> 定义的公共属性集合。</para>
@@ -398,9 +373,7 @@ public readonly ref struct RbfFrame : IRbfFrame {
 ### spec [A-RBF-POOLED-FRAME] RbfPooledFrame定义
 
 ```csharp
-/// <summary>
-/// 携带 ArrayPool buffer 的 RBF 帧。
-/// </summary>
+/// <summary>携带 ArrayPool buffer 的 RBF 帧。</summary>
 /// <remarks>
 /// <para><b>属性契约</b>：遵循 <see cref="IRbfFrame"/> 定义的公共属性集合。</para>
 /// <para>调用方 MUST 调用 <see cref="Dispose"/> 归还 buffer。</para>
@@ -436,8 +409,8 @@ public sealed class RbfPooledFrame : IRbfFrame, IDisposable {
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
-| 0.32 | 2026-01-24 | **CRC 术语澄清**：修复"ScanReverse 不做 CRC"的歧义表述，明确 ScanReverse 必须做 `TrailerCrc32C` 校验；增加 `UserMetaLength` 和 `PayloadLength` 的值域上限约束；条款 `[S-RBF-SCANREVERSE-NO-CRC]` 更名为 `[S-RBF-SCANREVERSE-NO-PAYLOADCRC]` |
-| 0.31 | 2026-01-24 | **Format对齐**：`RbfFrameInfo` 字段重命名 `MetaTrailerLength` -> `UserMetaLength` 以适配 wire-format；更新 ScanReverse 校验描述（适配 `TrailerCrc32C`）；修正 `RbfFrameBuilder` 签名为 `EndAppend`；废弃 PayloadTrailer 相关描述 |
+| 0.32 | 2026-01-24 | **CRC 术语澄清**：修复"ScanReverse 不做 CRC"的歧义表述，明确 ScanReverse 必须做 `TrailerCrc32C` 校验；增加 `TailMetaLength` 和 `PayloadLength` 的值域上限约束；条款 `[S-RBF-SCANREVERSE-NO-CRC]` 更名为 `[S-RBF-SCANREVERSE-NO-PAYLOADCRC]` |
+| 0.31 | 2026-01-24 | **Format对齐**：`RbfFrameInfo` 字段重命名 `MetaTrailerLength` -> `TailMetaLength` 以适配 wire-format；更新 ScanReverse 校验描述（适配 `TrailerCrc32C`）；修正 `RbfFrameBuilder` 签名为 `EndAppend`；废弃 PayloadTrailer 相关描述 |
 | 0.30 | 2026-01-17 | **ReadFrame 重构**：移除旧签名 `ReadFrame(SizedPtr)`，新增 `ReadFrame(ticket, buffer)` + `ReadPooledFrame(ticket)`；`RbfFrame.Ptr` → `Ticket`；新增 `IRbfFrame` 接口和 `RbfPooledFrame` 类型；更新 `SizedPtr` 属性引用（`Offset`/`Length`） |
 | 0.29 | 2026-01-14 | **IDisposable 显式声明**：`RbfFrameBuilder` 添加 `: IDisposable` 声明，明确类型系统语义；来自团队设计讨论 |
 | 0.28 | 2026-01-12 | **方法重命名**：`RbfFrameBuilder.Commit()` →  `EndAppend()`，与 `BeginAppend()` 形成对称配对，最大化 LLM 可预测性；详见[命名讨论会](../../../../agent-team/meeting/2026-01-12-rbf-builder-lifecycle-naming.md) |

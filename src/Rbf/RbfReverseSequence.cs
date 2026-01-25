@@ -2,9 +2,7 @@ using Microsoft.Win32.SafeHandles;
 
 namespace Atelia.Rbf;
 
-/// <summary>
-/// 逆向扫描序列（duck-typed 枚举器，支持 foreach）。
-/// </summary>
+/// <summary>逆向扫描序列（duck-typed 枚举器，支持 foreach）。</summary>
 /// <remarks>
 /// <para><b>设计说明</b>：返回 ref struct 而非 IEnumerable，因为 RbfFrameInfo 是只读结构体。</para>
 /// <para>上层通过 foreach 消费，不依赖 LINQ。</para>
@@ -15,9 +13,7 @@ public ref struct RbfReverseSequence {
     private readonly long _dataTail;
     private readonly bool _showTombstone;
 
-    /// <summary>
-    /// 初始化逆向扫描序列。
-    /// </summary>
+    /// <summary>初始化逆向扫描序列。</summary>
     /// <param name="handle">RBF 文件句柄。</param>
     /// <param name="dataTail">扫描起始位置（文件逻辑尾部）。</param>
     /// <param name="showTombstone">是否包含墓碑帧。</param>

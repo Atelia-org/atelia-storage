@@ -72,7 +72,7 @@ depends_on:
 
 **实现说明**：
 - 以 `record struct` 表达值语义，避免 GC 分配
-- 包含 `Ticket`/`Tag`/`PayloadLength`/`UserMetaLength`/`IsTombstone`
+- 包含 `Ticket`/`Tag`/`PayloadLength`/`TailMetaLength`/`IsTombstone`
 - **不含 Payload**：读取完整帧需使用 `ReadFrame`/`ReadPooledFrame`（这些路径执行完整 CRC 校验）
 
 ---
@@ -96,16 +96,12 @@ depends_on:
 ```csharp
 namespace Atelia.Rbf.Internal;
 
-/// <summary>
-/// RBF 读取操作实现。
-/// </summary>
+/// <summary>RBF 读取操作实现。</summary>
 internal static class RbfReadImpl {
     // 方法实现见源码 atelia/src/Rbf/Internal/RbfReadImpl.cs
 }
 
-/// <summary>
-/// RBF 写入操作实现。
-/// </summary>
+/// <summary>RBF 写入操作实现。</summary>
 internal static class RbfWriteImpl {
     // 方法实现见源码 atelia/src/Rbf/Internal/RbfRawOps.cs
 }
@@ -255,7 +251,7 @@ see: @[I-RBF-BUILDER-AUTO-ABORT-IMPL]
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
-| 0.6 | 2026-01-24 | **Format对齐**：更新 `ScanReverse` 描述（TrailerCrc32C）；更新 `FrameInfo` 字段（UserMetaLength）；修正 `_BeginFrame` 伪代码（移除 FrameTag 头部写入） |
+| 0.6 | 2026-01-24 | **Format对齐**：更新 `ScanReverse` 描述（TrailerCrc32C）；更新 `FrameInfo` 字段（TailMetaLength）；修正 `_BeginFrame` 伪代码（移除 FrameTag 头部写入） |
 | 0.5 | 2026-01-17 | **ReadFrame 重构**：更新 §2 底层原语签名（RbfRawOps → RbfReadImpl/RbfWriteImpl）；新增 IRbfFrame/RbfPooledFrame 引用；参数名 ptr → ticket |
 | 0.4 | 2026-01-11 | **适配器简化**：将 §5 从 `IBufferWriter` 适配器改为 `IByteSink` 适配器；删除 `SequentialRandomAccessBufferWriter`（~80 行）；新增 `RandomAccessByteSink`（~25 行）；删除 `@[I-RBF-SEQWRITER-TYPE]`、`@[I-RBF-SEQWRITER-ADVANCE-IMMEDIATE]`、`@[I-RBF-SEQWRITER-BUFFER-POOL]`、`@[I-RBF-SEQWRITER-DISPOSE-NOEXCEPT]`；新增 `@[I-RBF-BYTESINK-IS-MINIMAL-FORWARDER]`、`@[I-RBF-BYTESINK-PUSH-FORWARDS-AND-ADVANCES-OFFSET]`、`@[I-RBF-BYTESINK-ERROR-THROW]`；来自 [设计报告](../../../agent-team/handoffs/2026-01-11-randomaccess-bytesink-design.md) |
 | 0.3 | 2026-01-11 | **RandomAccess 适配器设计**：新增 §5（SequentialRandomAccessBufferWriter）；定义 @[I-RBF-SEQWRITER-TYPE]、@[I-RBF-SEQWRITER-ADVANCE-IMMEDIATE]、@[I-RBF-SEQWRITER-BUFFER-POOL]、@[I-RBF-SEQWRITER-HEADLEN-GUARD]、@[I-RBF-SEQWRITER-ERROR-THROW]、@[I-RBF-SEQWRITER-DISPOSE-NOEXCEPT]；来自 [畅谈会](../../../agent-team/meeting/2026-01-11-rbf-randomaccess-adapter.md) 决议 |

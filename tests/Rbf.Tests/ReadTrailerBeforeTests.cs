@@ -7,15 +7,13 @@ using Xunit;
 
 namespace Atelia.Rbf.Tests;
 
-/// <summary>
-/// RbfReadImpl.ReadTrailerBefore 测试（design-draft.md §4.2）。
-/// </summary>
+/// <summary>RbfReadImpl.ReadTrailerBefore 测试（design-draft.md §4.2）。</summary>
 /// <remarks>
 /// 职责：验证 ReadTrailerBefore 的正常路径和错误路径。
 /// 规范引用：
 /// - @[A-READ-TRAILER-BEFORE] - ReadTrailerBefore 算法
-/// - @[F-TRAILERCRC-COVERAGE] - TrailerCrc 覆盖范围
-/// - @[F-FRAMEDESCRIPTOR-LAYOUT] - FrameDescriptor 位布局
+/// - @[F-TRAILER-CRC-COVERAGE] - TrailerCrc 覆盖范围
+/// - @[F-FRAME-DESCRIPTOR-LAYOUT] - FrameDescriptor 位布局
 /// </remarks>
 public class ReadTrailerBeforeTests : IDisposable {
     private readonly List<string> _tempFiles = new();
@@ -29,7 +27,7 @@ public class ReadTrailerBeforeTests : IDisposable {
     public void Dispose() {
         foreach (var path in _tempFiles) {
             try {
-                if (File.Exists(path)) File.Delete(path);
+                if (File.Exists(path)) { File.Delete(path); }
             }
             catch { /* 忽略清理错误 */ }
         }
@@ -37,9 +35,7 @@ public class ReadTrailerBeforeTests : IDisposable {
 
     #region 辅助方法
 
-    /// <summary>
-    /// 构造一个有效帧的字节数组（v0.40 格式）。
-    /// </summary>
+    /// <summary>构造一个有效帧的字节数组（v0.40 格式）。</summary>
     private static byte[] CreateValidFrameBytes(uint tag, ReadOnlySpan<byte> payload, bool isTombstone = false) {
         var layout = new FrameLayout(payload.Length);
         int frameLen = layout.FrameLength;
@@ -65,9 +61,7 @@ public class ReadTrailerBeforeTests : IDisposable {
         return frame;
     }
 
-    /// <summary>
-    /// 构造 HeaderFence + Frame + Fence 的完整文件内容。
-    /// </summary>
+    /// <summary>构造 HeaderFence + Frame + Fence 的完整文件内容。</summary>
     private static byte[] CreateValidFileWithFrame(uint tag, ReadOnlySpan<byte> payload, bool isTombstone = false) {
         byte[] frameBytes = CreateValidFrameBytes(tag, payload, isTombstone);
         int totalLen = RbfLayout.FenceSize + frameBytes.Length + RbfLayout.FenceSize;
@@ -84,9 +78,7 @@ public class ReadTrailerBeforeTests : IDisposable {
 
     #region 正常路径测试
 
-    /// <summary>
-    /// 验证正常帧的 ReadTrailerBefore：返回正确的 Tag、PayloadLength、IsTombstone。
-    /// </summary>
+    /// <summary>验证正常帧的 ReadTrailerBefore：返回正确的 Tag、PayloadLength、IsTombstone。</summary>
     [Fact]
     public void ReadTrailerBefore_ValidFrame_ReturnsCorrectFrameInfo() {
         // Arrange
@@ -112,7 +104,7 @@ public class ReadTrailerBeforeTests : IDisposable {
         Assert.Equal(tag, frameInfo.Tag);
         Assert.Equal(payload.Length, frameInfo.PayloadLength);
         Assert.False(frameInfo.IsTombstone);
-        Assert.Equal(0, frameInfo.UserMetaLength); // 无 UserMeta
+        Assert.Equal(0, frameInfo.TailMetaLength); // 无 TailMeta
 
         // Ticket 验证
         int expectedFrameLen = new FrameLayout(payload.Length).FrameLength;
@@ -120,9 +112,7 @@ public class ReadTrailerBeforeTests : IDisposable {
         Assert.Equal(expectedFrameLen, frameInfo.Ticket.Length);
     }
 
-    /// <summary>
-    /// 验证空 payload 帧（最小帧 24B）的 ReadTrailerBefore。
-    /// </summary>
+    /// <summary>验证空 payload 帧（最小帧 24B）的 ReadTrailerBefore。</summary>
     [Fact]
     public void ReadTrailerBefore_EmptyPayload_Succeeds() {
         // Arrange
@@ -149,9 +139,7 @@ public class ReadTrailerBeforeTests : IDisposable {
         Assert.Equal(FrameLayout.MinFrameLength, frameInfo.Ticket.Length); // 最小帧 24B
     }
 
-    /// <summary>
-    /// 验证墓碑帧的 ReadTrailerBefore。
-    /// </summary>
+    /// <summary>验证墓碑帧的 ReadTrailerBefore。</summary>
     [Fact]
     public void ReadTrailerBefore_TombstoneFrame_ReturnsIsTombstoneTrue() {
         // Arrange
@@ -177,9 +165,7 @@ public class ReadTrailerBeforeTests : IDisposable {
         Assert.True(frameInfo.IsTombstone);
     }
 
-    /// <summary>
-    /// 验证不同 payload 对齐的 ReadTrailerBefore（padding 测试）。
-    /// </summary>
+    /// <summary>验证不同 payload 对齐的 ReadTrailerBefore（padding 测试）。</summary>
     [Theory]
     [InlineData(0)]   // paddingLen = 0
     [InlineData(1)]   // paddingLen = 3
@@ -192,7 +178,7 @@ public class ReadTrailerBeforeTests : IDisposable {
         // Arrange
         var path = GetTempFilePath();
         byte[] payload = new byte[payloadLen];
-        if (payloadLen > 0) new Random(payloadLen).NextBytes(payload);
+        if (payloadLen > 0) { new Random(payloadLen).NextBytes(payload); }
         uint tag = (uint)(0x10000000 + payloadLen);
 
         byte[] fileContent = CreateValidFileWithFrame(tag, payload);
@@ -212,9 +198,7 @@ public class ReadTrailerBeforeTests : IDisposable {
         Assert.Equal(payloadLen, frameInfo.PayloadLength);
     }
 
-    /// <summary>
-    /// 验证多帧文件中 ReadTrailerBefore 的逆向迭代。
-    /// </summary>
+    /// <summary>验证多帧文件中 ReadTrailerBefore 的逆向迭代。</summary>
     [Fact]
     public void ReadTrailerBefore_MultipleFrames_IteratesBackward() {
         // Arrange: 构建 HeaderFence + Frame1 + Fence + Frame2 + Fence
@@ -268,9 +252,7 @@ public class ReadTrailerBeforeTests : IDisposable {
 
     #region Fence 损坏测试
 
-    /// <summary>
-    /// 验证 Fence 损坏时返回 FramingError。
-    /// </summary>
+    /// <summary>验证 Fence 损坏时返回 FramingError。</summary>
     [Fact]
     public void ReadTrailerBefore_CorruptedFence_ReturnsFramingError() {
         // Arrange
@@ -300,9 +282,7 @@ public class ReadTrailerBeforeTests : IDisposable {
 
     #region CRC 损坏测试
 
-    /// <summary>
-    /// 验证 TrailerCrc32C 损坏时返回 FramingError。
-    /// </summary>
+    /// <summary>验证 TrailerCrc32C 损坏时返回 FramingError。</summary>
     [Fact]
     public void ReadTrailerBefore_CorruptedTrailerCrc_ReturnsFramingError() {
         // Arrange
@@ -329,9 +309,7 @@ public class ReadTrailerBeforeTests : IDisposable {
         Assert.Contains("TrailerCrc32C", result.Error!.Message);
     }
 
-    /// <summary>
-    /// 验证 TrailerCodeword 数据损坏（非 CRC 字段）导致 CRC 校验失败。
-    /// </summary>
+    /// <summary>验证 TrailerCodeword 数据损坏（非 CRC 字段）导致 CRC 校验失败。</summary>
     [Fact]
     public void ReadTrailerBefore_CorruptedTrailerData_ReturnsCrcError() {
         // Arrange
@@ -362,9 +340,7 @@ public class ReadTrailerBeforeTests : IDisposable {
 
     #region TailLen 越界测试
 
-    /// <summary>
-    /// 验证 TailLen 小于 MinFrameLength 时返回 FramingError。
-    /// </summary>
+    /// <summary>验证 TailLen 小于 MinFrameLength 时返回 FramingError。</summary>
     [Fact]
     public void ReadTrailerBefore_TailLenTooSmall_ReturnsFramingError() {
         // Arrange
@@ -396,9 +372,7 @@ public class ReadTrailerBeforeTests : IDisposable {
         Assert.Contains("TailLen", result.Error!.Message);
     }
 
-    /// <summary>
-    /// 验证 TailLen 导致 frameStart 越过 HeaderFence 时返回 FramingError。
-    /// </summary>
+    /// <summary>验证 TailLen 导致 frameStart 越过 HeaderFence 时返回 FramingError。</summary>
     [Fact]
     public void ReadTrailerBefore_TailLenExceedsBounds_ReturnsFramingError() {
         // Arrange
@@ -431,9 +405,7 @@ public class ReadTrailerBeforeTests : IDisposable {
         Assert.Contains("HeaderFence", result.Error!.Message);
     }
 
-    /// <summary>
-    /// 验证 TailLen 非 4B 对齐时返回 FramingError。
-    /// </summary>
+    /// <summary>验证 TailLen 非 4B 对齐时返回 FramingError。</summary>
     [Fact]
     public void ReadTrailerBefore_TailLenNotAligned_ReturnsFramingError() {
         // Arrange
@@ -469,9 +441,7 @@ public class ReadTrailerBeforeTests : IDisposable {
 
     #region 边界测试
 
-    /// <summary>
-    /// 验证 fenceEndOffset 太小（无法容纳任何帧）时返回 FramingError。
-    /// </summary>
+    /// <summary>验证 fenceEndOffset 太小（无法容纳任何帧）时返回 FramingError。</summary>
     [Fact]
     public void ReadTrailerBefore_OffsetTooSmall_ReturnsFramingError() {
         // Arrange
@@ -493,9 +463,7 @@ public class ReadTrailerBeforeTests : IDisposable {
         Assert.Contains("No frame before", result.Error!.Message);
     }
 
-    /// <summary>
-    /// 验证文件被截断（短读）时返回 FramingError。
-    /// </summary>
+    /// <summary>验证文件被截断（短读）时返回 FramingError。</summary>
     [Fact]
     public void ReadTrailerBefore_TruncatedFile_ReturnsFramingError() {
         // Arrange: 创建一个截断的文件（只有 HeaderFence + 几个字节）
@@ -522,9 +490,7 @@ public class ReadTrailerBeforeTests : IDisposable {
 
     #region FrameDescriptor 保留位测试
 
-    /// <summary>
-    /// 验证 FrameDescriptor 保留位（bit 28-16）非零时返回 FramingError。
-    /// </summary>
+    /// <summary>验证 FrameDescriptor 保留位（bit 28-16）非零时返回 FramingError。</summary>
     [Fact]
     public void ReadTrailerBefore_DescriptorReservedBitsNonZero_ReturnsFramingError() {
         // Arrange
@@ -556,11 +522,9 @@ public class ReadTrailerBeforeTests : IDisposable {
         Assert.Contains("reserved bits", result.Error!.Message);
     }
 
-    /// <summary>
-    /// 验证 TailLen > int.MaxValue 时返回 FramingError。
-    /// </summary>
+    /// <summary>验证 TailLen &gt; int.MaxValue 时返回 FramingError。</summary>
     /// <remarks>
-    /// Task 6.7 验收标准：TailLen > int.MaxValue 必须失败。
+    /// Task 6.7 验收标准：TailLen &gt; int.MaxValue 必须失败。
     /// </remarks>
     [Fact]
     public void ReadTrailerBefore_TailLenExceedsIntMax_ReturnsFramingError() {
@@ -599,15 +563,13 @@ public class ReadTrailerBeforeTests : IDisposable {
         );
     }
 
-    /// <summary>
-    /// 验证 PayloadLength 计算为负数时返回 FramingError。
-    /// </summary>
+    /// <summary>验证 PayloadLength 计算为负数时返回 FramingError。</summary>
     /// <remarks>
-    /// 当 UserMetaLen 过大导致 PayloadLength = TailLen - FixedOverhead - UserMetaLen - PaddingLen < 0 时应失败。
+    /// 当 TailMetaLen 过大导致 PayloadLength = TailLen - FixedOverhead - TailMetaLen - PaddingLen &lt; 0 时应失败。
     /// </remarks>
     [Fact]
     public void ReadTrailerBefore_NegativePayloadLength_ReturnsFramingError() {
-        // Arrange: 构造一个 UserMetaLen 过大的帧
+        // Arrange: 构造一个 TailMetaLen 过大的帧
         var path = GetTempFilePath();
         byte[] payload = [0x01, 0x02, 0x03, 0x04]; // 4 字节
         uint tag = 0x12345678;
@@ -617,7 +579,7 @@ public class ReadTrailerBeforeTests : IDisposable {
         int trailerOffset = RbfLayout.FenceSize + layout.TrailerCodewordOffset;
         Span<byte> trailerSpan = fileContent.AsSpan(trailerOffset, TrailerCodewordHelper.Size);
 
-        // 保持 TailLen 不变，但把 UserMetaLen 设为最大值 (65535)
+        // 保持 TailLen 不变，但把 TailMetaLen 设为最大值 (65535)
         // PayloadLength = TailLen - 24 - 65535 - PaddingLen << 0
         uint descriptor = TrailerCodewordHelper.BuildDescriptor(false, layout.PaddingLength, 65535);
         TrailerCodewordHelper.SerializeWithoutCrc(trailerSpan, descriptor, tag, (uint)layout.FrameLength);
@@ -635,9 +597,7 @@ public class ReadTrailerBeforeTests : IDisposable {
         Assert.Contains("PayloadLength", result.Error!.Message);
     }
 
-    /// <summary>
-    /// 验证 PayloadCrc 损坏但 TrailerCrc 正确时仍返回成功（ReadTrailerBefore 不校验 PayloadCrc）。
-    /// </summary>
+    /// <summary>验证 PayloadCrc 损坏但 TrailerCrc 正确时仍返回成功（ReadTrailerBefore 不校验 PayloadCrc）。</summary>
     /// <remarks>
     /// 锁定 Decision 6.C：ScanReverse 只校验 TrailerCrc，不校验 PayloadCrc。
     /// </remarks>
@@ -670,9 +630,7 @@ public class ReadTrailerBeforeTests : IDisposable {
 
     #region 与 RbfFile 集成测试
 
-    /// <summary>
-    /// 验证 ReadTrailerBefore 与 RbfFile.Append 的闭环正确性。
-    /// </summary>
+    /// <summary>验证 ReadTrailerBefore 与 RbfFile.Append 的闭环正确性。</summary>
     [Fact]
     public void ReadTrailerBefore_IntegrationWithAppend_ReturnsMatchingInfo() {
         // Arrange: 使用 RbfFile.Append 写入帧

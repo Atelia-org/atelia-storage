@@ -8,9 +8,7 @@ using Xunit;
 
 namespace Atelia.Rbf.Tests;
 
-/// <summary>
-/// RbfPooledFrame 和 ReadPooledFrame 测试（v0.40 格式）。
-/// </summary>
+/// <summary>RbfPooledFrame 和 ReadPooledFrame 测试（v0.40 格式）。</summary>
 /// <remarks>
 /// 测试内容：
 /// - ReadPooledFrame 成功路径
@@ -38,11 +36,9 @@ public class RbfPooledFrameTests : IDisposable {
 
     // ========== 辅助方法 ==========
 
-    /// <summary>
-    /// 构造一个有效帧的字节数组（v0.40 格式）。
-    /// </summary>
+    /// <summary>构造一个有效帧的字节数组（v0.40 格式）。</summary>
     /// <remarks>
-    /// v0.40 布局：[HeadLen][Payload][UserMeta][Padding][PayloadCrc][TrailerCodeword]
+    /// v0.40 布局：[HeadLen][Payload][TailMeta][Padding][PayloadCrc][TrailerCodeword]
     /// </remarks>
     private static byte[] CreateValidFrameBytes(uint tag, ReadOnlySpan<byte> payload, bool isTombstone = false) {
         var layout = new FrameLayout(payload.Length);
@@ -62,7 +58,7 @@ public class RbfPooledFrameTests : IDisposable {
             span.Slice(layout.PaddingOffset, layout.PaddingLength).Clear();
         }
 
-        // 4. PayloadCrc（覆盖 Payload + UserMeta + Padding）
+        // 4. PayloadCrc（覆盖 Payload + TailMeta + Padding）
         var payloadCrcCoverage = span.Slice(FrameLayout.PayloadCrcCoverageStart, layout.PayloadCrcCoverageLength);
         uint payloadCrc = RollingCrc.CrcForward(payloadCrcCoverage);
         BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(layout.PayloadCrcOffset, FrameLayout.PayloadCrcSize), payloadCrc);
@@ -73,9 +69,7 @@ public class RbfPooledFrameTests : IDisposable {
         return frame;
     }
 
-    /// <summary>
-    /// 构造带 HeaderFence + Frame + Fence 的完整文件内容。
-    /// </summary>
+    /// <summary>构造带 HeaderFence + Frame + Fence 的完整文件内容。</summary>
     private static byte[] CreateValidFileWithFrame(uint tag, ReadOnlySpan<byte> payload, bool isTombstone = false) {
         byte[] frameBytes = CreateValidFrameBytes(tag, payload, isTombstone);
         int totalLen = RbfLayout.FenceSize + frameBytes.Length + RbfLayout.FenceSize;
@@ -90,9 +84,7 @@ public class RbfPooledFrameTests : IDisposable {
 
     // ========== 测试用例 ==========
 
-    /// <summary>
-    /// 验证 ReadPooledFrame 成功时返回带 Owner 的帧。
-    /// </summary>
+    /// <summary>验证 ReadPooledFrame 成功时返回带 Owner 的帧。</summary>
     [Fact]
     public void ReadPooledFrame_Success_ReturnsFrameWithOwner() {
         // Arrange
@@ -112,15 +104,13 @@ public class RbfPooledFrameTests : IDisposable {
         using var frame = result.Value;
 
         Assert.Equal(tag, frame.Tag);
-        Assert.Equal(payload, frame.Payload.ToArray());
+        Assert.Equal(payload, frame.PayloadAndMeta.ToArray());
         Assert.False(frame.IsTombstone);
         Assert.Equal(ptr, frame.Ticket);
         // class 版本无需校验 internal Owner，Dispose 行为由测试覆盖
     }
 
-    /// <summary>
-    /// 验证 RbfPooledFrame.Dispose 归还 buffer（无异常）。
-    /// </summary>
+    /// <summary>验证 RbfPooledFrame.Dispose 归还 buffer（无异常）。</summary>
     [Fact]
     public void RbfPooledFrame_Dispose_ReturnsBuffer() {
         // Arrange
@@ -137,7 +127,7 @@ public class RbfPooledFrameTests : IDisposable {
         var frame = result.Value;
 
         // 保存 Payload 数据用于对比
-        byte[] payloadCopy = frame.Payload.ToArray();
+        byte[] payloadCopy = frame.PayloadAndMeta.ToArray();
 
         // Act: Dispose 应该归还 buffer
         frame!.Dispose();
@@ -147,9 +137,7 @@ public class RbfPooledFrameTests : IDisposable {
         Assert.Equal(payload, payloadCopy); // 验证之前数据正确
     }
 
-    /// <summary>
-    /// 验证 RbfPooledFrame 多次 Dispose 安全（幂等）。
-    /// </summary>
+    /// <summary>验证 RbfPooledFrame 多次 Dispose 安全（幂等）。</summary>
     [Fact]
     public void RbfPooledFrame_DoubleDispose_Safe() {
         // Arrange
@@ -173,9 +161,7 @@ public class RbfPooledFrameTests : IDisposable {
         // Assert: 无异常（幂等性）
     }
 
-    /// <summary>
-    /// 验证 struct 复制后双方 Dispose 都安全。
-    /// </summary>
+    /// <summary>验证 struct 复制后双方 Dispose 都安全。</summary>
     [Fact]
     public void RbfPooledFrame_CopyThenBothDispose_Safe() {
         // Arrange
@@ -201,9 +187,7 @@ public class RbfPooledFrameTests : IDisposable {
         // Assert: 无异常（PooledBufferOwner 保证幂等释放）
     }
 
-    /// <summary>
-    /// 验证 ReadPooledFrame 失败时 buffer 已自动归还。
-    /// </summary>
+    /// <summary>验证 ReadPooledFrame 失败时 buffer 已自动归还。</summary>
     [Fact]
     public void ReadPooledFrame_Failure_BufferReturned() {
         // Arrange
@@ -226,9 +210,7 @@ public class RbfPooledFrameTests : IDisposable {
         // 注：无法直接验证 buffer 已归还，但代码路径确保了这一点
     }
 
-    /// <summary>
-    /// 验证 ReadPooledFrame 大 payload（触发真正的 ArrayPool 使用）。
-    /// </summary>
+    /// <summary>验证 ReadPooledFrame 大 payload（触发真正的 ArrayPool 使用）。</summary>
     [Fact]
     public void ReadPooledFrame_LargePayload_Succeeds() {
         // Arrange
@@ -249,12 +231,10 @@ public class RbfPooledFrameTests : IDisposable {
         using var frame = result.Value;
 
         Assert.Equal(tag, frame.Tag);
-        Assert.Equal(payload, frame.Payload.ToArray());
+        Assert.Equal(payload, frame.PayloadAndMeta.ToArray());
     }
 
-    /// <summary>
-    /// 验证 ReadPooledFrame 空 payload。
-    /// </summary>
+    /// <summary>验证 ReadPooledFrame 空 payload。</summary>
     [Fact]
     public void ReadPooledFrame_EmptyPayload_Succeeds() {
         // Arrange
@@ -274,12 +254,10 @@ public class RbfPooledFrameTests : IDisposable {
         using var frame = result.Value;
 
         Assert.Equal(tag, frame.Tag);
-        Assert.Empty(frame.Payload.ToArray());
+        Assert.Empty(frame.PayloadAndMeta.ToArray());
     }
 
-    /// <summary>
-    /// 验证 ReadPooledFrame 墓碑帧解码正确。
-    /// </summary>
+    /// <summary>验证 ReadPooledFrame 墓碑帧解码正确。</summary>
     [Fact]
     public void ReadPooledFrame_Tombstone_DecodesCorrectly() {
         // Arrange
@@ -303,7 +281,7 @@ public class RbfPooledFrameTests : IDisposable {
         using var frame = result.Value;
 
         Assert.Equal(tag, frame.Tag);
-        Assert.Equal(payload, frame.Payload.ToArray());
+        Assert.Equal(payload, frame.PayloadAndMeta.ToArray());
         Assert.True(frame.IsTombstone);
     }
 }

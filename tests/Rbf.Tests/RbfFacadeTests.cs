@@ -4,9 +4,7 @@ using Xunit;
 
 namespace Atelia.Rbf.Tests;
 
-/// <summary>
-/// RbfFileImpl (Facade) 状态管理测试。
-/// </summary>
+/// <summary>RbfFileImpl (Facade) 状态管理测试。</summary>
 /// <remarks>
 /// 职责：验证 Facade 正确维护状态、正确转发返回值。
 /// 不验证：帧格式细节（已在 RbfRawOpsTests 中覆盖）。
@@ -14,9 +12,7 @@ namespace Atelia.Rbf.Tests;
 public class RbfFacadeTests : IDisposable {
     private readonly List<string> _tempFiles = new();
 
-    /// <summary>
-    /// 生成一个不存在的临时文件路径。
-    /// </summary>
+    /// <summary>生成一个不存在的临时文件路径。</summary>
     private string GetTempFilePath() {
         var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
         _tempFiles.Add(path);
@@ -38,9 +34,7 @@ public class RbfFacadeTests : IDisposable {
 
     // ========== 测试用例 ==========
 
-    /// <summary>
-    /// 验证 Append 正确更新 TailOffset 并返回正确的 SizedPtr。
-    /// </summary>
+    /// <summary>验证 Append 正确更新 TailOffset 并返回正确的 SizedPtr。</summary>
     [Fact]
     public void Append_UpdatesTailOffset() {
         // Arrange
@@ -67,9 +61,7 @@ public class RbfFacadeTests : IDisposable {
         Assert.Equal(RbfLayout.FenceSize + expectedHeadLen + RbfLayout.FenceSize, tailOffset);
     }
 
-    /// <summary>
-    /// 验证多帧追加：偏移序列正确。
-    /// </summary>
+    /// <summary>验证多帧追加：偏移序列正确。</summary>
     [Fact]
     public void Append_MultiFrame_OffsetsCorrect() {
         // Arrange
@@ -107,9 +99,7 @@ public class RbfFacadeTests : IDisposable {
         Assert.Equal(expectedTailOffset, tailOffset);
     }
 
-    /// <summary>
-    /// 验证空 payload 场景的状态更新（v0.40 格式）。
-    /// </summary>
+    /// <summary>验证空 payload 场景的状态更新（v0.40 格式）。</summary>
     [Fact]
     public void Append_EmptyPayload_UpdatesTailOffset() {
         // Arrange
@@ -134,9 +124,7 @@ public class RbfFacadeTests : IDisposable {
         Assert.Equal(RbfLayout.FenceSize + expectedHeadLen + RbfLayout.FenceSize, tailOffset);
     }
 
-    /// <summary>
-    /// 验证大 payload 场景的状态更新。
-    /// </summary>
+    /// <summary>验证大 payload 场景的状态更新。</summary>
     [Fact]
     public void Append_LargePayload_UpdatesTailOffset() {
         // Arrange
@@ -162,9 +150,7 @@ public class RbfFacadeTests : IDisposable {
 
     // ========== ReadPooledFrame 集成测试 ==========
 
-    /// <summary>
-    /// 验证 Append 后 ReadPooledFrame 能正确读回帧数据（闭环测试）。
-    /// </summary>
+    /// <summary>验证 Append 后 ReadPooledFrame 能正确读回帧数据（闭环测试）。</summary>
     [Fact]
     public void ReadPooledFrame_AfterAppend_ReturnsCorrectFrame() {
         // Arrange
@@ -183,15 +169,13 @@ public class RbfFacadeTests : IDisposable {
             Assert.NotNull(result.Value);
             using var frame = result.Value;
             Assert.Equal(tag, frame.Tag);
-            Assert.Equal(payload, frame.Payload.ToArray());
+            Assert.Equal(payload, frame.PayloadAndMeta.ToArray());
             Assert.False(frame.IsTombstone);
             Assert.Equal(ptr, frame.Ticket);
         }
     }
 
-    /// <summary>
-    /// 验证 ReadPooledFrame 不会改变 TailOffset。
-    /// </summary>
+    /// <summary>验证 ReadPooledFrame 不会改变 TailOffset。</summary>
     [Fact]
     public void ReadPooledFrame_DoesNotChangeTailOffset() {
         // Arrange

@@ -7,24 +7,20 @@ using Xunit;
 
 namespace Atelia.Rbf.Tests;
 
-/// <summary>
-/// RbfReadImpl.ReadFrame 格式验证测试（v0.40 格式）。
-/// </summary>
+/// <summary>RbfReadImpl.ReadFrame 格式验证测试（v0.40 格式）。</summary>
 /// <remarks>
 /// 职责：验证 RawOps 层 ReadFrame 的帧解码符合规范。
 /// 规范引用：
 /// - @[A-RBF-FRAME-STRUCT] - RbfFrame 结构定义
-/// - @[F-FRAMEBYTES-FIELD-OFFSETS] - FrameBytes 布局
-/// - @[F-CRC32C-COVERAGE] - PayloadCrc 覆盖范围
-/// - @[F-TRAILERCRC-COVERAGE] - TrailerCrc 覆盖范围
-/// - @[F-FRAMEDESCRIPTOR-LAYOUT] - FrameDescriptor 位布局
+/// - @[F-FRAMEBYTES-LAYOUT] - FrameBytes 布局
+/// - @[F-PAYLOAD-CRC-COVERAGE] - PayloadCrc 覆盖范围
+/// - @[F-TRAILER-CRC-COVERAGE] - TrailerCrc 覆盖范围
+/// - @[F-FRAME-DESCRIPTOR-LAYOUT] - FrameDescriptor 位布局
 /// </remarks>
 public class RbfReadImplTests : IDisposable {
     private readonly List<string> _tempFiles = new();
 
-    /// <summary>
-    /// 生成一个不存在的临时文件路径。
-    /// </summary>
+    /// <summary>生成一个不存在的临时文件路径。</summary>
     private string GetTempFilePath() {
         var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
         _tempFiles.Add(path);
@@ -46,23 +42,19 @@ public class RbfReadImplTests : IDisposable {
 
     // ========== 辅助方法 ==========
 
-    /// <summary>
-    /// 辅助方法：分配 buffer 并调用 ReadFrameInto。
-    /// </summary>
+    /// <summary>辅助方法：分配 buffer 并调用 ReadFrameInto。</summary>
     private static AteliaResult<RbfFrame> ReadFrameIntoHelper(SafeFileHandle handle, SizedPtr ptr) {
         byte[] buffer = new byte[ptr.Length]; // 用堆数组避免 ref struct 生命周期问题
         return RbfReadImpl.ReadFrame(handle, ptr, buffer);
     }
 
-    /// <summary>
-    /// 构造一个有效帧的字节数组（v0.40 格式）。
-    /// </summary>
+    /// <summary>构造一个有效帧的字节数组（v0.40 格式）。</summary>
     /// <param name="tag">帧 Tag。</param>
     /// <param name="payload">Payload 数据。</param>
     /// <param name="isTombstone">是否为墓碑帧。</param>
     /// <returns>完整帧字节数组（不含 HeaderFence/Fence）。</returns>
     /// <remarks>
-    /// v0.40 布局：[HeadLen][Payload][UserMeta][Padding][PayloadCrc][TrailerCodeword]
+    /// v0.40 布局：[HeadLen][Payload][TailMeta][Padding][PayloadCrc][TrailerCodeword]
     /// </remarks>
     private static byte[] CreateValidFrameBytes(uint tag, ReadOnlySpan<byte> payload, bool isTombstone = false) {
         var layout = new FrameLayout(payload.Length);
@@ -82,7 +74,7 @@ public class RbfReadImplTests : IDisposable {
             span.Slice(layout.PaddingOffset, layout.PaddingLength).Clear();
         }
 
-        // 4. PayloadCrc（覆盖 Payload + UserMeta + Padding）
+        // 4. PayloadCrc（覆盖 Payload + TailMeta + Padding）
         var payloadCrcCoverage = span.Slice(FrameLayout.PayloadCrcCoverageStart, layout.PayloadCrcCoverageLength);
         uint payloadCrc = RollingCrc.CrcForward(payloadCrcCoverage);
         BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(layout.PayloadCrcOffset, FrameLayout.PayloadCrcSize), payloadCrc);
@@ -93,9 +85,7 @@ public class RbfReadImplTests : IDisposable {
         return frame;
     }
 
-    /// <summary>
-    /// 构造带 HeaderFence + Frame + Fence 的完整文件内容。
-    /// </summary>
+    /// <summary>构造带 HeaderFence + Frame + Fence 的完整文件内容。</summary>
     private static byte[] CreateValidFileWithFrame(uint tag, ReadOnlySpan<byte> payload, bool isTombstone = false) {
         byte[] frameBytes = CreateValidFrameBytes(tag, payload, isTombstone);
         int totalLen = RbfLayout.FenceSize + frameBytes.Length + RbfLayout.FenceSize;
@@ -113,10 +103,8 @@ public class RbfReadImplTests : IDisposable {
 
     // ========== 正常路径测试 ==========
 
-    /// <summary>
-    /// 验证正常帧的读取：Tag、Payload、IsTombstone 正确解码。
-    /// 使用从 Append 写入到 ReadPooledFrame 验证的闭环测试。
-    /// </summary>
+    /// <summary>验证正常帧的读取：Tag、Payload、IsTombstone 正确解码。
+    /// 使用从 Append 写入到 ReadPooledFrame 验证的闭环测试。</summary>
     [Fact]
     public void ReadPooledFrame_ValidFrame_ReturnsCorrectData() {
         // Arrange: 使用 Append 写入帧
@@ -135,15 +123,13 @@ public class RbfReadImplTests : IDisposable {
         Assert.NotNull(result.Value);
         using var frame = result.Value;
         Assert.Equal(tag, frame.Tag);
-        Assert.Equal(payload, frame.Payload.ToArray());
+        Assert.Equal(payload, frame.PayloadAndMeta.ToArray());
         Assert.False(frame.IsTombstone);
         Assert.Equal(ptr, frame.Ticket);
     }
 
-    /// <summary>
-    /// 验证空 payload 帧（最小帧 20B）的读取。
-    /// 使用从 Append 写入到 ReadPooledFrame 验证的闭环测试。
-    /// </summary>
+    /// <summary>验证空 payload 帧（最小帧 20B）的读取。
+    /// 使用从 Append 写入到 ReadPooledFrame 验证的闭环测试。</summary>
     [Fact]
     public void ReadPooledFrame_EmptyPayload_Succeeds() {
         // Arrange: 使用 Append 写入空 payload 帧
@@ -165,14 +151,12 @@ public class RbfReadImplTests : IDisposable {
         Assert.NotNull(result.Value);
         using var frame = result.Value;
         Assert.Equal(tag, frame.Tag);
-        Assert.Empty(frame.Payload.ToArray());
+        Assert.Empty(frame.PayloadAndMeta.ToArray());
         Assert.False(frame.IsTombstone);
     }
 
-    /// <summary>
-    /// 验证大 payload（大于4KB，触发 ArrayPool 路径）的读取。
-    /// 使用从 Append 写入到 ReadPooledFrame 验证的闭环测试。
-    /// </summary>
+    /// <summary>验证大 payload（大于4KB，触发 ArrayPool 路径）的读取。
+    /// 使用从 Append 写入到 ReadPooledFrame 验证的闭环测试。</summary>
     [Fact]
     public void ReadPooledFrame_LargePayload_Succeeds() {
         // Arrange: 使用 Append 写入大 payload 帧
@@ -192,13 +176,11 @@ public class RbfReadImplTests : IDisposable {
         Assert.NotNull(result.Value);
         using var frame = result.Value;
         Assert.Equal(tag, frame.Tag);
-        Assert.Equal(payload, frame.Payload.ToArray());
+        Assert.Equal(payload, frame.PayloadAndMeta.ToArray());
         Assert.False(frame.IsTombstone);
     }
 
-    /// <summary>
-    /// 验证墓碑帧的正确解码。
-    /// </summary>
+    /// <summary>验证墓碑帧的正确解码。</summary>
     [Fact]
     public void ReadFrame_Tombstone_DecodesCorrectly() {
         // Arrange
@@ -220,7 +202,7 @@ public class RbfReadImplTests : IDisposable {
         Assert.True(result.IsSuccess);
         var frame = result.Value;
         Assert.Equal(tag, frame.Tag);
-        Assert.Equal(payload, frame.Payload.ToArray());
+        Assert.Equal(payload, frame.PayloadAndMeta.ToArray());
         Assert.True(frame.IsTombstone);
     }
 
@@ -229,9 +211,7 @@ public class RbfReadImplTests : IDisposable {
     // 注：MisalignedOffset/MisalignedLength 测试已移除
     // 原因：SizedPtr 类型系统使用 << 2 编码，天然保证 4B 对齐，无法构造非对齐值
 
-    /// <summary>
-    /// 验证 Length &lt; 24（最小帧长度）时返回 ArgumentError（v0.40 最小帧长度为 24）。
-    /// </summary>
+    /// <summary>验证 Length &lt; 24（最小帧长度）时返回 ArgumentError（v0.40 最小帧长度为 24）。</summary>
     [Fact]
     public void ReadFrame_FrameTooShort_ReturnsArgumentError() {
         // Arrange
@@ -253,9 +233,7 @@ public class RbfReadImplTests : IDisposable {
         Assert.Contains("minimum frame length", result.Error!.Message);
     }
 
-    /// <summary>
-    /// 验证越界读取（Offset 超出文件尾）返回 ArgumentError。
-    /// </summary>
+    /// <summary>验证越界读取（Offset 超出文件尾）返回 ArgumentError。</summary>
     [Fact]
     public void ReadFrame_OutOfRange_ReturnsArgumentError() {
         // Arrange
@@ -279,9 +257,7 @@ public class RbfReadImplTests : IDisposable {
 
     // ========== Framing 错误测试 ==========
 
-    /// <summary>
-    /// 验证 HeadLen 字段与 ptr.Length 不匹配时返回 FramingError。
-    /// </summary>
+    /// <summary>验证 HeadLen 字段与 ptr.Length 不匹配时返回 FramingError。</summary>
     [Fact]
     public void ReadFrame_HeadLenMismatch_ReturnsFramingError() {
         // Arrange
@@ -311,9 +287,7 @@ public class RbfReadImplTests : IDisposable {
         Assert.Contains("HeadLen mismatch", result.Error!.Message);
     }
 
-    /// <summary>
-    /// 验证 TailLen 与 HeadLen 不匹配时返回 FramingError（v0.40 从 TrailerCodeword 读取 TailLen）。
-    /// </summary>
+    /// <summary>验证 TailLen 与 HeadLen 不匹配时返回 FramingError（v0.40 从 TrailerCodeword 读取 TailLen）。</summary>
     [Fact]
     public void ReadFrame_TailLenMismatch_ReturnsFramingError() {
         // Arrange
@@ -349,9 +323,7 @@ public class RbfReadImplTests : IDisposable {
         );
     }
 
-    /// <summary>
-    /// 验证 FrameDescriptor 保留位非零时返回 FramingError（v0.40）。
-    /// </summary>
+    /// <summary>验证 FrameDescriptor 保留位非零时返回 FramingError（v0.40）。</summary>
     [Fact]
     public void ReadFrame_DescriptorReservedBitsNonZero_ReturnsFramingError() {
         // Arrange
@@ -392,9 +364,7 @@ public class RbfReadImplTests : IDisposable {
 
     // ========== CRC 错误测试 ==========
 
-    /// <summary>
-    /// 验证 PayloadCrc 损坏时返回 CrcMismatch 错误（v0.40）。
-    /// </summary>
+    /// <summary>验证 PayloadCrc 损坏时返回 CrcMismatch 错误（v0.40）。</summary>
     [Fact]
     public void ReadFrame_PayloadCrcMismatch_ReturnsCrcMismatch() {
         // Arrange
@@ -425,9 +395,7 @@ public class RbfReadImplTests : IDisposable {
         Assert.IsType<RbfCrcMismatchError>(result.Error);
     }
 
-    /// <summary>
-    /// 验证 TrailerCrc 损坏时返回 CrcMismatch 错误（v0.40）。
-    /// </summary>
+    /// <summary>验证 TrailerCrc 损坏时返回 CrcMismatch 错误（v0.40）。</summary>
     [Fact]
     public void ReadFrame_TrailerCrcMismatch_ReturnsCrcMismatch() {
         // Arrange
@@ -460,9 +428,7 @@ public class RbfReadImplTests : IDisposable {
 
     // ========== 边界值测试 ==========
 
-    /// <summary>
-    /// 验证不同 payload 长度（对齐边界）的正确解码（v0.40 格式）。
-    /// </summary>
+    /// <summary>验证不同 payload 长度（对齐边界）的正确解码（v0.40 格式）。</summary>
     [Theory]
     [InlineData(0)]   // paddingLen = 0
     [InlineData(1)]   // paddingLen = 3
@@ -494,15 +460,13 @@ public class RbfReadImplTests : IDisposable {
         Assert.True(result.IsSuccess, $"Failed for payloadLen={payloadLen}: {result.Error?.Message}");
         var frame = result.Value;
         Assert.Equal(tag, frame.Tag);
-        Assert.Equal(payload, frame.Payload.ToArray());
+        Assert.Equal(payload, frame.PayloadAndMeta.ToArray());
         Assert.False(frame.IsTombstone);
     }
 
     // ========== Buffer 相关测试 ==========
 
-    /// <summary>
-    /// 验证 buffer 太小时返回 RbfBufferTooSmallError。
-    /// </summary>
+    /// <summary>验证 buffer 太小时返回 RbfBufferTooSmallError。</summary>
     [Fact]
     public void ReadFrameInto_BufferTooSmall_ReturnsBufferError() {
         // Arrange
@@ -530,9 +494,7 @@ public class RbfReadImplTests : IDisposable {
         Assert.Equal(10, error.ProvidedBytes);
     }
 
-    /// <summary>
-    /// 验证 ReadFrameInto 的 zero-copy 特性：Payload 直接引用 buffer（v0.40 格式）。
-    /// </summary>
+    /// <summary>验证 ReadFrameInto 的 zero-copy 特性：Payload 直接引用 buffer（v0.40 格式）。</summary>
     [Fact]
     public void ReadFrameInto_ValidBuffer_PayloadIsSlice() {
         // Arrange
@@ -556,12 +518,12 @@ public class RbfReadImplTests : IDisposable {
         var frame = result.Value;
 
         // 验证 Payload 数据正确
-        Assert.Equal(payload, frame.Payload.ToArray());
+        Assert.Equal(payload, frame.PayloadAndMeta.ToArray());
 
         // 验证 zero-copy：修改 buffer 应该影响 Payload
         // v0.40: Payload 位于 buffer 的 offset 4 处（HeadLen(4) = 4）
         buffer[FrameLayout.PayloadOffset] = 0xFF; // 修改 Payload 第一个字节
-        Assert.Equal(0xFF, frame.Payload[0]); // 应该能看到修改（证明是引用）
+        Assert.Equal(0xFF, frame.PayloadAndMeta[0]); // 应该能看到修改（证明是引用）
     }
 }
 

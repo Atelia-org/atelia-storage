@@ -2,15 +2,11 @@ using Xunit;
 
 namespace Atelia.Rbf.Tests;
 
-/// <summary>
-/// RbfFile.CreateNew / OpenExisting 工厂方法测试。
-/// </summary>
+/// <summary>RbfFile.CreateNew / OpenExisting 工厂方法测试。</summary>
 public class RbfFileFactoryTests : IDisposable {
     private readonly List<string> _tempFiles = new();
 
-    /// <summary>
-    /// 生成一个不存在的临时文件路径。
-    /// </summary>
+    /// <summary>生成一个不存在的临时文件路径。</summary>
     private string GetTempFilePath() {
         var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
         _tempFiles.Add(path);
@@ -30,9 +26,7 @@ public class RbfFileFactoryTests : IDisposable {
         }
     }
 
-    /// <summary>
-    /// CreateNew 创建的文件长度为 4，内容为 HeaderFence (0x52 0x42 0x46 0x31)。
-    /// </summary>
+    /// <summary>CreateNew 创建的文件长度为 4，内容为 HeaderFence (0x52 0x42 0x46 0x31)。</summary>
     [Fact]
     public void CreateNew_CreatesFileWithHeaderFence() {
         // Arrange
@@ -52,9 +46,7 @@ public class RbfFileFactoryTests : IDisposable {
         Assert.Equal(0x31, content[3]); // '1'
     }
 
-    /// <summary>
-    /// CreateNew 在文件已存在时抛出 IOException。
-    /// </summary>
+    /// <summary>CreateNew 在文件已存在时抛出 IOException。</summary>
     [Fact]
     public void CreateNew_FailsIfFileExists() {
         // Arrange
@@ -65,9 +57,7 @@ public class RbfFileFactoryTests : IDisposable {
         Assert.Throws<IOException>(() => RbfFile.CreateNew(path));
     }
 
-    /// <summary>
-    /// OpenExisting 成功打开有效的 RBF 文件，TailOffset 正确。
-    /// </summary>
+    /// <summary>OpenExisting 成功打开有效的 RBF 文件，TailOffset 正确。</summary>
     [Fact]
     public void OpenExisting_SucceedsWithValidFile() {
         // Arrange
@@ -83,9 +73,7 @@ public class RbfFileFactoryTests : IDisposable {
         Assert.Equal(4, opened.TailOffset);
     }
 
-    /// <summary>
-    /// OpenExisting 在 HeaderFence 不匹配时抛出 InvalidDataException。
-    /// </summary>
+    /// <summary>OpenExisting 在 HeaderFence 不匹配时抛出 InvalidDataException。</summary>
     [Fact]
     public void OpenExisting_FailsWithInvalidHeaderFence() {
         // Arrange - 创建内容非 RBF1 的文件
@@ -97,9 +85,7 @@ public class RbfFileFactoryTests : IDisposable {
         Assert.Contains("HeaderFence mismatch", ex.Message);
     }
 
-    /// <summary>
-    /// OpenExisting 在文件不存在时抛出 FileNotFoundException。
-    /// </summary>
+    /// <summary>OpenExisting 在文件不存在时抛出 FileNotFoundException。</summary>
     [Fact]
     public void OpenExisting_FailsIfFileNotExists() {
         // Arrange
@@ -110,9 +96,7 @@ public class RbfFileFactoryTests : IDisposable {
         Assert.Throws<FileNotFoundException>(() => RbfFile.OpenExisting(path));
     }
 
-    /// <summary>
-    /// OpenExisting 在文件小于 4 字节时抛出 InvalidDataException。
-    /// </summary>
+    /// <summary>OpenExisting 在文件小于 4 字节时抛出 InvalidDataException。</summary>
     [Fact]
     public void OpenExisting_FailsWhenFileTooShort() {
         // Arrange - 创建小于 4 字节的文件
@@ -124,9 +108,7 @@ public class RbfFileFactoryTests : IDisposable {
         Assert.Contains("file too short", ex.Message);
     }
 
-    /// <summary>
-    /// OpenExisting 在文件长度非 4B 对齐时抛出 InvalidDataException。
-    /// </summary>
+    /// <summary>OpenExisting 在文件长度非 4B 对齐时抛出 InvalidDataException。</summary>
     /// <remarks>规范引用：@[S-RBF-DECISION-4B-ALIGNMENT-ROOT]</remarks>
     [Fact]
     public void OpenExisting_FailsWhenLengthNotAligned() {

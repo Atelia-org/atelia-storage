@@ -28,7 +28,7 @@ produce_by:
 本节定义 @`Fence` 的线格式常量值。
 关于 @`Fence` 的布局模式与 @`HeaderFence` 定义，参见 @[F-FENCE-IS-SEPARATOR-NOT-FRAME](rbf-decisions.md)。
 
-## spec [F-FENCE-VALUE-IS-RBF1-ASCII-4B] Fence值定义
+## spec [F-FENCE-RBF1-ASCII-4B] Fence值定义
 
 | 属性 | 值 |
 |------|-----|
@@ -40,7 +40,7 @@ produce_by:
 
 ## 3. Wire Layout
 
-### spec [F-FRAMEBYTES-FIELD-OFFSETS] FrameBytes布局
+### spec [F-FRAMEBYTES-LAYOUT] FrameBytes布局
 下表描述 FrameBytes 的布局（从 Frame 起点的 `HeadLen` 字段开始计偏移）。
 *FrameBytes **不包含** 前后 Fence。*
 
@@ -49,23 +49,23 @@ PayloadCodeword:
 |------|------|------|------|
 | HeadLen | u32 LE | 4 | FrameBytes 总长度（不含 Fence） |
 | Payload | bytes | N | `N >= 0`；业务数据 |
-| UserMeta | bytes | M | `M >= 0`；用户元数据（原 PayloadTrailer） |
+| TailMeta | bytes | M | `M >= 0`；用户元数据（原 PayloadTrailer） |
 | Padding | bytes | 0-3 | 为对齐进行的填充 |
-| PayloadCrc32C | u32 LE | 4 | Crc32C(Payload+UserMeta+Padding) |
+| PayloadCrc32C | u32 LE | 4 | Crc32C(Payload+TailMeta+Padding) |
 
 TrailerCodeword (Fixed 16 Bytes):
 | 字段 | 类型 | 长度 | 说明 |
 |------|------|------|------|
 | TrailerCrc32C | u32 **BE** | 4 | Crc32C(FrameDescriptor+FrameTag+TailLen) |
-| FrameDescriptor| u32 LE | 4 | 描述符：Tombstone, PaddingLen, UserMetaLen |
-| FrameTag | u32 LE | 4 | 帧类型标识符（见 @[F-FRAMETAG-WIRE-ENCODING]） |
+| FrameDescriptor| u32 LE | 4 | 描述符：Tombstone, PaddingLen, TailMetaLen |
+| FrameTag | u32 LE | 4 | 帧类型标识符（见 @[F-FRAME-TAG-WIRE-ENCODING]） |
 | TailLen | u32 LE | 4 | MUST 等于 HeadLen |
 
-### spec [F-FRAMETAG-WIRE-ENCODING] FrameTag线格式编码
+### spec [F-FRAME-TAG-WIRE-ENCODING] FrameTag线格式编码
 FrameTag 是 4 字节 u32 LE 帧类型标识符，位于 Frame 尾部。
 RBF 层不保留任何 FrameTag 值，全部值域由上层定义。
 
-### spec [F-FRAMEDESCRIPTOR-LAYOUT] FrameDescriptor布局
+### spec [F-FRAME-DESCRIPTOR-LAYOUT] FrameDescriptor布局
 FrameDescriptor 是 Frame 尾部 TrailerCodeword 中的 4 字节控制字（u32 LE），统一编码元属性。
 
 | Bit (MSB-LSB) | 字段 | 说明 |
@@ -73,7 +73,7 @@ FrameDescriptor 是 Frame 尾部 TrailerCodeword 中的 4 字节控制字（u32 
 | 31 | IsTombstone | 1 = 墓碑帧，0 = 正常帧 |
 | 30-29 | PaddingLen | Payload 填充字节数 (0-3) |
 | 28-16 | Reserved | 保留位，MUST 为 0 |
-| 15-0 | UserMetaLen | 用户元数据长度 (0-65535) |
+| 15-0 | TailMetaLen | 用户元数据长度 (0-65535) |
 
 ### spec [F-TRAILER-CRC-BIG-ENDIAN] TrailerCrc32C按大端序存储
 为了逆序用CRC扫描Codeword时兼容检查固定CRC residual的算法，TrailerCrc32C MUST 按BigEndian存储。*逐字节逆序CRC时，等效于顺序LE。*
@@ -86,21 +86,21 @@ FrameDescriptor 是 Frame 尾部 TrailerCodeword 中的 4 字节控制字（u32 
 - `FrameTag` = `0x88776655`（按 LE 读取第 9-12 字节）
 - `TailLen` = `0xCCBBAA99`（按 LE 读取第 13-16 字节）
 
-### spec [F-TRAILERCRC-COVERAGE] TrailerCrc32C覆盖范围
+### spec [F-TRAILER-CRC-COVERAGE] TrailerCrc32C覆盖范围
 `TrailerCrc32C` MUST 覆盖 TrailerCodeword 中除自身以外的所有字段。
 > TrailerCrc32C = crc32c(FrameDescriptor + FrameTag + TailLen)
 
 - MUST 覆盖：FrameDescriptor (4B) + FrameTag (4B) + TailLen (4B)。
-- MUST NOT 覆盖：HeadLen、Payload、UserMeta、Padding、CRC32C、TrailerCrc32C 本身、任何 Fence。
+- MUST NOT 覆盖：HeadLen、Payload、TailMeta、Padding、CRC32C、TrailerCrc32C 本身、任何 Fence。
 
 ### spec [F-PADDING-CALCULATION] Padding长度计算
 **depends:[S-RBF-DECISION-4B-ALIGNMENT-ROOT]**
-**depends:[F-FRAMEBYTES-FIELD-OFFSETS]**
+**depends:[F-FRAMEBYTES-LAYOUT]**
 
-为满足 4 字节对齐约束，`Padding` 长度由 `Payload` 和 `UserMeta` 的总长度决定：
-> PaddingLen = (4 - ((PayloadLen + UserMetaLen) % 4)) % 4
+为满足 4 字节对齐约束，`Padding` 长度由 `Payload` 和 `TailMeta` 的总长度决定：
+> PaddingLen = (4 - ((PayloadLen + TailMetaLen) % 4)) % 4
 
-Writer MUST 将计算出的 `PaddingLen` 填入 `FrameDescriptor` 的 Bit 30-29，并在 `UserMeta` 之后写入相应数量的填充字节（值为 0）。Reader MUST 使用 `FrameDescriptor` 中的 `PaddingLen` 来正确定位 `UserMeta` 和 `Payload` 的边界。
+Writer MUST 将计算出的 `PaddingLen` 填入 `FrameDescriptor` 的 Bit 30-29，并在 `TailMeta` 之后写入相应数量的填充字节（值为 0）。Reader MUST 使用 `FrameDescriptor` 中的 `PaddingLen` 来正确定位 `TailMeta` 和 `Payload` 的边界。
 
 ---
 
@@ -108,15 +108,15 @@ Writer MUST 将计算出的 `PaddingLen` 填入 `FrameDescriptor` 的 Bit 30-29�
 
 ### 4.1 覆盖范围
 
-### spec [F-CRC32C-COVERAGE]  PayloadCrc32C覆盖范围
-> PayloadCrc32C = crc32c(Payload + UserMeta + Padding)
+### spec [F-PAYLOAD-CRC-COVERAGE]  PayloadCrc32C覆盖范围
+> PayloadCrc32C = crc32c(Payload + TailMeta + Padding)
 
-`PayloadCrc32C`（即 PayloadCodeword 中的 Checksum）MUST 覆盖：Payload、UserMeta 和 Padding。
+`PayloadCrc32C`（即 PayloadCodeword 中的 Checksum）MUST 覆盖：Payload、TailMeta 和 Padding。
 `PayloadCrc32C` MUST NOT 覆盖：HeadLen、TrailerCodeword、PayloadCrc32C 本身、任何 Fence。
 
 ### 4.2 算法约定
 
-### spec [F-CRC-IS-CRC32C-CASTAGNOLI-REFLECTED] CRC32C算法约定
+### spec [F-CRC32C-CASTAGNOLI-REFLECTED] CRC32C算法约定
 CRC 算法为 CRC32C（Castagnoli），采用 Reflected I/O 约定：
 - 多项式（Normal）：`0x1EDC6F41`
 - 多项式（Reflected）：`0x82F63B78`
@@ -152,14 +152,14 @@ Reader MUST NOT 将损坏帧作为有效数据返回。
 
 Reverse Scan MUST 满足：
 1. **输出定义**：输出为"通过 framing 校验的 Frame 元信息序列"，顺序 MUST 为 **从尾到头**（最新在前）。
-2. **合法性判定（SSOT）**：候选 Frame 是否可被产出 MUST 以 §3 的布局约束与 §5 的 framing 规则为准，并且 MUST 通过尾部元信息校验（见 @[R-REVERSE-SCAN-USES-TRAILERCRC]）。
+2. **合法性判定（SSOT）**：候选 Frame 是否可被产出 MUST 以 §3 的布局约束与 §5 的 framing 规则为准，并且 MUST 通过尾部元信息校验（见 @[R-REVERSE-SCAN-USES-TRAILER-CRC]）。
 3. **CRC 职责分离**：Reverse Scan MUST NOT 校验 `PayloadCrc32C`；完整帧的 Content 校验由随机读取路径负责。
 4. **失败策略**：当候选 Frame 的 framing 或尾部元信息校验失败时，Reverse Scan MUST 硬停止（终止迭代），不得尝试 Resync 继续扫描。
 
-### spec [R-REVERSE-SCAN-USES-TRAILERCRC] 逆向扫描使用TrailerCrc32C校验尾部元信息
+### spec [R-REVERSE-SCAN-USES-TRAILER-CRC] 逆向扫描使用TrailerCrc32C校验尾部元信息
 为满足 @[S-RBF-DECISION-REVERSESCAN-TAIL-ORIENTED](rbf-decisions.md)，Reverse Scan MUST 在不读取 Frame 头部字段的前提下校验尾部关键元信息。
 
-- Reverse Scan MUST 验证 `TrailerCrc32C`（覆盖范围见 @[F-TRAILERCRC-COVERAGE]）。
+- Reverse Scan MUST 验证 `TrailerCrc32C`（覆盖范围见 @[F-TRAILER-CRC-COVERAGE]）。
 - Reverse Scan MUST NOT 读取 `HeadLen` 也 MUST NOT 执行 `HeadLen == TailLen` 的交叉校验。
 
 ### derived [H-REVERSE-SCAN-TAIL-ORIENTED-RATIONALE] 尾部导向逆向扫描设计理由
@@ -197,7 +197,7 @@ Resync 为“恢复/修复工具路径”的能力：用于在存在损坏数据
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
-| 0.40 | 2026-01-24 | **Wire Format Breaking Change**: 重构 Trailer 结构 为固定 16 字节的 `TrailerCodeword`；引入 `FrameDescriptor` (u32) 统一管理 Padding/UserMetaLen/Tombstone；重命名 PayloadTrailer 为 UserMeta；引入 `PayloadCrc32C` 与 `TrailerCrc32C` 双校验机制 |
-| 0.32 | 2026-01-10 | 修正 @[F-CRC-IS-CRC32C-CASTAGNOLI-REFLECTED]：删除对不存在的 `.NET System.IO.Hashing.Crc32C` 的引用，改为引用 RFC 3720；添加 `BitOperations.Crc32C` 作为非规范性实现提示 |
+| 0.40 | 2026-01-24 | **Wire Format Breaking Change**: 重构 Trailer 结构 为固定 16 字节的 `TrailerCodeword`；引入 `FrameDescriptor` (u32) 统一管理 Padding/TailMetaLen/Tombstone；重命名 PayloadTrailer 为 TailMeta；引入 `PayloadCrc32C` 与 `TrailerCrc32C` 双校验机制 |
+| 0.32 | 2026-01-10 | 修正 @[F-CRC32C-CASTAGNOLI-REFLECTED]：删除对不存在的 `.NET System.IO.Hashing.Crc32C` 的引用，改为引用 RFC 3720；添加 `BitOperations.Crc32C` 作为非规范性实现提示 |
 | 0.31 | 2026-01-09 | **AI-Design-DSL 格式迁移**：将所有条款标识符转换为 DSL 格式（design/hint/term）；将设计理由拆分为独立 hint 条款；添加 @`DataTail` 术语定义 |
-| 0.30 | 2026-01-07 | §3.2 @[F-FRAMEBYTES-FIELD-OFFSETS] 的 FrameStatus 描述去除对齐语义双写，改为引用 @[F-STATUSLEN-ENSURES-4B-ALIGNMENT]（由公式定义 StatusLen 并保证 payload+status 对齐） |
+| 0.30 | 2026-01-07 | §3.2 @[F-FRAMEBYTES-LAYOUT] 的 FrameStatus 描述去除对齐语义双写，改为引用 @[F-STATUSLEN-ENSURES-4B-ALIGNMENT]（由公式定义 StatusLen 并保证 payload+status 对齐） |
