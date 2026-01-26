@@ -16,18 +16,7 @@ internal static class RbfReadImpl {
     /// <param name="fenceEndOffset">帧尾 Fence 的 EndOffsetExclusive。</param>
     /// <returns>成功时返回 RbfFrameInfo，失败时返回错误。</returns>
     /// <remarks>
-    /// <para>算法步骤（design-draft.md §4.2）：</para>
-    /// <list type="number">
-    ///   <item>边界检查：fenceEndOffset 必须足够容纳 HeaderFence + MinFrame + Fence</item>
-    ///   <item>一次读取 TrailerCodeword + Fence（20 字节）</item>
-    ///   <item>验证 Fence 是否为 "RBF1"</item>
-    ///   <item>验证 TrailerCrc32C</item>
-    ///   <item>验证 FrameDescriptor 保留位（bit 28-16 = 0）</item>
-    ///   <item>验证 TailLen 值域</item>
-    ///   <item>验证 frameStart 不越过 HeaderFence</item>
-    ///   <item>计算并验证 PayloadLength</item>
-    /// </list>
-    /// <para>规范引用：@[A-READ-TRAILER-BEFORE]</para>
+    /// 规范引用：@[A-READ-TRAILER-BEFORE]
     /// </remarks>
     internal static AteliaResult<RbfFrameInfo> ReadTrailerBefore(
         SafeFileHandle file,
@@ -35,12 +24,11 @@ internal static class RbfReadImpl {
     ) {
         const int TrailerAndFenceSize = TrailerCodewordHelper.Size + RbfLayout.FenceSize; // 20B
 
-        // 1. 边界检查：fenceEndOffset 必须容纳 HeaderFence + MinFrame + Fence
-        long minOffset = RbfLayout.HeaderOnlyLength + RbfLayout.MinFrameLength + RbfLayout.FenceSize;
-        if (fenceEndOffset < minOffset) {
+        // 1. 边界检查：fenceEndOffset 必须 >= MinFirstFrameFenceEnd
+        if (fenceEndOffset < RbfLayout.MinFirstFrameFenceEnd) {
             return AteliaResult<RbfFrameInfo>.Failure(
                 new RbfFramingError(
-                    $"No frame before offset {fenceEndOffset}: minimum required is {minOffset}.",
+                    $"No frame before offset {fenceEndOffset}: minimum required is {RbfLayout.MinFirstFrameFenceEnd}.",
                     RecoveryHint: "The offset may be at or before the first frame."
                 )
             );
@@ -264,17 +252,15 @@ internal static class RbfReadImpl {
 
     /// <summary>解析并验证帧数据（v0.40 布局）。</summary>
     /// <remarks>
-    /// <para>v0.40 帧布局：[HeadLen][Payload][TailMeta][Padding][PayloadCrc][TrailerCodeword]</para>
-    /// <para>Framing 校验清单：</para>
-    /// <list type="bullet">
-    ///   <item>HeadLen == TailLen</item>
-    ///   <item>FrameDescriptor 保留位 (bit 28-16) 为 0</item>
-    ///   <item>TailMetaLen &lt;= 65535（16-bit 值域）</item>
-    ///   <item>PaddingLen &lt;= 3（2-bit 值域）</item>
-    ///   <item>PayloadCrc32C 校验通过</item>
-    ///   <item>TrailerCrc32C 校验通过</item>
-    ///   <item>PayloadLength &gt;= 0</item>
-    /// </list>
+    /// v0.40 帧布局：[HeadLen][Payload][TailMeta][Padding][PayloadCrc][TrailerCodeword]
+    /// Framing 校验清单：
+    ///   HeadLen == TailLen
+    ///   FrameDescriptor 保留位 (bit 28-16) 为 0
+    ///   TailMetaLen &lt;= 65535（16-bit 值域）
+    ///   PaddingLen &lt;= 3（2-bit 值域）
+    ///   PayloadCrc32C 校验通过
+    ///   TrailerCrc32C 校验通过
+    ///   PayloadLength &gt;= 0
     /// </remarks>
     private static AteliaResult<RbfFrame> ValidateAndParseCore(int ticketLength, ReadOnlySpan<byte> frameBuffer, SizedPtr ticket) {
         // 1. 准备

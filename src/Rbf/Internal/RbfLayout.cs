@@ -24,6 +24,10 @@ internal static class RbfLayout {
     internal const int HeaderOnlyLength = HeaderFenceOffset + FenceSize;
     internal const int FirstFrameOffset = HeaderOnlyLength;
 
+    // === Derived Constants ===
+    /// <summary>第一帧尾部 Fence 结束位置的最小可能偏移。</summary>
+    internal const int MinFirstFrameFenceEnd = HeaderOnlyLength + MinFrameLength + FenceSize;
+
     // === TrailerCodeword (v0.40) ===
     /// <summary>TrailerCodeword 固定大小（派生自 TrailerCodewordHelper.Size）。</summary>
     internal const int TrailerCodewordSize = TrailerCodewordHelper.Size;
@@ -40,14 +44,12 @@ internal static class RbfLayout {
 
 /// <summary>帧布局计算器（v0.40 格式）。</summary>
 /// <remarks>
-/// <para>关于数据长度命名：定长又不可分的用 Size，变长或复合的用 Length。</para>
-/// <para>v0.40 布局：[HeadLen][Payload][TailMeta][Padding][PayloadCrc][TrailerCodeword]</para>
-/// <para>规范引用：</para>
-/// <list type="bullet">
-///   <item>@[F-FRAMEBYTES-LAYOUT]</item>
-///   <item>@[F-PAYLOAD-CRC-COVERAGE]</item>
-///   <item>@[F-PADDING-CALCULATION]</item>
-/// </list>
+/// 关于数据长度命名：定长又不可分的用 Size，变长或复合的用 Length。
+/// v0.40 布局：[HeadLen][Payload][TailMeta][Padding][PayloadCrc][TrailerCodeword]
+/// 规范引用：
+///   @[F-FRAMEBYTES-LAYOUT]
+///   @[F-PAYLOAD-CRC-COVERAGE]
+///   @[F-PADDING-CALCULATION]
 /// </remarks>
 internal readonly struct FrameLayout {
     private readonly int _payloadLength;
@@ -142,14 +144,12 @@ internal readonly struct FrameLayout {
     /// <param name="trailer">输出：解析后的 TrailerCodeword 数据。</param>
     /// <returns>成功时返回 FrameLayout，失败时返回错误。</returns>
     /// <remarks>
-    /// <para>Framing 校验：</para>
-    /// <list type="bullet">
-    ///   <item>FrameDescriptor 保留位 (bit 28-16) 为 0</item>
-    ///   <item>TrailerCrc32C 校验通过</item>
-    ///   <item>PayloadLength &gt;= 0</item>
-    ///   <item>TailLen &gt;= MinFrameLength</item>
-    ///   <item>TailLen 4B 对齐</item>
-    /// </list>
+    /// Framing 校验：
+    ///   FrameDescriptor 保留位 (bit 28-16) 为 0
+    ///   TrailerCrc32C 校验通过
+    ///   PayloadLength &gt;= 0
+    ///   TailLen &gt;= MinFrameLength
+    ///   TailLen 4B 对齐
     /// </remarks>
     internal static AteliaResult<FrameLayout> ResultFromTrailer(ReadOnlySpan<byte> frameBuffer, out TrailerCodewordData trailer) {
         // 1. 确保 buffer 足够大
@@ -243,18 +243,16 @@ internal readonly struct FrameLayout {
     /// <param name="tag">帧标签。</param>
     /// <param name="isTombstone">是否为墓碑帧。</param>
     /// <remarks>
-    /// <para>TrailerCodeword 布局（固定 16 字节）：</para>
+    /// TrailerCodeword 布局（固定 16 字节）：
     /// <code>
     /// [0-3]   TrailerCrc32C   (u32 BE)  ← SealTrailerCrc 计算并写入
     /// [4-7]   FrameDescriptor (u32 LE)
     /// [8-11]  FrameTag        (u32 LE)
     /// [12-15] TailLen         (u32 LE)  ← 等于 FrameLength
     /// </code>
-    /// <para>规范引用：</para>
-    /// <list type="bullet">
-    ///   <item>@[F-TRAILER-CRC-BIG-ENDIAN]: TrailerCrc 按 BE 存储</item>
-    ///   <item>@[F-TRAILER-CRC-COVERAGE]: TrailerCrc 覆盖 FrameDescriptor + FrameTag + TailLen</item>
-    /// </list>
+    /// 规范引用：
+    ///   @[F-TRAILER-CRC-BIG-ENDIAN]: TrailerCrc 按 BE 存储
+    ///   @[F-TRAILER-CRC-COVERAGE]: TrailerCrc 覆盖 FrameDescriptor + FrameTag + TailLen
     /// </remarks>
     internal void FillTrailer(Span<byte> buffer, uint tag, bool isTombstone = false) {
         // 构建 FrameDescriptor

@@ -5,9 +5,9 @@ namespace Atelia.Rbf;
 
 /// <summary>逆向扫描枚举器。</summary>
 /// <remarks>
-/// <para>从 <c>dataTail</c> 开始，调用 <c>ReadTrailerBefore</c> 逐帧往回迭代。</para>
-/// <para>当 <c>dataTail</c> 到达 <c>MinValidOffset</c> 或 <c>ReadTrailerBefore</c> 失败时停止。</para>
-/// <para>规范引用：design-draft.md §5</para>
+/// 从 <c>dataTail</c> 开始，调用 <c>ReadTrailerBefore</c> 逐帧往回迭代。
+/// 当 <c>dataTail</c> 到达 <c>MinValidOffset</c> 或 <c>ReadTrailerBefore</c> 失败时停止。
+/// 规范引用：design-draft.md §5
 /// </remarks>
 public ref struct RbfReverseEnumerator {
     private readonly SafeFileHandle _handle;
@@ -33,20 +33,15 @@ public ref struct RbfReverseEnumerator {
 
     /// <summary>迭代终止时的错误（如有）。</summary>
     /// <remarks>
-    /// <para>正常到达文件头部时为 <c>null</c>。</para>
-    /// <para>遇到损坏帧时为非空，包含具体错误信息。</para>
+    /// 正常到达文件头部时为 <c>null</c>。
+    /// 遇到损坏帧时为非空，包含具体错误信息。
     /// </remarks>
     public AteliaError? TerminationError => _terminationError;
 
     /// <summary>移动到下一帧（逆向）。</summary>
     /// <returns>成功移动返回 <c>true</c>，到达文件头或遇到错误返回 <c>false</c>。</returns>
     public bool MoveNext() {
-        // 最小有效偏移：HeaderFence + MinFrame + Fence
-        long minValidOffset = RbfLayout.HeaderOnlyLength
-                            + RbfLayout.MinFrameLength
-                            + RbfLayout.FenceSize;
-
-        while (_dataTail >= minValidOffset) {
+        while (_dataTail >= RbfLayout.MinFirstFrameFenceEnd) {
             var result = RbfReadImpl.ReadTrailerBefore(_handle, _dataTail);
 
             if (result.IsFailure) {
