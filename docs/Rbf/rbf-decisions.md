@@ -21,7 +21,16 @@ RBF 规范（Interface/Format）MUST 以如下通用底层类型及其源码文�
 - 上层 MUST 将其作为定位读取的输入参数，而不是业务主键。
 
 ## decision [S-RBF-DECISION-READFRAME-RESULTPATTERN] 读帧Result模式
-随机读取 API MUST 使用 Result-Pattern：`IRbfScanner.ReadFrame` MUST 返回 `AteliaResult<RbfFrame>`；不得使用 `TryReadAt` 的 bool 模式。
+随机读取 API MUST 使用 Result-Pattern：`IRbfFile.ReadFrame` MUST 返回 `AteliaResult<RbfFrame>`；不得使用 `TryReadAt` 的 bool 模式。
+
+## decision [S-RBF-DECISION-APPEND-RESULTPATTERN] 写帧Result模式
+写入 API MUST 使用 Result-Pattern：`IRbfFile.Append` MUST 返回 `AteliaResult<SizedPtr>`。
+
+**设计理由**：
+- 与读取侧的 `[S-RBF-DECISION-READFRAME-RESULTPATTERN]` 保持对称
+- 参数约束失败（payload/tailMeta 超长、offset 越界）是"可预见的操作拒绝"，非 Bug
+- Result-Pattern 强制调用方处理失败分支，避免"写了但拿不到票据"的情况
+- I/O 异常（磁盘满等）仍直接抛出，与 BCL 惯例一致
 
 ---
 

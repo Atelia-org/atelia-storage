@@ -47,7 +47,7 @@ public class RbfScanReverseTests : IDisposable {
                 AppendTombstoneFrame(rbf, tag, payload);
             }
             else {
-                rbf.Append(tag, payload);
+                Assert.True(rbf.Append(tag, payload).IsSuccess);
             }
         }
         return rbf;
@@ -158,9 +158,9 @@ public class RbfScanReverseTests : IDisposable {
         uint tag3 = 0x33333333;
 
         using (var rbf = RbfFile.CreateNew(path)) {
-            rbf.Append(tag1, payload1);
-            rbf.Append(tag2, payload2);
-            rbf.Append(tag3, payload3);
+            Assert.True(rbf.Append(tag1, payload1).IsSuccess);
+            Assert.True(rbf.Append(tag2, payload2).IsSuccess);
+            Assert.True(rbf.Append(tag3, payload3).IsSuccess);
         }
 
         // Act: 重新打开并逆向扫描
@@ -189,8 +189,8 @@ public class RbfScanReverseTests : IDisposable {
         uint tag2 = 0xBBBBBBBB;
 
         using (var rbf = RbfFile.CreateNew(path)) {
-            rbf.Append(tag1, payload1);
-            rbf.Append(tag2, payload2);
+            Assert.True(rbf.Append(tag1, payload1).IsSuccess);
+            Assert.True(rbf.Append(tag2, payload2).IsSuccess);
         }
 
         // Act & Assert
@@ -222,7 +222,7 @@ public class RbfScanReverseTests : IDisposable {
         // Arrange
         var path = GetTempFilePath();
         using (var rbf = RbfFile.CreateNew(path)) {
-            rbf.Append(0x12345678, [0x01, 0x02, 0x03]);
+            Assert.True(rbf.Append(0x12345678, [0x01, 0x02, 0x03]).IsSuccess);
         }
 
         // Act
@@ -365,9 +365,11 @@ public class RbfScanReverseTests : IDisposable {
 
         SizedPtr ptr2;
         using (var rbf = RbfFile.CreateNew(path)) {
-            rbf.Append(0x11111111, payload1);
-            ptr2 = rbf.Append(0x22222222, payload2);
-            rbf.Append(0x33333333, payload3);
+            Assert.True(rbf.Append(0x11111111, payload1).IsSuccess);
+            var result2 = rbf.Append(0x22222222, payload2);
+            Assert.True(result2.IsSuccess);
+            ptr2 = result2.Value!;
+            Assert.True(rbf.Append(0x33333333, payload3).IsSuccess);
         }
 
         // 损坏 Frame2 的 TrailerCrc
@@ -405,11 +407,13 @@ public class RbfScanReverseTests : IDisposable {
 
         SizedPtr ptr3;
         using (var rbf = RbfFile.CreateNew(path)) {
-            rbf.Append(0x11111111, payload1);
-            rbf.Append(0x22222222, payload2);
-            ptr3 = rbf.Append(0x33333333, payload3);
-            rbf.Append(0x44444444, payload4);
-            rbf.Append(0x55555555, payload5);
+            Assert.True(rbf.Append(0x11111111, payload1).IsSuccess);
+            Assert.True(rbf.Append(0x22222222, payload2).IsSuccess);
+            var result3 = rbf.Append(0x33333333, payload3);
+            Assert.True(result3.IsSuccess);
+            ptr3 = result3.Value!;
+            Assert.True(rbf.Append(0x44444444, payload4).IsSuccess);
+            Assert.True(rbf.Append(0x55555555, payload5).IsSuccess);
         }
 
         // 损坏 Frame3
@@ -445,8 +449,10 @@ public class RbfScanReverseTests : IDisposable {
 
         SizedPtr ptr2;
         using (var rbf = RbfFile.CreateNew(path)) {
-            rbf.Append(0x11111111, payload1);
-            ptr2 = rbf.Append(0x22222222, payload2);
+            Assert.True(rbf.Append(0x11111111, payload1).IsSuccess);
+            var result2 = rbf.Append(0x22222222, payload2);
+            Assert.True(result2.IsSuccess);
+            ptr2 = result2.Value!;
         }
 
         // 损坏 Frame2（逆向扫描的第一帧）
@@ -505,7 +511,7 @@ public class RbfScanReverseTests : IDisposable {
         uint tag = 0xDEADBEEF;
 
         using (var rbf = RbfFile.CreateNew(path)) {
-            rbf.Append(tag, payload);
+            Assert.True(rbf.Append(tag, payload).IsSuccess);
         }
 
         // Act
@@ -532,7 +538,7 @@ public class RbfScanReverseTests : IDisposable {
         uint tag = 0xCAFEBABE;
 
         using (var rbf = RbfFile.CreateNew(path)) {
-            rbf.Append(tag, payload);
+            Assert.True(rbf.Append(tag, payload).IsSuccess);
         }
 
         // Act
@@ -565,7 +571,7 @@ public class RbfScanReverseTests : IDisposable {
         uint tag = (uint)(0x10000000 + payloadLen);
 
         using (var rbf = RbfFile.CreateNew(path)) {
-            rbf.Append(tag, payload);
+            Assert.True(rbf.Append(tag, payload).IsSuccess);
         }
 
         // Act
@@ -587,9 +593,9 @@ public class RbfScanReverseTests : IDisposable {
         // Arrange
         var path = GetTempFilePath();
         using (var rbf = RbfFile.CreateNew(path)) {
-            rbf.Append(0x11111111, [0x01, 0x02]);
-            rbf.Append(0x22222222, [0x03, 0x04, 0x05]);
-            rbf.Append(0x33333333, [0x06, 0x07, 0x08, 0x09]);
+            Assert.True(rbf.Append(0x11111111, [0x01, 0x02]).IsSuccess);
+            Assert.True(rbf.Append(0x22222222, [0x03, 0x04, 0x05]).IsSuccess);
+            Assert.True(rbf.Append(0x33333333, [0x06, 0x07, 0x08, 0x09]).IsSuccess);
         }
 
         // Act
@@ -618,7 +624,7 @@ public class RbfScanReverseTests : IDisposable {
         uint tag = 0x12345678;
 
         using (var rbf = RbfFile.CreateNew(path)) {
-            rbf.Append(tag, payload);
+            Assert.True(rbf.Append(tag, payload).IsSuccess);
         }
 
         // Act
@@ -650,7 +656,7 @@ public class RbfScanReverseTests : IDisposable {
         uint tag = 0xABCDEF00;
 
         using (var rbf = RbfFile.CreateNew(path)) {
-            rbf.Append(tag, payload);
+            Assert.True(rbf.Append(tag, payload).IsSuccess);
         }
 
         // Act
@@ -686,9 +692,9 @@ public class RbfScanReverseTests : IDisposable {
         // Arrange: 创建多帧文件，然后篡改某帧的 payload
         var path = GetTempFilePath();
         using (var rbf = RbfFile.CreateNew(path)) {
-            rbf.Append(1, [0x01, 0x02, 0x03, 0x04]); // Frame 1
-            rbf.Append(2, [0x11, 0x12, 0x13, 0x14]); // Frame 2
-            rbf.Append(3, [0x21, 0x22, 0x23, 0x24]); // Frame 3
+            Assert.True(rbf.Append(1, [0x01, 0x02, 0x03, 0x04]).IsSuccess); // Frame 1
+            Assert.True(rbf.Append(2, [0x11, 0x12, 0x13, 0x14]).IsSuccess); // Frame 2
+            Assert.True(rbf.Append(3, [0x21, 0x22, 0x23, 0x24]).IsSuccess); // Frame 3
         }
 
         // 篡改 Frame 2 的 payload（不动 trailer）
@@ -736,8 +742,8 @@ public class RbfScanReverseTests : IDisposable {
         var path = GetTempFilePath();
         using (var rbf = RbfFile.CreateNew(path)) {
             // 写入边界大小的帧
-            rbf.Append(1, new byte[edgeCases[0]]); // OneMax: 单次写入最大
-            rbf.Append(2, new byte[edgeCases[1]]); // TwoMin: 触发两次写入
+            Assert.True(rbf.Append(1, new byte[edgeCases[0]]).IsSuccess); // OneMax: 单次写入最大
+            Assert.True(rbf.Append(2, new byte[edgeCases[1]]).IsSuccess); // TwoMin: 触发两次写入
         }
 
         // Act

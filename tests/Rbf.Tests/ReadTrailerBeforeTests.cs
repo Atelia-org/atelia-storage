@@ -641,7 +641,9 @@ public class ReadTrailerBeforeTests : IDisposable {
         SizedPtr appendedPtr;
         long fileLength;
         using (var rbfFile = RbfFile.CreateNew(path)) {
-            appendedPtr = rbfFile.Append(tag, payload);
+            var appendResult = rbfFile.Append(tag, payload);
+            Assert.True(appendResult.IsSuccess);
+            appendedPtr = appendResult.Value!;
             fileLength = new FileInfo(path).Length;
         }
 

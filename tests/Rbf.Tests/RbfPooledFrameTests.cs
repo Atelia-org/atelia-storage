@@ -93,7 +93,9 @@ public class RbfPooledFrameTests : IDisposable {
         uint tag = 0x12345678;
 
         using var rbfFile = RbfFile.CreateNew(path);
-        var ptr = rbfFile.Append(tag, payload);
+        var appendResult = rbfFile.Append(tag, payload);
+        Assert.True(appendResult.IsSuccess);
+        var ptr = appendResult.Value!;
 
         // Act
         var result = rbfFile.ReadPooledFrame(ptr);
@@ -106,7 +108,8 @@ public class RbfPooledFrameTests : IDisposable {
         Assert.Equal(tag, frame.Tag);
         Assert.Equal(payload, frame.PayloadAndMeta.ToArray());
         Assert.False(frame.IsTombstone);
-        Assert.Equal(ptr, frame.Ticket);
+        Assert.Equal(ptr.Offset, frame.Ticket.Offset);
+        Assert.Equal(ptr.Length, frame.Ticket.Length);
         // class 版本无需校验 internal Owner，Dispose 行为由测试覆盖
     }
 
@@ -119,7 +122,9 @@ public class RbfPooledFrameTests : IDisposable {
         uint tag = 0xDEADBEEF;
 
         using var rbfFile = RbfFile.CreateNew(path);
-        var ptr = rbfFile.Append(tag, payload);
+        var appendResult = rbfFile.Append(tag, payload);
+        Assert.True(appendResult.IsSuccess);
+        var ptr = appendResult.Value!;
 
         var result = rbfFile.ReadPooledFrame(ptr);
         Assert.True(result.IsSuccess);
@@ -146,7 +151,9 @@ public class RbfPooledFrameTests : IDisposable {
         uint tag = 0xCAFEBABE;
 
         using var rbfFile = RbfFile.CreateNew(path);
-        var ptr = rbfFile.Append(tag, payload);
+        var appendResult = rbfFile.Append(tag, payload);
+        Assert.True(appendResult.IsSuccess);
+        var ptr = appendResult.Value!;
 
         var result = rbfFile.ReadPooledFrame(ptr);
         Assert.True(result.IsSuccess);
@@ -170,7 +177,9 @@ public class RbfPooledFrameTests : IDisposable {
         uint tag = 0xFACEFACE;
 
         using var rbfFile = RbfFile.CreateNew(path);
-        var ptr = rbfFile.Append(tag, payload);
+        var appendResult = rbfFile.Append(tag, payload);
+        Assert.True(appendResult.IsSuccess);
+        var ptr = appendResult.Value!;
 
         var result = rbfFile.ReadPooledFrame(ptr);
         Assert.True(result.IsSuccess);
@@ -220,7 +229,9 @@ public class RbfPooledFrameTests : IDisposable {
         uint tag = 0xB16F4A7E;
 
         using var rbfFile = RbfFile.CreateNew(path);
-        var ptr = rbfFile.Append(tag, payload);
+        var appendResult = rbfFile.Append(tag, payload);
+        Assert.True(appendResult.IsSuccess);
+        var ptr = appendResult.Value!;
 
         // Act
         var result = rbfFile.ReadPooledFrame(ptr);
@@ -243,7 +254,9 @@ public class RbfPooledFrameTests : IDisposable {
         uint tag = 0xE7737700;
 
         using var rbfFile = RbfFile.CreateNew(path);
-        var ptr = rbfFile.Append(tag, payload);
+        var appendResult = rbfFile.Append(tag, payload);
+        Assert.True(appendResult.IsSuccess);
+        var ptr = appendResult.Value!;
 
         // Act
         var result = rbfFile.ReadPooledFrame(ptr);

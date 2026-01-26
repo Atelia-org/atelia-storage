@@ -113,7 +113,9 @@ public class RbfReadImplTests : IDisposable {
         uint tag = 0x12345678;
 
         using var rbfFile = RbfFile.CreateNew(path);
-        var ptr = rbfFile.Append(tag, payload);
+        var appendResult = rbfFile.Append(tag, payload);
+        Assert.True(appendResult.IsSuccess);
+        var ptr = appendResult.Value!;
 
         // Act: 使用 ReadPooledFrame 读取
         var result = rbfFile.ReadPooledFrame(ptr);
@@ -125,7 +127,8 @@ public class RbfReadImplTests : IDisposable {
         Assert.Equal(tag, frame.Tag);
         Assert.Equal(payload, frame.PayloadAndMeta.ToArray());
         Assert.False(frame.IsTombstone);
-        Assert.Equal(ptr, frame.Ticket);
+        Assert.Equal(ptr.Offset, frame.Ticket.Offset);
+        Assert.Equal(ptr.Length, frame.Ticket.Length);
     }
 
     /// <summary>验证空 payload 帧（最小帧 20B）的读取。
@@ -138,7 +141,9 @@ public class RbfReadImplTests : IDisposable {
         uint tag = 0xDEADBEEF;
 
         using var rbfFile = RbfFile.CreateNew(path);
-        var ptr = rbfFile.Append(tag, payload);
+        var appendResult = rbfFile.Append(tag, payload);
+        Assert.True(appendResult.IsSuccess);
+        var ptr = appendResult.Value!;
 
         // 验证最小帧长度
         Assert.Equal(FrameLayout.MinFrameLength, ptr.Length);
@@ -166,7 +171,9 @@ public class RbfReadImplTests : IDisposable {
         uint tag = 0xCAFEBABE;
 
         using var rbfFile = RbfFile.CreateNew(path);
-        var ptr = rbfFile.Append(tag, payload);
+        var appendResult = rbfFile.Append(tag, payload);
+        Assert.True(appendResult.IsSuccess);
+        var ptr = appendResult.Value!;
 
         // Act: 使用 ReadPooledFrame 读取
         var result = rbfFile.ReadPooledFrame(ptr);

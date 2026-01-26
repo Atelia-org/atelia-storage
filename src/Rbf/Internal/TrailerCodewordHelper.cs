@@ -137,7 +137,6 @@ internal static class TrailerCodewordHelper {
     /// </remarks>
     public static uint SealTrailerCrc(Span<byte> trailerCodeword) {
         if (trailerCodeword.Length < Size) { throw new ArgumentException($"Buffer must be at least {Size} bytes.", nameof(trailerCodeword)); }
-
         return RollingCrc.SealCodewordBackward(trailerCodeword[..Size]);
     }
 
@@ -147,11 +146,7 @@ internal static class TrailerCodewordHelper {
     /// <exception cref="ArgumentException">buffer 长度不足 16 字节时抛出。</exception>
     public static bool CheckTrailerCrc(ReadOnlySpan<byte> trailerCodeword) {
         if (trailerCodeword.Length < Size) { throw new ArgumentException($"Buffer must be at least {Size} bytes.", nameof(trailerCodeword)); }
-
-        // CheckCodewordBackward 需要 Span<byte>，所以我们需要复制
-        Span<byte> temp = stackalloc byte[Size];
-        trailerCodeword[..Size].CopyTo(temp);
-        return RollingCrc.CheckCodewordBackward(temp);
+        return RollingCrc.CheckCodewordBackward(trailerCodeword[..Size]);
     }
 
     /// <summary>验证 FrameDescriptor 的保留位是否为 0。</summary>

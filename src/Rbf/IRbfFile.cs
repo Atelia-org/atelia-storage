@@ -12,7 +12,16 @@ public interface IRbfFile : IDisposable {
     long TailOffset { get; }
 
     /// <summary>追加完整帧（payload 已就绪）。</summary>
-    SizedPtr Append(uint tag, ReadOnlySpan<byte> payload, ReadOnlySpan<byte> tailMeta = default);
+    /// <remarks>
+    /// <para>失败场景（返回 <see cref="AteliaResult{T}.IsFailure"/>）：</para>
+    /// <list type="bullet">
+    ///   <item>TailMeta 超长（> 64KB）</item>
+    ///   <item>Payload + TailMeta 超长（> MaxPayloadAndMetaLength）</item>
+    ///   <item>TailOffset 非 4B 对齐或超出 SizedPtr 可表示范围</item>
+    /// </list>
+    /// <para>I/O 错误（磁盘满、权限等）仍抛出异常。</para>
+    /// </remarks>
+    AteliaResult<SizedPtr> Append(uint tag, ReadOnlySpan<byte> payload, ReadOnlySpan<byte> tailMeta = default);
 
     /// <summary>复杂帧构建（流式写入 payload / payload 内回填）。</summary>
     /// <remarks>

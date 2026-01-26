@@ -133,7 +133,9 @@ public class RbfAppendImplTests : IDisposable {
 
         // Act
         long nextTailOffset = 0;
-        var ptr = RbfAppendImpl.Append(handle, ref nextTailOffset, payload, default, tag);
+        var appendResult = RbfAppendImpl.Append(handle, ref nextTailOffset, payload, default, tag);
+        Assert.True(appendResult.IsSuccess, $"Append failed: {appendResult.Error?.Message}");
+        var ptr = appendResult.Value!;
 
         // Assert - 4B 对齐根不变量
         AssertAlignment(ptr, nextTailOffset);
@@ -190,7 +192,9 @@ public class RbfAppendImplTests : IDisposable {
 
         // Act
         long nextTailOffset = writeOffset;
-        var ptr = RbfAppendImpl.Append(handle, ref nextTailOffset, payload, default, tag);
+        var appendResult = RbfAppendImpl.Append(handle, ref nextTailOffset, payload, default, tag);
+        Assert.True(appendResult.IsSuccess, $"Append failed: {appendResult.Error?.Message}");
+        var ptr = appendResult.Value!;
 
         // Assert - SizedPtr 指向正确位置
         Assert.Equal(writeOffset, ptr.Offset);
@@ -229,7 +233,9 @@ public class RbfAppendImplTests : IDisposable {
 
         // Act
         long nextTailOffset = 0;
-        var ptr = RbfAppendImpl.Append(handle, ref nextTailOffset, payload, default, tag);
+        var appendResult = RbfAppendImpl.Append(handle, ref nextTailOffset, payload, default, tag);
+        Assert.True(appendResult.IsSuccess, $"Append failed: {appendResult.Error?.Message}");
+        var ptr = appendResult.Value!;
 
         // Assert - 4B 对齐
         AssertAlignment(ptr, nextTailOffset);

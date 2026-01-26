@@ -46,7 +46,9 @@ public class RbfFacadeTests : IDisposable {
         SizedPtr ptr;
         long tailOffset;
         using (var rbf = RbfFile.CreateNew(path)) {
-            ptr = rbf.Append(tag, payload);
+            var result = rbf.Append(tag, payload);
+            Assert.True(result.IsSuccess);
+            ptr = result.Value!;
             tailOffset = rbf.TailOffset;
         }
 
@@ -75,8 +77,12 @@ public class RbfFacadeTests : IDisposable {
         SizedPtr ptr1, ptr2;
         long tailOffset;
         using (var rbf = RbfFile.CreateNew(path)) {
-            ptr1 = rbf.Append(tag1, payload1);
-            ptr2 = rbf.Append(tag2, payload2);
+            var result1 = rbf.Append(tag1, payload1);
+            Assert.True(result1.IsSuccess);
+            ptr1 = result1.Value!;
+            var result2 = rbf.Append(tag2, payload2);
+            Assert.True(result2.IsSuccess);
+            ptr2 = result2.Value!;
             tailOffset = rbf.TailOffset;
         }
 
@@ -111,7 +117,9 @@ public class RbfFacadeTests : IDisposable {
         SizedPtr ptr;
         long tailOffset;
         using (var rbf = RbfFile.CreateNew(path)) {
-            ptr = rbf.Append(tag, payload);
+            var result = rbf.Append(tag, payload);
+            Assert.True(result.IsSuccess);
+            ptr = result.Value!;
             tailOffset = rbf.TailOffset;
         }
 
@@ -136,7 +144,9 @@ public class RbfFacadeTests : IDisposable {
         SizedPtr ptr;
         long tailOffset;
         using (var rbf = RbfFile.CreateNew(path)) {
-            ptr = rbf.Append(tag, payload);
+            var result = rbf.Append(tag, payload);
+            Assert.True(result.IsSuccess);
+            ptr = result.Value!;
             tailOffset = rbf.TailOffset;
         }
 
@@ -160,7 +170,9 @@ public class RbfFacadeTests : IDisposable {
 
         // Act & Assert
         using (var rbf = RbfFile.CreateNew(path)) {
-            var ptr = rbf.Append(tag, payload);
+            var appendResult = rbf.Append(tag, payload);
+            Assert.True(appendResult.IsSuccess);
+            var ptr = appendResult.Value!;
 
             // ReadPooledFrame 应该能正确读取刚写入的帧
             var result = rbf.ReadPooledFrame(ptr);
@@ -171,7 +183,8 @@ public class RbfFacadeTests : IDisposable {
             Assert.Equal(tag, frame.Tag);
             Assert.Equal(payload, frame.PayloadAndMeta.ToArray());
             Assert.False(frame.IsTombstone);
-            Assert.Equal(ptr, frame.Ticket);
+            Assert.Equal(ptr.Offset, frame.Ticket.Offset);
+            Assert.Equal(ptr.Length, frame.Ticket.Length);
         }
     }
 
@@ -185,7 +198,9 @@ public class RbfFacadeTests : IDisposable {
 
         // Act
         using var rbf = RbfFile.CreateNew(path);
-        var ptr = rbf.Append(tag, payload);
+        var appendResult = rbf.Append(tag, payload);
+        Assert.True(appendResult.IsSuccess);
+        var ptr = appendResult.Value!;
         long tailOffsetBefore = rbf.TailOffset;
 
         // 执行 ReadPooledFrame

@@ -26,12 +26,16 @@ internal sealed class RbfFileImpl : IRbfFile {
     public long TailOffset => _tailOffset;
 
     /// <inheritdoc />
-    public SizedPtr Append(uint tag, ReadOnlySpan<byte> payload, ReadOnlySpan<byte> tailMeta) {
+    public AteliaResult<SizedPtr> Append(uint tag, ReadOnlySpan<byte> payload, ReadOnlySpan<byte> tailMeta) {
         long tailOffset = _tailOffset;
         // 门面层只负责：持有句柄 + 维护 TailOffset。
-        var ret = RbfAppendImpl.Append(_handle, ref tailOffset, payload, tailMeta, tag);
-        _tailOffset = tailOffset;
-        return ret;
+        // 失败时 RbfAppendImpl 保证不修改 tailOffset
+        AteliaResult<SizedPtr> result = RbfAppendImpl.Append(_handle, ref tailOffset, payload, tailMeta, tag);
+        if (result.IsSuccess) {
+            _tailOffset = tailOffset;
+            return result.Value!;
+        }
+        return AteliaResult<SizedPtr>.Failure(result.Error!);
     }
 
     /// <inheritdoc />

@@ -5,6 +5,7 @@ using BenchmarkDotNet.Running;
 using Atelia.Rbf.Internal;
 
 // Mark class as public for BenchmarkDotNet
+[OperationsPerSecond]
 public class RbfAppendBenchmarks {
     private string? _tempPath;
     private SafeFileHandle? _fileHandle;

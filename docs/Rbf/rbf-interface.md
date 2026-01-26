@@ -85,7 +85,16 @@ public interface IRbfFile : IDisposable {
     long TailOffset { get; }
 
     /// <summary>追加完整帧（payload 已就绪）。</summary>
-    SizedPtr Append(uint tag, ReadOnlySpan<byte> payload, ReadOnlySpan<byte> tailMeta = default);
+    /// <remarks>
+    /// <para>失败场景（返回 AteliaResult.IsFailure）：</para>
+    /// <list type="bullet">
+    ///   <item>TailMeta 超长（> 64KB）</item>
+    ///   <item>Payload + TailMeta 超长（> MaxPayloadAndMetaLength）</item>
+    ///   <item>TailOffset 非 4B 对齐或超出 SizedPtr 可表示范围</item>
+    /// </list>
+    /// <para>I/O 错误（磁盘满、权限等）仍抛出异常。</para>
+    /// </remarks>
+    AteliaResult<SizedPtr> Append(uint tag, scoped ReadOnlySpan<byte> payload, scoped ReadOnlySpan<byte> tailMeta = default);
 
     /// <summary>复杂帧构建（流式写入 payload / payload 内回填）。</summary>
     /// <remarks>
@@ -145,6 +154,25 @@ public static class RbfFile {
 ```
 
 *@[S-RBF-DECISION-READFRAME-RESULTPATTERN]，随机读取 API Result-Pattern（返回 `AteliaResult<RbfFrame>`）。*
+
+### spec [S-RBF-APPEND-RESULTPATTERN] Append使用Result模式
+`IRbfFile.Append` MUST 返回 `AteliaResult<SizedPtr>`，使用 Result-Pattern 表达可预见的操作拒绝。
+
+**返回失败的场景**（前置校验，不产生 I/O）：
+- `tailMeta.Length > MaxTailMetaLength`（64KB）
+- `payload.Length + tailMeta.Length > MaxPayloadAndMetaLength`
+- `TailOffset` 非 4B 对齐
+- 写入后 `EndOffset > SizedPtr.MaxOffset`
+
+**抛出异常的场景**（系统级故障）：
+- 磁盘满、权限不足、设备 I/O 错误等底层异常
+- 句柄已释放（`ObjectDisposedException`）
+
+### spec [S-RBF-APPEND-PRECONDITION-CHECK] Append前置校验
+`IRbfFile.Append` 的参数校验 MUST 在任何 I/O 操作之前完成：
+- 校验失败时 MUST NOT 产生任何文件写入
+- 校验失败时 MUST NOT 更新 `TailOffset`
+- 校验失败时返回包含 `RecoveryHint` 的 `AteliaError`
 
 ### spec [S-RBF-TAILOFFSET-IS-NEXT-WRITE-OFFSET] TailOffset语义
 `IRbfFile.TailOffset` MUST 表示“当前逻辑文件长度（byte length）”，并且等于下一次 `Append/BeginAppend` 的写入起点（byte offset）。
