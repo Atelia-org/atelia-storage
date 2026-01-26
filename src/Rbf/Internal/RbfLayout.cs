@@ -25,8 +25,8 @@ internal static class RbfLayout {
     internal const int FirstFrameOffset = HeaderOnlyLength;
 
     // === TrailerCodeword (v0.40) ===
-    /// <summary>TrailerCodeword 固定 16 字节。</summary>
-    internal const int TrailerCodewordSize = 16;
+    /// <summary>TrailerCodeword 固定大小（派生自 TrailerCodewordHelper.Size）。</summary>
+    internal const int TrailerCodewordSize = TrailerCodewordHelper.Size;
 
     // === PayloadCrc (v0.40) ===
     /// <summary>PayloadCrc32C 大小（4 字节）。</summary>
@@ -260,11 +260,8 @@ internal readonly struct FrameLayout {
         // 构建 FrameDescriptor
         uint descriptor = TrailerCodewordHelper.BuildDescriptor(isTombstone, _paddingLength, _tailMetaLength);
 
-        // 序列化（不含 CRC）
-        TrailerCodewordHelper.SerializeWithoutCrc(buffer, descriptor, tag, (uint)FrameLength);
-
-        // 计算并写入 TrailerCrc（使用 RollingCrc.SealCodewordBackward）
-        TrailerCodewordHelper.SealTrailerCrc(buffer);
+        // 序列化并写入 CRC
+        TrailerCodewordHelper.Serialize(buffer, descriptor, tag, (uint)FrameLength);
     }
     #endregion
 }

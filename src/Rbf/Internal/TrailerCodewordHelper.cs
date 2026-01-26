@@ -11,16 +11,16 @@ namespace Atelia.Rbf.Internal;
 /// </remarks>
 internal readonly struct TrailerCodewordData {
     /// <summary>TrailerCrc32C（已从 BE 解码）。</summary>
-    public uint TrailerCrc32C { get; init; }
+    required public uint TrailerCrc32C { get; init; }
 
     /// <summary>FrameDescriptor 原始值（LE 解码）。</summary>
-    public uint FrameDescriptor { get; init; }
+    required public uint FrameDescriptor { get; init; }
 
     /// <summary>FrameTag（LE 解码）。</summary>
-    public uint FrameTag { get; init; }
+    required public uint FrameTag { get; init; }
 
     /// <summary>TailLen（LE 解码）。</summary>
-    public uint TailLen { get; init; }
+    required public uint TailLen { get; init; }
 
     // 从 FrameDescriptor 解码的字段（一次解码，多次使用）
     // @[F-FRAME-DESCRIPTOR-LAYOUT]: bit31=IsTombstone, bit30-29=PaddingLen, bit28-16=Reserved, bit15-0=TailMetaLen
@@ -52,16 +52,20 @@ internal readonly struct TrailerCodewordData {
 /// </list>
 /// </remarks>
 internal static class TrailerCodewordHelper {
-    /// <summary>TrailerCodeword 固定大小（16 字节）。</summary>
-    public const int Size = RbfLayout.TrailerCodewordSize;
+    // 字段大小（基元）
+    internal const int TrailerCrcSize = sizeof(uint);
+    internal const int DescriptorSize = sizeof(uint);
+    internal const int TagSize = sizeof(uint);
+    internal const int TailLenSize = sizeof(uint);
 
-    // 字段偏移（派生自 UInt32Size）
-    private const int UInt32Size = sizeof(uint);
+    /// <summary>TrailerCodeword 总大小（派生自各字段大小）。</summary>
+    public const int Size = TrailerCrcSize + DescriptorSize + TagSize + TailLenSize;
 
+    // 字段偏移（派生自字段大小）
     private const int TrailerCrcOffset = 0;
-    private const int DescriptorOffset = TrailerCrcOffset + UInt32Size;
-    private const int TagOffset = DescriptorOffset + UInt32Size;
-    private const int TailLenOffset = TagOffset + UInt32Size;
+    private const int DescriptorOffset = TrailerCrcOffset + TrailerCrcSize;
+    private const int TagOffset = DescriptorOffset + DescriptorSize;
+    private const int TailLenOffset = TagOffset + TagSize;
 
     // FrameDescriptor 位掩码
     private const uint TombstoneMask = 0x8000_0000u;      // bit 31
@@ -106,38 +110,22 @@ internal static class TrailerCodewordHelper {
         return descriptor;
     }
 
-    /// <summary>序列化 TrailerCodeword（不含 CRC，CRC 由 <see cref="SealTrailerCrc"/> 写入）。</summary>
-    /// <param name="buffer">目标 buffer，MUST 至少 16 字节。前 4 字节（CRC 位置）将被清零。</param>
+    /// <summary>序列化 TrailerCodeword 并计算写入 CRC。</summary>
+    /// <param name="buffer">目标 buffer，MUST 至少 16 字节。</param>
     /// <param name="descriptor">FrameDescriptor 值。</param>
     /// <param name="tag">FrameTag 值。</param>
     /// <param name="tailLen">TailLen 值。</param>
+    /// <returns>计算出的 TrailerCrc32C。</returns>
     /// <exception cref="ArgumentException">buffer 长度不足 16 字节时抛出。</exception>
-    public static void SerializeWithoutCrc(Span<byte> buffer, uint descriptor, uint tag, uint tailLen) {
+    public static uint Serialize(Span<byte> buffer, uint descriptor, uint tag, uint tailLen) {
         if (buffer.Length < Size) { throw new ArgumentException($"Buffer must be at least {Size} bytes.", nameof(buffer)); }
-
-        // 清零 CRC 位置（便于后续 Seal）
-        buffer[TrailerCrcOffset..DescriptorOffset].Clear();
 
         // 写入各字段（LE）
         BinaryPrimitives.WriteUInt32LittleEndian(buffer[DescriptorOffset..], descriptor);
         BinaryPrimitives.WriteUInt32LittleEndian(buffer[TagOffset..], tag);
         BinaryPrimitives.WriteUInt32LittleEndian(buffer[TailLenOffset..], tailLen);
-    }
 
-    /// <summary>计算并写入 TrailerCrc32C（使用 RollingCrc.SealCodewordBackward）。</summary>
-    /// <param name="trailerCodeword">完整 16 字节 TrailerCodeword，前 4 字节将被写入 CRC（BE）。</param>
-    /// <returns>计算出的 CRC 值。</returns>
-    /// <exception cref="ArgumentException">buffer 长度不足 16 字节时抛出。</exception>
-    /// <remarks>
-    /// <para>使用 RollingCrc.SealCodewordBackward，该方法会：</para>
-    /// <list type="number">
-    ///   <item>计算 buffer[4..16] 的 backward CRC32C</item>
-    ///   <item>将 CRC 以 BE 写入 buffer[0..4]</item>
-    /// </list>
-    /// </remarks>
-    public static uint SealTrailerCrc(Span<byte> trailerCodeword) {
-        if (trailerCodeword.Length < Size) { throw new ArgumentException($"Buffer must be at least {Size} bytes.", nameof(trailerCodeword)); }
-        return RollingCrc.SealCodewordBackward(trailerCodeword[..Size]);
+        return RollingCrc.SealCodewordBackward(buffer[..Size]);
     }
 
     /// <summary>验证 TrailerCrc32C（使用 RollingCrc.CheckCodewordBackward）。</summary>

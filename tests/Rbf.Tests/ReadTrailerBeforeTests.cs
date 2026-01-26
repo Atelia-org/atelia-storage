@@ -357,8 +357,7 @@ public class ReadTrailerBeforeTests : IDisposable {
 
         // 构建无效的 TrailerCodeword（TailLen = 20，小于 MinFrameLength = 24）
         uint descriptor = TrailerCodewordHelper.BuildDescriptor(false, layout.PaddingLength, 0);
-        TrailerCodewordHelper.SerializeWithoutCrc(trailerSpan, descriptor, tag, 20); // 无效 TailLen
-        TrailerCodewordHelper.SealTrailerCrc(trailerSpan);
+        TrailerCodewordHelper.Serialize(trailerSpan, descriptor, tag, 20); // 无效 TailLen
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
@@ -390,8 +389,7 @@ public class ReadTrailerBeforeTests : IDisposable {
         // TailLen 设置为超大值，使 frameStart 越过 HeaderFence
         uint hugeTailLen = (uint)(fileContent.Length); // 等于整个文件长度
         uint descriptor = TrailerCodewordHelper.BuildDescriptor(false, layout.PaddingLength, 0);
-        TrailerCodewordHelper.SerializeWithoutCrc(trailerSpan, descriptor, tag, hugeTailLen);
-        TrailerCodewordHelper.SealTrailerCrc(trailerSpan);
+        TrailerCodewordHelper.Serialize(trailerSpan, descriptor, tag, hugeTailLen);
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
@@ -422,8 +420,7 @@ public class ReadTrailerBeforeTests : IDisposable {
 
         // TailLen = 25（非 4B 对齐）
         uint descriptor = TrailerCodewordHelper.BuildDescriptor(false, layout.PaddingLength, 0);
-        TrailerCodewordHelper.SerializeWithoutCrc(trailerSpan, descriptor, tag, 25);
-        TrailerCodewordHelper.SealTrailerCrc(trailerSpan);
+        TrailerCodewordHelper.Serialize(trailerSpan, descriptor, tag, 25);
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
@@ -507,8 +504,7 @@ public class ReadTrailerBeforeTests : IDisposable {
 
         // 设置保留位（bit 28-16）
         uint invalidDescriptor = 0x0010_0000; // bit 20 = 1（保留位）
-        TrailerCodewordHelper.SerializeWithoutCrc(trailerSpan, invalidDescriptor, tag, (uint)layout.FrameLength);
-        TrailerCodewordHelper.SealTrailerCrc(trailerSpan);
+        TrailerCodewordHelper.Serialize(trailerSpan, invalidDescriptor, tag, (uint)layout.FrameLength);
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
@@ -544,8 +540,7 @@ public class ReadTrailerBeforeTests : IDisposable {
         // TailLen = uint.MaxValue - 3 (> int.MaxValue，且 4B 对齐)
         uint hugeTailLen = uint.MaxValue - 3; // 0xFFFFFFFC
         uint descriptor = TrailerCodewordHelper.BuildDescriptor(false, layout.PaddingLength, 0);
-        TrailerCodewordHelper.SerializeWithoutCrc(trailerSpan, descriptor, tag, hugeTailLen);
-        TrailerCodewordHelper.SealTrailerCrc(trailerSpan);
+        TrailerCodewordHelper.Serialize(trailerSpan, descriptor, tag, hugeTailLen);
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
@@ -582,8 +577,7 @@ public class ReadTrailerBeforeTests : IDisposable {
         // 保持 TailLen 不变，但把 TailMetaLen 设为最大值 (65535)
         // PayloadLength = TailLen - 24 - 65535 - PaddingLen << 0
         uint descriptor = TrailerCodewordHelper.BuildDescriptor(false, layout.PaddingLength, 65535);
-        TrailerCodewordHelper.SerializeWithoutCrc(trailerSpan, descriptor, tag, (uint)layout.FrameLength);
-        TrailerCodewordHelper.SealTrailerCrc(trailerSpan);
+        TrailerCodewordHelper.Serialize(trailerSpan, descriptor, tag, (uint)layout.FrameLength);
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);

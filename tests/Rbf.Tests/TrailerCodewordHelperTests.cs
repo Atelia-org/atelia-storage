@@ -138,19 +138,19 @@ public class TrailerCodewordHelperTests {
 
     #endregion
 
-    #region SerializeWithoutCrc Tests
+    #region Serialize Tests
 
     [Fact]
-    public void SerializeWithoutCrc_CorrectLayout() {
+    public void Serialize_CorrectLayout() {
         byte[] buffer = new byte[16];
         uint descriptor = 0xAABB_CCDDu;
         uint tag = 0x1122_3344u;
         uint tailLen = 0x5566_7788u;
 
-        TrailerCodewordHelper.SerializeWithoutCrc(buffer, descriptor, tag, tailLen);
+        uint crc = TrailerCodewordHelper.Serialize(buffer, descriptor, tag, tailLen);
 
-        // 前 4 字节（CRC 位置）应为 0
-        Assert.Equal(0u, BinaryPrimitives.ReadUInt32BigEndian(buffer.AsSpan(0)));
+        // CRC 应已写入前 4 字节 (BE)
+        Assert.Equal(crc, BinaryPrimitives.ReadUInt32BigEndian(buffer.AsSpan(0)));
 
         // Descriptor (LE)
         Assert.Equal(descriptor, BinaryPrimitives.ReadUInt32LittleEndian(buffer.AsSpan(4)));
@@ -158,32 +158,34 @@ public class TrailerCodewordHelperTests {
         Assert.Equal(tag, BinaryPrimitives.ReadUInt32LittleEndian(buffer.AsSpan(8)));
         // TailLen (LE)
         Assert.Equal(tailLen, BinaryPrimitives.ReadUInt32LittleEndian(buffer.AsSpan(12)));
+
+        // CRC 校验通过
+        Assert.True(TrailerCodewordHelper.CheckTrailerCrc(buffer));
     }
 
     [Fact]
-    public void SerializeWithoutCrc_BufferTooShort_ThrowsArgumentException() {
+    public void Serialize_BufferTooShort_ThrowsArgumentException() {
         byte[] shortBuffer = new byte[15];
 
         var ex = Assert.Throws<ArgumentException>(
-            () => TrailerCodewordHelper.SerializeWithoutCrc(shortBuffer, 0, 0, 0)
+            () => TrailerCodewordHelper.Serialize(shortBuffer, 0, 0, 0)
         );
         Assert.Contains("16", ex.Message);
     }
 
     #endregion
 
-    #region SealTrailerCrc / CheckTrailerCrc Tests
+    #region CRC Verification Tests
 
     [Fact]
-    public void SealTrailerCrc_ThenCheckTrailerCrc_ReturnsTrue() {
+    public void Serialize_ThenCheckTrailerCrc_ReturnsTrue() {
         // 构造 TrailerCodeword
         byte[] buffer = new byte[16];
         uint descriptor = TrailerCodewordHelper.BuildDescriptor(false, 2, 1000);
         uint tag = 0x42u;
         uint tailLen = 100u;
 
-        TrailerCodewordHelper.SerializeWithoutCrc(buffer, descriptor, tag, tailLen);
-        uint crc = TrailerCodewordHelper.SealTrailerCrc(buffer);
+        uint crc = TrailerCodewordHelper.Serialize(buffer, descriptor, tag, tailLen);
 
         // 验证 CRC
         Assert.True(TrailerCodewordHelper.CheckTrailerCrc(buffer));
@@ -194,11 +196,9 @@ public class TrailerCodewordHelperTests {
     }
 
     [Fact]
-    public void SealTrailerCrc_WrittenCrcIsBigEndian() {
+    public void Serialize_WrittenCrcIsBigEndian() {
         byte[] buffer = new byte[16];
-        TrailerCodewordHelper.SerializeWithoutCrc(buffer, 0x12345678u, 0x42u, 0x100u);
-
-        uint crc = TrailerCodewordHelper.SealTrailerCrc(buffer);
+        uint crc = TrailerCodewordHelper.Serialize(buffer, 0x12345678u, 0x42u, 0x100u);
 
         // 验证 CRC 以 BE 写入
         Assert.Equal(crc, BinaryPrimitives.ReadUInt32BigEndian(buffer.AsSpan(0)));
@@ -214,8 +214,7 @@ public class TrailerCodewordHelperTests {
     [Fact]
     public void CheckTrailerCrc_CorruptedData_ReturnsFalse() {
         byte[] buffer = new byte[16];
-        TrailerCodewordHelper.SerializeWithoutCrc(buffer, 0x12345678u, 0x42u, 0x100u);
-        TrailerCodewordHelper.SealTrailerCrc(buffer);
+        TrailerCodewordHelper.Serialize(buffer, 0x12345678u, 0x42u, 0x100u);
 
         // 篡改数据
         buffer[5] ^= 0xFF;
@@ -226,23 +225,12 @@ public class TrailerCodewordHelperTests {
     [Fact]
     public void CheckTrailerCrc_CorruptedCrc_ReturnsFalse() {
         byte[] buffer = new byte[16];
-        TrailerCodewordHelper.SerializeWithoutCrc(buffer, 0x12345678u, 0x42u, 0x100u);
-        TrailerCodewordHelper.SealTrailerCrc(buffer);
+        TrailerCodewordHelper.Serialize(buffer, 0x12345678u, 0x42u, 0x100u);
 
         // 篡改 CRC
         buffer[0] ^= 0xFF;
 
         Assert.False(TrailerCodewordHelper.CheckTrailerCrc(buffer));
-    }
-
-    [Fact]
-    public void SealTrailerCrc_BufferTooShort_ThrowsArgumentException() {
-        byte[] shortBuffer = new byte[15];
-
-        var ex = Assert.Throws<ArgumentException>(
-            () => TrailerCodewordHelper.SealTrailerCrc(shortBuffer)
-        );
-        Assert.Contains("16", ex.Message);
     }
 
     [Fact]
@@ -257,18 +245,17 @@ public class TrailerCodewordHelperTests {
 
     #endregion
 
-    #region Test Vector: SealTrailerCrc matches RollingCrc.CheckCodewordBackward
+    #region Test Vector: Serialize matches RollingCrc.CheckCodewordBackward
 
     [Fact]
-    public void TestVector_SealTrailerCrc_MatchesRollingCrcCheckCodewordBackward() {
+    public void TestVector_Serialize_MatchesRollingCrcCheckCodewordBackward() {
         // 构造已知 (descriptor, tag, tailLen)
         uint descriptor = TrailerCodewordHelper.BuildDescriptor(true, 1, 500);
         uint tag = 0xDEAD_BEEFu;
         uint tailLen = 0x1000u;
 
         byte[] buffer = new byte[16];
-        TrailerCodewordHelper.SerializeWithoutCrc(buffer, descriptor, tag, tailLen);
-        uint sealedCrc = TrailerCodewordHelper.SealTrailerCrc(buffer);
+        uint sealedCrc = TrailerCodewordHelper.Serialize(buffer, descriptor, tag, tailLen);
 
         // 验证前 4 字节（BE）是 sealedCrc
         uint storedCrc = BinaryPrimitives.ReadUInt32BigEndian(buffer.AsSpan(0));
@@ -285,13 +272,11 @@ public class TrailerCodewordHelperTests {
 
         byte[] buffer = new byte[16];
         // 使用简单的已知值
-        TrailerCodewordHelper.SerializeWithoutCrc(buffer, 0u, 1u, 24u);
-        uint crc = TrailerCodewordHelper.SealTrailerCrc(buffer);
+        uint crc = TrailerCodewordHelper.Serialize(buffer, 0u, 1u, 24u);
 
         // 重新计算应该得到相同结果
         byte[] buffer2 = new byte[16];
-        TrailerCodewordHelper.SerializeWithoutCrc(buffer2, 0u, 1u, 24u);
-        uint crc2 = TrailerCodewordHelper.SealTrailerCrc(buffer2);
+        uint crc2 = TrailerCodewordHelper.Serialize(buffer2, 0u, 1u, 24u);
 
         Assert.Equal(crc, crc2);
 
@@ -332,16 +317,13 @@ public class TrailerCodewordHelperTests {
     [InlineData(true, 3, 65535, 0xFFFFFFFFu, 0x00100000u)]
     [InlineData(false, 2, 1000, 0x42u, 100u)]
     [InlineData(true, 1, 123, 0xDEADBEEFu, 0x1234u)]
-    public void Roundtrip_SerializeParseSealCheck(bool isTombstone, int paddingLen, int tailMetaLen, uint tag, uint tailLen) {
+    public void Roundtrip_SerializeParseCheck(bool isTombstone, int paddingLen, int tailMetaLen, uint tag, uint tailLen) {
         // Build
         uint descriptor = TrailerCodewordHelper.BuildDescriptor(isTombstone, paddingLen, tailMetaLen);
 
-        // Serialize
+        // Serialize (包含 CRC 计算)
         byte[] buffer = new byte[16];
-        TrailerCodewordHelper.SerializeWithoutCrc(buffer, descriptor, tag, tailLen);
-
-        // Seal
-        TrailerCodewordHelper.SealTrailerCrc(buffer);
+        TrailerCodewordHelper.Serialize(buffer, descriptor, tag, tailLen);
 
         // Check
         Assert.True(TrailerCodewordHelper.CheckTrailerCrc(buffer));
