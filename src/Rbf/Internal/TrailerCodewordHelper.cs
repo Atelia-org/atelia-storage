@@ -5,9 +5,9 @@ namespace Atelia.Rbf.Internal;
 
 /// <summary>TrailerCodeword 解析结果（值类型，统一解码一次）。</summary>
 /// <remarks>
-/// <para>调用 <c>TrailerCodewordHelper.Parse()</c> 一次即可获得所有字段，无需再调用 DecodeDescriptor。</para>
-/// <para>FrameDescriptor 的位字段已展开为只读属性，避免重复解码。</para>
-/// <para>参见设计文档 design-draft.md §3.2。</para>
+/// 调用 <c>TrailerCodewordHelper.Parse()</c> 一次即可获得所有字段，无需再调用 DecodeDescriptor。
+/// FrameDescriptor 的位字段已展开为只读属性，避免重复解码。
+/// 参见设计文档 design-draft.md §3.2。
 /// </remarks>
 internal readonly struct TrailerCodewordData {
     /// <summary>TrailerCrc32C（已从 BE 解码）。</summary>
@@ -37,19 +37,17 @@ internal readonly struct TrailerCodewordData {
 
 /// <summary>TrailerCodeword 编解码辅助类。</summary>
 /// <remarks>
-/// <para>TrailerCodeword 布局（固定 16 字节）：</para>
+/// TrailerCodeword 布局（固定 16 字节）：
 /// <code>
 /// ┌───────────────┬─────────────────┬──────────┬─────────┐
 /// │ TrailerCrc32C │ FrameDescriptor │ FrameTag │ TailLen │
 /// │   4B **BE**   │     4B LE       │  4B LE   │  4B LE  │
 /// └───────────────┴─────────────────┴──────────┴─────────┘
 /// </code>
-/// <para>规范引用：</para>
-/// <list type="bullet">
-///   <item>@[F-TRAILER-CRC-BIG-ENDIAN]: TrailerCrc32C 按 BE 存储</item>
-///   <item>@[F-FRAME-DESCRIPTOR-LAYOUT]: FrameDescriptor 位布局</item>
-///   <item>@[F-TRAILER-CRC-COVERAGE]: TrailerCrc 覆盖 FrameDescriptor + FrameTag + TailLen</item>
-/// </list>
+/// 规范引用：
+/// - @[F-TRAILER-CRC-BIG-ENDIAN]: TrailerCrc32C 按 BE 存储
+/// - @[F-FRAME-DESCRIPTOR-LAYOUT]: FrameDescriptor 位布局
+/// - @[F-TRAILER-CRC-COVERAGE]: TrailerCrc 覆盖 FrameDescriptor + FrameTag + TailLen
 /// </remarks>
 internal static class TrailerCodewordHelper {
     // 字段大小（基元）

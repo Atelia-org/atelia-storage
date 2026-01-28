@@ -5,9 +5,9 @@ namespace Atelia.Rbf.Internal;
 
 /// <summary><see cref="IRbfFile"/> 的内部实现类。</summary>
 /// <remarks>
-/// <para>职责边界：</para>
-/// <para>- <b>RbfFileImpl = Facade</b>：资源管理 + TailOffset 状态 + 参数校验/并发约束</para>
-/// <para>- 具体读写/扫描算法下沉到 <c>RbfRawOps</c>（后续阶段实现）</para>
+/// 职责边界：
+/// - RbfFileImpl = Facade：资源管理 + TailOffset 状态 + 参数校验/并发约束
+/// - 具体读写/扫描算法下沉到 <c>RbfRawOps</c>（后续阶段实现）
 /// </remarks>
 internal sealed class RbfFileImpl : IRbfFile {
     private readonly SafeFileHandle _handle;
@@ -59,13 +59,18 @@ internal sealed class RbfFileImpl : IRbfFile {
     }
 
     /// <inheritdoc />
-    public AteliaResult<RbfFrame> ReadFrame(in RbfFrameInfo info, Span<byte> buffer) {
-        return ReadFrame(info.Ticket, buffer);
+    public AteliaResult<RbfFrameInfo> ReadFrameInfo(SizedPtr ticket) {
+        return RbfReadImpl.ReadFrameInfo(_handle, ticket);
     }
 
     /// <inheritdoc />
-    public AteliaResult<RbfPooledFrame> ReadPooledFrame(in RbfFrameInfo info) {
-        return ReadPooledFrame(info.Ticket);
+    public AteliaResult<RbfTailMeta> ReadTailMeta(SizedPtr ticket, Span<byte> buffer) {
+        return RbfReadImpl.ReadTailMeta(_handle, ticket, buffer);
+    }
+
+    /// <inheritdoc />
+    public AteliaResult<RbfPooledTailMeta> ReadPooledTailMeta(SizedPtr ticket) {
+        return RbfReadImpl.ReadPooledTailMeta(_handle, ticket);
     }
 
     /// <inheritdoc />

@@ -47,9 +47,9 @@ internal static class RbfLayout {
 /// 关于数据长度命名：定长又不可分的用 Size，变长或复合的用 Length。
 /// v0.40 布局：[HeadLen][Payload][TailMeta][Padding][PayloadCrc][TrailerCodeword]
 /// 规范引用：
-///   @[F-FRAMEBYTES-LAYOUT]
-///   @[F-PAYLOAD-CRC-COVERAGE]
-///   @[F-PADDING-CALCULATION]
+/// - @[F-FRAMEBYTES-LAYOUT]
+/// - @[F-PAYLOAD-CRC-COVERAGE]
+/// - @[F-PADDING-CALCULATION]
 /// </remarks>
 internal readonly struct FrameLayout {
     private readonly int _payloadLength;
@@ -145,11 +145,11 @@ internal readonly struct FrameLayout {
     /// <returns>成功时返回 FrameLayout，失败时返回错误。</returns>
     /// <remarks>
     /// Framing 校验：
-    ///   FrameDescriptor 保留位 (bit 28-16) 为 0
-    ///   TrailerCrc32C 校验通过
-    ///   PayloadLength &gt;= 0
-    ///   TailLen &gt;= MinFrameLength
-    ///   TailLen 4B 对齐
+    /// - FrameDescriptor 保留位 (bit 28-16) 为 0
+    /// - TrailerCrc32C 校验通过
+    /// - PayloadLength &gt;= 0
+    /// - TailLen &gt;= MinFrameLength
+    /// - TailLen 4B 对齐
     /// </remarks>
     internal static AteliaResult<FrameLayout> ResultFromTrailer(ReadOnlySpan<byte> frameBuffer, out TrailerCodewordData trailer) {
         // 1. 确保 buffer 足够大
@@ -251,8 +251,8 @@ internal readonly struct FrameLayout {
     /// [12-15] TailLen         (u32 LE)  ← 等于 FrameLength
     /// </code>
     /// 规范引用：
-    ///   @[F-TRAILER-CRC-BIG-ENDIAN]: TrailerCrc 按 BE 存储
-    ///   @[F-TRAILER-CRC-COVERAGE]: TrailerCrc 覆盖 FrameDescriptor + FrameTag + TailLen
+    /// - @[F-TRAILER-CRC-BIG-ENDIAN]: TrailerCrc 按 BE 存储
+    /// - @[F-TRAILER-CRC-COVERAGE]: TrailerCrc 覆盖 FrameDescriptor + FrameTag + TailLen
     /// </remarks>
     internal void FillTrailer(Span<byte> buffer, uint tag, bool isTombstone = false) {
         // 构建 FrameDescriptor

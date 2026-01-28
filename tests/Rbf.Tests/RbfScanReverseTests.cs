@@ -8,14 +8,11 @@ namespace Atelia.Rbf.Tests;
 
 /// <summary>RbfFileImpl.ScanReverse 集成测试。</summary>
 /// <remarks>
-/// 职责：验证 ScanReverse 迭代器的正确性，包括：
-/// <list type="bullet">
-///   <item>正常路径：多帧逆向遍历</item>
-///   <item>空文件：只有 HeaderFence 时返回空序列</item>
-///   <item>Tombstone 过滤行为</item>
-///   <item>损坏停止语义（硬停止，不 Resync）</item>
-///   <item>边界值：单帧、最小帧、最大帧</item>
-/// </list>
+/// 职责：验证 ScanReverse 迭代器的正确性，包括：   正常路径：多帧逆向遍历
+/// - 空文件：只有 HeaderFence 时返回空序列
+/// - Tombstone 过滤行为
+/// - 损坏停止语义（硬停止，不 Resync）
+/// - 边界值：单帧、最小帧、最大帧
 /// 规范引用：
 /// - Task 6.11 验收标准
 /// - @[S-RBF-SCANREVERSE-NO-PAYLOADCRC]
@@ -203,13 +200,13 @@ public class RbfScanReverseTests : IDisposable {
         Assert.Equal(2, infos.Count);
 
         // 使用 Ticket 读取帧内容
-        var result2 = rbfRead.ReadPooledFrame(infos[0]); // Frame2
+        var result2 = infos[0].ReadPooledFrame(); // Frame2
         Assert.True(result2.IsSuccess);
         using var frame2 = result2.Value!;
         Assert.Equal(tag2, frame2.Tag);
         Assert.Equal(payload2, frame2.PayloadAndMeta.ToArray());
 
-        var result1 = rbfRead.ReadPooledFrame(infos[1]); // Frame1
+        var result1 = infos[1].ReadPooledFrame(); // Frame1
         Assert.True(result1.IsSuccess);
         using var frame1 = result1.Value!;
         Assert.Equal(tag1, frame1.Tag);
@@ -638,7 +635,7 @@ public class RbfScanReverseTests : IDisposable {
         Assert.NotNull(frameInfo);
         var info = frameInfo.Value;
         byte[] buffer = new byte[info.Ticket.Length];
-        var result = rbfRead.ReadFrame(in info, buffer);
+        var result = info.ReadFrame(buffer);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -669,7 +666,7 @@ public class RbfScanReverseTests : IDisposable {
 
         Assert.NotNull(frameInfo);
         var info = frameInfo.Value;
-        var result = rbfRead.ReadPooledFrame(in info);
+        var result = info.ReadPooledFrame();
 
         // Assert
         Assert.True(result.IsSuccess);

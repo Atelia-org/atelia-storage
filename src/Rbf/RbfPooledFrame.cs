@@ -5,9 +5,9 @@ namespace Atelia.Rbf;
 
 /// <summary>携带 ArrayPool buffer 的 RBF 帧。</summary>
 /// <remarks>
-/// <para><b>属性契约</b>：遵循 <see cref="IRbfFrame"/> 定义的公共属性集合。</para>
-/// <para>调用方 MUST 调用 <see cref="Dispose"/> 归还 buffer。</para>
-/// <para><b>生命周期警告</b>：Dispose 后 Payload 变为 dangling，不可再访问。</para>
+/// 属性契约：遵循 <see cref="IRbfFrame"/> 定义的公共属性集合。
+/// 调用方 MUST 调用 <see cref="Dispose"/> 归还 buffer。
+/// 生命周期警告：Dispose 后 Payload 变为 dangling，不可再访问。
 /// </remarks>
 public sealed class RbfPooledFrame : IRbfFrame, IDisposable {
     private byte[]? _buffer;
@@ -15,9 +15,12 @@ public sealed class RbfPooledFrame : IRbfFrame, IDisposable {
     private readonly int _payloadAndMetaLength;
     private readonly int _tailMetaLength;
 
-    private ReadOnlySpan<byte> GetBufferSpan(int offset, int length) => _buffer is not null
-        ? _buffer.AsSpan(offset, length)
-        : throw new ObjectDisposedException(nameof(RbfPooledFrame));
+    private ReadOnlySpan<byte> GetBufferSpan(int offset, int length) {
+        var buffer = _buffer;
+        if (buffer is null) { throw new ObjectDisposedException(nameof(RbfPooledFrame)); }
+
+        return buffer.AsSpan(offset, length);
+    }
 
     /// <inheritdoc/>
     public SizedPtr Ticket { get; }
@@ -47,10 +50,7 @@ public sealed class RbfPooledFrame : IRbfFrame, IDisposable {
 
     /// <summary>释放 ArrayPool buffer。幂等，可多次调用。</summary>
     public void Dispose() {
-        var buf = _buffer;
-        if (buf is not null) {
-            _buffer = null;
-            ArrayPool<byte>.Shared.Return(buf);
-        }
+        var buf = Interlocked.Exchange(ref _buffer, null);
+        if (buf is not null) { ArrayPool<byte>.Shared.Return(buf); }
     }
 }

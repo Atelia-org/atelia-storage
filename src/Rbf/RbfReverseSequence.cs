@@ -4,9 +4,9 @@ namespace Atelia.Rbf;
 
 /// <summary>逆向扫描序列（duck-typed 枚举器，支持 foreach）。</summary>
 /// <remarks>
-/// <para><b>设计说明</b>：返回 ref struct 而非 IEnumerable，因为 RbfFrameInfo 是只读结构体。</para>
-/// <para>上层通过 foreach 消费，不依赖 LINQ。</para>
-/// <para>规范引用：design-draft.md §5</para>
+/// 设计说明：返回 ref struct 而非 IEnumerable，因为 RbfFrameInfo 是只读结构体。
+/// 上层通过 foreach 消费，不依赖 LINQ。
+/// 规范引用：design-draft.md §5
 /// </remarks>
 public ref struct RbfReverseSequence {
     private readonly SafeFileHandle _handle;

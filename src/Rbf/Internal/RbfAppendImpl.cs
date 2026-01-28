@@ -8,13 +8,11 @@ namespace Atelia.Rbf.Internal;
 
 /// <summary>RBF 帧写入实现（v0.40 布局）。</summary>
 /// <remarks>
-/// <para>v0.40 帧布局：[HeadLen][Payload][TailMeta][Padding][PayloadCrc][TrailerCodeword]</para>
-/// <para>规范引用：</para>
-/// <list type="bullet">
-///   <item>@[F-FRAMEBYTES-LAYOUT]</item>
-///   <item>@[F-PAYLOAD-CRC-COVERAGE]: PayloadCrc 覆盖 Payload + TailMeta + Padding</item>
-///   <item>@[F-TRAILER-CRC-COVERAGE]: TrailerCrc 覆盖 FrameDescriptor + FrameTag + TailLen</item>
-/// </list>
+/// v0.40 帧布局：[HeadLen][Payload][TailMeta][Padding][PayloadCrc][TrailerCodeword]
+/// 规范引用：
+/// - @[F-FRAMEBYTES-LAYOUT]
+/// - @[F-PAYLOAD-CRC-COVERAGE]: PayloadCrc 覆盖 Payload + TailMeta + Padding
+/// - @[F-TRAILER-CRC-COVERAGE]: TrailerCrc 覆盖 FrameDescriptor + FrameTag + TailLen
 /// </remarks>
 internal static class RbfAppendImpl {
     /// 统一缓冲区大小（4KB，复用于 header 和 trailer）。
@@ -97,15 +95,13 @@ internal static class RbfAppendImpl {
     /// <param name="isTombstone">是否为墓碑帧。仅用于测试或诊断。</param>
     /// <returns>成功时返回帧票据（SizedPtr），失败时返回错误。</returns>
     /// <remarks>
-    /// <para>前置校验（写入前检查，失败不会产生任何 I/O）：</para>
-    /// <list type="bullet">
-    ///   <item>TailMeta 长度 ≤ MaxTailMetaLength (64KB)</item>
-    ///   <item>Payload + TailMeta 长度 ≤ MaxPayloadAndMetaLength</item>
-    ///   <item>fileOffset 满足 4B 对齐</item>
-    ///   <item>fileOffset + frameLength + fenceLength ≤ MaxFileOffset</item>
-    /// </list>
-    /// <para>自适应 1-4 次写入（v0.40 布局）。header填充和trailer填充复用同一个buffer。</para>
-    /// <para>多次 RandomAccess.Write 不保证原子性。若应用依赖 crash-consistency，需在更上层实现屏障/fsync 语义。</para>
+    /// 前置校验（写入前检查，失败不会产生任何 I/O）：
+    /// - TailMeta 长度 ≤ MaxTailMetaLength (64KB)
+    /// - Payload + TailMeta 长度 ≤ MaxPayloadAndMetaLength
+    /// - fileOffset 满足 4B 对齐
+    /// - fileOffset + frameLength + fenceLength ≤ MaxFileOffset
+    /// 自适应 1-4 次写入（v0.40 布局）。header填充和trailer填充复用同一个buffer。
+    /// 多次 RandomAccess.Write 不保证原子性。若应用依赖 crash-consistency，需在更上层实现屏障/fsync 语义。
     /// </remarks>
     public static AteliaResult<SizedPtr> Append(
         SafeFileHandle file,
