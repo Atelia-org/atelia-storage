@@ -13,6 +13,7 @@ internal sealed class RbfFileImpl : IRbfFile {
     private readonly SafeFileHandle _handle;
     private long _tailOffset;
     private bool _disposed;
+    private bool _hasActiveBuilder;
 
     /// <summary>初始化 <see cref="RbfFileImpl"/> 实例。</summary>
     /// <param name="handle">已打开的文件句柄（所有权转移给此实例）。</param>
@@ -27,6 +28,9 @@ internal sealed class RbfFileImpl : IRbfFile {
 
     /// <inheritdoc />
     public AteliaResult<SizedPtr> Append(uint tag, ReadOnlySpan<byte> payload, ReadOnlySpan<byte> tailMeta) {
+        if (_hasActiveBuilder) {
+            throw new InvalidOperationException("Cannot call Append while a builder is active. Dispose the builder first.");
+        }
         long tailOffset = _tailOffset;
         // 门面层只负责：持有句柄 + 维护 TailOffset。
         // 失败时 RbfAppendImpl 保证不修改 tailOffset
@@ -40,7 +44,35 @@ internal sealed class RbfFileImpl : IRbfFile {
 
     /// <inheritdoc />
     public RbfFrameBuilder BeginAppend() {
-        throw new NotImplementedException();
+        if (_disposed) {
+            throw new ObjectDisposedException(nameof(RbfFileImpl));
+        }
+        if (_hasActiveBuilder) {
+            throw new InvalidOperationException("A builder is already active. Dispose it before calling BeginAppend again.");
+        }
+
+        long tailOffset = _tailOffset;
+
+        // 检查 TailOffset 4B 对齐
+        if ((tailOffset & 0x3) != 0) {
+            throw new InvalidOperationException($"TailOffset ({tailOffset}) is not 4-byte aligned.");
+        }
+
+        // 检查 MaxFileOffset
+        if (tailOffset >= SizedPtr.MaxOffset) {
+            throw new InvalidOperationException($"TailOffset ({tailOffset}) has reached MaxFileOffset ({SizedPtr.MaxOffset}).");
+        }
+
+        // 创建 RbfFrameBuilder
+        var builder = new RbfFrameBuilder(
+            _handle,
+            tailOffset,
+            onCommitCallback: (endOffset) => _tailOffset = endOffset,
+            clearBuilderFlag: () => _hasActiveBuilder = false
+        );
+
+        _hasActiveBuilder = true;
+        return builder;
     }
 
     /// <inheritdoc />
