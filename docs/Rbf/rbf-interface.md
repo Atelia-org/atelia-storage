@@ -222,12 +222,13 @@ public static class RbfFile {
 /// 生命周期：调用方 MUST 调用 <see cref="EndAppend"/> 或 <see cref="Dispose"/> 之一来结束构建器生命周期。
 /// Auto-Abort（Optimistic Clean Abort）：若未 EndAppend 就 Dispose，
 /// 逻辑上该帧视为不存在；物理实现规则见 @[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME]。
-/// IDisposable 声明：显式实现接口用于类型系统表达"需要释放"的语义，与 using 语句的 duck-typed 机制互补。
+/// 类型选择：采用 sealed class 而非 ref struct，因为内部组件（SinkReservableWriter 等）
+/// 本就是堆分配，ref struct 外壳无实际收益；sealed class 更简单且支持未来 Reset 复用优化。
 /// </remarks>
-public ref struct RbfFrameBuilder : IDisposable {
+public sealed class RbfFrameBuilder : IDisposable {
     /// <summary>Payload 写入器。</summary>
     /// <remarks>
-    /// 该写入器实现 <see cref="IBufferWriter<byte>"/>，因此可用于绝大多数序列化场景。
+    /// 该写入器实现 <see cref="IBufferWriter{T}"/>，因此可用于绝大多数序列化场景。
     /// 此外它支持 reservation（预留/回填），供需要在 payload 内延后写入长度/计数等字段的 codec 使用。
     /// 接口定义（SSOT）：<c>atelia/src/Data/IReservableBufferWriter.cs</c>（类型：<see cref="IReservableBufferWriter"/>）。
     /// 注意：Payload 类型本身不承诺 Auto-Abort 一定为 Zero I/O；

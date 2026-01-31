@@ -7,9 +7,10 @@ namespace Atelia.Rbf;
 /// 生命周期：调用方 MUST 调用 <see cref="EndAppend"/> 或 <see cref="Dispose"/> 之一来结束构建器生命周期。
 /// Auto-Abort（Optimistic Clean Abort）：若未 EndAppend 就 Dispose，
 /// 逻辑上该帧视为不存在；物理实现规则见 @[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME]。
-/// IDisposable 声明：显式实现接口用于类型系统表达"需要释放"的语义，与 using 语句的 duck-typed 机制互补。
+/// 类型选择：采用 sealed class 而非 ref struct，因为内部组件（SinkReservableWriter 等）
+/// 本就是堆分配，ref struct 外壳无实际收益；sealed class 更简单且支持未来 Reset 复用优化。
 /// </remarks>
-public ref struct RbfFrameBuilder : IDisposable {
+public sealed class RbfFrameBuilder : IDisposable {
     private bool _disposed;
     private bool _committed;
 
