@@ -62,7 +62,7 @@ RBF wire format 的以下三个信息 MUST 以 **4 字节对齐**为基础不变
 - `SizedPtr` 的 4B 对齐约束（offset/length 可用更紧凑的表示并保持热路径简化）。
 
 ## decision [S-RBF-DECISION-WRITEPATH-SINKRESERVABLEWRITER] 写入路径绑定SinkReservableWriter
-RBF（近期 / MVP）**不追求成为与实现无关的抽象格式**；为效率与一致性，写入路径（尤其是 `BeginFrame()` / `RbfFrameBuilder.Payload` 的 streaming 写入）MUST 绑定采用如下实现作为 SSOT：
+RBF（近期 / MVP）**不追求成为与实现无关的抽象格式**；为效率与一致性，写入路径（尤其是 `BeginFrame()` / `RbfFrameBuilder.PayloadAndMeta` 的 streaming 写入）MUST 绑定采用如下实现作为 SSOT：
 - `Atelia.Data.SinkReservableWriter` → `atelia/src/Data/SinkReservableWriter.cs`
 
 该绑定意味着：

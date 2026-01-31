@@ -145,7 +145,7 @@ depends: "@[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME](rbf-interface.md)"
 - MVP 实现 SHOULD 优先尝试 Zero I/O
 - 若内部 Buffer 实现为 `SinkReservableWriter`，则 Zero I/O 可通过 chunk rollback 实现
 
-**重要说明**：`Payload` 的类型为 `IReservableBufferWriter` 并不承诺 Zero I/O 必然可用。Zero I/O 是实现优化，不是类型承诺。
+**重要说明**：`PayloadAndMeta` 的类型为 `IReservableBufferWriter` 并不承诺 Zero I/O 必然可用。Zero I/O 是实现优化，不是类型承诺。
 
 ### 3.2 逆向扫描序列 (Reverse Scanner)
 

@@ -64,7 +64,7 @@ RbfFrame 通过 `bool IsTombstone` 属性暴露此状态。
 **Frame** 是 RBF 的基本 I/O 单元。Frame 的内部结构（wire format）接口层无需关心。
 
 上层只需知道：
-- 每个 Frame 有一个 @`FrameTag`、`Payload` 和 `IsTombstone` 状态
+- 每个 Frame 有一个 @`FrameTag`、`PayloadAndMeta` 和 `IsTombstone` 状态
 - Frame 写入后返回其 @`SizedPtr`（包含 offset+length）
 - Frame 读取通过 @`SizedPtr` 定位
 

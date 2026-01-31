@@ -123,7 +123,7 @@ see: @[R-REVERSE-SCAN-RETURNS-VALID-FRAMES-TAIL-TO-HEAD](rbf-format.md), @[R-RES
      - 若所有校验通过：产出该帧信息，将扫描游标移动到 `Pre-Fence` 位置。
      - 若任一校验失败：视为损坏或偶然匹配，仅将扫描游标向前移动 4 字节（Resync）。
 
-**注意**：此流程完全依赖元信息，不读取 `Payload` 内容，也不校验 `PayloadCrc32C`。
+**注意**：此流程完全依赖元信息，不读取 `PayloadAndMeta` 内容，也不校验 `PayloadCrc32C`。
 
 ### derived [R-REVERSE-SCAN-FRAMING-CHECKLIST] 逆向扫描Framing校验清单
 Reverse Scan MUST 按如下清单执行 framing 校验（规范性）：

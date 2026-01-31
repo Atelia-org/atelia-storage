@@ -275,7 +275,7 @@ produce_by:
   // 此时 frame1 的 Payload 已失效（生命周期已结束）
   ```
 - Then：
-  - 规范不保证 `frame1.Payload` 在第二次 `MoveNext()` 后仍有效
+  - 规范不保证 `frame1.PayloadAndMeta` 在第二次 `MoveNext()` 后仍有效
   - 若需保留数据，必须调用 `frame1.PayloadToArray()`
 
 ### 4.4 多次 GetEnumerator

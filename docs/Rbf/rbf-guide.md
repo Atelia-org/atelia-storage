@@ -32,7 +32,7 @@ void SimpleWrite(IRbfFile file, uint myTag, byte[] data) {
 ### 5.2 流式/复杂写入 (BeginAppend)
 
 适用于数据量大、需要流式生成或零拷贝拼接的场景。
-建议配合`System.Buffers.BufferExtensions`使用`RbfFrameBuilder.Payload`
+建议配合`System.Buffers.BufferExtensions`使用`RbfFrameBuilder.PayloadAndMeta`
 
 ```csharp
 void StreamingWrite(IRbfFile file, uint myTag, IEnumerable<byte[]> chunks) {
