@@ -256,12 +256,12 @@ public class RbfFrameBuilderTests : IDisposable {
     /// <remarks>
     /// 覆盖 RbfFrameBuilder.EndAppend 中的约束：
     /// <code>
-    /// if (tailMetaLength > FrameLayout.MaxTailMetaLength) {
+    /// if (tailMetaLength &gt; FrameLayout.MaxTailMetaLength) {
     ///     throw new InvalidOperationException(...)
     /// }
     /// </code>
     /// MaxTailMetaLength = 65535 (ushort.MaxValue)
-    /// 需要先写入足够多的数据，避免被 tailMetaLength > payloadAndMetaLength 分支先拦截。
+    /// 需要先写入足够多的数据，避免被 tailMetaLength &gt; payloadAndMetaLength 分支先拦截。
     /// </remarks>
     [Fact]
     public void EndAppend_TailMetaLengthExceedsMaxTailMetaLength_ThrowsInvalidOperationException() {
@@ -844,6 +844,282 @@ public class RbfFrameBuilderTests : IDisposable {
         Assert.True(readResult.IsSuccess);
         using var frame = readResult.Value!;
         Assert.Equal(0x5555u, frame.Tag);
+        Assert.Equal(payload, frame.PayloadAndMeta.ToArray());
+    }
+
+    // ========== Task 7.10: 与 ScanReverse 集成测试 ==========
+    // 规范引用：验证 Builder 写入的帧可被 ScanReverse 正确扫描
+
+    /// <summary>混合写入：Append + BeginAppend/EndAppend 交替 → ScanReverse 返回正确顺序。</summary>
+    [Fact]
+    public void ScanReverse_MixedAppendAndBuilder_ReturnsCorrectOrder() {
+        // Arrange
+        var path = GetTempFilePath();
+        byte[] payload1 = [0x01, 0x02, 0x03];
+        byte[] payload2 = [0xAA, 0xBB, 0xCC, 0xDD];
+        byte[] payload3 = [0x11, 0x22];
+        byte[] payload4 = [0x77, 0x88, 0x99];
+
+        using var file = RbfFile.CreateNew(path);
+
+        // Frame 1: 使用 Append
+        var result1 = file.Append(0x1111, payload1);
+        Assert.True(result1.IsSuccess);
+
+        // Frame 2: 使用 Builder
+        using (var builder = file.BeginAppend()) {
+            var span = builder.PayloadAndMeta.GetSpan(payload2.Length);
+            payload2.CopyTo(span);
+            builder.PayloadAndMeta.Advance(payload2.Length);
+            builder.EndAppend(0x2222);
+        }
+
+        // Frame 3: 使用 Append
+        var result3 = file.Append(0x3333, payload3);
+        Assert.True(result3.IsSuccess);
+
+        // Frame 4: 使用 Builder
+        using (var builder = file.BeginAppend()) {
+            var span = builder.PayloadAndMeta.GetSpan(payload4.Length);
+            payload4.CopyTo(span);
+            builder.PayloadAndMeta.Advance(payload4.Length);
+            builder.EndAppend(0x4444);
+        }
+
+        // Act: ScanReverse 应按逆序返回（Frame4 → Frame3 → Frame2 → Frame1）
+        var frames = new List<(uint tag, int payloadLen)>();
+        foreach (var info in file.ScanReverse()) {
+            frames.Add((info.Tag, info.PayloadLength));
+        }
+
+        // Assert
+        Assert.Equal(4, frames.Count);
+        Assert.Equal((0x4444u, payload4.Length), frames[0]); // Frame 4 (Builder)
+        Assert.Equal((0x3333u, payload3.Length), frames[1]); // Frame 3 (Append)
+        Assert.Equal((0x2222u, payload2.Length), frames[2]); // Frame 2 (Builder)
+        Assert.Equal((0x1111u, payload1.Length), frames[3]); // Frame 1 (Append)
+    }
+
+    /// <summary>大帧写入：Builder 写入 &gt; 4KB payload → ScanReverse + ReadFrame 验证完整性。</summary>
+    [Fact]
+    public void ScanReverse_LargePayloadFromBuilder_VerifyIntegrity() {
+        // Arrange
+        var path = GetTempFilePath();
+        byte[] largePayload = new byte[5 * 1024]; // 5KB > 4KB 边界
+        Random.Shared.NextBytes(largePayload);
+        uint tag = 0xB16F8A3E; // "Big Frame"
+
+        using var file = RbfFile.CreateNew(path);
+
+        // 使用 Builder 写入大帧
+        SizedPtr ptr;
+        using (var builder = file.BeginAppend()) {
+            var span = builder.PayloadAndMeta.GetSpan(largePayload.Length);
+            largePayload.CopyTo(span);
+            builder.PayloadAndMeta.Advance(largePayload.Length);
+            ptr = builder.EndAppend(tag);
+        }
+
+        // Act: ScanReverse 获取帧信息
+        RbfFrameInfo? scannedInfo = null;
+        foreach (var info in file.ScanReverse()) {
+            scannedInfo = info;
+            break; // 只有一帧
+        }
+
+        Assert.NotNull(scannedInfo);
+        var frameInfo = scannedInfo.Value;
+
+        // Assert: 帧信息正确
+        Assert.Equal(tag, frameInfo.Tag);
+        Assert.Equal(largePayload.Length, frameInfo.PayloadLength);
+        Assert.Equal(ptr.Offset, frameInfo.Ticket.Offset);
+        Assert.Equal(ptr.Length, frameInfo.Ticket.Length);
+
+        // 通过 ReadFrame 验证完整内容
+        var readResult = frameInfo.ReadPooledFrame();
+        Assert.True(readResult.IsSuccess, $"ReadFrame failed: {readResult.Error}");
+        using var frame = readResult.Value!;
+        Assert.Equal(tag, frame.Tag);
+        Assert.Equal(largePayload, frame.PayloadAndMeta.ToArray());
+    }
+
+    /// <summary>TailMeta 读取：Builder 带 TailMeta → ScanReverse → ReadTailMeta 验证内容。</summary>
+    [Fact]
+    public void ScanReverse_WithTailMeta_ReadTailMetaVerifyContent() {
+        // Arrange
+        var path = GetTempFilePath();
+        byte[] payload = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
+        byte[] tailMeta = [0xAA, 0xBB, 0xCC, 0xDD, 0xEE];
+        uint tag = 0xAE7A7A6; // "Meta Tag"
+
+        using var file = RbfFile.CreateNew(path);
+
+        // 使用 Builder 写入带 TailMeta 的帧
+        using (var builder = file.BeginAppend()) {
+            // 写入 payload
+            var payloadSpan = builder.PayloadAndMeta.GetSpan(payload.Length);
+            payload.CopyTo(payloadSpan);
+            builder.PayloadAndMeta.Advance(payload.Length);
+
+            // 写入 tailMeta
+            var tailMetaSpan = builder.PayloadAndMeta.GetSpan(tailMeta.Length);
+            tailMeta.CopyTo(tailMetaSpan);
+            builder.PayloadAndMeta.Advance(tailMeta.Length);
+
+            builder.EndAppend(tag, tailMeta.Length);
+        }
+
+        // Act: ScanReverse 获取帧信息
+        RbfFrameInfo? scannedInfo = null;
+        foreach (var info in file.ScanReverse()) {
+            scannedInfo = info;
+            break;
+        }
+
+        Assert.NotNull(scannedInfo);
+        var frameInfo = scannedInfo.Value;
+
+        // 验证帧信息
+        Assert.Equal(tag, frameInfo.Tag);
+        Assert.Equal(tailMeta.Length, frameInfo.TailMetaLength);
+
+        // 使用 ReadTailMeta 验证内容
+        var tailMetaResult = frameInfo.ReadPooledTailMeta();
+        Assert.True(tailMetaResult.IsSuccess);
+        using var pooledTailMeta = tailMetaResult.Value!;
+        Assert.Equal(tailMeta, pooledTailMeta.TailMeta.ToArray());
+
+        // 同时验证完整帧内容
+        var frameResult = frameInfo.ReadPooledFrame();
+        Assert.True(frameResult.IsSuccess);
+        using var frame = frameResult.Value!;
+        Assert.Equal(tag, frame.Tag);
+        // PayloadAndMeta = payload + tailMeta
+        Assert.Equal(payload.Length + tailMeta.Length, frame.PayloadAndMeta.Length);
+        Assert.Equal(payload, frame.PayloadAndMeta.Slice(0, payload.Length).ToArray());
+        Assert.Equal(tailMeta, frame.PayloadAndMeta.Slice(payload.Length).ToArray());
+    }
+
+    /// <summary>多帧序列：连续 5 次 BeginAppend/EndAppend → ScanReverse 验证逆序正确。</summary>
+    [Fact]
+    public void ScanReverse_MultipleBuilderFrames_VerifyReverseOrder() {
+        // Arrange
+        var path = GetTempFilePath();
+        var expectedFrames = new List<(uint tag, byte[] payload)>();
+
+        using var file = RbfFile.CreateNew(path);
+
+        // 连续 5 次 BeginAppend/EndAppend
+        for (int i = 1; i <= 5; i++) {
+            byte[] payload = new byte[10 + i * 5]; // 不同大小的 payload
+            Random.Shared.NextBytes(payload);
+            uint tag = (uint)(0x1000 * i);
+
+            using var builder = file.BeginAppend();
+            var span = builder.PayloadAndMeta.GetSpan(payload.Length);
+            payload.CopyTo(span);
+            builder.PayloadAndMeta.Advance(payload.Length);
+            builder.EndAppend(tag);
+
+            expectedFrames.Add((tag, payload));
+        }
+
+        // Act: ScanReverse
+        var scannedFrames = new List<(uint tag, int payloadLen)>();
+        foreach (var info in file.ScanReverse()) {
+            scannedFrames.Add((info.Tag, info.PayloadLength));
+        }
+
+        // Assert: 验证逆序（Frame 5 → 4 → 3 → 2 → 1）
+        Assert.Equal(5, scannedFrames.Count);
+        for (int i = 0; i < 5; i++) {
+            int expectedIndex = 4 - i; // 逆序
+            Assert.Equal(expectedFrames[expectedIndex].tag, scannedFrames[i].tag);
+            Assert.Equal(expectedFrames[expectedIndex].payload.Length, scannedFrames[i].payloadLen);
+        }
+
+        // 验证每帧内容
+        int frameIndex = 4; // 从最后一帧开始（逆序）
+        foreach (var info in file.ScanReverse()) {
+            var readResult = info.ReadPooledFrame();
+            Assert.True(readResult.IsSuccess);
+            using var frame = readResult.Value!;
+            Assert.Equal(expectedFrames[frameIndex].tag, frame.Tag);
+            Assert.Equal(expectedFrames[frameIndex].payload, frame.PayloadAndMeta.ToArray());
+            frameIndex--;
+        }
+    }
+
+    /// <summary>ScanReverse 迭代器终止状态：Builder 帧正常扫描后 TerminationError 为 null。</summary>
+    [Fact]
+    public void ScanReverse_BuilderFrames_TerminationErrorIsNull() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+
+        // 写入几帧
+        using (var builder = file.BeginAppend()) {
+            var span = builder.PayloadAndMeta.GetSpan(4);
+            span.Fill(0xAA);
+            builder.PayloadAndMeta.Advance(4);
+            builder.EndAppend(0x1111);
+        }
+
+        file.Append(0x2222, [0xBB, 0xCC]);
+
+        using (var builder = file.BeginAppend()) {
+            var span = builder.PayloadAndMeta.GetSpan(8);
+            span.Fill(0xDD);
+            builder.PayloadAndMeta.Advance(8);
+            builder.EndAppend(0x3333);
+        }
+
+        // Act
+        var enumerator = file.ScanReverse().GetEnumerator();
+        int count = 0;
+        while (enumerator.MoveNext()) {
+            count++;
+        }
+
+        // Assert
+        Assert.Equal(3, count);
+        Assert.Null(enumerator.TerminationError);
+    }
+
+    /// <summary>ScanReverse Ticket 可用于直接 ReadFrame：验证 Builder 帧的 Ticket 有效。</summary>
+    [Fact]
+    public void ScanReverse_BuilderFrame_TicketUsableForReadFrame() {
+        // Arrange
+        var path = GetTempFilePath();
+        byte[] payload = [0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA, 0xBE];
+        uint tag = 0x12345678;
+
+        using var file = RbfFile.CreateNew(path);
+
+        // 使用 Builder 写入
+        using (var builder = file.BeginAppend()) {
+            var span = builder.PayloadAndMeta.GetSpan(payload.Length);
+            payload.CopyTo(span);
+            builder.PayloadAndMeta.Advance(payload.Length);
+            builder.EndAppend(tag);
+        }
+
+        // Act: 通过 ScanReverse 获取 Ticket，然后用 Ticket 读取帧
+        SizedPtr ticket = default;
+        foreach (var info in file.ScanReverse()) {
+            ticket = info.Ticket;
+            break;
+        }
+
+        // 使用 Ticket 直接调用 ReadFrame
+        byte[] buffer = new byte[ticket.Length];
+        var result = file.ReadFrame(ticket, buffer);
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        var frame = result.Value;
+        Assert.Equal(tag, frame.Tag);
         Assert.Equal(payload, frame.PayloadAndMeta.ToArray());
     }
 }
