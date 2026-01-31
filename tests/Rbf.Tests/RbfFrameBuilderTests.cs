@@ -514,4 +514,336 @@ public class RbfFrameBuilderTests : IDisposable {
             Assert.Equal(payload3, f.PayloadAndMeta.ToArray());
         }
     }
+
+    // ========== Task 7.8: Auto-Abort 测试 ==========
+    // 规范引用：@[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME]
+
+    /// <summary>Zero I/O Abort（小 Payload）：BeginAppend → 写 100B → Dispose → 验证文件无变化。</summary>
+    [Fact]
+    public void AutoAbort_SmallPayload_ZeroIO() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+
+        // 先写一帧确保文件有初始内容
+        var result = file.Append(0x1234, [0x01, 0x02, 0x03]);
+        Assert.True(result.IsSuccess);
+
+        // 记录 Dispose 前的文件长度
+        long originalLength = new FileInfo(path).Length;
+
+        // Act - BeginAppend → 写 100B → Dispose（不调用 EndAppend）
+        using (var builder = file.BeginAppend()) {
+            byte[] payload = new byte[100];
+            Random.Shared.NextBytes(payload);
+            var span = builder.PayloadAndMeta.GetSpan(payload.Length);
+            payload.CopyTo(span);
+            builder.PayloadAndMeta.Advance(payload.Length);
+            // Dispose without EndAppend - Auto-Abort
+        }
+
+        // Assert - 文件长度不变（Zero I/O）
+        Assert.Equal(originalLength, new FileInfo(path).Length);
+    }
+
+    /// <summary>Zero I/O Abort（大 Payload）：BeginAppend → 写 100KB → Dispose → 验证文件无变化。</summary>
+    /// <remarks>HeadLen reservation 阻塞 flush，任意大小 payload 都是 Zero I/O Abort。</remarks>
+    [Fact]
+    public void AutoAbort_LargePayload_ZeroIO() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+
+        // 先写一帧确保文件有初始内容
+        var result = file.Append(0x1234, [0x01, 0x02, 0x03]);
+        Assert.True(result.IsSuccess);
+
+        // 记录 Dispose 前的文件长度
+        long originalLength = new FileInfo(path).Length;
+
+        // Act - BeginAppend → 写 100KB → Dispose（不调用 EndAppend）
+        using (var builder = file.BeginAppend()) {
+            byte[] payload = new byte[100 * 1024]; // 100KB
+            Random.Shared.NextBytes(payload);
+            var span = builder.PayloadAndMeta.GetSpan(payload.Length);
+            payload.CopyTo(span);
+            builder.PayloadAndMeta.Advance(payload.Length);
+            // Dispose without EndAppend - Auto-Abort
+        }
+
+        // Assert - 文件长度不变（Zero I/O，HeadLen reservation 阻塞了 flush）
+        Assert.Equal(originalLength, new FileInfo(path).Length);
+    }
+
+    /// <summary>Zero I/O Abort（带 Reservation）：BeginAppend → ReserveSpan → 写数据 → Commit → Dispose → 验证文件无变化。</summary>
+    [Fact]
+    public void AutoAbort_WithReservation_ZeroIO() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+
+        // 先写一帧确保文件有初始内容
+        var result = file.Append(0x1234, [0x01, 0x02, 0x03]);
+        Assert.True(result.IsSuccess);
+
+        // 记录 Dispose 前的文件长度
+        long originalLength = new FileInfo(path).Length;
+
+        // Act - BeginAppend → ReserveSpan → 写数据 → Commit → Dispose
+        using (var builder = file.BeginAppend()) {
+            // 预留 4 字节
+            var reservedSpan = builder.PayloadAndMeta.ReserveSpan(4, out var token, tag: "length");
+
+            // 写入数据
+            byte[] data = new byte[50];
+            Random.Shared.NextBytes(data);
+            var span = builder.PayloadAndMeta.GetSpan(data.Length);
+            data.CopyTo(span);
+            builder.PayloadAndMeta.Advance(data.Length);
+
+            // 回填并 Commit
+            System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(reservedSpan, data.Length);
+            builder.PayloadAndMeta.Commit(token);
+
+            // Dispose without EndAppend - Auto-Abort
+        }
+
+        // Assert - 文件长度不变（Zero I/O）
+        Assert.Equal(originalLength, new FileInfo(path).Length);
+    }
+
+    /// <summary>Abort 后可继续 Append：Dispose 后 Append 成功。</summary>
+    [Fact]
+    public void AutoAbort_ThenAppend_Success() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+
+        // Act - BeginAppend → 写数据 → Dispose（Auto-Abort）
+        using (var builder = file.BeginAppend()) {
+            var span = builder.PayloadAndMeta.GetSpan(10);
+            span.Fill(0xAA);
+            builder.PayloadAndMeta.Advance(10);
+            // Dispose without EndAppend
+        }
+
+        // Act - Abort 后 Append
+        byte[] payload = [0x11, 0x22, 0x33];
+        var result = file.Append(0x5678, payload);
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        var ptr = result.Value!;
+        var readResult = file.ReadPooledFrame(ptr);
+        Assert.True(readResult.IsSuccess);
+        using var frame = readResult.Value!;
+        Assert.Equal(0x5678u, frame.Tag);
+        Assert.Equal(payload, frame.PayloadAndMeta.ToArray());
+    }
+
+    /// <summary>Abort 后可继续 BeginAppend：Dispose 后 BeginAppend 成功。</summary>
+    [Fact]
+    public void AutoAbort_ThenBeginAppend_Success() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+
+        // Act - BeginAppend → 写数据 → Dispose（Auto-Abort）
+        using (var builder = file.BeginAppend()) {
+            var span = builder.PayloadAndMeta.GetSpan(10);
+            span.Fill(0xBB);
+            builder.PayloadAndMeta.Advance(10);
+            // Dispose without EndAppend
+        }
+
+        // Act - Abort 后 BeginAppend
+        SizedPtr ptr;
+        using (var builder = file.BeginAppend()) {
+            byte[] payload = [0x44, 0x55, 0x66];
+            var span = builder.PayloadAndMeta.GetSpan(payload.Length);
+            payload.CopyTo(span);
+            builder.PayloadAndMeta.Advance(payload.Length);
+            ptr = builder.EndAppend(0x9ABC);
+        }
+
+        // Assert
+        var readResult = file.ReadPooledFrame(ptr);
+        Assert.True(readResult.IsSuccess);
+        using var frame = readResult.Value!;
+        Assert.Equal(0x9ABCu, frame.Tag);
+        Assert.Equal(new byte[] { 0x44, 0x55, 0x66 }, frame.PayloadAndMeta.ToArray());
+    }
+
+    /// <summary>Abort 后 TailOffset 不变：验证 file.TailOffset 与 Abort 前相同。</summary>
+    [Fact]
+    public void AutoAbort_TailOffsetUnchanged() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+
+        // 先写一帧确保有初始 TailOffset
+        var result = file.Append(0x1234, [0x01, 0x02, 0x03]);
+        Assert.True(result.IsSuccess);
+        long originalTailOffset = file.TailOffset;
+
+        // Act - BeginAppend → 写数据 → Dispose（Auto-Abort）
+        using (var builder = file.BeginAppend()) {
+            byte[] payload = new byte[200];
+            Random.Shared.NextBytes(payload);
+            var span = builder.PayloadAndMeta.GetSpan(payload.Length);
+            payload.CopyTo(span);
+            builder.PayloadAndMeta.Advance(payload.Length);
+            // Dispose without EndAppend
+        }
+
+        // Assert - TailOffset 不变
+        Assert.Equal(originalTailOffset, file.TailOffset);
+    }
+
+    // ========== Task 7.9: 单 Builder 约束与 Append 互斥测试 ==========
+    // 规范引用：@[S-RBF-BUILDER-SINGLE-OPEN]
+
+    /// <summary>重复 BeginAppend：BeginAppend → BeginAppend → 抛出 InvalidOperationException。</summary>
+    [Fact]
+    public void BeginAppend_DuplicateCall_ThrowsInvalidOperationException() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+        using var builder1 = file.BeginAppend();
+
+        // Act & Assert
+        var ex = Assert.Throws<InvalidOperationException>(() => file.BeginAppend());
+        Assert.Contains("active", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Dispose 后可 BeginAppend：BeginAppend → Dispose → BeginAppend → 成功。</summary>
+    [Fact]
+    public void BeginAppend_AfterDispose_Success() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+
+        // 第一个 Builder - Dispose
+        using (var builder1 = file.BeginAppend()) {
+            // 不提交，直接 Dispose
+        }
+
+        // Act - 第二个 Builder
+        SizedPtr ptr;
+        using (var builder2 = file.BeginAppend()) {
+            byte[] payload = [0x77, 0x88];
+            var span = builder2.PayloadAndMeta.GetSpan(payload.Length);
+            payload.CopyTo(span);
+            builder2.PayloadAndMeta.Advance(payload.Length);
+            ptr = builder2.EndAppend(0xDEAD);
+        }
+
+        // Assert
+        var readResult = file.ReadPooledFrame(ptr);
+        Assert.True(readResult.IsSuccess);
+        using var frame = readResult.Value!;
+        Assert.Equal(0xDEADu, frame.Tag);
+    }
+
+    /// <summary>EndAppend 后可 BeginAppend：BeginAppend → EndAppend → BeginAppend → 成功。</summary>
+    [Fact]
+    public void BeginAppend_AfterEndAppend_Success() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+
+        // 第一个 Builder - EndAppend
+        using (var builder1 = file.BeginAppend()) {
+            var span = builder1.PayloadAndMeta.GetSpan(4);
+            span.Fill(0x11);
+            builder1.PayloadAndMeta.Advance(4);
+            builder1.EndAppend(0x1111);
+        }
+
+        // Act - 第二个 Builder
+        SizedPtr ptr;
+        using (var builder2 = file.BeginAppend()) {
+            byte[] payload = [0x99, 0xAA, 0xBB];
+            var span = builder2.PayloadAndMeta.GetSpan(payload.Length);
+            payload.CopyTo(span);
+            builder2.PayloadAndMeta.Advance(payload.Length);
+            ptr = builder2.EndAppend(0x2222);
+        }
+
+        // Assert
+        var readResult = file.ReadPooledFrame(ptr);
+        Assert.True(readResult.IsSuccess);
+        using var frame = readResult.Value!;
+        Assert.Equal(0x2222u, frame.Tag);
+        Assert.Equal(new byte[] { 0x99, 0xAA, 0xBB }, frame.PayloadAndMeta.ToArray());
+    }
+
+    /// <summary>Builder 期间 Append 抛异常：BeginAppend → Append → 抛出 InvalidOperationException。</summary>
+    [Fact]
+    public void Append_DuringActiveBuilder_ThrowsInvalidOperationException() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+        using var builder = file.BeginAppend();
+
+        // Act & Assert
+        var ex = Assert.Throws<InvalidOperationException>(() => file.Append(0x1234, [0x01]));
+        Assert.Contains("active", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Dispose 后可 Append：BeginAppend → Dispose → Append → 成功。</summary>
+    [Fact]
+    public void Append_AfterDispose_Success() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+
+        // BeginAppend → Dispose
+        using (var builder = file.BeginAppend()) {
+            var span = builder.PayloadAndMeta.GetSpan(10);
+            span.Fill(0xCC);
+            builder.PayloadAndMeta.Advance(10);
+            // Dispose without EndAppend
+        }
+
+        // Act - Append
+        byte[] payload = [0xDD, 0xEE, 0xFF];
+        var result = file.Append(0x3456, payload);
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        var readResult = file.ReadPooledFrame(result.Value!);
+        Assert.True(readResult.IsSuccess);
+        using var frame = readResult.Value!;
+        Assert.Equal(0x3456u, frame.Tag);
+        Assert.Equal(payload, frame.PayloadAndMeta.ToArray());
+    }
+
+    /// <summary>EndAppend 后可 Append：BeginAppend → EndAppend → Append → 成功。</summary>
+    [Fact]
+    public void Append_AfterEndAppend_Success() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+
+        // BeginAppend → EndAppend
+        using (var builder = file.BeginAppend()) {
+            var span = builder.PayloadAndMeta.GetSpan(5);
+            span.Fill(0x22);
+            builder.PayloadAndMeta.Advance(5);
+            builder.EndAppend(0x4444);
+        }
+
+        // Act - Append
+        byte[] payload = [0x10, 0x20, 0x30, 0x40];
+        var result = file.Append(0x5555, payload);
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        var readResult = file.ReadPooledFrame(result.Value!);
+        Assert.True(readResult.IsSuccess);
+        using var frame = readResult.Value!;
+        Assert.Equal(0x5555u, frame.Tag);
+        Assert.Equal(payload, frame.PayloadAndMeta.ToArray());
+    }
 }
