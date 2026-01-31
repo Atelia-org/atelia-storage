@@ -69,6 +69,20 @@ internal sealed class ReservationTracker {
     }
 
     /// <summary>
+    /// 尝试获取指定 token 的预留（不移除）
+    /// </summary>
+    /// <returns>true 如果 token 有效</returns>
+    public bool TryPeek(int token, [NotNullWhen(true)] out ReservationEntry? entry) {
+        if (_tokenToNode is null || !_tokenToNode.TryGetValue(token, out var node)) {
+            entry = null;
+            return false;
+        }
+
+        entry = node.Value;
+        return true;
+    }
+
+    /// <summary>
     /// 清空所有待提交预留（不重置 serial）
     /// </summary>
     public void Clear() {

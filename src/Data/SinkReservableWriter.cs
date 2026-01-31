@@ -1,8 +1,6 @@
-using System;
 using System.Buffers;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Numerics;
+using Atelia.Data.Hashing;
 
 namespace Atelia.Data;
 
@@ -244,6 +242,28 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
             TryRecycleFlushedChunks();
         }
     }
+
+    /// <summary>
+    /// 获取指定 reservation 的可写 span（用于在 Commit 前回填数据）。
+    /// </summary>
+    /// <param name="reservationToken">由 <see cref="ReserveSpan"/> 返回的 token。</param>
+    /// <param name="span">成功时返回 reservation 对应的 span；失败时为 default。</param>
+    /// <returns>token 有效时返回 true，否则返回 false。</returns>
+    /// <remarks>
+    /// 返回的 span 在 Commit/Reset/Dispose 前有效。
+    /// 此方法不改变 reservation 的状态（不执行 Commit）。
+    /// </remarks>
+    public bool TryGetReservationSpan(int reservationToken, out Span<byte> span) {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (!_reservations.TryPeek(reservationToken, out var entry)) {
+            span = default;
+            return false;
+        }
+
+        span = entry.Chunk.Buffer.AsSpan(entry.Offset, entry.Length);
+        return true;
+    }
     #endregion
 
     #region Reset/Dispose
@@ -302,5 +322,87 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
     /// True if there are no pending reservations and no pending buffered bytes.
     /// </summary>
     public bool IsIdle => PendingLength == 0 && _reservations.PendingCount == 0;
+
+    /// <summary>
+    /// 计算从指定 pending reservation 末尾到当前已写入末尾之间所有字节的 CRC32C。
+    /// </summary>
+    /// <param name="reservationToken">必须是当前唯一的 pending reservation。</param>
+    /// <param name="initValue">CRC 初始值（默认 0xFFFFFFFF）。</param>
+    /// <param name="finalXor">CRC 最终异或值（默认 0xFFFFFFFF）。</param>
+    /// <returns>计算得到的 CRC32C 值。</returns>
+    /// <exception cref="ObjectDisposedException">writer 已 Dispose。</exception>
+    /// <exception cref="InvalidOperationException">
+    /// 存在未 Advance 的借用 span/memory；token 无效或已提交；存在多个 pending reservation。
+    /// </exception>
+    /// <remarks>
+    /// 该方法不修改 writer 状态，不触发 flush。
+    /// </remarks>
+    public uint GetCrcSinceReservationEnd(
+        int reservationToken,
+        uint initValue = RollingCrc.DefaultInitValue,
+        uint finalXor = RollingCrc.DefaultFinalXor
+    ) {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (_hasLastSpan) {
+            throw new InvalidOperationException(
+                "Cannot compute CRC while a buffer is borrowed. Call Advance() or Advance(0) first."
+            );
+        }
+
+        if (!_reservations.TryPeek(reservationToken, out var entry)) {
+            throw new InvalidOperationException(
+                "Invalid or already committed reservation token."
+            );
+        }
+
+        if (_reservations.PendingCount != 1) {
+            throw new InvalidOperationException(
+                $"GetCrcSinceReservationEnd requires exactly 1 pending reservation, but found {_reservations.PendingCount}."
+            );
+        }
+
+        // 起点：reservation 末尾
+        var startChunk = entry.Chunk;
+        int startOffset = entry.Offset + entry.Length;
+
+        if (startOffset > startChunk.DataEnd) {
+            throw new InvalidOperationException(
+                "Reservation end offset exceeds written data end (internal error)."
+            );
+        }
+
+        // Rolling CRC 计算
+        uint crcRaw = initValue;
+        bool started = false;
+
+        foreach (var chunk in GetActiveChunks()) {
+            if (!started) {
+                if (chunk != startChunk) { continue; /* 跳过 reservation 之前的 chunk */ }
+                started = true;
+
+                // 第一个 chunk：从 reservation 末尾扫到 chunk.DataEnd
+                if (startOffset < chunk.DataEnd) {
+                    var span = chunk.Buffer.AsSpan(startOffset, chunk.DataEnd - startOffset);
+                    crcRaw = RollingCrc.CrcForward(crcRaw, span);
+                }
+            }
+            else {
+                // 后续 chunk：从 DataBegin 扫到 DataEnd
+                if (chunk.DataBegin < chunk.DataEnd) {
+                    var span = chunk.Buffer.AsSpan(chunk.DataBegin, chunk.DataEnd - chunk.DataBegin);
+                    crcRaw = RollingCrc.CrcForward(crcRaw, span);
+                }
+            }
+        }
+
+        if (!started) {
+            throw new InvalidOperationException(
+                "Reservation chunk not found in active chunks (internal error)."
+            );
+        }
+
+        return crcRaw ^ finalXor;
+    }
     #endregion
 }
