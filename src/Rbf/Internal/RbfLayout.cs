@@ -166,31 +166,14 @@ internal readonly struct FrameLayout {
         // 2. 定位 TrailerCodeword（帧末尾 16 字节）
         var trailerSpan = frameBuffer.Slice(frameBuffer.Length - TrailerCodewordSize, TrailerCodewordSize);
 
-        // 3. 验证 TrailerCrc32C
-        // @[F-TRAILER-CRC-COVERAGE]: TrailerCrc 覆盖 FrameDescriptor + FrameTag + TailLen
-        if (!TrailerCodewordHelper.CheckTrailerCrc(trailerSpan)) {
+        // 3. 验证并解析 TrailerCodeword（CRC + reserved bits）
+        var trailerResult = TrailerCodewordHelper.ParseAndValidate(trailerSpan);
+        if (!trailerResult.IsSuccess) {
             trailer = default;
-            return AteliaResult<FrameLayout>.Failure(
-                new RbfCrcMismatchError(
-                    "TrailerCrc32C verification failed.",
-                    RecoveryHint: "The frame trailer is corrupted."
-                )
-            );
+            return AteliaResult<FrameLayout>.Failure(trailerResult.Error!);
         }
 
-        // 4. 解析 TrailerCodeword
-        trailer = TrailerCodewordHelper.Parse(trailerSpan);
-
-        // 5. 验证 FrameDescriptor 保留位
-        // @[F-FRAME-DESCRIPTOR-LAYOUT]: bit 28-16 MUST 为 0
-        if (!TrailerCodewordHelper.ValidateReservedBits(trailer.FrameDescriptor)) {
-            return AteliaResult<FrameLayout>.Failure(
-                new RbfFramingError(
-                    $"FrameDescriptor reserved bits are not zero: 0x{trailer.FrameDescriptor:X8}.",
-                    RecoveryHint: "The frame descriptor is invalid or from a newer format version."
-                )
-            );
-        }
+        trailer = trailerResult.Value;
 
         // 6. 验证 TailLen == frameBuffer.Length（完整帧契约）
         // 调用方承诺传入完整帧数据，TailLen 必须与实际长度匹配
@@ -224,15 +207,12 @@ internal readonly struct FrameLayout {
 
         // 8. 计算 PayloadLength
         // PayloadLength = TailLen - FixedOverhead - TailMetaLen - PaddingLen
-        int payloadLength = (int)trailer.TailLen - FixedOverhead - trailer.TailMetaLen - trailer.PaddingLen;
-        if (payloadLength < 0) {
-            return AteliaResult<FrameLayout>.Failure(
-                new RbfFramingError(
-                    $"Computed PayloadLength is negative: {payloadLength} (TailLen={trailer.TailLen}, TailMetaLen={trailer.TailMetaLen}, PaddingLen={trailer.PaddingLen}).",
-                    RecoveryHint: "The frame descriptor fields are inconsistent."
-                )
-            );
+        var payloadLengthResult = TrailerCodewordHelper.ComputePayloadLength(trailer.TailLen, trailer.TailMetaLen, trailer.PaddingLen);
+        if (!payloadLengthResult.IsSuccess) {
+            return AteliaResult<FrameLayout>.Failure(payloadLengthResult.Error!);
         }
+
+        int payloadLength = payloadLengthResult.Value;
 
         // 9. 构造 FrameLayout
         return AteliaResult<FrameLayout>.Success(new FrameLayout(payloadLength, trailer.TailMetaLen));

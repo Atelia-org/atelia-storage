@@ -53,29 +53,14 @@ partial class RbfReadImpl {
             );
         }
 
-        // 4. 解析 TrailerCodeword（前 16 字节）
+        // 4. 验证并解析 TrailerCodeword（前 16 字节，CRC + reserved bits）
         var trailerSpan = buffer[..TrailerCodewordHelper.Size];
-        var trailer = TrailerCodewordHelper.Parse(trailerSpan);
-
-        // 5. 验证 TrailerCrc32C
-        if (!TrailerCodewordHelper.CheckTrailerCrc(trailerSpan)) {
-            return AteliaResult<RbfFrameInfo>.Failure(
-                new RbfFramingError(
-                    "TrailerCrc32C verification failed.",
-                    RecoveryHint: "The frame trailer is corrupted."
-                )
-            );
+        var trailerResult = TrailerCodewordHelper.ParseAndValidate(trailerSpan);
+        if (!trailerResult.IsSuccess) {
+            return AteliaResult<RbfFrameInfo>.Failure(trailerResult.Error!);
         }
 
-        // 6. 验证 FrameDescriptor 保留位（bit 28-16 MUST = 0）
-        if (!TrailerCodewordHelper.ValidateReservedBits(trailer.FrameDescriptor)) {
-            return AteliaResult<RbfFrameInfo>.Failure(
-                new RbfFramingError(
-                    $"FrameDescriptor reserved bits are not zero: 0x{trailer.FrameDescriptor:X8}.",
-                    RecoveryHint: "The frame descriptor is invalid or from a newer format version."
-                )
-            );
-        }
+        var trailer = trailerResult.Value;
 
         // 7. 验证 TailLen（包含 int 可表示性检查）
         // @[F-FRAMEBYTES-LAYOUT]: MinFrameLength = 24
@@ -106,15 +91,12 @@ partial class RbfReadImpl {
         // 9. 计算 PayloadLength
         // PayloadLength = TailLen - FixedOverhead - TailMetaLen - PaddingLen
         // FixedOverhead = HeadLen(4) + PayloadCrc(4) + TrailerCodeword(16) = 24
-        int payloadLen = (int)trailer.TailLen - FrameLayout.FixedOverhead - trailer.TailMetaLen - trailer.PaddingLen;
-        if (payloadLen < 0) {
-            return AteliaResult<RbfFrameInfo>.Failure(
-                new RbfFramingError(
-                    $"Computed PayloadLength is negative: {payloadLen} (TailLen={trailer.TailLen}, TailMetaLen={trailer.TailMetaLen}, PaddingLen={trailer.PaddingLen}).",
-                    RecoveryHint: "The frame descriptor fields are inconsistent."
-                )
-            );
+        var payloadLenResult = TrailerCodewordHelper.ComputePayloadLength(trailer.TailLen, trailer.TailMetaLen, trailer.PaddingLen);
+        if (!payloadLenResult.IsSuccess) {
+            return AteliaResult<RbfFrameInfo>.Failure(payloadLenResult.Error!);
         }
+
+        int payloadLen = payloadLenResult.Value;
 
         // 10. 构造 RbfFrameInfo（绑定 file 句柄）
         var ticket = SizedPtr.Create(frameStart, (int)trailer.TailLen);

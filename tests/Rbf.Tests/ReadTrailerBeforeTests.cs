@@ -282,9 +282,9 @@ public class ReadTrailerBeforeTests : IDisposable {
 
     #region CRC 损坏测试
 
-    /// <summary>验证 TrailerCrc32C 损坏时返回 FramingError。</summary>
+    /// <summary>验证 TrailerCrc32C 损坏时返回 CrcMismatchError。</summary>
     [Fact]
-    public void ReadTrailerBefore_CorruptedTrailerCrc_ReturnsFramingError() {
+    public void ReadTrailerBefore_CorruptedTrailerCrc_ReturnsCrcMismatchError() {
         // Arrange
         var path = GetTempFilePath();
         byte[] payload = [0x01, 0x02, 0x03];
@@ -305,7 +305,7 @@ public class ReadTrailerBeforeTests : IDisposable {
 
         // Assert
         Assert.False(result.IsSuccess);
-        Assert.IsType<RbfFramingError>(result.Error);
+        Assert.IsType<RbfCrcMismatchError>(result.Error);
         Assert.Contains("TrailerCrc32C", result.Error!.Message);
     }
 
@@ -333,7 +333,7 @@ public class ReadTrailerBeforeTests : IDisposable {
         // Assert
         Assert.False(result.IsSuccess);
         // 数据损坏会导致 TrailerCrc 校验失败
-        Assert.IsType<RbfFramingError>(result.Error);
+        Assert.IsType<RbfCrcMismatchError>(result.Error);
     }
 
     #endregion

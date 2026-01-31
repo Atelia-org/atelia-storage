@@ -388,7 +388,7 @@ public class RbfScanReverseTests : IDisposable {
         Assert.Equal(0x33333333u, frames[0]); // 只有 Frame3
 
         Assert.NotNull(enumerator.TerminationError);
-        Assert.IsType<RbfFramingError>(enumerator.TerminationError);
+        Assert.IsType<RbfCrcMismatchError>(enumerator.TerminationError);
     }
 
     /// <summary>验证硬停止语义：损坏帧之前的帧仍正确产出（不 Resync）。</summary>
@@ -466,7 +466,7 @@ public class RbfScanReverseTests : IDisposable {
         // Assert: 没有帧返回，但有错误
         Assert.Empty(frames);
         Assert.NotNull(enumerator.TerminationError);
-        Assert.IsType<RbfFramingError>(enumerator.TerminationError);
+        Assert.IsType<RbfCrcMismatchError>(enumerator.TerminationError);
     }
 
     #endregion

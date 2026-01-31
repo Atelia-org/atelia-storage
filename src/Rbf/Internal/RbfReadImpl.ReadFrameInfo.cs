@@ -44,28 +44,13 @@ partial class RbfReadImpl {
             );
         }
 
-        // 3. 验证 TrailerCrc32C
-        if (!TrailerCodewordHelper.CheckTrailerCrc(trailerBuffer)) {
-            return AteliaResult<RbfFrameInfo>.Failure(
-                new RbfCrcMismatchError(
-                    "TrailerCrc32C verification failed.",
-                    RecoveryHint: "The frame trailer is corrupted."
-                )
-            );
+        // 3. 验证并解析 TrailerCodeword（CRC + reserved bits）
+        var trailerResult = TrailerCodewordHelper.ParseAndValidate(trailerBuffer);
+        if (!trailerResult.IsSuccess) {
+            return AteliaResult<RbfFrameInfo>.Failure(trailerResult.Error!);
         }
 
-        // 4. 解析 TrailerCodeword
-        var trailer = TrailerCodewordHelper.Parse(trailerBuffer);
-
-        // 5. 验证 FrameDescriptor 保留位（bit 28-16 MUST = 0）
-        if (!TrailerCodewordHelper.ValidateReservedBits(trailer.FrameDescriptor)) {
-            return AteliaResult<RbfFrameInfo>.Failure(
-                new RbfFramingError(
-                    $"FrameDescriptor reserved bits are not zero: 0x{trailer.FrameDescriptor:X8}.",
-                    RecoveryHint: "The frame descriptor is invalid or from a newer format version."
-                )
-            );
-        }
+        var trailer = trailerResult.Value;
 
         // 6. 验证 TailLen == ticket.Length（一致性校验）
         if (trailer.TailLen != (uint)ticketLength) {
@@ -78,15 +63,12 @@ partial class RbfReadImpl {
         }
 
         // 7. 计算 PayloadLength
-        int payloadLen = ticketLength - FrameLayout.FixedOverhead - trailer.TailMetaLen - trailer.PaddingLen;
-        if (payloadLen < 0) {
-            return AteliaResult<RbfFrameInfo>.Failure(
-                new RbfFramingError(
-                    $"Computed PayloadLength is negative: {payloadLen} (TailLen={trailer.TailLen}, TailMetaLen={trailer.TailMetaLen}, PaddingLen={trailer.PaddingLen}).",
-                    RecoveryHint: "The frame descriptor fields are inconsistent."
-                )
-            );
+        var payloadLenResult = TrailerCodewordHelper.ComputePayloadLength(trailer.TailLen, trailer.TailMetaLen, trailer.PaddingLen);
+        if (!payloadLenResult.IsSuccess) {
+            return AteliaResult<RbfFrameInfo>.Failure(payloadLenResult.Error!);
         }
+
+        int payloadLen = payloadLenResult.Value;
 
         // 8. 构造 RbfFrameInfo（绑定 file 句柄）
         return AteliaResult<RbfFrameInfo>.Success(
