@@ -53,7 +53,7 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
     }
     #endregion
 
-    private readonly IByteSink _sink;
+    private IByteSink _sink;
 
     public SinkReservableWriter(IByteSink sink, ArrayPool<byte>? pool = null)
         : this(sink, new ChunkedReservableWriterOptions { Pool = pool }) {
@@ -272,7 +272,8 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
     /// <summary>
     /// Resets the writer to its initial state, returning all rented buffers to the pool.
     /// </summary>
-    public void Reset() {
+    /// <param name="newSink">新的 Sink，若为 null 则保持当前 Sink</param>
+    public void Reset(IByteSink? newSink = null) {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         foreach (var c in _chunks) {
@@ -290,6 +291,11 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
         _hasLastSpan = false;
         _lastSpanLength = 0;
         // Do not reset _reservationSerial to avoid token reuse hazards.
+
+        // 切换 sink（在清理完成后）
+        if (newSink is not null) {
+            _sink = newSink;
+        }
     }
 
     public void Dispose() {

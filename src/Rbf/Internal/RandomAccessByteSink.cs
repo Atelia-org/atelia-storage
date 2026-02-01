@@ -49,4 +49,12 @@ internal sealed class RandomAccessByteSink : IByteSink {
         RandomAccess.Write(_file, data, _writeOffset);
         _writeOffset += data.Length;
     }
+
+    /// <summary>
+    /// 重置写入偏移量，复用同一个 Sink 实例。
+    /// </summary>
+    /// <param name="writeOffset">新的起始写入偏移量</param>
+    public void Reset(long writeOffset) {
+        _writeOffset = writeOffset;
+    }
 }

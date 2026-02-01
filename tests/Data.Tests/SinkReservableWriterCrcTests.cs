@@ -202,6 +202,105 @@ public class SinkReservableWriterCrcTests {
         Assert.Contains("Invalid or already committed", ex.Message);
     }
 
+    /// <summary>
+    /// 验证 Reset 后 CRC 计算正确性：第二轮写入的 CRC 应基于新数据，不受旧数据影响。
+    /// </summary>
+    [Fact]
+    public void Reset_ClearsChunks_CrcComputationCorrect() {
+        // Arrange
+        var sink = new TestHelpers.CollectingWriter();
+        using var writer = new SinkReservableWriter(sink);
+
+        // 第一轮写入
+        _ = writer.ReserveSpan(4, out var token1, "head");
+        byte[] data1 = [1, 2, 3, 4, 5, 6, 7, 8];
+        data1.CopyTo(writer.GetSpan(data1.Length));
+        writer.Advance(data1.Length);
+        var crc1 = writer.GetCrcSinceReservationEnd(token1);
+
+        writer.Reset();
+
+        // 第二轮写入（不同数据）
+        _ = writer.ReserveSpan(4, out var token2, "head");
+        byte[] data2 = [9, 9, 9, 9];
+        data2.CopyTo(writer.GetSpan(data2.Length));
+        writer.Advance(data2.Length);
+        var crc2 = writer.GetCrcSinceReservationEnd(token2);
+
+        // Act & Assert：CRC 应基于新数据计算，不受旧数据影响
+        Assert.NotEqual(crc1, crc2);
+
+        // 验证 crc2 是对 [9, 9, 9, 9] 的正确 CRC
+        var expectedCrc2 = Hashing.RollingCrc.CrcForward([9, 9, 9, 9]);
+        Assert.Equal(expectedCrc2, crc2);
+    }
+
+    /// <summary>
+    /// 验证 Reset 切换 sink 后，数据写入新 sink。
+    /// </summary>
+    [Fact]
+    public void Reset_WithNewSink_UsesNewSink() {
+        // Arrange
+        var sink1 = new TestHelpers.CollectingWriter();
+        var sink2 = new TestHelpers.CollectingWriter();
+        using var writer = new SinkReservableWriter(sink1);
+
+        // 写入到 sink1
+        _ = writer.ReserveSpan(4, out var token1);
+        byte[] data1 = [1, 2, 3];
+        data1.CopyTo(writer.GetSpan(data1.Length));
+        writer.Advance(data1.Length);
+        writer.Commit(token1);
+
+        Assert.Equal(7, sink1.Data().Length); // 4 (reservation) + 3 (payload)
+
+        // Reset 切换到 sink2
+        writer.Reset(sink2);
+
+        // 写入到 sink2
+        _ = writer.ReserveSpan(4, out var token2);
+        byte[] data2 = [4, 5, 6, 7, 8];
+        data2.CopyTo(writer.GetSpan(data2.Length));
+        writer.Advance(data2.Length);
+        writer.Commit(token2);
+
+        // Assert
+        Assert.Equal(7, sink1.Data().Length);  // sink1 数据不变
+        Assert.Equal(9, sink2.Data().Length);  // 4 (reservation) + 5 (payload)
+    }
+
+    /// <summary>
+    /// 验证 Reset(null) 保持当前 sink。
+    /// </summary>
+    [Fact]
+    public void Reset_WithNullSink_KeepsCurrentSink() {
+        // Arrange
+        var sink = new TestHelpers.CollectingWriter();
+        using var writer = new SinkReservableWriter(sink);
+
+        // 写入第一批数据
+        _ = writer.ReserveSpan(4, out var token1);
+        byte[] data1 = [1, 2, 3];
+        data1.CopyTo(writer.GetSpan(data1.Length));
+        writer.Advance(data1.Length);
+        writer.Commit(token1);
+
+        int lengthAfterFirst = sink.Data().Length;
+
+        // Reset with null (keep current sink)
+        writer.Reset(null);
+
+        // 写入第二批数据
+        _ = writer.ReserveSpan(4, out var token2);
+        byte[] data2 = [4, 5];
+        data2.CopyTo(writer.GetSpan(data2.Length));
+        writer.Advance(data2.Length);
+        writer.Commit(token2);
+
+        // Assert：数据继续写入同一个 sink
+        Assert.Equal(lengthAfterFirst + 4 + 2, sink.Data().Length);
+    }
+
     [Fact]
     public void GetCrcSinceReservationEnd_Disposed_ThrowsObjectDisposedException() {
         // Arrange
