@@ -113,7 +113,33 @@ internal sealed class RbfFileImpl : IRbfFile {
 
     /// <inheritdoc />
     public void Truncate(long newLengthBytes) {
-        throw new NotImplementedException();
+        // 1. Disposed 检查
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        // 2. Active builder 检查
+        if (_hasActiveBuilder) {
+            throw new InvalidOperationException(
+                "Cannot truncate while a builder is active. Dispose the builder first.");
+        }
+
+        // 3. 参数校验
+        if (newLengthBytes < 0) {
+            throw new ArgumentOutOfRangeException(
+                nameof(newLengthBytes), newLengthBytes,
+                "newLengthBytes must be non-negative.");
+        }
+
+        if ((newLengthBytes & 0x3) != 0) {
+            throw new ArgumentOutOfRangeException(
+                nameof(newLengthBytes), newLengthBytes,
+                "newLengthBytes must be 4-byte aligned.");
+        }
+
+        // 4. 执行截断
+        RandomAccess.SetLength(_handle, newLengthBytes);
+
+        // 5. 更新 TailOffset
+        _tailOffset = newLengthBytes;
     }
 
     /// <inheritdoc />
