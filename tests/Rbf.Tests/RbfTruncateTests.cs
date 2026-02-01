@@ -306,4 +306,148 @@ public class RbfTruncateTests : IDisposable {
         Assert.Equal(0x1111u, frames[0].tag);
         Assert.Equal(payload1, frames[0].payload);
     }
+
+    // ========== 集成测试（恢复场景） - Task 8.5 ==========
+
+    /// <summary>
+    /// 恢复场景 1: DurableFlush + Truncate 恢复。
+    /// Append 3 帧 → DurableFlush → Truncate(帧2末尾) → DurableFlush → 重新 OpenExisting → ScanReverse 只看到帧1、帧2。
+    /// </summary>
+    [Fact]
+    public void Recovery_DurableFlushAndTruncate_ReopensWithCorrectFrames() {
+        // Arrange
+        var path = GetTempFilePath();
+
+        byte[] payload1 = [0x01, 0x02, 0x03, 0x04];
+        byte[] payload2 = [0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18];
+        byte[] payload3 = [0x21, 0x22, 0x23, 0x24];
+
+        SizedPtr ptr2;
+        long frame2End;
+
+        // Phase 1: 写入 3 帧 → DurableFlush → Truncate → DurableFlush
+        using (var file = RbfFile.CreateNew(path)) {
+            var result1 = file.Append(0x1111, payload1);
+            Assert.True(result1.IsSuccess);
+
+            var result2 = file.Append(0x2222, payload2);
+            Assert.True(result2.IsSuccess);
+            ptr2 = result2.Value!;
+
+            var result3 = file.Append(0x3333, payload3);
+            Assert.True(result3.IsSuccess);
+
+            file.DurableFlush();
+
+            // 计算帧2末尾位置
+            frame2End = ptr2.Offset + ptr2.Length + RbfLayout.FenceSize;
+            file.Truncate(frame2End);
+
+            file.DurableFlush();
+        }
+
+        // Phase 2: 重新打开并验证
+        using (var file = RbfFile.OpenExisting(path)) {
+            Assert.Equal(frame2End, file.TailOffset);
+
+            // ScanReverse 应只看到帧1、帧2
+            var frames = new List<(uint tag, byte[] payload)>();
+            foreach (var info in file.ScanReverse()) {
+                var readResult = info.ReadPooledFrame();
+                Assert.True(readResult.IsSuccess);
+                using var frame = readResult.Value!;
+                frames.Add((frame.Tag, frame.PayloadAndMeta.ToArray()));
+            }
+
+            // 逆序扫描：先帧2后帧1
+            Assert.Equal(2, frames.Count);
+            Assert.Equal(0x2222u, frames[0].tag);
+            Assert.Equal(payload2, frames[0].payload);
+            Assert.Equal(0x1111u, frames[1].tag);
+            Assert.Equal(payload1, frames[1].payload);
+        }
+    }
+
+    /// <summary>
+    /// 恢复场景 2: Truncate 到 Fence 位置。
+    /// Append 帧 → Truncate(HeaderFence 后，即 4) → 验证 TailOffset == 4。
+    /// </summary>
+    [Fact]
+    public void Recovery_TruncateToHeaderFence_TailOffsetEquals4() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+
+        // 写入一帧
+        var result = file.Append(0x1234, [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]);
+        Assert.True(result.IsSuccess);
+        Assert.True(file.TailOffset > RbfLayout.FenceSize);
+
+        // Act - Truncate 到 HeaderFence 位置（4 字节）
+        file.Truncate(RbfLayout.FenceSize);
+
+        // Assert
+        Assert.Equal(RbfLayout.FenceSize, file.TailOffset);
+        Assert.Equal(4, file.TailOffset); // 显式验证等于 4
+        Assert.Equal(4, new FileInfo(path).Length);
+
+        // ScanReverse 应该无帧
+        var frameCount = 0;
+        foreach (var _ in file.ScanReverse()) {
+            frameCount++;
+        }
+        Assert.Equal(0, frameCount);
+    }
+
+    /// <summary>
+    /// 恢复场景 3: Truncate 后 BeginAppend。
+    /// Append → Truncate(4) → BeginAppend → 写入数据 → EndAppend → ReadFrame 成功。
+    /// </summary>
+    [Fact]
+    public void Recovery_TruncateThenBeginAppend_NewFrameReadable() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+
+        // 写入一帧
+        var result1 = file.Append(0x1111, [0x01, 0x02, 0x03, 0x04]);
+        Assert.True(result1.IsSuccess);
+
+        // Truncate 到 HeaderFence
+        file.Truncate(RbfLayout.FenceSize);
+        Assert.Equal(4, file.TailOffset);
+
+        // Act - 使用 BeginAppend 写入新帧
+        byte[] newPayload = [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x11, 0x22];
+        uint newTag = 0x9999;
+        SizedPtr newPtr;
+
+        using (var builder = file.BeginAppend()) {
+            var span = builder.PayloadAndMeta.GetSpan(newPayload.Length);
+            newPayload.CopyTo(span);
+            builder.PayloadAndMeta.Advance(newPayload.Length);
+            newPtr = builder.EndAppend(newTag);
+        }
+
+        // Assert - ReadFrame 成功
+        var readResult = file.ReadPooledFrame(newPtr);
+        Assert.True(readResult.IsSuccess);
+        using (var frame = readResult.Value!) {
+            Assert.Equal(newTag, frame.Tag);
+            Assert.Equal(newPayload, frame.PayloadAndMeta.ToArray());
+        }
+
+        // 验证 ScanReverse 只看到新帧
+        var frames = new List<(uint tag, byte[] payload)>();
+        foreach (var info in file.ScanReverse()) {
+            var scanReadResult = info.ReadPooledFrame();
+            Assert.True(scanReadResult.IsSuccess);
+            using var f = scanReadResult.Value!;
+            frames.Add((f.Tag, f.PayloadAndMeta.ToArray()));
+        }
+
+        Assert.Single(frames);
+        Assert.Equal(newTag, frames[0].tag);
+        Assert.Equal(newPayload, frames[0].payload);
+    }
 }
