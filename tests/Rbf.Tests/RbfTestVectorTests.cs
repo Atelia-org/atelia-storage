@@ -7,7 +7,7 @@ namespace Atelia.Rbf.Tests;
 /// <remarks>
 /// 本文件专注于"规范验证"，与 rbf-test-vectors.md 形成 1:1 对应。
 /// </remarks>
-public class RbfTestVectorTests {
+public class RbfTestVectorTests : IDisposable {
     #region RBF_LEN_* 帧长度计算测试（§1.4）
 
     /// <summary>RBF_LEN_001：PayloadLen = 0,1,2,3,4 时，验证 PaddingLen 和 FrameLength。</summary>
@@ -183,6 +183,142 @@ public class RbfTestVectorTests {
             TrailerCodewordHelper.ValidateReservedBits(invalidDescriptor),
             $"Expected false for descriptor 0x{invalidDescriptor:X8}: {failureReason}"
         );
+    }
+
+    #endregion
+
+    #region READFRAME_CRC_* CRC 职责分离测试（§3.3 和 §4.3）
+
+    /// <summary>READFRAME_CRC_001：TrailerCrc 正确 + PayloadCrc 被篡改 → ReadFrame/ReadPooledFrame 失败。</summary>
+    /// <remarks>
+    /// 规范引用：
+    /// - @[F-PAYLOAD-CRC-COVERAGE] - PayloadCrc 覆盖 Payload + TailMeta + Padding
+    /// - @[R-REVERSE-SCAN-USES-TRAILER-CRC] - ScanReverse 只校验 TrailerCrc
+    /// 帧布局：[HeadLen(4)][Payload(N)][TailMeta(M)][Padding(P)][PayloadCrc32C(4)][TrailerCodeword(16)]
+    /// PayloadCrc32C 位于帧末尾倒数 20-17 字节处（TrailerCodeword 16 字节 + PayloadCrc 4 字节）。
+    /// </remarks>
+    [Fact]
+    public void READFRAME_CRC_001_TrailerCrcOk_PayloadCrcCorrupted_ReadFrameFails() {
+        // Arrange: 写入正常帧
+        var path = GetTempFilePath();
+        byte[] payload = [0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA, 0xBE];
+        uint tag = 0x12345678;
+        Atelia.Data.SizedPtr framePtr;
+
+        using (var rbf = RbfFile.CreateNew(path)) {
+            var appendResult = rbf.Append(tag, payload);
+            Assert.True(appendResult.IsSuccess, "Append should succeed");
+            framePtr = appendResult.Value!;
+        }
+
+        // 篡改 PayloadCrc（位于 TrailerCodeword 前 4 字节）
+        // 帧布局：[HeadLen(4)][Payload(8)][Padding(0)][PayloadCrc(4)][TrailerCodeword(16)]
+        // PayloadCrc 偏移 = framePtr.Offset + framePtr.Length - 16 - 4 = framePtr.Offset + framePtr.Length - 20
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite);
+            var layout = new FrameLayout(payload.Length);
+            long payloadCrcAbsOffset = framePtr.Offset + layout.PayloadCrcOffset;
+
+            stream.Seek(payloadCrcAbsOffset, SeekOrigin.Begin);
+            // 翻转 PayloadCrc 的一个字节
+            int originalByte = stream.ReadByte();
+            stream.Seek(-1, SeekOrigin.Current);
+            stream.WriteByte((byte)(originalByte ^ 0xFF));
+        }
+
+        // Act & Assert: ReadFrame/ReadPooledFrame 应失败
+        using var rbfRead = RbfFile.OpenExisting(path);
+
+        // 测试 ReadPooledFrame
+        var readPooledResult = rbfRead.ReadPooledFrame(framePtr);
+        Assert.False(readPooledResult.IsSuccess, "ReadPooledFrame should fail when PayloadCrc is corrupted");
+        Assert.IsType<RbfCrcMismatchError>(readPooledResult.Error);
+
+        // 测试 ReadFrame
+        byte[] buffer = new byte[framePtr.Length];
+        var readFrameResult = rbfRead.ReadFrame(framePtr, buffer);
+        Assert.False(readFrameResult.IsSuccess, "ReadFrame should fail when PayloadCrc is corrupted");
+        Assert.IsType<RbfCrcMismatchError>(readFrameResult.Error);
+    }
+
+    /// <summary>READFRAME_CRC_002：TrailerCrc 正确 + PayloadCrc 被篡改 → ScanReverse 仍能枚举帧。</summary>
+    /// <remarks>
+    /// 规范引用：
+    /// - @[R-REVERSE-SCAN-USES-TRAILER-CRC] - ScanReverse 只校验 TrailerCrc
+    /// - @[S-RBF-SCANREVERSE-NO-PAYLOADCRC] - ScanReverse 不校验 PayloadCrc
+    /// 验证：ScanReverse 使用 TrailerCrc（L2 信任），可以发现帧但不保证 Payload 完整性。
+    /// </remarks>
+    [Fact]
+    public void READFRAME_CRC_002_TrailerCrcOk_PayloadCrcCorrupted_ScanReverseStillEnumerates() {
+        // Arrange: 写入多帧
+        var path = GetTempFilePath();
+        byte[] payload1 = [0x01, 0x02, 0x03, 0x04];
+        byte[] payload2 = [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF];
+        byte[] payload3 = [0x11, 0x22, 0x33];
+        uint tag1 = 0x11111111;
+        uint tag2 = 0x22222222;
+        uint tag3 = 0x33333333;
+        Atelia.Data.SizedPtr ptr2;
+
+        using (var rbf = RbfFile.CreateNew(path)) {
+            Assert.True(rbf.Append(tag1, payload1).IsSuccess);
+            var result2 = rbf.Append(tag2, payload2);
+            Assert.True(result2.IsSuccess);
+            ptr2 = result2.Value!;
+            Assert.True(rbf.Append(tag3, payload3).IsSuccess);
+        }
+
+        // 篡改 Frame2 的 PayloadCrc
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite);
+            var layout = new FrameLayout(payload2.Length);
+            long payloadCrcAbsOffset = ptr2.Offset + layout.PayloadCrcOffset;
+
+            stream.Seek(payloadCrcAbsOffset, SeekOrigin.Begin);
+            int originalByte = stream.ReadByte();
+            stream.Seek(-1, SeekOrigin.Current);
+            stream.WriteByte((byte)(originalByte ^ 0xFF));
+        }
+
+        // Act: ScanReverse 应能成功枚举所有帧（包括 PayloadCrc 损坏的帧）
+        using var rbfRead = RbfFile.OpenExisting(path);
+        var scannedFrames = new List<(uint tag, int payloadLen)>();
+        var enumerator = rbfRead.ScanReverse().GetEnumerator();
+
+        while (enumerator.MoveNext()) {
+            scannedFrames.Add((enumerator.Current.Tag, enumerator.Current.PayloadLength));
+        }
+
+        // Assert: 所有帧都应被枚举（逆序：Frame3, Frame2, Frame1）
+        Assert.Equal(3, scannedFrames.Count);
+        Assert.Equal((tag3, payload3.Length), scannedFrames[0]);
+        Assert.Equal((tag2, payload2.Length), scannedFrames[1]); // PayloadCrc 损坏但仍被枚举
+        Assert.Equal((tag1, payload1.Length), scannedFrames[2]);
+
+        // TerminationError 应为 null（正常结束）
+        Assert.Null(enumerator.TerminationError);
+
+        // 进一步验证：使用已知的 ptr2 读取损坏的 Frame2 应失败
+        var readResult = rbfRead.ReadPooledFrame(ptr2);
+        Assert.False(readResult.IsSuccess, "ReadPooledFrame should fail for corrupted frame");
+        Assert.IsType<RbfCrcMismatchError>(readResult.Error);
+    }
+
+    /// <summary>辅助方法：获取临时文件路径。</summary>
+    private readonly List<string> _tempFiles = new();
+
+    private string GetTempFilePath() {
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        _tempFiles.Add(path);
+        return path;
+    }
+
+    /// <summary>清理临时文件。</summary>
+    public void Dispose() {
+        foreach (var path in _tempFiles) {
+            try { if (File.Exists(path)) { File.Delete(path); } }
+            catch { /* 忽略清理错误 */ }
+        }
     }
 
     #endregion
