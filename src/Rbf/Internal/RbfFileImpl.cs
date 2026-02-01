@@ -16,6 +16,7 @@ internal sealed class RbfFileImpl : IRbfFile {
     private long _tailOffset;
     private bool _disposed;
     private bool _hasActiveBuilder;
+    private RbfFrameBuilder? _reusableBuilder;
 
     /// <summary>初始化 <see cref="RbfFileImpl"/> 实例。</summary>
     /// <param name="handle">已打开的文件句柄（所有权转移给此实例）。</param>
@@ -67,16 +68,22 @@ internal sealed class RbfFileImpl : IRbfFile {
             throw new InvalidOperationException($"TailOffset ({tailOffset}) has reached MaxFileOffset ({SizedPtr.MaxOffset}).");
         }
 
-        // 创建 RbfFrameBuilder（使用构造时缓存的 delegate，避免每次分配）
-        var builder = new RbfFrameBuilder(
-            _handle,
-            tailOffset,
-            onCommitCallback: _onCommitCallback,
-            clearBuilderFlag: _clearBuilderFlag
-        );
-
         _hasActiveBuilder = true;
-        return builder;
+
+        if (_reusableBuilder is null) {
+            // 首次创建
+            _reusableBuilder = new RbfFrameBuilder(
+                _handle,
+                tailOffset,
+                onCommitCallback: _onCommitCallback,
+                clearBuilderFlag: _clearBuilderFlag
+            );
+        } else {
+            // 复用：调用 Reset 方法
+            _reusableBuilder.Reset(tailOffset, _onCommitCallback, _clearBuilderFlag);
+        }
+
+        return _reusableBuilder;
     }
 
     /// <inheritdoc />
@@ -149,6 +156,17 @@ internal sealed class RbfFileImpl : IRbfFile {
     /// <inheritdoc />
     public void Dispose() {
         if (!_disposed) {
+            // 清理 reusable builder
+            if (_reusableBuilder is not null) {
+                // 如果 builder 有活跃写入，先 abort
+                if (!_reusableBuilder.CanBeReused) {
+                    _reusableBuilder.Dispose();
+                }
+                // 彻底释放内部资源
+                _reusableBuilder.DisposeInternal();
+                _reusableBuilder = null;
+            }
+
             _handle.Dispose();
             _disposed = true;
         }

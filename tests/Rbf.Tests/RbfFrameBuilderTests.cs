@@ -1122,4 +1122,267 @@ public class RbfFrameBuilderTests : IDisposable {
         Assert.Equal(tag, frame.Tag);
         Assert.Equal(payload, frame.PayloadAndMeta.ToArray());
     }
+
+    // ========== Phase 3: Builder Per-File 复用测试 ==========
+    // 规范引用：wish/W-0009-rbf/stage/10/task-phase3-builder-reuse.md
+
+    /// <summary>连续多次 BeginAppend → Commit：验证 Builder 被复用且数据独立。</summary>
+    [Fact]
+    public void BuilderReuse_MultipleCommits_NoDataLeakage() {
+        // Arrange
+        var path = GetTempFilePath();
+        var frames = new List<(SizedPtr ptr, byte[] payload, uint tag)>();
+
+        using var file = RbfFile.CreateNew(path);
+
+        // Act: 连续 5 次 BeginAppend → EndAppend
+        for (int i = 0; i < 5; i++) {
+            byte[] payload = new byte[10 + i * 5]; // 不同大小
+            Random.Shared.NextBytes(payload);
+            uint tag = (uint)(0x1000 + i);
+
+            using var builder = file.BeginAppend();
+            var span = builder.PayloadAndMeta.GetSpan(payload.Length);
+            payload.CopyTo(span);
+            builder.PayloadAndMeta.Advance(payload.Length);
+            var ptr = builder.EndAppend(tag);
+
+            frames.Add((ptr, payload, tag));
+        }
+
+        // Assert: 每帧可读且内容正确（无数据泄漏）
+        for (int i = 0; i < frames.Count; i++) {
+            var (ptr, expectedPayload, expectedTag) = frames[i];
+            var result = file.ReadPooledFrame(ptr);
+            Assert.True(result.IsSuccess, $"Frame {i} read failed: {result.Error}");
+            using var frame = result.Value!;
+            Assert.Equal(expectedTag, frame.Tag);
+            Assert.Equal(expectedPayload, frame.PayloadAndMeta.ToArray());
+        }
+    }
+
+    /// <summary>BeginAppend → Abort → BeginAppend → Commit：验证 Abort 后复用正常。</summary>
+    [Fact]
+    public void BuilderReuse_AfterAbort_NoDataLeakage() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+
+        // 第一帧：写入后 abort
+        byte[] abortedPayload = [0xAB, 0x0A, 0x7E, 0xD0];
+        using (var builder1 = file.BeginAppend()) {
+            var span = builder1.PayloadAndMeta.GetSpan(abortedPayload.Length);
+            abortedPayload.CopyTo(span);
+            builder1.PayloadAndMeta.Advance(abortedPayload.Length);
+            // 不调用 EndAppend，直接 Dispose → Abort
+        }
+
+        // 第二帧：正常写入（复用 builder）
+        byte[] committedPayload = [0xC0, 0xAA, 0x17, 0xED];
+        SizedPtr ptr;
+        using (var builder2 = file.BeginAppend()) {
+            var span = builder2.PayloadAndMeta.GetSpan(committedPayload.Length);
+            committedPayload.CopyTo(span);
+            builder2.PayloadAndMeta.Advance(committedPayload.Length);
+            ptr = builder2.EndAppend(0x2222);
+        }
+
+        // Assert: 只有一帧，且内容是第二次写入的
+        var frameCount = 0;
+        foreach (var _ in file.ScanReverse()) {
+            frameCount++;
+        }
+        Assert.Equal(1, frameCount);
+
+        var readResult = file.ReadPooledFrame(ptr);
+        Assert.True(readResult.IsSuccess);
+        using var frame = readResult.Value!;
+        Assert.Equal(0x2222u, frame.Tag);
+        Assert.Equal(committedPayload, frame.PayloadAndMeta.ToArray());
+    }
+
+    /// <summary>交替 Commit 和 Abort：验证状态隔离正确。</summary>
+    [Fact]
+    public void BuilderReuse_AlternatingCommitAndAbort_StateIsolation() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+        var committedFrames = new List<(SizedPtr ptr, byte[] payload)>();
+
+        // Act: 交替 Commit 和 Abort
+        for (int i = 0; i < 6; i++) {
+            byte[] payload = new byte[8 + i];
+            Random.Shared.NextBytes(payload);
+            uint tag = (uint)(0x1000 + i);
+
+            using var builder = file.BeginAppend();
+            var span = builder.PayloadAndMeta.GetSpan(payload.Length);
+            payload.CopyTo(span);
+            builder.PayloadAndMeta.Advance(payload.Length);
+
+            if (i % 2 == 0) {
+                // 偶数帧 Commit
+                var ptr = builder.EndAppend(tag);
+                committedFrames.Add((ptr, payload));
+            }
+            // 奇数帧 Abort（Dispose 不调用 EndAppend）
+        }
+
+        // Assert: 只有 3 帧（0, 2, 4）被提交
+        var frameCount = 0;
+        foreach (var _ in file.ScanReverse()) {
+            frameCount++;
+        }
+        Assert.Equal(3, frameCount);
+
+        // 验证每帧内容
+        for (int i = 0; i < committedFrames.Count; i++) {
+            var (ptr, expectedPayload) = committedFrames[i];
+            var result = file.ReadPooledFrame(ptr);
+            Assert.True(result.IsSuccess, $"Committed frame {i} read failed");
+            using var frame = result.Value!;
+            Assert.Equal(expectedPayload, frame.PayloadAndMeta.ToArray());
+        }
+    }
+
+    /// <summary>大数据量复用：连续写入大帧后复用 Builder。</summary>
+    [Fact]
+    public void BuilderReuse_LargePayloads_NoMemoryLeakOrCorruption() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+        var frames = new List<(SizedPtr ptr, byte[] payload)>();
+
+        // Act: 写入 3 个大帧（各 50KB）
+        for (int i = 0; i < 3; i++) {
+            byte[] payload = new byte[50 * 1024]; // 50KB
+            Random.Shared.NextBytes(payload);
+            uint tag = (uint)(0xB160 + i);
+
+            using var builder = file.BeginAppend();
+            var span = builder.PayloadAndMeta.GetSpan(payload.Length);
+            payload.CopyTo(span);
+            builder.PayloadAndMeta.Advance(payload.Length);
+            var ptr = builder.EndAppend(tag);
+
+            frames.Add((ptr, payload));
+        }
+
+        // Assert: 每帧内容完整正确
+        for (int i = 0; i < frames.Count; i++) {
+            var (ptr, expectedPayload) = frames[i];
+            var result = file.ReadPooledFrame(ptr);
+            Assert.True(result.IsSuccess, $"Large frame {i} read failed");
+            using var frame = result.Value!;
+            Assert.Equal(expectedPayload, frame.PayloadAndMeta.ToArray());
+        }
+    }
+
+    /// <summary>带 Reservation 的复用：验证 Reservation 状态正确重置。</summary>
+    [Fact]
+    public void BuilderReuse_WithReservation_StateResetCorrectly() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+        var frames = new List<(SizedPtr ptr, int length, byte[] data)>();
+
+        // Act: 连续 3 次带 Reservation 的写入
+        for (int i = 0; i < 3; i++) {
+            using var builder = file.BeginAppend();
+
+            // 预留 4 字节用于写入长度
+            var reservedSpan = builder.PayloadAndMeta.ReserveSpan(4, out var token, tag: "length");
+
+            // 写入实际数据
+            byte[] data = new byte[20 + i * 10];
+            Random.Shared.NextBytes(data);
+            var dataSpan = builder.PayloadAndMeta.GetSpan(data.Length);
+            data.CopyTo(dataSpan);
+            builder.PayloadAndMeta.Advance(data.Length);
+
+            // 回填预留的长度
+            System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(reservedSpan, data.Length);
+            builder.PayloadAndMeta.Commit(token);
+
+            // 提交帧
+            var ptr = builder.EndAppend((uint)(0x3000 + i));
+            frames.Add((ptr, data.Length, data));
+        }
+
+        // Assert: 每帧内容正确
+        for (int i = 0; i < frames.Count; i++) {
+            var (ptr, expectedLength, expectedData) = frames[i];
+            var result = file.ReadPooledFrame(ptr);
+            Assert.True(result.IsSuccess);
+            using var frame = result.Value!;
+
+            // 验证 payload 内容：4 字节长度 + 数据
+            var payloadAndMeta = frame.PayloadAndMeta;
+            Assert.Equal(4 + expectedLength, payloadAndMeta.Length);
+            int length = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payloadAndMeta);
+            Assert.Equal(expectedLength, length);
+            Assert.Equal(expectedData, payloadAndMeta.Slice(4).ToArray());
+        }
+    }
+
+    /// <summary>文件 Dispose 后 Builder 资源正确释放。</summary>
+    [Fact]
+    public void BuilderReuse_FileDispose_BuilderResourcesReleased() {
+        // Arrange
+        var path = GetTempFilePath();
+
+        // Act
+        using (var file = RbfFile.CreateNew(path)) {
+            // 写几帧确保 Builder 被创建和复用
+            for (int i = 0; i < 3; i++) {
+                using var builder = file.BeginAppend();
+                var span = builder.PayloadAndMeta.GetSpan(4);
+                span.Fill((byte)i);
+                builder.PayloadAndMeta.Advance(4);
+                builder.EndAppend((uint)(0x4000 + i));
+            }
+        }
+
+        // Assert: 文件可以重新打开读取
+        using var reopenedFile = RbfFile.OpenExisting(path);
+        var frameCount = 0;
+        foreach (var _ in reopenedFile.ScanReverse()) {
+            frameCount++;
+        }
+        Assert.Equal(3, frameCount);
+    }
+
+    /// <summary>Abort 后未提交 Reservation 的情况。</summary>
+    [Fact]
+    public void BuilderReuse_AbortWithUncommittedReservation_NextBuildSucceeds() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+
+        // 第一帧：创建 Reservation 但 Abort
+        using (var builder1 = file.BeginAppend()) {
+            _ = builder1.PayloadAndMeta.ReserveSpan(4, out var token, tag: "uncommitted");
+            var span = builder1.PayloadAndMeta.GetSpan(10);
+            span.Fill(0xAA);
+            builder1.PayloadAndMeta.Advance(10);
+            // Abort: 不 Commit reservation，不 EndAppend
+        }
+
+        // 第二帧：正常写入（验证 Reservation 状态已重置）
+        byte[] payload = [0x11, 0x22, 0x33];
+        SizedPtr ptr;
+        using (var builder2 = file.BeginAppend()) {
+            var span = builder2.PayloadAndMeta.GetSpan(payload.Length);
+            payload.CopyTo(span);
+            builder2.PayloadAndMeta.Advance(payload.Length);
+            ptr = builder2.EndAppend(0x5555);
+        }
+
+        // Assert
+        var result = file.ReadPooledFrame(ptr);
+        Assert.True(result.IsSuccess);
+        using var frame = result.Value!;
+        Assert.Equal(0x5555u, frame.Tag);
+        Assert.Equal(payload, frame.PayloadAndMeta.ToArray());
+    }
 }

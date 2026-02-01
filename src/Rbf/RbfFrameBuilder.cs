@@ -14,12 +14,12 @@ namespace Atelia.Rbf;
 /// 本就是堆分配，ref struct 外壳无实际收益；sealed class 更简单且支持未来 Reset 复用优化。
 /// </remarks>
 public sealed class RbfFrameBuilder : IDisposable {
-    private readonly long _frameStart;
+    private long _frameStart;
     private readonly RandomAccessByteSink _sink;
     private readonly SinkReservableWriter _writer;
-    private readonly int _headLenReservationToken;
-    private readonly Action<long> _onCommitCallback;
-    private readonly Action _clearBuilderFlag;
+    private int _headLenReservationToken;
+    private Action<long> _onCommitCallback;
+    private Action _clearBuilderFlag;
     private bool _committed;
     private bool _disposed;
 
@@ -148,10 +148,46 @@ public sealed class RbfFrameBuilder : IDisposable {
         return SizedPtr.Create(_frameStart, layout.FrameLength);
     }
 
+    /// <summary>指示 Builder 是否可以被复用（已 Dispose 或已 Commit）。</summary>
+    internal bool CanBeReused => _disposed || _committed;
+
+    /// <summary>
+    /// 重置 Builder 状态，准备写入新帧。
+    /// </summary>
+    /// <param name="frameStart">新帧的起始偏移量</param>
+    /// <param name="onCommitCallback">提交回调（可复用已缓存的 delegate）</param>
+    /// <param name="clearBuilderFlag">清除标记回调（可复用已缓存的 delegate）</param>
+    /// <exception cref="InvalidOperationException">Builder 处于活跃状态（未 Dispose 且未 Commit）。</exception>
+    internal void Reset(long frameStart, Action<long> onCommitCallback, Action clearBuilderFlag) {
+        // 1. 验证状态
+        if (!_disposed && !_committed) {
+            throw new InvalidOperationException("Cannot reset an active builder. Dispose or commit first.");
+        }
+
+        // 2. 重置位置信息
+        _frameStart = frameStart;
+        _onCommitCallback = onCommitCallback;
+        _clearBuilderFlag = clearBuilderFlag;
+
+        // 3. 重置状态标记
+        _committed = false;
+        _disposed = false;
+
+        // 4. 重置 Sink（使用 Phase 2 添加的方法）
+        _sink.Reset(frameStart);
+
+        // 5. 重置 Writer
+        _writer.Reset();
+
+        // 6. 重新预留 HeadLen
+        _ = _writer.ReserveSpan(FrameLayout.HeadLenSize, out _headLenReservationToken, tag: "HeadLen");
+    }
+
     /// <summary>释放构建器。若未 EndAppend，自动执行 Auto-Abort。</summary>
     /// <remarks>
     /// Auto-Abort 分支约束：<see cref="Dispose"/> 在 Auto-Abort 分支 MUST NOT 抛出异常
     /// （除非出现不可恢复的不变量破坏），并且必须让 File Facade 回到可继续写状态。
+    /// 注意：为支持 per-file 复用，Dispose 不再销毁 _writer，仅重置状态。
     /// </remarks>
     public void Dispose() {
         if (_disposed) { return; }
@@ -163,9 +199,16 @@ public sealed class RbfFrameBuilder : IDisposable {
         }
 
         // 清除 RbfFileImpl 的 active builder 标志
-        _clearBuilderFlag();
+        _clearBuilderFlag?.Invoke();
 
-        // 释放 writer（归还 buffer pool）
+        // 注意：不再 Dispose _writer，因为要复用
+    }
+
+    /// <summary>
+    /// 彻底释放内部资源（仅供 RbfFileImpl.Dispose 调用）。
+    /// </summary>
+    internal void DisposeInternal() {
+        if (!_disposed) { Dispose(); }
         _writer.Dispose();
     }
 }
