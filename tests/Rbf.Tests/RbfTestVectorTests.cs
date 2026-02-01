@@ -696,4 +696,155 @@ public class RbfTestVectorTests : IDisposable {
     }
 
     #endregion
+
+    #region RBF_BAD_* 损坏帧检测测试（§2.2）
+
+    /// <summary>
+    /// RBF-BAD-* 测试向量覆盖映射（rbf-test-vectors.md §2.2）。
+    ///
+    /// | 用例 | 描述 | 覆盖位置 |
+    /// |------|------|----------|
+    /// | RBF-BAD-001 | TrailerCrc 不匹配 | ReadTrailerBeforeTests（多个测试）、RbfReadImplTests |
+    /// | RBF-BAD-002 | PayloadCrc 不匹配 | 本文件 READFRAME_CRC_001、RbfReadImplTests |
+    /// | RBF-BAD-003 | Frame 起点非 4B 对齐 | SizedPtr 类型系统保证 4B 对齐（隐式覆盖） |
+    /// | RBF-BAD-004 | TailLen 超界/不足 | ReadTrailerBeforeTests（多个边界测试） |
+    /// | RBF-BAD-005 | Reserved bits 非零 | 本文件 RBF_DESCRIPTOR_002、ReadTrailerBeforeTests、TrailerCodewordHelperTests |
+    /// | RBF-BAD-006 | TailLen != HeadLen | RbfReadImplTests（HeadLenMismatch/TailLenMismatch） |
+    /// | RBF-BAD-007 | PaddingLen 与实际不符 | 本文件 RBF_BAD_007（本测试） + ReadTrailerBeforeTests（负 PayloadLength） |
+    /// </summary>
+    private const string CoverageMapping = "见上方文档注释";
+
+    /// <summary>RBF-BAD-007：PaddingLen 与实际计算值不符 → PayloadLength 计算错误导致 ReadFrame 失败。</summary>
+    /// <remarks>
+    /// 规范引用：@[F-PADDING-CALCULATION]
+    ///
+    /// 场景：FrameDescriptor 中声明的 PaddingLen 与 `(4 - ((PayloadLen + TailMetaLen) % 4)) % 4` 不符。
+    ///
+    /// 预期行为：
+    /// - ScanReverse 只校验 TrailerCrc，不验证 PaddingLen 一致性，可以枚举帧
+    /// - ReadFrame 时，由于 PayloadLength 计算不正确，解析出的数据会有偏差
+    /// - 如果 PaddingLen 声明过大导致 PayloadLength 计算为负数，则返回 FramingError
+    ///
+    /// 本测试验证：
+    /// 1. PaddingLen 过大 → PayloadLength 负数 → FramingError（通过篡改帧直接测试）
+    /// 2. PaddingLen 不一致 → 通过 ScanReverse 后 ReadFrame 验证数据不匹配
+    /// </remarks>
+    [Fact]
+    public void RBF_BAD_007_PaddingLenMismatch_LeadsToFramingOrDataError() {
+        // Arrange: 写入正常帧
+        var path = GetTempFilePath();
+        byte[] payload = [0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE]; // 6 字节 → 正确 PaddingLen = 2
+        uint tag = 0x12345678;
+        Atelia.Data.SizedPtr framePtr;
+
+        using (var rbf = RbfFile.CreateNew(path)) {
+            var appendResult = rbf.Append(tag, payload);
+            Assert.True(appendResult.IsSuccess, "Append should succeed");
+            framePtr = appendResult.Value!;
+        }
+
+        // 验证正常帧的 PaddingLen
+        var correctLayout = new FrameLayout(payload.Length);
+        Assert.Equal(2, correctLayout.PaddingLength); // (6 + 0) % 4 = 2 → PaddingLen = 2
+
+        // 篡改 FrameDescriptor 中的 PaddingLen（将 2 改为 3）
+        // 这会导致 PayloadLength 计算为 6 - 1 = 5（错误），而非正确的 6
+        // 但由于 TrailerCrc 会失败，需要重新计算 TrailerCrc
+        TamperFrameDescriptorPaddingLen(path, framePtr, newPaddingLen: 3);
+
+        // Act: 使用 RbfReadImpl 底层 API 测试
+        using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+
+        // ScanReverse 应该成功（TrailerCrc 已重新计算）
+        // 但 ReadFrame 时会发现计算出的 PayloadLength 与实际不匹配
+        var trailerBeforeResult = RbfReadImpl.ReadTrailerBefore(handle, new FileInfo(path).Length);
+        Assert.True(trailerBeforeResult.IsSuccess, "ReadTrailerBefore should succeed (TrailerCrc valid)");
+
+        var frameInfo = trailerBeforeResult.Value;
+        // PayloadLength 应该被错误计算为 5（因为 PaddingLen 被篡改为 3，多减了 1）
+        Assert.Equal(payload.Length - 1, frameInfo.PayloadLength); // 6 - 1 = 5（错误值）
+
+        // ReadPooledFrame 仍然会成功（因为 PayloadCrc 覆盖的是实际数据）
+        // 但读取的 Payload 长度会是错误的 5 字节
+        var readResult = RbfReadImpl.ReadPooledFrame(handle, in frameInfo);
+        Assert.True(readResult.IsSuccess, "ReadPooledFrame should succeed (PayloadCrc covers actual data)");
+
+        using var frame = readResult.Value!;
+        // 验证读取的数据长度与预期的错误值匹配
+        Assert.Equal(5, frame.PayloadAndMeta.Length); // 应该是 5（错误计算结果）
+        // 前 5 字节应该正确
+        Assert.Equal(payload[..5], frame.PayloadAndMeta.ToArray());
+    }
+
+    /// <summary>RBF-BAD-007 扩展：PaddingLen 过大导致 PayloadLength 负数。</summary>
+    /// <remarks>
+    /// 规范引用：@[F-PADDING-CALCULATION]
+    ///
+    /// 场景：最小帧（PayloadLen=0, TailMetaLen=0, 正确 PaddingLen=0）但 FrameDescriptor 声明 PaddingLen=3。
+    /// 预期：PayloadLength = TailLen(24) - FixedOverhead(24) - TailMetaLen(0) - PaddingLen(3) = -3 → FramingError
+    /// </remarks>
+    [Fact]
+    public void RBF_BAD_007_PaddingLenTooLarge_NegativePayloadLength_FramingError() {
+        // Arrange: 写入最小帧（空 payload）
+        var path = GetTempFilePath();
+        byte[] payload = []; // 0 字节 → 正确 PaddingLen = 0
+        uint tag = 0xDEADBEEF;
+        Atelia.Data.SizedPtr framePtr;
+
+        using (var rbf = RbfFile.CreateNew(path)) {
+            var appendResult = rbf.Append(tag, payload);
+            Assert.True(appendResult.IsSuccess, "Append should succeed");
+            framePtr = appendResult.Value!;
+        }
+
+        // 验证最小帧的 PaddingLen
+        var correctLayout = new FrameLayout(payload.Length);
+        Assert.Equal(0, correctLayout.PaddingLength);
+        Assert.Equal(FrameLayout.MinFrameLength, correctLayout.FrameLength); // 24 字节
+
+        // 篡改 FrameDescriptor 的 PaddingLen 为 3（非法值，会导致 PayloadLength 计算为 -3）
+        TamperFrameDescriptorPaddingLen(path, framePtr, newPaddingLen: 3);
+
+        // Act: ReadTrailerBefore 应失败（PayloadLength 为负数）
+        using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        var result = RbfReadImpl.ReadTrailerBefore(handle, new FileInfo(path).Length);
+
+        // Assert: 应返回 FramingError
+        Assert.False(result.IsSuccess, "ReadTrailerBefore should fail when PaddingLen causes negative PayloadLength");
+        Assert.IsType<RbfFramingError>(result.Error);
+        Assert.Contains("PayloadLength", result.Error!.Message);
+        Assert.Contains("negative", result.Error!.Message.ToLowerInvariant());
+    }
+
+    /// <summary>辅助方法：篡改帧的 FrameDescriptor.PaddingLen 并重新计算 TrailerCrc。</summary>
+    private static void TamperFrameDescriptorPaddingLen(string path, Atelia.Data.SizedPtr framePtr, int newPaddingLen) {
+        byte[] fileContent = File.ReadAllBytes(path);
+
+        // 计算 TrailerCodeword 在文件中的偏移
+        // TrailerCodeword 位于帧末尾 16 字节
+        int trailerOffset = (int)framePtr.Offset + framePtr.Length - TrailerCodewordHelper.Size;
+
+        // 读取当前 TrailerCodeword
+        var trailerSpan = fileContent.AsSpan(trailerOffset, TrailerCodewordHelper.Size);
+        var currentTrailer = TrailerCodewordHelper.Parse(trailerSpan);
+
+        // 构建新的 FrameDescriptor（只修改 PaddingLen）
+        uint newDescriptor = TrailerCodewordHelper.BuildDescriptor(
+            currentTrailer.IsTombstone,
+            newPaddingLen,
+            currentTrailer.TailMetaLen
+        );
+
+        // 重新序列化 TrailerCodeword（自动计算新的 TrailerCrc）
+        TrailerCodewordHelper.Serialize(
+            trailerSpan,
+            newDescriptor,
+            currentTrailer.FrameTag,
+            currentTrailer.TailLen
+        );
+
+        File.WriteAllBytes(path, fileContent);
+    }
+
+    #endregion
 }
