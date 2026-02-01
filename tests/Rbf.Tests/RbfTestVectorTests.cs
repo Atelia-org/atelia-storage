@@ -322,4 +322,378 @@ public class RbfTestVectorTests : IDisposable {
     }
 
     #endregion
+
+    #region E2E_* 端到端集成测试（Task 9.4）
+
+    /// <summary>E2E_WriteReadRoundtrip：写入多帧 → ScanReverse → ReadFrame → 验证内容。</summary>
+    /// <remarks>
+    /// 验证完整的写入-读取闭环：
+    /// 1. 写入 3 帧（不同 payload 长度和内容）
+    /// 2. ScanReverse 枚举所有帧
+    /// 3. 对每个 RbfFrameInfo 调用 ReadFrame/ReadPooledFrame
+    /// 4. 验证 payload 内容正确
+    /// </remarks>
+    [Fact]
+    public void E2E_WriteReadRoundtrip() {
+        // Arrange
+        var path = GetTempFilePath();
+
+        // 不同长度和内容的 payload
+        byte[] payload1 = [0x01, 0x02, 0x03, 0x04];
+        byte[] payload2 = [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x11, 0x22, 0x33, 0x44];
+        byte[] payload3 = [0xDE, 0xAD];
+        uint tag1 = 0x11111111;
+        uint tag2 = 0x22222222;
+        uint tag3 = 0x33333333;
+
+        // Act: 写入 3 帧
+        using (var file = RbfFile.CreateNew(path)) {
+            var result1 = file.Append(tag1, payload1);
+            Assert.True(result1.IsSuccess, "Frame 1 append should succeed");
+
+            var result2 = file.Append(tag2, payload2);
+            Assert.True(result2.IsSuccess, "Frame 2 append should succeed");
+
+            var result3 = file.Append(tag3, payload3);
+            Assert.True(result3.IsSuccess, "Frame 3 append should succeed");
+        }
+
+        // Assert: 重新打开并验证
+        using (var file = RbfFile.OpenExisting(path)) {
+            // ScanReverse 枚举（逆序：Frame3, Frame2, Frame1）
+            var frameInfos = new List<RbfFrameInfo>();
+            var enumerator = file.ScanReverse().GetEnumerator();
+            while (enumerator.MoveNext()) {
+                frameInfos.Add(enumerator.Current);
+            }
+            Assert.Null(enumerator.TerminationError);
+            Assert.Equal(3, frameInfos.Count);
+
+            // 验证 Frame3（最新）
+            Assert.Equal(tag3, frameInfos[0].Tag);
+            Assert.Equal(payload3.Length, frameInfos[0].PayloadLength);
+            var read3 = frameInfos[0].ReadPooledFrame();
+            Assert.True(read3.IsSuccess);
+            using (var frame3 = read3.Value!) {
+                Assert.Equal(payload3, frame3.PayloadAndMeta.ToArray());
+            }
+
+            // 验证 Frame2
+            Assert.Equal(tag2, frameInfos[1].Tag);
+            Assert.Equal(payload2.Length, frameInfos[1].PayloadLength);
+            var read2 = frameInfos[1].ReadPooledFrame();
+            Assert.True(read2.IsSuccess);
+            using (var frame2 = read2.Value!) {
+                Assert.Equal(payload2, frame2.PayloadAndMeta.ToArray());
+            }
+
+            // 验证 Frame1（最早）
+            Assert.Equal(tag1, frameInfos[2].Tag);
+            Assert.Equal(payload1.Length, frameInfos[2].PayloadLength);
+            var read1 = frameInfos[2].ReadPooledFrame();
+            Assert.True(read1.IsSuccess);
+            using (var frame1 = read1.Value!) {
+                Assert.Equal(payload1, frame1.PayloadAndMeta.ToArray());
+            }
+        }
+    }
+
+    /// <summary>E2E_TailMetaRoundtrip：写入带 TailMeta 的帧 → ReadTailMeta → 验证内容。</summary>
+    /// <remarks>
+    /// 验证 TailMeta 的完整闭环：
+    /// 1. 使用 BeginAppend/EndAppend 写入带 TailMeta 的帧
+    /// 2. 使用 ReadTailMeta / ReadPooledTailMeta 读取
+    /// 3. 验证 TailMeta 内容正确
+    /// </remarks>
+    [Fact]
+    public void E2E_TailMetaRoundtrip() {
+        // Arrange
+        var path = GetTempFilePath();
+
+        byte[] payload = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
+        byte[] tailMeta = [0xAA, 0xBB, 0xCC, 0xDD, 0xEE];  // 5 bytes TailMeta
+        uint tag = 0x12345678;
+        Atelia.Data.SizedPtr framePtr;
+
+        // Act: 使用 BeginAppend 写入带 TailMeta 的帧
+        using (var file = RbfFile.CreateNew(path)) {
+            using (var builder = file.BeginAppend()) {
+                // 写入 Payload
+                var payloadSpan = builder.PayloadAndMeta.GetSpan(payload.Length);
+                payload.CopyTo(payloadSpan);
+                builder.PayloadAndMeta.Advance(payload.Length);
+
+                // 写入 TailMeta
+                var tailMetaSpan = builder.PayloadAndMeta.GetSpan(tailMeta.Length);
+                tailMeta.CopyTo(tailMetaSpan);
+                builder.PayloadAndMeta.Advance(tailMeta.Length);
+
+                // EndAppend 时指定 tailMetaLength
+                framePtr = builder.EndAppend(tag, tailMetaLength: tailMeta.Length);
+            }
+        }
+
+        // Assert: 重新打开并验证
+        using (var file = RbfFile.OpenExisting(path)) {
+            // 1. 使用 ReadPooledTailMeta 验证
+            var pooledResult = file.ReadPooledTailMeta(framePtr);
+            Assert.True(pooledResult.IsSuccess, "ReadPooledTailMeta should succeed");
+            using (var pooledTailMeta = pooledResult.Value!) {
+                Assert.Equal(tailMeta.Length, pooledTailMeta.TailMeta.Length);
+                Assert.Equal(tailMeta, pooledTailMeta.TailMeta.ToArray());
+            }
+
+            // 2. 使用 ReadTailMeta（手动 buffer）验证
+            byte[] buffer = new byte[tailMeta.Length];
+            var manualResult = file.ReadTailMeta(framePtr, buffer);
+            Assert.True(manualResult.IsSuccess, "ReadTailMeta should succeed");
+            Assert.Equal(tailMeta.Length, manualResult.Value.TailMeta.Length);
+            Assert.Equal(tailMeta, manualResult.Value.TailMeta.ToArray());
+
+            // 3. 完整读取帧验证 Payload + TailMeta
+            var fullResult = file.ReadPooledFrame(framePtr);
+            Assert.True(fullResult.IsSuccess, "ReadPooledFrame should succeed");
+            using (var frame = fullResult.Value!) {
+                Assert.Equal(tag, frame.Tag);
+                // PayloadAndMeta = Payload + TailMeta
+                var expectedPayloadAndMeta = payload.Concat(tailMeta).ToArray();
+                Assert.Equal(expectedPayloadAndMeta, frame.PayloadAndMeta.ToArray());
+            }
+        }
+    }
+
+    /// <summary>E2E_TombstoneFilter：写入 Valid + Tombstone + Valid → 验证过滤行为。</summary>
+    /// <remarks>
+    /// 验证 ScanReverse 的 Tombstone 过滤功能：
+    /// 1. 写入 3 帧：Valid(tag1) + Tombstone(tag2) + Valid(tag3)
+    /// 2. ScanReverse() 默认过滤 Tombstone → 返回 2 帧
+    /// 3. ScanReverse(showTombstone: true) → 返回 3 帧
+    /// </remarks>
+    [Fact]
+    public void E2E_TombstoneFilter() {
+        // Arrange
+        var path = GetTempFilePath();
+
+        byte[] payload1 = [0x01, 0x02, 0x03, 0x04];
+        byte[] payload2 = [0xAA, 0xBB, 0xCC, 0xDD];  // Tombstone payload
+        byte[] payload3 = [0x11, 0x22, 0x33, 0x44];
+        uint tag1 = 0x11111111;
+        uint tag2 = 0x22222222;  // Tombstone
+        uint tag3 = 0x33333333;
+
+        // Act: 使用 internal RbfAppendImpl 写入帧（包括 Tombstone）
+        using (var file = RbfFile.CreateNew(path)) {
+            // Frame 1: Valid
+            var result1 = file.Append(tag1, payload1);
+            Assert.True(result1.IsSuccess);
+
+            // Frame 2: Tombstone（使用 internal API 直接写入）
+            // 注意：IRbfFile.Append 不暴露 isTombstone 参数，需要使用 internal 实现
+            long tailOffset = file.TailOffset;
+            var handle = GetFileHandle(file);
+            var result2 = RbfAppendImpl.Append(handle, ref tailOffset, payload2, default, tag2, isTombstone: true);
+            Assert.True(result2.IsSuccess);
+            // 手动更新 TailOffset（通过写入一个空帧来同步状态）
+            // 由于无法直接修改 TailOffset，我们需要关闭并重新打开文件
+        }
+
+        // 重新打开以让文件正确识别长度
+        using (var file = RbfFile.OpenExisting(path)) {
+            // Frame 3: Valid
+            var result3 = file.Append(tag3, payload3);
+            Assert.True(result3.IsSuccess);
+        }
+
+        // Assert: 验证过滤行为
+        using (var file = RbfFile.OpenExisting(path)) {
+            // 1. ScanReverse() 默认过滤 → 返回 2 帧（tag3, tag1）
+            var filteredFrames = new List<(uint tag, bool isTombstone)>();
+            var filteredEnum = file.ScanReverse().GetEnumerator();
+            while (filteredEnum.MoveNext()) {
+                filteredFrames.Add((filteredEnum.Current.Tag, filteredEnum.Current.IsTombstone));
+            }
+            Assert.Null(filteredEnum.TerminationError);
+            Assert.Equal(2, filteredFrames.Count);
+            Assert.Equal(tag3, filteredFrames[0].tag);
+            Assert.False(filteredFrames[0].isTombstone);
+            Assert.Equal(tag1, filteredFrames[1].tag);
+            Assert.False(filteredFrames[1].isTombstone);
+
+            // 2. ScanReverse(showTombstone: true) → 返回 3 帧（tag3, tag2, tag1）
+            var allFrames = new List<(uint tag, bool isTombstone)>();
+            var allEnum = file.ScanReverse(showTombstone: true).GetEnumerator();
+            while (allEnum.MoveNext()) {
+                allFrames.Add((allEnum.Current.Tag, allEnum.Current.IsTombstone));
+            }
+            Assert.Null(allEnum.TerminationError);
+            Assert.Equal(3, allFrames.Count);
+            Assert.Equal(tag3, allFrames[0].tag);
+            Assert.False(allFrames[0].isTombstone);
+            Assert.Equal(tag2, allFrames[1].tag);
+            Assert.True(allFrames[1].isTombstone);  // Tombstone
+            Assert.Equal(tag1, allFrames[2].tag);
+            Assert.False(allFrames[2].isTombstone);
+        }
+    }
+
+    /// <summary>从 IRbfFile 获取内部句柄（用于测试）。</summary>
+    private static Microsoft.Win32.SafeHandles.SafeFileHandle GetFileHandle(IRbfFile file) {
+        // 使用反射获取内部句柄
+        var field = typeof(RbfFileImpl).GetField("_handle",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        return (Microsoft.Win32.SafeHandles.SafeFileHandle)field!.GetValue(file)!;
+    }
+
+    /// <summary>E2E_TruncateRecovery：写入 3 帧 → Truncate → 验证只剩前 N 帧。</summary>
+    /// <remarks>
+    /// 验证 Truncate 恢复场景：
+    /// 1. 写入 3 帧
+    /// 2. Truncate 到帧 2 末尾
+    /// 3. ScanReverse 只返回前 2 帧
+    /// </remarks>
+    [Fact]
+    public void E2E_TruncateRecovery() {
+        // Arrange
+        var path = GetTempFilePath();
+
+        byte[] payload1 = [0x01, 0x02, 0x03, 0x04];
+        byte[] payload2 = [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF];
+        byte[] payload3 = [0x11, 0x22, 0x33];
+        uint tag1 = 0x11111111;
+        uint tag2 = 0x22222222;
+        uint tag3 = 0x33333333;
+
+        Atelia.Data.SizedPtr ptr2;
+
+        // Act: 写入 3 帧
+        using (var file = RbfFile.CreateNew(path)) {
+            var result1 = file.Append(tag1, payload1);
+            Assert.True(result1.IsSuccess);
+
+            var result2 = file.Append(tag2, payload2);
+            Assert.True(result2.IsSuccess);
+            ptr2 = result2.Value!;
+
+            var result3 = file.Append(tag3, payload3);
+            Assert.True(result3.IsSuccess);
+
+            // 验证写入 3 帧
+            Assert.Equal(3, CountFrames(file));
+
+            // Truncate 到帧 2 末尾
+            long frame2End = ptr2.Offset + ptr2.Length + RbfLayout.FenceSize;
+            file.Truncate(frame2End);
+
+            // Assert: 只剩 2 帧
+            Assert.Equal(frame2End, file.TailOffset);
+            Assert.Equal(2, CountFrames(file));
+        }
+
+        // 重新打开验证持久化
+        using (var file = RbfFile.OpenExisting(path)) {
+            var frames = new List<(uint tag, byte[] payload)>();
+            foreach (var info in file.ScanReverse()) {
+                var readResult = info.ReadPooledFrame();
+                Assert.True(readResult.IsSuccess);
+                using var frame = readResult.Value!;
+                frames.Add((frame.Tag, frame.PayloadAndMeta.ToArray()));
+            }
+
+            // 逆序扫描：先 Frame2 后 Frame1
+            Assert.Equal(2, frames.Count);
+            Assert.Equal(tag2, frames[0].tag);
+            Assert.Equal(payload2, frames[0].payload);
+            Assert.Equal(tag1, frames[1].tag);
+            Assert.Equal(payload1, frames[1].payload);
+        }
+    }
+
+    /// <summary>E2E_DurableFlushReopen：写入 → DurableFlush → 重新打开 → 验证内容。</summary>
+    /// <remarks>
+    /// 验证 DurableFlush 持久化：
+    /// 1. 写入帧
+    /// 2. DurableFlush 落盘
+    /// 3. 关闭并重新 OpenExisting
+    /// 4. 验证内容正确
+    /// </remarks>
+    [Fact]
+    public void E2E_DurableFlushReopen() {
+        // Arrange
+        var path = GetTempFilePath();
+
+        byte[] payload1 = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
+        byte[] payload2 = [0xAA, 0xBB, 0xCC, 0xDD];
+        byte[] tailMeta = [0xEE, 0xFF, 0x11];
+        uint tag1 = 0x11111111;
+        uint tag2 = 0x22222222;
+
+        Atelia.Data.SizedPtr ptr1, ptr2;
+        long expectedTailOffset;
+
+        // Act: 写入帧并 DurableFlush
+        using (var file = RbfFile.CreateNew(path)) {
+            // 写入 Frame1（简单 Append）
+            var result1 = file.Append(tag1, payload1);
+            Assert.True(result1.IsSuccess);
+            ptr1 = result1.Value!;
+
+            // 写入 Frame2（带 TailMeta，使用 BeginAppend）
+            using (var builder = file.BeginAppend()) {
+                var span = builder.PayloadAndMeta.GetSpan(payload2.Length + tailMeta.Length);
+                payload2.CopyTo(span);
+                tailMeta.CopyTo(span[payload2.Length..]);
+                builder.PayloadAndMeta.Advance(payload2.Length + tailMeta.Length);
+                ptr2 = builder.EndAppend(tag2, tailMetaLength: tailMeta.Length);
+            }
+
+            expectedTailOffset = file.TailOffset;
+
+            // DurableFlush 落盘
+            file.DurableFlush();
+        }
+
+        // Assert: 重新打开并验证
+        using (var file = RbfFile.OpenExisting(path)) {
+            // 验证 TailOffset
+            Assert.Equal(expectedTailOffset, file.TailOffset);
+
+            // 验证帧数量
+            Assert.Equal(2, CountFrames(file));
+
+            // 验证 Frame1
+            var read1 = file.ReadPooledFrame(ptr1);
+            Assert.True(read1.IsSuccess);
+            using (var frame1 = read1.Value!) {
+                Assert.Equal(tag1, frame1.Tag);
+                Assert.Equal(payload1, frame1.PayloadAndMeta.ToArray());
+            }
+
+            // 验证 Frame2（Payload + TailMeta）
+            var read2 = file.ReadPooledFrame(ptr2);
+            Assert.True(read2.IsSuccess);
+            using (var frame2 = read2.Value!) {
+                Assert.Equal(tag2, frame2.Tag);
+                var expectedPayloadAndMeta = payload2.Concat(tailMeta).ToArray();
+                Assert.Equal(expectedPayloadAndMeta, frame2.PayloadAndMeta.ToArray());
+            }
+
+            // 验证 TailMeta 单独读取
+            var tailMetaResult = file.ReadPooledTailMeta(ptr2);
+            Assert.True(tailMetaResult.IsSuccess);
+            using (var tm = tailMetaResult.Value!) {
+                Assert.Equal(tailMeta, tm.TailMeta.ToArray());
+            }
+        }
+    }
+
+    /// <summary>辅助方法：统计文件中的帧数量。</summary>
+    private static int CountFrames(IRbfFile file) {
+        int count = 0;
+        foreach (var _ in file.ScanReverse()) {
+            count++;
+        }
+        return count;
+    }
+
+    #endregion
 }
