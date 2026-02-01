@@ -11,6 +11,8 @@ namespace Atelia.Rbf.Internal;
 /// </remarks>
 internal sealed class RbfFileImpl : IRbfFile {
     private readonly SafeFileHandle _handle;
+    private readonly Action<long> _onCommitCallback;
+    private readonly Action _clearBuilderFlag;
     private long _tailOffset;
     private bool _disposed;
     private bool _hasActiveBuilder;
@@ -21,6 +23,8 @@ internal sealed class RbfFileImpl : IRbfFile {
     internal RbfFileImpl(SafeFileHandle handle, long tailOffset) {
         _handle = handle ?? throw new ArgumentNullException(nameof(handle));
         _tailOffset = tailOffset;
+        _onCommitCallback = (endOffset) => _tailOffset = endOffset;
+        _clearBuilderFlag = () => _hasActiveBuilder = false;
     }
 
     /// <inheritdoc />
@@ -63,12 +67,12 @@ internal sealed class RbfFileImpl : IRbfFile {
             throw new InvalidOperationException($"TailOffset ({tailOffset}) has reached MaxFileOffset ({SizedPtr.MaxOffset}).");
         }
 
-        // 创建 RbfFrameBuilder
+        // 创建 RbfFrameBuilder（使用构造时缓存的 delegate，避免每次分配）
         var builder = new RbfFrameBuilder(
             _handle,
             tailOffset,
-            onCommitCallback: (endOffset) => _tailOffset = endOffset,
-            clearBuilderFlag: () => _hasActiveBuilder = false
+            onCommitCallback: _onCommitCallback,
+            clearBuilderFlag: _clearBuilderFlag
         );
 
         _hasActiveBuilder = true;
