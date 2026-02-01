@@ -107,7 +107,8 @@ internal sealed class RbfFileImpl : IRbfFile {
 
     /// <inheritdoc />
     public void DurableFlush() {
-        throw new NotImplementedException();
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        RandomAccess.FlushToDisk(_handle);
     }
 
     /// <inheritdoc />
