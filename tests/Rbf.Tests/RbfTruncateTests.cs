@@ -47,41 +47,22 @@ public class RbfTruncateTests : IDisposable {
         Assert.Equal("newLengthBytes", ex.ParamName);
     }
 
-    /// <summary>2. 非 4B 对齐（1B）：Truncate(5) → 抛 ArgumentOutOfRangeException。</summary>
-    [Fact]
-    public void Truncate_NotAligned_1B_ThrowsArgumentOutOfRangeException() {
+    /// <summary>非 4B 对齐长度：Truncate 应抛 ArgumentOutOfRangeException。</summary>
+    /// <remarks>规范引用：@[S-RBF-TRUNCATE-REQUIRES-NONNEGATIVE-4B-ALIGNED]</remarks>
+    [Theory]
+    [InlineData(5)]  // 4 + 1
+    [InlineData(6)]  // 4 + 2
+    [InlineData(7)]  // 4 + 3
+    [InlineData(1)]  // 0 + 1
+    [InlineData(2)]  // 0 + 2
+    [InlineData(3)]  // 0 + 3
+    public void Truncate_NotAligned_ThrowsArgumentOutOfRangeException(long length) {
         // Arrange
         var path = GetTempFilePath();
         using var file = RbfFile.CreateNew(path);
 
         // Act & Assert
-        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => file.Truncate(5));
-        Assert.Equal("newLengthBytes", ex.ParamName);
-        Assert.Contains("4-byte aligned", ex.Message);
-    }
-
-    /// <summary>3. 非 4B 对齐（2B）：Truncate(6) → 抛 ArgumentOutOfRangeException。</summary>
-    [Fact]
-    public void Truncate_NotAligned_2B_ThrowsArgumentOutOfRangeException() {
-        // Arrange
-        var path = GetTempFilePath();
-        using var file = RbfFile.CreateNew(path);
-
-        // Act & Assert
-        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => file.Truncate(6));
-        Assert.Equal("newLengthBytes", ex.ParamName);
-        Assert.Contains("4-byte aligned", ex.Message);
-    }
-
-    /// <summary>4. 非 4B 对齐（3B）：Truncate(7) → 抛 ArgumentOutOfRangeException。</summary>
-    [Fact]
-    public void Truncate_NotAligned_3B_ThrowsArgumentOutOfRangeException() {
-        // Arrange
-        var path = GetTempFilePath();
-        using var file = RbfFile.CreateNew(path);
-
-        // Act & Assert
-        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => file.Truncate(7));
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => file.Truncate(length));
         Assert.Equal("newLengthBytes", ex.ParamName);
         Assert.Contains("4-byte aligned", ex.Message);
     }
