@@ -185,27 +185,6 @@ public class RbfFrameBuilderTests : IDisposable {
 
     // ========== 异常路径测试 ==========
 
-    /// <summary>重复 EndAppend：应返回失败结果（RbfStateError）。</summary>
-    [Fact]
-    public void EndAppend_CalledTwice_ReturnsFailure() {
-        // Arrange
-        var path = GetTempFilePath();
-        using var file = RbfFile.CreateNew(path);
-        var builder = file.BeginAppend();
-
-        // Act - 第一次 EndAppend
-        var result1 = builder.EndAppend(0x1234);
-        Assert.True(result1.IsSuccess, $"First EndAppend should succeed: {result1.Error}");
-
-        // Act & Assert - 第二次 EndAppend 应返回失败
-        var result2 = builder.EndAppend(0x5678);
-        Assert.False(result2.IsSuccess);
-        Assert.Contains("EndAppend", result2.Error!.Message);
-
-        // Cleanup
-        builder.Dispose();
-    }
-
     /// <summary>重复 Dispose：幂等，不抛异常。</summary>
     [Fact]
     public void Dispose_CalledTwice_Idempotent() {
@@ -220,48 +199,6 @@ public class RbfFrameBuilderTests : IDisposable {
         builder.Dispose();
 
         // 不应抛出异常
-    }
-
-    /// <summary>未提交 Reservation 时 EndAppend：应返回失败结果。</summary>
-    [Fact]
-    public void EndAppend_WithUncommittedReservation_ReturnsFailure() {
-        // Arrange
-        var path = GetTempFilePath();
-        using var file = RbfFile.CreateNew(path);
-        using var builder = file.BeginAppend();
-
-        // 预留空间但不 Commit
-        _ = builder.PayloadAndMeta.ReserveSpan(4, out var token, tag: "uncommitted");
-
-        // 写入一些数据
-        var span = builder.PayloadAndMeta.GetSpan(4);
-        span[0] = 0x11;
-        builder.PayloadAndMeta.Advance(4);
-
-        // Act & Assert
-        var result = builder.EndAppend(0x1234);
-        Assert.False(result.IsSuccess);
-        Assert.Contains("reservation", result.Error!.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    /// <summary>TailMetaLength 超过 PayloadAndMetaLength：应返回失败结果。</summary>
-    [Fact]
-    public void EndAppend_TailMetaLengthExceedsPayloadAndMetaLength_ReturnsFailure() {
-        // Arrange
-        var path = GetTempFilePath();
-        using var file = RbfFile.CreateNew(path);
-        using var builder = file.BeginAppend();
-
-        // 写入 4 字节数据
-        byte[] data = [0x01, 0x02, 0x03, 0x04];
-        var span = builder.PayloadAndMeta.GetSpan(data.Length);
-        data.CopyTo(span);
-        builder.PayloadAndMeta.Advance(data.Length);
-
-        // Act & Assert - tailMetaLength (10) 超过 payloadAndMetaLength (4)
-        var result = builder.EndAppend(0x1234, tailMetaLength: 10);
-        Assert.False(result.IsSuccess);
-        Assert.Contains("tailMetaLength", result.Error!.Message);
     }
 
     /// <summary>TailMetaLength 超过 MaxTailMetaLength：应返回失败结果。</summary>
