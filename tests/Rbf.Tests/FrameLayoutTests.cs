@@ -13,56 +13,6 @@ namespace Atelia.Rbf.Tests;
 public class FrameLayoutTests {
     #region PaddingLength Tests
 
-    /// <summary>payloadLen=0, tailMetaLen=0: (4 - (0+0) % 4) % 4 = 0</summary>
-    [Fact]
-    public void PaddingLength_PayloadLen0_Returns0() {
-        // Act
-        int result = new FrameLayout(0).PaddingLength;
-
-        // Assert
-        Assert.Equal(0, result);
-    }
-
-    /// <summary>payloadLen=1, tailMetaLen=0: (4 - (1+0) % 4) % 4 = 3</summary>
-    [Fact]
-    public void PaddingLength_PayloadLen1_Returns3() {
-        // Act
-        int result = new FrameLayout(1).PaddingLength;
-
-        // Assert
-        Assert.Equal(3, result);
-    }
-
-    /// <summary>payloadLen=2, tailMetaLen=0: (4 - (2+0) % 4) % 4 = 2</summary>
-    [Fact]
-    public void PaddingLength_PayloadLen2_Returns2() {
-        // Act
-        int result = new FrameLayout(2).PaddingLength;
-
-        // Assert
-        Assert.Equal(2, result);
-    }
-
-    /// <summary>payloadLen=3, tailMetaLen=0: (4 - (3+0) % 4) % 4 = 1</summary>
-    [Fact]
-    public void PaddingLength_PayloadLen3_Returns1() {
-        // Act
-        int result = new FrameLayout(3).PaddingLength;
-
-        // Assert
-        Assert.Equal(1, result);
-    }
-
-    /// <summary>payloadLen=4, tailMetaLen=0: (4 - (4+0) % 4) % 4 = 0</summary>
-    [Fact]
-    public void PaddingLength_PayloadLen4_Returns0() {
-        // Act
-        int result = new FrameLayout(4).PaddingLength;
-
-        // Assert
-        Assert.Equal(0, result);
-    }
-
     /// <summary>验证完整的 4 周期循环模式（v0.40 padding 公式）。
     /// PaddingLen = (4 - ((payloadLen + tailMetaLen) % 4)) % 4</summary>
     [Theory]
