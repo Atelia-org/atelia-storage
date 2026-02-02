@@ -7,14 +7,10 @@ namespace Atelia.Rbf.Internal;
 /// <summary>RandomAccess → IByteSink 适配器</summary>
 /// <remarks>
 /// 职责边界：仅做 Push → RandomAccess.Write 转发 + offset 记账。
-///
 /// 设计简化：由于 <see cref="IByteSink"/> 是推式接口（调用者持有数据），
 /// 无需持有 buffer、无需 ArrayPool 管理、无需三步舞（GetSpan/GetMemory/Advance）。
-///
-///
 /// 并发：非线程安全，依赖 <c>[S-RBF-BUILDER-SINGLE-OPEN]</c> 契约
 /// （同一时刻只有一个活跃 Builder）。
-///
 /// </remarks>
 internal sealed class RandomAccessByteSink : IByteSink {
     private readonly SafeFileHandle _file;
@@ -40,8 +36,7 @@ internal sealed class RandomAccessByteSink : IByteSink {
     /// <remarks>
     /// 调用 <see cref="RandomAccess.Write(SafeFileHandle, ReadOnlySpan{byte}, long)"/>
     /// 写入数据并推进 offset。
-    ///
-    /// 错误处理：I/O 异常直接抛出（符合 Infra Fault 策略）。
+        /// 错误处理：I/O 异常直接抛出（符合 Infra Fault 策略）。
     /// </remarks>
     public void Push(ReadOnlySpan<byte> data) {
         if (data.IsEmpty) { return; }

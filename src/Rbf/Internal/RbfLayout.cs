@@ -208,9 +208,7 @@ internal readonly struct FrameLayout {
         // 8. 计算 PayloadLength
         // PayloadLength = TailLen - FixedOverhead - TailMetaLen - PaddingLen
         var payloadLengthResult = TrailerCodewordHelper.ComputePayloadLength(trailer.TailLen, trailer.TailMetaLen, trailer.PaddingLen);
-        if (!payloadLengthResult.IsSuccess) {
-            return AteliaResult<FrameLayout>.Failure(payloadLengthResult.Error!);
-        }
+        if (!payloadLengthResult.IsSuccess) { return AteliaResult<FrameLayout>.Failure(payloadLengthResult.Error!); }
 
         int payloadLength = payloadLengthResult.Value;
 

@@ -145,9 +145,7 @@ internal static class RbfAppendImpl {
         // 4. 检查 EndOffset 是否超出 SizedPtr 可表示范围（统一调用 RbfFrameWriteCore.ValidateEndOffset）
         FrameLayout layout = new FrameLayout(payload.Length, tailMeta.Length);
         var endOffsetError = RbfFrameWriteCore.ValidateEndOffset(fileOffset, layout.FrameLength);
-        if (endOffsetError is not null) {
-            return AteliaResult<SizedPtr>.Failure(endOffsetError);
-        }
+        if (endOffsetError is not null) { return AteliaResult<SizedPtr>.Failure(endOffsetError); }
         AteliaResult<SizedPtr> success = SizedPtr.Create(fileOffset, layout.FrameLength); // 隐式类型转换
 
         // === 校验通过，执行写入 ===

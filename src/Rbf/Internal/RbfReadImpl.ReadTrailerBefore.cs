@@ -56,9 +56,7 @@ partial class RbfReadImpl {
         // 4. 验证并解析 TrailerCodeword（前 16 字节，CRC + reserved bits）
         var trailerSpan = buffer[..TrailerCodewordHelper.Size];
         var trailerResult = TrailerCodewordHelper.ParseAndValidate(trailerSpan);
-        if (!trailerResult.IsSuccess) {
-            return AteliaResult<RbfFrameInfo>.Failure(trailerResult.Error!);
-        }
+        if (!trailerResult.IsSuccess) { return AteliaResult<RbfFrameInfo>.Failure(trailerResult.Error!); }
 
         var trailer = trailerResult.Value;
 
@@ -92,9 +90,7 @@ partial class RbfReadImpl {
         // PayloadLength = TailLen - FixedOverhead - TailMetaLen - PaddingLen
         // FixedOverhead = HeadLen(4) + PayloadCrc(4) + TrailerCodeword(16) = 24
         var payloadLenResult = TrailerCodewordHelper.ComputePayloadLength(trailer.TailLen, trailer.TailMetaLen, trailer.PaddingLen);
-        if (!payloadLenResult.IsSuccess) {
-            return AteliaResult<RbfFrameInfo>.Failure(payloadLenResult.Error!);
-        }
+        if (!payloadLenResult.IsSuccess) { return AteliaResult<RbfFrameInfo>.Failure(payloadLenResult.Error!); }
 
         int payloadLen = payloadLenResult.Value;
 

@@ -61,9 +61,7 @@ internal sealed class RbfFileImpl : IRbfFile {
 
     private void EnsureIdleForRead() {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (_fileState != FileState.Idle) {
-            throw new InvalidOperationException("Cannot read while a builder is active. Dispose the builder first.");
-        }
+        if (_fileState != FileState.Idle) { throw new InvalidOperationException("Cannot read while a builder is active. Dispose the builder first."); }
     }
 
     /// <inheritdoc />
@@ -71,9 +69,7 @@ internal sealed class RbfFileImpl : IRbfFile {
         // 生命周期检查：Dispose 入口检查
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (_fileState != FileState.Idle) {
-            throw new InvalidOperationException("Cannot call Append while a builder is active. Dispose the builder first.");
-        }
+        if (_fileState != FileState.Idle) { throw new InvalidOperationException("Cannot call Append while a builder is active. Dispose the builder first."); }
         long tailOffset = _tailOffset;
         // 门面层只负责：持有句柄 + 维护 TailOffset。
         // 失败时 RbfAppendImpl 保证不修改 tailOffset
@@ -87,24 +83,16 @@ internal sealed class RbfFileImpl : IRbfFile {
 
     /// <inheritdoc />
     public RbfFrameBuilder BeginAppend() {
-        if (_disposed) {
-            throw new ObjectDisposedException(nameof(RbfFileImpl));
-        }
-        if (_fileState != FileState.Idle) {
-            throw new InvalidOperationException("A builder is already active. Dispose it before calling BeginAppend again.");
-        }
+        if (_disposed) { throw new ObjectDisposedException(nameof(RbfFileImpl)); }
+        if (_fileState != FileState.Idle) { throw new InvalidOperationException("A builder is already active. Dispose it before calling BeginAppend again."); }
 
         long tailOffset = _tailOffset;
 
         // 检查 TailOffset 4B 对齐
-        if ((tailOffset & 0x3) != 0) {
-            throw new InvalidOperationException($"TailOffset ({tailOffset}) is not 4-byte aligned.");
-        }
+        if ((tailOffset & 0x3) != 0) { throw new InvalidOperationException($"TailOffset ({tailOffset}) is not 4-byte aligned."); }
 
         // 检查 MaxFileOffset
-        if (tailOffset >= SizedPtr.MaxOffset) {
-            throw new InvalidOperationException($"TailOffset ({tailOffset}) has reached MaxFileOffset ({SizedPtr.MaxOffset}).");
-        }
+        if (tailOffset >= SizedPtr.MaxOffset) { throw new InvalidOperationException($"TailOffset ({tailOffset}) has reached MaxFileOffset ({SizedPtr.MaxOffset})."); }
 
         // 递增 epoch，状态切换为 Building
         _builderEpoch++;
@@ -128,11 +116,10 @@ internal sealed class RbfFileImpl : IRbfFile {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (epoch != _builderEpoch) {
             throw new InvalidOperationException(
-                $"Stale builder epoch: expected {_builderEpoch}, got {epoch}.");
+                $"Stale builder epoch: expected {_builderEpoch}, got {epoch}."
+            );
         }
-        if (_fileState != FileState.Building) {
-            throw new InvalidOperationException("Builder is not active.");
-        }
+        if (_fileState != FileState.Building) { throw new InvalidOperationException("Builder is not active."); }
         return _builderWriter;
     }
 
@@ -140,36 +127,54 @@ internal sealed class RbfFileImpl : IRbfFile {
     internal AteliaResult<SizedPtr> CommitFromBuilder(uint epoch, uint tag, int tailMetaLength) {
         // 1. 生命周期检查（方案 D：状态违规返回 Failure）
         if (_disposed) {
-            return AteliaResult<SizedPtr>.Failure(new RbfStateError(
-                "File has been disposed.",
-                RecoveryHint: "Create a new file facade before writing."));
+            return AteliaResult<SizedPtr>.Failure(
+                new RbfStateError(
+                    "File has been disposed.",
+                    RecoveryHint: "Create a new file facade before writing."
+                )
+            );
         }
         if (epoch != _builderEpoch) {
-            return AteliaResult<SizedPtr>.Failure(new RbfStateError(
-                $"Stale builder epoch: expected {_builderEpoch}, got {epoch}.",
-                RecoveryHint: "Discard the old builder reference and call BeginAppend again."));
+            return AteliaResult<SizedPtr>.Failure(
+                new RbfStateError(
+                    $"Stale builder epoch: expected {_builderEpoch}, got {epoch}.",
+                    RecoveryHint: "Discard the old builder reference and call BeginAppend again."
+                )
+            );
         }
         if (_fileState != FileState.Building) {
             if (_builderLastClose == BuilderCloseReason.Committed) {
-                return AteliaResult<SizedPtr>.Failure(new RbfStateError(
-                    "EndAppend has already been called.",
-                    RecoveryHint: "Each builder can only commit once. Create a new builder for subsequent frames."));
+                return AteliaResult<SizedPtr>.Failure(
+                    new RbfStateError(
+                        "EndAppend has already been called.",
+                        RecoveryHint: "Each builder can only commit once. Create a new builder for subsequent frames."
+                    )
+                );
             }
             if (_builderLastClose == BuilderCloseReason.Aborted) {
-                return AteliaResult<SizedPtr>.Failure(new RbfStateError(
-                    "Builder has been disposed.",
-                    RecoveryHint: "Cannot call EndAppend on a disposed builder."));
+                return AteliaResult<SizedPtr>.Failure(
+                    new RbfStateError(
+                        "Builder has been disposed.",
+                        RecoveryHint: "Cannot call EndAppend on a disposed builder."
+                    )
+                );
             }
-            return AteliaResult<SizedPtr>.Failure(new RbfStateError(
-                "No active builder to commit.",
-                RecoveryHint: "Call BeginAppend before EndAppend."));
+            return AteliaResult<SizedPtr>.Failure(
+                new RbfStateError(
+                    "No active builder to commit.",
+                    RecoveryHint: "Call BeginAppend before EndAppend."
+                )
+            );
         }
 
         // 2. 前置条件：只剩 HeadLen reservation（_builderWriter.PendingReservationCount == 1）
         if (_builderWriter.PendingReservationCount != 1) {
-            return AteliaResult<SizedPtr>.Failure(new RbfStateError(
-                $"All reservations must be committed before EndAppend. Pending: {_builderWriter.PendingReservationCount}, expected: 1 (HeadLen only).",
-                RecoveryHint: "Commit or cancel all payload reservations before calling EndAppend."));
+            return AteliaResult<SizedPtr>.Failure(
+                new RbfStateError(
+                    $"All reservations must be committed before EndAppend. Pending: {_builderWriter.PendingReservationCount}, expected: 1 (HeadLen only).",
+                    RecoveryHint: "Commit or cancel all payload reservations before calling EndAppend."
+                )
+            );
         }
 
         // 3. 获取 payloadAndMetaLength（WrittenLength - HeadLenSize，因为 HeadLen 仍为 pending）
@@ -177,23 +182,35 @@ internal sealed class RbfFileImpl : IRbfFile {
 
         // 3a. 资源上限校验 (Decision 7.F) - 方案 D：返回 Failure
         if (payloadAndMetaLength > FrameLayout.MaxPayloadAndMetaLength) {
-            return AteliaResult<SizedPtr>.Failure(new RbfArgumentError(
-                $"Payload + TailMeta length ({payloadAndMetaLength}) exceeds maximum ({FrameLayout.MaxPayloadAndMetaLength}).",
-                RecoveryHint: "Reduce payload size or split into multiple frames."));
+            return AteliaResult<SizedPtr>.Failure(
+                new RbfArgumentError(
+                    $"Payload + TailMeta length ({payloadAndMetaLength}) exceeds maximum ({FrameLayout.MaxPayloadAndMetaLength}).",
+                    RecoveryHint: "Reduce payload size or split into multiple frames."
+                )
+            );
         }
 
         // 验证 tailMetaLength 约束 - 方案 D：参数违规返回 Failure
         if (tailMetaLength < 0) {
-            return AteliaResult<SizedPtr>.Failure(new RbfArgumentError(
-                $"tailMetaLength ({tailMetaLength}) must be non-negative."));
+            return AteliaResult<SizedPtr>.Failure(
+                new RbfArgumentError(
+                    $"tailMetaLength ({tailMetaLength}) must be non-negative."
+                )
+            );
         }
         if (tailMetaLength > payloadAndMetaLength) {
-            return AteliaResult<SizedPtr>.Failure(new RbfArgumentError(
-                $"tailMetaLength ({tailMetaLength}) exceeds payloadAndMetaLength ({payloadAndMetaLength})."));
+            return AteliaResult<SizedPtr>.Failure(
+                new RbfArgumentError(
+                    $"tailMetaLength ({tailMetaLength}) exceeds payloadAndMetaLength ({payloadAndMetaLength})."
+                )
+            );
         }
         if (tailMetaLength > FrameLayout.MaxTailMetaLength) {
-            return AteliaResult<SizedPtr>.Failure(new RbfArgumentError(
-                $"tailMetaLength ({tailMetaLength}) exceeds MaxTailMetaLength ({FrameLayout.MaxTailMetaLength})."));
+            return AteliaResult<SizedPtr>.Failure(
+                new RbfArgumentError(
+                    $"tailMetaLength ({tailMetaLength}) exceeds MaxTailMetaLength ({FrameLayout.MaxTailMetaLength})."
+                )
+            );
         }
 
         // 4. 计算 FrameLayout
@@ -202,9 +219,7 @@ internal sealed class RbfFileImpl : IRbfFile {
 
         // 4a. MaxFileOffset 校验（方案 A + D：统一委托给 RbfFrameWriteCore）
         var endOffsetError = RbfFrameWriteCore.ValidateEndOffset(_builderFrameStart, layout.FrameLength);
-        if (endOffsetError is not null) {
-            return AteliaResult<SizedPtr>.Failure(endOffsetError);
-        }
+        if (endOffsetError is not null) { return AteliaResult<SizedPtr>.Failure(endOffsetError); }
 
         // 5. 写入 Padding（通过 _builderWriter，CRC 自动累积）
         if (layout.PaddingLength > 0) {
@@ -222,9 +237,7 @@ internal sealed class RbfFileImpl : IRbfFile {
         _builderWriter.Advance(RbfFrameWriteCore.TailSize);
 
         // 8. 回填 HeadLen（FrameLength，不含 Fence）
-        if (!_builderWriter.TryGetReservationSpan(_builderHeadLenReservationToken, out var headLenSpan)) {
-            throw new InvalidOperationException("HeadLen reservation not found (internal error).");
-        }
+        if (!_builderWriter.TryGetReservationSpan(_builderHeadLenReservationToken, out var headLenSpan)) { throw new InvalidOperationException("HeadLen reservation not found (internal error)."); }
         BinaryPrimitives.WriteUInt32LittleEndian(headLenSpan, (uint)layout.FrameLength);
 
         // 9. 调用 Commit（触发 flush 全部数据到磁盘）
@@ -245,9 +258,7 @@ internal sealed class RbfFileImpl : IRbfFile {
     /// <param name="epoch">Builder 持有的 epoch token（必须匹配当前 epoch）。</param>
     /// <exception cref="InvalidOperationException">epoch 不匹配（旧 Builder 误用）。</exception>
     internal void AbortBuilder(uint epoch) {
-        if (epoch != _builderEpoch || _disposed) {
-            return;
-        }
+        if (epoch != _builderEpoch || _disposed) { return; }
         if (_fileState != FileState.Building) {
             // Abort 在非 Building 状态下静默忽略（幂等）
             return;
@@ -307,20 +318,23 @@ internal sealed class RbfFileImpl : IRbfFile {
         // 2. Active builder 检查
         if (_fileState != FileState.Idle) {
             throw new InvalidOperationException(
-                "Cannot truncate while a builder is active. Dispose the builder first.");
+                "Cannot truncate while a builder is active. Dispose the builder first."
+            );
         }
 
         // 3. 参数校验
         if (newLengthBytes < 0) {
             throw new ArgumentOutOfRangeException(
                 nameof(newLengthBytes), newLengthBytes,
-                "newLengthBytes must be non-negative.");
+                "newLengthBytes must be non-negative."
+            );
         }
 
         if ((newLengthBytes & 0x3) != 0) {
             throw new ArgumentOutOfRangeException(
                 nameof(newLengthBytes), newLengthBytes,
-                "newLengthBytes must be 4-byte aligned.");
+                "newLengthBytes must be 4-byte aligned."
+            );
         }
 
         // 4. 执行截断

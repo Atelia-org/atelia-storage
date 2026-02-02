@@ -26,7 +26,8 @@ public class RbfTestVectorTests : IDisposable {
     public void RBF_LEN_001_PayloadLen_PaddingLen_FrameLength(
         int payloadLen,
         int expectedPaddingLen,
-        int expectedFrameLength) {
+        int expectedFrameLength
+    ) {
         // Arrange & Act
         var layout = new FrameLayout(payloadLen);
 
@@ -69,7 +70,8 @@ public class RbfTestVectorTests : IDisposable {
     public void RBF_LEN_002_PaddingLen_ModuloRelation(
         int payloadLen,
         int tailMetaLen,
-        int expectedPaddingLen) {
+        int expectedPaddingLen
+    ) {
         // Arrange & Act
         var layout = new FrameLayout(payloadLen, tailMetaLen);
 
@@ -145,7 +147,8 @@ public class RbfTestVectorTests : IDisposable {
         uint expectedDescriptor,
         bool isTombstone,
         int paddingLen,
-        int tailMetaLen) {
+        int tailMetaLen
+    ) {
         // Act: 使用 BuildDescriptor 构建
         uint actualDescriptor = TrailerCodewordHelper.BuildDescriptor(isTombstone, paddingLen, tailMetaLen);
 
@@ -177,7 +180,8 @@ public class RbfTestVectorTests : IDisposable {
     [InlineData(0x1FFF0000u, "Reserved bits 28-16 全部非零")]
     public void RBF_DESCRIPTOR_002_InvalidValues_ReservedBitsNonZero(
         uint invalidDescriptor,
-        string failureReason) {
+        string failureReason
+    ) {
         // Act & Assert: ValidateReservedBits 应返回 false
         Assert.False(
             TrailerCodewordHelper.ValidateReservedBits(invalidDescriptor),
@@ -542,7 +546,8 @@ public class RbfTestVectorTests : IDisposable {
     private static Microsoft.Win32.SafeHandles.SafeFileHandle GetFileHandle(IRbfFile file) {
         // 使用反射获取内部句柄
         var field = typeof(RbfFileImpl).GetField("_handle",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance
+        );
         return (Microsoft.Win32.SafeHandles.SafeFileHandle)field!.GetValue(file)!;
     }
 
@@ -705,8 +710,7 @@ public class RbfTestVectorTests : IDisposable {
 
     /// <summary>
     /// RBF-BAD-* 测试向量覆盖映射（rbf-test-vectors.md §2.2）。
-    ///
-    /// | 用例 | 描述 | 覆盖位置 |
+        /// | 用例 | 描述 | 覆盖位置 |
     /// |------|------|----------|
     /// | RBF-BAD-001 | TrailerCrc 不匹配 | ReadTrailerBeforeTests（多个测试）、RbfReadImplTests |
     /// | RBF-BAD-002 | PayloadCrc 不匹配 | 本文件 READFRAME_CRC_001、RbfReadImplTests |
@@ -721,15 +725,12 @@ public class RbfTestVectorTests : IDisposable {
     /// <summary>RBF-BAD-007：PaddingLen 与实际计算值不符 → PayloadLength 计算错误导致 ReadFrame 失败。</summary>
     /// <remarks>
     /// 规范引用：@[F-PADDING-CALCULATION]
-    ///
-    /// 场景：FrameDescriptor 中声明的 PaddingLen 与 `(4 - ((PayloadLen + TailMetaLen) % 4)) % 4` 不符。
-    ///
-    /// 预期行为：
+        /// 场景：FrameDescriptor 中声明的 PaddingLen 与 `(4 - ((PayloadLen + TailMetaLen) % 4)) % 4` 不符。
+        /// 预期行为：
     /// - ScanReverse 只校验 TrailerCrc，不验证 PaddingLen 一致性，可以枚举帧
     /// - ReadFrame 时，由于 PayloadLength 计算不正确，解析出的数据会有偏差
     /// - 如果 PaddingLen 声明过大导致 PayloadLength 计算为负数，则返回 FramingError
-    ///
-    /// 本测试验证：
+        /// 本测试验证：
     /// 1. PaddingLen 过大 → PayloadLength 负数 → FramingError（通过篡改帧直接测试）
     /// 2. PaddingLen 不一致 → 通过 ScanReverse 后 ReadFrame 验证数据不匹配
     /// </remarks>
@@ -783,8 +784,7 @@ public class RbfTestVectorTests : IDisposable {
     /// <summary>RBF-BAD-007 扩展：PaddingLen 过大导致 PayloadLength 负数。</summary>
     /// <remarks>
     /// 规范引用：@[F-PADDING-CALCULATION]
-    ///
-    /// 场景：最小帧（PayloadLen=0, TailMetaLen=0, 正确 PaddingLen=0）但 FrameDescriptor 声明 PaddingLen=3。
+        /// 场景：最小帧（PayloadLen=0, TailMetaLen=0, 正确 PaddingLen=0）但 FrameDescriptor 声明 PaddingLen=3。
     /// 预期：PayloadLength = TailLen(24) - FixedOverhead(24) - TailMetaLen(0) - PaddingLen(3) = -3 → FramingError
     /// </remarks>
     [Fact]

@@ -4,6 +4,7 @@
 using Xunit;
 
 namespace Atelia.Tests;
+
 public class AsyncAteliaResultTests {
     [Fact]
     public void Success_ShouldCreateSuccessResult() {
