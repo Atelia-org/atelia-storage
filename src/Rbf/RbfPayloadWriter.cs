@@ -33,4 +33,7 @@ public readonly struct RbfPayloadWriter : IReservableBufferWriter {
         GetWriter().ReserveSpan(count, out reservationToken, tag);
 
     public void Commit(int reservationToken) => GetWriter().Commit(reservationToken);
+
+    public bool TryGetReservedSpan(int reservationToken, out Span<byte> span) =>
+        GetWriter().TryGetReservedSpan(reservationToken, out span);
 }
