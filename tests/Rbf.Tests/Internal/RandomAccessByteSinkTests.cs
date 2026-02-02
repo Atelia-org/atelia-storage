@@ -31,38 +31,22 @@ public class RandomAccessByteSinkTests : IDisposable {
         }
     }
 
-    [Fact]
-    public void Push_WritesDataAtCurrentOffset() {
+    [Theory]
+    [InlineData(0, new byte[] { 1, 2, 3, 4, 5 })]
+    [InlineData(100, new byte[] { 10, 20, 30 })]
+    public void Push_WritesDataAtSpecifiedOffset(long startOffset, byte[] data) {
         // Arrange
-        var sink = new RandomAccessByteSink(_handle, startOffset: 0);
+        var sink = new RandomAccessByteSink(_handle, startOffset);
 
         // Act
-        sink.Push([1, 2, 3, 4, 5]);
+        sink.Push(data);
 
         // Assert
-        Assert.Equal(5, sink.CurrentOffset);
+        Assert.Equal(startOffset + data.Length, sink.CurrentOffset);
 
-        // 验证文件内容
-        byte[] buffer = new byte[5];
-        RandomAccess.Read(_handle, buffer, fileOffset: 0);
-        Assert.Equal([1, 2, 3, 4, 5], buffer);
-    }
-
-    [Fact]
-    public void Push_StartFromNonZeroOffset() {
-        // Arrange
-        var sink = new RandomAccessByteSink(_handle, startOffset: 100);
-
-        // Act
-        sink.Push([10, 20, 30]);
-
-        // Assert
-        Assert.Equal(103, sink.CurrentOffset);
-
-        // 验证文件内容在 offset 100 处
-        byte[] buffer = new byte[3];
-        RandomAccess.Read(_handle, buffer, fileOffset: 100);
-        Assert.Equal([10, 20, 30], buffer);
+        byte[] buffer = new byte[data.Length];
+        RandomAccess.Read(_handle, buffer, fileOffset: startOffset);
+        Assert.Equal(data, buffer);
     }
 
     [Fact]
