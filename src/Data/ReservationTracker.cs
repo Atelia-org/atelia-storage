@@ -148,32 +148,24 @@ internal sealed class ReservationTracker {
         long logicalOffset,
         string? tag
     ) {
+        ReservationEntry entry;
         if (_poolHead is not null) {
             Debug.Assert(_poolCount > 0, "Pool count underflow");
-            var entry = _poolHead;
+            entry = _poolHead;
             _poolHead = entry.Next;
             _poolCount--;
-
-            entry.Prev = null;  // 防御性：确保干净状态
-            entry.Next = null;  // 清理池链接
-            entry.Chunk = chunk;
-            entry.Offset = offset;
-            entry.Length = length;
-            entry.LogicalOffset = logicalOffset;
-            entry.Tag = tag;
-            return entry;
         }
-
-        var created = new ReservationEntry {
-            Prev = null,
-            Next = null,
-            Chunk = chunk,
-            Offset = offset,
-            Length = length,
-            LogicalOffset = logicalOffset,
-            Tag = tag,
-        };
-        return created;
+        else{
+            entry = new ReservationEntry();
+        }
+        entry.Prev = null;  // 防御性：确保干净状态
+        entry.Next = null;  // 清理池链接
+        entry.Chunk = chunk;
+        entry.Offset = offset;
+        entry.Length = length;
+        entry.LogicalOffset = logicalOffset;
+        entry.Tag = tag;
+        return entry;
     }
 
     /// <summary>归还 Entry 到池</summary>
