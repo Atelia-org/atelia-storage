@@ -55,13 +55,15 @@ public class RbfFrameBuilderTests : IDisposable {
                 builder.PayloadAndMeta.Advance(payload.Length);
 
                 // 提交帧
-                ptr = builder.EndAppend(tag);
+                var endResult = builder.EndAppend(tag);
+                Assert.True(endResult.IsSuccess, $"EndAppend failed: {endResult.Error}");
+                ptr = endResult.Value;
             }
 
             // 验证帧可读
-            var result = file.ReadPooledFrame(ptr);
-            Assert.True(result.IsSuccess);
-            using var frame = result.Value!;
+            var readResult = file.ReadPooledFrame(ptr);
+            Assert.True(readResult.IsSuccess);
+            using var frame = readResult.Value!;
             Assert.Equal(tag, frame.Tag);
             Assert.Equal(payload, frame.PayloadAndMeta.ToArray());
             Assert.False(frame.IsTombstone);
@@ -80,13 +82,15 @@ public class RbfFrameBuilderTests : IDisposable {
         using (var file = RbfFile.CreateNew(path)) {
             using (var builder = file.BeginAppend()) {
                 // 不写入任何数据，直接提交
-                ptr = builder.EndAppend(tag);
+                var endResult = builder.EndAppend(tag);
+                Assert.True(endResult.IsSuccess, $"EndAppend failed: {endResult.Error}");
+                ptr = endResult.Value;
             }
 
             // 验证最小帧
-            var result = file.ReadPooledFrame(ptr);
-            Assert.True(result.IsSuccess);
-            using var frame = result.Value!;
+            var readResult = file.ReadPooledFrame(ptr);
+            Assert.True(readResult.IsSuccess);
+            using var frame = readResult.Value!;
             Assert.Equal(tag, frame.Tag);
             Assert.True(frame.PayloadAndMeta.IsEmpty);
 
@@ -121,7 +125,9 @@ public class RbfFrameBuilderTests : IDisposable {
                 builder.PayloadAndMeta.Advance(tailMeta.Length);
 
                 // 提交帧，指定 tailMetaLength
-                ptr = builder.EndAppend(tag, tailMeta.Length);
+                var result = builder.EndAppend(tag, tailMeta.Length);
+                Assert.True(result.IsSuccess, $"EndAppend failed: {result.Error}");
+                ptr = result.Value;
             }
 
             // 验证 TailMeta 可读
@@ -157,13 +163,15 @@ public class RbfFrameBuilderTests : IDisposable {
                 builder.PayloadAndMeta.Commit(token);
 
                 // 提交帧
-                ptr = builder.EndAppend(tag);
+                var endResult = builder.EndAppend(tag);
+                Assert.True(endResult.IsSuccess, $"EndAppend failed: {endResult.Error}");
+                ptr = endResult.Value;
             }
 
             // 验证帧可读
-            var result = file.ReadPooledFrame(ptr);
-            Assert.True(result.IsSuccess);
-            using var frame = result.Value!;
+            var readResult = file.ReadPooledFrame(ptr);
+            Assert.True(readResult.IsSuccess);
+            using var frame = readResult.Value!;
             Assert.Equal(tag, frame.Tag);
 
             // 验证 payload 内容：4 字节长度 + 5 字节数据
@@ -177,20 +185,22 @@ public class RbfFrameBuilderTests : IDisposable {
 
     // ========== 异常路径测试 ==========
 
-    /// <summary>重复 EndAppend：应抛出 InvalidOperationException。</summary>
+    /// <summary>重复 EndAppend：应返回失败结果（RbfStateError）。</summary>
     [Fact]
-    public void EndAppend_CalledTwice_ThrowsInvalidOperationException() {
+    public void EndAppend_CalledTwice_ReturnsFailure() {
         // Arrange
         var path = GetTempFilePath();
         using var file = RbfFile.CreateNew(path);
         var builder = file.BeginAppend();
 
         // Act - 第一次 EndAppend
-        builder.EndAppend(0x1234);
+        var result1 = builder.EndAppend(0x1234);
+        Assert.True(result1.IsSuccess, $"First EndAppend should succeed: {result1.Error}");
 
-        // Act & Assert - 第二次 EndAppend 应抛出异常
-        var ex = Assert.Throws<InvalidOperationException>(() => builder.EndAppend(0x5678));
-        Assert.Contains("EndAppend", ex.Message);
+        // Act & Assert - 第二次 EndAppend 应返回失败
+        var result2 = builder.EndAppend(0x5678);
+        Assert.False(result2.IsSuccess);
+        Assert.Contains("EndAppend", result2.Error!.Message);
 
         // Cleanup
         builder.Dispose();
@@ -212,9 +222,9 @@ public class RbfFrameBuilderTests : IDisposable {
         // 不应抛出异常
     }
 
-    /// <summary>未提交 Reservation 时 EndAppend：应抛出 InvalidOperationException。</summary>
+    /// <summary>未提交 Reservation 时 EndAppend：应返回失败结果。</summary>
     [Fact]
-    public void EndAppend_WithUncommittedReservation_ThrowsInvalidOperationException() {
+    public void EndAppend_WithUncommittedReservation_ReturnsFailure() {
         // Arrange
         var path = GetTempFilePath();
         using var file = RbfFile.CreateNew(path);
@@ -229,13 +239,14 @@ public class RbfFrameBuilderTests : IDisposable {
         builder.PayloadAndMeta.Advance(4);
 
         // Act & Assert
-        var ex = Assert.Throws<InvalidOperationException>(() => builder.EndAppend(0x1234));
-        Assert.Contains("reservation", ex.Message, StringComparison.OrdinalIgnoreCase);
+        var result = builder.EndAppend(0x1234);
+        Assert.False(result.IsSuccess);
+        Assert.Contains("reservation", result.Error!.Message, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>TailMetaLength 超过 PayloadAndMetaLength：应抛出 InvalidOperationException。</summary>
+    /// <summary>TailMetaLength 超过 PayloadAndMetaLength：应返回失败结果。</summary>
     [Fact]
-    public void EndAppend_TailMetaLengthExceedsPayloadAndMetaLength_ThrowsInvalidOperationException() {
+    public void EndAppend_TailMetaLengthExceedsPayloadAndMetaLength_ReturnsFailure() {
         // Arrange
         var path = GetTempFilePath();
         using var file = RbfFile.CreateNew(path);
@@ -248,23 +259,24 @@ public class RbfFrameBuilderTests : IDisposable {
         builder.PayloadAndMeta.Advance(data.Length);
 
         // Act & Assert - tailMetaLength (10) 超过 payloadAndMetaLength (4)
-        var ex = Assert.Throws<InvalidOperationException>(() => builder.EndAppend(0x1234, tailMetaLength: 10));
-        Assert.Contains("tailMetaLength", ex.Message);
+        var result = builder.EndAppend(0x1234, tailMetaLength: 10);
+        Assert.False(result.IsSuccess);
+        Assert.Contains("tailMetaLength", result.Error!.Message);
     }
 
-    /// <summary>TailMetaLength 超过 MaxTailMetaLength：应抛出 InvalidOperationException。</summary>
+    /// <summary>TailMetaLength 超过 MaxTailMetaLength：应返回失败结果。</summary>
     /// <remarks>
     /// 覆盖 RbfFrameBuilder.EndAppend 中的约束：
     /// <code>
     /// if (tailMetaLength &gt; FrameLayout.MaxTailMetaLength) {
-    ///     throw new InvalidOperationException(...)
+    ///     return Failure(...)
     /// }
     /// </code>
     /// MaxTailMetaLength = 65535 (ushort.MaxValue)
     /// 需要先写入足够多的数据，避免被 tailMetaLength &gt; payloadAndMetaLength 分支先拦截。
     /// </remarks>
     [Fact]
-    public void EndAppend_TailMetaLengthExceedsMaxTailMetaLength_ThrowsInvalidOperationException() {
+    public void EndAppend_TailMetaLengthExceedsMaxTailMetaLength_ReturnsFailure() {
         // Arrange
         var path = GetTempFilePath();
         using var file = RbfFile.CreateNew(path);
@@ -279,10 +291,9 @@ public class RbfFrameBuilderTests : IDisposable {
 
         // Act & Assert - tailMetaLength = 65536 超过 MaxTailMetaLength (65535)
         int invalidTailMetaLength = ushort.MaxValue + 1; // 65536
-        var ex = Assert.Throws<InvalidOperationException>(
-            () => builder.EndAppend(0x1234, tailMetaLength: invalidTailMetaLength)
-        );
-        Assert.Contains("MaxTailMetaLength", ex.Message);
+        var result = builder.EndAppend(0x1234, tailMetaLength: invalidTailMetaLength);
+        Assert.False(result.IsSuccess);
+        Assert.Contains("MaxTailMetaLength", result.Error!.Message);
     }
 
     // ========== TailOffset 验证测试 (Task 7.4) ==========
@@ -305,7 +316,9 @@ public class RbfFrameBuilderTests : IDisposable {
             var span = builder.PayloadAndMeta.GetSpan(payload.Length);
             payload.CopyTo(span);
             builder.PayloadAndMeta.Advance(payload.Length);
-            ptr = builder.EndAppend(tag);
+            var result = builder.EndAppend(tag);
+            Assert.True(result.IsSuccess, $"EndAppend failed: {result.Error}");
+            ptr = result.Value;
         }
 
         // Assert
@@ -336,7 +349,8 @@ public class RbfFrameBuilderTests : IDisposable {
             Assert.Equal(initialTailOffset, file.TailOffset);
 
             // 提交后 TailOffset 更新
-            builder.EndAppend(0x1234);
+            var result = builder.EndAppend(0x1234);
+            Assert.True(result.IsSuccess, $"EndAppend failed: {result.Error}");
         }
 
         // EndAppend 后 TailOffset 应已更新
@@ -361,7 +375,9 @@ public class RbfFrameBuilderTests : IDisposable {
             var span = builder.PayloadAndMeta.GetSpan(payload.Length);
             payload.CopyTo(span);
             builder.PayloadAndMeta.Advance(payload.Length);
-            ptr = builder.EndAppend(tag);
+            var endResult = builder.EndAppend(tag);
+            Assert.True(endResult.IsSuccess, $"EndAppend failed: {endResult.Error}");
+            ptr = endResult.Value;
         }
 
         // Assert - ReadFrame 使用 Span buffer，执行 L3 完整校验
@@ -399,7 +415,9 @@ public class RbfFrameBuilderTests : IDisposable {
             tailMeta.CopyTo(tailMetaSpan);
             builder.PayloadAndMeta.Advance(tailMeta.Length);
 
-            ptr = builder.EndAppend(tag, tailMeta.Length);
+            var endResult = builder.EndAppend(tag, tailMeta.Length);
+            Assert.True(endResult.IsSuccess, $"EndAppend failed: {endResult.Error}");
+            ptr = endResult.Value;
         }
 
         // Assert - ReadFrame 执行 L3 完整校验
@@ -436,7 +454,9 @@ public class RbfFrameBuilderTests : IDisposable {
             var span = builder.PayloadAndMeta.GetSpan(payload.Length);
             payload.CopyTo(span);
             builder.PayloadAndMeta.Advance(payload.Length);
-            var ptr = builder.EndAppend(tag);
+            var result = builder.EndAppend(tag);
+            Assert.True(result.IsSuccess, $"EndAppend frame {i} failed: {result.Error}");
+            var ptr = result.Value;
 
             frames.Add((ptr, payload, tag));
         }
@@ -481,7 +501,9 @@ public class RbfFrameBuilderTests : IDisposable {
             var span = builder.PayloadAndMeta.GetSpan(payload2.Length);
             payload2.CopyTo(span);
             builder.PayloadAndMeta.Advance(payload2.Length);
-            ptrs.Add(builder.EndAppend(0x2222));
+            var result2 = builder.EndAppend(0x2222);
+            Assert.True(result2.IsSuccess, $"EndAppend failed: {result2.Error}");
+            ptrs.Add(result2.Value);
         }
 
         // 第三帧：使用 Append
@@ -663,7 +685,9 @@ public class RbfFrameBuilderTests : IDisposable {
             var span = builder.PayloadAndMeta.GetSpan(payload.Length);
             payload.CopyTo(span);
             builder.PayloadAndMeta.Advance(payload.Length);
-            ptr = builder.EndAppend(0x9ABC);
+            var result = builder.EndAppend(0x9ABC);
+            Assert.True(result.IsSuccess, $"EndAppend failed: {result.Error}");
+            ptr = result.Value;
         }
 
         // Assert
@@ -735,7 +759,9 @@ public class RbfFrameBuilderTests : IDisposable {
             var span = builder2.PayloadAndMeta.GetSpan(payload.Length);
             payload.CopyTo(span);
             builder2.PayloadAndMeta.Advance(payload.Length);
-            ptr = builder2.EndAppend(0xDEAD);
+            var result = builder2.EndAppend(0xDEAD);
+            Assert.True(result.IsSuccess, $"EndAppend failed: {result.Error}");
+            ptr = result.Value;
         }
 
         // Assert
@@ -757,7 +783,8 @@ public class RbfFrameBuilderTests : IDisposable {
             var span = builder1.PayloadAndMeta.GetSpan(4);
             span.Fill(0x11);
             builder1.PayloadAndMeta.Advance(4);
-            builder1.EndAppend(0x1111);
+            var result1 = builder1.EndAppend(0x1111);
+            Assert.True(result1.IsSuccess, $"First EndAppend failed: {result1.Error}");
         }
 
         // Act - 第二个 Builder
@@ -767,7 +794,9 @@ public class RbfFrameBuilderTests : IDisposable {
             var span = builder2.PayloadAndMeta.GetSpan(payload.Length);
             payload.CopyTo(span);
             builder2.PayloadAndMeta.Advance(payload.Length);
-            ptr = builder2.EndAppend(0x2222);
+            var result2 = builder2.EndAppend(0x2222);
+            Assert.True(result2.IsSuccess, $"Second EndAppend failed: {result2.Error}");
+            ptr = result2.Value;
         }
 
         // Assert
@@ -871,7 +900,8 @@ public class RbfFrameBuilderTests : IDisposable {
             var span = builder.PayloadAndMeta.GetSpan(payload2.Length);
             payload2.CopyTo(span);
             builder.PayloadAndMeta.Advance(payload2.Length);
-            builder.EndAppend(0x2222);
+            var result2 = builder.EndAppend(0x2222);
+            Assert.True(result2.IsSuccess, $"EndAppend Frame2 failed: {result2.Error}");
         }
 
         // Frame 3: 使用 Append
@@ -883,7 +913,8 @@ public class RbfFrameBuilderTests : IDisposable {
             var span = builder.PayloadAndMeta.GetSpan(payload4.Length);
             payload4.CopyTo(span);
             builder.PayloadAndMeta.Advance(payload4.Length);
-            builder.EndAppend(0x4444);
+            var result4 = builder.EndAppend(0x4444);
+            Assert.True(result4.IsSuccess, $"EndAppend Frame4 failed: {result4.Error}");
         }
 
         // Act: ScanReverse 应按逆序返回（Frame4 → Frame3 → Frame2 → Frame1）
@@ -917,7 +948,9 @@ public class RbfFrameBuilderTests : IDisposable {
             var span = builder.PayloadAndMeta.GetSpan(largePayload.Length);
             largePayload.CopyTo(span);
             builder.PayloadAndMeta.Advance(largePayload.Length);
-            ptr = builder.EndAppend(tag);
+            var result = builder.EndAppend(tag);
+            Assert.True(result.IsSuccess, $"EndAppend failed: {result.Error}");
+            ptr = result.Value;
         }
 
         // Act: ScanReverse 获取帧信息
@@ -967,7 +1000,8 @@ public class RbfFrameBuilderTests : IDisposable {
             tailMeta.CopyTo(tailMetaSpan);
             builder.PayloadAndMeta.Advance(tailMeta.Length);
 
-            builder.EndAppend(tag, tailMeta.Length);
+            var result = builder.EndAppend(tag, tailMeta.Length);
+            Assert.True(result.IsSuccess, $"EndAppend failed: {result.Error}");
         }
 
         // Act: ScanReverse 获取帧信息
@@ -1020,7 +1054,8 @@ public class RbfFrameBuilderTests : IDisposable {
             var span = builder.PayloadAndMeta.GetSpan(payload.Length);
             payload.CopyTo(span);
             builder.PayloadAndMeta.Advance(payload.Length);
-            builder.EndAppend(tag);
+            var result = builder.EndAppend(tag);
+            Assert.True(result.IsSuccess, $"EndAppend frame {i} failed: {result.Error}");
 
             expectedFrames.Add((tag, payload));
         }
@@ -1063,7 +1098,8 @@ public class RbfFrameBuilderTests : IDisposable {
             var span = builder.PayloadAndMeta.GetSpan(4);
             span.Fill(0xAA);
             builder.PayloadAndMeta.Advance(4);
-            builder.EndAppend(0x1111);
+            var r1 = builder.EndAppend(0x1111);
+            Assert.True(r1.IsSuccess);
         }
 
         file.Append(0x2222, [0xBB, 0xCC]);
@@ -1072,7 +1108,8 @@ public class RbfFrameBuilderTests : IDisposable {
             var span = builder.PayloadAndMeta.GetSpan(8);
             span.Fill(0xDD);
             builder.PayloadAndMeta.Advance(8);
-            builder.EndAppend(0x3333);
+            var r3 = builder.EndAppend(0x3333);
+            Assert.True(r3.IsSuccess);
         }
 
         // Act
@@ -1102,7 +1139,8 @@ public class RbfFrameBuilderTests : IDisposable {
             var span = builder.PayloadAndMeta.GetSpan(payload.Length);
             payload.CopyTo(span);
             builder.PayloadAndMeta.Advance(payload.Length);
-            builder.EndAppend(tag);
+            var endResult = builder.EndAppend(tag);
+            Assert.True(endResult.IsSuccess, $"EndAppend failed: {endResult.Error}");
         }
 
         // Act: 通过 ScanReverse 获取 Ticket，然后用 Ticket 读取帧
@@ -1114,19 +1152,19 @@ public class RbfFrameBuilderTests : IDisposable {
 
         // 使用 Ticket 直接调用 ReadFrame
         byte[] buffer = new byte[ticket.Length];
-        var result = file.ReadFrame(ticket, buffer);
+        var readResult = file.ReadFrame(ticket, buffer);
 
         // Assert
-        Assert.True(result.IsSuccess);
-        var frame = result.Value;
+        Assert.True(readResult.IsSuccess);
+        var frame = readResult.Value;
         Assert.Equal(tag, frame.Tag);
         Assert.Equal(payload, frame.PayloadAndMeta.ToArray());
     }
 
-    // ========== Phase 3: Builder Per-File 复用测试 ==========
+    // ========== Phase 3: Builder 连续使用测试 ==========
     // 规范引用：wish/W-0009-rbf/stage/10/task-phase3-builder-reuse.md
 
-    /// <summary>连续多次 BeginAppend → Commit：验证 Builder 被复用且数据独立。</summary>
+    /// <summary>连续多次 BeginAppend → Commit：验证数据独立。</summary>
     [Fact]
     public void BuilderReuse_MultipleCommits_NoDataLeakage() {
         // Arrange
@@ -1145,7 +1183,9 @@ public class RbfFrameBuilderTests : IDisposable {
             var span = builder.PayloadAndMeta.GetSpan(payload.Length);
             payload.CopyTo(span);
             builder.PayloadAndMeta.Advance(payload.Length);
-            var ptr = builder.EndAppend(tag);
+            var result = builder.EndAppend(tag);
+            Assert.True(result.IsSuccess, $"EndAppend frame {i} failed: {result.Error}");
+            var ptr = result.Value;
 
             frames.Add((ptr, payload, tag));
         }
@@ -1161,7 +1201,7 @@ public class RbfFrameBuilderTests : IDisposable {
         }
     }
 
-    /// <summary>BeginAppend → Abort → BeginAppend → Commit：验证 Abort 后复用正常。</summary>
+    /// <summary>BeginAppend → Abort → BeginAppend → Commit：验证 Abort 后可继续写入。</summary>
     [Fact]
     public void BuilderReuse_AfterAbort_NoDataLeakage() {
         // Arrange
@@ -1177,14 +1217,16 @@ public class RbfFrameBuilderTests : IDisposable {
             // 不调用 EndAppend，直接 Dispose → Abort
         }
 
-        // 第二帧：正常写入（复用 builder）
+        // 第二帧：正常写入
         byte[] committedPayload = [0xC0, 0xAA, 0x17, 0xED];
         SizedPtr ptr;
         using (var builder2 = file.BeginAppend()) {
             var span = builder2.PayloadAndMeta.GetSpan(committedPayload.Length);
             committedPayload.CopyTo(span);
             builder2.PayloadAndMeta.Advance(committedPayload.Length);
-            ptr = builder2.EndAppend(0x2222);
+            var result = builder2.EndAppend(0x2222);
+            Assert.True(result.IsSuccess, $"EndAppend failed: {result.Error}");
+            ptr = result.Value;
         }
 
         // Assert: 只有一帧，且内容是第二次写入的
@@ -1222,7 +1264,9 @@ public class RbfFrameBuilderTests : IDisposable {
 
             if (i % 2 == 0) {
                 // 偶数帧 Commit
-                var ptr = builder.EndAppend(tag);
+                var result = builder.EndAppend(tag);
+                Assert.True(result.IsSuccess, $"EndAppend frame {i} failed: {result.Error}");
+                var ptr = result.Value;
                 committedFrames.Add((ptr, payload));
             }
             // 奇数帧 Abort（Dispose 不调用 EndAppend）
@@ -1245,7 +1289,7 @@ public class RbfFrameBuilderTests : IDisposable {
         }
     }
 
-    /// <summary>大数据量复用：连续写入大帧后复用 Builder。</summary>
+    /// <summary>大数据量连续写入：连续写入大帧后仍能正常写入。</summary>
     [Fact]
     public void BuilderReuse_LargePayloads_NoMemoryLeakOrCorruption() {
         // Arrange
@@ -1263,7 +1307,9 @@ public class RbfFrameBuilderTests : IDisposable {
             var span = builder.PayloadAndMeta.GetSpan(payload.Length);
             payload.CopyTo(span);
             builder.PayloadAndMeta.Advance(payload.Length);
-            var ptr = builder.EndAppend(tag);
+            var result = builder.EndAppend(tag);
+            Assert.True(result.IsSuccess, $"EndAppend large frame {i} failed: {result.Error}");
+            var ptr = result.Value;
 
             frames.Add((ptr, payload));
         }
@@ -1278,7 +1324,7 @@ public class RbfFrameBuilderTests : IDisposable {
         }
     }
 
-    /// <summary>带 Reservation 的复用：验证 Reservation 状态正确重置。</summary>
+    /// <summary>带 Reservation 的连续写入：验证 Reservation 状态正确重置。</summary>
     [Fact]
     public void BuilderReuse_WithReservation_StateResetCorrectly() {
         // Arrange
@@ -1305,7 +1351,9 @@ public class RbfFrameBuilderTests : IDisposable {
             builder.PayloadAndMeta.Commit(token);
 
             // 提交帧
-            var ptr = builder.EndAppend((uint)(0x3000 + i));
+            var endResult = builder.EndAppend((uint)(0x3000 + i));
+            Assert.True(endResult.IsSuccess, $"EndAppend frame {i} failed: {endResult.Error}");
+            var ptr = endResult.Value;
             frames.Add((ptr, data.Length, data));
         }
 
@@ -1333,13 +1381,14 @@ public class RbfFrameBuilderTests : IDisposable {
 
         // Act
         using (var file = RbfFile.CreateNew(path)) {
-            // 写几帧确保 Builder 被创建和复用
+            // 写几帧确保 BeginAppend 连续可用
             for (int i = 0; i < 3; i++) {
                 using var builder = file.BeginAppend();
                 var span = builder.PayloadAndMeta.GetSpan(4);
                 span.Fill((byte)i);
                 builder.PayloadAndMeta.Advance(4);
-                builder.EndAppend((uint)(0x4000 + i));
+                var result = builder.EndAppend((uint)(0x4000 + i));
+                Assert.True(result.IsSuccess, $"EndAppend frame {i} failed: {result.Error}");
             }
         }
 
@@ -1375,14 +1424,333 @@ public class RbfFrameBuilderTests : IDisposable {
             var span = builder2.PayloadAndMeta.GetSpan(payload.Length);
             payload.CopyTo(span);
             builder2.PayloadAndMeta.Advance(payload.Length);
-            ptr = builder2.EndAppend(0x5555);
+            var endResult = builder2.EndAppend(0x5555);
+            Assert.True(endResult.IsSuccess, $"EndAppend failed: {endResult.Error}");
+            ptr = endResult.Value;
         }
 
         // Assert
-        var result = file.ReadPooledFrame(ptr);
-        Assert.True(result.IsSuccess);
-        using var frame = result.Value!;
+        var readResult = file.ReadPooledFrame(ptr);
+        Assert.True(readResult.IsSuccess);
+        using var frame = readResult.Value!;
         Assert.Equal(0x5555u, frame.Tag);
         Assert.Equal(payload, frame.PayloadAndMeta.ToArray());
+    }
+
+    // ========== Task-04: 状态机转移矩阵与 epoch 防误用测试 ==========
+    // 规范引用：Stage 11 Task-04 - 覆盖状态转移矩阵与 epoch 误用场景
+
+    /// <summary>状态机转移：Idle → Building（BeginAppend）→ Idle（EndAppend 成功）。</summary>
+    [Fact]
+    public void StateMachine_Idle_BeginAppend_Building_EndAppend_Idle() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+
+        // Idle: 可 Append
+        var appendResult = file.Append(0x1111, [0x01]);
+        Assert.True(appendResult.IsSuccess, "Idle state should allow Append");
+
+        // Idle → Building: BeginAppend
+        using var builder = file.BeginAppend();
+
+        // Building: 不可再 BeginAppend
+        Assert.Throws<InvalidOperationException>(() => file.BeginAppend());
+
+        // Building: 不可 Append
+        Assert.Throws<InvalidOperationException>(() => file.Append(0x2222, [0x02]));
+
+        // Building → Idle: EndAppend 成功
+        var endResult = builder.EndAppend(0x3333);
+        Assert.True(endResult.IsSuccess);
+
+        // 回到 Idle: 可 Append
+        var append2 = file.Append(0x4444, [0x04]);
+        Assert.True(append2.IsSuccess, "After EndAppend should be Idle, allowing Append");
+    }
+
+    /// <summary>状态机转移：Idle → Building（BeginAppend）→ Idle（Dispose/Abort）。</summary>
+    [Fact]
+    public void StateMachine_Idle_BeginAppend_Building_Dispose_Idle() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+
+        // Idle → Building
+        var builder = file.BeginAppend();
+
+        // Building: 不可 Append
+        Assert.Throws<InvalidOperationException>(() => file.Append(0x1111, [0x01]));
+
+        // Building → Idle: Dispose（Auto-Abort）
+        builder.Dispose();
+
+        // 回到 Idle: 可 Append
+        var appendResult = file.Append(0x2222, [0x02]);
+        Assert.True(appendResult.IsSuccess, "After Dispose/Abort should be Idle");
+    }
+
+    /// <summary>状态机：连续状态切换（多次 Building → Idle）。</summary>
+    [Fact]
+    public void StateMachine_MultipleTransitions() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+
+        for (int i = 0; i < 5; i++) {
+            // Idle → Building
+            using var builder = file.BeginAppend();
+            var span = builder.PayloadAndMeta.GetSpan(4);
+            span.Fill((byte)i);
+            builder.PayloadAndMeta.Advance(4);
+
+            if (i % 2 == 0) {
+                // Building → Idle via EndAppend
+                var result = builder.EndAppend((uint)(0x1000 + i));
+                Assert.True(result.IsSuccess);
+            }
+            // 奇数次：Building → Idle via Dispose
+        }
+
+        // 最终状态应为 Idle
+        var finalAppend = file.Append(0xFFFF, [0xFF]);
+        Assert.True(finalAppend.IsSuccess, "Final state should be Idle");
+    }
+
+    /// <summary>Epoch 防误用：旧 Builder 引用在新周期 EndAppend 返回 Failure。</summary>
+    /// <remarks>
+    /// Builder 为值类型，旧引用保存旧 epoch。
+    /// 新 BeginAppend 后旧引用尝试 EndAppend，应因 epoch 不匹配而失败。
+    /// </remarks>
+    [Fact]
+    public void Epoch_StaleBuilder_EndAppend_ReturnsFailure() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+
+        // 第一周期：获取 Builder 并写入数据
+        var builder1 = file.BeginAppend();
+        var span1 = builder1.PayloadAndMeta.GetSpan(4);
+        span1.Fill(0x11);
+        builder1.PayloadAndMeta.Advance(4);
+
+        // 不调用 Dispose，保留 builder1 引用
+        // 但调用 EndAppend 成功提交（此时 file 回到 Idle）
+        var result1 = builder1.EndAppend(0x1111);
+        Assert.True(result1.IsSuccess, $"First EndAppend should succeed: {result1.Error}");
+
+        // 第二周期：新的 Builder（新 epoch）
+        var builder2 = file.BeginAppend();
+        var span2 = builder2.PayloadAndMeta.GetSpan(4);
+        span2.Fill(0x22);
+        builder2.PayloadAndMeta.Advance(4);
+
+        // Act: 尝试用"旧引用"提交（epoch 不匹配）
+        var result2 = builder1.EndAppend(0x2222);
+        Assert.False(result2.IsSuccess, "Stale builder should fail");
+        Assert.Contains("epoch", result2.Error!.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("Rbf.StateError", result2.Error.ErrorCode);
+
+        // 当前 builder2 仍可成功提交
+        var result3 = builder2.EndAppend(0x3333);
+        Assert.True(result3.IsSuccess, $"Second EndAppend should succeed: {result3.Error}");
+    }
+
+    /// <summary>Epoch 防误用：旧 Builder Dispose 不影响新周期。</summary>
+    /// <remarks>
+    /// Builder 为值类型，旧引用 Dispose 应被忽略，不影响新周期。
+    /// </remarks>
+    [Fact]
+    public void Epoch_StaleBuilder_Dispose_NoEffect() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+
+        // 第一周期
+        var builder1 = file.BeginAppend();
+        var span1 = builder1.PayloadAndMeta.GetSpan(4);
+        span1.Fill(0x11);
+        builder1.PayloadAndMeta.Advance(4);
+        var result1 = builder1.EndAppend(0x1111);
+        Assert.True(result1.IsSuccess);
+
+        // 第二周期
+        var builder2 = file.BeginAppend();
+        var span = builder2.PayloadAndMeta.GetSpan(4);
+        span.Fill(0x33);
+        builder2.PayloadAndMeta.Advance(4);
+
+        // Act: 旧引用 Dispose（epoch 不匹配，应被忽略）
+        builder1.Dispose();
+
+        // Assert: builder2 不受影响，EndAppend 成功
+        var result2 = builder2.EndAppend(0x3333);
+        Assert.True(result2.IsSuccess, $"Builder2 EndAppend should succeed: {result2.Error}");
+    }
+
+    /// <summary>旧 writer 持有 + epoch 失效：旧 writer 调用应抛异常。</summary>
+    [Fact]
+    public void PayloadWriter_StaleEpoch_ThrowsOnUse() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+
+        var builder1 = file.BeginAppend();
+        var writer1 = builder1.PayloadAndMeta;
+
+        // 结束第一周期（提交或 Abort）
+        var endResult = builder1.EndAppend(0x1111);
+        Assert.True(endResult.IsSuccess, $"EndAppend failed: {endResult.Error}");
+
+        // 开启新周期，epoch 递增
+        using var builder2 = file.BeginAppend();
+
+        // Act & Assert: 旧 writer 调用应失败（epoch 不匹配）
+        var ex = Assert.Throws<InvalidOperationException>(() => writer1.GetSpan(1));
+        Assert.Contains("epoch", ex.Message, StringComparison.OrdinalIgnoreCase);
+
+        // Cleanup: 让新周期正常结束
+        var span2 = builder2.PayloadAndMeta.GetSpan(1);
+        span2[0] = 0x42;
+        builder2.PayloadAndMeta.Advance(1);
+        var result2 = builder2.EndAppend(0x2222);
+        Assert.True(result2.IsSuccess, $"Builder2 EndAppend should succeed: {result2.Error}");
+    }
+
+    // ========== Task-04: EndAppend 失败返回 RbfArgumentError / RbfStateError 测试 ==========
+
+    /// <summary>EndAppend 失败：负数 tailMetaLength 返回 RbfArgumentError。</summary>
+    [Fact]
+    public void EndAppend_NegativeTailMetaLength_ReturnsRbfArgumentError() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+        using var builder = file.BeginAppend();
+
+        // 写入数据
+        var span = builder.PayloadAndMeta.GetSpan(10);
+        span.Fill(0x42);
+        builder.PayloadAndMeta.Advance(10);
+
+        // Act
+        var result = builder.EndAppend(0x1234, tailMetaLength: -1);
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Contains("tailMetaLength", result.Error!.Message);
+        Assert.Equal("Rbf.ArgumentError", result.Error.ErrorCode);
+    }
+
+    /// <summary>EndAppend 失败：重复调用返回 RbfStateError。</summary>
+    [Fact]
+    public void EndAppend_Duplicate_ReturnsRbfStateError() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+        var builder = file.BeginAppend();
+
+        // 第一次成功
+        var result1 = builder.EndAppend(0x1234);
+        Assert.True(result1.IsSuccess);
+
+        // Act: 第二次调用
+        var result2 = builder.EndAppend(0x5678);
+
+        // Assert
+        Assert.False(result2.IsSuccess);
+        Assert.Contains("EndAppend", result2.Error!.Message);
+        Assert.Equal("Rbf.StateError", result2.Error.ErrorCode);
+
+        builder.Dispose();
+    }
+
+    /// <summary>EndAppend 失败：Dispose 后调用返回 RbfStateError。</summary>
+    [Fact]
+    public void EndAppend_AfterDispose_ReturnsRbfStateError() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+        var builder = file.BeginAppend();
+        builder.Dispose();
+
+        // Act
+        var result = builder.EndAppend(0x1234);
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Contains("disposed", result.Error!.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("Rbf.StateError", result.Error.ErrorCode);
+    }
+
+    /// <summary>EndAppend 失败：未提交 Reservation 返回 RbfStateError。</summary>
+    [Fact]
+    public void EndAppend_PendingReservation_ReturnsRbfStateError() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+        using var builder = file.BeginAppend();
+
+        // 创建 Reservation 但不 Commit
+        _ = builder.PayloadAndMeta.ReserveSpan(4, out _, tag: "pending");
+        var span = builder.PayloadAndMeta.GetSpan(10);
+        span.Fill(0x55);
+        builder.PayloadAndMeta.Advance(10);
+
+        // Act
+        var result = builder.EndAppend(0x1234);
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Contains("reservation", result.Error!.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("Rbf.StateError", result.Error.ErrorCode);
+    }
+
+    /// <summary>EndAppend 失败：tailMetaLength 超出 payloadAndMetaLength 返回 RbfArgumentError。</summary>
+    [Fact]
+    public void EndAppend_TailMetaExceedsPayload_ReturnsRbfArgumentError() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+        using var builder = file.BeginAppend();
+
+        // 写入 5 字节
+        var span = builder.PayloadAndMeta.GetSpan(5);
+        span.Fill(0x66);
+        builder.PayloadAndMeta.Advance(5);
+
+        // Act: tailMetaLength = 10 > 5
+        var result = builder.EndAppend(0x1234, tailMetaLength: 10);
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Contains("tailMetaLength", result.Error!.Message);
+        Assert.Equal("Rbf.ArgumentError", result.Error.ErrorCode);
+    }
+
+    /// <summary>EndAppend 失败：File 已 Dispose 返回 RbfStateError。</summary>
+    /// <remarks>
+    /// Builder 为值类型；此处覆盖 File Dispose 后的状态拒绝路径。
+    /// </remarks>
+    [Fact]
+    public void EndAppend_FileDisposed_ReturnsRbfStateError() {
+        // Arrange
+        var path = GetTempFilePath();
+        RbfFrameBuilder builder = default;
+
+        using (var file = RbfFile.CreateNew(path)) {
+            builder = file.BeginAppend();
+            var span = builder.PayloadAndMeta.GetSpan(4);
+            span.Fill(0x77);
+            builder.PayloadAndMeta.Advance(4);
+        }  // File Dispose
+
+        // Act: File 已 Dispose，Builder 尝试 EndAppend
+        var result = builder.EndAppend(0x1111);
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Equal("Rbf.StateError", result.Error!.ErrorCode);
+
+        builder.Dispose();
     }
 }

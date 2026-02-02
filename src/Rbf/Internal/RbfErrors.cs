@@ -53,3 +53,18 @@ internal sealed record RbfBufferTooSmallError : AteliaError {
         this.ProvidedBytes = ProvidedBytes;
     }
 }
+
+/// <summary>RBF 状态违规错误（Builder 生命周期、重复提交等）。</summary>
+/// <remarks>
+/// 规范引用：方案 D - 将状态违规映射为 Result Failure 而非抛出异常。
+/// 使用场景：
+/// - 重复调用 EndAppend
+/// - Builder 已 Dispose 后调用 EndAppend
+/// - 存在未提交的 reservation
+/// </remarks>
+internal sealed record RbfStateError(
+    string Message,
+    string? RecoveryHint = null,
+    IReadOnlyDictionary<string, string>? Details = null,
+    AteliaError? Cause = null
+) : AteliaError("Rbf.StateError", Message, RecoveryHint, Details, Cause);

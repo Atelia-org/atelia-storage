@@ -28,31 +28,29 @@ internal static class RbfAppendImpl {
         return [OneMax, TwoMin, TwoMax, ThreeMin];
     }
 
-    /// <summary>填充 TrailerCodeword 和 Fence（v0.40）。</summary>
+    /// <summary>填充 Padding，预留 PayloadCrc 空洞，然后填充 TrailerCodeword + Fence（v0.40）。</summary>
     /// <param name="buffer">目标 buffer。</param>
     /// <param name="bufferOffset">当前已使用的字节数（会被更新）。</param>
     /// <param name="layout">帧布局。</param>
     /// <param name="tag">帧标签。</param>
     /// <param name="isTombstone">是否为墓碑帧。</param>
+    /// <returns>更新后的 bufferOffset。</returns>
+    /// <remarks>
+    /// PayloadCrc 由 <see cref="WriteWithCrc"/> 在 finalize 时回填。
+    /// TrailerCodeword + Fence 的构建委托给 <see cref="RbfFrameWriteCore.WriteTrailerAndFence"/>。
+    /// </remarks>
     private static int FillPaddingToFence(Span<byte> buffer, int bufferOffset, in FrameLayout layout, uint tag, bool isTombstone) {
-        { // Padding
-            var paddingLen = layout.PaddingLength;
-            buffer.Slice(bufferOffset, paddingLen).Fill(0);
-            bufferOffset += paddingLen;
-        }
+        // Padding
+        var paddingLen = layout.PaddingLength;
+        buffer.Slice(bufferOffset, paddingLen).Fill(0);
+        bufferOffset += paddingLen;
 
-        // 给PayloadCrc流出空洞
+        // 预留 PayloadCrc 空洞（由 WriteWithCrc finalize 时回填）
         bufferOffset += RbfLayout.PayloadCrcSize;
 
-        { // 填充 TrailerCodeword
-            var trailerCodeword = buffer.Slice(bufferOffset, TrailerCodewordHelper.Size);
-            layout.FillTrailer(trailerCodeword, tag, isTombstone);
-            bufferOffset += TrailerCodewordHelper.Size;
-        }
-
-        // Fence
-        RbfLayout.Fence.CopyTo(buffer[bufferOffset..]);
-        bufferOffset += RbfLayout.FenceSize;
+        // 填充 TrailerCodeword + Fence（委托给 RbfFrameWriteCore）
+        RbfFrameWriteCore.WriteTrailerAndFence(buffer[bufferOffset..], in layout, tag, isTombstone);
+        bufferOffset += FrameLayout.TrailerCodewordSize + RbfLayout.FenceSize;
 
         return bufferOffset;
     }
@@ -144,16 +142,12 @@ internal static class RbfAppendImpl {
             );
         }
 
-        // 4. 检查 frameOffset 是否超出 SizedPtr 可表示范围
-        if (fileOffset > MaxFileOffset) {
-            return AteliaResult<SizedPtr>.Failure(
-                new RbfArgumentError(
-                    $"Frame offset exceeds maximum: {fileOffset} > {MaxFileOffset}.",
-                    RecoveryHint: "Rollover to a new file or implement file splitting."
-                )
-            );
-        }
+        // 4. 检查 EndOffset 是否超出 SizedPtr 可表示范围（统一调用 RbfFrameWriteCore.ValidateEndOffset）
         FrameLayout layout = new FrameLayout(payload.Length, tailMeta.Length);
+        var endOffsetError = RbfFrameWriteCore.ValidateEndOffset(fileOffset, layout.FrameLength);
+        if (endOffsetError is not null) {
+            return AteliaResult<SizedPtr>.Failure(endOffsetError);
+        }
         AteliaResult<SizedPtr> success = SizedPtr.Create(fileOffset, layout.FrameLength); // 隐式类型转换
 
         // === 校验通过，执行写入 ===
@@ -258,11 +252,4 @@ internal static class RbfAppendImpl {
         WriteWithCrc(file, buffer[tailOffset..], ref fileOffset, ref payloadCrc, crcInitialize: false, crcFinalize: true);
         return success;
     }
-
-    /// <summary>最大允许的写入后 EndOffset（等于 SizedPtr.MaxOffset）。</summary>
-    /// <remarks>
-    /// 校验条件是 `frameOffset + frameLength + fenceSize &lt;= MaxFileOffset`，
-    /// 通过此校验可确保生成的 SizedPtr 有效（Offset + Length 不超出可表示范围）。
-    /// </remarks>
-    private const long MaxFileOffset = SizedPtr.MaxOffset;
 }

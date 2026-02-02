@@ -426,7 +426,9 @@ public class RbfTruncateTests : IDisposable {
             var span = builder.PayloadAndMeta.GetSpan(newPayload.Length);
             newPayload.CopyTo(span);
             builder.PayloadAndMeta.Advance(newPayload.Length);
-            newPtr = builder.EndAppend(newTag);
+            var endResult = builder.EndAppend(newTag);
+            Assert.True(endResult.IsSuccess, $"EndAppend failed: {endResult.Error}");
+            newPtr = endResult.Value;
         }
 
         // Assert - ReadFrame 成功

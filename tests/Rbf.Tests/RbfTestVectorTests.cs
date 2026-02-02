@@ -429,7 +429,9 @@ public class RbfTestVectorTests : IDisposable {
                 builder.PayloadAndMeta.Advance(tailMeta.Length);
 
                 // EndAppend 时指定 tailMetaLength
-                framePtr = builder.EndAppend(tag, tailMetaLength: tailMeta.Length);
+                var endResult = builder.EndAppend(tag, tailMetaLength: tailMeta.Length);
+                Assert.True(endResult.IsSuccess, $"EndAppend failed: {endResult.Error}");
+                framePtr = endResult.Value;
             }
         }
 
@@ -643,7 +645,9 @@ public class RbfTestVectorTests : IDisposable {
                 payload2.CopyTo(span);
                 tailMeta.CopyTo(span[payload2.Length..]);
                 builder.PayloadAndMeta.Advance(payload2.Length + tailMeta.Length);
-                ptr2 = builder.EndAppend(tag2, tailMetaLength: tailMeta.Length);
+                var endResult = builder.EndAppend(tag2, tailMetaLength: tailMeta.Length);
+                Assert.True(endResult.IsSuccess, $"EndAppend failed: {endResult.Error}");
+                ptr2 = endResult.Value;
             }
 
             expectedTailOffset = file.TailOffset;

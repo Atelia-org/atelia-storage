@@ -37,11 +37,14 @@ void SimpleWrite(IRbfFile file, uint myTag, byte[] data) {
 ```csharp
 void StreamingWrite(IRbfFile file, uint myTag, IEnumerable<byte[]> chunks) {
     // 1. 开启事务
-    // 注意：builder 是 ref struct，最好配合 using 确保即使异常也能 Dispose
+    // 注意：builder 是 readonly struct（值类型），避免复制或跨生命周期使用
+    // builder.PayloadAndMeta 返回的是 RbfPayloadWriter（值类型 wrapper），
+    // 每次调用会校验 epoch；如上转为 IReservableBufferWriter 会装箱。
+    // 最好配合 using 确保即使异常也能 Dispose
     using var builder = file.BeginAppend();
 
     // 2. 获取 Writer (IBufferWriter<byte>)
-    var writer = builder.Payload;
+    var writer = builder.PayloadAndMeta;
 
     try {
         foreach (var chunk in chunks) {
@@ -54,7 +57,12 @@ void StreamingWrite(IRbfFile file, uint myTag, IEnumerable<byte[]> chunks) {
 
         // 3. 结束追加 (EndAppend)
         // 只有 EndAppend 后，数据才对 Read 即刻可见，TailOffset 才会推进
-        SizedPtr ptr = builder.EndAppend(myTag);
+        var result = builder.EndAppend(myTag);
+        if (result.IsFailure) {
+            Console.WriteLine($"EndAppend failed: {result.Error!.Message}");
+            return;
+        }
+        SizedPtr ptr = result.Value;
 
         // EndAppend 后不能再写入，Dispose 变为无操作
     }

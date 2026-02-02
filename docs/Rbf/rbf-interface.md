@@ -198,7 +198,7 @@ public static class RbfFile {
 - `BeginAppend()` 返回的 `RbfFrameBuilder.EndAppend()` 成功返回后；
 - `Truncate()` 成功返回后。
 
-在 open Builder 的生命周期内（`Commit/Dispose` 之前），`TailOffset` MUST NOT 提前更新。
+在 open Builder 的生命周期内（`EndAppend/Dispose` 之前），`TailOffset` MUST NOT 提前更新。
 
 ### spec [S-RBF-DURABLEFLUSH-DURABILIZE-COMMITTED-ONLY] DurableFlush语义
 `IRbfFile.DurableFlush()` MUST 尝试将“已提交写入”的数据持久化到物理介质。
@@ -222,10 +222,10 @@ public static class RbfFile {
 /// 生命周期：调用方 MUST 调用 <see cref="EndAppend"/> 或 <see cref="Dispose"/> 之一来结束构建器生命周期。
 /// Auto-Abort（Optimistic Clean Abort）：若未 EndAppend 就 Dispose，
 /// 逻辑上该帧视为不存在；物理实现规则见 @[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME]。
-/// 类型选择：采用 sealed class 而非 ref struct，因为内部组件（SinkReservableWriter 等）
-/// 本就是堆分配，ref struct 外壳无实际收益；sealed class 更简单且支持未来 Reset 复用优化。
+/// 类型选择：采用 readonly struct 作为一次性值对象，避免 Builder 复用带来的语义混淆。
+/// 注意：Builder 为值类型，请避免复制并跨生命周期使用；旧 Builder 会因 epoch 不匹配而失败。
 /// </remarks>
-public sealed class RbfFrameBuilder : IDisposable {
+public readonly struct RbfFrameBuilder : IDisposable {
     /// <summary>Payload 写入器。</summary>
     /// <remarks>
     /// 该写入器实现 <see cref="IBufferWriter{T}"/>，因此可用于绝大多数序列化场景。
@@ -234,12 +234,14 @@ public sealed class RbfFrameBuilder : IDisposable {
     /// 注意：Payload 类型本身不承诺 Auto-Abort 一定为 Zero I/O；
     /// Zero I/O 是否可用由实现决定，见 @[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME]。
     /// </remarks>
-    public IReservableBufferWriter PayloadAndMeta { get; }
+        public RbfPayloadWriter PayloadAndMeta { get; }
 
     /// <summary>提交帧。回填 header/CRC，返回帧位置和长度。</summary>
-    /// <returns>写入的帧位置和长度</returns>
-    /// <exception cref="InvalidOperationException">重复调用 EndAppend</exception>
-    public SizedPtr EndAppend(uint tag, int tailMetaLength = 0);
+    /// <returns>成功返回帧位置与长度；失败返回错误。</returns>
+    /// <remarks>
+    /// Result-Pattern：可预见的参数/状态错误返回 <see cref="AteliaResult{T}"/> 失败；I/O 异常仍抛出。
+    /// </remarks>
+    public AteliaResult<SizedPtr> EndAppend(uint tag, int tailMetaLength = 0);
 
     /// <summary>释放构建器。若未 EndAppend，自动执行 Auto-Abort。</summary>
     /// <remarks>
@@ -250,7 +252,27 @@ public sealed class RbfFrameBuilder : IDisposable {
 }
 ```
 
+#### RbfPayloadWriter
+`RbfPayloadWriter` 是一个 readonly struct，内部携带 epoch 信息并在每次调用时做鉴权。
+这可避免旧 writer 被长期持有后在错误时机写入。
+
+**注意**：若上层将其上转为 `IReservableBufferWriter`，会产生装箱；如无必要，建议使用 `var` 保持值类型形态。
+
 **关键语义**：
+
+### spec [S-RBF-BUILDER-ENDAPPEND-RESULTPATTERN] EndAppend使用Result模式
+`RbfFrameBuilder.EndAppend` MUST 返回 `AteliaResult<SizedPtr>`，使用 Result-Pattern 表达可预见的操作拒绝。
+
+**返回失败的场景**（前置校验，不产生 I/O）：
+- `tailMetaLength < 0` 或 `tailMetaLength > payloadAndMetaLength`
+- `payloadAndMetaLength > MaxPayloadAndMetaLength`
+- 存在未提交 reservation（除 HeadLen 外）
+- builder 状态不允许（重复提交、已 Dispose）
+- 写入后 `EndOffset > SizedPtr.MaxOffset`
+
+**抛出异常的场景**（系统级故障）：
+- 磁盘满、权限不足、设备 I/O 错误等底层异常
+
 
 ### spec [S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME] Auto-Abort逻辑语义
 若 `RbfFrameBuilder` 未调用 `EndAppend()` 就执行 `Dispose()`：
@@ -269,7 +291,12 @@ public sealed class RbfFrameBuilder : IDisposable {
 
 ### spec [S-RBF-BUILDER-SINGLE-OPEN] 单Builder约束
 同一 `IRbfFile` 实例同时最多允许 1 个 open `RbfFrameBuilder`。
-在前一个 Builder 完成（Commit 或 Dispose）前调用 `BeginAppend()` MUST 抛出 `InvalidOperationException`。
+在前一个 Builder 完成（EndAppend 或 Dispose）前调用 `BeginAppend()` MUST 抛出 `InvalidOperationException`。
+
+### spec [S-RBF-READ-DISALLOW-WHILE-BUILDER-ACTIVE] Builder活跃时禁止读取与扫描
+当存在 open Builder（`BeginAppend()` 与 `EndAppend/Dispose` 之间）时：
+- `ReadFrame` / `ReadPooledFrame` / `ReadFrameInfo` / `ReadTailMeta` / `ReadPooledTailMeta` MUST 抛出 `InvalidOperationException`。
+- `ScanReverse` MUST 抛出 `InvalidOperationException`。
 
 ---
 
@@ -620,6 +647,7 @@ public sealed class RbfPooledTailMeta : IDisposable, IRbfTailMeta {
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.35 | 2026-02-02 | **术语一致性**：修正两处遗留的 `Commit` 为 `EndAppend`（@[S-RBF-TAILOFFSET-UPDATE] 和 @[S-RBF-BUILDER-SINGLE-OPEN]） |
 | 0.34 | 2026-01-28 | **ReadFrameInfo 接口**：新增 `ReadFrameInfo(SizedPtr)` 从 ticket 恢复帧元信息；新增 `ReadPooledTailMeta(SizedPtr)` 便捷重载；补齐"SizedPtr → TailMeta"的读取路径 |
 | 0.33 | 2026-01-26 | **ReadTailMeta 接口**：新增 `ReadTailMeta` / `ReadPooledTailMeta` 方法用于大帧预览场景；新增 `RbfTailMeta` / `RbfPooledTailMeta` 类型；定义三层信任模型（L1/L2/L3） |
 | 0.32 | 2026-01-24 | **CRC 术语澄清**：修复"ScanReverse 不做 CRC"的歧义表述，明确 ScanReverse 必须做 `TrailerCrc32C` 校验；增加 `TailMetaLength` 和 `PayloadLength` 的值域上限约束；条款 `[S-RBF-SCANREVERSE-NO-CRC]` 更名为 `[S-RBF-SCANREVERSE-NO-PAYLOADCRC]` |
