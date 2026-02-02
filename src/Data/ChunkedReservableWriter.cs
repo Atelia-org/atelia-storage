@@ -289,11 +289,7 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     #endregion
 
     #region IReservableBufferWriter
-    /// <summary>
-    /// Reserves a contiguous buffer region for later backfilling.
-    /// The returned span remains valid until the reservation is committed or the writer is reset/disposed,
-    /// even if additional <see cref="GetSpan"/> or <see cref="ReserveSpan"/> calls allocate space after it.
-    /// </summary>
+    /// <inheritdoc/>
     public Span<byte> ReserveSpan(int count, out int reservationToken, string? tag = null) {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -319,12 +315,7 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         return chunk.Buffer.AsSpan(offset, count);
     }
 
-    /// <summary>
-    /// Commits a reservation, indicating that the reserved area has been filled.
-    /// This allows the data to be included in future flushes.
-    /// </summary>
-    /// <param name="reservationToken">The token returned by ReserveSpan().</param>
-    /// <exception cref="InvalidOperationException">Thrown if the token is invalid or already committed.</exception>
+    /// <inheritdoc/>
     public void Commit(int reservationToken) {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -339,6 +330,19 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
             TryRecycleFlushedChunks();
             TryRestorePassthroughIfIdle();
         }
+    }
+
+    /// <inheritdoc/>
+    public bool TryGetReservedSpan(int reservationToken, out Span<byte> span) {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (!_reservations.TryPeek(reservationToken, out var entry)) {
+            span = default;
+            return false;
+        }
+
+        span = entry.Chunk.Buffer.AsSpan(entry.Offset, entry.Length);
+        return true;
     }
     #endregion
 

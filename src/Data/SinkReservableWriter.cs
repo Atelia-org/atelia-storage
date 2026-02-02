@@ -206,6 +206,7 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
     #endregion
 
     #region IReservableBufferWriter
+    /// <inheritdoc/>
     public Span<byte> ReserveSpan(int count, out int reservationToken, string? tag = null) {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -228,6 +229,7 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
         return chunk.Buffer.AsSpan(offset, count);
     }
 
+    /// <inheritdoc/>
     public void Commit(int reservationToken) {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -243,15 +245,8 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
         }
     }
 
-    /// <summary>获取指定 reservation 的可写 span（用于在 Commit 前回填数据）。</summary>
-    /// <param name="reservationToken">由 <see cref="ReserveSpan"/> 返回的 token。</param>
-    /// <param name="span">成功时返回 reservation 对应的 span；失败时为 default。</param>
-    /// <returns>token 有效时返回 true，否则返回 false。</returns>
-    /// <remarks>
-    /// 返回的 span 在 Commit/Reset/Dispose 前有效。
-    /// 此方法不改变 reservation 的状态（不执行 Commit）。
-    /// </remarks>
-    public bool TryGetReservationSpan(int reservationToken, out Span<byte> span) {
+    /// <inheritdoc/>
+    public bool TryGetReservedSpan(int reservationToken, out Span<byte> span) {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         if (!_reservations.TryPeek(reservationToken, out var entry)) {

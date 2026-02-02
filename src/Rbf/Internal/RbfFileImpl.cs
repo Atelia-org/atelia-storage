@@ -237,7 +237,7 @@ internal sealed class RbfFileImpl : IRbfFile {
         _builderWriter.Advance(RbfFrameWriteCore.TailSize);
 
         // 8. 回填 HeadLen（FrameLength，不含 Fence）
-        if (!_builderWriter.TryGetReservationSpan(_builderHeadLenReservationToken, out var headLenSpan)) { throw new InvalidOperationException("HeadLen reservation not found (internal error)."); }
+        if (!_builderWriter.TryGetReservedSpan(_builderHeadLenReservationToken, out var headLenSpan)) { throw new InvalidOperationException("HeadLen reservation not found (internal error)."); }
         BinaryPrimitives.WriteUInt32LittleEndian(headLenSpan, (uint)layout.FrameLength);
 
         // 9. 调用 Commit（触发 flush 全部数据到磁盘）

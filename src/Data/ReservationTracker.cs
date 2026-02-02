@@ -57,10 +57,10 @@ internal sealed class ReservationTracker {
     /// <summary>尝试提交指定 token 的预留</summary>
     /// <returns>true 如果 token 有效且成功提交</returns>
     public bool TryCommit(int token) {
-        if (_tokenToEntry is null || !_tokenToEntry.TryGetValue(token, out var entry)) { return false; }
+        if (_tokenToEntry is null) { return false; }
+        if (!_tokenToEntry.Remove(token, out var entry)) { return false; }
 
         Unlink(entry);
-        _tokenToEntry.Remove(token);
         Return(entry);
         return true;
     }
@@ -155,7 +155,7 @@ internal sealed class ReservationTracker {
             _poolHead = entry.Next;
             _poolCount--;
         }
-        else{
+        else {
             entry = new ReservationEntry();
         }
         entry.Prev = null;  // 防御性：确保干净状态
