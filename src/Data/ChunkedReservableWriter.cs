@@ -5,9 +5,7 @@ using System.Numerics;
 
 namespace Atelia.Data;
 
-/// <summary>
-/// A chunked, reservable buffer writer (logical chunks backed by ArrayPool).
-/// </summary>
+/// <summary>A chunked, reservable buffer writer (logical chunks backed by ArrayPool).</summary>
 /// <remarks>
 /// This writer is designed for high-performance scenarios where data is written sequentially,
 /// but some sections need to be reserved and filled in later (e.g., length prefixes in network protocols).
@@ -59,19 +57,13 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     //     return value;
     // }
 
-    /// <summary>
-    /// Gets the number of active chunks (excluding recycled ones).
-    /// </summary>
+    /// <summary>Gets the number of active chunks (excluding recycled ones).</summary>
     private int GetActiveChunksCount() => _chunks.Count;
 
-    /// <summary>
-    /// Gets the last active chunk, or null if there are none.
-    /// </summary>
+    /// <summary>Gets the last active chunk, or null if there are none.</summary>
     private bool TryGetLastActiveChunk([MaybeNullWhen(false)] out ReservableWriterChunk item) => _chunks.TryPeekLast(out item);
 
-    /// <summary>
-    /// Gets an enumerator for the active chunks.
-    /// </summary>
+    /// <summary>Gets an enumerator for the active chunks.</summary>
     private IEnumerable<ReservableWriterChunk> GetActiveChunks() => _chunks;
 
     private ReservableWriterChunk EnsureSpace(int sizeHint) {
@@ -140,9 +132,7 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         return flushed;
     }
 
-    /// <summary>
-    /// Flushes a specified amount of data from a chunk to the _innerWriter.
-    /// </summary>
+    /// <summary>Flushes a specified amount of data from a chunk to the _innerWriter.</summary>
     private void FlushChunkData(ReservableWriterChunk chunk, int length) {
         var dataToFlush = chunk.Buffer.AsSpan(chunk.DataBegin, length);
         var innerSpan = _innerWriter.GetSpan(length);
@@ -180,9 +170,7 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         }
     }
 
-    /// <summary>
-    /// Compacts the chunks list by removing recycled empty slots at the beginning.
-    /// </summary>
+    /// <summary>Compacts the chunks list by removing recycled empty slots at the beginning.</summary>
     private void CompactChunksList() => _chunks.Compact();
 
     /// <summary>
@@ -340,7 +328,7 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     public void Commit(int reservationToken) {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (!_reservations.TryCommit(reservationToken, out _)) { throw new InvalidOperationException("Invalid or already committed reservation token."); }
+        if (!_reservations.TryCommit(reservationToken)) { throw new InvalidOperationException("Invalid or already committed reservation token."); }
 
         // Check if we can now flush a contiguous block of data.
         if (_debugLog is not null) {
@@ -357,9 +345,7 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     #region IDisposable and Reset
     private bool _disposed = false;
 
-    /// <summary>
-    /// Resets the writer to its initial state, returning all rented buffers to the pool.
-    /// </summary>
+    /// <summary>Resets the writer to its initial state, returning all rented buffers to the pool.</summary>
     public void Reset() {
         ObjectDisposedException.ThrowIf(_disposed, this);
         // 归还所有租借的缓冲区
@@ -379,26 +365,18 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     }
 
     #region Core State Properties
-    /// <summary>
-    /// Gets the total number of bytes written or reserved. This is the logical length of the buffer.
-    /// </summary>
+    /// <summary>Gets the total number of bytes written or reserved. This is the logical length of the buffer.</summary>
     public long WrittenLength => _writtenLength;
 
-    /// <summary>
-    /// Gets the total number of bytes that have been successfully flushed to the underlying writer.
-    /// </summary>
+    /// <summary>Gets the total number of bytes that have been successfully flushed to the underlying writer.</summary>
     public long FlushedLength => _flushedLength;
 
-    /// <summary>
-    /// Gets the number of bytes that have been written but not yet flushed (WrittenLength - FlushedLength).
-    /// </summary>
+    /// <summary>Gets the number of bytes that have been written but not yet flushed (WrittenLength - FlushedLength).</summary>
     public long PendingLength => _writtenLength - _flushedLength;
     #endregion
 
     #region Diagnostic Properties
-    /// <summary>
-    /// Gets the number of reservations that are currently pending (not yet committed).
-    /// </summary>
+    /// <summary>Gets the number of reservations that are currently pending (not yet committed).</summary>
     public int PendingReservationCount => _reservations.PendingCount;
 
     /// <summary>
@@ -409,9 +387,7 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     public bool IsPassthrough => GetActiveChunksCount() == 0 && _reservations.PendingCount == 0;
     #endregion
 
-    /// <summary>
-    /// Releases all resources used by the writer, returning rented memory to the pool.
-    /// </summary>
+    /// <summary>Releases all resources used by the writer, returning rented memory to the pool.</summary>
     public void Dispose() {
         if (!_disposed) {
             Reset();

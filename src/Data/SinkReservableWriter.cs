@@ -231,7 +231,7 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
     public void Commit(int reservationToken) {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (!_reservations.TryCommit(reservationToken, out _)) { throw new InvalidOperationException("Invalid or already committed reservation token."); }
+        if (!_reservations.TryCommit(reservationToken)) { throw new InvalidOperationException("Invalid or already committed reservation token."); }
 
         if (_debugLog is not null) {
             Trace($"Commit token={reservationToken}, remaining={_reservations.PendingCount}");
@@ -243,9 +243,7 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
         }
     }
 
-    /// <summary>
-    /// 获取指定 reservation 的可写 span（用于在 Commit 前回填数据）。
-    /// </summary>
+    /// <summary>获取指定 reservation 的可写 span（用于在 Commit 前回填数据）。</summary>
     /// <param name="reservationToken">由 <see cref="ReserveSpan"/> 返回的 token。</param>
     /// <param name="span">成功时返回 reservation 对应的 span；失败时为 default。</param>
     /// <returns>token 有效时返回 true，否则返回 false。</returns>
@@ -269,9 +267,7 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
     #region Reset/Dispose
     private bool _disposed;
 
-    /// <summary>
-    /// Resets the writer to its initial state, returning all rented buffers to the pool.
-    /// </summary>
+    /// <summary>Resets the writer to its initial state, returning all rented buffers to the pool.</summary>
     /// <param name="newSink">新的 Sink，若为 null 则保持当前 Sink</param>
     public void Reset(IByteSink? newSink = null) {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -307,31 +303,21 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
     #endregion
 
     #region Diagnostics
-    /// <summary>
-    /// Total logical bytes written or reserved.
-    /// </summary>
+    /// <summary>Total logical bytes written or reserved.</summary>
     public long WrittenLength => _writtenLength;
 
-    /// <summary>
-    /// Total bytes pushed to the sink.
-    /// </summary>
+    /// <summary>Total bytes pushed to the sink.</summary>
     public long PushedLength => _pushedLength;
 
-    /// <summary>
-    /// Bytes written but not yet pushed.
-    /// </summary>
+    /// <summary>Bytes written but not yet pushed.</summary>
     public long PendingLength => _writtenLength - _pushedLength;
 
     public int PendingReservationCount => _reservations.PendingCount;
 
-    /// <summary>
-    /// True if there are no pending reservations and no pending buffered bytes.
-    /// </summary>
+    /// <summary>True if there are no pending reservations and no pending buffered bytes.</summary>
     public bool IsIdle => PendingLength == 0 && _reservations.PendingCount == 0;
 
-    /// <summary>
-    /// 计算从指定 pending reservation 末尾到当前已写入末尾之间所有字节的 CRC32C。
-    /// </summary>
+    /// <summary>计算从指定 pending reservation 末尾到当前已写入末尾之间所有字节的 CRC32C。</summary>
     /// <param name="reservationToken">必须是当前唯一的 pending reservation。</param>
     /// <param name="initValue">CRC 初始值（默认 0xFFFFFFFF）。</param>
     /// <param name="finalXor">CRC 最终异或值（默认 0xFFFFFFFF）。</param>
