@@ -1,7 +1,6 @@
-using Atelia.Rbf.Internal;
 using Xunit;
 
-namespace Atelia.Rbf.Tests;
+namespace Atelia.Rbf.Internal.Tests;
 
 /// <summary>FrameLayout 单元测试（v0.40 格式）。</summary>
 /// <remarks>

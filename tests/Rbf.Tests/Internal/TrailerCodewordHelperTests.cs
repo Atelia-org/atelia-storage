@@ -1,9 +1,8 @@
-using Atelia.Rbf.Internal;
 using Atelia.Data.Hashing;
 using System.Buffers.Binary;
 using Xunit;
 
-namespace Atelia.Rbf.Tests;
+namespace Atelia.Rbf.Internal.Tests;
 
 /// <summary>TrailerCodewordHelper 单元测试。</summary>
 /// <remarks>

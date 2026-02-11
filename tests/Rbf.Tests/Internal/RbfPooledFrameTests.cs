@@ -1,12 +1,10 @@
 using System.Buffers;
 using System.Buffers.Binary;
-using Microsoft.Win32.SafeHandles;
 using Atelia.Data;
 using Atelia.Data.Hashing;
-using Atelia.Rbf.Internal;
 using Xunit;
 
-namespace Atelia.Rbf.Tests;
+namespace Atelia.Rbf.Internal.Tests;
 
 /// <summary>RbfPooledFrame 和 ReadPooledFrame 测试（v0.40 格式）。</summary>
 /// <remarks>

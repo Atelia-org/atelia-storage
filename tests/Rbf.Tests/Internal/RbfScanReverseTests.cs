@@ -1,10 +1,9 @@
 using System.Buffers.Binary;
 using Atelia.Data;
 using Atelia.Data.Hashing;
-using Atelia.Rbf.Internal;
 using Xunit;
 
-namespace Atelia.Rbf.Tests;
+namespace Atelia.Rbf.Internal.Tests;
 
 /// <summary>RbfFileImpl.ScanReverse 集成测试。</summary>
 /// <remarks>

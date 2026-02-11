@@ -1,10 +1,7 @@
-using System;
-using System.IO;
 using Microsoft.Win32.SafeHandles;
-using Atelia.Rbf.Internal;
 using Xunit;
 
-namespace Atelia.Rbf.Tests.Internal;
+namespace Atelia.Rbf.Internal.Tests;
 
 /// <summary>
 /// RandomAccessByteSink 测试

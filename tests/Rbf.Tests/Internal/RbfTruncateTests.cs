@@ -1,8 +1,7 @@
 using Atelia.Data;
-using Atelia.Rbf.Internal;
 using Xunit;
 
-namespace Atelia.Rbf.Tests;
+namespace Atelia.Rbf.Internal.Tests;
 
 /// <summary>RbfFile.Truncate 单元测试。</summary>
 /// <remarks>

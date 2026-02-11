@@ -1,7 +1,6 @@
-using Atelia.Rbf.Internal;
 using Xunit;
 
-namespace Atelia.Rbf.Tests;
+namespace Atelia.Rbf.Internal.Tests;
 
 /// <summary>测试向量验证（对应 rbf-test-vectors.md v0.40）。</summary>
 /// <remarks>

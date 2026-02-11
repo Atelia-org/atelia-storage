@@ -1,11 +1,9 @@
 using System.Buffers.Binary;
-using Microsoft.Win32.SafeHandles;
 using Atelia.Data;
 using Atelia.Data.Hashing;
-using Atelia.Rbf.Internal;
 using Xunit;
 
-namespace Atelia.Rbf.Tests;
+namespace Atelia.Rbf.Internal.Tests;
 
 /// <summary>RbfReadImpl.ReadTrailerBefore 测试（design-draft.md §4.2）。</summary>
 /// <remarks>

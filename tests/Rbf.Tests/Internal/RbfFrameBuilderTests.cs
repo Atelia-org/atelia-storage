@@ -1,8 +1,7 @@
 using Atelia.Data;
-using Atelia.Rbf.Internal;
 using Xunit;
 
-namespace Atelia.Rbf.Tests;
+namespace Atelia.Rbf.Internal.Tests;
 
 /// <summary>RbfFrameBuilder 基本功能测试。</summary>
 /// <remarks>
