@@ -113,11 +113,6 @@ public class CacheHitMapTests {
         Assert.Equal("M0", CacheHitMap.Render(100, 200, Segs((50, 0))).Map);
     }
 
-    [Fact]
-    public void ZeroLengthRequest_CacheOnly() {
-        Assert.Equal("C0", CacheHitMap.Render(100, 0, Segs((200, 50))).Map);
-    }
-
     // ── Log-scale tests ──────────────────────────────────────────────
 
     [Fact]

@@ -53,8 +53,36 @@ internal class RandomAccessReader : IDisposable {
         _disposed = true;
     }
 
+    // ── Cache invalidation ──────────────────────────────────────────
+
+    /// <summary>
+    /// 通知缓存：文件从 <paramref name="fileOffset"/> 开始的内容可能已变化，
+    /// 与 [fileOffset, ∞) 重叠的缓存条目应当失效。
+    /// </summary>
+    public void InvalidateFrom(long fileOffset) {
+        ThrowIfDisposed();
+        if (fileOffset < 0) { throw new ArgumentOutOfRangeException(nameof(fileOffset)); }
+        OnInvalidateFrom(fileOffset);
+    }
+
+    /// <summary>
+    /// 通知缓存：文件长度已变化为 <paramref name="newLength"/>。
+    /// 短读页和超出新长度的缓存条目应当失效。
+    /// </summary>
+    public void NotifyFileLengthChanged(long newLength) {
+        ThrowIfDisposed();
+        if (newLength < 0) { throw new ArgumentOutOfRangeException(nameof(newLength)); }
+        OnFileLengthChanged(newLength);
+    }
+
+    /// <summary>派生类重写以失效 [fileOffset, ∞) 范围内的缓存条目。</summary>
+    protected virtual void OnInvalidateFrom(long fileOffset) { }
+
+    /// <summary>派生类重写以失效因文件长度变化而过期的缓存条目。</summary>
+    protected virtual void OnFileLengthChanged(long newLength) { }
+
     protected void ThrowIfDisposed() {
-        if (_disposed) { throw new ObjectDisposedException(nameof(RandomAccessReader)); }
+        if (_disposed) { throw new ObjectDisposedException(GetType().Name); }
     }
 
     protected virtual void DisposeCache() { }
