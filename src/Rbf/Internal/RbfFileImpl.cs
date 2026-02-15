@@ -50,9 +50,12 @@ internal sealed class RbfFileImpl : IRbfFile {
     /// <summary>初始化 <see cref="RbfFileImpl"/> 实例。</summary>
     /// <param name="handle">已打开的文件句柄（所有权转移给此实例）。</param>
     /// <param name="tailOffset">初始 TailOffset（文件逻辑长度）。</param>
-    internal RbfFileImpl(SafeFileHandle handle, long tailOffset) {
+    /// <param name="cacheMode">读缓存策略。<see cref="RbfCacheMode.Off"/> 使用无缓存直读。</param>
+    internal RbfFileImpl(SafeFileHandle handle, long tailOffset, RbfCacheMode cacheMode = RbfCacheMode.Slots16) {
         _handle = handle ?? throw new ArgumentNullException(nameof(handle));
-        _reader = new ReverseReadCache(handle);
+        _reader = cacheMode == RbfCacheMode.Off
+            ? new RandomAccessReader(handle)
+            : new ReverseReadCache(handle, (int)cacheMode);
         _tailOffset = tailOffset;
 
         _builderSink = new RandomAccessByteSink(_handle, tailOffset);
@@ -314,6 +317,12 @@ internal sealed class RbfFileImpl : IRbfFile {
     public AteliaResult<RbfPooledTailMeta> ReadPooledTailMeta(SizedPtr ticket) {
         EnsureIdleForRead();
         return RbfReadImpl.ReadPooledTailMeta(_reader, ticket);
+    }
+
+    /// <inheritdoc />
+    public void SetupReadLog(string? logPath) {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _reader.SetupLogger(new ReadCache.ReadLogger.Params(logPath));
     }
 
     /// <inheritdoc />

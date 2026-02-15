@@ -83,4 +83,12 @@ public interface IRbfFile : IDisposable {
 
     /// <summary>截断（恢复用）。</summary>
     void Truncate(long newLengthBytes);
+
+    /// <summary>启用或禁用读取 I/O 日志。</summary>
+    /// <param name="logPath">日志文件路径。传 null 禁用日志。</param>
+    /// <remarks>
+    /// 延迟生效：在下一次 Read 操作时切换，当前进行中的 Read 不受影响。
+    /// 日志格式：CSV（seq, offset, requested, bytesRead, rawCount, rawBytes, ioTicks, cacheTicks, hitmap）。
+    /// </remarks>
+    void SetupReadLog(string? logPath);
 }

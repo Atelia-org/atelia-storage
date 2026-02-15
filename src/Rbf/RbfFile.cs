@@ -7,11 +7,12 @@ namespace Atelia.Rbf;
 public static class RbfFile {
     /// <summary>创建新的 RBF 文件（FailIfExists）。</summary>
     /// <param name="path">文件路径。</param>
+    /// <param name="cacheMode">读缓存策略。默认 <see cref="RbfCacheMode.Slots16"/>（64KB）。</param>
     /// <returns>RBF 文件对象。</returns>
     /// <remarks>
     /// 规范引用：@[F-FILE-STARTS-WITH-HEADER-FENCE] - 新文件仅含 HeaderFence。
     /// </remarks>
-    public static IRbfFile CreateNew(string path) {
+    public static IRbfFile CreateNew(string path, RbfCacheMode cacheMode = RbfCacheMode.Slots16) {
         SafeFileHandle handle = File.OpenHandle(
             path,
             FileMode.CreateNew,
@@ -22,7 +23,7 @@ public static class RbfFile {
         try {
             // 写入 HeaderFence
             RandomAccess.Write(handle, RbfLayout.Fence, 0);
-            return new RbfFileImpl(handle, RbfLayout.HeaderOnlyLength);
+            return new RbfFileImpl(handle, RbfLayout.HeaderOnlyLength, cacheMode);
         }
         catch {
             // 失败路径：确保句柄关闭
@@ -33,6 +34,7 @@ public static class RbfFile {
 
     /// <summary>打开已有的 RBF 文件（验证 HeaderFence）。</summary>
     /// <param name="path">文件路径。</param>
+    /// <param name="cacheMode">读缓存策略。默认 <see cref="RbfCacheMode.Slots16"/>（64KB）。</param>
     /// <returns>RBF 文件对象。</returns>
     /// <exception cref="InvalidDataException">HeaderFence 验证失败、文件过短或长度非 4B 对齐。</exception>
     /// <remarks>
@@ -40,7 +42,7 @@ public static class RbfFile {
     /// - @[F-FILE-STARTS-WITH-HEADER-FENCE] - 文件 MUST 以 HeaderFence 开头。
     /// - @[S-RBF-DECISION-4B-ALIGNMENT-ROOT] - 文件长度 MUST 4B 对齐。
     /// </remarks>
-    public static IRbfFile OpenExisting(string path) {
+    public static IRbfFile OpenExisting(string path, RbfCacheMode cacheMode = RbfCacheMode.Slots16) {
         SafeFileHandle handle = File.OpenHandle(
             path,
             FileMode.Open,
@@ -64,7 +66,7 @@ public static class RbfFile {
 
             if (bytesRead < RbfLayout.FenceSize || !buffer.SequenceEqual(RbfLayout.Fence)) { throw new InvalidDataException("Invalid RBF file: HeaderFence mismatch"); }
 
-            return new RbfFileImpl(handle, fileLength);
+            return new RbfFileImpl(handle, fileLength, cacheMode);
         }
         catch {
             // 失败路径：确保句柄关闭
