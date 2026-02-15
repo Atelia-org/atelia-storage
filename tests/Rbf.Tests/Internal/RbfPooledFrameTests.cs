@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Buffers.Binary;
 using Atelia.Data;
 using Atelia.Data.Hashing;
+using Atelia.Rbf.ReadCache;
 using Xunit;
 
 namespace Atelia.Rbf.Internal.Tests;
@@ -203,12 +204,13 @@ public class RbfPooledFrameTests : IDisposable {
         File.WriteAllBytes(path, fileContent);
 
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         // 尝试从超出文件尾的位置读取（会导致短读错误）
         var ptr = SizedPtr.Create(1000, 20);
 
         // Act
-        var result = RbfReadImpl.ReadPooledFrame(handle, ptr);
+        var result = RbfReadImpl.ReadPooledFrame(reader, ptr);
 
         // Assert: 失败，且无需调用 Dispose（buffer 已在内部归还）
         Assert.False(result.IsSuccess);
@@ -279,12 +281,13 @@ public class RbfPooledFrameTests : IDisposable {
         File.WriteAllBytes(path, fileContent);
 
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         int frameLen = new FrameLayout(payload.Length).FrameLength;
         var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
 
         // Act
-        var result = RbfReadImpl.ReadPooledFrame(handle, ptr);
+        var result = RbfReadImpl.ReadPooledFrame(reader, ptr);
 
         // Assert
         Assert.True(result.IsSuccess);

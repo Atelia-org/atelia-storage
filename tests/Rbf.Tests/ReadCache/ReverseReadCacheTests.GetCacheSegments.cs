@@ -27,7 +27,7 @@ partial class ReverseReadCacheTests {
     public void GetCacheSegments_AfterOneRead_ReturnsOnePage() {
         using var cache = new ReverseReadCache(_handle, slotCountShift: 2);
         Span<byte> buf = stackalloc byte[20];
-        cache.Read(100, buf);
+        cache.Read(buf, 100);
 
         var segs = InvokeGetCacheSegments(cache)!;
         Assert.Single(segs);
@@ -39,8 +39,8 @@ partial class ReverseReadCacheTests {
     public void GetCacheSegments_TwoDistinctPages_ReturnsTwoSegments() {
         using var cache = new ReverseReadCache(_handle, slotCountShift: 3);
         Span<byte> buf = stackalloc byte[20];
-        cache.Read(10, buf); // caches page 0
-        cache.Read(PageSize * 5 + 10, buf); // caches page 5
+        cache.Read(buf, 10); // caches page 0
+        cache.Read(buf, PageSize * 5 + 10); // caches page 5
 
         var segs = InvokeGetCacheSegments(cache)!;
         Assert.Equal(2, segs.Count);
@@ -67,7 +67,7 @@ partial class ReverseReadCacheTests {
 
             // Read near EOF — will cache page 3 as a short page (100 valid bytes)
             var buf = new byte[200];
-            cache.Read(PageSize * 3, buf); // only 100 bytes available
+            cache.Read(buf, PageSize * 3); // only 100 bytes available
 
             var segs = InvokeGetCacheSegments(cache)!;
             var lastPageSeg = segs.FirstOrDefault(s => s.Offset == (long)PageSize * 3);
@@ -82,9 +82,9 @@ partial class ReverseReadCacheTests {
     public void GetCacheSegments_AfterInvalidateFrom_ReflectsEviction() {
         using var cache = new ReverseReadCache(_handle, slotCountShift: 3);
         Span<byte> buf = stackalloc byte[20];
-        cache.Read(10, buf); // page 0
-        cache.Read(PageSize * 3 + 10, buf); // page 3
-        cache.Read(PageSize * 7 + 10, buf); // page 7
+        cache.Read(buf, 10); // page 0
+        cache.Read(buf, PageSize * 3 + 10); // page 3
+        cache.Read(buf, PageSize * 7 + 10); // page 7
 
         var before = InvokeGetCacheSegments(cache)!;
         Assert.Equal(3, before.Count);
@@ -103,9 +103,9 @@ partial class ReverseReadCacheTests {
         using var cache = new ReverseReadCache(_handle, slotCountShift: 1);
         Span<byte> buf = stackalloc byte[20];
 
-        cache.Read(10, buf); // page 0 → slot 0
-        cache.Read(PageSize + 10, buf); // page 1 → slot 1
-        cache.Read(PageSize * 2 + 10, buf); // page 2 → evicts page 0
+        cache.Read(buf, 10); // page 0 → slot 0
+        cache.Read(buf, PageSize + 10); // page 1 → slot 1
+        cache.Read(buf, PageSize * 2 + 10); // page 2 → evicts page 0
 
         var segs = InvokeGetCacheSegments(cache)!;
         var offsets = segs.Select(s => s.Offset).OrderBy(o => o).ToList();
@@ -123,8 +123,8 @@ partial class ReverseReadCacheTests {
             cache.SetupLogger(new ReadLogger.Params(logPath, Append: false, FlushEvery: 1));
 
             Span<byte> buf = stackalloc byte[20];
-            cache.Read(100, buf); // cold miss → page 0 cached
-            cache.Read(100, buf); // warm hit  → same page
+            cache.Read(buf, 100); // cold miss → page 0 cached
+            cache.Read(buf, 100); // warm hit  → same page
 
             cache.Dispose(); // flush logger
 

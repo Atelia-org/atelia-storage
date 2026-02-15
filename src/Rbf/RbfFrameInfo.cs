@@ -1,7 +1,7 @@
 using System.Buffers;
 using Atelia.Data;
 using Atelia.Rbf.Internal;
-using Microsoft.Win32.SafeHandles;
+using Atelia.Rbf.ReadCache;
 
 namespace Atelia.Rbf;
 
@@ -30,19 +30,19 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
     /// <summary>是否为墓碑帧。</summary>
     public bool IsTombstone { get; }
 
-    /// <summary>关联的文件句柄（非拥有引用）。</summary>
-    internal SafeFileHandle File { get; }
+    /// <summary>关联的读取器（非拥有引用）。</summary>
+    internal RandomAccessReader Reader { get; }
 
     /// <summary>内部构造函数（只能由验证路径调用）。</summary>
     internal RbfFrameInfo(
-        SafeFileHandle file,
+        RandomAccessReader reader,
         SizedPtr ticket,
         uint tag,
         int payloadLength,
         int tailMetaLength,
         bool isTombstone
     ) {
-        File = file;
+        Reader = reader;
         Ticket = ticket;
         Tag = tag;
         PayloadLength = payloadLength;
@@ -88,7 +88,7 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
 
         // 4. 读取 TailMeta 数据
         var tailMetaBuffer = buffer[..tailMetaLen];
-        int tailMetaBytesRead = RandomAccess.Read(File, tailMetaBuffer, tailMetaOffset);
+        int tailMetaBytesRead = Reader.Read(tailMetaBuffer, tailMetaOffset);
 
         // 5. I/O 级校验：short read
         if (tailMetaBytesRead < tailMetaLen) {
@@ -132,7 +132,7 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
 
             // 4. 读取 TailMeta 数据（限定 Span 长度）
             var tailMetaBuffer = rentedBuffer.AsSpan(0, tailMetaLen);
-            int tailMetaBytesRead = RandomAccess.Read(File, tailMetaBuffer, tailMetaOffset);
+            int tailMetaBytesRead = Reader.Read(tailMetaBuffer, tailMetaOffset);
 
             // 5. I/O 级校验：short read
             if (tailMetaBytesRead < tailMetaLen) {
@@ -164,7 +164,7 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
     /// 委托到 <see cref="RbfReadImpl.ReadFrame"/>，执行完整 framing + CRC 校验。
     /// </remarks>
     public AteliaResult<RbfFrame> ReadFrame(Span<byte> buffer) {
-        return RbfReadImpl.ReadFrame(File, in this, buffer);
+        return RbfReadImpl.ReadFrame(Reader, in this, buffer);
     }
 
     /// <summary>读取完整帧（自动租用 buffer）。</summary>
@@ -173,7 +173,7 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
     /// 委托到 <see cref="RbfReadImpl.ReadPooledFrame"/>，执行完整 framing + CRC 校验。
     /// </remarks>
     public AteliaResult<RbfPooledFrame> ReadPooledFrame() {
-        return RbfReadImpl.ReadPooledFrame(File, in this);
+        return RbfReadImpl.ReadPooledFrame(Reader, in this);
     }
 
     #endregion

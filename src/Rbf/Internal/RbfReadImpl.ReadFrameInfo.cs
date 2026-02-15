@@ -1,7 +1,7 @@
 using System.Buffers;
 using System.Buffers.Binary;
-using Microsoft.Win32.SafeHandles;
 using Atelia.Data;
+using Atelia.Rbf.ReadCache;
 
 namespace Atelia.Rbf.Internal;
 
@@ -16,7 +16,7 @@ partial class RbfReadImpl {
     /// 唯一入口：这是创建 RbfFrameInfo 的内部验证路径之一，完成所有结构性验证。
     /// </remarks>
     public static AteliaResult<RbfFrameInfo> ReadFrameInfo(
-        SafeFileHandle file,
+        RandomAccessReader reader,
         SizedPtr ticket
     ) {
         // 1. 基本参数校验
@@ -33,7 +33,7 @@ partial class RbfReadImpl {
         // 2. 计算 TrailerCodeword 偏移并读取（16B）
         long trailerOffset = ticket.Offset + ticketLength - TrailerCodewordHelper.Size;
         Span<byte> trailerBuffer = stackalloc byte[TrailerCodewordHelper.Size];
-        int bytesRead = RandomAccess.Read(file, trailerBuffer, trailerOffset);
+        int bytesRead = reader.Read(trailerBuffer, trailerOffset);
 
         if (bytesRead < TrailerCodewordHelper.Size) {
             return AteliaResult<RbfFrameInfo>.Failure(
@@ -69,7 +69,7 @@ partial class RbfReadImpl {
         // 8. 构造 RbfFrameInfo（绑定 file 句柄）
         return AteliaResult<RbfFrameInfo>.Success(
             new RbfFrameInfo(
-                file: file,
+                reader: reader,
                 ticket: ticket,
                 tag: trailer.FrameTag,
                 payloadLength: payloadLen,

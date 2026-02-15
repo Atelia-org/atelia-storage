@@ -1,5 +1,5 @@
-using Microsoft.Win32.SafeHandles;
 using Atelia.Data;
+using Atelia.Rbf.ReadCache;
 
 namespace Atelia.Rbf.Internal;
 
@@ -14,7 +14,7 @@ partial class RbfReadImpl {
     /// 规范引用：@[A-READ-TRAILER-BEFORE]
     /// </remarks>
     internal static AteliaResult<RbfFrameInfo> ReadTrailerBefore(
-        SafeFileHandle file,
+        RandomAccessReader reader,
         long fenceEndOffset
     ) {
         const int TrailerAndFenceSize = TrailerCodewordHelper.Size + RbfLayout.FenceSize; // 20B
@@ -32,7 +32,7 @@ partial class RbfReadImpl {
         // 2. 一次读取 TrailerCodeword + Fence (20B)
         Span<byte> buffer = stackalloc byte[TrailerAndFenceSize];
         long readOffset = fenceEndOffset - TrailerAndFenceSize;
-        int bytesRead = RandomAccess.Read(file, buffer, readOffset);
+        int bytesRead = reader.Read(buffer, readOffset);
 
         if (bytesRead < TrailerAndFenceSize) {
             return AteliaResult<RbfFrameInfo>.Failure(
@@ -98,7 +98,7 @@ partial class RbfReadImpl {
         var ticket = SizedPtr.Create(frameStart, (int)trailer.TailLen);
         return AteliaResult<RbfFrameInfo>.Success(
             new RbfFrameInfo(
-                file: file,
+                reader: reader,
                 ticket: ticket,
                 tag: trailer.FrameTag,
                 payloadLength: payloadLen,

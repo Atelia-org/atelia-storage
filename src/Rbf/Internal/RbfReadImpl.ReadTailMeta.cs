@@ -1,7 +1,7 @@
 using System.Buffers;
 using System.Buffers.Binary;
-using Microsoft.Win32.SafeHandles;
 using Atelia.Data;
+using Atelia.Rbf.ReadCache;
 
 namespace Atelia.Rbf.Internal;
 
@@ -18,12 +18,12 @@ internal static partial class RbfReadImpl {
     /// 生命周期：返回的 TailMeta 直接引用 buffer，调用方 MUST 确保 buffer 有效。
     /// </remarks>
     public static AteliaResult<RbfTailMeta> ReadTailMeta(
-        SafeFileHandle file,
+        RandomAccessReader reader,
         SizedPtr ticket,
         Span<byte> buffer
     ) {
         // 1. 先获取帧元信息（读取 TrailerCodeword 16B，完成所有结构性验证）
-        var infoResult = ReadFrameInfo(file, ticket);
+        var infoResult = ReadFrameInfo(reader, ticket);
         if (!infoResult.IsSuccess) { return AteliaResult<RbfTailMeta>.Failure(infoResult.Error!); }
 
         // 2. 委托到实例方法（只做 I/O 级校验）
@@ -39,11 +39,11 @@ internal static partial class RbfReadImpl {
     /// I/O：读取 TrailerCodeword（16B）+ TailMeta 区域。
     /// </remarks>
     public static AteliaResult<RbfPooledTailMeta> ReadPooledTailMeta(
-        SafeFileHandle file,
+        RandomAccessReader reader,
         SizedPtr ticket
     ) {
         // 1. 先获取帧元信息（读取 TrailerCodeword 16B，完成所有结构性验证）
-        var infoResult = ReadFrameInfo(file, ticket);
+        var infoResult = ReadFrameInfo(reader, ticket);
         if (!infoResult.IsSuccess) { return AteliaResult<RbfPooledTailMeta>.Failure(infoResult.Error!); }
 
         // 2. 委托到实例方法（只做 I/O 级校验）

@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
-using Microsoft.Win32.SafeHandles;
 using Atelia.Data;
 using Atelia.Data.Hashing;
+using Atelia.Rbf.ReadCache;
 using Xunit;
 
 namespace Atelia.Rbf.Internal.Tests;
@@ -42,9 +42,9 @@ public class RbfReadImplTests : IDisposable {
     // ========== 辅助方法 ==========
 
     /// <summary>辅助方法：分配 buffer 并调用 ReadFrameInto。</summary>
-    private static AteliaResult<RbfFrame> ReadFrameIntoHelper(SafeFileHandle handle, SizedPtr ptr) {
+    private static AteliaResult<RbfFrame> ReadFrameIntoHelper(RandomAccessReader reader, SizedPtr ptr) {
         byte[] buffer = new byte[ptr.Length]; // 用堆数组避免 ref struct 生命周期问题
-        return RbfReadImpl.ReadFrame(handle, ptr, buffer);
+        return RbfReadImpl.ReadFrame(reader, ptr, buffer);
     }
 
     /// <summary>构造一个有效帧的字节数组（v0.40 格式）。</summary>
@@ -113,12 +113,13 @@ public class RbfReadImplTests : IDisposable {
         File.WriteAllBytes(path, fileContent);
 
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         int frameLen = new FrameLayout(payload.Length).FrameLength;
         var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
 
         // Act
-        var result = ReadFrameIntoHelper(handle, ptr);
+        var result = ReadFrameIntoHelper(reader, ptr);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -142,12 +143,13 @@ public class RbfReadImplTests : IDisposable {
         File.WriteAllBytes(path, fileContent);
 
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         // Length = 20，小于最小帧长度 24（v0.40）
         var ptr = SizedPtr.Create(RbfLayout.FenceSize, 20);
 
         // Act
-        var result = ReadFrameIntoHelper(handle, ptr);
+        var result = ReadFrameIntoHelper(reader, ptr);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -164,12 +166,13 @@ public class RbfReadImplTests : IDisposable {
         File.WriteAllBytes(path, fileContent);
 
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         // 尝试从超出文件尾的位置读取（v0.40 最小帧长度为 24）
         var ptr = SizedPtr.Create(1000, 24);
 
         // Act
-        var result = ReadFrameIntoHelper(handle, ptr);
+        var result = ReadFrameIntoHelper(reader, ptr);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -196,12 +199,13 @@ public class RbfReadImplTests : IDisposable {
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         int frameLen = new FrameLayout(payload.Length).FrameLength;
         var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
 
         // Act
-        var result = ReadFrameIntoHelper(handle, ptr);
+        var result = ReadFrameIntoHelper(reader, ptr);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -230,11 +234,12 @@ public class RbfReadImplTests : IDisposable {
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
 
         // Act
-        var result = ReadFrameIntoHelper(handle, ptr);
+        var result = ReadFrameIntoHelper(reader, ptr);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -269,11 +274,12 @@ public class RbfReadImplTests : IDisposable {
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
 
         // Act
-        var result = ReadFrameIntoHelper(handle, ptr);
+        var result = ReadFrameIntoHelper(reader, ptr);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -306,11 +312,12 @@ public class RbfReadImplTests : IDisposable {
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
 
         // Act
-        var result = ReadFrameIntoHelper(handle, ptr);
+        var result = ReadFrameIntoHelper(reader, ptr);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -337,11 +344,12 @@ public class RbfReadImplTests : IDisposable {
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
 
         // Act
-        var result = ReadFrameIntoHelper(handle, ptr);
+        var result = ReadFrameIntoHelper(reader, ptr);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -371,12 +379,13 @@ public class RbfReadImplTests : IDisposable {
         File.WriteAllBytes(path, fileContent);
 
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         int frameLen = new FrameLayout(payload.Length).FrameLength;
         var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
 
         // Act
-        var result = ReadFrameIntoHelper(handle, ptr);
+        var result = ReadFrameIntoHelper(reader, ptr);
 
         // Assert
         Assert.True(result.IsSuccess, $"Failed for payloadLen={payloadLen}: {result.Error?.Message}");
@@ -399,13 +408,14 @@ public class RbfReadImplTests : IDisposable {
         File.WriteAllBytes(path, fileContent);
 
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         int frameLen = new FrameLayout(payload.Length).FrameLength;
         var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
 
         // Act: 提供太小的 buffer（只有10字节，但需要24字节）
         Span<byte> tooSmallBuffer = stackalloc byte[10];
-        var result = RbfReadImpl.ReadFrame(handle, ptr, tooSmallBuffer);
+        var result = RbfReadImpl.ReadFrame(reader, ptr, tooSmallBuffer);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -427,13 +437,14 @@ public class RbfReadImplTests : IDisposable {
         File.WriteAllBytes(path, fileContent);
 
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         int frameLen = new FrameLayout(payload.Length).FrameLength;
         var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
 
         // Act: 提供足够大的 buffer
         byte[] buffer = new byte[frameLen];
-        var result = RbfReadImpl.ReadFrame(handle, ptr, buffer);
+        var result = RbfReadImpl.ReadFrame(reader, ptr, buffer);
 
         // Assert: Payload 应该是 buffer 的切片
         Assert.True(result.IsSuccess);

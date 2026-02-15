@@ -36,7 +36,7 @@ internal sealed class RandomAccessByteSink : IByteSink {
     /// <remarks>
     /// 调用 <see cref="RandomAccess.Write(SafeFileHandle, ReadOnlySpan{byte}, long)"/>
     /// 写入数据并推进 offset。
-        /// 错误处理：I/O 异常直接抛出（符合 Infra Fault 策略）。
+    /// 错误处理：I/O 异常直接抛出（符合 Infra Fault 策略）。
     /// </remarks>
     public void Push(ReadOnlySpan<byte> data) {
         if (data.IsEmpty) { return; }

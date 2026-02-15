@@ -1,3 +1,4 @@
+using Atelia.Rbf.ReadCache;
 using Xunit;
 
 namespace Atelia.Rbf.Internal.Tests;
@@ -709,7 +710,7 @@ public class RbfTestVectorTests : IDisposable {
 
     /// <summary>
     /// RBF-BAD-* 测试向量覆盖映射（rbf-test-vectors.md §2.2）。
-        /// | 用例 | 描述 | 覆盖位置 |
+    /// | 用例 | 描述 | 覆盖位置 |
     /// |------|------|----------|
     /// | RBF-BAD-001 | TrailerCrc 不匹配 | ReadTrailerBeforeTests（多个测试）、RbfReadImplTests |
     /// | RBF-BAD-002 | PayloadCrc 不匹配 | 本文件 READFRAME_CRC_001、RbfReadImplTests |
@@ -724,12 +725,12 @@ public class RbfTestVectorTests : IDisposable {
     /// <summary>RBF-BAD-007：PaddingLen 与实际计算值不符 → PayloadLength 计算错误导致 ReadFrame 失败。</summary>
     /// <remarks>
     /// 规范引用：@[F-PADDING-CALCULATION]
-        /// 场景：FrameDescriptor 中声明的 PaddingLen 与 `(4 - ((PayloadLen + TailMetaLen) % 4)) % 4` 不符。
-        /// 预期行为：
+    /// 场景：FrameDescriptor 中声明的 PaddingLen 与 `(4 - ((PayloadLen + TailMetaLen) % 4)) % 4` 不符。
+    /// 预期行为：
     /// - ScanReverse 只校验 TrailerCrc，不验证 PaddingLen 一致性，可以枚举帧
     /// - ReadFrame 时，由于 PayloadLength 计算不正确，解析出的数据会有偏差
     /// - 如果 PaddingLen 声明过大导致 PayloadLength 计算为负数，则返回 FramingError
-        /// 本测试验证：
+    /// 本测试验证：
     /// 1. PaddingLen 过大 → PayloadLength 负数 → FramingError（通过篡改帧直接测试）
     /// 2. PaddingLen 不一致 → 通过 ScanReverse 后 ReadFrame 验证数据不匹配
     /// </remarks>
@@ -758,10 +759,11 @@ public class RbfTestVectorTests : IDisposable {
 
         // Act: 使用 RbfReadImpl 底层 API 测试
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         // ScanReverse 应该成功（TrailerCrc 已重新计算）
         // 但 ReadFrame 时会发现计算出的 PayloadLength 与实际不匹配
-        var trailerBeforeResult = RbfReadImpl.ReadTrailerBefore(handle, new FileInfo(path).Length);
+        var trailerBeforeResult = RbfReadImpl.ReadTrailerBefore(reader, new FileInfo(path).Length);
         Assert.True(trailerBeforeResult.IsSuccess, "ReadTrailerBefore should succeed (TrailerCrc valid)");
 
         var frameInfo = trailerBeforeResult.Value;
@@ -770,7 +772,7 @@ public class RbfTestVectorTests : IDisposable {
 
         // ReadPooledFrame 仍然会成功（因为 PayloadCrc 覆盖的是实际数据）
         // 但读取的 Payload 长度会是错误的 5 字节
-        var readResult = RbfReadImpl.ReadPooledFrame(handle, in frameInfo);
+        var readResult = RbfReadImpl.ReadPooledFrame(reader, in frameInfo);
         Assert.True(readResult.IsSuccess, "ReadPooledFrame should succeed (PayloadCrc covers actual data)");
 
         using var frame = readResult.Value!;
@@ -783,7 +785,7 @@ public class RbfTestVectorTests : IDisposable {
     /// <summary>RBF-BAD-007 扩展：PaddingLen 过大导致 PayloadLength 负数。</summary>
     /// <remarks>
     /// 规范引用：@[F-PADDING-CALCULATION]
-        /// 场景：最小帧（PayloadLen=0, TailMetaLen=0, 正确 PaddingLen=0）但 FrameDescriptor 声明 PaddingLen=3。
+    /// 场景：最小帧（PayloadLen=0, TailMetaLen=0, 正确 PaddingLen=0）但 FrameDescriptor 声明 PaddingLen=3。
     /// 预期：PayloadLength = TailLen(24) - FixedOverhead(24) - TailMetaLen(0) - PaddingLen(3) = -3 → FramingError
     /// </remarks>
     [Fact]
@@ -810,7 +812,8 @@ public class RbfTestVectorTests : IDisposable {
 
         // Act: ReadTrailerBefore 应失败（PayloadLength 为负数）
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
-        var result = RbfReadImpl.ReadTrailerBefore(handle, new FileInfo(path).Length);
+        using var reader = new RandomAccessReader(handle);
+        var result = RbfReadImpl.ReadTrailerBefore(reader, new FileInfo(path).Length);
 
         // Assert: 应返回 FramingError
         Assert.False(result.IsSuccess, "ReadTrailerBefore should fail when PaddingLen causes negative PayloadLength");

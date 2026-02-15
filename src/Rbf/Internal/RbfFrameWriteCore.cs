@@ -54,7 +54,7 @@ internal static class RbfFrameWriteCore {
     /// 调用方职责：
     /// - Padding 已写入（本方法不负责 padding）
     /// - PayloadCrc 已 finalized（已 XOR DefaultFinalXor）
-        /// 布局：[PayloadCrc(4)][TrailerCodeword(16)][Fence(4)]
+    /// 布局：[PayloadCrc(4)][TrailerCodeword(16)][Fence(4)]
     /// </remarks>
     internal static void WriteTail(Span<byte> buffer, in FrameLayout layout, uint tag, bool isTombstone, uint payloadCrc) {
         // 写入 PayloadCrc (4 bytes, LE)
@@ -72,7 +72,7 @@ internal static class RbfFrameWriteCore {
     /// <remarks>
     /// 供 RbfAppendImpl 使用：其 CRC 计算流程需要预留 PayloadCrc 空洞，
     /// 但 TrailerCodeword + Fence 需要提前填充。
-        /// 布局：[TrailerCodeword(16)][Fence(4)]
+    /// 布局：[TrailerCodeword(16)][Fence(4)]
     /// </remarks>
     internal static void WriteTrailerAndFence(Span<byte> buffer, in FrameLayout layout, uint tag, bool isTombstone) {
         // 写入 TrailerCodeword (16 bytes)

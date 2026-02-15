@@ -19,7 +19,7 @@ partial class ReverseReadCacheTests {
 
             // Read the partial page → cached as short read (100 bytes)
             var buf = new byte[200];
-            int n = cache.Read(PageSize * 2, buf);
+            int n = cache.Read(buf, PageSize * 2);
             Assert.Equal(100, n);
 
             // Append 200 bytes
@@ -34,7 +34,7 @@ partial class ReverseReadCacheTests {
 
             // Re-read: should now get 200 bytes of correct data
             buf = new byte[200];
-            n = cache.Read(PageSize * 2, buf);
+            n = cache.Read(buf, PageSize * 2);
             Assert.Equal(200, n);
             AssertPattern(buf, PageSize * 2);
         }
@@ -48,14 +48,14 @@ partial class ReverseReadCacheTests {
         using var cache = new ReverseReadCache(_handle, slotCountShift: 2);
 
         Span<byte> buf = stackalloc byte[20];
-        cache.Read(PageSize, buf);
-        cache.Read(PageSize * 3, buf);
+        cache.Read(buf, PageSize);
+        cache.Read(buf, PageSize * 3);
 
         // Invalidate everything
         cache.InvalidateFrom(0);
 
         // Should still return correct data after re-read from disk
-        int n = cache.Read(PageSize, buf);
+        int n = cache.Read(buf, PageSize);
         Assert.Equal(20, n);
         AssertPattern(buf, PageSize);
     }
@@ -74,8 +74,8 @@ partial class ReverseReadCacheTests {
 
             // Cache page 0 and page 3
             Span<byte> buf = stackalloc byte[20];
-            cache.Read(10, buf);
-            cache.Read(PageSize * 3 + 10, buf);
+            cache.Read(buf, 10);
+            cache.Read(buf, PageSize * 3 + 10);
 
             // Invalidate from page 2 onward — page 0 should remain cached
             cache.InvalidateFrom(PageSize * 2);
@@ -87,13 +87,13 @@ partial class ReverseReadCacheTests {
             }
 
             // Page 0 (not invalidated) still returns correct pattern
-            int n = cache.Read(10, buf);
+            int n = cache.Read(buf, 10);
             Assert.Equal(20, n);
             AssertPattern(buf, 10);
 
             // Page 3 (invalidated) should re-read → now zeros
             buf = stackalloc byte[20];
-            n = cache.Read(PageSize * 3 + 10, buf);
+            n = cache.Read(buf, PageSize * 3 + 10);
             Assert.Equal(20, n);
             for (int i = 0; i < 20; i++) { Assert.Equal(0, buf[i]); }
         }
@@ -131,7 +131,7 @@ partial class ReverseReadCacheTests {
 
             // Cache the partial page
             var buf = new byte[200];
-            int n = cache.Read(PageSize * 2, buf);
+            int n = cache.Read(buf, PageSize * 2);
             Assert.Equal(100, n);
 
             // Append 200 bytes
@@ -147,7 +147,7 @@ partial class ReverseReadCacheTests {
 
             // Re-read: should now get 200 bytes
             buf = new byte[200];
-            n = cache.Read(PageSize * 2, buf);
+            n = cache.Read(buf, PageSize * 2);
             Assert.Equal(200, n);
             AssertPattern(buf, PageSize * 2);
         }
@@ -170,8 +170,8 @@ partial class ReverseReadCacheTests {
 
             // Cache page 0 (full) and page 3 (full, last page of file)
             Span<byte> buf = stackalloc byte[20];
-            cache.Read(10, buf);
-            cache.Read(PageSize * 3 + 10, buf);
+            cache.Read(buf, 10);
+            cache.Read(buf, PageSize * 3 + 10);
 
             // Notify that file grew to 5 pages — page 0 should survive (full, before boundary)
             cache.NotifyFileLengthChanged(PageSize * 5);
@@ -183,7 +183,7 @@ partial class ReverseReadCacheTests {
             }
 
             // Page 0 is still cached → should still return the original pattern
-            int n = cache.Read(10, buf);
+            int n = cache.Read(buf, 10);
             Assert.Equal(20, n);
             AssertPattern(buf, 10);
         }
@@ -206,9 +206,9 @@ partial class ReverseReadCacheTests {
 
             // Cache pages 0, 2, 3
             Span<byte> buf = stackalloc byte[20];
-            cache.Read(10, buf);
-            cache.Read(PageSize * 2 + 10, buf);
-            cache.Read(PageSize * 3 + 10, buf);
+            cache.Read(buf, 10);
+            cache.Read(buf, PageSize * 2 + 10);
+            cache.Read(buf, PageSize * 3 + 10);
 
             // Truncate file to 2.5 pages
             int newSize = PageSize * 2 + PageSize / 2;
@@ -220,12 +220,12 @@ partial class ReverseReadCacheTests {
 
             // Page 3 is beyond new EOF → read returns 0
             buf = stackalloc byte[20];
-            int n = cache.Read(PageSize * 3 + 10, buf);
+            int n = cache.Read(buf, PageSize * 3 + 10);
             Assert.Equal(0, n);
 
             // Page 2 (boundary page, truncated) → should get only the available portion
             buf = stackalloc byte[PageSize];
-            n = cache.Read(PageSize * 2, buf);
+            n = cache.Read(buf, PageSize * 2);
             Assert.Equal(PageSize / 2, n);
             AssertPattern(buf[..(PageSize / 2)], PageSize * 2);
         }

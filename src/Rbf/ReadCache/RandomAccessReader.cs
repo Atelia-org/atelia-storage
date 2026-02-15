@@ -26,7 +26,7 @@ internal class RandomAccessReader : IDisposable {
         _logger.Setup(loggerParams);
     }
 
-    public int Read(long offset, Span<byte> buffer) {
+    public int Read(Span<byte> buffer, long offset) {
         ThrowIfDisposed();
         if (offset < 0) { throw new ArgumentOutOfRangeException(nameof(offset)); }
         if (buffer.Length == 0) { return 0; }

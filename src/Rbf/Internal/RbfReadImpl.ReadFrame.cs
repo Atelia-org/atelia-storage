@@ -1,8 +1,8 @@
 using System.Buffers;
 using System.Buffers.Binary;
-using Microsoft.Win32.SafeHandles;
 using Atelia.Data;
 using Atelia.Data.Hashing;
+using Atelia.Rbf.ReadCache;
 using System.Diagnostics;
 
 namespace Atelia.Rbf.Internal;
@@ -76,8 +76,8 @@ internal static partial class RbfReadImpl {
     /// 生命周期：成功时，调用方拥有 buffer 所有权，MUST 调用 Dispose。
     /// 失败路径：buffer 在方法内部自动归还，调用方无需处理。
     /// </remarks>
-    public static AteliaResult<RbfPooledFrame> ReadPooledFrame(SafeFileHandle file, SizedPtr ticket) =>
-        ReadPooledFrameCore<SizedPtr, SizedPtrReadPolicy>(file, in ticket);
+    public static AteliaResult<RbfPooledFrame> ReadPooledFrame(RandomAccessReader reader, SizedPtr ticket) =>
+        ReadPooledFrameCore<SizedPtr, SizedPtrReadPolicy>(reader, in ticket);
 
     /// <summary>从 ArrayPool 借缓存读取帧（已验证的 RbfFrameInfo 快路径）。</summary>
     /// <param name="file">文件句柄。</param>
@@ -86,8 +86,8 @@ internal static partial class RbfReadImpl {
     /// <remarks>
     /// 此路径跳过 TrailerCodeword 校验与解析，仅做 I/O 级校验与 PayloadCrc 校验。
     /// </remarks>
-    public static AteliaResult<RbfPooledFrame> ReadPooledFrame(SafeFileHandle file, scoped in RbfFrameInfo info) =>
-        ReadPooledFrameCore<RbfFrameInfo, FrameInfoReadPolicy>(file, in info);
+    public static AteliaResult<RbfPooledFrame> ReadPooledFrame(RandomAccessReader reader, scoped in RbfFrameInfo info) =>
+        ReadPooledFrameCore<RbfFrameInfo, FrameInfoReadPolicy>(reader, in info);
 
     #endregion
 
@@ -96,7 +96,7 @@ internal static partial class RbfReadImpl {
     /// <summary>通用读取帧实现（静态多态，零运行时开销）。</summary>
     /// <typeparam name="TInput">输入类型。</typeparam>
     /// <typeparam name="TPolicy">读取策略。</typeparam>
-    private static AteliaResult<RbfPooledFrame> ReadPooledFrameCore<TInput, TPolicy>(SafeFileHandle file, scoped in TInput input)
+    private static AteliaResult<RbfPooledFrame> ReadPooledFrameCore<TInput, TPolicy>(RandomAccessReader reader, scoped in TInput input)
         where TInput : allows ref struct
         where TPolicy : IReadFramePolicy<TInput> {
         // 1. 参数校验
@@ -111,7 +111,7 @@ internal static partial class RbfReadImpl {
 
         try {
             // 3. 调用通用 ReadFrameCore（限定 Span 长度）
-            var result = ReadFrameCore<TInput, TPolicy>(file, in input, offset, ticketLength, rentedBuffer.AsSpan(0, ticketLength));
+            var result = ReadFrameCore<TInput, TPolicy>(reader, in input, offset, ticketLength, rentedBuffer.AsSpan(0, ticketLength));
 
             // 4. 失败路径：归还 buffer 并返回错误
             if (!result.IsSuccess) {
@@ -153,12 +153,12 @@ internal static partial class RbfReadImpl {
     /// 调用方 MUST 确保 buffer 在使用 Payload 期间有效。
     /// 使用 RandomAccess.Read 实现，无状态，并发安全。
     /// </remarks>
-    public static AteliaResult<RbfFrame> ReadFrame(SafeFileHandle file, SizedPtr ticket, Span<byte> buffer) {
+    public static AteliaResult<RbfFrame> ReadFrame(RandomAccessReader reader, SizedPtr ticket, Span<byte> buffer) {
         var error = SizedPtrReadPolicy.ValidateInput(in ticket) ?? CheckBufferLength(ticket.Length, buffer.Length);
         if (error != null) { return AteliaResult<RbfFrame>.Failure(error); }
 
         int ticketLength = ticket.Length;
-        return ReadFrameCore<SizedPtr, SizedPtrReadPolicy>(file, in ticket, ticket.Offset, ticketLength, buffer[..ticketLength]);
+        return ReadFrameCore<SizedPtr, SizedPtrReadPolicy>(reader, in ticket, ticket.Offset, ticketLength, buffer[..ticketLength]);
     }
 
     /// <summary>读取已验证的帧到提供的 buffer 中（跳过 TrailerCodeword 校验）。</summary>
@@ -169,12 +169,12 @@ internal static partial class RbfReadImpl {
     /// <remarks>
     /// 仅做 I/O 级校验与 PayloadCrc 校验，跳过 TrailerCodeword CRC/保留位/长度一致性校验。
     /// </remarks>
-    public static AteliaResult<RbfFrame> ReadFrame(SafeFileHandle file, scoped in RbfFrameInfo info, Span<byte> buffer) {
+    public static AteliaResult<RbfFrame> ReadFrame(RandomAccessReader reader, scoped in RbfFrameInfo info, Span<byte> buffer) {
         int ticketLength = info.Ticket.Length;
         var error = CheckBufferLength(ticketLength, buffer.Length);
         if (error != null) { return AteliaResult<RbfFrame>.Failure(error); }
 
-        return ReadFrameCore<RbfFrameInfo, FrameInfoReadPolicy>(file, in info, info.Ticket.Offset, ticketLength, buffer[..ticketLength]);
+        return ReadFrameCore<RbfFrameInfo, FrameInfoReadPolicy>(reader, in info, info.Ticket.Offset, ticketLength, buffer[..ticketLength]);
     }
 
     #endregion
@@ -183,7 +183,7 @@ internal static partial class RbfReadImpl {
 
     /// <summary>通用读取并解析帧（依赖策略提供 ValidateAndParse）。</summary>
     private static AteliaResult<RbfFrame> ReadFrameCore<TInput, TPolicy>(
-        SafeFileHandle file,
+        RandomAccessReader reader,
         scoped in TInput input,
         long offset,
         int ticketLength,
@@ -195,7 +195,7 @@ internal static partial class RbfReadImpl {
         Debug.Assert(ticketLength == frameBuffer.Length); // 为简化实现，要求传入恰好长度的buffer
 
         // 2. 调用 ReadRaw，只读取帧所需的字节
-        int bytesRead = RandomAccess.Read(file, frameBuffer, offset);
+        int bytesRead = reader.Read(frameBuffer, offset);
 
         // 3. 检查短读
         if (bytesRead < ticketLength) {

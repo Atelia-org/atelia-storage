@@ -1,5 +1,5 @@
 using Atelia.Rbf.Internal;
-using Microsoft.Win32.SafeHandles;
+using Atelia.Rbf.ReadCache;
 
 namespace Atelia.Rbf;
 
@@ -10,7 +10,7 @@ namespace Atelia.Rbf;
 /// 规范引用：design-draft.md §5
 /// </remarks>
 public ref struct RbfReverseEnumerator {
-    private readonly SafeFileHandle _handle;
+    private readonly RandomAccessReader _reader;
     private readonly bool _showTombstone;
     private long _dataTail;
     private RbfFrameInfo _current;
@@ -20,8 +20,8 @@ public ref struct RbfReverseEnumerator {
     /// <param name="handle">RBF 文件句柄。</param>
     /// <param name="dataTail">扫描起始位置（文件逻辑尾部）。</param>
     /// <param name="showTombstone">是否包含墓碑帧。</param>
-    internal RbfReverseEnumerator(SafeFileHandle handle, long dataTail, bool showTombstone) {
-        _handle = handle;
+    internal RbfReverseEnumerator(RandomAccessReader reader, long dataTail, bool showTombstone) {
+        _reader = reader;
         _dataTail = dataTail;
         _showTombstone = showTombstone;
         _current = default;
@@ -42,7 +42,7 @@ public ref struct RbfReverseEnumerator {
     /// <returns>成功移动返回 <c>true</c>，到达文件头或遇到错误返回 <c>false</c>。</returns>
     public bool MoveNext() {
         while (_dataTail >= RbfLayout.MinFirstFrameFenceEnd) {
-            var result = RbfReadImpl.ReadTrailerBefore(_handle, _dataTail);
+            var result = RbfReadImpl.ReadTrailerBefore(_reader, _dataTail);
 
             if (result.IsFailure) {
                 _terminationError = result.Error;

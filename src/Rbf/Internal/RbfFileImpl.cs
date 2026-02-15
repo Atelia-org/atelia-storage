@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
 using Atelia.Data;
+using Atelia.Rbf.ReadCache;
 using Microsoft.Win32.SafeHandles;
 
 namespace Atelia.Rbf.Internal;
@@ -25,6 +26,7 @@ internal enum FileState {
 /// </remarks>
 internal sealed class RbfFileImpl : IRbfFile {
     private readonly SafeFileHandle _handle;
+    private readonly RandomAccessReader _reader;
     private long _tailOffset;
     private bool _disposed;
 
@@ -50,6 +52,7 @@ internal sealed class RbfFileImpl : IRbfFile {
     /// <param name="tailOffset">初始 TailOffset（文件逻辑长度）。</param>
     internal RbfFileImpl(SafeFileHandle handle, long tailOffset) {
         _handle = handle ?? throw new ArgumentNullException(nameof(handle));
+        _reader = new ReverseReadCache(handle);
         _tailOffset = tailOffset;
 
         _builderSink = new RandomAccessByteSink(_handle, tailOffset);
@@ -64,6 +67,10 @@ internal sealed class RbfFileImpl : IRbfFile {
         if (_fileState != FileState.Idle) { throw new InvalidOperationException("Cannot read while a builder is active. Dispose the builder first."); }
     }
 
+    private void InvalidateCacheFrom(long fileOffset) {
+        _reader.InvalidateFrom(fileOffset);
+    }
+
     /// <inheritdoc />
     public AteliaResult<SizedPtr> Append(uint tag, ReadOnlySpan<byte> payload, ReadOnlySpan<byte> tailMeta) {
         // 生命周期检查：Dispose 入口检查
@@ -71,11 +78,13 @@ internal sealed class RbfFileImpl : IRbfFile {
 
         if (_fileState != FileState.Idle) { throw new InvalidOperationException("Cannot call Append while a builder is active. Dispose the builder first."); }
         long tailOffset = _tailOffset;
+        InvalidateCacheFrom(tailOffset);
         // 门面层只负责：持有句柄 + 维护 TailOffset。
         // 失败时 RbfAppendImpl 保证不修改 tailOffset
-        AteliaResult<SizedPtr> result = RbfAppendImpl.Append(_handle, ref tailOffset, payload, tailMeta, tag);
+        var result = RbfAppendImpl.Append(_handle, ref tailOffset, payload, tailMeta, tag);
         if (result.IsSuccess) {
             _tailOffset = tailOffset;
+            _reader.NotifyFileLengthChanged(_tailOffset);
             return result.Value!;
         }
         return AteliaResult<SizedPtr>.Failure(result.Error!);
@@ -93,6 +102,8 @@ internal sealed class RbfFileImpl : IRbfFile {
 
         // 检查 MaxFileOffset
         if (tailOffset >= SizedPtr.MaxOffset) { throw new InvalidOperationException($"TailOffset ({tailOffset}) has reached MaxFileOffset ({SizedPtr.MaxOffset})."); }
+
+        InvalidateCacheFrom(tailOffset);
 
         // 递增 epoch，状态切换为 Building
         _builderEpoch++;
@@ -247,6 +258,7 @@ internal sealed class RbfFileImpl : IRbfFile {
         long endOffset = _builderFrameStart + layout.FrameLength + RbfLayout.FenceSize;
         Debug.Assert(endOffset >= _tailOffset, "Commit endOffset must not be less than current TailOffset.");
         _tailOffset = endOffset;
+        _reader.NotifyFileLengthChanged(_tailOffset);
         _fileState = FileState.Idle;
         _builderLastClose = BuilderCloseReason.Committed;
 
@@ -271,37 +283,37 @@ internal sealed class RbfFileImpl : IRbfFile {
     /// <inheritdoc />
     public AteliaResult<RbfPooledFrame> ReadPooledFrame(SizedPtr ptr) {
         EnsureIdleForRead();
-        return RbfReadImpl.ReadPooledFrame(_handle, ptr);
+        return RbfReadImpl.ReadPooledFrame(_reader, ptr);
     }
 
     /// <inheritdoc />
     public AteliaResult<RbfFrame> ReadFrame(SizedPtr ptr, Span<byte> buffer) {
         EnsureIdleForRead();
-        return RbfReadImpl.ReadFrame(_handle, ptr, buffer);
+        return RbfReadImpl.ReadFrame(_reader, ptr, buffer);
     }
 
     /// <inheritdoc />
     public RbfReverseSequence ScanReverse(bool showTombstone = false) {
         EnsureIdleForRead();
-        return new RbfReverseSequence(_handle, _tailOffset, showTombstone);
+        return new RbfReverseSequence(_reader, _tailOffset, showTombstone);
     }
 
     /// <inheritdoc />
     public AteliaResult<RbfFrameInfo> ReadFrameInfo(SizedPtr ticket) {
         EnsureIdleForRead();
-        return RbfReadImpl.ReadFrameInfo(_handle, ticket);
+        return RbfReadImpl.ReadFrameInfo(_reader, ticket);
     }
 
     /// <inheritdoc />
     public AteliaResult<RbfTailMeta> ReadTailMeta(SizedPtr ticket, Span<byte> buffer) {
         EnsureIdleForRead();
-        return RbfReadImpl.ReadTailMeta(_handle, ticket, buffer);
+        return RbfReadImpl.ReadTailMeta(_reader, ticket, buffer);
     }
 
     /// <inheritdoc />
     public AteliaResult<RbfPooledTailMeta> ReadPooledTailMeta(SizedPtr ticket) {
         EnsureIdleForRead();
-        return RbfReadImpl.ReadPooledTailMeta(_handle, ticket);
+        return RbfReadImpl.ReadPooledTailMeta(_reader, ticket);
     }
 
     /// <inheritdoc />
@@ -337,17 +349,21 @@ internal sealed class RbfFileImpl : IRbfFile {
             );
         }
 
+        InvalidateCacheFrom(newLengthBytes);
+
         // 4. 执行截断
         RandomAccess.SetLength(_handle, newLengthBytes);
 
         // 5. 更新 TailOffset
         _tailOffset = newLengthBytes;
+        _reader.NotifyFileLengthChanged(_tailOffset);
     }
 
     /// <inheritdoc />
     public void Dispose() {
         if (!_disposed) {
             _builderWriter.Dispose();
+            _reader.Dispose();
 
             _handle.Dispose();
             _disposed = true;

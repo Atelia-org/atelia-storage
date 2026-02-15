@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using Atelia.Data;
 using Atelia.Data.Hashing;
+using Atelia.Rbf.ReadCache;
 using Xunit;
 
 namespace Atelia.Rbf.Internal.Tests;
@@ -88,12 +89,13 @@ public class ReadTrailerBeforeTests : IDisposable {
         File.WriteAllBytes(path, fileContent);
 
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         // fenceEndOffset = 文件末尾（Fence 的 EndOffsetExclusive）
         long fenceEndOffset = fileContent.Length;
 
         // Act
-        var result = RbfReadImpl.ReadTrailerBefore(handle, fenceEndOffset);
+        var result = RbfReadImpl.ReadTrailerBefore(reader, fenceEndOffset);
 
         // Assert
         Assert.True(result.IsSuccess, $"Expected success, got error: {result.Error?.Message}");
@@ -122,10 +124,11 @@ public class ReadTrailerBeforeTests : IDisposable {
         File.WriteAllBytes(path, fileContent);
 
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
         long fenceEndOffset = fileContent.Length;
 
         // Act
-        var result = RbfReadImpl.ReadTrailerBefore(handle, fenceEndOffset);
+        var result = RbfReadImpl.ReadTrailerBefore(reader, fenceEndOffset);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -149,10 +152,11 @@ public class ReadTrailerBeforeTests : IDisposable {
         File.WriteAllBytes(path, fileContent);
 
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
         long fenceEndOffset = fileContent.Length;
 
         // Act
-        var result = RbfReadImpl.ReadTrailerBefore(handle, fenceEndOffset);
+        var result = RbfReadImpl.ReadTrailerBefore(reader, fenceEndOffset);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -183,10 +187,11 @@ public class ReadTrailerBeforeTests : IDisposable {
         File.WriteAllBytes(path, fileContent);
 
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
         long fenceEndOffset = fileContent.Length;
 
         // Act
-        var result = RbfReadImpl.ReadTrailerBefore(handle, fenceEndOffset);
+        var result = RbfReadImpl.ReadTrailerBefore(reader, fenceEndOffset);
 
         // Assert
         Assert.True(result.IsSuccess, $"Failed for payloadLen={payloadLen}: {result.Error?.Message}");
@@ -230,17 +235,18 @@ public class ReadTrailerBeforeTests : IDisposable {
 
         File.WriteAllBytes(path, file);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         // Act & Assert: 第一次读取（从文件末尾）应返回 Frame2
         long fenceEnd = file.Length;
-        var result1 = RbfReadImpl.ReadTrailerBefore(handle, fenceEnd);
+        var result1 = RbfReadImpl.ReadTrailerBefore(reader, fenceEnd);
         Assert.True(result1.IsSuccess);
         Assert.Equal(tag2, result1.Value.Tag);
         Assert.Equal(payload2.Length, result1.Value.PayloadLength);
 
         // 第二次读取（从 Frame2 起始位置）应返回 Frame1
         long nextFenceEnd = result1.Value.Ticket.Offset;
-        var result2 = RbfReadImpl.ReadTrailerBefore(handle, nextFenceEnd);
+        var result2 = RbfReadImpl.ReadTrailerBefore(reader, nextFenceEnd);
         Assert.True(result2.IsSuccess);
         Assert.Equal(tag1, result2.Value.Tag);
         Assert.Equal(payload1.Length, result2.Value.PayloadLength);
@@ -266,9 +272,10 @@ public class ReadTrailerBeforeTests : IDisposable {
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         // Act
-        var result = RbfReadImpl.ReadTrailerBefore(handle, fileContent.Length);
+        var result = RbfReadImpl.ReadTrailerBefore(reader, fileContent.Length);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -297,9 +304,10 @@ public class ReadTrailerBeforeTests : IDisposable {
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         // Act
-        var result = RbfReadImpl.ReadTrailerBefore(handle, fileContent.Length);
+        var result = RbfReadImpl.ReadTrailerBefore(reader, fileContent.Length);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -324,9 +332,10 @@ public class ReadTrailerBeforeTests : IDisposable {
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         // Act
-        var result = RbfReadImpl.ReadTrailerBefore(handle, fileContent.Length);
+        var result = RbfReadImpl.ReadTrailerBefore(reader, fileContent.Length);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -359,9 +368,10 @@ public class ReadTrailerBeforeTests : IDisposable {
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         // Act
-        var result = RbfReadImpl.ReadTrailerBefore(handle, fileContent.Length);
+        var result = RbfReadImpl.ReadTrailerBefore(reader, fileContent.Length);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -391,9 +401,10 @@ public class ReadTrailerBeforeTests : IDisposable {
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         // Act
-        var result = RbfReadImpl.ReadTrailerBefore(handle, fileContent.Length);
+        var result = RbfReadImpl.ReadTrailerBefore(reader, fileContent.Length);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -422,9 +433,10 @@ public class ReadTrailerBeforeTests : IDisposable {
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         // Act
-        var result = RbfReadImpl.ReadTrailerBefore(handle, fileContent.Length);
+        var result = RbfReadImpl.ReadTrailerBefore(reader, fileContent.Length);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -445,12 +457,13 @@ public class ReadTrailerBeforeTests : IDisposable {
         File.WriteAllBytes(path, fileContent);
 
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         // fenceEndOffset = HeaderFence 之后一点点，不足以容纳 MinFrame + Fence
         long tooSmallOffset = RbfLayout.HeaderOnlyLength + RbfLayout.MinFrameLength;
 
         // Act
-        var result = RbfReadImpl.ReadTrailerBefore(handle, tooSmallOffset);
+        var result = RbfReadImpl.ReadTrailerBefore(reader, tooSmallOffset);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -468,12 +481,13 @@ public class ReadTrailerBeforeTests : IDisposable {
         File.WriteAllBytes(path, truncatedFile);
 
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         // 尝试从超出文件长度的位置读取
         long fakeOffset = RbfLayout.HeaderOnlyLength + RbfLayout.MinFrameLength + RbfLayout.FenceSize;
 
         // Act
-        var result = RbfReadImpl.ReadTrailerBefore(handle, fakeOffset);
+        var result = RbfReadImpl.ReadTrailerBefore(reader, fakeOffset);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -506,9 +520,10 @@ public class ReadTrailerBeforeTests : IDisposable {
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         // Act
-        var result = RbfReadImpl.ReadTrailerBefore(handle, fileContent.Length);
+        var result = RbfReadImpl.ReadTrailerBefore(reader, fileContent.Length);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -542,9 +557,10 @@ public class ReadTrailerBeforeTests : IDisposable {
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         // Act
-        var result = RbfReadImpl.ReadTrailerBefore(handle, fileContent.Length);
+        var result = RbfReadImpl.ReadTrailerBefore(reader, fileContent.Length);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -579,9 +595,10 @@ public class ReadTrailerBeforeTests : IDisposable {
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         // Act
-        var result = RbfReadImpl.ReadTrailerBefore(handle, fileContent.Length);
+        var result = RbfReadImpl.ReadTrailerBefore(reader, fileContent.Length);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -608,9 +625,10 @@ public class ReadTrailerBeforeTests : IDisposable {
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
+        using var reader = new RandomAccessReader(handle);
 
         // Act
-        var result = RbfReadImpl.ReadTrailerBefore(handle, fileContent.Length);
+        var result = RbfReadImpl.ReadTrailerBefore(reader, fileContent.Length);
 
         // Assert: 应该成功（ReadTrailerBefore 不校验 PayloadCrc）
         Assert.True(result.IsSuccess, $"Expected success but got: {result.Error?.Message}");
@@ -641,7 +659,8 @@ public class ReadTrailerBeforeTests : IDisposable {
 
         // 使用底层 handle 调用 ReadTrailerBefore（RbfFile 已关闭）
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
-        var result = RbfReadImpl.ReadTrailerBefore(handle, fileLength);
+        using var reader = new RandomAccessReader(handle);
+        var result = RbfReadImpl.ReadTrailerBefore(reader, fileLength);
 
         // Assert
         Assert.True(result.IsSuccess);
