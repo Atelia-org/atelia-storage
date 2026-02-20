@@ -1,4 +1,6 @@
 using System;
+using System.Numerics;
+using System.Runtime.Intrinsics.X86;
 using Xunit;
 
 namespace Atelia.Data.Tests;
@@ -324,5 +326,152 @@ public class SizedPtrTests {
         var ptr = SizedPtr.Create(0, 100);
 
         Assert.False(ptr.Contains(long.MaxValue)); // 差值会很大，但不会溢出
+    }
+
+    // ========== P0: Serialize / Deserialize Roundtrip ==========
+
+    [Theory]
+    [InlineData(0L, 0)]
+    [InlineData(0L, 4)]
+    [InlineData(4L, 0)]
+    [InlineData(4L, 4)]
+    [InlineData(1024L, 256)]
+    [InlineData(4096L, 1024)]
+    [InlineData(SizedPtr.MaxOffset, 0)]
+    [InlineData(0L, SizedPtr.MaxLength)]
+    [InlineData(SizedPtr.MaxOffset, SizedPtr.MaxLength)]
+    public void Serialize_Deserialize_Roundtrip(long offsetBytes, int lengthBytes) {
+        var original = SizedPtr.Create(offsetBytes, lengthBytes);
+        ulong serialized = original.Serialize();
+        var restored = SizedPtr.Deserialize(serialized);
+
+        Assert.Equal(original.Offset, restored.Offset);
+        Assert.Equal(original.Length, restored.Length);
+        Assert.Equal(original.Packed, restored.Packed);
+    }
+
+    [Fact]
+    public void Serialize_BothSmall_ProducesSmallValue() {
+        // offset=4B, length=4B → packed offset=1, packed length=1
+        // Byte 0 (C: 6:2): (1 << 2) | 1 = 0b101 = 5
+        var ptr = SizedPtr.Create(4, 4);
+        ulong serialized = ptr.Serialize();
+
+        Assert.Equal(5UL, serialized);
+        Assert.Equal(61, BitOperations.LeadingZeroCount(serialized));
+    }
+
+    [Fact]
+    public void Serialize_ZeroZero_ProducesZero() {
+        var ptr = SizedPtr.Create(0, 0);
+        Assert.Equal(0UL, ptr.Serialize());
+    }
+
+    [Fact]
+    public void Serialize_SmallValues_MoreCompactThanFixedLayout() {
+        // 典型小值场景: offset=1024 (10 bit), length=256 (8 bit)
+        var ptr = SizedPtr.Create(1024, 256);
+        ulong serialized = ptr.Serialize();
+
+        int interleavedBits = 64 - BitOperations.LeadingZeroCount(serialized);
+        int fixedBits = 64 - BitOperations.LeadingZeroCount(ptr.Packed);
+
+        Assert.True(interleavedBits < fixedBits,
+            $"Interleaved ({interleavedBits} bits) should be more compact than fixed ({fixedBits} bits)"
+        );
+    }
+
+    [Fact]
+    public void Serialize_MaxValues_Uses64Bits() {
+        var ptr = SizedPtr.Create(SizedPtr.MaxOffset, SizedPtr.MaxLength);
+        ulong serialized = ptr.Serialize();
+
+        Assert.Equal(64, 64 - BitOperations.LeadingZeroCount(serialized) + (serialized == 0 ? 64 : 0));
+    }
+
+    [Fact]
+    public void Serialize_Deserialize_IsInjective() {
+        var pairs = new (long off, int len)[] {
+            (0, 0), (0, 4), (4, 0), (4, 4),
+            (8, 4), (4, 8), (1024, 256), (256, 1024),
+        };
+
+        var serializedValues = new HashSet<ulong>();
+        foreach (var (off, len) in pairs) {
+            var ptr = SizedPtr.Create(off, len);
+            bool added = serializedValues.Add(ptr.Serialize());
+            Assert.True(added, $"Duplicate serialized value for ({off}, {len})");
+        }
+    }
+
+    // ========== P0: Software Fallback ==========
+
+    [Theory]
+    [InlineData(0L, 0)]
+    [InlineData(0L, 4)]
+    [InlineData(4L, 0)]
+    [InlineData(4L, 4)]
+    [InlineData(1024L, 256)]
+    [InlineData(4096L, 1024)]
+    [InlineData(SizedPtr.MaxOffset, 0)]
+    [InlineData(0L, SizedPtr.MaxLength)]
+    [InlineData(SizedPtr.MaxOffset, SizedPtr.MaxLength)]
+    public void SerializeSoftware_DeserializeSoftware_Roundtrip(long offsetBytes, int lengthBytes) {
+        var original = SizedPtr.Create(offsetBytes, lengthBytes);
+        ulong offsetPacked = original.Packed >> SizedPtr.LengthPackedBits;
+        ulong lengthPacked = original.Packed & ((1UL << SizedPtr.LengthPackedBits) - 1);
+
+        ulong serialized = SizedPtr.SerializeSoftware(offsetPacked, lengthPacked);
+        var restored = SizedPtr.DeserializeSoftware(serialized);
+
+        Assert.Equal(original.Offset, restored.Offset);
+        Assert.Equal(original.Length, restored.Length);
+        Assert.Equal(original.Packed, restored.Packed);
+    }
+
+    [Fact]
+    public void Software_MatchesBmi2_Serialize() {
+        if (!Bmi2.X64.IsSupported) { return; }
+
+        var testCases = new (long off, int len)[] {
+            (0, 0), (4, 4), (1024, 256), (4096, 1024),
+            (SizedPtr.MaxOffset, 0), (0, SizedPtr.MaxLength),
+            (SizedPtr.MaxOffset, SizedPtr.MaxLength),
+            (65536, 4096), (1048576, 32768),
+        };
+
+        foreach (var (off, len) in testCases) {
+            var ptr = SizedPtr.Create(off, len);
+            ulong offsetPacked = ptr.Packed >> SizedPtr.LengthPackedBits;
+            ulong lengthPacked = ptr.Packed & ((1UL << SizedPtr.LengthPackedBits) - 1);
+
+            ulong bmi2Result = Bmi2.X64.ParallelBitDeposit(offsetPacked, ~0x0F0F_0F07_0707_0703UL)
+                             | Bmi2.X64.ParallelBitDeposit(lengthPacked, 0x0F0F_0F07_0707_0703UL);
+            ulong softResult = SizedPtr.SerializeSoftware(offsetPacked, lengthPacked);
+
+            Assert.Equal(bmi2Result, softResult);
+        }
+    }
+
+    [Fact]
+    public void Software_MatchesBmi2_Deserialize() {
+        if (!Bmi2.X64.IsSupported) { return; }
+
+        // 用各种 SizedPtr 序列化后的值来测试反序列化一致性
+        var testCases = new (long off, int len)[] {
+            (0, 0), (4, 4), (1024, 256), (4096, 1024),
+            (SizedPtr.MaxOffset, 0), (0, SizedPtr.MaxLength),
+            (SizedPtr.MaxOffset, SizedPtr.MaxLength),
+        };
+
+        foreach (var (off, len) in testCases) {
+            var ptr = SizedPtr.Create(off, len);
+            ulong serialized = ptr.Serialize();
+
+            var bmi2Result = SizedPtr.Deserialize(serialized);
+            var softResult = SizedPtr.DeserializeSoftware(serialized);
+
+            Assert.Equal(bmi2Result.Packed, softResult.Packed);
+        }
     }
 }
