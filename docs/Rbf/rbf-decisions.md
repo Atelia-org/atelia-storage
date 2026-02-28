@@ -79,3 +79,29 @@ RBF 的逆向扫描（Reverse Scan / `ScanReverse`）MUST 以“尽量只触碰 
 **设计直觉（Informative）**：在“从尾到头”的读取需求下，将传统 Header 的职责镜像到 Trailer，可显著降低大帧场景下的 I/O 与解析成本。
 
 ---
+## decision [S-RBF-DECISION-TICKET-OVERHEAD-SUBTRACTION-TABLED] SizedPtr票据固定开销减法——搁置
+
+**状态**：TABLED（2026-02-21）
+
+**问题**：SizedPtr 作为帧 ticket 时 Length 包含 FixedOverhead(24B)，使得 VarInt 序列化时 Length 分量偏大。可在 Rbf 内部引入 `RbfFrameTicket` 包装类型，构造时减去 FixedOverhead，访问时加回来，使内部 SizedPtr 存储的 Length 更小从而改善 VarInt 编码紧凑性。
+
+**评估过的候选方案**：
+
+| 方案 | 思路 | 评估 |
+|:-----|:-----|:-----|
+| A. `RbfFrameTicket` 包装类型 | Rbf 内部包装，构造减/访问加，不改 SizedPtr | 收益真实但量级不足；封堵"未来更低 FixedOverhead 帧格式"路径（虽然该路径的真实性也存疑） |
+| B. 序列化层减法 | 仅在 VarInt 编解码点做 delta | 改动最小，但 VarInt 编码器尚不存在 |
+
+**搁置理由**：
+1. **优化目标不存在**——VarInt 编码器尚未实现，无法验证实际收益
+2. **收益量级不足**——每 ticket 节省 0-1 字节，每次 commit 约省 10-100 字节，相对总 I/O 可忽略
+3. **FixedOverhead 是结构性承重墙**——HeadLen(4B) + TrailerCodeword(16B) 不可移除，仅 PayloadCrc(4B) 理论上可选，实际不太可能省掉
+
+**保留的果实**：
+- ticket 创建点与消费点的完整映射（3 创建 + 8 消费），见 `agent-team/handoffs/2026-02-21-sizedptr-fixedoverhead-optimization-INV.md`
+- 确认了 DL-001（SizedPtr 纯几何语义）在优化压力下的健壮性
+- 方案 B 可作为"设计弹药"在 VarInt 编码器实现时立取即用
+
+**重审时机**：当 StateJournal VarInt 编码器进入实现阶段时。
+
+---
