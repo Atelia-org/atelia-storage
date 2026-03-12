@@ -64,21 +64,15 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
         int tailMetaLen = TailMetaLength;
 
         // 1. TailMetaLength == 0：直接返回成功 + 空 Span
-        if (tailMetaLen == 0) {
-            return AteliaResult<RbfTailMeta>.Success(
-                new RbfTailMeta(Ticket, Tag, ReadOnlySpan<byte>.Empty, IsTombstone)
-            );
-        }
+        if (tailMetaLen == 0) { return new RbfTailMeta(Ticket, Tag, ReadOnlySpan<byte>.Empty, IsTombstone); }
 
         // 2. I/O 级校验：buffer 长度
         if (buffer.Length < tailMetaLen) {
-            return AteliaResult<RbfTailMeta>.Failure(
-                new RbfBufferTooSmallError(
-                    $"Buffer too small for TailMeta: required {tailMetaLen} bytes, provided {buffer.Length} bytes.",
-                    RequiredBytes: tailMetaLen,
-                    ProvidedBytes: buffer.Length,
-                    RecoveryHint: "Ensure buffer is large enough to hold TailMeta."
-                )
+            return new RbfBufferTooSmallError(
+                $"Buffer too small for TailMeta: required {tailMetaLen} bytes, provided {buffer.Length} bytes.",
+                RequiredBytes: tailMetaLen,
+                ProvidedBytes: buffer.Length,
+                RecoveryHint: "Ensure buffer is large enough to hold TailMeta."
             );
         }
 
@@ -92,18 +86,14 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
 
         // 5. I/O 级校验：short read
         if (tailMetaBytesRead < tailMetaLen) {
-            return AteliaResult<RbfTailMeta>.Failure(
-                new RbfArgumentError(
-                    $"Short read for TailMeta: expected {tailMetaLen} bytes, got {tailMetaBytesRead}.",
-                    RecoveryHint: "The file may be truncated or info is stale."
-                )
+            return new RbfArgumentError(
+                $"Short read for TailMeta: expected {tailMetaLen} bytes, got {tailMetaBytesRead}.",
+                RecoveryHint: "The file may be truncated or info is stale."
             );
         }
 
         // 6. 构造并返回 RbfTailMeta
-        return AteliaResult<RbfTailMeta>.Success(
-            new RbfTailMeta(Ticket, Tag, tailMetaBuffer, IsTombstone)
-        );
+        return new RbfTailMeta(Ticket, Tag, tailMetaBuffer, IsTombstone);
     }
 
     /// <summary>读取 TailMeta（自动租用 buffer，L2 信任）。</summary>
@@ -117,11 +107,7 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
         int tailMetaLen = TailMetaLength;
 
         // 1. TailMetaLength == 0：返回无 buffer 的 RbfPooledTailMeta
-        if (tailMetaLen == 0) {
-            return AteliaResult<RbfPooledTailMeta>.Success(
-                new RbfPooledTailMeta(Ticket, Tag, IsTombstone)
-            );
-        }
+        if (tailMetaLen == 0) { return new RbfPooledTailMeta(Ticket, Tag, IsTombstone); }
 
         // 2. 从 ArrayPool 租 buffer（只租 TailMetaLength 大小）
         byte[] rentedBuffer = ArrayPool<byte>.Shared.Rent(tailMetaLen);
@@ -137,18 +123,14 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
             // 5. I/O 级校验：short read
             if (tailMetaBytesRead < tailMetaLen) {
                 ArrayPool<byte>.Shared.Return(rentedBuffer);
-                return AteliaResult<RbfPooledTailMeta>.Failure(
-                    new RbfArgumentError(
-                        $"Short read for TailMeta: expected {tailMetaLen} bytes, got {tailMetaBytesRead}.",
-                        RecoveryHint: "The file may be truncated or info is stale."
-                    )
+                return new RbfArgumentError(
+                    $"Short read for TailMeta: expected {tailMetaLen} bytes, got {tailMetaBytesRead}.",
+                    RecoveryHint: "The file may be truncated or info is stale."
                 );
             }
 
             // 6. 成功：构造 RbfPooledTailMeta
-            return AteliaResult<RbfPooledTailMeta>.Success(
-                new RbfPooledTailMeta(rentedBuffer, Ticket, Tag, tailMetaLen, IsTombstone)
-            );
+            return new RbfPooledTailMeta(rentedBuffer, Ticket, Tag, tailMetaLen, IsTombstone);
         }
         catch {
             // 异常路径：归还 buffer 避免泄漏

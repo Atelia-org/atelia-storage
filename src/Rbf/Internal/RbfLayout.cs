@@ -155,11 +155,9 @@ internal readonly struct FrameLayout {
         // 1. 确保 buffer 足够大
         if (frameBuffer.Length < MinFrameLength) {
             trailer = default;
-            return AteliaResult<FrameLayout>.Failure(
-                new RbfFramingError(
-                    $"Frame buffer too small: {frameBuffer.Length} bytes, minimum {MinFrameLength} bytes.",
-                    RecoveryHint: "The frame data is truncated."
-                )
+            return new RbfFramingError(
+                $"Frame buffer too small: {frameBuffer.Length} bytes, minimum {MinFrameLength} bytes.",
+                RecoveryHint: "The frame data is truncated."
             );
         }
 
@@ -170,7 +168,7 @@ internal readonly struct FrameLayout {
         var trailerResult = TrailerCodewordHelper.ParseAndValidate(trailerSpan);
         if (!trailerResult.IsSuccess) {
             trailer = default;
-            return AteliaResult<FrameLayout>.Failure(trailerResult.Error!);
+            return trailerResult.Error!;
         }
 
         trailer = trailerResult.Value;
@@ -178,42 +176,36 @@ internal readonly struct FrameLayout {
         // 6. 验证 TailLen == frameBuffer.Length（完整帧契约）
         // 调用方承诺传入完整帧数据，TailLen 必须与实际长度匹配
         if (trailer.TailLen != (uint)frameBuffer.Length) {
-            return AteliaResult<FrameLayout>.Failure(
-                new RbfFramingError(
-                    $"TailLen ({trailer.TailLen}) does not match frame buffer length ({frameBuffer.Length}).",
-                    RecoveryHint: "The frame data is incomplete or TailLen is corrupted."
-                )
+            return new RbfFramingError(
+                $"TailLen ({trailer.TailLen}) does not match frame buffer length ({frameBuffer.Length}).",
+                RecoveryHint: "The frame data is incomplete or TailLen is corrupted."
             );
         }
 
         // 7. 验证 TailLen 基本合法性
         if (trailer.TailLen < MinFrameLength) {
-            return AteliaResult<FrameLayout>.Failure(
-                new RbfFramingError(
-                    $"TailLen too small: {trailer.TailLen}, minimum {MinFrameLength}.",
-                    RecoveryHint: "The frame length field is corrupted."
-                )
+            return new RbfFramingError(
+                $"TailLen too small: {trailer.TailLen}, minimum {MinFrameLength}.",
+                RecoveryHint: "The frame length field is corrupted."
             );
         }
 
         if ((trailer.TailLen & RbfLayout.AlignmentMask) != 0) {
-            return AteliaResult<FrameLayout>.Failure(
-                new RbfFramingError(
-                    $"TailLen not 4-byte aligned: {trailer.TailLen}.",
-                    RecoveryHint: "The frame length field is corrupted."
-                )
+            return new RbfFramingError(
+                $"TailLen not 4-byte aligned: {trailer.TailLen}.",
+                RecoveryHint: "The frame length field is corrupted."
             );
         }
 
         // 8. 计算 PayloadLength
         // PayloadLength = TailLen - FixedOverhead - TailMetaLen - PaddingLen
         var payloadLengthResult = TrailerCodewordHelper.ComputePayloadLength(trailer.TailLen, trailer.TailMetaLen, trailer.PaddingLen);
-        if (!payloadLengthResult.IsSuccess) { return AteliaResult<FrameLayout>.Failure(payloadLengthResult.Error!); }
+        if (!payloadLengthResult.IsSuccess) { return payloadLengthResult.Error!; }
 
         int payloadLength = payloadLengthResult.Value;
 
         // 9. 构造 FrameLayout
-        return AteliaResult<FrameLayout>.Success(new FrameLayout(payloadLength, trailer.TailMetaLen));
+        return new FrameLayout(payloadLength, trailer.TailMetaLen);
     }
 
     /// <summary>填充 TrailerCodeword（v0.40 格式）。</summary>

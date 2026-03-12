@@ -145,11 +145,9 @@ internal static class TrailerCodewordHelper {
     internal static AteliaResult<TrailerCodewordData> ParseAndValidate(ReadOnlySpan<byte> trailerCodeword) {
         // @[F-TRAILER-CRC-COVERAGE]: TrailerCrc 覆盖 FrameDescriptor + FrameTag + TailLen
         if (!CheckTrailerCrc(trailerCodeword)) {
-            return AteliaResult<TrailerCodewordData>.Failure(
-                new RbfCrcMismatchError(
-                    "TrailerCrc32C verification failed.",
-                    RecoveryHint: "The frame trailer is corrupted."
-                )
+            return new RbfCrcMismatchError(
+                "TrailerCrc32C verification failed.",
+                RecoveryHint: "The frame trailer is corrupted."
             );
         }
 
@@ -157,37 +155,31 @@ internal static class TrailerCodewordHelper {
 
         // @[F-FRAME-DESCRIPTOR-LAYOUT]: bit 28-16 MUST 为 0
         if (!ValidateReservedBits(trailer.FrameDescriptor)) {
-            return AteliaResult<TrailerCodewordData>.Failure(
-                new RbfFramingError(
-                    $"FrameDescriptor reserved bits are not zero: 0x{trailer.FrameDescriptor:X8}.",
-                    RecoveryHint: "The frame descriptor is invalid or from a newer format version."
-                )
+            return new RbfFramingError(
+                $"FrameDescriptor reserved bits are not zero: 0x{trailer.FrameDescriptor:X8}.",
+                RecoveryHint: "The frame descriptor is invalid or from a newer format version."
             );
         }
 
-        return AteliaResult<TrailerCodewordData>.Success(trailer);
+        return trailer;
     }
 
     internal static AteliaResult<int> ComputePayloadLength(uint tailLen, int tailMetaLen, int paddingLen) {
         if (tailLen > int.MaxValue) {
-            return AteliaResult<int>.Failure(
-                new RbfFramingError(
-                    $"TailLen is too large for int: {tailLen}.",
-                    RecoveryHint: "The frame length field is corrupted."
-                )
+            return new RbfFramingError(
+                $"TailLen is too large for int: {tailLen}.",
+                RecoveryHint: "The frame length field is corrupted."
             );
         }
 
         int payloadLength = (int)tailLen - FrameLayout.FixedOverhead - tailMetaLen - paddingLen;
         if (payloadLength < 0) {
-            return AteliaResult<int>.Failure(
-                new RbfFramingError(
-                    $"Computed PayloadLength is negative: {payloadLength} (TailLen={tailLen}, TailMetaLen={tailMetaLen}, PaddingLen={paddingLen}).",
-                    RecoveryHint: "The frame descriptor fields are inconsistent."
-                )
+            return new RbfFramingError(
+                $"Computed PayloadLength is negative: {payloadLength} (TailLen={tailLen}, TailMetaLen={tailMetaLen}, PaddingLen={paddingLen}).",
+                RecoveryHint: "The frame descriptor fields are inconsistent."
             );
         }
 
-        return AteliaResult<int>.Success(payloadLength);
+        return payloadLength;
     }
 }

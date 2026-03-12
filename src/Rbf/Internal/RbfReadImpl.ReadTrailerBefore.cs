@@ -21,11 +21,9 @@ partial class RbfReadImpl {
 
         // 1. 边界检查：fenceEndOffset 必须 >= MinFirstFrameFenceEnd
         if (fenceEndOffset < RbfLayout.MinFirstFrameFenceEnd) {
-            return AteliaResult<RbfFrameInfo>.Failure(
-                new RbfFramingError(
-                    $"No frame before offset {fenceEndOffset}: minimum required is {RbfLayout.MinFirstFrameFenceEnd}.",
-                    RecoveryHint: "The offset may be at or before the first frame."
-                )
+            return new RbfFramingError(
+                $"No frame before offset {fenceEndOffset}: minimum required is {RbfLayout.MinFirstFrameFenceEnd}.",
+                RecoveryHint: "The offset may be at or before the first frame."
             );
         }
 
@@ -35,28 +33,24 @@ partial class RbfReadImpl {
         int bytesRead = reader.Read(buffer, readOffset);
 
         if (bytesRead < TrailerAndFenceSize) {
-            return AteliaResult<RbfFrameInfo>.Failure(
-                new RbfFramingError(
-                    $"Short read: expected {TrailerAndFenceSize} bytes, got {bytesRead}.",
-                    RecoveryHint: "The file may be truncated."
-                )
+            return new RbfFramingError(
+                $"Short read: expected {TrailerAndFenceSize} bytes, got {bytesRead}.",
+                RecoveryHint: "The file may be truncated."
             );
         }
 
         // 3. 验证 Fence（末尾 4 字节）
         if (!buffer[^RbfLayout.FenceSize..].SequenceEqual(RbfLayout.Fence)) {
-            return AteliaResult<RbfFrameInfo>.Failure(
-                new RbfFramingError(
-                    "Expected Fence ('RBF1') not found.",
-                    RecoveryHint: "The frame boundary marker is missing or corrupted."
-                )
+            return new RbfFramingError(
+                "Expected Fence ('RBF1') not found.",
+                RecoveryHint: "The frame boundary marker is missing or corrupted."
             );
         }
 
         // 4. 验证并解析 TrailerCodeword（前 16 字节，CRC + reserved bits）
         var trailerSpan = buffer[..TrailerCodewordHelper.Size];
         var trailerResult = TrailerCodewordHelper.ParseAndValidate(trailerSpan);
-        if (!trailerResult.IsSuccess) { return AteliaResult<RbfFrameInfo>.Failure(trailerResult.Error!); }
+        if (!trailerResult.IsSuccess) { return trailerResult.Error!; }
 
         var trailer = trailerResult.Value;
 
@@ -66,11 +60,9 @@ partial class RbfReadImpl {
         if (trailer.TailLen < RbfLayout.MinFrameLength ||
             trailer.TailLen > int.MaxValue ||
             (trailer.TailLen & RbfLayout.AlignmentMask) != 0) {
-            return AteliaResult<RbfFrameInfo>.Failure(
-                new RbfFramingError(
-                    $"Invalid TailLen: {trailer.TailLen} (min={RbfLayout.MinFrameLength}, max={int.MaxValue}, must be 4B-aligned).",
-                    RecoveryHint: "The frame length field is corrupted."
-                )
+            return new RbfFramingError(
+                $"Invalid TailLen: {trailer.TailLen} (min={RbfLayout.MinFrameLength}, max={int.MaxValue}, must be 4B-aligned).",
+                RecoveryHint: "The frame length field is corrupted."
             );
         }
 
@@ -78,11 +70,9 @@ partial class RbfReadImpl {
         // frameStart = fenceEndOffset - FenceSize - TailLen
         long frameStart = fenceEndOffset - RbfLayout.FenceSize - trailer.TailLen;
         if (frameStart < RbfLayout.HeaderOnlyLength) {
-            return AteliaResult<RbfFrameInfo>.Failure(
-                new RbfFramingError(
-                    $"Frame extends before HeaderFence: frameStart={frameStart}, HeaderOnlyLength={RbfLayout.HeaderOnlyLength}.",
-                    RecoveryHint: "The TailLen value is too large for this position."
-                )
+            return new RbfFramingError(
+                $"Frame extends before HeaderFence: frameStart={frameStart}, HeaderOnlyLength={RbfLayout.HeaderOnlyLength}.",
+                RecoveryHint: "The TailLen value is too large for this position."
             );
         }
 
@@ -90,21 +80,19 @@ partial class RbfReadImpl {
         // PayloadLength = TailLen - FixedOverhead - TailMetaLen - PaddingLen
         // FixedOverhead = HeadLen(4) + PayloadCrc(4) + TrailerCodeword(16) = 24
         var payloadLenResult = TrailerCodewordHelper.ComputePayloadLength(trailer.TailLen, trailer.TailMetaLen, trailer.PaddingLen);
-        if (!payloadLenResult.IsSuccess) { return AteliaResult<RbfFrameInfo>.Failure(payloadLenResult.Error!); }
+        if (!payloadLenResult.IsSuccess) { return payloadLenResult.Error!; }
 
         int payloadLen = payloadLenResult.Value;
 
         // 10. 构造 RbfFrameInfo（绑定 file 句柄）
         var ticket = SizedPtr.Create(frameStart, (int)trailer.TailLen);
-        return AteliaResult<RbfFrameInfo>.Success(
-            new RbfFrameInfo(
-                reader: reader,
-                ticket: ticket,
-                tag: trailer.FrameTag,
-                payloadLength: payloadLen,
-                tailMetaLength: trailer.TailMetaLen,
-                isTombstone: trailer.IsTombstone
-            )
+        return new RbfFrameInfo(
+            reader: reader,
+            ticket: ticket,
+            tag: trailer.FrameTag,
+            payloadLength: payloadLen,
+            tailMetaLength: trailer.TailMetaLen,
+            isTombstone: trailer.IsTombstone
         );
     }
 }

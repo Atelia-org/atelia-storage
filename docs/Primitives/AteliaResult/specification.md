@@ -376,10 +376,8 @@ public sealed record StateJournalObjectNotFoundError(ulong ObjectId)
 
 ```csharp
 // API 返回值只依赖 AteliaError 基类字段
-public AteliaResult<IDurableObject> TryLoadObject(ulong objectId)
-{
-    if (!versionIndex.TryGetValue(objectId, out var ptr))
-    {
+public AteliaResult<IDurableObject> TryLoadObject(ulong objectId) {
+    if (!versionIndex.TryGetValue(objectId, out var ptr)) {
         return AteliaResult<IDurableObject>.Failure(
             new StateJournalObjectNotFoundError(objectId));
     }
@@ -393,15 +391,13 @@ public AteliaResult<IDurableObject> TryLoadObject(ulong objectId)
 var result = heap.TryLoadObject(objectId);
 
 // 方式 1：通过 ErrorCode 判定
-if (result.IsFailure && result.Error!.ErrorCode == "StateJournal.ObjectNotFound")
-{
+if (result.IsFailure && result.Error!.ErrorCode == "StateJournal.ObjectNotFound") {
     // 创建新对象
     var newObj = heap.CreateObject<MyObject>();
 }
 
 // 方式 2：模式匹配（如果需要访问派生类字段）
-if (result.Error is StateJournalObjectNotFoundError notFound)
-{
+if (result.Error is StateJournalObjectNotFoundError notFound) {
     Console.WriteLine($"Object {notFound.ObjectId} not found");
 }
 ```

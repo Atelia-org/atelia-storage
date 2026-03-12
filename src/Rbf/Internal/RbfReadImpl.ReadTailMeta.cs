@@ -24,7 +24,7 @@ internal static partial class RbfReadImpl {
     ) {
         // 1. 先获取帧元信息（读取 TrailerCodeword 16B，完成所有结构性验证）
         var infoResult = ReadFrameInfo(reader, ticket);
-        if (!infoResult.IsSuccess) { return AteliaResult<RbfTailMeta>.Failure(infoResult.Error!); }
+        if (!infoResult.IsSuccess) { return infoResult.Error!; }
 
         // 2. 委托到实例方法（只做 I/O 级校验）
         return infoResult.Value.ReadTailMeta(buffer);
@@ -44,7 +44,7 @@ internal static partial class RbfReadImpl {
     ) {
         // 1. 先获取帧元信息（读取 TrailerCodeword 16B，完成所有结构性验证）
         var infoResult = ReadFrameInfo(reader, ticket);
-        if (!infoResult.IsSuccess) { return AteliaResult<RbfPooledTailMeta>.Failure(infoResult.Error!); }
+        if (!infoResult.IsSuccess) { return infoResult.Error!; }
 
         // 2. 委托到实例方法（只做 I/O 级校验）
         return infoResult.Value.ReadPooledTailMeta();

@@ -90,7 +90,7 @@ internal sealed class RbfFileImpl : IRbfFile {
             _reader.NotifyFileLengthChanged(_tailOffset);
             return result.Value!;
         }
-        return AteliaResult<SizedPtr>.Failure(result.Error!);
+        return result.Error!;
     }
 
     /// <inheritdoc />
@@ -141,53 +141,41 @@ internal sealed class RbfFileImpl : IRbfFile {
     internal AteliaResult<SizedPtr> CommitFromBuilder(uint epoch, uint tag, int tailMetaLength) {
         // 1. 生命周期检查（方案 D：状态违规返回 Failure）
         if (_disposed) {
-            return AteliaResult<SizedPtr>.Failure(
-                new RbfStateError(
-                    "File has been disposed.",
-                    RecoveryHint: "Create a new file facade before writing."
-                )
+            return new RbfStateError(
+                "File has been disposed.",
+                RecoveryHint: "Create a new file facade before writing."
             );
         }
         if (epoch != _builderEpoch) {
-            return AteliaResult<SizedPtr>.Failure(
-                new RbfStateError(
-                    $"Stale builder epoch: expected {_builderEpoch}, got {epoch}.",
-                    RecoveryHint: "Discard the old builder reference and call BeginAppend again."
-                )
+            return new RbfStateError(
+                $"Stale builder epoch: expected {_builderEpoch}, got {epoch}.",
+                RecoveryHint: "Discard the old builder reference and call BeginAppend again."
             );
         }
         if (_fileState != FileState.Building) {
             if (_builderLastClose == BuilderCloseReason.Committed) {
-                return AteliaResult<SizedPtr>.Failure(
-                    new RbfStateError(
-                        "EndAppend has already been called.",
-                        RecoveryHint: "Each builder can only commit once. Create a new builder for subsequent frames."
-                    )
+                return new RbfStateError(
+                    "EndAppend has already been called.",
+                    RecoveryHint: "Each builder can only commit once. Create a new builder for subsequent frames."
                 );
             }
             if (_builderLastClose == BuilderCloseReason.Aborted) {
-                return AteliaResult<SizedPtr>.Failure(
-                    new RbfStateError(
-                        "Builder has been disposed.",
-                        RecoveryHint: "Cannot call EndAppend on a disposed builder."
-                    )
+                return new RbfStateError(
+                    "Builder has been disposed.",
+                    RecoveryHint: "Cannot call EndAppend on a disposed builder."
                 );
             }
-            return AteliaResult<SizedPtr>.Failure(
-                new RbfStateError(
-                    "No active builder to commit.",
-                    RecoveryHint: "Call BeginAppend before EndAppend."
-                )
+            return new RbfStateError(
+                "No active builder to commit.",
+                RecoveryHint: "Call BeginAppend before EndAppend."
             );
         }
 
         // 2. 前置条件：只剩 HeadLen reservation（_builderWriter.PendingReservationCount == 1）
         if (_builderWriter.PendingReservationCount != 1) {
-            return AteliaResult<SizedPtr>.Failure(
-                new RbfStateError(
-                    $"All reservations must be committed before EndAppend. Pending: {_builderWriter.PendingReservationCount}, expected: 1 (HeadLen only).",
-                    RecoveryHint: "Commit or cancel all payload reservations before calling EndAppend."
-                )
+            return new RbfStateError(
+                $"All reservations must be committed before EndAppend. Pending: {_builderWriter.PendingReservationCount}, expected: 1 (HeadLen only).",
+                RecoveryHint: "Commit or cancel all payload reservations before calling EndAppend."
             );
         }
 
@@ -196,34 +184,26 @@ internal sealed class RbfFileImpl : IRbfFile {
 
         // 3a. 资源上限校验 (Decision 7.F) - 方案 D：返回 Failure
         if (payloadAndMetaLength > FrameLayout.MaxPayloadAndMetaLength) {
-            return AteliaResult<SizedPtr>.Failure(
-                new RbfArgumentError(
-                    $"Payload + TailMeta length ({payloadAndMetaLength}) exceeds maximum ({FrameLayout.MaxPayloadAndMetaLength}).",
-                    RecoveryHint: "Reduce payload size or split into multiple frames."
-                )
+            return new RbfArgumentError(
+                $"Payload + TailMeta length ({payloadAndMetaLength}) exceeds maximum ({FrameLayout.MaxPayloadAndMetaLength}).",
+                RecoveryHint: "Reduce payload size or split into multiple frames."
             );
         }
 
         // 验证 tailMetaLength 约束 - 方案 D：参数违规返回 Failure
         if (tailMetaLength < 0) {
-            return AteliaResult<SizedPtr>.Failure(
-                new RbfArgumentError(
-                    $"tailMetaLength ({tailMetaLength}) must be non-negative."
-                )
+            return new RbfArgumentError(
+                $"tailMetaLength ({tailMetaLength}) must be non-negative."
             );
         }
         if (tailMetaLength > payloadAndMetaLength) {
-            return AteliaResult<SizedPtr>.Failure(
-                new RbfArgumentError(
-                    $"tailMetaLength ({tailMetaLength}) exceeds payloadAndMetaLength ({payloadAndMetaLength})."
-                )
+            return new RbfArgumentError(
+                $"tailMetaLength ({tailMetaLength}) exceeds payloadAndMetaLength ({payloadAndMetaLength})."
             );
         }
         if (tailMetaLength > FrameLayout.MaxTailMetaLength) {
-            return AteliaResult<SizedPtr>.Failure(
-                new RbfArgumentError(
-                    $"tailMetaLength ({tailMetaLength}) exceeds MaxTailMetaLength ({FrameLayout.MaxTailMetaLength})."
-                )
+            return new RbfArgumentError(
+                $"tailMetaLength ({tailMetaLength}) exceeds MaxTailMetaLength ({FrameLayout.MaxTailMetaLength})."
             );
         }
 
@@ -233,7 +213,7 @@ internal sealed class RbfFileImpl : IRbfFile {
 
         // 4a. MaxFileOffset 校验（方案 A + D：统一委托给 RbfFrameWriteCore）
         var endOffsetError = RbfFrameWriteCore.ValidateEndOffset(_builderFrameStart, layout.FrameLength);
-        if (endOffsetError is not null) { return AteliaResult<SizedPtr>.Failure(endOffsetError); }
+        if (endOffsetError is not null) { return endOffsetError; }
 
         // 5. 写入 Padding（通过 _builderWriter，CRC 自动累积）
         if (layout.PaddingLength > 0) {
@@ -266,7 +246,7 @@ internal sealed class RbfFileImpl : IRbfFile {
         _builderLastClose = BuilderCloseReason.Committed;
 
         // 11. 返回 SizedPtr（方案 D：包装为 Success）
-        return AteliaResult<SizedPtr>.Success(SizedPtr.Create(_builderFrameStart, layout.FrameLength));
+        return SizedPtr.Create(_builderFrameStart, layout.FrameLength);
     }
 
     /// <summary>由 Builder 调用：取消帧构建，切换状态为 Idle（不更新 TailOffset）。</summary>

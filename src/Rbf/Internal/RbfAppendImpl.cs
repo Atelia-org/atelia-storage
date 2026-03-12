@@ -113,39 +113,33 @@ internal static class RbfAppendImpl {
 
         // 1. TailMeta 长度检查
         if (tailMeta.Length > FrameLayout.MaxTailMetaLength) {
-            return AteliaResult<SizedPtr>.Failure(
-                new RbfArgumentError(
-                    $"TailMeta length {tailMeta.Length} exceeds maximum {FrameLayout.MaxTailMetaLength}.",
-                    RecoveryHint: "Split the metadata or reduce its size."
-                )
+            return new RbfArgumentError(
+                $"TailMeta length {tailMeta.Length} exceeds maximum {FrameLayout.MaxTailMetaLength}.",
+                RecoveryHint: "Split the metadata or reduce its size."
             );
         }
 
         // 2. Payload + TailMeta 总长度检查（使用 long 避免 int 溢出）
         long payloadAndMetaLength = (long)payload.Length + tailMeta.Length;
         if (payloadAndMetaLength > FrameLayout.MaxPayloadAndMetaLength) {
-            return AteliaResult<SizedPtr>.Failure(
-                new RbfArgumentError(
-                    $"Payload+TailMeta length {payloadAndMetaLength} exceeds maximum {FrameLayout.MaxPayloadAndMetaLength}.",
-                    RecoveryHint: "Split the payload into multiple frames or compress the data."
-                )
+            return new RbfArgumentError(
+                $"Payload+TailMeta length {payloadAndMetaLength} exceeds maximum {FrameLayout.MaxPayloadAndMetaLength}.",
+                RecoveryHint: "Split the payload into multiple frames or compress the data."
             );
         }
 
         // 3. fileOffset 4B 对齐检查
         if ((fileOffset & RbfLayout.AlignmentMask) != 0) {
-            return AteliaResult<SizedPtr>.Failure(
-                new RbfArgumentError(
-                    $"File offset {fileOffset} is not 4-byte aligned.",
-                    RecoveryHint: "The file may be in an invalid state. Consider truncation or recovery."
-                )
+            return new RbfArgumentError(
+                $"File offset {fileOffset} is not 4-byte aligned.",
+                RecoveryHint: "The file may be in an invalid state. Consider truncation or recovery."
             );
         }
 
         // 4. 检查 EndOffset 是否超出 SizedPtr 可表示范围（统一调用 RbfFrameWriteCore.ValidateEndOffset）
         FrameLayout layout = new FrameLayout(payload.Length, tailMeta.Length);
         var endOffsetError = RbfFrameWriteCore.ValidateEndOffset(fileOffset, layout.FrameLength);
-        if (endOffsetError is not null) { return AteliaResult<SizedPtr>.Failure(endOffsetError); }
+        if (endOffsetError is not null) { return endOffsetError; }
         AteliaResult<SizedPtr> success = SizedPtr.Create(fileOffset, layout.FrameLength); // 隐式类型转换
 
         // === 校验通过，执行写入 ===

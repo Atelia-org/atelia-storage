@@ -101,7 +101,7 @@ internal static partial class RbfReadImpl {
         where TPolicy : IReadFramePolicy<TInput> {
         // 1. 参数校验
         var error = TPolicy.ValidateInput(in input);
-        if (error != null) { return AteliaResult<RbfPooledFrame>.Failure(error); }
+        if (error != null) { return error; }
 
         int ticketLength = TPolicy.GetTicketLength(in input);
         long offset = TPolicy.GetOffset(in input);
@@ -116,7 +116,7 @@ internal static partial class RbfReadImpl {
             // 4. 失败路径：归还 buffer 并返回错误
             if (!result.IsSuccess) {
                 ArrayPool<byte>.Shared.Return(rentedBuffer);
-                return AteliaResult<RbfPooledFrame>.Failure(result.Error!);
+                return result.Error!;
             }
 
             // 5. 成功路径：直接构造 RbfPooledFrame（class 直接持有 buffer）
@@ -131,7 +131,7 @@ internal static partial class RbfReadImpl {
                 isTombstone: frame.IsTombstone
             );
 
-            return AteliaResult<RbfPooledFrame>.Success(pooledFrame);
+            return pooledFrame;
         }
         catch {
             // 异常路径：归还 buffer 避免泄漏
@@ -155,7 +155,7 @@ internal static partial class RbfReadImpl {
     /// </remarks>
     public static AteliaResult<RbfFrame> ReadFrame(RandomAccessReader reader, SizedPtr ticket, Span<byte> buffer) {
         var error = SizedPtrReadPolicy.ValidateInput(in ticket) ?? CheckBufferLength(ticket.Length, buffer.Length);
-        if (error != null) { return AteliaResult<RbfFrame>.Failure(error); }
+        if (error != null) { return error; }
 
         int ticketLength = ticket.Length;
         return ReadFrameCore<SizedPtr, SizedPtrReadPolicy>(reader, in ticket, ticket.Offset, ticketLength, buffer[..ticketLength]);
@@ -172,7 +172,7 @@ internal static partial class RbfReadImpl {
     public static AteliaResult<RbfFrame> ReadFrame(RandomAccessReader reader, scoped in RbfFrameInfo info, Span<byte> buffer) {
         int ticketLength = info.Ticket.Length;
         var error = CheckBufferLength(ticketLength, buffer.Length);
-        if (error != null) { return AteliaResult<RbfFrame>.Failure(error); }
+        if (error != null) { return error; }
 
         return ReadFrameCore<RbfFrameInfo, FrameInfoReadPolicy>(reader, in info, info.Ticket.Offset, ticketLength, buffer[..ticketLength]);
     }
@@ -199,11 +199,9 @@ internal static partial class RbfReadImpl {
 
         // 3. 检查短读
         if (bytesRead < ticketLength) {
-            return AteliaResult<RbfFrame>.Failure(
-                new RbfArgumentError(
-                    $"Short read: expected {ticketLength} bytes but got {bytesRead}.",
-                    RecoveryHint: "The ptr may point beyond end of file or file was truncated."
-                )
+            return new RbfArgumentError(
+                $"Short read: expected {ticketLength} bytes but got {bytesRead}.",
+                RecoveryHint: "The ptr may point beyond end of file or file was truncated."
             );
         }
 
@@ -278,27 +276,25 @@ internal static partial class RbfReadImpl {
 
         // 2. 验证基本帧格式：HeadLen == ticketLength
         var headLenError = ValidateHeadLen(frameBuffer, ticketLength);
-        if (headLenError != null) { return AteliaResult<RbfFrame>.Failure(headLenError); }
+        if (headLenError != null) { return headLenError; }
 
         // 3. 从 TrailerCodeword 解析并验证（v0.40）
         var trailerResult = FrameLayout.ResultFromTrailer(frameBuffer, out var trailer);
-        if (!trailerResult.IsSuccess) { return AteliaResult<RbfFrame>.Failure(trailerResult.Error!); }
+        if (!trailerResult.IsSuccess) { return trailerResult.Error!; }
 
         var layout = trailerResult.Value;
 
         // 4. 验证 HeadLen == TailLen
         if (trailer.TailLen != ticketLength) {
-            return AteliaResult<RbfFrame>.Failure(
-                new RbfFramingError(
-                    $"TailLen mismatch: TailLen={trailer.TailLen}, HeadLen={ticketLength}.",
-                    RecoveryHint: "The frame boundaries are corrupted."
-                )
+            return new RbfFramingError(
+                $"TailLen mismatch: TailLen={trailer.TailLen}, HeadLen={ticketLength}.",
+                RecoveryHint: "The frame boundaries are corrupted."
             );
         }
 
         // 5. PayloadCrc32C 校验
         var payloadCrcError = ValidatePayloadCrc(frameBuffer, in layout);
-        if (payloadCrcError != null) { return AteliaResult<RbfFrame>.Failure(payloadCrcError); }
+        if (payloadCrcError != null) { return payloadCrcError; }
 
         // 6. 构造 RbfFrame 并返回
         // Tag 从 TrailerCodeword 读取（v0.40 Tag 不在头部）
@@ -312,7 +308,7 @@ internal static partial class RbfReadImpl {
             isTombstone: trailer.IsTombstone
         );
 
-        return AteliaResult<RbfFrame>.Success(frame);
+        return frame;
     }
 
     /// <summary>解析并验证帧数据（基于已验证的 RbfFrameInfo）。</summary>
@@ -326,22 +322,20 @@ internal static partial class RbfReadImpl {
 
         // 2. 验证基本帧格式：HeadLen == ticketLength
         var headLenError = ValidateHeadLen(frameBuffer, ticketLength);
-        if (headLenError != null) { return AteliaResult<RbfFrame>.Failure(headLenError); }
+        if (headLenError != null) { return headLenError; }
 
         // 3. 使用 info 计算布局（跳过 TrailerCodeword 解析）
         var layout = new FrameLayout(info.PayloadLength, info.TailMetaLength);
         if (layout.FrameLength != ticketLength) {
-            return AteliaResult<RbfFrame>.Failure(
-                new RbfFramingError(
-                    $"Frame length derived from RbfFrameInfo does not match ticket length: derived={layout.FrameLength}, ticket={ticketLength}.",
-                    RecoveryHint: "The RbfFrameInfo may be stale or corrupted."
-                )
+            return new RbfFramingError(
+                $"Frame length derived from RbfFrameInfo does not match ticket length: derived={layout.FrameLength}, ticket={ticketLength}.",
+                RecoveryHint: "The RbfFrameInfo may be stale or corrupted."
             );
         }
 
         // 4. PayloadCrc32C 校验
         var payloadCrcError = ValidatePayloadCrc(frameBuffer, in layout);
-        if (payloadCrcError != null) { return AteliaResult<RbfFrame>.Failure(payloadCrcError); }
+        if (payloadCrcError != null) { return payloadCrcError; }
 
         // 5. 构造 RbfFrame 并返回
         ReadOnlySpan<byte> payloadAndMeta = frameBuffer.Slice(FrameLayout.PayloadOffset, layout.PayloadAndMetaLength);
@@ -354,7 +348,7 @@ internal static partial class RbfReadImpl {
             isTombstone: info.IsTombstone
         );
 
-        return AteliaResult<RbfFrame>.Success(frame);
+        return frame;
     }
 
     #endregion

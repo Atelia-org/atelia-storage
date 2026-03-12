@@ -22,11 +22,9 @@ partial class RbfReadImpl {
         // 1. 基本参数校验
         int ticketLength = ticket.Length;
         if (ticketLength < FrameLayout.MinFrameLength) {
-            return AteliaResult<RbfFrameInfo>.Failure(
-                new RbfArgumentError(
-                    $"Ticket length ({ticketLength}) is less than minimum frame length ({FrameLayout.MinFrameLength}).",
-                    RecoveryHint: $"Minimum valid frame size is {FrameLayout.MinFrameLength} bytes."
-                )
+            return new RbfArgumentError(
+                $"Ticket length ({ticketLength}) is less than minimum frame length ({FrameLayout.MinFrameLength}).",
+                RecoveryHint: $"Minimum valid frame size is {FrameLayout.MinFrameLength} bytes."
             );
         }
 
@@ -36,46 +34,40 @@ partial class RbfReadImpl {
         int bytesRead = reader.Read(trailerBuffer, trailerOffset);
 
         if (bytesRead < TrailerCodewordHelper.Size) {
-            return AteliaResult<RbfFrameInfo>.Failure(
-                new RbfFramingError(
-                    $"Short read for TrailerCodeword: expected {TrailerCodewordHelper.Size} bytes, got {bytesRead}.",
-                    RecoveryHint: "The file may be truncated."
-                )
+            return new RbfFramingError(
+                $"Short read for TrailerCodeword: expected {TrailerCodewordHelper.Size} bytes, got {bytesRead}.",
+                RecoveryHint: "The file may be truncated."
             );
         }
 
         // 3. 验证并解析 TrailerCodeword（CRC + reserved bits）
         var trailerResult = TrailerCodewordHelper.ParseAndValidate(trailerBuffer);
-        if (!trailerResult.IsSuccess) { return AteliaResult<RbfFrameInfo>.Failure(trailerResult.Error!); }
+        if (!trailerResult.IsSuccess) { return trailerResult.Error!; }
 
         var trailer = trailerResult.Value;
 
         // 6. 验证 TailLen == ticket.Length（一致性校验）
         if (trailer.TailLen != (uint)ticketLength) {
-            return AteliaResult<RbfFrameInfo>.Failure(
-                new RbfFramingError(
-                    $"TailLen ({trailer.TailLen}) does not match ticket length ({ticketLength}).",
-                    RecoveryHint: "The ticket may be stale or corrupted."
-                )
+            return new RbfFramingError(
+                $"TailLen ({trailer.TailLen}) does not match ticket length ({ticketLength}).",
+                RecoveryHint: "The ticket may be stale or corrupted."
             );
         }
 
         // 7. 计算 PayloadLength
         var payloadLenResult = TrailerCodewordHelper.ComputePayloadLength(trailer.TailLen, trailer.TailMetaLen, trailer.PaddingLen);
-        if (!payloadLenResult.IsSuccess) { return AteliaResult<RbfFrameInfo>.Failure(payloadLenResult.Error!); }
+        if (!payloadLenResult.IsSuccess) { return payloadLenResult.Error!; }
 
         int payloadLen = payloadLenResult.Value;
 
         // 8. 构造 RbfFrameInfo（绑定 file 句柄）
-        return AteliaResult<RbfFrameInfo>.Success(
-            new RbfFrameInfo(
-                reader: reader,
-                ticket: ticket,
-                tag: trailer.FrameTag,
-                payloadLength: payloadLen,
-                tailMetaLength: trailer.TailMetaLen,
-                isTombstone: trailer.IsTombstone
-            )
+        return new RbfFrameInfo(
+            reader: reader,
+            ticket: ticket,
+            tag: trailer.FrameTag,
+            payloadLength: payloadLen,
+            tailMetaLength: trailer.TailMetaLen,
+            isTombstone: trailer.IsTombstone
         );
     }
 }

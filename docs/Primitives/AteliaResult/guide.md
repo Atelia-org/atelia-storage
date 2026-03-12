@@ -37,12 +37,12 @@ public AteliaResult<MyObject> CreateObject(string name) {
 public AteliaResult<MyObject> LoadObject(ulong id) {
     if (!Exists(id)) {
         // 方式 A: 使用预定义的强类型错误 (推荐)
-        return AteliaResult<MyObject>.Failure(
-            new ObjectNotFoundError(id));
+        // return AteliaResult<MyObject>.Failure(new ObjectNotFoundError(id));
+        return new ObjectNotFoundError(id); // 推荐使用隐式类型转换语法
 
         // 方式 B: 临时构建 (仅限原型阶段)
-        return AteliaResult<MyObject>.Failure(
-            new AteliaError("MyComp.NotFound", $"Id {id} missing"));
+        // return AteliaResult<MyObject>.Failure(new AteliaError("MyComp.NotFound", $"Id {id} missing"));
+        return new AteliaError("MyComp.NotFound", $"Id {id} missing"); // 推荐使用隐式类型转换语法
     }
     // ...
 }
