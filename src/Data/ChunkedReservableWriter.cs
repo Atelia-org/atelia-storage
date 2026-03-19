@@ -27,7 +27,7 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     private readonly SlidingQueue<ReservableWriterChunk> _chunks = new(); // 抽离原 headIndex + Compact 模式
 
     // 当前写入状态
-    private long _writtenLength;
+    private long _length;
     private long _flushedLength;
 
     private ReservableWriterChunk CreateChunk(int sizeHint) {
@@ -206,10 +206,10 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         if (!_hasLastSpan || count > _lastSpanLength) { throw new ArgumentOutOfRangeException(nameof(count), "Count exceeds available space from the last buffer request."); }
         if (GetActiveChunksCount() == 0) {
             _innerWriter.Advance(count);
-            _writtenLength += count;
+            _length += count;
             _flushedLength += count;
             if (_debugLog is not null) {
-                Trace($"Advance passthrough count={count}, written={_writtenLength}");
+                Trace($"Advance passthrough count={count}, written={_length}");
             }
         }
         else {
@@ -217,7 +217,7 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
             ReservableWriterChunk? lastChunk;
             if (TryGetLastActiveChunk(out lastChunk)) {
                 lastChunk.DataEnd += count;
-                _writtenLength += count;
+                _length += count;
                 bool flushed = FlushCommittedData();
                 if (flushed) {
                     // Only try to recycle if a flush actually occurred.
@@ -297,14 +297,14 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         // Ensure there is a chunk with enough space.
         ReservableWriterChunk chunk = EnsureSpace(count);
         int offset = chunk.DataEnd;
-        long logicalOffset = _writtenLength; // The logical offset where the reservation starts.
+        long logicalOffset = _length; // The logical offset where the reservation starts.
 
         // Add the reservation to the tracker.
         reservationToken = _reservations.Add(chunk, offset, count, logicalOffset, tag);
 
         // Update the chunk's state.
         chunk.DataEnd += count;
-        _writtenLength += count;
+        _length += count;
 
         // Return the reserved span.
         if (_debugLog is not null) {
@@ -342,6 +342,9 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         span = entry.Chunk.Buffer.AsSpan(entry.Offset, entry.Length);
         return true;
     }
+
+    /// <inheritdoc/>
+    public long Length => _length;
     #endregion
 
     #region IDisposable and Reset
@@ -359,7 +362,7 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         _chunks.Clear();
         // Clear all state.
         _reservations.Clear();
-        _writtenLength = 0;
+        _length = 0;
         _flushedLength = 0;
         _hasLastSpan = false;
         _lastSpanLength = 0;
@@ -368,13 +371,13 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
 
     #region Core State Properties
     /// <summary>Gets the total number of bytes written or reserved. This is the logical length of the buffer.</summary>
-    public long WrittenLength => _writtenLength;
+    public long WrittenLength => _length;
 
     /// <summary>Gets the total number of bytes that have been successfully flushed to the underlying writer.</summary>
     public long FlushedLength => _flushedLength;
 
     /// <summary>Gets the number of bytes that have been written but not yet flushed (WrittenLength - FlushedLength).</summary>
-    public long PendingLength => _writtenLength - _flushedLength;
+    public long PendingLength => _length - _flushedLength;
     #endregion
 
     #region Diagnostic Properties

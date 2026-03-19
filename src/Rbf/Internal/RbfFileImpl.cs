@@ -180,7 +180,7 @@ internal sealed class RbfFileImpl : IRbfFile {
         }
 
         // 3. 获取 payloadAndMetaLength（WrittenLength - HeadLenSize，因为 HeadLen 仍为 pending）
-        long payloadAndMetaLength = _builderWriter.WrittenLength - FrameLayout.HeadLenSize;
+        long payloadAndMetaLength = _builderWriter.Length - FrameLayout.HeadLenSize;
 
         // 3a. 资源上限校验 (Decision 7.F) - 方案 D：返回 Failure
         if (payloadAndMetaLength > FrameLayout.MaxPayloadAndMetaLength) {

@@ -23,17 +23,24 @@ public readonly struct RbfPayloadWriter : IReservableBufferWriter {
         return owner.GetPayloadWriter(_epoch);
     }
 
+    /// <inheritdoc/>
+    public long Length => GetWriter().Length;
+
+    /// <inheritdoc/>
     public void Advance(int count) => GetWriter().Advance(count);
 
     public Memory<byte> GetMemory(int sizeHint = 0) => GetWriter().GetMemory(sizeHint);
 
     public Span<byte> GetSpan(int sizeHint = 0) => GetWriter().GetSpan(sizeHint);
 
+    /// <inheritdoc/>
     public Span<byte> ReserveSpan(int count, out int reservationToken, string? tag = null) =>
         GetWriter().ReserveSpan(count, out reservationToken, tag);
 
+    /// <inheritdoc/>
     public void Commit(int reservationToken) => GetWriter().Commit(reservationToken);
 
+    /// <inheritdoc/>
     public bool TryGetReservedSpan(int reservationToken, out Span<byte> span) =>
         GetWriter().TryGetReservedSpan(reservationToken, out span);
 }

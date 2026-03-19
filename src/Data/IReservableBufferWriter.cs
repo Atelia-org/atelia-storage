@@ -20,9 +20,7 @@ namespace Atelia.Data;
 /// 任何违反顺序的调用都应在实现中导致异常，以便尽早暴露调用方错误。
 /// </remarks>
 public interface IReservableBufferWriter : IBufferWriter<byte> {
-    /// <summary>
-    /// 预留一段将来回填的数据空间。返回该空间的 Span 供直接写入；同时生成 reservationToken 用于后续 Commit。
-    /// </summary>
+    /// <summary>预留一段将来回填的数据空间。返回该空间的 Span 供直接写入；同时生成 reservationToken 用于后续 Commit。</summary>
     /// <param name="count">需要预留的字节数（确切值）。</param>
     /// <param name="reservationToken">输出：用于 Commit 的 token。</param>
     /// <param name="tag">可选的调试注解，帮助定位未提交的 reservation。</param>
@@ -32,15 +30,11 @@ public interface IReservableBufferWriter : IBufferWriter<byte> {
     /// </remarks>
     Span<byte> ReserveSpan(int count, out int reservationToken, string? tag = null);
 
-    /// <summary>
-    /// 提交指定 reservation，表示该区域已填充完成，可以参与连续前缀 flush。
-    /// </summary>
+    /// <summary>提交指定 reservation，表示该区域已填充完成，可以参与连续前缀 flush。</summary>
     /// <param name="reservationToken">由 <see cref="ReserveSpan"/> 返回的 token。</param>
     void Commit(int reservationToken);
 
-    /// <summary>
-    /// 尝试获取指定 reservation 的可写 span（用于在 <see cref="Commit(int)"/> 前回填数据）。
-    /// </summary>
+    /// <summary>尝试获取指定 reservation 的可写 span（用于在 <see cref="Commit(int)"/> 前回填数据）。</summary>
     /// <param name="reservationToken">由 <see cref="ReserveSpan"/> 返回的 token。</param>
     /// <param name="span">成功时返回 reservation 对应的 span；失败时为 default。</param>
     /// <returns>token 有效（未提交、未过期）时返回 true，否则返回 false。</returns>
@@ -49,4 +43,7 @@ public interface IReservableBufferWriter : IBufferWriter<byte> {
     /// 此方法不改变 reservation 的状态（不执行 Commit）。可多次调用以分段写入数据。
     /// </remarks>
     bool TryGetReservedSpan(int reservationToken, out Span<byte> span);
+
+    /// <summary>累计(Reserved + Advanced)字节数。</summary>
+    long Length { get; }
 }

@@ -333,7 +333,7 @@ public class SinkReservableWriterCrcTests {
         writer.Advance(payload.Length);
 
         // 记录调用前状态
-        long writtenBefore = writer.WrittenLength;
+        long writtenBefore = writer.Length;
         long pushedBefore = writer.PushedLength;
         int pendingCountBefore = writer.PendingReservationCount;
 
@@ -341,7 +341,7 @@ public class SinkReservableWriterCrcTests {
         _ = writer.GetCrcSinceReservationEnd(token);
 
         // Assert：状态应该不变
-        Assert.Equal(writtenBefore, writer.WrittenLength);
+        Assert.Equal(writtenBefore, writer.Length);
         Assert.Equal(pushedBefore, writer.PushedLength);
         Assert.Equal(pendingCountBefore, writer.PendingReservationCount);
     }

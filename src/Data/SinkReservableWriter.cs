@@ -29,7 +29,7 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
     private readonly ArrayPool<byte> _pool;
     private readonly SlidingQueue<ReservableWriterChunk> _chunks = new();
 
-    private long _writtenLength;
+    private long _length;
     private long _pushedLength;
 
     private ReservableWriterChunk CreateChunk(int sizeHint) {
@@ -160,7 +160,7 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
         }
 
         lastChunk.DataEnd += count;
-        _writtenLength += count;
+        _length += count;
 
         bool pushed = FlushCommittedData();
         if (pushed) {
@@ -215,12 +215,12 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
 
         ReservableWriterChunk chunk = EnsureSpace(count);
         int offset = chunk.DataEnd;
-        long logicalOffset = _writtenLength;
+        long logicalOffset = _length;
 
         reservationToken = _reservations.Add(chunk, offset, count, logicalOffset, tag);
 
         chunk.DataEnd += count;
-        _writtenLength += count;
+        _length += count;
 
         if (_debugLog is not null) {
             Trace($"ReserveSpan token={reservationToken}, count={count}, tag={tag ?? string.Empty}, logicalOffset={logicalOffset}");
@@ -276,7 +276,7 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
 
         _reservations.Clear();
 
-        _writtenLength = 0;
+        _length = 0;
         _pushedLength = 0;
 
         _hasLastSpan = false;
@@ -299,13 +299,13 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
 
     #region Diagnostics
     /// <summary>Total logical bytes written or reserved.</summary>
-    public long WrittenLength => _writtenLength;
+    public long Length => _length;
 
     /// <summary>Total bytes pushed to the sink.</summary>
     public long PushedLength => _pushedLength;
 
     /// <summary>Bytes written but not yet pushed.</summary>
-    public long PendingLength => _writtenLength - _pushedLength;
+    public long PendingLength => _length - _pushedLength;
 
     public int PendingReservationCount => _reservations.PendingCount;
 
