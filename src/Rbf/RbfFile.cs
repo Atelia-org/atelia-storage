@@ -1,3 +1,4 @@
+using Atelia.Data;
 using Atelia.Rbf.Internal;
 using Microsoft.Win32.SafeHandles;
 
@@ -5,6 +6,16 @@ namespace Atelia.Rbf;
 
 /// <summary>RBF 文件静态工厂类。</summary>
 public static class RbfFile {
+    /// <summary>
+    /// 单帧中 Payload 与 TailMeta 的最大合计长度（不含 HeadLen、Padding、PayloadCrc、TrailerCodeword 与尾部 Fence）。
+    /// </summary>
+    /// <remarks>
+    /// 该上限由 <see cref="SizedPtr.MaxLength"/> 减去 RBF 帧固定开销推导而来，
+    /// 是 <see cref="IRbfFile.Append"/> 与 <see cref="RbfFrameBuilder.EndAppend"/> 的公开容量契约。
+    /// </remarks>
+    public const int MaxPayloadAndMetaLength = FrameLayout.MaxPayloadAndMetaLength;
+    public const int MaxTailMetaLength = FrameLayout.MaxTailMetaLength;
+
     /// <summary>创建新的 RBF 文件（FailIfExists）。</summary>
     /// <param name="path">文件路径。</param>
     /// <param name="cacheMode">读缓存策略。默认 <see cref="RbfCacheMode.Slots16"/>（64KB）。</param>

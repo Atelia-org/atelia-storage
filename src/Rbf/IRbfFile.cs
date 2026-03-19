@@ -15,7 +15,7 @@ public interface IRbfFile : IDisposable {
     /// <remarks>
     /// 失败场景（返回 <see cref="AteliaResult{T}.IsFailure"/>）：
     /// - TailMeta 超长（&gt; 64KB）
-    /// - Payload + TailMeta 超长（&gt; MaxPayloadAndMetaLength）
+    /// - Payload + TailMeta 超长（&gt; <see cref="RbfFile.MaxPayloadAndMetaLength"/>）
     /// - TailOffset 非 4B 对齐或超出 SizedPtr 可表示范围
     /// I/O 错误（磁盘满、权限等）仍抛出异常。
     /// </remarks>
