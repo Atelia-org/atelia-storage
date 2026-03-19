@@ -7,7 +7,7 @@ namespace Atelia.Rbf.Internal;
 /// <summary>RBF 帧写入核心逻辑（v0.40 布局）。</summary>
 /// <remarks>
 /// 统一 Append 与 Builder 的尾部构建逻辑：
-/// - <see cref="ValidateEndOffset"/>：校验写入后 EndOffset 不超出 SizedPtr 可表示范围
+/// - <see cref="ValidateFrameStartOffset"/>：校验帧起点仍可由 <see cref="SizedPtr"/> 表示
 /// - <see cref="WriteTail"/>：构建 PayloadCrc + TrailerCodeword + Fence
 /// 规范引用：
 /// - @[F-FRAMEBYTES-LAYOUT]
@@ -18,27 +18,22 @@ internal static class RbfFrameWriteCore {
     /// <summary>尾部固定长度 = PayloadCrc(4) + TrailerCodeword(16) + Fence(4) = 24 字节。</summary>
     internal const int TailSize = FrameLayout.PayloadCrcSize + FrameLayout.TrailerCodewordSize + RbfLayout.FenceSize;
 
-    /// <summary>最大允许的写入后 EndOffset（等于 SizedPtr.MaxOffset）。</summary>
-    /// <remarks>
-    /// 校验条件是 `frameOffset + frameLength + fenceSize &lt;= MaxEndOffset`，
-    /// 通过此校验可确保生成的 SizedPtr 有效（Offset + Length 不超出可表示范围）。
-    /// </remarks>
-    internal const long MaxEndOffset = SizedPtr.MaxOffset;
-
-    /// <summary>校验写入后 EndOffset 是否超出 SizedPtr 可表示范围。</summary>
+    /// <summary>校验帧起始偏移是否仍可由 <see cref="SizedPtr"/> 表示。</summary>
     /// <param name="frameStart">帧起始偏移。</param>
-    /// <param name="frameLength">帧长度（不含 Fence）。</param>
     /// <returns>成功时返回 null，失败时返回 RbfArgumentError。</returns>
     /// <remarks>
-    /// EndOffset = frameStart + frameLength + FenceSize。
-    /// 若超出 MaxEndOffset，返回 Failure，提示文件已达最大容量限制。
+    /// 对 RBF 而言，尾部 Fence 不属于 SizedPtr 指向的帧区间，因此
+    /// `frameStart + frameLength + FenceSize` 不需要落在 <see cref="SizedPtr.MaxOffset"/> 内。
+    /// 真正需要满足的是：
+    /// - frameStart &gt;= 0
+    /// - frameStart 4B 对齐
+    /// - frameStart &lt;= <see cref="SizedPtr.MaxOffset"/>
     /// </remarks>
-    internal static AteliaError? ValidateEndOffset(long frameStart, int frameLength) {
-        long endOffset = frameStart + frameLength + RbfLayout.FenceSize;
-        if (endOffset > MaxEndOffset) {
+    internal static AteliaError? ValidateFrameStartOffset(long frameStart) {
+        if (frameStart > SizedPtr.MaxOffset) {
             return new RbfArgumentError(
-                $"EndOffset ({endOffset}) exceeds MaxEndOffset ({MaxEndOffset}).",
-                RecoveryHint: "The file has reached its maximum size limit. Rollover to a new file."
+                $"Frame start offset ({frameStart}) exceeds SizedPtr.MaxOffset ({SizedPtr.MaxOffset}).",
+                RecoveryHint: "The file tail has moved beyond the last offset representable by SizedPtr. Rollover to a new file."
             );
         }
         return null;
@@ -85,4 +80,3 @@ internal static class RbfFrameWriteCore {
     /// <summary>TrailerCodeword + Fence 的大小（20 字节）。</summary>
     internal const int TrailerAndFenceSize = FrameLayout.TrailerCodewordSize + RbfLayout.FenceSize;
 }
-

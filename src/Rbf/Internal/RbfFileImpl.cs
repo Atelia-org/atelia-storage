@@ -103,8 +103,8 @@ internal sealed class RbfFileImpl : IRbfFile {
         // 检查 TailOffset 4B 对齐
         if ((tailOffset & 0x3) != 0) { throw new InvalidOperationException($"TailOffset ({tailOffset}) is not 4-byte aligned."); }
 
-        // 检查 MaxFileOffset
-        if (tailOffset >= SizedPtr.MaxOffset) { throw new InvalidOperationException($"TailOffset ({tailOffset}) has reached MaxFileOffset ({SizedPtr.MaxOffset})."); }
+        // 检查 MaxFileOffset：BeginAppend 只要求“帧起点”本身仍可被 SizedPtr 表示。
+        if (tailOffset > SizedPtr.MaxOffset) { throw new InvalidOperationException($"TailOffset ({tailOffset}) exceeds MaxFileOffset ({SizedPtr.MaxOffset})."); }
 
         InvalidateCacheFrom(tailOffset);
 
@@ -211,9 +211,9 @@ internal sealed class RbfFileImpl : IRbfFile {
         int payloadLength = (int)payloadAndMetaLength - tailMetaLength;
         var layout = new FrameLayout(payloadLength, tailMetaLength);
 
-        // 4a. MaxFileOffset 校验（方案 A + D：统一委托给 RbfFrameWriteCore）
-        var endOffsetError = RbfFrameWriteCore.ValidateEndOffset(_builderFrameStart, layout.FrameLength);
-        if (endOffsetError is not null) { return endOffsetError; }
+        // 4a. frameStart 校验（方案 A + D：统一委托给 RbfFrameWriteCore）
+        var frameStartError = RbfFrameWriteCore.ValidateFrameStartOffset(_builderFrameStart);
+        if (frameStartError is not null) { return frameStartError; }
 
         // 5. 写入 Padding（通过 _builderWriter，CRC 自动累积）
         if (layout.PaddingLength > 0) {

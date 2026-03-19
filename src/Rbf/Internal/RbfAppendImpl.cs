@@ -97,7 +97,7 @@ internal static class RbfAppendImpl {
     /// - TailMeta 长度 ≤ MaxTailMetaLength (64KB)
     /// - Payload + TailMeta 长度 ≤ MaxPayloadAndMetaLength
     /// - fileOffset 满足 4B 对齐
-    /// - fileOffset + frameLength + fenceLength ≤ MaxFileOffset
+    /// - fileOffset 本身仍在 SizedPtr 可表示的 Offset 范围内
     /// 自适应 1-4 次写入（v0.40 布局）。header填充和trailer填充复用同一个buffer。
     /// 多次 RandomAccess.Write 不保证原子性。若应用依赖 crash-consistency，需在更上层实现屏障/fsync 语义。
     /// </remarks>
@@ -136,10 +136,10 @@ internal static class RbfAppendImpl {
             );
         }
 
-        // 4. 检查 EndOffset 是否超出 SizedPtr 可表示范围（统一调用 RbfFrameWriteCore.ValidateEndOffset）
+        // 4. 检查 frameStart 是否仍可生成 SizedPtr（Tail Fence 不计入 ticket 范围）
         FrameLayout layout = new FrameLayout(payload.Length, tailMeta.Length);
-        var endOffsetError = RbfFrameWriteCore.ValidateEndOffset(fileOffset, layout.FrameLength);
-        if (endOffsetError is not null) { return endOffsetError; }
+        var frameStartError = RbfFrameWriteCore.ValidateFrameStartOffset(fileOffset);
+        if (frameStartError is not null) { return frameStartError; }
         AteliaResult<SizedPtr> success = SizedPtr.Create(fileOffset, layout.FrameLength); // 隐式类型转换
 
         // === 校验通过，执行写入 ===

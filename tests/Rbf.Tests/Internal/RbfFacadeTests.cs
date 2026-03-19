@@ -213,4 +213,32 @@ public class RbfFacadeTests : IDisposable {
         // Assert - TailOffset 应保持不变
         Assert.Equal(tailOffsetBefore, tailOffsetAfter);
     }
+
+    /// <summary>最后一个可表示的帧起点仍可写入最大帧；随后再次 Append 应返回 Failure。</summary>
+    [Fact]
+    public void Append_AtMaxOffset_WithMaximumPayloadAndMeta_Succeeds_ThenFurtherAppendFails() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var rbf = RbfFile.CreateNew(path);
+        rbf.Truncate(SizedPtr.MaxOffset);
+        byte[] payload = GC.AllocateUninitializedArray<byte>(RbfFile.MaxPayloadAndMetaLength);
+
+        // Act - 最后一帧：用 Append 而非 Builder，避免 builder 路径为未提交帧额外保留整帧缓冲。
+        var result1 = rbf.Append(0x1234, payload);
+
+        // Assert - 最后一帧成功
+        Assert.True(result1.IsSuccess, $"Append failed: {result1.Error}");
+        var ptr = result1.Value!;
+        Assert.Equal(SizedPtr.MaxOffset, ptr.Offset);
+        Assert.Equal(SizedPtr.MaxLength, ptr.Length);
+        Assert.Equal(SizedPtr.MaxOffset + ptr.Length + RbfLayout.FenceSize, rbf.TailOffset);
+
+        // Act - 再写一帧
+        var result2 = rbf.Append(0x5678, []);
+
+        // Assert - 这次应返回 Failure，而不是抛异常
+        Assert.True(result2.IsFailure);
+        Assert.IsType<RbfArgumentError>(result2.Error);
+        Assert.Contains("Frame start offset", result2.Error!.Message);
+    }
 }

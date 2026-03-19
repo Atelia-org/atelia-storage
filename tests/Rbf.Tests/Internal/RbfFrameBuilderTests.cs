@@ -100,6 +100,42 @@ public class RbfFrameBuilderTests : IDisposable {
         }
     }
 
+    /// <summary>TailOffset 恰好等于 SizedPtr.MaxOffset 时，仍可写入最后一帧；Fence 位于 ticket 之外。</summary>
+    [Fact]
+    public void BeginAppend_TailOffsetAtMaxOffset_EndAppendEmpty_Succeeds() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+        file.Truncate(SizedPtr.MaxOffset);
+
+        // Act
+        using var builder = file.BeginAppend();
+        var result = builder.EndAppend(0x1234);
+
+        // Assert
+        Assert.True(result.IsSuccess, $"EndAppend failed: {result.Error}");
+        var ptr = result.Value;
+        Assert.Equal(SizedPtr.MaxOffset, ptr.Offset);
+        Assert.Equal(new FrameLayout(0).FrameLength, ptr.Length);
+        Assert.Equal(SizedPtr.MaxOffset + ptr.Length + RbfLayout.FenceSize, file.TailOffset);
+    }
+
+    /// <summary>TailOffset 超出 SizedPtr.MaxOffset 时，BeginAppend 应拒绝，因为连帧起点都无法表示。</summary>
+    [Fact]
+    public void BeginAppend_TailOffsetExceedsMaxOffset_Throws() {
+        // Arrange
+        var path = GetTempFilePath();
+        using var file = RbfFile.CreateNew(path);
+        long tailOffset = SizedPtr.MaxOffset + RbfLayout.Alignment;
+        file.Truncate(tailOffset);
+
+        // Act
+        var ex = Assert.Throws<InvalidOperationException>(() => file.BeginAppend());
+
+        // Assert
+        Assert.Contains("exceeds MaxFileOffset", ex.Message);
+    }
+
     /// <summary>带 TailMeta：写入 Payload + TailMeta → EndAppend(tag, tailMetaLen) → ReadTailMeta 验证内容。</summary>
     [Fact]
     public void EndAppend_WithTailMeta_TailMetaIsReadable() {
