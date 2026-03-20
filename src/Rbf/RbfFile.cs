@@ -54,11 +54,28 @@ public static class RbfFile {
     /// - @[S-RBF-DECISION-4B-ALIGNMENT-ROOT] - 文件长度 MUST 4B 对齐。
     /// </remarks>
     public static IRbfFile OpenExisting(string path, RbfCacheMode cacheMode = RbfCacheMode.Slots16) {
+        return OpenExistingCore(path, FileAccess.ReadWrite, FileShare.None, cacheMode);
+    }
+
+    /// <summary>
+    /// 以共享只读方式打开已有的 RBF 文件。
+    /// 用于读取已冻结的历史 segment，允许后续在同一卷内移动到 archive bucket。
+    /// </summary>
+    public static IRbfFile OpenReadOnlyExisting(string path, RbfCacheMode cacheMode = RbfCacheMode.Slots16) {
+        return OpenExistingCore(path, FileAccess.Read, FileShare.Read | FileShare.Delete, cacheMode);
+    }
+
+    private static IRbfFile OpenExistingCore(
+        string path,
+        FileAccess access,
+        FileShare share,
+        RbfCacheMode cacheMode
+    ) {
         SafeFileHandle handle = File.OpenHandle(
             path,
             FileMode.Open,
-            FileAccess.ReadWrite,
-            FileShare.None
+            access,
+            share
         );
 
         try {
