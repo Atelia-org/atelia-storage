@@ -17,7 +17,6 @@
 | `AteliaResult<T>` | 同步场景 | `ref struct`，零分配，支持 `Span<T>` |
 | `AsyncAteliaResult<T>` | 异步场景 | `readonly struct`，可用于 `Task`/`ValueTask` |
 | `DisposableAteliaResult<T>` | 带资源所有权 | `class`，自动 Dispose，用于池化资源 |
-| `IAteliaResult<T>` | 公共接口 | 统一契约，便于泛型编程 |
 
 ## 核心价值
 

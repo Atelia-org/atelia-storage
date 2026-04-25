@@ -57,7 +57,6 @@
 | `AteliaResult<T>` | [AteliaResult.cs](../../../src/Primitives/AteliaResult.cs) | 同步层，`ref struct`，支持 ref struct 值 |
 | `AsyncAteliaResult<T>` | [AsyncAteliaResult.cs](../../../src/Primitives/AsyncAteliaResult.cs) | 异步层，`readonly struct`，可用于 Task/ValueTask |
 | `DisposableAteliaResult<T>` | [DisposableAteliaResult.cs](../../../src/Primitives/DisposableAteliaResult.cs) | 资源所有权层，`sealed class`，支持 using 语法 |
-| `IAteliaResult<T>` | [IAteliaResult.cs](../../../src/Primitives/IAteliaResult.cs) | 公共接口，定义统一契约 |
 
 ### 3.2 错误类型
 
@@ -67,11 +66,11 @@
 | `AteliaException` | [AteliaException.cs](../../src/Primitives/AteliaException.cs) | 异常基类（与 Error 同源同表） |
 | `IAteliaHasError` | [IAteliaHasError.cs](../../../src/Primitives/IAteliaHasError.cs) | 统一访问接口 |
 
-### 3.3 `IAteliaResult<T>` 接口契约
+### 3.3 结果类型共享契约
 
-所有结果类型（`AteliaResult<T>`、`AsyncAteliaResult<T>`、`DisposableAteliaResult<T>`）MUST 实现 `IAteliaResult<T>` 接口。
+所有结果类型（`AteliaResult<T>`、`AsyncAteliaResult<T>`、`DisposableAteliaResult<T>`）MUST 暴露同一组语义一致的核心成员。
 
-接口定义的成员：
+共享成员如下：
 
 | 成员 | 类型 | 语义 |
 |:-----|:-----|:-----|
@@ -105,13 +104,6 @@
 ### 3.5 三种结果类型的关系
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    IAteliaResult<T>                         │
-│                    (公共接口契约)                            │
-└─────────────────────────────────────────────────────────────┘
-                              ▲
-           ┌──────────────────┼──────────────────┐
-           │                  │                  │
 ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
 │ AteliaResult<T>  │ │AsyncAteliaResult │ │DisposableAtelia  │
 │   ref struct     │ │  <T> readonly    │ │  Result<T>       │
@@ -120,6 +112,8 @@
 └──────────────────┘ └──────────────────┘ └──────────────────┘
         │                                         ▲
         └────────── .ToDisposable() ──────────────┘
+
+三者共享同一套 Result 语义表面，但当前不再抽取公共接口。
 ```
 
 ### 3.6 AteliaError 字段说明

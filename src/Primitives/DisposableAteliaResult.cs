@@ -32,25 +32,25 @@ namespace Atelia;
 /// </para>
 /// </remarks>
 /// <typeparam name="T">成功值类型，必须实现 <see cref="IDisposable"/>。</typeparam>
-public sealed class DisposableAteliaResult<T> : IAteliaResult<T>, IDisposable
+public sealed class DisposableAteliaResult<T> : IDisposable
 where T : class, IDisposable {
     private readonly T? _value;
     private readonly AteliaError? _error;
     private int _disposeState;
 
-    /// <inheritdoc/>
+    /// <summary>是否为成功结果。</summary>
     [MemberNotNullWhen(true, nameof(Value))]
     [MemberNotNullWhen(false, nameof(Error))]
     public bool IsSuccess => _error is null;
 
-    /// <inheritdoc/>
+    /// <summary>是否为失败结果。</summary>
     [MemberNotNullWhen(true, nameof(Error))]
     public bool IsFailure => _error is not null;
 
-    /// <inheritdoc/>
+    /// <summary>成功时返回值；失败时返回 <c>null</c>。</summary>
     public T? Value => _value;
 
-    /// <inheritdoc/>
+    /// <summary>失败时返回错误；成功时返回 <c>null</c>。</summary>
     public AteliaError? Error => _error;
 
     private DisposableAteliaResult(T? value, AteliaError? error) {
@@ -79,32 +79,32 @@ where T : class, IDisposable {
         return new(null, error);
     }
 
-    /// <inheritdoc/>
+    /// <summary>尝试获取成功值。</summary>
     public bool TryGetValue(out T? value) {
         value = _value;
         return IsSuccess;
     }
 
-    /// <inheritdoc/>
+    /// <summary>尝试获取错误。</summary>
     public bool TryGetError(out AteliaError? error) {
         error = Error;
         return IsFailure;
     }
 
-    /// <inheritdoc/>
+    /// <summary>解包成功值；失败时抛出异常。</summary>
     public T Unwrap() {
         if (IsFailure) { throw ResultContractErrors.CreateUnwrapFailure(Error!); }
         return _value!;
     }
 
-    /// <inheritdoc/>
+    /// <summary>同时尝试解出成功值与错误。</summary>
     public bool TryUnwrap([MaybeNullWhen(false)] out T value, [NotNullWhen(false)] out AteliaError? error) {
         value = _value!;
         error = _error;
         return IsSuccess;
     }
 
-    /// <inheritdoc/>
+    /// <summary>成功时返回值；失败时返回 <paramref name="fallback"/>。</summary>
     public T ValueOr(T fallback) => IsSuccess ? _value! : fallback;
 
     /// <summary>

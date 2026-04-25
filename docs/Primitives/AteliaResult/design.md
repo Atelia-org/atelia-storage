@@ -25,7 +25,7 @@
 | 类型 | 约束 | 适用场景 |
 |:-----|:-----|:---------|
 | `AteliaResult<T>` | `ref struct` (allows ref struct) | 同步代码、栈上操作、解析器、底层 IO |
-| `AteliaAsyncResult<T>` | 普通 `struct` | 异步方法 (`Task/ValueTask`)、保存到堆上 |
+| `AsyncAteliaResult<T>` | 普通 `struct` | 异步方法 (`Task/ValueTask`)、保存到堆上 |
 
 这两个类型在 API 使用体验上保持 99% 的一致性（`IsSuccess`, `Value`, `Error`）。只有底层约束不同。
 
@@ -39,9 +39,9 @@
 |:---------|:-----|
 | `RefResult` / `ValueResult` | ❌ `ValueResult` 容易与 `ValueTask` 混淆 |
 | `LocalResult` / `SharedResult` | ❌ `Shared` 暗示线程共享，容易误导 |
-| `AteliaResult` / `AteliaAsyncResult` | ✅ 符合 .NET 惯例（`Read`/`ReadAsync`），语义直观 |
+| `AteliaResult` / `AsyncAteliaResult` | ✅ 符合 .NET 惯例（`Read`/`ReadAsync`），语义直观 |
 
-**决策**：`AteliaResult` 作为基础名（最紧约束版本），`AteliaAsyncResult` 作为异步/堆兼容版本。
+**决策**：`AteliaResult` 作为基础名（最紧约束版本），`AsyncAteliaResult` 作为异步/堆兼容版本。
 
 ### 2.2 泛型设计：为什么不用 `Result<T, E>`?
 
@@ -127,21 +127,22 @@ var frame = result.Value;
 
 ### 3.2 为什么不让 `AteliaResult<T>` 直接实现 `IDisposable`？
 
-`AteliaResult<T>` 是 `ref struct`，而 `ref struct` 不能实现接口（C# 语言限制）。
+`AteliaResult<T>` 是 `ref struct`。即使现代 C# 已允许 `ref struct` 实现某些接口，
+`IDisposable` 这种面向常规多态和 `using` 模式的接口，放在这里仍然不自然。
 
-即使 C# 13 允许 `ref struct` 实现接口，但 `IDisposable.Dispose()` 需要装箱，这会导致栈上的 `ref struct` 逃逸到堆上——破坏了 `ref struct` 的设计初衷。
+更具体地说，`DisposableAteliaResult<T>` 需要的是一个**稳定的资源所有权载体**；
+而 `AteliaResult<T>` 的核心定位是栈上同步结果，强行让它承担 `IDisposable` 语义，
+只会让调用约束、更广泛的使用场景和心智模型一起变复杂。
 
-### 3.3 `IAteliaResult<T>` 的抽取理由
+### 3.3 为什么删除了 `IAteliaResult<T>`？
 
-随着结果类型从 2 个（`AteliaResult<T>` + `AteliaAsyncResult<T>`）扩展到 3 个，需要一个统一的契约：
+我们曾经尝试把三种结果类型抽成一个公共接口，但后续决定移除，原因很现实：
 
-| 需求 | 解决方案 |
-|:-----|:---------|
-| 泛型方法需要接受任意结果类型 | `IAteliaResult<T>` 作为约束 |
-| 一致的 API 表面 | 接口定义核心成员集 |
-| 文档可引用的契约 | 接口作为规范的形式化表达 |
+1. **仓库内几乎没有真实消费点**：没有形成“用接口写泛型工具”的稳定需求。
+2. **`ref struct` 让接口收益缩水**：最核心的 `AteliaResult<T>` 无法像普通类型那样自然参与接口多态，很多抽象收益拿不到。
+3. **维护面反而扩大**：每次演进 Result API，都要同步维护接口、实现和文档叙事三份表面。
 
-**注意**：`AteliaResult<T>` 作为 `ref struct` 不能被接口约束，但它的 API 与 `IAteliaResult<T>` 保持一致（鸭子类型）。
+因此当前策略是：**保留三种具体结果类型，要求它们维持一致的语义表面，但不再保留名义上的公共接口**。如果未来确实出现稳定的跨类型泛型消费场景，再按真实需求重建更窄的抽象。
 
 ---
 

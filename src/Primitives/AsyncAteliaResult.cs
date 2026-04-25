@@ -16,24 +16,24 @@ namespace Atelia;
 /// 对于同步场景（特别是需要 ref struct 值类型），请使用 <see cref="AteliaResult{T}"/>。
 /// </remarks>
 /// <typeparam name="T">成功值类型。</typeparam>
-public readonly struct AsyncAteliaResult<T> : IAteliaResult<T> where T : notnull {
+public readonly struct AsyncAteliaResult<T> where T : notnull {
     private readonly bool _isInitialized;
     private readonly AteliaError? _error;
     private readonly T? _value;
 
-    /// <inheritdoc/>
+    /// <summary>是否为成功结果。</summary>
     [MemberNotNullWhen(true, nameof(Value))]
     [MemberNotNullWhen(false, nameof(Error))]
     public bool IsSuccess => _isInitialized && _error is null;
 
-    /// <inheritdoc/>
+    /// <summary>是否为失败结果。</summary>
     [MemberNotNullWhen(true, nameof(Error))]
     public bool IsFailure => !IsSuccess;
 
-    /// <inheritdoc/>
+    /// <summary>成功时返回值；失败时返回 <c>default</c>。</summary>
     public T? Value => _value;
 
-    /// <inheritdoc/>
+    /// <summary>失败时返回错误；成功时返回 <c>null</c>。</summary>
     public AteliaError? Error => IsSuccess ? null : _error ?? ResultContractErrors.UninitializedResult;
 
     private AsyncAteliaResult(T? value, AteliaError? error, bool isInitialized) {
@@ -63,22 +63,22 @@ public readonly struct AsyncAteliaResult<T> : IAteliaResult<T> where T : notnull
     /// <summary>隐式转换：从 <see cref="AteliaError"/> 创建失败结果。</summary>
     public static implicit operator AsyncAteliaResult<T>(AteliaError error) => Failure(error);
 
-    /// <inheritdoc/>
+    /// <summary>尝试获取成功值。</summary>
     public bool TryGetValue(out T? value) {
         value = _value;
         return IsSuccess;
     }
 
-    /// <inheritdoc/>
+    /// <summary>尝试获取错误。</summary>
     public bool TryGetError(out AteliaError? error) {
         error = Error;
         return IsFailure;
     }
 
-    /// <inheritdoc/>
+    /// <summary>成功时返回值；失败时返回 <paramref name="fallback"/>。</summary>
     public T ValueOr(T fallback) => IsSuccess ? _value! : fallback;
 
-    /// <inheritdoc/>
+    /// <summary>解包成功值；失败时抛出异常。</summary>
     public T Unwrap() {
         if (IsFailure) {
             throw ResultContractErrors.CreateUnwrapFailure(Error!);
@@ -86,7 +86,7 @@ public readonly struct AsyncAteliaResult<T> : IAteliaResult<T> where T : notnull
         return _value!;
     }
 
-    /// <inheritdoc/>
+    /// <summary>同时尝试解出成功值与错误。</summary>
     public bool TryUnwrap([MaybeNullWhen(false)] out T value, [NotNullWhen(false)] out AteliaError? error) {
         value = _value!;
         error = Error;
