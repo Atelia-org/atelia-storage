@@ -204,76 +204,63 @@ public class DisposableAteliaResultTests {
 
     #endregion
 
-    #region GetValueOrThrow
+    #region Unwrap
 
     [Fact]
-    public void GetValueOrThrow_OnSuccess_ShouldReturnValue() {
+    public void Unwrap_OnSuccess_ShouldReturnValue() {
         // Arrange
         var resource = new TestDisposable();
         var result = DisposableAteliaResult<TestDisposable>.Success(resource);
 
         // Act
-        var value = result.GetValueOrThrow();
+        var value = result.Unwrap();
 
         // Assert
         Assert.Same(resource, value);
     }
 
     [Fact]
-    public void GetValueOrThrow_OnFailure_ShouldThrowWithErrorInfo() {
+    public void Unwrap_OnFailure_ShouldThrowWithErrorInfo() {
         // Arrange
         var error = new TestError("TEST.ERROR", "Test error message");
         var result = DisposableAteliaResult<TestDisposable>.Failure(error);
 
         // Act & Assert
-        var ex = Assert.Throws<InvalidOperationException>(() => result.GetValueOrThrow());
+        var ex = Assert.Throws<InvalidOperationException>(() => result.Unwrap());
         Assert.Contains("TEST.ERROR", ex.Message);
         Assert.Contains("Test error message", ex.Message);
     }
 
     #endregion
 
-    #region GetValueOrDefault
+    #region ValueOr
 
     [Fact]
-    public void GetValueOrDefault_OnSuccess_ShouldReturnValue() {
+    public void ValueOr_OnSuccess_ShouldReturnValue() {
         // Arrange
         var resource = new TestDisposable();
         var defaultResource = new TestDisposable();
         var result = DisposableAteliaResult<TestDisposable>.Success(resource);
 
         // Act
-        var value = result.GetValueOrDefault(defaultResource);
+        var value = result.ValueOr(defaultResource);
 
         // Assert
         Assert.Same(resource, value);
     }
 
     [Fact]
-    public void GetValueOrDefault_OnFailure_ShouldReturnDefault() {
+    public void ValueOr_OnFailure_ShouldReturnFallback() {
         // Arrange
         var error = new TestError("TEST.ERROR", "Failed");
         var defaultResource = new TestDisposable();
         var result = DisposableAteliaResult<TestDisposable>.Failure(error);
 
         // Act
-        var value = result.GetValueOrDefault(defaultResource);
+        var value = result.ValueOr(defaultResource);
 
         // Assert
         Assert.Same(defaultResource, value);
-    }
-
-    [Fact]
-    public void GetValueOrDefault_OnFailure_WithNullDefault_ShouldReturnNull() {
-        // Arrange
-        var error = new TestError("TEST.ERROR", "Failed");
-        var result = DisposableAteliaResult<TestDisposable>.Failure(error);
-
-        // Act
-        var value = result.GetValueOrDefault(null);
-
-        // Assert
-        Assert.Null(value);
     }
 
     #endregion
@@ -331,12 +318,10 @@ public class DisposableAteliaResultTests {
 
     [Fact]
     public void ToDisposable_OnSuccessWithNullValue_ShouldThrow() {
-        // Arrange
-        // Note: AteliaResult<T> is a ref struct, so it cannot be used inside lambda expressions.
-
-        // Act & Assert
+        // Note: AteliaResult<T>.Success 的契约已移除 Success(null)。
+        // 调用方若用 null! 强行绕过静态约束，ToDisposable 仍应在 DisposableAteliaResult.Success 处显式 throw。
         try {
-            _ = AteliaResult<TestDisposable>.Success(null).ToDisposable();
+            _ = AteliaResult<TestDisposable>.Success(null!).ToDisposable();
             Assert.Fail("Expected ArgumentNullException");
         }
         catch (ArgumentNullException ex) {

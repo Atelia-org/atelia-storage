@@ -43,6 +43,17 @@ public class AteliaResultTests {
     }
 
     [Fact]
+    public void Success_WithNullValue_ShouldThrow() {
+        try {
+            _ = AteliaResult<string>.Success(null!);
+            Assert.Fail("Expected ArgumentNullException");
+        }
+        catch (ArgumentNullException ex) {
+            Assert.Equal("value", ex.ParamName);
+        }
+    }
+
+    [Fact]
     public void TryGetValue_OnSuccess_ShouldReturnTrueAndValue() {
         // Arrange
         var result = AteliaResult<string>.Success("hello");
@@ -97,44 +108,44 @@ public class AteliaResultTests {
     }
 
     [Fact]
-    public void GetValueOrDefault_OnSuccess_ShouldReturnValue() {
+    public void ValueOr_OnSuccess_ShouldReturnValue() {
         // Arrange
         var result = AteliaResult<int>.Success(42);
 
         // Act
-        var value = result.GetValueOrDefault(0);
+        var value = result.ValueOr(0);
 
         // Assert
         Assert.Equal(42, value);
     }
 
     [Fact]
-    public void GetValueOrDefault_OnFailure_ShouldReturnDefault() {
+    public void ValueOr_OnFailure_ShouldReturnFallback() {
         // Arrange
         var error = new TestError("TEST.ERROR", "Failed");
         var result = AteliaResult<int>.Failure(error);
 
         // Act
-        var value = result.GetValueOrDefault(99);
+        var value = result.ValueOr(99);
 
         // Assert
         Assert.Equal(99, value);
     }
 
     [Fact]
-    public void GetValueOrThrow_OnSuccess_ShouldReturnValue() {
+    public void Unwrap_OnSuccess_ShouldReturnValue() {
         // Arrange
         var result = AteliaResult<int>.Success(42);
 
         // Act
-        var value = result.GetValueOrThrow();
+        var value = result.Unwrap();
 
         // Assert
         Assert.Equal(42, value);
     }
 
     [Fact]
-    public void GetValueOrThrow_OnFailure_ShouldThrow() {
+    public void Unwrap_OnFailure_ShouldThrow() {
         // Arrange
         var error = new TestError("TEST.ERROR", "Test error message");
         var result = AteliaResult<int>.Failure(error);
@@ -142,7 +153,7 @@ public class AteliaResultTests {
         // Act & Assert
         // Note: ref struct 不能在 lambda 中使用，所以用 try-catch
         try {
-            result.GetValueOrThrow();
+            result.Unwrap();
             Assert.Fail("Expected InvalidOperationException");
         }
         catch (InvalidOperationException ex) {
@@ -162,26 +173,16 @@ public class AteliaResultTests {
     }
 
     [Fact]
-    public void Success_WithNullValue_ShouldCreateSuccessResult() {
+    public void Default_ShouldBeFailureWithUninitializedError() {
         // Arrange & Act
-        var result = AteliaResult<string?>.Success(null);
+        AteliaResult<string> result = default;
 
         // Assert
-        Assert.True(result.IsSuccess);
-        Assert.False(result.IsFailure);
+        Assert.False(result.IsSuccess);
+        Assert.True(result.IsFailure);
         Assert.Null(result.Value);
-        Assert.Null(result.Error);
-    }
-
-    [Fact]
-    public void Default_ShouldBeSuccess() {
-        // Arrange & Act
-        AteliaResult<int> result = default;
-
-        // Assert
-        Assert.True(result.IsSuccess);  // _error is null → success
-        Assert.Equal(0, result.Value);  // default(int)
-        Assert.Null(result.Error);
+        Assert.NotNull(result.Error);
+        Assert.Equal("Primitives.ResultUninitialized", result.Error.ErrorCode);
     }
 
     [Fact]

@@ -75,12 +75,13 @@
 
 | 成员 | 类型 | 语义 |
 |:-----|:-----|:-----|
-| `IsSuccess` | `bool` | 操作是否成功 |
-| `IsFailure` | `bool` | 操作是否失败（`!IsSuccess`） |
-| `Value` | `T?` | 成功时的值；失败时为 `default` |
-| `Error` | `AteliaError?` | 失败时的错误；成功时为 `null` |
-| `GetValueOrThrow()` | `T` | 成功时返回值；失败时抛出 `InvalidOperationException` |
-| `GetValueOrDefault(T?)` | `T?` | 成功时返回值；失败时返回默认值 |
+| `IsSuccess` | `bool` | 操作是否成功。`[MemberNotNullWhen(true, nameof(Value))]` + `[MemberNotNullWhen(false, nameof(Error))]` |
+| `IsFailure` | `bool` | 操作是否失败（`!IsSuccess`）。`[MemberNotNullWhen(true, nameof(Error))]` |
+| `Value` | `T?` | 成功时的值；失败时为 `default`。当 `IsSuccess` 为 `true` 时，NRT 流分析会将此属性收窄为非 null。 |
+| `Error` | `AteliaError?` | 失败时的错误；成功时为 `null`。对于 struct 结果类型，`default(Result<T>)` MUST 被视为失败，并返回内部的 `ResultUninitialized` 错误。 |
+| `ValueOr(T)` | `T` | 成功时返回值；失败时返回 fallback |
+| `Unwrap()` | `T` | 成功时返回值；失败时抛出 `InvalidOperationException` |
+| `TryUnwrap(out T, out AteliaError?)` | `bool` | 同时尝试获取值与错误；成功分支保证 `Value` 非 null，失败分支保证 `Error` 非 null |
 | `TryGetValue(out T?)` | `bool` | 尝试获取值 |
 | `TryGetError(out AteliaError?)` | `bool` | 尝试获取错误 |
 

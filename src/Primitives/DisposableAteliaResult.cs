@@ -1,6 +1,8 @@
 // Source: Atelia.Primitives - 基础类型库
 // Design: atelia/docs/Primitives/AteliaResult.md
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Atelia;
 
 /// <summary>
@@ -37,9 +39,12 @@ where T : class, IDisposable {
     private int _disposeState;
 
     /// <inheritdoc/>
+    [MemberNotNullWhen(true, nameof(Value))]
+    [MemberNotNullWhen(false, nameof(Error))]
     public bool IsSuccess => _error is null;
 
     /// <inheritdoc/>
+    [MemberNotNullWhen(true, nameof(Error))]
     public bool IsFailure => _error is not null;
 
     /// <inheritdoc/>
@@ -82,18 +87,25 @@ where T : class, IDisposable {
 
     /// <inheritdoc/>
     public bool TryGetError(out AteliaError? error) {
-        error = _error;
+        error = Error;
         return IsFailure;
     }
 
     /// <inheritdoc/>
-    public T GetValueOrThrow() {
-        if (IsFailure) { throw new InvalidOperationException($"Cannot get value from a failed result. Error: [{_error!.ErrorCode}] {_error.Message}"); }
+    public T Unwrap() {
+        if (IsFailure) { throw ResultContractErrors.CreateUnwrapFailure(Error!); }
         return _value!;
     }
 
     /// <inheritdoc/>
-    public T? GetValueOrDefault(T? defaultValue = default) => IsSuccess ? _value : defaultValue;
+    public bool TryUnwrap([MaybeNullWhen(false)] out T value, [NotNullWhen(false)] out AteliaError? error) {
+        value = _value!;
+        error = _error;
+        return IsSuccess;
+    }
+
+    /// <inheritdoc/>
+    public T ValueOr(T fallback) => IsSuccess ? _value! : fallback;
 
     /// <summary>
     /// 释放内部资源。成功时调用 Value.Dispose()，失败时无操作。

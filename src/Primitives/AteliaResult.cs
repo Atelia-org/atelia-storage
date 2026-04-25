@@ -1,6 +1,8 @@
 // Source: Atelia.Primitives - 基础类型库
 // Design: atelia/docs/Primitives/AteliaResult.md
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Atelia;
 
 /// <summary>同步层结果类型，支持 ref struct 值。</summary>
@@ -14,31 +16,39 @@ namespace Atelia;
 /// 对于异步场景，请使用 <see cref="AsyncAteliaResult{T}"/>。
 /// </remarks>
 /// <typeparam name="T">成功值类型，允许 ref struct。</typeparam>
-public ref struct AteliaResult<T> : IAteliaResult<T> where T : allows ref struct {
+public ref struct AteliaResult<T> : IAteliaResult<T> where T : notnull, allows ref struct {
+    private readonly bool _isInitialized;
     private readonly AteliaError? _error;
     private readonly T? _value;
 
     /// <inheritdoc/>
-    public bool IsSuccess => _error is null;
+    [MemberNotNullWhen(true, nameof(Value))]
+    [MemberNotNullWhen(false, nameof(Error))]
+    public bool IsSuccess => _isInitialized && _error is null;
 
     /// <inheritdoc/>
-    public bool IsFailure => _error is not null;
+    [MemberNotNullWhen(true, nameof(Error))]
+    public bool IsFailure => !IsSuccess;
 
     /// <inheritdoc/>
     public T? Value => _value;
 
     /// <inheritdoc/>
-    public AteliaError? Error => _error;
+    public AteliaError? Error => IsSuccess ? null : _error ?? ResultContractErrors.UninitializedResult;
 
-    private AteliaResult(T? value, AteliaError? error) {
+    private AteliaResult(T? value, AteliaError? error, bool isInitialized) {
         _value = value;
         _error = error;
+        _isInitialized = isInitialized;
     }
 
     /// <summary>创建一个表示成功的结果。</summary>
-    /// <param name="value">成功的值。允许 <c>null</c>（表示"成功返回了空值"）。</param>
+    /// <param name="value">成功的值。调用方不得传入 null。</param>
     /// <returns>表示成功的 <see cref="AteliaResult{T}"/>。</returns>
-    public static AteliaResult<T> Success(T? value) => new(value, null);
+    public static AteliaResult<T> Success(T value) {
+        if (value is null) { throw new ArgumentNullException(nameof(value)); }
+        return new(value, null, true);
+    }
     /// <summary>隐式转换：从 <typeparamref name="T"/> 值创建成功结果。</summary>
     public static implicit operator AteliaResult<T>(T value) => Success(value);
 
@@ -48,7 +58,7 @@ public ref struct AteliaResult<T> : IAteliaResult<T> where T : allows ref struct
     /// <exception cref="ArgumentNullException">当 <paramref name="error"/> 为 <c>null</c> 时抛出。</exception>
     public static AteliaResult<T> Failure(AteliaError error) {
         ArgumentNullException.ThrowIfNull(error);
-        return new(default, error);
+        return new(default, error, true);
     }
     /// <summary>隐式转换：从 <see cref="AteliaError"/> 创建失败结果。</summary>
     public static implicit operator AteliaResult<T>(AteliaError error) => Failure(error);
@@ -61,17 +71,26 @@ public ref struct AteliaResult<T> : IAteliaResult<T> where T : allows ref struct
 
     /// <inheritdoc/>
     public bool TryGetError(out AteliaError? error) {
-        error = _error;
+        error = Error;
         return IsFailure;
     }
 
     /// <inheritdoc/>
-    public T? GetValueOrDefault(T? defaultValue = default) => IsSuccess ? _value : defaultValue;
+    public T ValueOr(T fallback) => IsSuccess ? _value! : fallback;
 
     /// <inheritdoc/>
-    public T GetValueOrThrow() {
-        if (IsFailure) { throw new InvalidOperationException($"Cannot get value from a failed result. Error: [{_error!.ErrorCode}] {_error.Message}"); }
+    public T Unwrap() {
+        if (IsFailure) {
+            throw ResultContractErrors.CreateUnwrapFailure(Error!);
+        }
         return _value!;
+    }
+
+    /// <inheritdoc/>
+    public bool TryUnwrap([MaybeNullWhen(false)] out T value, [NotNullWhen(false)] out AteliaError? error) {
+        value = _value!;
+        error = Error;
+        return IsSuccess;
     }
 }
 
@@ -84,7 +103,7 @@ public static class AteliaResultExtensions {
     /// 当 <typeparamref name="T"/> 为 ref struct 时，调用此方法将产生编译错误——这是期望行为。
     /// </remarks>
     /// <returns>等价的 <see cref="AsyncAteliaResult{T}"/>。</returns>
-    public static AsyncAteliaResult<T> ToAsync<T>(this AteliaResult<T> result) {
+    public static AsyncAteliaResult<T> ToAsync<T>(this AteliaResult<T> result) where T : notnull {
         return result.IsSuccess
             ? AsyncAteliaResult<T>.Success(result.Value)
             : AsyncAteliaResult<T>.Failure(result.Error!);

@@ -24,7 +24,7 @@ public AteliaResult<MyObject> CreateObject(string name) {
     // 方式 A: 隐式转换 (推荐)
     return obj;
 
-    // 方式 B: 显式调用 (当返回 null 表示成功时)
+    // 方式 B: 显式调用
     return AteliaResult<MyObject>.Success(obj);
 }
 ```
@@ -63,7 +63,7 @@ if (result.IsFailure) {
 // 获取值 (result.Value 在失败时为 default!)
 var obj = result.Value;
 // 或者
-var obj = result.GetValueOrThrow();
+var obj = result.Unwrap();
 ```
 
 ## 3. 错误定义规范
