@@ -9,7 +9,7 @@
 
 `RbfSegmentStore` 是 EventJournal 之下的轻量基础层。它不把 store 文件夹伪装成一个新的跨 segment RBF 文件，也不封装 RBF 的 frame append/read API；它只负责 RBF segment 文件的路径、创建、打开、轮转、lease、打开池和 active-tail 恢复编排。
 
-上层拿到已打开的 RBF 文件后，仍然直接使用 RBF 自身的 `Append`、`BeginAppend`、`ReadFrame`、`ReadPooledFrame` 和 tail recovery 能力。`FrameAddress` 由上层把 RBF 返回的 `SizedPtr Ticket` 与 lease 中的 `SegmentNumber` 组合得到。
+上层拿到已打开的 RBF 文件后，仍然直接使用 RBF 自身的 `Append`、`BeginAppend`、`ReadFrame`、`ReadPooledFrame` 和 tail recovery 能力（`RbfRecoveryScanner`）。`FrameAddress` 由上层把 RBF 返回的 `SizedPtr Ticket` 与 lease 中的 `SegmentNumber` 组合得到。
 
 ## 2. 职责边界
 
@@ -154,11 +154,11 @@ MVP 行为：
 
 ## 8. Tail Recovery 编排
 
-RBF 层负责单文件"寻找最后一个完整有效 frame / recoverable tail offset"。`RbfSegmentStore` 只编排 active segment 的恢复：
+RBF 层提供 `RbfRecoveryScanner` 负责单文件"寻找最后一个完整有效 frame / recoverable tail offset"，并提供 `RbfRecovery.TruncateToSuggestedTail` 执行截断。`RbfSegmentStore` 只编排 active segment 的恢复：
 
-1. 打开 store 并完成目录扫描。
-2. 对 active segment 调用 RBF tail recovery 能力。
-3. 将 active segment 截断到 recoverable tail offset。
+1. 打开 store 并完成目录扫描（§4）。
+2. 通过 `RbfRecovery.OpenReadOnly(path).ScanBackward()` 获取首个 `RbfRecoveryHit`（使用默认 `FrameBoundary` 校验等级和 `Fence` 搜索策略）。若未找到任何有效 frame，则该 segment 视为空或不可恢复，报告错误。
+3. 通过 `RbfRecovery.TruncateToSuggestedTail(path, hit)` 将 active segment 截断到 hit 的 `SuggestedTruncateOffset`（即最后一个完整 frame 的尾部 Fence 之后）。
 4. closed historical segment 遇到损坏时报告 corruption，不自动截断。
 
 因为 `RbfSegmentStore` 不解释 frame tag，它不能判断 Event 是否可见，也不处理 orphan payload / orphan event。这些属于 EventJournal。
@@ -176,4 +176,4 @@ RBF 层负责单文件"寻找最后一个完整有效 frame / recoverable tail o
 - `OpenReader(activeSegmentNumber)` 可返回与 active writer 协调的 reader lease。
 - `OpenReader(closedSegmentNumber)` 通过 pool 返回 read-only historical reader lease。
 - 活跃 historical reader lease 阻止 pool eviction 关闭底层 RBF 文件。
-- active segment 尾部撕裂后可截断到 RBF recoverable tail。
+- active segment 尾部撕裂后可通过 `RbfRecoveryScanner.ScanBackward()` + `RbfRecovery.TruncateToSuggestedTail()` 截断到最后一个完整 frame 的尾部 Fence 之后。
