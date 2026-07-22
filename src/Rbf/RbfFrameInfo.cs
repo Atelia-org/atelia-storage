@@ -7,7 +7,7 @@ namespace Atelia.Rbf;
 
 /// <summary>已验证的帧元信息句柄（不含 Payload）。</summary>
 /// <remarks>
-/// 用于 ScanReverse 产出，支持不读取 payload 的元信息迭代。
+/// 用于 ScanReverse / ScanForward 产出，支持不读取 payload 的元信息迭代。
 /// PayloadLength 与 TailMetaLength 从 TrailerCodeword 解码得出。
 /// 句柄语义：构造时已完成 TrailerCrc、reserved bits、TailLen 一致性等验证，
 /// 后续读取方法只做 I/O 级校验（buffer length、short read），不重复结构性验证。

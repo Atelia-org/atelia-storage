@@ -151,3 +151,20 @@ void RecoverState(IRbfFile file) {
     }
 }
 ```
+
+### 5.5 正向扫描 (ScanForward)
+
+适用于健康 RBF 文件的正序 replay。`ScanForward` 产出 `RbfFrameInfo`，不读取 payload，也不校验 `PayloadCrc32C`；业务处理前如需完整校验，应再调用 `ReadFrame` / `ReadPooledFrame`。
+
+```csharp
+void ReplayForward(IRbfFile file) {
+    var sequence = file.ScanForward(showTombstone: false);
+
+    foreach (RbfFrameInfo info in sequence) {
+        Console.WriteLine($"Replay Frame: Tag={info.Tag}, PayloadLen={info.PayloadLength}");
+
+        using var frame = info.ReadPooledFrame().Value;
+        Apply(frame);
+    }
+}
+```

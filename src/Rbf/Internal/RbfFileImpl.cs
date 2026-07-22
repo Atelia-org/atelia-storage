@@ -282,6 +282,12 @@ internal sealed class RbfFileImpl : IRbfFile {
     }
 
     /// <inheritdoc />
+    public RbfForwardSequence ScanForward(bool showTombstone = false) {
+        EnsureIdleForRead();
+        return new RbfForwardSequence(_reader, RbfLayout.FirstFrameOffset, _tailOffset, showTombstone);
+    }
+
+    /// <inheritdoc />
     public AteliaResult<RbfFrameInfo> ReadFrameInfo(SizedPtr ticket) {
         EnsureIdleForRead();
         return RbfReadImpl.ReadFrameInfo(_reader, ticket);

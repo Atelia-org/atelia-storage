@@ -45,6 +45,10 @@ public interface IRbfFile : IDisposable {
     /// <param name="showTombstone">是否包含墓碑帧。默认 false（不包含）。</param>
     RbfReverseSequence ScanReverse(bool showTombstone = false);
 
+    /// <summary>正向扫描。</summary>
+    /// <param name="showTombstone">是否包含墓碑帧。默认 false（不包含）。</param>
+    RbfForwardSequence ScanForward(bool showTombstone = false);
+
     /// <summary>从 SizedPtr 获取帧元信息（只读 TrailerCodeword，L2 信任）。</summary>
     /// <param name="ticket">帧位置凭据。</param>
     /// <returns>成功时返回 RbfFrameInfo，失败返回错误。</returns>

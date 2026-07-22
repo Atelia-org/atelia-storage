@@ -122,6 +122,14 @@ public interface IRbfFile : IDisposable {
     /// </remarks>
     RbfReverseSequence ScanReverse(bool showTombstone = false);
 
+    /// <summary>正向扫描，返回帧元信息序列。</summary>
+    /// <param name="showTombstone">是否包含墓碑帧。默认 false（不包含）。</param>
+    /// <remarks>
+    /// CRC 职责分离：ScanForward 只做 Framing 校验，不校验 PayloadCRC32C。
+    /// 如需完整校验，请对返回的 Ticket 调用 ReadFrame/ReadPooledFrame。
+    /// </remarks>
+    RbfForwardSequence ScanForward(bool showTombstone = false);
+
     /// <summary>从 SizedPtr 获取帧元信息（只读 TrailerCodeword，L2 信任）。</summary>
     /// <param name="ticket">帧位置凭据。</param>
     /// <returns>成功时返回 RbfFrameInfo，失败返回错误。</returns>
@@ -435,8 +443,38 @@ public ref struct RbfReverseEnumerator {
 }
 ```
 
+### spec [A-RBF-FORWARD-SEQUENCE] RbfForwardSequence定义
+
+```csharp
+/// <summary>正向扫描序列（duck-typed 枚举器，支持 foreach）。</summary>
+/// <remarks>
+/// 设计说明：返回 ref struct 以避免堆分配并满足栈上生命周期约束。
+/// 上层通过 foreach 消费，不依赖 LINQ。
+/// </remarks>
+public ref struct RbfForwardSequence {
+    /// <summary>获取枚举器（支持 foreach 语法）。</summary>
+    public RbfForwardEnumerator GetEnumerator();
+}
+
+/// <summary>正向扫描枚举器。</summary>
+public ref struct RbfForwardEnumerator {
+    /// <summary>当前帧元信息。</summary>
+    public RbfFrameInfo Current { get; }
+
+    /// <summary>移动到下一帧。</summary>
+    public bool MoveNext();
+
+    /// <summary>迭代终止原因。null 表示正常结束。</summary>
+    public AteliaError? TerminationError { get; }
+}
+```
+
 ### derived [S-RBF-SCANREVERSE-NO-IENUMERABLE] ScanReverse不实现IEnumerable
 `RbfReverseSequence` MUST NOT 实现 `IEnumerable<T>`。
+**原因**：该序列与枚举器为 `ref struct`，以避免堆分配并满足栈上生命周期约束。
+
+### derived [S-RBF-SCANFORWARD-NO-IENUMERABLE] ScanForward不实现IEnumerable
+`RbfForwardSequence` MUST NOT 实现 `IEnumerable<T>`。
 **原因**：该序列与枚举器为 `ref struct`，以避免堆分配并满足栈上生命周期约束。
 
 ### spec [S-RBF-READFRAME-ALWAYS-CRC] ReadFrame始终执行CRC校验
@@ -447,8 +485,12 @@ public ref struct RbfReverseEnumerator {
 `ScanReverse(...)` MUST NOT 执行 `PayloadCrc32C` 校验。
 `ScanReverse(...)` MUST 执行 framing 校验 + 尾部元信息校验（`TrailerCrc32C`）并输出 `RbfFrameInfo`。
 
+### spec [S-RBF-SCANFORWARD-NO-PAYLOADCRC] ScanForward不进行PayloadCRC校验
+`ScanForward(...)` MUST NOT 执行 `PayloadCrc32C` 校验。
+`ScanForward(...)` MUST 执行 framing 校验 + 尾部元信息校验（`TrailerCrc32C`）并输出 `RbfFrameInfo`。
+
 **CRC 职责分离（Normative）**：
-- **ScanReverse**：只校验 `TrailerCrc32C`（覆盖 FrameDescriptor + FrameTag + TailLen）
+- **ScanReverse / ScanForward**：只校验 `TrailerCrc32C`（覆盖 FrameDescriptor + FrameTag + TailLen）
 - **ReadFrame / ReadPooledFrame**：校验 `PayloadCrc32C` + `TrailerCrc32C`
 
 如需完整校验，调用方 MUST 使用返回的 `Ticket` 调用 `ReadFrame` / `ReadPooledFrame`。
@@ -456,7 +498,15 @@ public ref struct RbfReverseEnumerator {
 ### spec [S-RBF-SCANREVERSE-EMPTY-IS-OK] 空序列合法
 当文件为空（仅含 HeaderFence）或 **根据过滤条件无可见帧** 时，`ScanReverse()` MUST 返回空序列（0 元素），MUST NOT 抛出异常。
 
+### spec [S-RBF-SCANFORWARD-EMPTY-IS-OK] ScanForward空序列合法
+当文件为空（仅含 HeaderFence）或 **根据过滤条件无可见帧** 时，`ScanForward()` MUST 返回空序列（0 元素），MUST NOT 抛出异常。
+
 ### spec [S-RBF-SCANREVERSE-TERMINATION-ERROR] 终止错误语义
+当 `MoveNext()` 返回 `false` 时：
+- 若 `TerminationError` 为 `null`，表示正常结束；
+- 若 `TerminationError` 非 `null`，表示因 framing 损坏或读取失败而提前终止。
+
+### spec [S-RBF-SCANFORWARD-TERMINATION-ERROR] ScanForward终止错误语义
 当 `MoveNext()` 返回 `false` 时：
 - 若 `TerminationError` 为 `null`，表示正常结束；
 - 若 `TerminationError` 非 `null`，表示因 framing 损坏或读取失败而提前终止。
@@ -467,6 +517,10 @@ public ref struct RbfReverseEnumerator {
 
 ### spec [S-RBF-SCANREVERSE-CURRENT-VALUE] Current为值快照
 `RbfReverseEnumerator.Current` MUST 返回 `RbfFrameInfo` 的值快照，
+其生命周期不依赖底层 buffer，可安全跨越后续 `MoveNext()` 调用。
+
+### spec [S-RBF-SCANFORWARD-CURRENT-VALUE] ScanForward Current为值快照
+`RbfForwardEnumerator.Current` MUST 返回 `RbfFrameInfo` 的值快照，
 其生命周期不依赖底层 buffer，可安全跨越后续 `MoveNext()` 调用。
 
 ### spec [A-RBF-IFRAME] IRbfFrame接口定义

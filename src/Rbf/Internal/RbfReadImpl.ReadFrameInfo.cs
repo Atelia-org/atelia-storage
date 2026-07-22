@@ -6,6 +6,60 @@ using Atelia.Rbf.ReadCache;
 namespace Atelia.Rbf.Internal;
 
 partial class RbfReadImpl {
+    /// <summary>从 FrameBytes 起点读取帧元信息（正向扫描路径）。</summary>
+    internal static AteliaResult<RbfFrameInfo> ReadFrameInfoAt(
+        RandomAccessReader reader,
+        long frameStart,
+        long dataTail
+    ) {
+        if (frameStart < RbfLayout.HeaderOnlyLength || (frameStart & RbfLayout.AlignmentMask) != 0) {
+            return new RbfFramingError(
+                $"Invalid frame start offset: {frameStart}.",
+                RecoveryHint: "Forward scan must start at a 4-byte aligned frame boundary after HeaderFence."
+            );
+        }
+
+        Span<byte> headLenBuffer = stackalloc byte[FrameLayout.HeadLenSize];
+        int headBytesRead = reader.Read(headLenBuffer, frameStart);
+        if (headBytesRead < FrameLayout.HeadLenSize) {
+            return new RbfFramingError(
+                $"Short read for HeadLen: expected {FrameLayout.HeadLenSize} bytes, got {headBytesRead}.",
+                RecoveryHint: "The file may be truncated."
+            );
+        }
+
+        uint headLen = BinaryPrimitives.ReadUInt32LittleEndian(headLenBuffer);
+        if (headLen < FrameLayout.MinFrameLength ||
+            headLen > SizedPtr.MaxLength ||
+            (headLen & RbfLayout.AlignmentMask) != 0) {
+            return new RbfFramingError(
+                $"Invalid HeadLen: {headLen} (min={FrameLayout.MinFrameLength}, max={SizedPtr.MaxLength}, must be 4B-aligned).",
+                RecoveryHint: "The frame length field is corrupted."
+            );
+        }
+
+        long frameEnd = frameStart + headLen;
+        long fenceEnd = frameEnd + RbfLayout.FenceSize;
+        if (frameEnd < frameStart || fenceEnd < frameEnd || fenceEnd > dataTail) {
+            return new RbfFramingError(
+                $"Frame extends beyond data tail: frameStart={frameStart}, headLen={headLen}, dataTail={dataTail}.",
+                RecoveryHint: "The file may be truncated or HeadLen is corrupted."
+            );
+        }
+
+        Span<byte> fence = stackalloc byte[RbfLayout.FenceSize];
+        int fenceBytesRead = reader.Read(fence, frameEnd);
+        if (fenceBytesRead < RbfLayout.FenceSize || !fence.SequenceEqual(RbfLayout.Fence)) {
+            return new RbfFramingError(
+                "Expected Fence ('RBF1') not found after frame.",
+                RecoveryHint: "The frame boundary marker is missing or corrupted."
+            );
+        }
+
+        var ticket = SizedPtr.Create(frameStart, (int)headLen);
+        return ReadFrameInfo(reader, ticket);
+    }
+
     /// <summary>从 SizedPtr 读取帧元信息（只读 TrailerCodeword，L2 信任）。</summary>
     /// <param name="file">RBF 文件句柄。</param>
     /// <param name="ticket">帧位置凭据。</param>
