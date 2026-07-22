@@ -104,6 +104,31 @@ public readonly record struct EventAddress(
 
 这与现有 `CommitAddress = { SegmentNumber, CommitTicket }` 的经验一致，但 `EventJournal` 不依赖 `StateJournal.CommitAddress`，也不继承它的业务语义。
 
+#### 5.1.1 Address Hint 候选扩展
+
+在常见 64-bit CLR ABI 下，`uint SegmentNumber + SizedPtr Ticket` 通常因 `SizedPtr` 的 8-byte 对齐而占用 16 bytes，其中包含 4 bytes padding。可以考虑显式利用该空间，把内存表示改为以下候选形状：
+
+```csharp
+public readonly record struct AddressHint(uint Packed);
+
+public readonly record struct FrameAddress(
+  uint SegmentNumber,
+  AddressHint Hint,
+  SizedPtr Ticket
+);
+```
+
+`EventAddress` 可采用相同的物理布局。这样可在不增大常见内存表示的前提下携带 32-bit smart-pointer hint，例如应用 event kind、粗粒度时间桶或染色标记。该候选尚未锁定，并受以下边界约束：
+
+1. `Hint` 只能作为免 I/O 的分派、过滤或预取提示；仅凭未经验证的外部地址，不能据此作存储正确性或安全决策。
+2. 若 `Hint` 进入 `EventAddress` 身份，它必须在 Event 创建时固定，并由目标 `MetaFrame` 保存相同值或提供可确定推导的值。reader 解引用后必须校验两者一致，避免同一物理位置出现多个互相矛盾的地址。
+3. 任意可变、与目标内容无关的用户标签不进入 canonical address；这类状态应使用上层 wrapper 或独立索引表达。
+4. EventJournal 只保存和校验 hint 的一致性，不解释应用 bit schema，以维持 `[S-EJ-PAYLOAD-OPAQUE]`。
+5. `Packed = 0` 应保留为“无 hint”；其余 bit 的命名空间和版本策略由后续 Spec 决定。
+6. 不应为了获得更多 hint bits 而过早缩减 `SegmentNumber`。即使保留完整 `uint` segment number，当前自然 padding 也已提供 32 bits；单调编号还可能因按时间轮转、测试、导入或保留 tombstone 而比物理 segment 数增长更快。
+
+内存 padding 不等于 wire format 免费。当前两字段地址可以手工紧凑编码为 12 bytes；若持久化完整 32-bit hint，固定宽度将变为 16 bytes，使大规模 payload part address list 增长约三分之一。后续 wire spec 必须独立比较固定 16-byte、紧凑字段编码和 VarInt 编码，不能从 CLR 布局直接推导持久格式。
+
 ### 5.2 Null 与合法性
 
 - `SegmentNumber` 从 `1` 开始，`0` 保留给 null/未设置编码。
@@ -167,6 +192,22 @@ Segment Store 对上层隐藏以下细节：
 - active segment 是唯一允许追加和尾部恢复性截断的 data segment。
 
 推荐根据“下一 frame 的预计长度 + 当前 tail”决定是否先轮转。对于无法提前得知长度的流式 builder，后续 Spec 必须明确采用预估、临时缓冲还是允许 segment 超过软阈值。
+
+#### 6.3.1 Segment 阈值选择原则
+
+主流 64-bit 部署中的 ext4、XFS 和 OpenZFS 均能承载 1 TiB 量级单文件；因此 segment threshold 不应以文件系统“能否寻址”为主要依据。它首先是 EventJournal 的恢复、校验、备份、迁移和故障隔离单元。
+
+阈值设计至少考虑：
+
+1. **恢复与 scrub 预算**：限制单次完整校验、隔离损坏或重建 catalog 时需要处理的数据量。正常 active-tail 恢复仍应由最大未完成 frame 大小约束，不能依赖扫描整个 segment。
+2. **备份与复制增量**：closed segment 不再变化，可被一次复制、校验和归档；active segment 越大，长期可变的备份对象也越大。
+3. **故障域**：RBF CRC 可定位 frame 级损坏，但 inode、extent tree、介质区域或操作失误仍可能影响整个文件。segment 提供应用层隔离边界。
+4. **文件与句柄数量**：segment 太小会放大目录项、manifest/catalog、打开文件池、备份对象和 GC/repack 调度成本。目录分桶只能缓解目录查找，不能消除对象数量成本。
+5. **frame 几何**：soft threshold 应显著大于常用 payload part 大小，并明确单个最大 frame 是否可越过阈值。轮转判断应保证 frame 不跨 segment。
+6. **分配与碎片**：长时间顺序追加通常能被 extent/delayed-allocation 良好处理；接近满盘、频繁快照、CoW 和混合写入可能增加碎片与元数据成本，需要按目标文件系统实测。
+7. **运维时间边界**：低吞吐 Agent 可能多年达不到 size threshold，因此还应支持 max-age 轮转，使 active segment 能定期 sealed、归档和备份。
+
+推荐将策略建模为 `size soft threshold OR age threshold`，而不是唯一硬上限。首轮基准可比较 16 GiB、64 GiB、256 GiB 三档，并以 64 GiB + 每日或每周 age rotation 作为实验起点；1 TiB 可作为压力测试档，不宜直接作为默认值。最终默认值必须由恢复扫描、随机读、持续 append、durable flush、备份和 segment catalog 基准共同决定。
 
 ### 6.4 Opened RBF File Pool
 
