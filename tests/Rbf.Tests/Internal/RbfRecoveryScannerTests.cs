@@ -99,6 +99,73 @@ public sealed class RbfRecoveryScannerTests : IDisposable {
     }
 
     [Fact]
+    public void ScanBackward_RollingCrc_FindsFrameWhenTailFenceIsCorrupted() {
+        var path = GetTempFilePath();
+        byte[] payload = [0xAA, 0xBB, 0xCC, 0xDD];
+        SizedPtr ptr2;
+
+        using (var rbf = RbfFile.CreateNew(path)) {
+            Assert.True(rbf.Append(0x11111111, [0x01]).IsSuccess);
+            var result2 = rbf.Append(0x22222222, payload);
+            Assert.True(result2.IsSuccess);
+            ptr2 = result2.Value!;
+        }
+
+        CorruptTailFence(path, ptr2);
+
+        using var scanner = RbfRecovery.OpenReadOnly(path);
+
+        var fenceEnumerator = scanner.ScanBackward().GetEnumerator();
+        Assert.True(fenceEnumerator.MoveNext());
+        Assert.Equal(0x11111111u, fenceEnumerator.Current.Info.Tag);
+
+        var rollingOptions = new RbfRecoveryScanOptions {
+            BoundarySearchStrategy = RbfRecoveryBoundarySearchStrategy.RollingCrc,
+            ValidationLevel = RbfRecoveryValidationLevel.FullFrame
+        };
+        var rollingEnumerator = scanner.ScanBackward(rollingOptions).GetEnumerator();
+
+        Assert.True(rollingEnumerator.MoveNext());
+        var hit = rollingEnumerator.Current;
+        Assert.Equal(0x22222222u, hit.Info.Tag);
+        Assert.Equal(RbfRecoveryConfidence.FullFrame, hit.Confidence);
+        Assert.False(hit.HasTailFence);
+        Assert.Equal(ptr2.Offset + ptr2.Length, hit.FrameEndOffset);
+        Assert.Throws<InvalidOperationException>(() => RbfRecovery.TruncateToSuggestedTail(path, hit));
+
+        var frameResult = hit.Info.ReadPooledFrame();
+        Assert.True(frameResult.IsSuccess);
+        using var frame = frameResult.Value!;
+        Assert.Equal(payload, frame.PayloadAndMeta.ToArray());
+    }
+
+    [Fact]
+    public void ScanBackward_RollingCrc_SkipTombstone_ContinuesToPreviousFrame() {
+        var path = GetTempFilePath();
+        SizedPtr ptr2;
+
+        using (var rbf = RbfFile.CreateNew(path)) {
+            Assert.True(rbf.Append(0x11111111, [0x01]).IsSuccess);
+            var result2 = rbf.Append(0x22222222, [0x02]);
+            Assert.True(result2.IsSuccess);
+            ptr2 = result2.Value!;
+        }
+
+        MarkTombstone(path, ptr2, 0x22222222, payloadLength: 1);
+
+        using var scanner = RbfRecovery.OpenReadOnly(path);
+        var options = new RbfRecoveryScanOptions {
+            BoundarySearchStrategy = RbfRecoveryBoundarySearchStrategy.RollingCrc,
+            SkipTombstone = true
+        };
+        var enumerator = scanner.ScanBackward(options).GetEnumerator();
+
+        Assert.True(enumerator.MoveNext());
+        Assert.Equal(0x11111111u, enumerator.Current.Info.Tag);
+        Assert.False(enumerator.Current.Info.IsTombstone);
+    }
+
+    [Fact]
     public void TruncateToSuggestedTail_RemovesUnalignedTailGarbage() {
         var path = GetTempFilePath();
 
@@ -172,5 +239,23 @@ public sealed class RbfRecoveryScannerTests : IDisposable {
         int original = stream.ReadByte();
         stream.Position--;
         stream.WriteByte((byte)(original ^ 0xFF));
+    }
+
+    private static void CorruptTailFence(string path, SizedPtr ticket) {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        stream.Position = ticket.Offset + ticket.Length;
+        int original = stream.ReadByte();
+        stream.Position--;
+        stream.WriteByte((byte)(original ^ 0xFF));
+    }
+
+    private static void MarkTombstone(string path, SizedPtr ticket, uint tag, int payloadLength) {
+        var layout = new FrameLayout(payloadLength);
+        Span<byte> trailer = stackalloc byte[TrailerCodewordHelper.Size];
+        layout.FillTrailer(trailer, tag, isTombstone: true);
+
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        stream.Position = ticket.Offset + layout.TrailerCodewordOffset;
+        stream.Write(trailer);
     }
 }
