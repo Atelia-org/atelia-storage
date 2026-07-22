@@ -115,7 +115,7 @@ public sealed partial class ReverseReadCacheTests : IDisposable {
     }
 
     [Fact]
-    public void Read_CrossPageBoundary_CachesStartPageOnly() {
+    public void Read_CrossPageBoundary_CachesBothPages() {
         using var cache = new ReverseReadCache(_handle, slotCountShift: 2);
 
         long offset = PageSize - 8;
@@ -126,9 +126,13 @@ public sealed partial class ReverseReadCacheTests : IDisposable {
         AssertPattern(buf, offset);
 
         var segs = InvokeGetCacheSegments(cache)!;
-        Assert.Single(segs);
-        Assert.Equal(0L, segs[0].Offset);
-        Assert.Equal(PageSize, segs[0].Length);
+        Assert.Equal(2, segs.Count);
+
+        var byOffset = segs.OrderBy(seg => seg.Offset).ToArray();
+        Assert.Equal(0L, byOffset[0].Offset);
+        Assert.Equal(PageSize, byOffset[0].Length);
+        Assert.Equal((long)PageSize, byOffset[1].Offset);
+        Assert.Equal(PageSize, byOffset[1].Length);
     }
 
     [Fact]

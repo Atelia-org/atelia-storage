@@ -219,7 +219,7 @@ internal sealed class ReverseReadCache : RandomAccessReader {
     }
 
     /// <summary>
-    /// 读取跨页数据到 scratch，并仅将起始页放入缓存（Clock 驱逐 1 个 slot）。
+    /// 读取跨页数据到 scratch，并将实际读到的两个页缓存（Clock 驱逐对应 slot）。
     /// </summary>
     /// <param name="pageIndex">起始页索引号。</param>
     /// <param name="offset">本次读取在文件中的起始偏移。</param>
@@ -228,20 +228,26 @@ internal sealed class ReverseReadCache : RandomAccessReader {
     /// <returns>实际读取到的字节数。有短读可能。</returns>
     private int ReadCrossPageWithScratch(long pageIndex, long offset, int length, out Span<byte> cached) {
         long pageStart = pageIndex << PageShift;
-        int readLength = (int)Math.Min(2 * PageSize, offset + length - pageStart);
+        int readLength = 2 * PageSize;
 
         cached = _crossPageScratch.AsSpan(0, readLength);
         int bytesRead = RawRead(pageStart, cached);
 
-        // 只缓存头一页；若短读为 0 则跳过缓存，避免无谓驱逐
-        int validBytes = Math.Min(bytesRead, PageSize);
-        if (validBytes > 0) {
-            int slot = AcquireEvictionSlot();
-            cached[..validBytes].CopyTo(_pageData.AsSpan(slot * PageSize, validBytes));
-            _slotPageIndex[slot] = pageIndex;
-            _slotValidBytes[slot] = validBytes;
-            // ref bit already clear — new page not yet re-accessed
-        }
+        CacheScratchPage(pageIndex, cached, Math.Min(bytesRead, PageSize));
+
+        int secondPageValidBytes = Math.Min(Math.Max(0, bytesRead - PageSize), PageSize);
+        CacheScratchPage(pageIndex + 1, cached[PageSize..], secondPageValidBytes);
+
         return bytesRead;
+    }
+
+    private void CacheScratchPage(long pageIndex, ReadOnlySpan<byte> pageData, int validBytes) {
+        if (validBytes <= 0) { return; }
+
+        int slot = AcquireEvictionSlot();
+        pageData[..validBytes].CopyTo(_pageData.AsSpan(slot * PageSize, validBytes));
+        _slotPageIndex[slot] = pageIndex;
+        _slotValidBytes[slot] = validBytes;
+        // ref bit already clear — new page not yet re-accessed
     }
 }
