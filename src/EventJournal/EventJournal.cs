@@ -3,16 +3,27 @@ using Atelia.RbfSegmentStore;
 
 namespace Atelia.EventJournal;
 
-public sealed class EventJournal : IDisposable {
+public sealed partial class EventJournal : IDisposable {
     public const uint EventFrameTag = 0x3146_4A45; // "EJF1" as little-endian bytes.
+    public const uint RefMoveFrameTag = 0x4D46_4A45; // "EJFM" as little-endian bytes.
+    public const uint RefOpFrameTag = 0x4F46_4A45; // "EJFO" as little-endian bytes.
 
+    private readonly EventJournalOptions _options;
     private readonly RbfSegmentStore.RbfSegmentStore _segments;
+    private readonly IRbfFile _refOpLog;
+    private readonly string _refObjectsPath;
+    private readonly Dictionary<string, RefId> _branches;
+    private readonly Dictionary<RefId, RefState> _refStates = new();
     private ulong _nextSequenceNumber;
     private bool _disposed;
 
-    private EventJournal(string journalPath, RbfSegmentStore.RbfSegmentStore segments, ulong nextSequenceNumber) {
+    private EventJournal(string journalPath, EventJournalOptions options, RbfSegmentStore.RbfSegmentStore segments, IRbfFile refOpLog, Dictionary<string, RefId> branches, ulong nextSequenceNumber) {
         JournalPath = Path.GetFullPath(journalPath);
+        _options = options;
         _segments = segments;
+        _refOpLog = refOpLog;
+        _refObjectsPath = RefObjectsDirectory(JournalPath);
+        _branches = branches;
         _nextSequenceNumber = nextSequenceNumber;
     }
 
@@ -26,11 +37,14 @@ public sealed class EventJournal : IDisposable {
 
         Directory.CreateDirectory(fullPath);
         RbfSegmentStore.RbfSegmentStore? segments = null;
+        IRbfFile? refOpLog = null;
         try {
             segments = RbfSegmentStore.RbfSegmentStore.CreateNew(EventsStorePath(fullPath), options.SegmentStoreOptions);
-            return new EventJournal(fullPath, segments, nextSequenceNumber: 1);
+            refOpLog = CreateRefOpLog(fullPath, options);
+            return new EventJournal(fullPath, options, segments, refOpLog, new Dictionary<string, RefId>(StringComparer.Ordinal), nextSequenceNumber: 1);
         }
         catch {
+            refOpLog?.Dispose();
             segments?.Dispose();
             TryDeleteDirectory(fullPath);
             throw;
@@ -41,10 +55,13 @@ public sealed class EventJournal : IDisposable {
         options ??= new EventJournalOptions();
         string fullPath = Path.GetFullPath(journalPath);
         var segments = RbfSegmentStore.RbfSegmentStore.OpenExisting(EventsStorePath(fullPath), options.SegmentStoreOptions);
+        IRbfFile? refOpLog = null;
         try {
-            return new EventJournal(fullPath, segments, ComputeNextSequenceNumber(segments));
+            refOpLog = OpenRefOpLog(fullPath, options, createIfMissing: false);
+            return new EventJournal(fullPath, options, segments, refOpLog, ReplayRefOpLog(refOpLog), ComputeNextSequenceNumber(segments));
         }
         catch {
+            refOpLog?.Dispose();
             segments.Dispose();
             throw;
         }
@@ -57,10 +74,13 @@ public sealed class EventJournal : IDisposable {
 
         Directory.CreateDirectory(fullPath);
         var segments = RbfSegmentStore.RbfSegmentStore.OpenOrCreate(EventsStorePath(fullPath), options.SegmentStoreOptions);
+        IRbfFile? refOpLog = null;
         try {
-            return new EventJournal(fullPath, segments, ComputeNextSequenceNumber(segments));
+            refOpLog = OpenRefOpLog(fullPath, options, createIfMissing: true);
+            return new EventJournal(fullPath, options, segments, refOpLog, ReplayRefOpLog(refOpLog), ComputeNextSequenceNumber(segments));
         }
         catch {
+            refOpLog?.Dispose();
             segments.Dispose();
             throw;
         }
@@ -272,6 +292,7 @@ public sealed class EventJournal : IDisposable {
 
     public void Dispose() {
         if (_disposed) { return; }
+        _refOpLog.Dispose();
         _segments.Dispose();
         _disposed = true;
     }
