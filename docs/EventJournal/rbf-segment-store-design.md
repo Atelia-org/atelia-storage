@@ -29,7 +29,7 @@
 - 调用 `IRbfFile.Append` 或 `IRbfFile.ReadFrame` 替上层读写 frame。
 - 解释 RBF frame tag。
 - 构造或校验 `EventAddress` / `AddressHint`。
-- 解释 EventJournal 的 `PayloadFrame` / `MetaFrame` schema。
+- 解释 EventJournal 的 `EventFrame` / TailMeta header schema。
 - 验证 Parent、维护 branch/ref、分析 Event-level orphan。
 - 对外提供 exactly-once 或跨进程多 writer 事务。
 

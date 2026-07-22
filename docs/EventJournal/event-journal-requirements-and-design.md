@@ -219,11 +219,14 @@ RBF EventFrame:
 
 ### 7.2 EventJournal TailMeta Header
 
-首轮 wire spec 应在 `EventFrame` 的 RBF `TailMeta` 中至少表达：
+`EventFrame` TailMeta header 的 fixed binary v1 格式、字段 offset、CRC、codec 和父链遍历 API 详见 [EventFrame Parent Chain 设计基线](event-frame-parent-chain-design.md)。首轮 wire spec 应在 `EventFrame` 的 RBF `TailMeta` 中至少表达：
 
 | 字段 | 含义 |
 |:-----|:-----|
 | `FormatVersion` | EventJournal EventFrame schema 版本 |
+| `SequenceNumber` | store-local 单调序号 |
+| `UtcUnixTimeMilliseconds` | UTC Unix time milliseconds 记录时间 |
+| `OpaqueEventKind` | 应用定义的 opaque event kind |
 | `Parent` | 可空 `EventAddress` |
 | `Hint` | 与 `EventAddress.Hint` 一致或可确定推导的 hint |
 | `PayloadLength` | 应用 payload bytes 长度 |
@@ -231,7 +234,6 @@ RBF EventFrame:
 可选但尚未锁定的字段：
 
 - payload digest，用于在完整读取 frame 后，在 RBF CRC 之外提供应用层整体校验或去重基础。
-- 创建时间；它不是存储正确性所需字段，且可能制造不确定性。
 - payload codec id；原则上应留在应用 payload envelope，而不是下沉到 EventJournal。
 
 RBF `TailMeta` 的读取是 L2 preview：`ReadTailMeta` / `ReadPooledTailMeta` 只校验 trailer codeword，不校验完整 `PayloadCrc32C`。因此 TailMeta header 可以用于便宜路由和预览，但在接受外部地址、返回 payload、推进 ref 或执行强一致校验时，reader MUST 使用完整 `ReadFrame` / `ReadPooledFrame` 校验目标 `EventFrame`。
@@ -293,7 +295,7 @@ v2 设计必须重新定义 part 顺序、重复地址、part tag、整体长度
 3. 校验 tag、TailMeta header schema、Parent、Hint 和 payload 长度。
 4. 返回结构 header，并允许调用方按需读取 payload。
 
-推荐把“预览 header”和“完整读取 payload bytes”分开。Parent 遍历、hint 过滤和路由 MAY 使用 `ReadTailMeta` / `ReadPooledTailMeta` 的 L2 preview；任何需要接受外部地址、返回 payload 或推进 ref 的路径 MUST 完整读取并校验目标 `EventFrame`。
+推荐把“预览 header”和“完整读取 payload bytes”分开。Parent 遍历、hint 过滤和路由 MAY 使用 `ReadTailMeta` / `ReadPooledTailMeta` 的 L2 preview；任何需要接受外部地址、返回 payload 或推进 ref 的路径 MUST 完整读取并校验目标 `EventFrame`。更详细的 parent-chain API 设计见 [EventFrame Parent Chain 设计基线](event-frame-parent-chain-design.md)。
 
 ### 8.2 逆序 Parent 遍历
 
@@ -508,9 +510,9 @@ API 设计时应继续遵循：
 - 读取 helper 按 `FrameAddress.SegmentNumber` 借 reader lease，并用 `FrameAddress.Ticket` 调用 RBF read API。
 - segment 轮转后旧 `FrameAddress` 仍可读取。
 
-### EJ-2：EventFrame Append 与 Random Read
+### EJ-2：EventFrame Header Codec、Append 与 Random Read
 
-范围：`EventFrame` tag、TailMeta header schema v1、inline payload、提交顺序。
+范围：`EventFrame` tag、TailMeta fixed binary header schema v1、inline payload、提交顺序。详细施工目标见 [EventFrame Parent Chain 设计基线](event-frame-parent-chain-design.md)。
 
 验收：
 
@@ -519,9 +521,9 @@ API 设计时应继续遵循：
 - 写入 `EventFrame` 前崩溃不会产生可见 Event。
 - active-tail recovery 后只暴露完整 `EventFrame`。
 
-### EJ-3：Parent Traversal
+### EJ-3：Parent Chain Traversal
 
-范围：root、单链、分叉、reverse 与 chronological iteration。
+范围：不涉及 branch/refs 的 root、单链、分叉、reverse 与 chronological iteration。详细施工目标见 [EventFrame Parent Chain 设计基线](event-frame-parent-chain-design.md)。
 
 验收：
 
