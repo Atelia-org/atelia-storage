@@ -49,21 +49,21 @@ uint segmentSlot = segmentNumber & SegmentBucketMask;
 <store>/
   segments/
     000000/
-      00000001.ej.rbf
+      00000001.rbf
       ...
-      000003ff.ej.rbf
+      000003ff.rbf
     000001/
-      00000400.ej.rbf
+      00000400.rbf
       ...
-      000007ff.ej.rbf
+      000007ff.rbf
 ```
 
 规则：
 
 1. `SegmentBucketBits = 10`，每个 bucket 覆盖 1024 个 segment 编号槽位。
 2. bucket 目录名为 `bucketNumber` 的 6 位小写 hex 编码。
-3. segment 文件名为完整 `SegmentNumber` 的 8 位小写 hex 编码，后缀为 `.ej.rbf`。
-4. `SegmentNumber = 0` 保留给 null/未设置编码，因此 `segments/000000/00000000.ej.rbf` 永远不存在；第一个 bucket 只有 1023 个有效 segment。
+3. segment 文件名为完整 `SegmentNumber` 的 8 位小写 hex 编码，后缀为 `.rbf`。
+4. `SegmentNumber = 0` 保留给 null/未设置编码，因此 `segments/000000/00000000.rbf` 永远不存在；第一个 bucket 只有 1023 个有效 segment。
 5. `segmentSlot` 仅用于校验、诊断或未来局部索引；文件名仍使用完整 `segmentNumber`，避免文件脱离目录后失去自描述性。
 6. 路径始终是可重建的派生信息，不写入 `FrameAddress` 或 `EventAddress`。
 
