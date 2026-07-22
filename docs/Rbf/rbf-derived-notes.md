@@ -93,7 +93,9 @@ bool reservedIsZero = (descriptor & 0x1FFF0000) == 0;
 ### derived [D-RBF-FORMAT-REVERSE-SCAN-PSEUDOCODE] ReverseScan逻辑流程
 see: @[R-REVERSE-SCAN-RETURNS-VALID-FRAMES-TAIL-TO-HEAD](rbf-format.md), @[R-RESYNC-SCAN-BACKWARD-4B-TO-HEADER-FENCE](rbf-format.md)
 
-**核心策略**：从文件末尾向前搜索 Fence 标记，并验证 Trailer 结构。
+**注意**：这里的伪代码描述的是离线 Recovery/Resync 工具路径，不是 `IRbfFile.ScanReverse()` 的生产热路径。`ScanReverse()` 从可信 `TailOffset` 逐帧读取 `TrailerCodeword + Fence`，遇到损坏候选 MUST 硬停止；Recovery Scan 才会在候选失败后继续向前搜索。设计备忘见 [rbf-recovery.md](rbf-recovery.md)。
+
+**核心策略**：从不可信尾部向前搜索 Fence 标记，并验证 Trailer 结构。
 
 1. **初始化**：
    - 从 `FileLength - 4` 开始向前搜索（4 为 Fence 长度）。
@@ -110,8 +112,8 @@ see: @[R-REVERSE-SCAN-RETURNS-VALID-FRAMES-TAIL-TO-HEAD](rbf-format.md), @[R-RES
      - 解析出 `TailLen`, `FrameTag`, `FrameDescriptor`, `TrailerCrc32C`。
 
    - **Step 3: 候选帧定位**
-     - 计算 `FrameStart = FenceEnd - TailLen`。
-     - 验证 `FrameStart` 合法性（>= 4 且 4B 对齐）。
+     - 计算 `FrameStart = FenceEnd - FenceSize - TailLen`（等价于 `FenceOffset - TailLen`）。
+     - 验证 `FrameStart` 合法性（>= `HeaderOnlyLength` 且 4B 对齐）。
 
    - **Step 4: 完整性校验 (Framing Check)**
      - **HeadLen**：读取 `FrameStart` 处的 HeadLen，必须等于 `TailLen` 且 >= 24。
