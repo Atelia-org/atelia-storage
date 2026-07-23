@@ -49,6 +49,22 @@ public interface IRbfFile : IDisposable {
     /// <param name="showTombstone">是否包含墓碑帧。默认 false（不包含）。</param>
     RbfForwardSequence ScanForward(bool showTombstone = false);
 
+    /// <summary>计算指定帧结束后的下一个物理帧 Offset。</summary>
+    /// <param name="ticket">已验证或可信来源提供的帧位置凭据。</param>
+    /// <remarks>
+    /// 返回值等于该帧的半开区间结束位置加上尾部 Fence 长度。
+    /// 调用方不应复制 RBF wire-format 常量来自行计算这个位置。
+    /// </remarks>
+    long GetPhysicalOffsetImmediatelyAfter(SizedPtr ticket);
+
+    /// <summary>读取指定帧之后的直接物理后继帧元信息。</summary>
+    /// <param name="ticket">已验证或可信来源提供的前一帧位置凭据。</param>
+    /// <returns>
+    /// 成功时返回后继帧元信息；若前一帧已经位于文件尾部，返回 <see cref="OptionalRbfFrameInfo.None"/>。
+    /// 若后继位置越界、未对齐或后继帧结构损坏，返回 RBF 错误。
+    /// </returns>
+    AteliaResult<OptionalRbfFrameInfo> ReadFrameInfoImmediatelyAfter(SizedPtr ticket);
+
     /// <summary>从 SizedPtr 获取帧元信息（只读 TrailerCodeword，L2 信任）。</summary>
     /// <param name="ticket">帧位置凭据。</param>
     /// <returns>成功时返回 RbfFrameInfo，失败返回错误。</returns>

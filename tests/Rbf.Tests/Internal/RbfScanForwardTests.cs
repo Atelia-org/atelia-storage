@@ -79,6 +79,27 @@ public sealed class RbfScanForwardTests : IDisposable {
     }
 
     [Fact]
+    public void ReadFrameInfoImmediatelyAfter_ReturnsDirectPhysicalSuccessorAndEof() {
+        var path = GetTempFilePath();
+        SizedPtr first;
+        SizedPtr second;
+
+        using (var rbf = RbfFile.CreateNew(path)) {
+            first = rbf.Append(0x11111111, [0x01]).Unwrap();
+            second = rbf.Append(0x22222222, [0x02]).Unwrap();
+        }
+
+        using var rbfRead = RbfFile.OpenExisting(path);
+        OptionalRbfFrameInfo afterFirst = rbfRead.ReadFrameInfoImmediatelyAfter(first).Unwrap();
+        OptionalRbfFrameInfo afterSecond = rbfRead.ReadFrameInfoImmediatelyAfter(second).Unwrap();
+
+        Assert.True(afterFirst.HasValue);
+        Assert.Equal(second, afterFirst.Value.Ticket);
+        Assert.Equal(0x22222222u, afterFirst.Value.Tag);
+        Assert.False(afterSecond.HasValue);
+    }
+
+    [Fact]
     public void ScanForward_ShowTombstoneFalse_SkipsTombstones() {
         var path = CreateTestFileWithMixedFrames(
             (0x11111111, [0x01], false),

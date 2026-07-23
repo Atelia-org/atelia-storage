@@ -275,12 +275,10 @@ public sealed partial class EventJournal : IDisposable {
         bool detectCycles = true,
         CancellationToken cancellationToken = default
     ) {
-        var reverseResult = ReadAncestorChain(head, checkedRead, maxDepth, detectCycles, cancellationToken);
-        if (reverseResult.IsFailure) { return reverseResult.Error!; }
+        var planResult = BuildEphemeralForwardPlan(head, maxDepth, detectCycles, cancellationToken);
+        if (planResult.IsFailure) { return planResult.Error!; }
 
-        var chronological = new List<EventAddress>(reverseResult.Unwrap());
-        chronological.Reverse();
-        return chronological;
+        return ReplayForwardPlanAddresses(planResult.Unwrap(), checkedRead, cancellationToken);
     }
 
     public AteliaResult<bool> IsAncestor(EventAddress ancestor, EventAddress descendant, bool checkedRead = false, int? maxDepth = null, CancellationToken cancellationToken = default) {

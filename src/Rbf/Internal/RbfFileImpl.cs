@@ -288,6 +288,29 @@ internal sealed class RbfFileImpl : IRbfFile {
     }
 
     /// <inheritdoc />
+    public long GetPhysicalOffsetImmediatelyAfter(SizedPtr ticket) {
+        return ticket.Offset + ticket.Length + RbfLayout.FenceSize;
+    }
+
+    /// <inheritdoc />
+    public AteliaResult<OptionalRbfFrameInfo> ReadFrameInfoImmediatelyAfter(SizedPtr ticket) {
+        EnsureIdleForRead();
+
+        long nextFrameOffset = GetPhysicalOffsetImmediatelyAfter(ticket);
+        if (nextFrameOffset == _tailOffset) { return OptionalRbfFrameInfo.None; }
+        if (nextFrameOffset > _tailOffset) {
+            return new RbfFramingError(
+                $"Frame successor offset is beyond data tail: successor={nextFrameOffset}, tail={_tailOffset}.",
+                RecoveryHint: "The ticket may be stale or corrupted."
+            );
+        }
+
+        var result = RbfReadImpl.ReadFrameInfoAt(_reader, nextFrameOffset, _tailOffset);
+        if (result.IsFailure) { return result.Error!; }
+        return new OptionalRbfFrameInfo(result.Unwrap());
+    }
+
+    /// <inheritdoc />
     public AteliaResult<RbfFrameInfo> ReadFrameInfo(SizedPtr ticket) {
         EnsureIdleForRead();
         return RbfReadImpl.ReadFrameInfo(_reader, ticket);

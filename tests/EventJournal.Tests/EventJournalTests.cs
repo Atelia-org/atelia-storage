@@ -121,6 +121,66 @@ public sealed class EventJournalTests : IDisposable {
     }
 
     [Fact]
+    public void BuildEphemeralForwardPlan_LinearSameSegment_HasNoRedirects() {
+        string path = NewJournalPath();
+        using var journal = EventJournal.CreateNew(path);
+
+        EventAddress root = journal.AppendEventFrame(null, new byte[] { 1 }, hint: new AddressHint(0x10)).Unwrap();
+        EventAddress middle = journal.AppendEventFrame(root, new byte[] { 2 }, hint: new AddressHint(0x20)).Unwrap();
+        EventAddress head = journal.AppendEventFrame(middle, new byte[] { 3 }, hint: new AddressHint(0x30)).Unwrap();
+
+        EphemeralForwardPlan plan = journal.BuildEphemeralForwardPlan(head).Unwrap();
+        IReadOnlyList<EventAddress> chronological = journal.ReadChronologicalChain(head).Unwrap();
+
+        Assert.Equal(root, plan.RootEvent);
+        Assert.Equal(head, plan.TargetHead);
+        Assert.Equal<ulong>(3, plan.EventCount);
+        Assert.Empty(plan.Redirects);
+        Assert.Equal(new[] { root, middle, head }, chronological);
+    }
+
+    [Fact]
+    public void BuildEphemeralForwardPlan_OrphanBetweenParentAndChild_AddsRedirectAndReplaySkipsIt() {
+        string path = NewJournalPath();
+        using var journal = EventJournal.CreateNew(path);
+
+        EventAddress root = journal.AppendEventFrame(null, new byte[] { 1 }, hint: new AddressHint(0x10)).Unwrap();
+        EventAddress orphan = journal.AppendEventFrame(root, new byte[] { 99 }, hint: new AddressHint(0x99)).Unwrap();
+        EventAddress head = journal.AppendEventFrame(root, new byte[] { 2 }, hint: new AddressHint(0x20)).Unwrap();
+
+        EphemeralForwardPlan plan = journal.BuildEphemeralForwardPlan(head).Unwrap();
+        IReadOnlyList<EventAddress> chronological = journal.ReadChronologicalChain(head, checkedRead: true).Unwrap();
+
+        RouteRedirect redirect = Assert.Single(plan.Redirects);
+        Assert.Equal(root, redirect.FromEvent);
+        Assert.Equal(head, redirect.ToChild);
+        Assert.Equal<ulong>(2, plan.EventCount);
+        Assert.Equal(new[] { root, head }, chronological);
+        Assert.DoesNotContain(orphan, chronological);
+    }
+
+    [Fact]
+    public void BuildEphemeralForwardPlan_CrossSegmentEdge_AddsRedirectAndReplays() {
+        string path = NewJournalPath();
+        var options = new EventJournalOptions {
+            EventSegmentStoreOptions = new RbfSegmentStoreOptions { SegmentSizeThresholdBytes = 8 }
+        };
+        using var journal = EventJournal.CreateNew(path, options);
+
+        EventAddress root = journal.AppendEventFrame(null, new byte[] { 1 }, hint: new AddressHint(0x10)).Unwrap();
+        EventAddress head = journal.AppendEventFrame(root, new byte[] { 2 }, hint: new AddressHint(0x20)).Unwrap();
+
+        EphemeralForwardPlan plan = journal.BuildEphemeralForwardPlan(head).Unwrap();
+        IReadOnlyList<EventAddress> chronological = journal.ReadChronologicalChain(head).Unwrap();
+
+        Assert.NotEqual(root.SegmentNumber, head.SegmentNumber);
+        RouteRedirect redirect = Assert.Single(plan.Redirects);
+        Assert.Equal(root, redirect.FromEvent);
+        Assert.Equal(head, redirect.ToChild);
+        Assert.Equal(new[] { root, head }, chronological);
+    }
+
+    [Fact]
     public void RefMoveStore_RotatesAndReplaysMovesThroughEventJournal() {
         string path = NewJournalPath();
         var options = new EventJournalOptions {
