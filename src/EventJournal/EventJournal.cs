@@ -14,6 +14,7 @@ public sealed partial class EventJournal : IDisposable {
     private readonly string _refObjectsPath;
     private readonly Dictionary<string, RefId> _branches;
     private readonly Dictionary<RefId, RefState> _refStates = new();
+    private readonly ForwardPlanCache _forwardPlanCache = new(maxEntries: 4096, maxEstimatedBytes: 16 * 1024 * 1024);
     private ulong _nextSequenceNumber;
     private bool _disposed;
 
@@ -278,7 +279,12 @@ public sealed partial class EventJournal : IDisposable {
         var planResult = BuildEphemeralForwardPlan(head, maxDepth, detectCycles, cancellationToken);
         if (planResult.IsFailure) { return planResult.Error!; }
 
-        return ReplayForwardPlanAddresses(planResult.Unwrap(), checkedRead, cancellationToken);
+        var replayResult = ReplayForwardPlanAddresses(planResult.Unwrap(), checkedRead, cancellationToken);
+        if (replayResult.IsFailure) {
+            EvictForwardPlan(head);
+        }
+
+        return replayResult;
     }
 
     public AteliaResult<bool> IsAncestor(EventAddress ancestor, EventAddress descendant, bool checkedRead = false, int? maxDepth = null, CancellationToken cancellationToken = default) {

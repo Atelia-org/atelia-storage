@@ -181,6 +181,64 @@ public sealed class EventJournalTests : IDisposable {
     }
 
     [Fact]
+    public void BuildEphemeralForwardPlan_ReusesExactHeadPlanCache() {
+        string path = NewJournalPath();
+        using var journal = EventJournal.CreateNew(path);
+
+        EventAddress root = journal.AppendEventFrame(null, new byte[] { 1 }, hint: new AddressHint(0x10)).Unwrap();
+        EventAddress head = journal.AppendEventFrame(root, new byte[] { 2 }, hint: new AddressHint(0x20)).Unwrap();
+
+        EphemeralForwardPlan first = journal.BuildEphemeralForwardPlan(head).Unwrap();
+        EphemeralForwardPlan second = journal.BuildEphemeralForwardPlan(head).Unwrap();
+
+        Assert.Same(first, second);
+        Assert.Equal(1, journal.ForwardPlanCacheEntryCount);
+        Assert.Equal<ulong>(1, journal.ForwardPlanCacheStats.Misses);
+        Assert.Equal<ulong>(1, journal.ForwardPlanCacheStats.ExactHits);
+    }
+
+    [Fact]
+    public void BuildEphemeralForwardPlan_ReusesCachedAncestorPrefixForAdvance() {
+        string path = NewJournalPath();
+        using var journal = EventJournal.CreateNew(path);
+
+        EventAddress root = journal.AppendEventFrame(null, new byte[] { 1 }, hint: new AddressHint(0x10)).Unwrap();
+        EventAddress middle = journal.AppendEventFrame(root, new byte[] { 2 }, hint: new AddressHint(0x20)).Unwrap();
+        EventAddress orphan = journal.AppendEventFrame(middle, new byte[] { 99 }, hint: new AddressHint(0x99)).Unwrap();
+        EventAddress head = journal.AppendEventFrame(middle, new byte[] { 3 }, hint: new AddressHint(0x30)).Unwrap();
+
+        EphemeralForwardPlan prefix = journal.BuildEphemeralForwardPlan(middle).Unwrap();
+        EphemeralForwardPlan plan = journal.BuildEphemeralForwardPlan(head).Unwrap();
+        IReadOnlyList<EventAddress> chronological = journal.ReadChronologicalChain(head).Unwrap();
+
+        Assert.Equal(root, prefix.RootEvent);
+        Assert.Equal(root, plan.RootEvent);
+        Assert.Equal<ulong>(3, plan.EventCount);
+        RouteRedirect redirect = Assert.Single(plan.Redirects);
+        Assert.Equal(middle, redirect.FromEvent);
+        Assert.Equal(head, redirect.ToChild);
+        Assert.Equal(new[] { root, middle, head }, chronological);
+        Assert.DoesNotContain(orphan, chronological);
+        Assert.Equal<ulong>(1, journal.ForwardPlanCacheStats.PrefixHits);
+        Assert.Equal(2, journal.ForwardPlanCacheEntryCount);
+    }
+
+    [Fact]
+    public void BuildEphemeralForwardPlan_CacheHitStillHonorsMaxDepth() {
+        string path = NewJournalPath();
+        using var journal = EventJournal.CreateNew(path);
+
+        EventAddress root = journal.AppendEventFrame(null, new byte[] { 1 }, hint: new AddressHint(0x10)).Unwrap();
+        EventAddress head = journal.AppendEventFrame(root, new byte[] { 2 }, hint: new AddressHint(0x20)).Unwrap();
+        journal.BuildEphemeralForwardPlan(head).Unwrap();
+
+        var result = journal.BuildEphemeralForwardPlan(head, maxDepth: 1);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("EventJournal.TraversalDepthExceeded", result.Error!.ErrorCode);
+    }
+
+    [Fact]
     public void RefMoveStore_RotatesAndReplaysMovesThroughEventJournal() {
         string path = NewJournalPath();
         var options = new EventJournalOptions {

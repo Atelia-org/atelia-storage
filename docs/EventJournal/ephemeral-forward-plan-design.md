@@ -275,13 +275,16 @@ RefPlanBinding:
 
 `RefPlanBinding` 只是避免每次先解析 ref 再查 exact-head cache 的可选快捷绑定。它不是 plan ownership，也不是事实源。
 
+第二阶段首轮实现先落地 `ExactHeadPlanCache` 与 cached-prefix reuse。当前 EventJournal 尚无“按 ref 正向遍历”的公共入口，因此暂不维护独立 `RefPlanBinding`；等 ref traversal API 出现时，再把 `{RefId, MoveSequenceNumber, Head}` 作为 ref-local binding key 接入。
+
 ### 7.2 Cache hit
 
 命中必须同时满足：
 
 - key 与 plan 的 `TargetHead` 完全相等，包括 AddressHint。
-- plan `PhysicalLayoutEpoch` 等于当前 EventJournal instance 的 epoch。
 - plan 来自本 instance 的 internal builder，不接受调用方构造或反序列化对象。
+
+当前实现还没有 `PhysicalLayoutEpoch` 字段，因为底层 events store 在进程内没有 compaction/repack/segment rewrite 能力。cache 生命周期限定在单个 `EventJournal` instance 内；未来只要引入任何会改变既有物理地址或相邻关系的操作，就必须先补 epoch 并在变化时清空 cache。
 
 普通 append 不使旧 exact-head plan 失效：新 frame 只会出现在 captured head 之后，而 replay 在 exact head 停止。
 
