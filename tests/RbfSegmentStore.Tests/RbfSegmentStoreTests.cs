@@ -19,14 +19,16 @@ public sealed class RbfSegmentStoreTests : IDisposable {
     }
 
     [Fact]
-    public void SegmentPath_UsesBitSplitHexLayout() {
-        Assert.Equal(Path.Combine("root", "segments", "000000", "00000001.rbf"), RbfSegmentPath.GetSegmentPath("root", 1));
-        Assert.Equal(Path.Combine("root", "segments", "000000", "000003ff.rbf"), RbfSegmentPath.GetSegmentPath("root", 0x3ff));
-        Assert.Equal(Path.Combine("root", "segments", "000001", "00000400.rbf"), RbfSegmentPath.GetSegmentPath("root", 0x400));
+    public void SegmentPath_UsesLayoutSpecificDirectories() {
+        Assert.Equal(Path.Combine("root", "buckets", "000000", "00000001.rbf"), RbfSegmentPath.GetSegmentPath("root", RbfSegmentStoreLayout.Bucketed, 1));
+        Assert.Equal(Path.Combine("root", "buckets", "000000", "000003ff.rbf"), RbfSegmentPath.GetSegmentPath("root", RbfSegmentStoreLayout.Bucketed, 0x3ff));
+        Assert.Equal(Path.Combine("root", "buckets", "000001", "00000400.rbf"), RbfSegmentPath.GetSegmentPath("root", RbfSegmentStoreLayout.Bucketed, 0x400));
+        Assert.Equal(Path.Combine("root", "segments", "00000001.rbf"), RbfSegmentPath.GetSegmentPath("root", RbfSegmentStoreLayout.Flat, 1));
     }
 
     [Fact]
     public void Options_RejectInvalidValues() {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new RbfSegmentStoreOptions { NewStoreLayout = (RbfSegmentStoreLayout)999 }.Validated());
         Assert.Throws<ArgumentOutOfRangeException>(() => new RbfSegmentStoreOptions { SegmentSizeThresholdBytes = 0 }.Validated());
         Assert.Throws<ArgumentOutOfRangeException>(() => new RbfSegmentStoreOptions { SegmentSizeThresholdBytes = 7 }.Validated());
         Assert.Throws<ArgumentOutOfRangeException>(() => new RbfSegmentStoreOptions { HistoricalReaderPoolCapacity = -1 }.Validated());
@@ -40,7 +42,19 @@ public sealed class RbfSegmentStoreTests : IDisposable {
         using var store = RbfSegmentStore.CreateNew(storePath);
 
         Assert.Equal<uint>(1, store.ActiveSegmentNumber);
-        Assert.True(File.Exists(RbfSegmentPath.GetSegmentPath(storePath, 1)));
+        Assert.Equal(RbfSegmentStoreLayout.Bucketed, store.Layout);
+        Assert.True(File.Exists(SegmentPath(storePath, RbfSegmentStoreLayout.Bucketed, 1)));
+    }
+
+    [Fact]
+    public void CreateNew_CreatesFlatSegmentOneWhenRequested() {
+        string storePath = NewStorePath();
+
+        using var store = RbfSegmentStore.CreateNew(storePath, new RbfSegmentStoreOptions { NewStoreLayout = RbfSegmentStoreLayout.Flat });
+
+        Assert.Equal<uint>(1, store.ActiveSegmentNumber);
+        Assert.Equal(RbfSegmentStoreLayout.Flat, store.Layout);
+        Assert.True(File.Exists(SegmentPath(storePath, RbfSegmentStoreLayout.Flat, 1)));
     }
 
     [Fact]
@@ -57,7 +71,7 @@ public sealed class RbfSegmentStoreTests : IDisposable {
         Assert.Throws<DirectoryNotFoundException>(() => RbfSegmentStore.OpenExisting(missingPath));
 
         string emptyPath = NewStorePath();
-        Directory.CreateDirectory(RbfSegmentPath.SegmentsDirectory(emptyPath));
+        Directory.CreateDirectory(RbfSegmentPath.BucketedDirectory(emptyPath));
         Assert.Throws<InvalidDataException>(() => RbfSegmentStore.OpenExisting(emptyPath));
     }
 
@@ -69,20 +83,21 @@ public sealed class RbfSegmentStoreTests : IDisposable {
         }
 
         string emptyPath = NewStorePath();
-        Directory.CreateDirectory(RbfSegmentPath.SegmentsDirectory(emptyPath));
+        Directory.CreateDirectory(RbfSegmentPath.FlatDirectory(emptyPath));
         using var reopened = RbfSegmentStore.OpenOrCreate(emptyPath);
         Assert.Equal<uint>(1, reopened.ActiveSegmentNumber);
+        Assert.Equal(RbfSegmentStoreLayout.Flat, reopened.Layout);
     }
 
     [Fact]
-    public void OpenExisting_RejectsInvalidDirectoryInventory() {
+    public void OpenExisting_RejectsInvalidBucketedDirectoryInventory() {
         string wrongBucket = NewStorePath();
         CreateSegmentAt(wrongBucket, "000001", "00000001.rbf");
         Assert.Throws<InvalidDataException>(() => RbfSegmentStore.OpenExisting(wrongBucket));
 
         string badName = NewStorePath();
-        Directory.CreateDirectory(Path.Combine(RbfSegmentPath.SegmentsDirectory(badName), "000000"));
-        File.WriteAllBytes(Path.Combine(RbfSegmentPath.SegmentsDirectory(badName), "000000", "bad.rbf"), Array.Empty<byte>());
+        Directory.CreateDirectory(Path.Combine(RbfSegmentPath.BucketedDirectory(badName), "000000"));
+        File.WriteAllBytes(Path.Combine(RbfSegmentPath.BucketedDirectory(badName), "000000", "bad.rbf"), Array.Empty<byte>());
         Assert.Throws<InvalidDataException>(() => RbfSegmentStore.OpenExisting(badName));
 
         string zero = NewStorePath();
@@ -93,6 +108,38 @@ public sealed class RbfSegmentStoreTests : IDisposable {
         CreateSegmentFile(gap, 1);
         CreateSegmentFile(gap, 3);
         Assert.Throws<InvalidDataException>(() => RbfSegmentStore.OpenExisting(gap));
+    }
+
+    [Fact]
+    public void OpenExisting_RejectsInvalidFlatDirectoryInventory() {
+        var options = new RbfSegmentStoreOptions { NewStoreLayout = RbfSegmentStoreLayout.Flat };
+
+        string nested = NewStorePath();
+        Directory.CreateDirectory(Path.Combine(RbfSegmentPath.FlatDirectory(nested), "000000"));
+        Assert.Throws<InvalidDataException>(() => RbfSegmentStore.OpenExisting(nested, options));
+
+        string badName = NewStorePath();
+        Directory.CreateDirectory(RbfSegmentPath.FlatDirectory(badName));
+        File.WriteAllBytes(Path.Combine(RbfSegmentPath.FlatDirectory(badName), "bad.rbf"), Array.Empty<byte>());
+        Assert.Throws<InvalidDataException>(() => RbfSegmentStore.OpenExisting(badName, options));
+
+        string zero = NewStorePath();
+        CreateSegmentFile(zero, RbfSegmentStoreLayout.Flat, 0);
+        Assert.Throws<InvalidDataException>(() => RbfSegmentStore.OpenExisting(zero, options));
+
+        string gap = NewStorePath();
+        CreateSegmentFile(gap, RbfSegmentStoreLayout.Flat, 1);
+        CreateSegmentFile(gap, RbfSegmentStoreLayout.Flat, 3);
+        Assert.Throws<InvalidDataException>(() => RbfSegmentStore.OpenExisting(gap, options));
+    }
+
+    [Fact]
+    public void OpenExisting_RejectsAmbiguousLayoutDirectories() {
+        string storePath = NewStorePath();
+        Directory.CreateDirectory(RbfSegmentPath.BucketedDirectory(storePath));
+        Directory.CreateDirectory(RbfSegmentPath.FlatDirectory(storePath));
+
+        Assert.Throws<InvalidDataException>(() => RbfSegmentStore.OpenExisting(storePath));
     }
 
     [Fact]
@@ -110,7 +157,30 @@ public sealed class RbfSegmentStoreTests : IDisposable {
         }
 
         Assert.Equal<uint>(2, store.ActiveSegmentNumber);
-        Assert.True(File.Exists(RbfSegmentPath.GetSegmentPath(storePath, 2)));
+        Assert.True(File.Exists(SegmentPath(storePath, RbfSegmentStoreLayout.Bucketed, 2)));
+    }
+
+    [Fact]
+    public void OpenActiveWriter_RotatesFlatLayoutWhenThresholdReached() {
+        string storePath = NewStorePath();
+        var options = new RbfSegmentStoreOptions {
+            NewStoreLayout = RbfSegmentStoreLayout.Flat,
+            SegmentSizeThresholdBytes = 8
+        };
+        using var store = RbfSegmentStore.CreateNew(storePath, options);
+
+        using (var lease = store.OpenActiveWriter()) {
+            Assert.Equal<uint>(1, lease.SegmentNumber);
+            _ = lease.File.Append(1, new byte[] { 1, 2, 3, 4 }).Unwrap();
+        }
+
+        using (var lease = store.OpenActiveWriter()) {
+            Assert.Equal<uint>(2, lease.SegmentNumber);
+        }
+
+        Assert.Equal<uint>(2, store.ActiveSegmentNumber);
+        Assert.Equal(RbfSegmentStoreLayout.Flat, store.Layout);
+        Assert.True(File.Exists(SegmentPath(storePath, RbfSegmentStoreLayout.Flat, 2)));
     }
 
     [Fact]
@@ -170,7 +240,7 @@ public sealed class RbfSegmentStoreTests : IDisposable {
             ticket = writer.File.Append(9, new byte[] { 9, 9, 9, 9 }).Unwrap();
         }
 
-        string segmentPath = RbfSegmentPath.GetSegmentPath(storePath, 1);
+        string segmentPath = SegmentPath(storePath, RbfSegmentStoreLayout.Bucketed, 1);
         long cleanLength = new FileInfo(segmentPath).Length;
         File.AppendAllBytes(segmentPath, new byte[] { 0, 0, 0, 0 });
 
@@ -199,14 +269,30 @@ public sealed class RbfSegmentStoreTests : IDisposable {
     }
 
     private static void CreateSegmentFile(string storePath, uint segmentNumber) {
-        string path = RbfSegmentPath.GetSegmentPath(storePath, segmentNumber);
+        CreateSegmentFile(storePath, RbfSegmentStoreLayout.Bucketed, segmentNumber);
+    }
+
+    private static void CreateSegmentFile(string storePath, RbfSegmentStoreLayout layout, uint segmentNumber) {
+        string path = SegmentPath(storePath, layout, segmentNumber);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         using var file = RbfFile.CreateNew(path);
     }
 
     private static void CreateSegmentAt(string storePath, string bucketName, string fileName) {
-        string bucketPath = Path.Combine(RbfSegmentPath.SegmentsDirectory(storePath), bucketName);
+        string bucketPath = Path.Combine(RbfSegmentPath.BucketedDirectory(storePath), bucketName);
         Directory.CreateDirectory(bucketPath);
         using var file = RbfFile.CreateNew(Path.Combine(bucketPath, fileName));
+    }
+
+    private static string SegmentPath(string storePath, RbfSegmentStoreLayout layout, uint segmentNumber) {
+        if (segmentNumber == 0) {
+            return layout switch {
+                RbfSegmentStoreLayout.Bucketed => Path.Combine(RbfSegmentPath.BucketedDirectory(storePath), "000000", "00000000.rbf"),
+                RbfSegmentStoreLayout.Flat => Path.Combine(RbfSegmentPath.FlatDirectory(storePath), "00000000.rbf"),
+                _ => throw new ArgumentOutOfRangeException(nameof(layout), layout, "Unknown RBF segment store layout.")
+            };
+        }
+
+        return RbfSegmentPath.GetSegmentPath(storePath, layout, segmentNumber);
     }
 }

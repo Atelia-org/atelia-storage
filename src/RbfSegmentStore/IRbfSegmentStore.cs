@@ -7,6 +7,7 @@ public interface IRbfSegmentStore : IDisposable {
     RbfSegmentReaderLease OpenReader(uint segmentNumber);
 
     uint ActiveSegmentNumber { get; }
+    RbfSegmentStoreLayout Layout { get; }
     RbfSegmentStoreOptions Options { get; }
 }
 

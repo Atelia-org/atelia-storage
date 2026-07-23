@@ -337,7 +337,7 @@ EventJournal 的 MVP 目录结构固定为：
 ```text
 event-journal/
     events/
-        segments/
+        buckets/
             000000/
                 00000001.rbf
 
@@ -345,12 +345,12 @@ event-journal/
         ref-op-log.rbf
         objects/
             0123456789abcdef/
-                00000001.rbf
-                00000002.rbf
-                00000003.rbf.archived
+                segments/
+                    00000001.rbf
+                    00000002.rbf
 ```
 
-其中 `events/` 是 `RbfSegmentStore` root，因此保留其内部 `segments/` 边界；`refs/objects/<ref-id>/` 是 ref object root，因此内部 segment 文件名不再重复 `RefId`。
+其中 `events/` 是 bucketed `RbfSegmentStore` root，使用 `buckets/`；`refs/objects/<ref-id>/` 是 flat `RbfSegmentStore` root，使用 `segments/`，segment 文件名不再重复 `RefId`。
 
 ### 9.1 概念区分
 
@@ -430,7 +430,7 @@ EventJournal 依赖 RBF 提供"从文件尾部向前找到首个完整有效 fra
 
 打开 store 时：
 
-1. 由 `RbfSegmentStore` 扫描 `segments/` 并验证 segment 命名、bucket 一致性和编号连续性。
+1. 由 `RbfSegmentStore` 扫描 layout root 并验证 segment 命名、bucket 一致性和编号连续性。
 2. 对 active data segment 通过 `RbfRecovery.OpenReadOnly(path).ScanBackward()` 获取首个 `RbfRecoveryHit`（使用默认 `FrameBoundary` 校验等级和 `Fence` 搜索策略）。
 3. 通过 `RbfRecovery.TruncateToSuggestedTail(path, hit)` 将 active segment 截断到最后一个完整 frame 的尾部 Fence 之后。
 4. 对每个 ref RBF move chain 执行相同的有效尾恢复。

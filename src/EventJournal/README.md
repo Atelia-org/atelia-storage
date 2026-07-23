@@ -9,7 +9,7 @@ EventJournal 根目录为后续 refs 预留空间，事件数据位于 `events/`
 ```text
 <journal>/
   events/
-    segments/
+    buckets/
       000000/
         00000001.rbf
 ```
@@ -43,7 +43,7 @@ EventFrameHeader header = frame.Header;
 
 ## Refs
 
-Refs 使用两层结构：`refs/ref-op-log.rbf` 保存 branch name 到稳定 `RefId` 的绑定历史，`refs/objects/<ref-id>/00000001.rbf` 等文件保存单个 ref 的 move chain/reflog。
+Refs 使用两层结构：`refs/ref-op-log.rbf` 保存 branch name 到稳定 `RefId` 的绑定历史，`refs/objects/<ref-id>/segments/00000001.rbf` 等 flat segment 文件保存单个 ref 的 move chain/reflog。
 
 ```csharp
 using var journal = EventJournal.OpenOrCreate(path);

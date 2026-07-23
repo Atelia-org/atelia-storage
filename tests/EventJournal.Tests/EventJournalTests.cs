@@ -70,7 +70,7 @@ public sealed class EventJournalTests : IDisposable {
         Assert.Equal<uint>(12, frame.Header.OpaqueEventKind);
         Assert.Equal(new AddressHint(0x100), frame.Header.Hint);
         Assert.Null(frame.Header.Parent);
-        Assert.True(File.Exists(Path.Combine(path, "events", "segments", "000000", "00000001.rbf")));
+        Assert.True(File.Exists(Path.Combine(path, "events", "buckets", "000000", "00000001.rbf")));
     }
 
     [Fact]
@@ -102,7 +102,7 @@ public sealed class EventJournalTests : IDisposable {
     public void ReadAncestorChain_CrossesSegmentRotation() {
         string path = NewJournalPath();
         var options = new EventJournalOptions {
-            SegmentStoreOptions = new RbfSegmentStoreOptions { SegmentSizeThresholdBytes = 8 }
+            EventSegmentStoreOptions = new RbfSegmentStoreOptions { SegmentSizeThresholdBytes = 8 }
         };
         using var journal = EventJournal.CreateNew(path, options);
 
@@ -121,25 +121,28 @@ public sealed class EventJournalTests : IDisposable {
     }
 
     [Fact]
-    public void RefObjectStore_RotatesAndReplaysMoves() {
+    public void RefMoveStore_RotatesAndReplaysMovesThroughEventJournal() {
         string path = NewJournalPath();
-        var refId = new RefId(0x1234);
-        var options = new RefObjectStoreOptions { SegmentSizeThresholdBytes = 8 };
+        var options = new EventJournalOptions {
+            RefSegmentStoreOptions = new RbfSegmentStoreOptions {
+                SegmentSizeThresholdBytes = 8
+            }
+        };
+        RefId refId;
 
-        using (var store = RefObjectStore.CreateNew(path, refId, options)) {
-            store.AppendMove(new RefMoveFrame(refId, 1, 10, RefMoveOperation.Init, null, null, null, 0)).Unwrap();
-            store.AppendMove(new RefMoveFrame(refId, 2, 20, RefMoveOperation.Move, null, null, null, 7)).Unwrap();
+        using (var journal = EventJournal.CreateNew(path, options)) {
+            refId = journal.CreateBranch("main", startPoint: null).Unwrap();
+            Assert.True(journal.MoveRef(refId, expectedOldHead: null, newHead: null, reasonKind: 7).Unwrap());
         }
 
-        using var reopened = RefObjectStore.OpenExisting(path, refId, options);
-        IReadOnlyList<RefMoveFrame> moves = reopened.ReadAllMoves().Unwrap();
+        using var reopened = EventJournal.OpenExisting(path, options);
+        IReadOnlyList<RefMoveFrame> moves = reopened.ReadReflog(refId).Unwrap();
 
-        Assert.Equal<uint>(2, reopened.ActiveSegmentNumber);
         Assert.Equal(2, moves.Count);
         Assert.Equal(RefMoveOperation.Init, moves[0].Operation);
         Assert.Equal<ulong>(2, moves[1].MoveSequenceNumber);
-        Assert.True(File.Exists(Path.Combine(path, refId.ToHexString(), "00000001.rbf")));
-        Assert.True(File.Exists(Path.Combine(path, refId.ToHexString(), "00000002.rbf")));
+        Assert.True(File.Exists(Path.Combine(path, "refs", "objects", refId.ToHexString(), "segments", "00000001.rbf")));
+        Assert.True(File.Exists(Path.Combine(path, "refs", "objects", refId.ToHexString(), "segments", "00000002.rbf")));
     }
 
     [Fact]

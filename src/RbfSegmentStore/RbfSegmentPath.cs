@@ -7,9 +7,23 @@ internal static class RbfSegmentPath {
     internal const uint SegmentBucketMask = (1u << SegmentBucketBits) - 1;
     internal const string SegmentFileExtension = ".rbf";
     internal const long RbfHeaderOnlyLength = 4;
+    internal const string BucketedDirectoryName = "buckets";
+    internal const string FlatDirectoryName = "segments";
 
-    internal static string SegmentsDirectory(string storePath) {
-        return Path.Combine(storePath, "segments");
+    internal static string LayoutDirectory(string storePath, RbfSegmentStoreLayout layout) {
+        return layout switch {
+            RbfSegmentStoreLayout.Bucketed => Path.Combine(storePath, BucketedDirectoryName),
+            RbfSegmentStoreLayout.Flat => Path.Combine(storePath, FlatDirectoryName),
+            _ => throw new ArgumentOutOfRangeException(nameof(layout), layout, "Unknown RBF segment store layout.")
+        };
+    }
+
+    internal static string BucketedDirectory(string storePath) {
+        return LayoutDirectory(storePath, RbfSegmentStoreLayout.Bucketed);
+    }
+
+    internal static string FlatDirectory(string storePath) {
+        return LayoutDirectory(storePath, RbfSegmentStoreLayout.Flat);
     }
 
     internal static string BucketName(uint segmentNumber) {
@@ -20,13 +34,17 @@ internal static class RbfSegmentPath {
         return segmentNumber.ToString("x8", CultureInfo.InvariantCulture) + SegmentFileExtension;
     }
 
-    internal static string GetSegmentPath(string storePath, uint segmentNumber) {
+    internal static string GetSegmentPath(string storePath, RbfSegmentStoreLayout layout, uint segmentNumber) {
         if (segmentNumber == 0) { throw new ArgumentOutOfRangeException(nameof(segmentNumber), segmentNumber, "Segment number 0 is reserved."); }
-        return Path.Combine(SegmentsDirectory(storePath), BucketName(segmentNumber), FileName(segmentNumber));
+        return layout switch {
+            RbfSegmentStoreLayout.Bucketed => Path.Combine(BucketedDirectory(storePath), BucketName(segmentNumber), FileName(segmentNumber)),
+            RbfSegmentStoreLayout.Flat => Path.Combine(FlatDirectory(storePath), FileName(segmentNumber)),
+            _ => throw new ArgumentOutOfRangeException(nameof(layout), layout, "Unknown RBF segment store layout.")
+        };
     }
 
-    internal static void EnsureBucketDirectory(string storePath, uint segmentNumber) {
-        Directory.CreateDirectory(Path.GetDirectoryName(GetSegmentPath(storePath, segmentNumber))!);
+    internal static void EnsureSegmentDirectory(string storePath, RbfSegmentStoreLayout layout, uint segmentNumber) {
+        Directory.CreateDirectory(Path.GetDirectoryName(GetSegmentPath(storePath, layout, segmentNumber))!);
     }
 
     internal static bool TryParseBucketName(string name, out uint bucketNumber) {

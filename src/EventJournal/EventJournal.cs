@@ -31,7 +31,7 @@ public sealed partial class EventJournal : IDisposable {
     public uint ActiveSegmentNumber => _segments.ActiveSegmentNumber;
 
     public static EventJournal CreateNew(string journalPath, EventJournalOptions? options = null) {
-        options ??= new EventJournalOptions();
+        options = (options ?? new EventJournalOptions()).Normalized();
         string fullPath = Path.GetFullPath(journalPath);
         if (Directory.Exists(fullPath) || File.Exists(fullPath)) { throw new IOException($"EventJournal path already exists: {fullPath}"); }
 
@@ -39,7 +39,7 @@ public sealed partial class EventJournal : IDisposable {
         RbfSegmentStore.RbfSegmentStore? segments = null;
         IRbfFile? refOpLog = null;
         try {
-            segments = RbfSegmentStore.RbfSegmentStore.CreateNew(EventsStorePath(fullPath), options.SegmentStoreOptions);
+            segments = RbfSegmentStore.RbfSegmentStore.CreateNew(EventsStorePath(fullPath), options.EventSegmentStoreOptions);
             refOpLog = CreateRefOpLog(fullPath, options);
             return new EventJournal(fullPath, options, segments, refOpLog, new Dictionary<string, RefId>(StringComparer.Ordinal), nextSequenceNumber: 1);
         }
@@ -52,9 +52,9 @@ public sealed partial class EventJournal : IDisposable {
     }
 
     public static EventJournal OpenExisting(string journalPath, EventJournalOptions? options = null) {
-        options ??= new EventJournalOptions();
+        options = (options ?? new EventJournalOptions()).Normalized();
         string fullPath = Path.GetFullPath(journalPath);
-        var segments = RbfSegmentStore.RbfSegmentStore.OpenExisting(EventsStorePath(fullPath), options.SegmentStoreOptions);
+        var segments = RbfSegmentStore.RbfSegmentStore.OpenExisting(EventsStorePath(fullPath), options.EventSegmentStoreOptions);
         IRbfFile? refOpLog = null;
         try {
             refOpLog = OpenRefOpLog(fullPath, options, createIfMissing: false);
@@ -68,12 +68,12 @@ public sealed partial class EventJournal : IDisposable {
     }
 
     public static EventJournal OpenOrCreate(string journalPath, EventJournalOptions? options = null) {
-        options ??= new EventJournalOptions();
+        options = (options ?? new EventJournalOptions()).Normalized();
         string fullPath = Path.GetFullPath(journalPath);
         if (File.Exists(fullPath)) { throw new IOException($"EventJournal path is a file: {fullPath}"); }
 
         Directory.CreateDirectory(fullPath);
-        var segments = RbfSegmentStore.RbfSegmentStore.OpenOrCreate(EventsStorePath(fullPath), options.SegmentStoreOptions);
+        var segments = RbfSegmentStore.RbfSegmentStore.OpenOrCreate(EventsStorePath(fullPath), options.EventSegmentStoreOptions);
         IRbfFile? refOpLog = null;
         try {
             refOpLog = OpenRefOpLog(fullPath, options, createIfMissing: true);
