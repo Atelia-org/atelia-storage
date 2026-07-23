@@ -14,6 +14,8 @@ internal sealed class EphemeralForwardPlan {
     public required IReadOnlyList<RouteRedirect> Redirects { get; init; }
 }
 
+internal sealed record RefForwardBinding(EventAddress BoundHead, EphemeralForwardPlan Plan);
+
 internal readonly record struct OptionalEphemeralForwardPlan {
     private readonly EphemeralForwardPlan? _value;
 
@@ -37,7 +39,9 @@ internal readonly record struct ForwardPlanCacheStats(
     ulong PrefixHits,
     ulong Evictions,
     ulong DiskHits,
-    ulong DiskWrites
+    ulong DiskWrites,
+    ulong TailMergeHits,
+    ulong TailMergeMisses
 );
 
 public sealed partial class EventJournal {
@@ -47,6 +51,19 @@ public sealed partial class EventJournal {
     internal void EvictForwardPlan(EventAddress targetHead) {
         _forwardPlanCache.Remove(targetHead);
         TryDeleteCompiledForwardPlan(targetHead);
+
+        List<RefId>? refsToUnbind = null;
+        foreach (KeyValuePair<RefId, RefForwardBinding> pair in _forwardPlanBindings) {
+            if (pair.Value.BoundHead != targetHead) { continue; }
+
+            refsToUnbind ??= new List<RefId>();
+            refsToUnbind.Add(pair.Key);
+        }
+
+        if (refsToUnbind is null) { return; }
+        foreach (RefId refId in refsToUnbind) {
+            _forwardPlanBindings.Remove(refId);
+        }
     }
 
     public AteliaResult<IReadOnlyList<EventAddress>> ReadChronologicalChain(
@@ -57,15 +74,186 @@ public sealed partial class EventJournal {
         CancellationToken cancellationToken = default
     ) {
         ThrowIfDisposed();
+        if (maxDepth is <= 0) {
+            return MaxDepthInvalidError(maxDepth.Value);
+        }
 
         var stateResult = LoadRefState(refId);
         if (stateResult.IsFailure) { return stateResult.Error!; }
 
         RefState state = stateResult.Unwrap();
         if (state.Closed) { return RefClosedError(refId); }
-        if (state.Head is not { } head) { return Array.Empty<EventAddress>(); }
+        if (state.Head is not { } head) {
+            _forwardPlanBindings.Remove(refId);
+            return Array.Empty<EventAddress>();
+        }
 
-        return ReadChronologicalChain(head, checkedRead, maxDepth, detectCycles, cancellationToken);
+        var planResult = GetOrBuildForwardPlanForRef(refId, head, maxDepth, detectCycles, cancellationToken);
+        if (planResult.IsFailure) { return planResult.Error!; }
+
+        EphemeralForwardPlan plan = planResult.Unwrap();
+        var replayResult = ReplayForwardPlanAddresses(plan, checkedRead, cancellationToken);
+        if (replayResult.IsFailure) {
+            EvictForwardPlan(plan.TargetHead);
+            _forwardPlanBindings.Remove(refId);
+        }
+
+        return replayResult;
+    }
+
+    private AteliaResult<EphemeralForwardPlan> GetOrBuildForwardPlanForRef(
+        RefId refId,
+        EventAddress head,
+        int? maxDepth,
+        bool detectCycles,
+        CancellationToken cancellationToken
+    ) {
+        if (_forwardPlanBindings.TryGetValue(refId, out RefForwardBinding? binding) && binding.BoundHead == head) {
+            if (ExceedsMaxDepth(binding.Plan.EventCount, maxDepth)) {
+                return TraversalDepthExceededError(maxDepth.GetValueOrDefault(), "ref-bound forward plan");
+            }
+
+            return binding.Plan;
+        }
+
+        var cachedResult = TryGetCachedOrCompiledForwardPlan(head, maxDepth);
+        if (cachedResult.IsFailure) { return cachedResult.Error!; }
+
+        OptionalEphemeralForwardPlan optionalCached = cachedResult.Unwrap();
+        if (optionalCached.HasValue) {
+            EphemeralForwardPlan plan = optionalCached.Value;
+            _forwardPlanBindings[refId] = new RefForwardBinding(head, plan);
+            return plan;
+        }
+
+        if (binding is not null) {
+            var mergeResult = TryTailMergeForwardPlan(binding.Plan, head, maxDepth, cancellationToken);
+            if (mergeResult.IsFailure) { return mergeResult.Error!; }
+
+            OptionalEphemeralForwardPlan optionalMerged = mergeResult.Unwrap();
+            if (optionalMerged.HasValue) {
+                EphemeralForwardPlan mergedPlan = optionalMerged.Value;
+                _forwardPlanCache.RecordTailMergeHit();
+                CacheAndPersistForwardPlan(mergedPlan);
+                _forwardPlanBindings[refId] = new RefForwardBinding(head, mergedPlan);
+                return mergedPlan;
+            }
+
+            _forwardPlanCache.RecordTailMergeMiss();
+        }
+
+        _forwardPlanCache.RecordMiss();
+        var buildResult = BuildEphemeralForwardPlanCore(head, maxDepth, detectCycles, cancellationToken);
+        if (buildResult.IsFailure) { return buildResult.Error!; }
+
+        EphemeralForwardPlan builtPlan = buildResult.Unwrap();
+        CacheAndPersistForwardPlan(builtPlan);
+        _forwardPlanBindings[refId] = new RefForwardBinding(head, builtPlan);
+        return builtPlan;
+    }
+
+    private AteliaResult<OptionalEphemeralForwardPlan> TryTailMergeForwardPlan(
+        EphemeralForwardPlan oldPlan,
+        EventAddress newHead,
+        int? maxDepth,
+        CancellationToken cancellationToken
+    ) {
+        EventAddress oldCursor = oldPlan.TargetHead;
+        EventAddress newCursor = newHead;
+        ulong oldRemovedEventCount = 0;
+        ulong newSuffixEventCount = 0;
+        var newSuffixRedirectsReverse = new List<RouteRedirect>();
+
+        while (true) {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (oldCursor == newCursor) {
+                ulong oldPrefixEventCount = oldPlan.EventCount - oldRemovedEventCount;
+                ulong totalEventCount = checked(oldPrefixEventCount + newSuffixEventCount);
+                if (ExceedsMaxDepth(totalEventCount, maxDepth)) {
+                    return TraversalDepthExceededError(maxDepth.GetValueOrDefault(), "tail-merged forward plan");
+                }
+
+                return new OptionalEphemeralForwardPlan(
+                    BuildTailMergedForwardPlan(oldPlan, newHead, oldCursor, totalEventCount, newSuffixRedirectsReverse)
+                );
+            }
+
+            int comparison = ComparePhysicalCoordinate(oldCursor, newCursor);
+            if (comparison > 0) {
+                var oldHeaderResult = ReadEventHeaderPreview(oldCursor);
+                if (oldHeaderResult.IsFailure) { return OptionalEphemeralForwardPlan.None; }
+
+                EventFrameHeader oldHeader = oldHeaderResult.Unwrap();
+                if (oldHeader.Parent is not { } oldParent) { return OptionalEphemeralForwardPlan.None; }
+                if (ComparePhysicalCoordinate(oldParent, oldCursor) >= 0) { return OptionalEphemeralForwardPlan.None; }
+
+                oldRemovedEventCount++;
+                if (oldRemovedEventCount >= oldPlan.EventCount) { return OptionalEphemeralForwardPlan.None; }
+
+                oldCursor = oldParent;
+                continue;
+            }
+
+            if (comparison < 0) {
+                if (maxDepth is { } depthLimit && newSuffixEventCount >= (ulong)depthLimit) {
+                    return TraversalDepthExceededError(depthLimit, "tail-merge new suffix walk");
+                }
+
+                var newHeaderResult = ReadEventHeaderPreview(newCursor);
+                if (newHeaderResult.IsFailure) { return newHeaderResult.Error!; }
+
+                EventFrameHeader newHeader = newHeaderResult.Unwrap();
+                if (newHeader.Parent is not { } newParent) { return OptionalEphemeralForwardPlan.None; }
+                if (ComparePhysicalCoordinate(newParent, newCursor) >= 0) {
+                    return new EventJournalError(
+                        "ParentPhysicalOrderInvalid",
+                        "EventFrame parent must be physically earlier than its child.",
+                        "Inspect the EventFrame parent chain for corruption."
+                    );
+                }
+
+                if (!IsImplicitEdge(newParent, newCursor)) {
+                    newSuffixRedirectsReverse.Add(new RouteRedirect(newParent, newCursor));
+                }
+
+                newSuffixEventCount++;
+                newCursor = newParent;
+                continue;
+            }
+
+            return OptionalEphemeralForwardPlan.None;
+        }
+    }
+
+    private static EphemeralForwardPlan BuildTailMergedForwardPlan(
+        EphemeralForwardPlan oldPlan,
+        EventAddress newHead,
+        EventAddress common,
+        ulong totalEventCount,
+        List<RouteRedirect> newSuffixRedirectsReverse
+    ) {
+        int oldPrefixRedirectCount = 0;
+        while (oldPrefixRedirectCount < oldPlan.Redirects.Count
+            && ComparePhysicalCoordinate(oldPlan.Redirects[oldPrefixRedirectCount].ToChild, common) <= 0) {
+            oldPrefixRedirectCount++;
+        }
+
+        var redirects = new RouteRedirect[oldPrefixRedirectCount + newSuffixRedirectsReverse.Count];
+        for (int i = 0; i < oldPrefixRedirectCount; i++) {
+            redirects[i] = oldPlan.Redirects[i];
+        }
+
+        for (int i = 0; i < newSuffixRedirectsReverse.Count; i++) {
+            redirects[oldPrefixRedirectCount + i] = newSuffixRedirectsReverse[newSuffixRedirectsReverse.Count - 1 - i];
+        }
+
+        return new EphemeralForwardPlan {
+            RootEvent = oldPlan.RootEvent,
+            TargetHead = newHead,
+            EventCount = totalEventCount,
+            Redirects = redirects
+        };
     }
 
     internal AteliaResult<EphemeralForwardPlan> BuildEphemeralForwardPlan(
@@ -79,13 +267,29 @@ public sealed partial class EventJournal {
             return MaxDepthInvalidError(maxDepth.Value);
         }
 
+        var cachedResult = TryGetCachedOrCompiledForwardPlan(head, maxDepth);
+        if (cachedResult.IsFailure) { return cachedResult.Error!; }
+
+        OptionalEphemeralForwardPlan optionalCached = cachedResult.Unwrap();
+        if (optionalCached.HasValue) { return optionalCached.Value; }
+
+        _forwardPlanCache.RecordMiss();
+        var buildResult = BuildEphemeralForwardPlanCore(head, maxDepth, detectCycles, cancellationToken);
+        if (buildResult.IsFailure) { return buildResult.Error!; }
+
+        EphemeralForwardPlan plan = buildResult.Unwrap();
+        CacheAndPersistForwardPlan(plan);
+        return plan;
+    }
+
+    private AteliaResult<OptionalEphemeralForwardPlan> TryGetCachedOrCompiledForwardPlan(EventAddress head, int? maxDepth) {
         if (_forwardPlanCache.TryGet(head, out EphemeralForwardPlan? cachedPlan)) {
             if (ExceedsMaxDepth(cachedPlan.EventCount, maxDepth)) {
                 return TraversalDepthExceededError(maxDepth.GetValueOrDefault(), "cached forward plan");
             }
 
             _forwardPlanCache.RecordExactHit();
-            return cachedPlan;
+            return new OptionalEphemeralForwardPlan(cachedPlan);
         }
 
         var diskLoadResult = TryLoadCompiledForwardPlan(head);
@@ -99,20 +303,17 @@ public sealed partial class EventJournal {
 
             _forwardPlanCache.AddOrReplace(diskPlan);
             _forwardPlanCache.RecordDiskHit();
-            return diskPlan;
+            return new OptionalEphemeralForwardPlan(diskPlan);
         }
 
-        _forwardPlanCache.RecordMiss();
-        var buildResult = BuildEphemeralForwardPlanCore(head, maxDepth, detectCycles, cancellationToken);
-        if (buildResult.IsFailure) { return buildResult.Error!; }
+        return OptionalEphemeralForwardPlan.None;
+    }
 
-        EphemeralForwardPlan plan = buildResult.Unwrap();
+    private void CacheAndPersistForwardPlan(EphemeralForwardPlan plan) {
         _forwardPlanCache.AddOrReplace(plan);
         if (TrySaveCompiledForwardPlan(plan)) {
             _forwardPlanCache.RecordDiskWrite();
         }
-
-        return plan;
     }
 
     private AteliaResult<EphemeralForwardPlan> BuildEphemeralForwardPlanCore(
@@ -352,6 +553,8 @@ public sealed partial class EventJournal {
         private ulong _evictions;
         private ulong _diskHits;
         private ulong _diskWrites;
+        private ulong _tailMergeHits;
+        private ulong _tailMergeMisses;
 
         internal ForwardPlanCache(int maxEntries, long maxEstimatedBytes) {
             _maxEntries = maxEntries;
@@ -359,7 +562,7 @@ public sealed partial class EventJournal {
         }
 
         internal int Count => _entries.Count;
-        internal ForwardPlanCacheStats Stats => new(_exactHits, _misses, _prefixHits, _evictions, _diskHits, _diskWrites);
+        internal ForwardPlanCacheStats Stats => new(_exactHits, _misses, _prefixHits, _evictions, _diskHits, _diskWrites, _tailMergeHits, _tailMergeMisses);
 
         internal bool TryGet(EventAddress targetHead, [NotNullWhen(true)] out EphemeralForwardPlan? plan) {
             if (_entries.TryGetValue(targetHead, out LinkedListNode<Entry>? node)) {
@@ -391,6 +594,14 @@ public sealed partial class EventJournal {
 
         internal void RecordDiskWrite() {
             _diskWrites++;
+        }
+
+        internal void RecordTailMergeHit() {
+            _tailMergeHits++;
+        }
+
+        internal void RecordTailMergeMiss() {
+            _tailMergeMisses++;
         }
 
         internal void AddOrReplace(EphemeralForwardPlan plan) {

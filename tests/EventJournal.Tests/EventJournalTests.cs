@@ -311,6 +311,93 @@ public sealed class EventJournalTests : IDisposable {
     }
 
     [Fact]
+    public void ForwardPlanTailMerge_ReadByRefAppendsSuffixFromBoundPlan() {
+        string path = NewJournalPath();
+        using var journal = EventJournal.CreateNew(path);
+
+        EventAddress root = journal.AppendEventFrame(null, new byte[] { 1 }, hint: new AddressHint(0x10)).Unwrap();
+        EventAddress oldHead = journal.AppendEventFrame(root, new byte[] { 2 }, hint: new AddressHint(0x20)).Unwrap();
+        RefId main = journal.CreateBranch("main", oldHead).Unwrap();
+
+        Assert.Equal(new[] { root, oldHead }, journal.ReadChronologicalChain(main).Unwrap());
+
+        EventAddress newHead = journal.AppendEventFrame(oldHead, new byte[] { 3 }, hint: new AddressHint(0x30)).Unwrap();
+        Assert.True(journal.AdvanceRef(main, oldHead, newHead).Unwrap());
+
+        IReadOnlyList<EventAddress> chronological = journal.ReadChronologicalChain(main).Unwrap();
+
+        Assert.Equal(new[] { root, oldHead, newHead }, chronological);
+        Assert.Equal<ulong>(1, journal.ForwardPlanCacheStats.TailMergeHits);
+        Assert.Equal<ulong>(1, journal.ForwardPlanCacheStats.Misses);
+    }
+
+    [Fact]
+    public void ForwardPlanTailMerge_ReadByRefRewindsToAncestorByTrimmingOldSuffix() {
+        string path = NewJournalPath();
+        using var journal = EventJournal.CreateNew(path);
+
+        EventAddress root = journal.AppendEventFrame(null, new byte[] { 1 }, hint: new AddressHint(0x10)).Unwrap();
+        EventAddress middle = journal.AppendEventFrame(root, new byte[] { 2 }, hint: new AddressHint(0x20)).Unwrap();
+        EventAddress oldHead = journal.AppendEventFrame(middle, new byte[] { 3 }, hint: new AddressHint(0x30)).Unwrap();
+        RefId main = journal.CreateBranch("main", oldHead).Unwrap();
+
+        Assert.Equal(new[] { root, middle, oldHead }, journal.ReadChronologicalChain(main).Unwrap());
+        Assert.True(journal.MoveRef(main, oldHead, middle).Unwrap());
+
+        IReadOnlyList<EventAddress> chronological = journal.ReadChronologicalChain(main).Unwrap();
+
+        Assert.Equal(new[] { root, middle }, chronological);
+        Assert.Equal<ulong>(1, journal.ForwardPlanCacheStats.TailMergeHits);
+    }
+
+    [Fact]
+    public void ForwardPlanTailMerge_ReadByRefRewindsThenForksAtCommonAncestor() {
+        string path = NewJournalPath();
+        using var journal = EventJournal.CreateNew(path);
+
+        EventAddress root = journal.AppendEventFrame(null, new byte[] { 1 }, hint: new AddressHint(0x10)).Unwrap();
+        EventAddress shared = journal.AppendEventFrame(root, new byte[] { 2 }, hint: new AddressHint(0x20)).Unwrap();
+        EventAddress oldHead = journal.AppendEventFrame(shared, new byte[] { 3 }, hint: new AddressHint(0x30)).Unwrap();
+        RefId main = journal.CreateBranch("main", oldHead).Unwrap();
+
+        Assert.Equal(new[] { root, shared, oldHead }, journal.ReadChronologicalChain(main).Unwrap());
+
+        EventAddress newMiddle = journal.AppendEventFrame(shared, new byte[] { 99 }, hint: new AddressHint(0x99)).Unwrap();
+        EventAddress newHead = journal.AppendEventFrame(newMiddle, new byte[] { 4 }, hint: new AddressHint(0x40)).Unwrap();
+        Assert.True(journal.MoveRef(main, oldHead, newHead).Unwrap());
+
+        IReadOnlyList<EventAddress> chronological = journal.ReadChronologicalChain(main, checkedRead: true).Unwrap();
+
+        Assert.Equal(new[] { root, shared, newMiddle, newHead }, chronological);
+        Assert.Equal<ulong>(1, journal.ForwardPlanCacheStats.TailMergeHits);
+    }
+
+    [Fact]
+    public void ForwardPlanTailMerge_DoesNotTreatEarlierOrphanSiblingAsCommonPoint() {
+        string path = NewJournalPath();
+        using var journal = EventJournal.CreateNew(path);
+
+        EventAddress root = journal.AppendEventFrame(null, new byte[] { 1 }, hint: new AddressHint(0x10)).Unwrap();
+        EventAddress shared = journal.AppendEventFrame(root, new byte[] { 2 }, hint: new AddressHint(0x20)).Unwrap();
+        EventAddress orphanSibling = journal.AppendEventFrame(shared, new byte[] { 99 }, hint: new AddressHint(0x99)).Unwrap();
+        EventAddress oldPathMiddle = journal.AppendEventFrame(shared, new byte[] { 3 }, hint: new AddressHint(0x30)).Unwrap();
+        EventAddress oldHead = journal.AppendEventFrame(oldPathMiddle, new byte[] { 4 }, hint: new AddressHint(0x40)).Unwrap();
+        RefId main = journal.CreateBranch("main", oldHead).Unwrap();
+
+        Assert.Equal(new[] { root, shared, oldPathMiddle, oldHead }, journal.ReadChronologicalChain(main).Unwrap());
+
+        EventAddress newHead = journal.AppendEventFrame(orphanSibling, new byte[] { 5 }, hint: new AddressHint(0x50)).Unwrap();
+        Assert.True(journal.MoveRef(main, oldHead, newHead).Unwrap());
+
+        IReadOnlyList<EventAddress> chronological = journal.ReadChronologicalChain(main, checkedRead: true).Unwrap();
+
+        Assert.Equal(new[] { root, shared, orphanSibling, newHead }, chronological);
+        Assert.DoesNotContain(oldPathMiddle, chronological);
+        Assert.DoesNotContain(oldHead, chronological);
+        Assert.Equal<ulong>(1, journal.ForwardPlanCacheStats.TailMergeHits);
+    }
+
+    [Fact]
     public void RefMoveStore_RotatesAndReplaysMovesThroughEventJournal() {
         string path = NewJournalPath();
         var options = new EventJournalOptions {

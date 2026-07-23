@@ -16,6 +16,7 @@ public sealed partial class EventJournal : IDisposable {
     private readonly Dictionary<string, RefId> _branches;
     private readonly Dictionary<RefId, RefState> _refStates = new();
     private readonly ForwardPlanCache _forwardPlanCache = new(maxEntries: 4096, maxEstimatedBytes: 16 * 1024 * 1024);
+    private readonly Dictionary<RefId, RefForwardBinding> _forwardPlanBindings = new();
     private ulong _nextSequenceNumber;
     private bool _disposed;
 
