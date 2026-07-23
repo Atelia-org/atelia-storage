@@ -1,4 +1,6 @@
+using System.Buffers.Binary;
 using System.Diagnostics.CodeAnalysis;
+using Atelia.Data.Hashing;
 using Atelia.Rbf;
 
 namespace Atelia.EventJournal;
@@ -12,11 +14,30 @@ internal sealed class EphemeralForwardPlan {
     public required IReadOnlyList<RouteRedirect> Redirects { get; init; }
 }
 
+internal readonly record struct OptionalEphemeralForwardPlan {
+    private readonly EphemeralForwardPlan? _value;
+
+    public OptionalEphemeralForwardPlan(EphemeralForwardPlan value) {
+        _value = value;
+        HasValue = true;
+    }
+
+    public bool HasValue { get; }
+
+    public EphemeralForwardPlan Value => HasValue
+        ? _value!
+        : throw new InvalidOperationException("OptionalEphemeralForwardPlan has no value.");
+
+    public static OptionalEphemeralForwardPlan None => default;
+}
+
 internal readonly record struct ForwardPlanCacheStats(
     ulong ExactHits,
     ulong Misses,
     ulong PrefixHits,
-    ulong Evictions
+    ulong Evictions,
+    ulong DiskHits,
+    ulong DiskWrites
 );
 
 public sealed partial class EventJournal {
@@ -25,6 +46,26 @@ public sealed partial class EventJournal {
 
     internal void EvictForwardPlan(EventAddress targetHead) {
         _forwardPlanCache.Remove(targetHead);
+        TryDeleteCompiledForwardPlan(targetHead);
+    }
+
+    public AteliaResult<IReadOnlyList<EventAddress>> ReadChronologicalChain(
+        RefId refId,
+        bool checkedRead = false,
+        int? maxDepth = null,
+        bool detectCycles = true,
+        CancellationToken cancellationToken = default
+    ) {
+        ThrowIfDisposed();
+
+        var stateResult = LoadRefState(refId);
+        if (stateResult.IsFailure) { return stateResult.Error!; }
+
+        RefState state = stateResult.Unwrap();
+        if (state.Closed) { return RefClosedError(refId); }
+        if (state.Head is not { } head) { return Array.Empty<EventAddress>(); }
+
+        return ReadChronologicalChain(head, checkedRead, maxDepth, detectCycles, cancellationToken);
     }
 
     internal AteliaResult<EphemeralForwardPlan> BuildEphemeralForwardPlan(
@@ -47,12 +88,30 @@ public sealed partial class EventJournal {
             return cachedPlan;
         }
 
+        var diskLoadResult = TryLoadCompiledForwardPlan(head);
+        if (diskLoadResult.IsFailure) { return diskLoadResult.Error!; }
+        OptionalEphemeralForwardPlan optionalDiskPlan = diskLoadResult.Unwrap();
+        if (optionalDiskPlan.HasValue) {
+            EphemeralForwardPlan diskPlan = optionalDiskPlan.Value;
+            if (ExceedsMaxDepth(diskPlan.EventCount, maxDepth)) {
+                return TraversalDepthExceededError(maxDepth.GetValueOrDefault(), "compiled forward plan");
+            }
+
+            _forwardPlanCache.AddOrReplace(diskPlan);
+            _forwardPlanCache.RecordDiskHit();
+            return diskPlan;
+        }
+
         _forwardPlanCache.RecordMiss();
         var buildResult = BuildEphemeralForwardPlanCore(head, maxDepth, detectCycles, cancellationToken);
         if (buildResult.IsFailure) { return buildResult.Error!; }
 
         EphemeralForwardPlan plan = buildResult.Unwrap();
         _forwardPlanCache.AddOrReplace(plan);
+        if (TrySaveCompiledForwardPlan(plan)) {
+            _forwardPlanCache.RecordDiskWrite();
+        }
+
         return plan;
     }
 
@@ -291,6 +350,8 @@ public sealed partial class EventJournal {
         private ulong _misses;
         private ulong _prefixHits;
         private ulong _evictions;
+        private ulong _diskHits;
+        private ulong _diskWrites;
 
         internal ForwardPlanCache(int maxEntries, long maxEstimatedBytes) {
             _maxEntries = maxEntries;
@@ -298,7 +359,7 @@ public sealed partial class EventJournal {
         }
 
         internal int Count => _entries.Count;
-        internal ForwardPlanCacheStats Stats => new(_exactHits, _misses, _prefixHits, _evictions);
+        internal ForwardPlanCacheStats Stats => new(_exactHits, _misses, _prefixHits, _evictions, _diskHits, _diskWrites);
 
         internal bool TryGet(EventAddress targetHead, [NotNullWhen(true)] out EphemeralForwardPlan? plan) {
             if (_entries.TryGetValue(targetHead, out LinkedListNode<Entry>? node)) {
@@ -322,6 +383,14 @@ public sealed partial class EventJournal {
 
         internal void RecordPrefixHit() {
             _prefixHits++;
+        }
+
+        internal void RecordDiskHit() {
+            _diskHits++;
+        }
+
+        internal void RecordDiskWrite() {
+            _diskWrites++;
         }
 
         internal void AddOrReplace(EphemeralForwardPlan plan) {
@@ -369,5 +438,211 @@ public sealed partial class EventJournal {
             BasePlanEstimatedBytes + plan.Redirects.Count * RedirectEstimatedBytes;
 
         private sealed record Entry(EphemeralForwardPlan Plan, long EstimatedBytes);
+    }
+
+    private AteliaResult<OptionalEphemeralForwardPlan> TryLoadCompiledForwardPlan(EventAddress head) {
+        string path = CompiledForwardPlanPath(head);
+        if (!File.Exists(path)) { return OptionalEphemeralForwardPlan.None; }
+
+        try {
+            byte[] bytes = File.ReadAllBytes(path);
+            var decodeResult = ForwardPlanCompiledCacheCodec.Decode(bytes, head);
+            if (decodeResult.IsFailure) {
+                TryDeleteFile(path);
+                return OptionalEphemeralForwardPlan.None;
+            }
+
+            EphemeralForwardPlan plan = decodeResult.Unwrap();
+            var headerResult = ReadEventHeaderPreview(plan.TargetHead);
+            if (headerResult.IsFailure) {
+                TryDeleteFile(path);
+                return OptionalEphemeralForwardPlan.None;
+            }
+
+            return new OptionalEphemeralForwardPlan(plan);
+        }
+        catch (Exception ex) when (IsCompiledCacheException(ex)) {
+            TryDeleteFile(path);
+            return OptionalEphemeralForwardPlan.None;
+        }
+    }
+
+    private bool TrySaveCompiledForwardPlan(EphemeralForwardPlan plan) {
+        try {
+            Directory.CreateDirectory(_forwardPlanCachePath);
+            string finalPath = CompiledForwardPlanPath(plan.TargetHead);
+            string tempPath = finalPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            byte[] bytes = ForwardPlanCompiledCacheCodec.Encode(plan);
+
+            using (var stream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None)) {
+                stream.Write(bytes);
+                stream.Flush(flushToDisk: true);
+            }
+
+            File.Move(tempPath, finalPath, overwrite: true);
+            return true;
+        }
+        catch (Exception ex) when (IsCompiledCacheException(ex)) {
+            return false;
+        }
+    }
+
+    private void TryDeleteCompiledForwardPlan(EventAddress targetHead) {
+        TryDeleteFile(CompiledForwardPlanPath(targetHead));
+    }
+
+    private string CompiledForwardPlanPath(EventAddress targetHead) {
+        string fileName = $"s{targetHead.SegmentNumber:x8}-t{targetHead.Ticket.Packed:x16}-h{targetHead.Hint.Packed:x8}.efplan";
+        return Path.Combine(_forwardPlanCachePath, fileName);
+    }
+
+    private static void TryDeleteFile(string path) {
+        try {
+            if (File.Exists(path)) { File.Delete(path); }
+        }
+        catch {
+            // Best-effort cleanup: compiled cache files are disposable.
+        }
+    }
+
+    private static bool IsCompiledCacheException(Exception ex) =>
+        ex is IOException or UnauthorizedAccessException or InvalidDataException or ArgumentException or NotSupportedException or OverflowException;
+
+    private static class ForwardPlanCompiledCacheCodec {
+        private const uint Magic = 0x5046_4A45; // "EJFP" as little-endian bytes.
+        private const uint FormatVersion = 1;
+        private const uint PolicyVersion = 1;
+        private const int FixedHeaderLength =
+            sizeof(uint) + sizeof(uint) + sizeof(uint) + sizeof(uint) +
+            EventAddressCodec.EventAddressLength +
+            EventAddressCodec.EventAddressLength +
+            sizeof(ulong) +
+            sizeof(uint);
+        private const int CrcLength = sizeof(uint);
+        private const int RedirectLength = EventAddressCodec.EventAddressLength * 2;
+
+        internal static byte[] Encode(EphemeralForwardPlan plan) {
+            checked {
+                int length = FixedHeaderLength + plan.Redirects.Count * RedirectLength + CrcLength;
+                byte[] bytes = new byte[length];
+                Span<byte> span = bytes;
+                int offset = 0;
+
+                WriteUInt32(span, ref offset, Magic);
+                WriteUInt32(span, ref offset, FormatVersion);
+                WriteUInt32(span, ref offset, PolicyVersion);
+                WriteUInt32(span, ref offset, 0);
+                WriteAddress(span, ref offset, plan.TargetHead);
+                WriteAddress(span, ref offset, plan.RootEvent);
+                WriteUInt64(span, ref offset, plan.EventCount);
+                WriteUInt32(span, ref offset, (uint)plan.Redirects.Count);
+
+                foreach (RouteRedirect redirect in plan.Redirects) {
+                    WriteAddress(span, ref offset, redirect.FromEvent);
+                    WriteAddress(span, ref offset, redirect.ToChild);
+                }
+
+                uint crc = RollingCrc.CrcForward(span[..offset]);
+                WriteUInt32(span, ref offset, crc);
+                return bytes;
+            }
+        }
+
+        internal static AteliaResult<EphemeralForwardPlan> Decode(ReadOnlySpan<byte> bytes, EventAddress expectedHead) {
+            if (bytes.Length < FixedHeaderLength + CrcLength) {
+                return InvalidCompiledCache("Compiled ForwardPlan cache file is too short.");
+            }
+
+            uint actualCrc = BinaryPrimitives.ReadUInt32LittleEndian(bytes[^CrcLength..]);
+            uint expectedCrc = RollingCrc.CrcForward(bytes[..^CrcLength]);
+            if (actualCrc != expectedCrc) {
+                return InvalidCompiledCache("Compiled ForwardPlan cache CRC mismatch.");
+            }
+
+            int offset = 0;
+            uint magic = ReadUInt32(bytes, ref offset);
+            uint formatVersion = ReadUInt32(bytes, ref offset);
+            uint policyVersion = ReadUInt32(bytes, ref offset);
+            _ = ReadUInt32(bytes, ref offset);
+            if (magic != Magic || formatVersion != FormatVersion || policyVersion != PolicyVersion) {
+                return InvalidCompiledCache("Compiled ForwardPlan cache format or policy version does not match this implementation.");
+            }
+
+            var targetResult = ReadAddress(bytes, ref offset);
+            if (targetResult.IsFailure) { return targetResult.Error!; }
+            EventAddress targetHead = targetResult.Unwrap();
+            if (targetHead != expectedHead) {
+                return InvalidCompiledCache("Compiled ForwardPlan cache target head does not match requested head.");
+            }
+
+            var rootResult = ReadAddress(bytes, ref offset);
+            if (rootResult.IsFailure) { return rootResult.Error!; }
+            EventAddress rootEvent = rootResult.Unwrap();
+            ulong eventCount = ReadUInt64(bytes, ref offset);
+            uint redirectCount = ReadUInt32(bytes, ref offset);
+            if (eventCount == 0) {
+                return InvalidCompiledCache("Compiled ForwardPlan cache has zero EventCount.");
+            }
+
+            int expectedLength = checked(FixedHeaderLength + (int)redirectCount * RedirectLength + CrcLength);
+            if (bytes.Length != expectedLength) {
+                return InvalidCompiledCache("Compiled ForwardPlan cache length does not match RedirectCount.");
+            }
+
+            var redirects = new RouteRedirect[redirectCount];
+            for (int i = 0; i < redirects.Length; i++) {
+                var fromResult = ReadAddress(bytes, ref offset);
+                if (fromResult.IsFailure) { return fromResult.Error!; }
+                var toResult = ReadAddress(bytes, ref offset);
+                if (toResult.IsFailure) { return toResult.Error!; }
+                redirects[i] = new RouteRedirect(fromResult.Unwrap(), toResult.Unwrap());
+            }
+
+            return new EphemeralForwardPlan {
+                RootEvent = rootEvent,
+                TargetHead = targetHead,
+                EventCount = eventCount,
+                Redirects = redirects
+            };
+        }
+
+        private static void WriteAddress(Span<byte> destination, ref int offset, EventAddress address) {
+            EventAddressCodec.Encode(address, destination.Slice(offset, EventAddressCodec.EventAddressLength));
+            offset += EventAddressCodec.EventAddressLength;
+        }
+
+        private static AteliaResult<EventAddress> ReadAddress(ReadOnlySpan<byte> source, ref int offset) {
+            var result = EventAddressCodec.Decode(source.Slice(offset, EventAddressCodec.EventAddressLength));
+            offset += EventAddressCodec.EventAddressLength;
+            return result;
+        }
+
+        private static void WriteUInt32(Span<byte> destination, ref int offset, uint value) {
+            BinaryPrimitives.WriteUInt32LittleEndian(destination.Slice(offset, sizeof(uint)), value);
+            offset += sizeof(uint);
+        }
+
+        private static void WriteUInt64(Span<byte> destination, ref int offset, ulong value) {
+            BinaryPrimitives.WriteUInt64LittleEndian(destination.Slice(offset, sizeof(ulong)), value);
+            offset += sizeof(ulong);
+        }
+
+        private static uint ReadUInt32(ReadOnlySpan<byte> source, ref int offset) {
+            uint value = BinaryPrimitives.ReadUInt32LittleEndian(source.Slice(offset, sizeof(uint)));
+            offset += sizeof(uint);
+            return value;
+        }
+
+        private static ulong ReadUInt64(ReadOnlySpan<byte> source, ref int offset) {
+            ulong value = BinaryPrimitives.ReadUInt64LittleEndian(source.Slice(offset, sizeof(ulong)));
+            offset += sizeof(ulong);
+            return value;
+        }
+
+        private static EventJournalError InvalidCompiledCache(string message) => new(
+            "ForwardPlanCompiledCacheInvalid",
+            message,
+            "Delete the compiled cache file and rebuild the ForwardPlan from the parent chain."
+        );
     }
 }

@@ -12,6 +12,7 @@ public sealed partial class EventJournal : IDisposable {
     private readonly RbfSegmentStore.RbfSegmentStore _segments;
     private readonly IRbfFile _refOpLog;
     private readonly string _refObjectsPath;
+    private readonly string _forwardPlanCachePath;
     private readonly Dictionary<string, RefId> _branches;
     private readonly Dictionary<RefId, RefState> _refStates = new();
     private readonly ForwardPlanCache _forwardPlanCache = new(maxEntries: 4096, maxEstimatedBytes: 16 * 1024 * 1024);
@@ -24,6 +25,7 @@ public sealed partial class EventJournal : IDisposable {
         _segments = segments;
         _refOpLog = refOpLog;
         _refObjectsPath = RefObjectsDirectory(JournalPath);
+        _forwardPlanCachePath = ForwardPlanCacheDirectory(JournalPath);
         _branches = branches;
         _nextSequenceNumber = nextSequenceNumber;
     }
@@ -302,6 +304,7 @@ public sealed partial class EventJournal : IDisposable {
     }
 
     private static string EventsStorePath(string journalPath) => Path.Combine(journalPath, "events");
+    private static string ForwardPlanCacheDirectory(string journalPath) => Path.Combine(journalPath, "cache", "forward-plans", "v1");
 
     private static ulong ComputeNextSequenceNumber(RbfSegmentStore.RbfSegmentStore segments) {
         ulong maxSequenceNumber = 0;

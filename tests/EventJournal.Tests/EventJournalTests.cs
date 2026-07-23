@@ -239,6 +239,78 @@ public sealed class EventJournalTests : IDisposable {
     }
 
     [Fact]
+    public void CompiledForwardPlanCache_ReopenLoadsDiskPlanForExactHead() {
+        string path = NewJournalPath();
+        EventAddress root;
+        EventAddress head;
+
+        using (var journal = EventJournal.CreateNew(path)) {
+            root = journal.AppendEventFrame(null, new byte[] { 1 }, hint: new AddressHint(0x10)).Unwrap();
+            head = journal.AppendEventFrame(root, new byte[] { 2 }, hint: new AddressHint(0x20)).Unwrap();
+            _ = journal.ReadChronologicalChain(head).Unwrap();
+            Assert.Equal<ulong>(1, journal.ForwardPlanCacheStats.DiskWrites);
+        }
+
+        using var reopened = EventJournal.OpenExisting(path);
+        IReadOnlyList<EventAddress> chronological = reopened.ReadChronologicalChain(head).Unwrap();
+
+        Assert.Equal(new[] { root, head }, chronological);
+        Assert.Equal<ulong>(1, reopened.ForwardPlanCacheStats.DiskHits);
+        Assert.Equal<ulong>(0, reopened.ForwardPlanCacheStats.Misses);
+    }
+
+    [Fact]
+    public void CompiledForwardPlanCache_ReadByRefUsesCurrentHeadAndMissesAfterMove() {
+        string path = NewJournalPath();
+        RefId main;
+        EventAddress root;
+        EventAddress oldHead;
+        EventAddress newHead;
+
+        using (var journal = EventJournal.CreateNew(path)) {
+            root = journal.AppendEventFrame(null, new byte[] { 1 }, hint: new AddressHint(0x10)).Unwrap();
+            oldHead = journal.AppendEventFrame(root, new byte[] { 2 }, hint: new AddressHint(0x20)).Unwrap();
+            main = journal.CreateBranch("main", oldHead).Unwrap();
+            _ = journal.ReadChronologicalChain(main).Unwrap();
+            newHead = journal.AppendEventFrame(oldHead, new byte[] { 3 }, hint: new AddressHint(0x30)).Unwrap();
+            Assert.True(journal.AdvanceRef(main, oldHead, newHead).Unwrap());
+        }
+
+        using var reopened = EventJournal.OpenExisting(path);
+        IReadOnlyList<EventAddress> chronological = reopened.ReadChronologicalChain(main).Unwrap();
+
+        Assert.Equal(new[] { root, oldHead, newHead }, chronological);
+        Assert.Equal<ulong>(0, reopened.ForwardPlanCacheStats.DiskHits);
+        Assert.Equal<ulong>(1, reopened.ForwardPlanCacheStats.Misses);
+        Assert.Equal<ulong>(1, reopened.ForwardPlanCacheStats.DiskWrites);
+    }
+
+    [Fact]
+    public void CompiledForwardPlanCache_CorruptFileIsDeletedAndRebuilt() {
+        string path = NewJournalPath();
+        EventAddress head;
+
+        using (var journal = EventJournal.CreateNew(path)) {
+            EventAddress root = journal.AppendEventFrame(null, new byte[] { 1 }, hint: new AddressHint(0x10)).Unwrap();
+            head = journal.AppendEventFrame(root, new byte[] { 2 }, hint: new AddressHint(0x20)).Unwrap();
+            _ = journal.ReadChronologicalChain(head).Unwrap();
+        }
+
+        string cacheFile = Directory.GetFiles(Path.Combine(path, "cache", "forward-plans", "v1"), "*.efplan").Single();
+        byte[] bytes = File.ReadAllBytes(cacheFile);
+        bytes[^1] ^= 0xFF;
+        File.WriteAllBytes(cacheFile, bytes);
+
+        using var reopened = EventJournal.OpenExisting(path);
+        _ = reopened.ReadChronologicalChain(head).Unwrap();
+
+        Assert.Equal<ulong>(0, reopened.ForwardPlanCacheStats.DiskHits);
+        Assert.Equal<ulong>(1, reopened.ForwardPlanCacheStats.Misses);
+        Assert.Equal<ulong>(1, reopened.ForwardPlanCacheStats.DiskWrites);
+        Assert.True(File.Exists(cacheFile));
+    }
+
+    [Fact]
     public void RefMoveStore_RotatesAndReplaysMovesThroughEventJournal() {
         string path = NewJournalPath();
         var options = new EventJournalOptions {
