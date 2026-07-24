@@ -74,9 +74,7 @@ public sealed partial class EventJournal {
         CancellationToken cancellationToken = default
     ) {
         ThrowIfDisposed();
-        if (maxDepth is <= 0) {
-            return MaxDepthInvalidError(maxDepth.Value);
-        }
+        if (maxDepth is <= 0) { return MaxDepthInvalidError(maxDepth.Value); }
 
         var stateResult = LoadRefState(refId);
         if (stateResult.IsFailure) { return stateResult.Error!; }
@@ -109,9 +107,7 @@ public sealed partial class EventJournal {
         CancellationToken cancellationToken
     ) {
         if (_forwardPlanBindings.TryGetValue(refId, out RefForwardBinding? binding) && binding.BoundHead == head) {
-            if (ExceedsMaxDepth(binding.Plan.EventCount, maxDepth)) {
-                return TraversalDepthExceededError(maxDepth.GetValueOrDefault(), "ref-bound forward plan");
-            }
+            if (ExceedsMaxDepth(binding.Plan.EventCount, maxDepth)) { return TraversalDepthExceededError(maxDepth.GetValueOrDefault(), "ref-bound forward plan"); }
 
             return binding.Plan;
         }
@@ -170,9 +166,7 @@ public sealed partial class EventJournal {
             if (oldCursor == newCursor) {
                 ulong oldPrefixEventCount = oldPlan.EventCount - oldRemovedEventCount;
                 ulong totalEventCount = checked(oldPrefixEventCount + newSuffixEventCount);
-                if (ExceedsMaxDepth(totalEventCount, maxDepth)) {
-                    return TraversalDepthExceededError(maxDepth.GetValueOrDefault(), "tail-merged forward plan");
-                }
+                if (ExceedsMaxDepth(totalEventCount, maxDepth)) { return TraversalDepthExceededError(maxDepth.GetValueOrDefault(), "tail-merged forward plan"); }
 
                 return new OptionalEphemeralForwardPlan(
                     BuildTailMergedForwardPlan(oldPlan, newHead, oldCursor, totalEventCount, newSuffixRedirectsReverse)
@@ -196,9 +190,7 @@ public sealed partial class EventJournal {
             }
 
             if (comparison < 0) {
-                if (maxDepth is { } depthLimit && newSuffixEventCount >= (ulong)depthLimit) {
-                    return TraversalDepthExceededError(depthLimit, "tail-merge new suffix walk");
-                }
+                if (maxDepth is { } depthLimit && newSuffixEventCount >= (ulong)depthLimit) { return TraversalDepthExceededError(depthLimit, "tail-merge new suffix walk"); }
 
                 var newHeaderResult = ReadEventHeaderPreview(newCursor);
                 if (newHeaderResult.IsFailure) { return newHeaderResult.Error!; }
@@ -263,9 +255,7 @@ public sealed partial class EventJournal {
         CancellationToken cancellationToken = default
     ) {
         ThrowIfDisposed();
-        if (maxDepth is <= 0) {
-            return MaxDepthInvalidError(maxDepth.Value);
-        }
+        if (maxDepth is <= 0) { return MaxDepthInvalidError(maxDepth.Value); }
 
         var cachedResult = TryGetCachedOrCompiledForwardPlan(head, maxDepth);
         if (cachedResult.IsFailure) { return cachedResult.Error!; }
@@ -284,9 +274,7 @@ public sealed partial class EventJournal {
 
     private AteliaResult<OptionalEphemeralForwardPlan> TryGetCachedOrCompiledForwardPlan(EventAddress head, int? maxDepth) {
         if (_forwardPlanCache.TryGet(head, out EphemeralForwardPlan? cachedPlan)) {
-            if (ExceedsMaxDepth(cachedPlan.EventCount, maxDepth)) {
-                return TraversalDepthExceededError(maxDepth.GetValueOrDefault(), "cached forward plan");
-            }
+            if (ExceedsMaxDepth(cachedPlan.EventCount, maxDepth)) { return TraversalDepthExceededError(maxDepth.GetValueOrDefault(), "cached forward plan"); }
 
             _forwardPlanCache.RecordExactHit();
             return new OptionalEphemeralForwardPlan(cachedPlan);
@@ -297,9 +285,7 @@ public sealed partial class EventJournal {
         OptionalEphemeralForwardPlan optionalDiskPlan = diskLoadResult.Unwrap();
         if (optionalDiskPlan.HasValue) {
             EphemeralForwardPlan diskPlan = optionalDiskPlan.Value;
-            if (ExceedsMaxDepth(diskPlan.EventCount, maxDepth)) {
-                return TraversalDepthExceededError(maxDepth.GetValueOrDefault(), "compiled forward plan");
-            }
+            if (ExceedsMaxDepth(diskPlan.EventCount, maxDepth)) { return TraversalDepthExceededError(maxDepth.GetValueOrDefault(), "compiled forward plan"); }
 
             _forwardPlanCache.AddOrReplace(diskPlan);
             _forwardPlanCache.RecordDiskHit();
@@ -332,9 +318,7 @@ public sealed partial class EventJournal {
 
             if (suffixEventCount > 0 && _forwardPlanCache.TryGet(child, out EphemeralForwardPlan? cachedPrefix)) {
                 ulong totalEventCount = checked(cachedPrefix.EventCount + suffixEventCount);
-                if (ExceedsMaxDepth(totalEventCount, maxDepth)) {
-                    return TraversalDepthExceededError(maxDepth.GetValueOrDefault(), "cached-prefix forward-plan build");
-                }
+                if (ExceedsMaxDepth(totalEventCount, maxDepth)) { return TraversalDepthExceededError(maxDepth.GetValueOrDefault(), "cached-prefix forward-plan build"); }
 
                 redirectsReverse.Reverse();
                 var redirects = new RouteRedirect[cachedPrefix.Redirects.Count + redirectsReverse.Count];
@@ -356,9 +340,7 @@ public sealed partial class EventJournal {
                 return combined;
             }
 
-            if (maxDepth is { } depthLimit && suffixEventCount >= (ulong)depthLimit) {
-                return TraversalDepthExceededError(depthLimit, "forward-plan build");
-            }
+            if (maxDepth is { } depthLimit && suffixEventCount >= (ulong)depthLimit) { return TraversalDepthExceededError(depthLimit, "forward-plan build"); }
 
             if (seen is not null && !seen.Add(child)) {
                 return new EventJournalError(
@@ -504,7 +486,7 @@ public sealed partial class EventJournal {
             return new EventJournalError(
                 "FrameTailMetaLengthInvalid",
                 $"EventFrame TailMeta length must be {EventFrameHeaderCodec.FixedLength}, got {info.TailMetaLength}.",
-                "Verify that the frame was written by EventJournal v1."
+                "Verify that the frame was written by EventJournal v2."
             );
         }
 
@@ -760,45 +742,33 @@ public sealed partial class EventJournal {
         }
 
         internal static AteliaResult<EphemeralForwardPlan> Decode(ReadOnlySpan<byte> bytes, EventAddress expectedHead) {
-            if (bytes.Length < FixedHeaderLength + CrcLength) {
-                return InvalidCompiledCache("Compiled ForwardPlan cache file is too short.");
-            }
+            if (bytes.Length < FixedHeaderLength + CrcLength) { return InvalidCompiledCache("Compiled ForwardPlan cache file is too short."); }
 
             uint actualCrc = BinaryPrimitives.ReadUInt32LittleEndian(bytes[^CrcLength..]);
             uint expectedCrc = RollingCrc.CrcForward(bytes[..^CrcLength]);
-            if (actualCrc != expectedCrc) {
-                return InvalidCompiledCache("Compiled ForwardPlan cache CRC mismatch.");
-            }
+            if (actualCrc != expectedCrc) { return InvalidCompiledCache("Compiled ForwardPlan cache CRC mismatch."); }
 
             int offset = 0;
             uint magic = ReadUInt32(bytes, ref offset);
             uint formatVersion = ReadUInt32(bytes, ref offset);
             uint policyVersion = ReadUInt32(bytes, ref offset);
             _ = ReadUInt32(bytes, ref offset);
-            if (magic != Magic || formatVersion != FormatVersion || policyVersion != PolicyVersion) {
-                return InvalidCompiledCache("Compiled ForwardPlan cache format or policy version does not match this implementation.");
-            }
+            if (magic != Magic || formatVersion != FormatVersion || policyVersion != PolicyVersion) { return InvalidCompiledCache("Compiled ForwardPlan cache format or policy version does not match this implementation."); }
 
             var targetResult = ReadAddress(bytes, ref offset);
             if (targetResult.IsFailure) { return targetResult.Error!; }
             EventAddress targetHead = targetResult.Unwrap();
-            if (targetHead != expectedHead) {
-                return InvalidCompiledCache("Compiled ForwardPlan cache target head does not match requested head.");
-            }
+            if (targetHead != expectedHead) { return InvalidCompiledCache("Compiled ForwardPlan cache target head does not match requested head."); }
 
             var rootResult = ReadAddress(bytes, ref offset);
             if (rootResult.IsFailure) { return rootResult.Error!; }
             EventAddress rootEvent = rootResult.Unwrap();
             ulong eventCount = ReadUInt64(bytes, ref offset);
             uint redirectCount = ReadUInt32(bytes, ref offset);
-            if (eventCount == 0) {
-                return InvalidCompiledCache("Compiled ForwardPlan cache has zero EventCount.");
-            }
+            if (eventCount == 0) { return InvalidCompiledCache("Compiled ForwardPlan cache has zero EventCount."); }
 
             int expectedLength = checked(FixedHeaderLength + (int)redirectCount * RedirectLength + CrcLength);
-            if (bytes.Length != expectedLength) {
-                return InvalidCompiledCache("Compiled ForwardPlan cache length does not match RedirectCount.");
-            }
+            if (bytes.Length != expectedLength) { return InvalidCompiledCache("Compiled ForwardPlan cache length does not match RedirectCount."); }
 
             var redirects = new RouteRedirect[redirectCount];
             for (int i = 0; i < redirects.Length; i++) {

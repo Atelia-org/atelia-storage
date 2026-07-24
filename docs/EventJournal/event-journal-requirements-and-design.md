@@ -219,7 +219,7 @@ RBF EventFrame:
 
 ### 7.2 EventJournal TailMeta Header
 
-`EventFrame` TailMeta header 的 fixed binary v1 格式、字段 offset、CRC、codec 和父链遍历 API 详见 [EventFrame Parent Chain 设计基线](event-frame-parent-chain-design.md)。首轮 wire spec 应在 `EventFrame` 的 RBF `TailMeta` 中至少表达：
+`EventFrame` TailMeta header 当前采用 fixed binary v2 格式；payload codec 相关细节以 [EventJournal Payload Codec 设计方案](event-payload-codec-design.md) 为 SSOT，父链遍历背景见 [EventFrame Parent Chain 设计基线](event-frame-parent-chain-design.md)。首轮 wire spec 应在 `EventFrame` 的 RBF `TailMeta` 中至少表达：
 
 | 字段 | 含义 |
 |:-----|:-----|
@@ -229,12 +229,13 @@ RBF EventFrame:
 | `OpaqueEventKind` | 应用定义的 opaque event kind |
 | `Parent` | 可空 `EventAddress` |
 | `Hint` | 与 `EventAddress.Hint` 一致或可确定推导的 hint |
-| `PayloadLength` | 应用 payload bytes 长度 |
+| `PayloadCodecId` | logical payload 到 stored payload 的 codec id |
+| `PayloadLength` | logical payload bytes 长度 |
 
 可选但尚未锁定的字段：
 
 - payload digest，用于在完整读取 frame 后，在 RBF CRC 之外提供应用层整体校验或去重基础。
-- payload codec id；若 EventJournal 提供透明写入时压缩，codec id 应下沉到 EventFrame TailMeta，而不是混入应用 payload envelope。stored payload length 从 RBF frame 派生，不写入 TailMeta，避免双真源。详见 [EventJournal Payload Codec 设计方案](event-payload-codec-design.md)。
+- stored payload length 不写入 TailMeta，从 RBF frame 派生，避免双真源。
 
 RBF `TailMeta` 的读取是 L2 preview：`ReadTailMeta` / `ReadPooledTailMeta` 只校验 trailer codeword，不校验完整 `PayloadCrc32C`。因此 TailMeta header 可以用于便宜路由和预览，但在接受外部地址、返回 payload、推进 ref 或执行强一致校验时，reader MUST 使用完整 `ReadFrame` / `ReadPooledFrame` 校验目标 `EventFrame`。
 
@@ -583,14 +584,12 @@ API 设计时应继续遵循：
 
 1. 未来是否需要 store manifest；若需要，它记录哪些非路径表信息，以及原子更新协议是什么。
 2. segment soft size threshold 和 segment number 上限。
-3. EventFrame v1 的精确 TailMeta header 编码与 FrameTag 值。
-4. TailMeta header 自校验使用结构性验证、header-level CRC，还是二者组合。
-5. payload digest 是否进入 EventFrame v1；若记录，使用何种 hash。
-6. per-ref move chain 的 checkpoint/cache 与加速打开策略。
-7. `CommitToRef` 在 ref CAS 失败时如何暴露已产生的 orphan EventAddress。
-8. v2 multi-frame payload 使用 payload chain、TailMeta address list、descriptor frame，还是外部 large-object store。
-9. durable append 与 buffered append 是否需要两档 API。
-10. 同进程并发 reader 与单 writer 的锁粒度。
-11. store 复制、备份、repack、可达性 GC 与跨 store import/export。
+3. payload digest 是否进入 EventFrame header；若记录，使用何种 hash。
+4. per-ref move chain 的 checkpoint/cache 与加速打开策略。
+5. `CommitToRef` 在 ref CAS 失败时如何暴露已产生的 orphan EventAddress。
+6. v3 multi-frame payload 使用 payload chain、TailMeta address list、descriptor frame，还是外部 large-object store。
+7. durable append 与 buffered append 是否需要两档 API。
+8. 同进程并发 reader 与单 writer 的锁粒度。
+9. store 复制、备份、repack、可达性 GC 与跨 store import/export。
 
 这些问题不阻塞当前架构判断。应按 EJ-0 到 EJ-5 的顺序逐个形成 Decision/Spec，而不是在首个实现会话一次性定完。

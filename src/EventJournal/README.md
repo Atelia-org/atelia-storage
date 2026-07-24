@@ -57,15 +57,18 @@ EventFrameHeader header = frame.Header;
 核心类型：
 
 - `EventAddress(SizedPtr Ticket, uint SegmentNumber, AddressHint Hint)`：定位一个 EventFrame。`Hint` 会写入 header 并在读取时校验，用于降低误读概率。
-- `EventFrameHeader`：固定 64 字节 TailMeta，包含 `SequenceNumber`、UTC 时间戳、`OpaqueEventKind`、`PayloadLength` 和 nullable `Parent`。
-- `EventFrame`：checked read 后返回的 disposable frame；payload span 生命周期绑定在 `EventFrame` 上。
+- `EventFrameHeader`：固定 64 字节 TailMeta，当前为 v2，包含 `PayloadCodecId`、`SequenceNumber`、UTC 时间戳、`OpaqueEventKind`、logical `PayloadLength` 和 nullable `Parent`。
+- `EventFrame`：checked read 后返回的 disposable frame；`Payload` 始终是 logical payload bytes，span 生命周期绑定在 `EventFrame` 上。
 
 读取分两档：
 
 - `ReadEventHeaderPreview(address)`：只读 RBF TailMeta，适合 parent walk、ForwardPlan 构建、轻量预筛选。
-- `ReadEventHeaderChecked(address)` / `ReadEvent(address)`：完整读取 RBF frame 并校验 payload CRC，适合接受外部地址、推进 refs 前验证和返回 payload。
+- `ReadEventHeaderChecked(address)`：完整读取 RBF frame 并校验 stored bytes CRC，但不解码 payload codec，适合接受外部地址和推进 refs 前验证。
+- `ReadEvent(address)`：完整读取 RBF frame、校验 stored bytes CRC，并按 `PayloadCodecId` 透明解码出 logical payload。
 
 `AppendEventFrame(parent, payload, ...)` 会在 parent 非空时 checked-read parent，确保不会向不存在或损坏的 parent 追加。
+
+`AppendEventFrame` 接受的是 logical payload bytes。若启用 `EventJournalOptions.PayloadCodecPolicy`，EventJournal 会在写入 RBF 前选择 identity 或 brotli stored payload；读取时普通调用方仍只看到 logical payload。
 
 ## Traversal
 
@@ -171,6 +174,8 @@ ForwardPlan 的核心模型是：
 
 `EventJournalOptions` 会规范化底层 store layout：
 
+- `MaxLogicalPayloadLength`：单 Event logical payload 上限，默认是 RBF 单帧 payload+TailMeta 上限减去 64 字节 EventFrame header。
+- `PayloadCodecPolicy`：EventFrame payload 写入策略，默认 identity；可设为 `EventPayloadCodecPolicy.Brotli` 启用保守的 brotli 压缩自动选择。
 - `EventSegmentStoreOptions`：强制使用 bucketed layout，默认 segment threshold 为 `64 GiB`。
 - `RefSegmentStoreOptions`：强制使用 flat layout，默认 segment threshold 为 `64 MiB`。
 - `RefOpLogOptions`：配置 ref-op-log 的 RBF cache mode 与打开时 tail recovery。
@@ -179,6 +184,7 @@ ForwardPlan 的核心模型是：
 
 ```csharp
 var options = new EventJournalOptions {
+    PayloadCodecPolicy = EventPayloadCodecPolicy.Brotli,
     EventSegmentStoreOptions = new RbfSegmentStoreOptions {
         SegmentSizeThresholdBytes = 8 * 1024 * 1024
     },

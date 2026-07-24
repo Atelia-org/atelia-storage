@@ -1,9 +1,11 @@
 # EventJournal Payload Codec 设计方案
 
-> **状态**：Design Proposal（建议进入 EventFrame v2 wire format）
+> **状态**：Implemented Baseline（EventFrame v2 + identity/brotli 首轮已落地）
 > **日期**：2026-07-24
 > **动机**：为 SessionJournal 等长寿命文本事件提供写入时可选压缩，同时保持上层 payload 语义稳定。
 > **相关文档**：[EventFrame Parent Chain 设计基线](event-frame-parent-chain-design.md)、[EventJournal 功能需求与粗粒度设计基线](event-journal-requirements-and-design.md)、[SessionJournal 主干设计基线](../SessionJournal/session-journal-trunk-design.md)
+
+> **实现说明**：当前代码已原地升级 `EventFrameHeaderCodec` 到 v2；writer 支持 `identity` 与 BCL `brotli`，`zstd-frame` 仍只保留 codec id。`ReadEventHeaderChecked` 只校验 stored frame/header，不解码 payload；`ReadEvent` 返回 logical payload。
 
 ## 1. 结论
 

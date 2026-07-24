@@ -95,9 +95,13 @@ public sealed partial class EventJournal : IDisposable {
         ReadOnlySpan<byte> payload,
         uint opaqueEventKind = 0,
         AddressHint hint = default,
-        long? utcUnixTimeMilliseconds = null
+        long? utcUnixTimeMilliseconds = null,
+        EventPayloadWriteOptions? writeOptions = null
     ) {
         ThrowIfDisposed();
+
+        var lengthError = ValidateLogicalPayloadLength(payload.Length);
+        if (lengthError is not null) { return lengthError; }
 
         if (parent is { } parentAddress) {
             var parentResult = ReadEventHeaderChecked(parentAddress);
@@ -111,18 +115,27 @@ public sealed partial class EventJournal : IDisposable {
             }
         }
 
+        EventPayloadCodecPolicy codecPolicy = writeOptions?.PayloadCodecPolicy ?? _options.PayloadCodecPolicy;
+        var storedPayload = EventPayloadCodec.EncodeForStore(payload, codecPolicy, out AteliaError? codecError);
+        if (codecError is not null) { return codecError; }
+
         long timestamp = utcUnixTimeMilliseconds ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var header = new EventFrameHeader(_nextSequenceNumber, timestamp, opaqueEventKind, hint, (ulong)payload.Length, parent);
+        var header = new EventFrameHeader(storedPayload.CodecId, _nextSequenceNumber, timestamp, opaqueEventKind, hint, (uint)payload.Length, parent);
         Span<byte> tailMeta = stackalloc byte[EventFrameHeaderCodec.FixedLength];
         EventFrameHeaderCodec.Encode(in header, tailMeta);
 
-        using var lease = _segments.OpenActiveWriter();
-        var appendResult = lease.File.Append(EventFrameTag, payload, tailMeta);
-        if (appendResult.IsFailure) { return appendResult.Error!; }
+        try {
+            using var lease = _segments.OpenActiveWriter();
+            var appendResult = lease.File.Append(EventFrameTag, storedPayload.Payload, tailMeta);
+            if (appendResult.IsFailure) { return appendResult.Error!; }
 
-        lease.File.DurableFlush();
-        _nextSequenceNumber++;
-        return new EventAddress(appendResult.Unwrap(), lease.SegmentNumber, hint);
+            lease.File.DurableFlush();
+            _nextSequenceNumber++;
+            return new EventAddress(appendResult.Unwrap(), lease.SegmentNumber, hint);
+        }
+        finally {
+            storedPayload.Dispose();
+        }
     }
 
     public AteliaResult<EventFrameHeader> ReadEventHeaderPreview(EventAddress address) {
@@ -157,16 +170,54 @@ public sealed partial class EventJournal : IDisposable {
     public AteliaResult<EventFrameHeader> ReadEventHeaderChecked(EventAddress address) {
         ThrowIfDisposed();
 
-        using var eventFrameResult = ReadEvent(address).ToDisposable();
-        if (eventFrameResult.IsFailure) { return eventFrameResult.Error!; }
+        var storedFrameResult = ReadCheckedStoredEventFrame(address);
+        if (storedFrameResult.IsFailure) { return storedFrameResult.Error!; }
 
-        EventFrame eventFrame = eventFrameResult.Unwrap();
-        return eventFrame.Header;
+        using CheckedStoredEventFrame storedFrame = storedFrameResult.Unwrap();
+        return storedFrame.Header;
     }
 
     public AteliaResult<EventFrame> ReadEvent(EventAddress address) {
         ThrowIfDisposed();
 
+        var storedFrameResult = ReadCheckedStoredEventFrame(address);
+        if (storedFrameResult.IsFailure) { return storedFrameResult.Error!; }
+
+        CheckedStoredEventFrame storedFrame = storedFrameResult.Unwrap();
+        try {
+            RbfPooledFrame rbfFrame = storedFrame.Frame;
+            EventFrameHeader header = storedFrame.Header;
+            ReadOnlySpan<byte> storedPayload = rbfFrame.PayloadAndMeta[..^rbfFrame.TailMetaLength];
+
+            if (header.PayloadCodecId == EventPayloadCodecId.Identity) {
+                if (header.PayloadLength != (uint)storedPayload.Length) {
+                    storedFrame.Dispose();
+                    return new EventJournalError(
+                        "PayloadLengthMismatch",
+                        $"Identity EventFrame header logical payload length {header.PayloadLength} does not match stored payload length {storedPayload.Length}.",
+                        "Treat this EventFrame as corrupted."
+                    );
+                }
+
+                return new EventFrame(address, header, storedFrame.TakeFrame());
+            }
+
+            var decodedResult = EventPayloadCodec.DecodeToArray(header.PayloadCodecId, storedPayload, header.PayloadLength);
+            if (decodedResult.IsFailure) {
+                storedFrame.Dispose();
+                return decodedResult.Error!;
+            }
+
+            byte[] decodedPayload = decodedResult.Unwrap();
+            return new EventFrame(address, header, storedFrame.TakeFrame(), decodedPayload, (int)header.PayloadLength);
+        }
+        catch {
+            storedFrame.Dispose();
+            throw;
+        }
+    }
+
+    private AteliaResult<CheckedStoredEventFrame> ReadCheckedStoredEventFrame(EventAddress address) {
         var addressError = ValidateAddress(address);
         if (addressError is not null) { return addressError; }
 
@@ -177,38 +228,38 @@ public sealed partial class EventJournal : IDisposable {
 
             RbfPooledFrame frame = frameResult.Unwrap();
             try {
-                if (frame.Tag != EventFrameTag) { return DisposeAndReturn(frame, WrongFrameTagError(frame.Tag)); }
-                if (frame.IsTombstone) { return DisposeAndReturn(frame, TombstoneError()); }
+                if (frame.Tag != EventFrameTag) { return DisposeStoredAndReturn(frame, WrongFrameTagError(frame.Tag)); }
+                if (frame.IsTombstone) { return DisposeStoredAndReturn(frame, TombstoneError()); }
                 if (frame.TailMetaLength != EventFrameHeaderCodec.FixedLength) {
-                    return DisposeAndReturn(frame,
+                    return DisposeStoredAndReturn(frame,
                         new EventJournalError(
                             "FrameTailMetaLengthInvalid",
                             $"EventFrame TailMeta length must be {EventFrameHeaderCodec.FixedLength}, got {frame.TailMetaLength}.",
-                            "Verify that the frame was written by EventJournal v1."
+                            "Verify that the frame was written by EventJournal v2."
                         )
                     );
                 }
 
                 ReadOnlySpan<byte> tailMeta = frame.PayloadAndMeta[^frame.TailMetaLength..];
                 var headerResult = EventFrameHeaderCodec.Decode(tailMeta);
-                if (headerResult.IsFailure) { return DisposeAndReturn(frame, headerResult.Error!); }
+                if (headerResult.IsFailure) { return DisposeStoredAndReturn(frame, headerResult.Error!); }
 
                 EventFrameHeader header = headerResult.Unwrap();
-                int payloadLength = frame.PayloadAndMeta.Length - frame.TailMetaLength;
-                if (header.PayloadLength != (ulong)payloadLength) {
-                    return DisposeAndReturn(frame,
+                ReadOnlySpan<byte> storedPayload = frame.PayloadAndMeta[..^frame.TailMetaLength];
+                if (header.PayloadCodecId == EventPayloadCodecId.Identity && header.PayloadLength != (uint)storedPayload.Length) {
+                    return DisposeStoredAndReturn(frame,
                         new EventJournalError(
                             "PayloadLengthMismatch",
-                            $"EventFrame header payload length {header.PayloadLength} does not match checked payload length {payloadLength}.",
+                            $"Identity EventFrame header logical payload length {header.PayloadLength} does not match stored payload length {storedPayload.Length}.",
                             "Treat this EventFrame as corrupted."
                         )
                     );
                 }
 
                 var hintError = ValidateHint(address, header);
-                if (hintError is not null) { return DisposeAndReturn(frame, hintError); }
+                if (hintError is not null) { return DisposeStoredAndReturn(frame, hintError); }
 
-                return new EventFrame(address, header, frame);
+                return new CheckedStoredEventFrame(header, frame);
             }
             catch {
                 frame.Dispose();
@@ -342,6 +393,18 @@ public sealed partial class EventJournal : IDisposable {
         return null;
     }
 
+    private AteliaError? ValidateLogicalPayloadLength(int payloadLength) {
+        if (payloadLength > _options.MaxLogicalPayloadLength) {
+            return new EventJournalError(
+                "PayloadLogicalLengthExceeded",
+                $"Logical payload length {payloadLength} exceeds the configured EventJournal maximum {_options.MaxLogicalPayloadLength}.",
+                "Reduce the event payload size, or use a future chunked/streaming payload design."
+            );
+        }
+
+        return null;
+    }
+
     private static AteliaError? ValidateHint(EventAddress address, EventFrameHeader header) {
         if (address.Hint != header.Hint) {
             return new EventJournalError(
@@ -373,7 +436,7 @@ public sealed partial class EventJournal : IDisposable {
         Cause: new EventJournalError("ReadException", ex.GetType().FullName ?? ex.GetType().Name, ex.Message)
     );
 
-    private static AteliaResult<EventFrame> DisposeAndReturn(RbfPooledFrame frame, AteliaError error) {
+    private static AteliaResult<CheckedStoredEventFrame> DisposeStoredAndReturn(RbfPooledFrame frame, AteliaError error) {
         frame.Dispose();
         return error;
     }
@@ -391,6 +454,30 @@ public sealed partial class EventJournal : IDisposable {
         }
         catch {
             // Best-effort cleanup after failed creation.
+        }
+    }
+
+    private sealed class CheckedStoredEventFrame : IDisposable {
+        private RbfPooledFrame? _frame;
+
+        public CheckedStoredEventFrame(EventFrameHeader header, RbfPooledFrame frame) {
+            Header = header;
+            _frame = frame;
+        }
+
+        public EventFrameHeader Header { get; }
+
+        public RbfPooledFrame Frame => _frame ?? throw new ObjectDisposedException(nameof(CheckedStoredEventFrame));
+
+        public RbfPooledFrame TakeFrame() {
+            RbfPooledFrame frame = Frame;
+            _frame = null;
+            return frame;
+        }
+
+        public void Dispose() {
+            var frame = Interlocked.Exchange(ref _frame, null);
+            frame?.Dispose();
         }
     }
 }

@@ -1,5 +1,8 @@
 using Atelia.Data;
+using Atelia.Rbf;
 using Atelia.RbfSegmentStore;
+using System.Buffers.Binary;
+using System.Text;
 using Xunit;
 
 namespace Atelia.EventJournal.Tests;
@@ -22,6 +25,7 @@ public sealed class EventJournalTests : IDisposable {
     public void HeaderCodec_RoundTripsFixedHeader() {
         var parent = new EventAddress(SizedPtr.Create(4, 32), 7, new AddressHint(0xAABBCCDD));
         var header = new EventFrameHeader(
+            PayloadCodecId: EventPayloadCodecId.Brotli,
             SequenceNumber: 42,
             UtcUnixTimeMilliseconds: 1_723_456_789,
             OpaqueEventKind: 99,
@@ -40,7 +44,7 @@ public sealed class EventJournalTests : IDisposable {
 
     [Fact]
     public void HeaderCodec_RejectsCrcMismatchAndHalfParent() {
-        var header = new EventFrameHeader(1, 2, 3, default, 4, null);
+        var header = new EventFrameHeader(EventPayloadCodecId.Identity, 1, 2, 3, default, 4, null);
         Span<byte> buffer = stackalloc byte[EventFrameHeaderCodec.FixedLength];
         EventFrameHeaderCodec.Encode(in header, buffer);
 
@@ -48,12 +52,29 @@ public sealed class EventJournalTests : IDisposable {
         Assert.Equal("EventJournal.HeaderCrcMismatch", EventFrameHeaderCodec.Decode(buffer).Error!.ErrorCode);
 
         EventFrameHeaderCodec.Encode(in header, buffer);
-        buffer[8] = 1;
         buffer[44] = 1;
         uint crc = Atelia.Data.Hashing.RollingCrc.CrcForward(buffer[..60]);
-        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(buffer[60..64], crc);
+        BinaryPrimitives.WriteUInt32LittleEndian(buffer[60..64], crc);
 
         Assert.Equal("EventJournal.HeaderParentInvalid", EventFrameHeaderCodec.Decode(buffer).Error!.ErrorCode);
+    }
+
+    [Fact]
+    public void HeaderCodec_RejectsReservedNonZero() {
+        var header = new EventFrameHeader(EventPayloadCodecId.Identity, 1, 2, 3, default, 4, null);
+        Span<byte> buffer = stackalloc byte[EventFrameHeaderCodec.FixedLength];
+        EventFrameHeaderCodec.Encode(in header, buffer);
+
+        BinaryPrimitives.WriteUInt16LittleEndian(buffer[10..12], 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(buffer[60..64], Atelia.Data.Hashing.RollingCrc.CrcForward(buffer[..60]));
+
+        Assert.Equal("EventJournal.HeaderReservedNonZero", EventFrameHeaderCodec.Decode(buffer).Error!.ErrorCode);
+
+        EventFrameHeaderCodec.Encode(in header, buffer);
+        BinaryPrimitives.WriteUInt32LittleEndian(buffer[40..44], 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(buffer[60..64], Atelia.Data.Hashing.RollingCrc.CrcForward(buffer[..60]));
+
+        Assert.Equal("EventJournal.HeaderReservedNonZero", EventFrameHeaderCodec.Decode(buffer).Error!.ErrorCode);
     }
 
     [Fact]
@@ -67,10 +88,97 @@ public sealed class EventJournalTests : IDisposable {
 
         Assert.Equal(new byte[] { 1, 2, 3 }, frame.Payload.ToArray());
         Assert.Equal<ulong>(1, frame.Header.SequenceNumber);
+        Assert.Equal(EventPayloadCodecId.Identity, frame.Header.PayloadCodecId);
+        Assert.Equal<uint>(3, frame.Header.PayloadLength);
         Assert.Equal<uint>(12, frame.Header.OpaqueEventKind);
         Assert.Equal(new AddressHint(0x100), frame.Header.Hint);
         Assert.Null(frame.Header.Parent);
         Assert.True(File.Exists(Path.Combine(path, "events", "buckets", "000000", "00000001.rbf")));
+    }
+
+    [Fact]
+    public void AppendAndReadEvent_BrotliRoundTripsLogicalPayload() {
+        string path = NewJournalPath();
+        var options = new EventJournalOptions {
+            PayloadCodecPolicy = EventPayloadCodecPolicy.Brotli with {
+                MinimumPayloadLength = 0,
+                MinimumSavingsBytes = 1,
+                MinimumSavingsRatio = 0.01
+            }
+        };
+        using var journal = EventJournal.CreateNew(path, options);
+        byte[] payload = Encoding.UTF8.GetBytes(string.Concat(Enumerable.Repeat("简体中文 session journal payload; ", 256)));
+
+        EventAddress address = journal.AppendEventFrame(null, payload, opaqueEventKind: 12).Unwrap();
+
+        EventFrameHeader checkedHeader = journal.ReadEventHeaderChecked(address).Unwrap();
+        using EventFrame frame = journal.ReadEvent(address).Unwrap();
+
+        Assert.Equal(EventPayloadCodecId.Brotli, checkedHeader.PayloadCodecId);
+        Assert.Equal(EventPayloadCodecId.Brotli, frame.Header.PayloadCodecId);
+        Assert.Equal<uint>((uint)payload.Length, frame.Header.PayloadLength);
+        Assert.True(address.Ticket.Length < payload.Length + EventFrameHeaderCodec.FixedLength);
+        Assert.Equal(payload, frame.Payload.ToArray());
+    }
+
+    [Fact]
+    public void AppendEventFrame_BrotliFallsBackForSmallPayload() {
+        string path = NewJournalPath();
+        var options = new EventJournalOptions {
+            PayloadCodecPolicy = EventPayloadCodecPolicy.Brotli with {
+                MinimumPayloadLength = 1024
+            }
+        };
+        using var journal = EventJournal.CreateNew(path, options);
+
+        EventAddress address = journal.AppendEventFrame(null, new byte[] { 1, 2, 3 }).Unwrap();
+        EventFrameHeader header = journal.ReadEventHeaderChecked(address).Unwrap();
+
+        Assert.Equal(EventPayloadCodecId.Identity, header.PayloadCodecId);
+        Assert.Equal<uint>(3, header.PayloadLength);
+    }
+
+    [Fact]
+    public void AppendEventFrame_PerAppendWriteOptionsOverrideJournalDefault() {
+        string path = NewJournalPath();
+        using var journal = EventJournal.CreateNew(path);
+        byte[] payload = Encoding.UTF8.GetBytes(string.Concat(Enumerable.Repeat("单次写入覆盖默认压缩策略。", 256)));
+
+        EventAddress address = journal.AppendEventFrame(
+            null,
+            payload,
+            writeOptions: new EventPayloadWriteOptions(
+                EventPayloadCodecPolicy.Brotli with {
+                    MinimumPayloadLength = 0,
+                    MinimumSavingsBytes = 1,
+                    MinimumSavingsRatio = 0.01
+                }
+            )
+        ).Unwrap();
+
+        using EventFrame frame = journal.ReadEvent(address).Unwrap();
+
+        Assert.Equal(EventPayloadCodecId.Brotli, frame.Header.PayloadCodecId);
+        Assert.Equal(payload, frame.Payload.ToArray());
+    }
+
+    [Fact]
+    public void ReadEvent_UnsupportedCodecFailsButCheckedHeaderSucceeds() {
+        string path = NewJournalPath();
+        EventAddress address;
+        using (var journal = EventJournal.CreateNew(path)) {
+            address = journal.AppendEventFrame(null, new byte[] { 1, 2, 3 }).Unwrap();
+        }
+
+        RewriteEventHeaderPayloadCodec(path, address, (EventPayloadCodecId)32768, payloadLength: 3);
+
+        using var reopened = EventJournal.OpenExisting(path);
+        EventFrameHeader header = reopened.ReadEventHeaderChecked(address).Unwrap();
+        var readResult = reopened.ReadEvent(address);
+
+        Assert.Equal((EventPayloadCodecId)32768, header.PayloadCodecId);
+        Assert.True(readResult.IsFailure);
+        Assert.Equal("EventJournal.PayloadCodecUnsupported", readResult.Error!.ErrorCode);
     }
 
     [Fact]
@@ -548,5 +656,25 @@ public sealed class EventJournalTests : IDisposable {
         string path = Path.Combine(Path.GetTempPath(), "atelia-event-journal-" + Guid.NewGuid().ToString("N"));
         _tempDirectories.Add(path);
         return path;
+    }
+
+    private static void RewriteEventHeaderPayloadCodec(string journalPath, EventAddress address, EventPayloadCodecId codecId, uint payloadLength) {
+        string segmentPath = Path.Combine(journalPath, "events", "buckets", "000000", $"{address.SegmentNumber:X8}.rbf".ToLowerInvariant());
+        using IRbfFile file = RbfFile.OpenExisting(segmentPath);
+        using var frameResult = file.ReadPooledFrame(address.Ticket).ToDisposable();
+        RbfPooledFrame frame = frameResult.Unwrap();
+
+        byte[] storedPayload = frame.PayloadAndMeta[..^frame.TailMetaLength].ToArray();
+        Span<byte> tailMeta = stackalloc byte[EventFrameHeaderCodec.FixedLength];
+        frame.PayloadAndMeta[^frame.TailMetaLength..].CopyTo(tailMeta);
+        frame.Dispose();
+
+        BinaryPrimitives.WriteUInt16LittleEndian(tailMeta[8..10], (ushort)codecId);
+        BinaryPrimitives.WriteUInt32LittleEndian(tailMeta[36..40], payloadLength);
+        BinaryPrimitives.WriteUInt32LittleEndian(tailMeta[60..64], Atelia.Data.Hashing.RollingCrc.CrcForward(tailMeta[..60]));
+
+        file.Truncate(address.Ticket.Offset);
+        file.Append(EventJournal.EventFrameTag, storedPayload, tailMeta).Unwrap();
+        file.DurableFlush();
     }
 }

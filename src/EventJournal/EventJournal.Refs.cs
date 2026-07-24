@@ -201,13 +201,14 @@ public sealed partial class EventJournal {
         ReadOnlySpan<byte> payload,
         uint opaqueEventKind = 0,
         AddressHint hint = default,
-        uint reasonKind = 0
+        uint reasonKind = 0,
+        EventPayloadWriteOptions? writeOptions = null
     ) {
         var refIdResult = OpenBranch(branchName);
         if (refIdResult.IsFailure) { return refIdResult.Error!; }
 
         RefId refId = refIdResult.Unwrap();
-        var eventResult = AppendEventFrame(expectedHead, payload, opaqueEventKind, hint);
+        var eventResult = AppendEventFrame(expectedHead, payload, opaqueEventKind, hint, writeOptions: writeOptions);
         if (eventResult.IsFailure) { return eventResult.Error!; }
 
         EventAddress newEvent = eventResult.Unwrap();

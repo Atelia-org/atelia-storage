@@ -5,11 +5,12 @@ using Atelia.Rbf;
 namespace Atelia.EventJournal;
 
 public readonly record struct EventFrameHeader(
+    EventPayloadCodecId PayloadCodecId,
     ulong SequenceNumber,
     long UtcUnixTimeMilliseconds,
     uint OpaqueEventKind,
     AddressHint Hint,
-    ulong PayloadLength,
+    uint PayloadLength,
     EventAddress? Parent
 );
 
@@ -17,27 +18,23 @@ public static class EventFrameHeaderCodec {
     public const int FixedLength = 64;
 
     private const uint Magic = 0x3148_4A45; // "EJH1" as little-endian bytes.
-    private const ushort FormatVersion = 1;
-    private const uint HasParentFlag = 1u;
-    private const uint KnownFlags = HasParentFlag;
+    private const ushort FormatVersion = 2;
 
     public static void Encode(in EventFrameHeader header, Span<byte> destination) {
         if (destination.Length < FixedLength) { throw new ArgumentException("Destination is too small for EventFrameHeader.", nameof(destination)); }
-        if (header.PayloadLength > (ulong)RbfFile.MaxPayloadAndMetaLength) { throw new ArgumentOutOfRangeException(nameof(header), header.PayloadLength, "PayloadLength exceeds the RBF single-frame payload limit."); }
 
         Span<byte> headerBytes = destination[..FixedLength];
         headerBytes.Clear();
 
-        uint flags = header.Parent is null ? 0 : HasParentFlag;
         BinaryPrimitives.WriteUInt32LittleEndian(headerBytes[0..4], Magic);
         BinaryPrimitives.WriteUInt16LittleEndian(headerBytes[4..6], FormatVersion);
         BinaryPrimitives.WriteUInt16LittleEndian(headerBytes[6..8], FixedLength);
-        BinaryPrimitives.WriteUInt32LittleEndian(headerBytes[8..12], flags);
+        BinaryPrimitives.WriteUInt16LittleEndian(headerBytes[8..10], (ushort)header.PayloadCodecId);
         BinaryPrimitives.WriteUInt64LittleEndian(headerBytes[12..20], header.SequenceNumber);
         BinaryPrimitives.WriteInt64LittleEndian(headerBytes[20..28], header.UtcUnixTimeMilliseconds);
         BinaryPrimitives.WriteUInt32LittleEndian(headerBytes[28..32], header.OpaqueEventKind);
         BinaryPrimitives.WriteUInt32LittleEndian(headerBytes[32..36], header.Hint.Packed);
-        BinaryPrimitives.WriteUInt64LittleEndian(headerBytes[36..44], header.PayloadLength);
+        BinaryPrimitives.WriteUInt32LittleEndian(headerBytes[36..40], header.PayloadLength);
         EventAddressCodec.EncodeNullable(header.Parent, headerBytes[44..60]);
 
         uint crc = RollingCrc.CrcForward(headerBytes[..60]);
@@ -49,7 +46,7 @@ public static class EventFrameHeaderCodec {
             return new EventJournalError(
                 "HeaderLengthInvalid",
                 $"EventFrame TailMeta must be exactly {FixedLength} bytes, got {tailMeta.Length}.",
-                "Read a v1 EventFrame TailMeta and pass it to the fixed header codec."
+                "Read a v2 EventFrame TailMeta and pass it to the fixed header codec."
             );
         }
 
@@ -90,12 +87,21 @@ public static class EventFrameHeaderCodec {
             );
         }
 
-        uint flags = BinaryPrimitives.ReadUInt32LittleEndian(tailMeta[8..12]);
-        if ((flags & ~KnownFlags) != 0) {
+        ushort reserved0 = BinaryPrimitives.ReadUInt16LittleEndian(tailMeta[10..12]);
+        if (reserved0 != 0) {
             return new EventJournalError(
-                "HeaderFlagsUnsupported",
-                $"EventFrame header has unsupported flags 0x{flags & ~KnownFlags:X8}.",
-                "Open this journal with an implementation that understands these flags."
+                "HeaderReservedNonZero",
+                $"EventFrame header Reserved0 must be zero, got 0x{reserved0:X4}.",
+                "Open this journal with an EventJournal implementation that supports the stored format."
+            );
+        }
+
+        uint reserved1 = BinaryPrimitives.ReadUInt32LittleEndian(tailMeta[40..44]);
+        if (reserved1 != 0) {
+            return new EventJournalError(
+                "HeaderReservedNonZero",
+                $"EventFrame header Reserved1 must be zero, got 0x{reserved1:X8}.",
+                "Open this journal with an EventJournal implementation that supports the stored format."
             );
         }
 
@@ -108,17 +114,8 @@ public static class EventFrameHeaderCodec {
             );
         }
 
-        bool hasParentFlag = (flags & HasParentFlag) != 0;
-        if (hasParentFlag != parent.HasValue) {
-            return new EventJournalError(
-                "HeaderParentFlagMismatch",
-                "EventFrame HasParent flag does not match the encoded parent address.",
-                "Inspect or repair the EventFrame TailMeta."
-            );
-        }
-
-        ulong payloadLength = BinaryPrimitives.ReadUInt64LittleEndian(tailMeta[36..44]);
-        if (payloadLength > (ulong)RbfFile.MaxPayloadAndMetaLength) {
+        uint payloadLength = BinaryPrimitives.ReadUInt32LittleEndian(tailMeta[36..40]);
+        if (payloadLength > RbfFile.MaxPayloadAndMetaLength) {
             return new EventJournalError(
                 "HeaderPayloadLengthInvalid",
                 $"EventFrame header payload length {payloadLength} exceeds the RBF single-frame limit.",
@@ -127,6 +124,7 @@ public static class EventFrameHeaderCodec {
         }
 
         return new EventFrameHeader(
+            (EventPayloadCodecId)BinaryPrimitives.ReadUInt16LittleEndian(tailMeta[8..10]),
             BinaryPrimitives.ReadUInt64LittleEndian(tailMeta[12..20]),
             BinaryPrimitives.ReadInt64LittleEndian(tailMeta[20..28]),
             BinaryPrimitives.ReadUInt32LittleEndian(tailMeta[28..32]),
