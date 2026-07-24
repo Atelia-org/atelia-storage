@@ -234,7 +234,7 @@ RBF EventFrame:
 可选但尚未锁定的字段：
 
 - payload digest，用于在完整读取 frame 后，在 RBF CRC 之外提供应用层整体校验或去重基础。
-- payload codec id；原则上应留在应用 payload envelope，而不是下沉到 EventJournal。
+- payload codec id；若 EventJournal 提供透明写入时压缩，codec id 应下沉到 EventFrame TailMeta，而不是混入应用 payload envelope。stored payload length 从 RBF frame 派生，不写入 TailMeta，避免双真源。详见 [EventJournal Payload Codec 设计方案](event-payload-codec-design.md)。
 
 RBF `TailMeta` 的读取是 L2 preview：`ReadTailMeta` / `ReadPooledTailMeta` 只校验 trailer codeword，不校验完整 `PayloadCrc32C`。因此 TailMeta header 可以用于便宜路由和预览，但在接受外部地址、返回 payload、推进 ref 或执行强一致校验时，reader MUST 使用完整 `ReadFrame` / `ReadPooledFrame` 校验目标 `EventFrame`。
 

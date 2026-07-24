@@ -3,6 +3,7 @@
 > **状态**：Design Baseline / 待拆分为 Spec
 > **日期**：2026-07-23
 > **依赖**：[EventJournal 功能需求与粗粒度设计基线](event-journal-requirements-and-design.md)、[RbfSegmentStore 设计基线](rbf-segment-store-design.md)、[RBF Layer Interface Contract](../Rbf/rbf-interface.md)
+> **Payload Codec 扩展**：[EventJournal Payload Codec 设计方案](event-payload-codec-design.md) 建议将 EventFrame header 升级到 v2，以表达 logical payload length 与 payload codec id；stored payload length 从 RBF frame 派生，不写入 TailMeta。
 
 ## 1. 文档定位
 
