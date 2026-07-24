@@ -122,10 +122,52 @@ public sealed class EventJournalTests : IDisposable {
     }
 
     [Fact]
+    public void AppendAndReadEvent_ZlibRoundTripsLogicalPayload() {
+        string path = NewJournalPath();
+        var options = new EventJournalOptions {
+            PayloadCodecPolicy = EventPayloadCodecPolicy.Zlib with {
+                MinimumPayloadLength = 0,
+                MinimumSavingsBytes = 1,
+                MinimumSavingsRatio = 0.01
+            }
+        };
+        using var journal = EventJournal.CreateNew(path, options);
+        byte[] payload = Encoding.UTF8.GetBytes(string.Concat(Enumerable.Repeat("简体中文 zlib session journal payload; ", 256)));
+
+        EventAddress address = journal.AppendEventFrame(null, payload, opaqueEventKind: 12).Unwrap();
+
+        EventFrameHeader checkedHeader = journal.ReadEventHeaderChecked(address).Unwrap();
+        using EventFrame frame = journal.ReadEvent(address).Unwrap();
+
+        Assert.Equal(EventPayloadCodecId.Zlib, checkedHeader.PayloadCodecId);
+        Assert.Equal(EventPayloadCodecId.Zlib, frame.Header.PayloadCodecId);
+        Assert.Equal<uint>((uint)payload.Length, frame.Header.PayloadLength);
+        Assert.True(address.Ticket.Length < payload.Length + EventFrameHeaderCodec.FixedLength);
+        Assert.Equal(payload, frame.Payload.ToArray());
+    }
+
+    [Fact]
     public void AppendEventFrame_BrotliFallsBackForSmallPayload() {
         string path = NewJournalPath();
         var options = new EventJournalOptions {
             PayloadCodecPolicy = EventPayloadCodecPolicy.Brotli with {
+                MinimumPayloadLength = 1024
+            }
+        };
+        using var journal = EventJournal.CreateNew(path, options);
+
+        EventAddress address = journal.AppendEventFrame(null, new byte[] { 1, 2, 3 }).Unwrap();
+        EventFrameHeader header = journal.ReadEventHeaderChecked(address).Unwrap();
+
+        Assert.Equal(EventPayloadCodecId.Identity, header.PayloadCodecId);
+        Assert.Equal<uint>(3, header.PayloadLength);
+    }
+
+    [Fact]
+    public void AppendEventFrame_ZlibFallsBackForSmallPayload() {
+        string path = NewJournalPath();
+        var options = new EventJournalOptions {
+            PayloadCodecPolicy = EventPayloadCodecPolicy.Zlib with {
                 MinimumPayloadLength = 1024
             }
         };

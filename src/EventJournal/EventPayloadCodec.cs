@@ -26,6 +26,8 @@ public readonly record struct EventPayloadCodecPolicy(
     public static EventPayloadCodecPolicy Identity => new(EventPayloadCodecId.Identity);
 
     public static EventPayloadCodecPolicy Brotli => new(EventPayloadCodecId.Brotli);
+
+    public static EventPayloadCodecPolicy Zlib => new(EventPayloadCodecId.Zlib);
 }
 
 public readonly record struct EventPayloadWriteOptions(
@@ -34,18 +36,20 @@ public readonly record struct EventPayloadWriteOptions(
 
 internal readonly ref struct EventStoredPayloadLease {
     private readonly byte[]? _buffer;
+    private readonly bool _returnBufferToPool;
 
-    public EventStoredPayloadLease(EventPayloadCodecId codecId, ReadOnlySpan<byte> payload, byte[]? buffer) {
+    public EventStoredPayloadLease(EventPayloadCodecId codecId, ReadOnlySpan<byte> payload, byte[]? buffer, bool returnBufferToPool = true) {
         CodecId = codecId;
         Payload = payload;
         _buffer = buffer;
+        _returnBufferToPool = returnBufferToPool;
     }
 
     public EventPayloadCodecId CodecId { get; }
     public ReadOnlySpan<byte> Payload { get; }
 
     public void Dispose() {
-        if (_buffer is not null) { ArrayPool<byte>.Shared.Return(_buffer); }
+        if (_buffer is not null && _returnBufferToPool) { ArrayPool<byte>.Shared.Return(_buffer); }
     }
 }
 
@@ -58,7 +62,7 @@ internal static class EventPayloadCodec {
             return new EventJournalError(
                 "PayloadCodecPolicyInvalid",
                 $"Unsupported preferred payload codec id {(ushort)policy.PreferredCodec}.",
-                "Use identity or brotli for EventJournal payload compression."
+                "Use identity, brotli, or zlib for EventJournal payload compression."
             );
         }
 
@@ -105,6 +109,7 @@ internal static class EventPayloadCodec {
 
         return policy.PreferredCodec switch {
             EventPayloadCodecId.Brotli => TryEncodeBrotli(logicalPayload, policy, out error),
+            EventPayloadCodecId.Zlib => TryEncodeZlib(logicalPayload, policy, out error),
             _ => UnsupportedEncodeFallback(logicalPayload, policy, out error)
         };
     }
@@ -120,6 +125,7 @@ internal static class EventPayloadCodec {
 
         return codecId switch {
             EventPayloadCodecId.Brotli => DecodeBrotli(storedPayload, (int)logicalLength),
+            EventPayloadCodecId.Zlib => DecodeZlib(storedPayload, (int)logicalLength),
             EventPayloadCodecId.Identity => IdentityDecodeShouldNotAllocate(),
             _ => new EventJournalError(
                 "PayloadCodecUnsupported",
@@ -130,7 +136,7 @@ internal static class EventPayloadCodec {
     }
 
     private static bool IsKnownPolicyCodec(EventPayloadCodecId codecId) =>
-        codecId is EventPayloadCodecId.Identity or EventPayloadCodecId.Brotli;
+        codecId is EventPayloadCodecId.Identity or EventPayloadCodecId.Brotli or EventPayloadCodecId.Zlib;
 
     private static EventStoredPayloadLease TryEncodeBrotli(ReadOnlySpan<byte> logicalPayload, in EventPayloadCodecPolicy policy, out AteliaError? error) {
         error = null;
@@ -170,12 +176,39 @@ internal static class EventPayloadCodec {
         return new EventStoredPayloadLease(EventPayloadCodecId.Brotli, buffer.AsSpan(0, bytesWritten), buffer);
     }
 
+    private static EventStoredPayloadLease TryEncodeZlib(ReadOnlySpan<byte> logicalPayload, in EventPayloadCodecPolicy policy, out AteliaError? error) {
+        error = null;
+        try {
+            using var stream = new MemoryStream(logicalPayload.Length);
+            using (var compressor = new ZLibStream(stream, CompressionLevel.Optimal, leaveOpen: true)) {
+                compressor.Write(logicalPayload);
+            }
+
+            byte[] compressedPayload = stream.ToArray();
+            if (!HasRequiredSavings(logicalPayload.Length, compressedPayload.Length, policy)) {
+                return new EventStoredPayloadLease(EventPayloadCodecId.Identity, logicalPayload, buffer: null);
+            }
+
+            return new EventStoredPayloadLease(EventPayloadCodecId.Zlib, compressedPayload, compressedPayload, returnBufferToPool: false);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException or NotSupportedException) {
+            return CompressionFailedFallback(logicalPayload, policy,
+                new EventJournalError(
+                    "PayloadCodecEncodeFailed",
+                    $"Zlib compression failed: {ex.Message}",
+                    "Store the payload as identity, or inspect codec availability.",
+                    Cause: new EventJournalError("CompressionException", ex.GetType().FullName ?? ex.GetType().Name, ex.Message)
+                ), out error
+            );
+        }
+    }
+
     private static EventStoredPayloadLease UnsupportedEncodeFallback(ReadOnlySpan<byte> logicalPayload, in EventPayloadCodecPolicy policy, out AteliaError? error) =>
         CompressionFailedFallback(logicalPayload, policy,
             new EventJournalError(
                 "PayloadCodecUnsupported",
                 $"Payload codec id {(ushort)policy.PreferredCodec} is reserved but not implemented.",
-                "Use identity or brotli for current writes."
+                "Use identity, brotli, or zlib for current writes."
             ), out error
         );
 
@@ -219,6 +252,41 @@ internal static class EventPayloadCodec {
         }
 
         return decoded;
+    }
+
+    private static AteliaResult<byte[]> DecodeZlib(ReadOnlySpan<byte> storedPayload, int logicalLength) {
+        byte[] decoded = ArrayPool<byte>.Shared.Rent(logicalLength);
+        try {
+            using var source = new MemoryStream(storedPayload.ToArray(), writable: false);
+            using var decompressor = new ZLibStream(source, CompressionMode.Decompress, leaveOpen: false);
+
+            int totalRead = 0;
+            while (totalRead < logicalLength) {
+                int bytesRead = decompressor.Read(decoded.AsSpan(totalRead, logicalLength - totalRead));
+                if (bytesRead == 0) { break; }
+                totalRead += bytesRead;
+            }
+
+            if (totalRead != logicalLength || decompressor.ReadByte() != -1) {
+                ArrayPool<byte>.Shared.Return(decoded);
+                return new EventJournalError(
+                    "PayloadLengthMismatch",
+                    $"Decoded payload length does not match EventFrame header logical payload length {logicalLength}.",
+                    "Treat this EventFrame as corrupted."
+                );
+            }
+
+            return decoded;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException) {
+            ArrayPool<byte>.Shared.Return(decoded);
+            return new EventJournalError(
+                "PayloadCodecDecodeFailed",
+                $"Zlib payload decode failed: {ex.Message}",
+                "Treat this EventFrame payload as corrupted, or use recovery tooling to inspect stored bytes.",
+                Cause: new EventJournalError("CompressionException", ex.GetType().FullName ?? ex.GetType().Name, ex.Message)
+            );
+        }
     }
 
     private static AteliaResult<byte[]> IdentityDecodeShouldNotAllocate() => new EventJournalError(

@@ -68,7 +68,7 @@ EventFrameHeader header = frame.Header;
 
 `AppendEventFrame(parent, payload, ...)` 会在 parent 非空时 checked-read parent，确保不会向不存在或损坏的 parent 追加。
 
-`AppendEventFrame` 接受的是 logical payload bytes。若启用 `EventJournalOptions.PayloadCodecPolicy`，EventJournal 会在写入 RBF 前选择 identity 或 brotli stored payload；读取时普通调用方仍只看到 logical payload。
+`AppendEventFrame` 接受的是 logical payload bytes。若启用 `EventJournalOptions.PayloadCodecPolicy`，EventJournal 会在写入 RBF 前选择 identity、brotli 或 zlib stored payload；读取时普通调用方仍只看到 logical payload。
 
 ## Traversal
 
@@ -175,7 +175,7 @@ ForwardPlan 的核心模型是：
 `EventJournalOptions` 会规范化底层 store layout：
 
 - `MaxLogicalPayloadLength`：单 Event logical payload 上限，默认是 RBF 单帧 payload+TailMeta 上限减去 64 字节 EventFrame header。
-- `PayloadCodecPolicy`：EventFrame payload 写入策略，默认 identity；可设为 `EventPayloadCodecPolicy.Brotli` 启用保守的 brotli 压缩自动选择。
+- `PayloadCodecPolicy`：EventFrame payload 写入策略，默认 identity；可设为 `EventPayloadCodecPolicy.Zlib` 或 `EventPayloadCodecPolicy.Brotli` 启用保守的压缩自动选择。
 - `EventSegmentStoreOptions`：强制使用 bucketed layout，默认 segment threshold 为 `64 GiB`。
 - `RefSegmentStoreOptions`：强制使用 flat layout，默认 segment threshold 为 `64 MiB`。
 - `RefOpLogOptions`：配置 ref-op-log 的 RBF cache mode 与打开时 tail recovery。
@@ -184,7 +184,7 @@ ForwardPlan 的核心模型是：
 
 ```csharp
 var options = new EventJournalOptions {
-    PayloadCodecPolicy = EventPayloadCodecPolicy.Brotli,
+    PayloadCodecPolicy = EventPayloadCodecPolicy.Zlib,
     EventSegmentStoreOptions = new RbfSegmentStoreOptions {
         SegmentSizeThresholdBytes = 8 * 1024 * 1024
     },
