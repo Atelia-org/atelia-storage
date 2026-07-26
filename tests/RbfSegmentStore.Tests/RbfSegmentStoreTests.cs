@@ -253,6 +253,48 @@ public sealed class RbfSegmentStoreTests : IDisposable {
     }
 
     [Fact]
+    public void OpenReadOnlyExisting_RejectsTornActiveTailWithoutChangingFile() {
+        string storePath = NewStorePath();
+        using (var store = RbfSegmentStore.CreateNew(storePath))
+        using (var writer = store.OpenActiveWriter()) {
+            writer.File.Append(9, new byte[] { 9, 9, 9, 9 }).Unwrap();
+        }
+
+        string segmentPath = SegmentPath(
+            storePath,
+            RbfSegmentStoreLayout.Bucketed,
+            1
+        );
+        File.AppendAllBytes(segmentPath, new byte[] { 0, 0, 0, 0 });
+        byte[] before = File.ReadAllBytes(segmentPath);
+
+        Assert.Throws<InvalidDataException>(
+            () => RbfSegmentStore.OpenReadOnlyExisting(storePath)
+        );
+
+        Assert.Equal(before, File.ReadAllBytes(segmentPath));
+    }
+
+    [Fact]
+    public void OpenReadOnlyExisting_ReadsButRejectsActiveWriter() {
+        string storePath = NewStorePath();
+        SizedPtr ticket;
+        using (var store = RbfSegmentStore.CreateNew(storePath))
+        using (var writer = store.OpenActiveWriter()) {
+            ticket = writer.File.Append(9, new byte[] { 1, 2, 3, 4 }).Unwrap();
+        }
+
+        using var readOnly = RbfSegmentStore.OpenReadOnlyExisting(storePath);
+        using var reader = readOnly.OpenReader(1);
+        using var frame = reader.File.ReadPooledFrame(ticket).Unwrap();
+
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, frame.PayloadAndMeta.ToArray());
+        Assert.Throws<InvalidOperationException>(
+            () => readOnly.OpenActiveWriter()
+        );
+    }
+
+    [Fact]
     public void OpenExisting_AcceptsHeaderOnlyActiveSegment() {
         string storePath = NewStorePath();
         using (RbfSegmentStore.CreateNew(storePath)) { }

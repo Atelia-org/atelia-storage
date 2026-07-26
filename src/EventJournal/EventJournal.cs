@@ -11,6 +11,7 @@ public sealed partial class EventJournal : IDisposable {
     private readonly EventJournalOptions _options;
     private readonly RbfSegmentStore.RbfSegmentStore _segments;
     private readonly IRbfFile _refOpLog;
+    private readonly bool _isReadOnly;
     private readonly string _refObjectsPath;
     private readonly string _forwardPlanCachePath;
     private readonly Dictionary<string, RefId> _branches;
@@ -20,11 +21,20 @@ public sealed partial class EventJournal : IDisposable {
     private ulong _nextSequenceNumber;
     private bool _disposed;
 
-    private EventJournal(string journalPath, EventJournalOptions options, RbfSegmentStore.RbfSegmentStore segments, IRbfFile refOpLog, Dictionary<string, RefId> branches, ulong nextSequenceNumber) {
+    private EventJournal(
+        string journalPath,
+        EventJournalOptions options,
+        RbfSegmentStore.RbfSegmentStore segments,
+        IRbfFile refOpLog,
+        Dictionary<string, RefId> branches,
+        ulong nextSequenceNumber,
+        bool isReadOnly = false
+    ) {
         JournalPath = Path.GetFullPath(journalPath);
         _options = options;
         _segments = segments;
         _refOpLog = refOpLog;
+        _isReadOnly = isReadOnly;
         _refObjectsPath = RefObjectsDirectory(JournalPath);
         _forwardPlanCachePath = ForwardPlanCacheDirectory(JournalPath);
         _branches = branches;
@@ -71,6 +81,56 @@ public sealed partial class EventJournal : IDisposable {
         }
     }
 
+    /// <summary>
+    /// Opens an existing journal for strict read-only inspection. Active event,
+    /// ref-op, and live ref-object tails are validated but never recovered or
+    /// truncated, and compiled forward-plan caches are neither created nor changed.
+    /// </summary>
+    public static EventJournal OpenReadOnlyExisting(
+        string journalPath,
+        EventJournalOptions? options = null
+    ) {
+        options = (options ?? new EventJournalOptions()).Normalized();
+        string fullPath = Path.GetFullPath(journalPath);
+        var segments =
+            RbfSegmentStore.RbfSegmentStore.OpenReadOnlyExisting(
+                EventsStorePath(fullPath),
+                options.EventSegmentStoreOptions
+            );
+        IRbfFile? refOpLog = null;
+        EventJournal? journal = null;
+        try {
+            refOpLog = OpenReadOnlyRefOpLog(fullPath, options);
+            var branches = ReplayRefOpLog(refOpLog);
+            journal = new EventJournal(
+                fullPath,
+                options,
+                segments,
+                refOpLog,
+                branches,
+                ComputeNextSequenceNumber(
+                    segments,
+                    requireEventFramesOnly: true
+                ),
+                isReadOnly: true
+            );
+            refOpLog = null;
+
+            foreach (RefId refId in branches.Values.Distinct()) {
+                journal.LoadRefState(refId).Unwrap();
+            }
+            return journal;
+        }
+        catch {
+            journal?.Dispose();
+            refOpLog?.Dispose();
+            if (journal is null) {
+                segments.Dispose();
+            }
+            throw;
+        }
+    }
+
     public static EventJournal OpenOrCreate(string journalPath, EventJournalOptions? options = null) {
         options = (options ?? new EventJournalOptions()).Normalized();
         string fullPath = Path.GetFullPath(journalPath);
@@ -99,6 +159,7 @@ public sealed partial class EventJournal : IDisposable {
         EventPayloadWriteOptions? writeOptions = null
     ) {
         ThrowIfDisposed();
+        ThrowIfReadOnly();
 
         var lengthError = ValidateLogicalPayloadLength(payload.Length);
         if (lengthError is not null) { return lengthError; }
@@ -358,7 +419,10 @@ public sealed partial class EventJournal : IDisposable {
     private static string EventsStorePath(string journalPath) => Path.Combine(journalPath, "events");
     private static string ForwardPlanCacheDirectory(string journalPath) => Path.Combine(journalPath, "cache", "forward-plans", "v1");
 
-    private static ulong ComputeNextSequenceNumber(RbfSegmentStore.RbfSegmentStore segments) {
+    private static ulong ComputeNextSequenceNumber(
+        RbfSegmentStore.RbfSegmentStore segments,
+        bool requireEventFramesOnly = false
+    ) {
         ulong maxSequenceNumber = 0;
         bool found = false;
 
@@ -367,7 +431,19 @@ public sealed partial class EventJournal : IDisposable {
             var enumerator = lease.File.ScanForward().GetEnumerator();
             while (enumerator.MoveNext()) {
                 RbfFrameInfo info = enumerator.Current;
-                if (info.Tag != EventFrameTag || info.IsTombstone) { continue; }
+                if (info.Tag != EventFrameTag || info.IsTombstone) {
+                    if (requireEventFramesOnly) {
+                        throw new InvalidDataException(
+                            $"EventJournal segment {segmentNumber} contains a non-event or tombstone frame at {info.Ticket}."
+                        );
+                    }
+                    continue;
+                }
+                if (info.TailMetaLength != EventFrameHeaderCodec.FixedLength) {
+                    throw new InvalidDataException(
+                        $"EventJournal segment {segmentNumber} frame at {info.Ticket} has invalid TailMeta length {info.TailMetaLength}."
+                    );
+                }
 
                 using var tailMeta = info.ReadPooledTailMeta().Unwrap();
                 var header = EventFrameHeaderCodec.Decode(tailMeta.TailMeta).Unwrap();
@@ -379,6 +455,14 @@ public sealed partial class EventJournal : IDisposable {
         }
 
         return found ? maxSequenceNumber + 1 : 1;
+    }
+
+    private void ThrowIfReadOnly() {
+        if (_isReadOnly) {
+            throw new InvalidOperationException(
+                "EventJournal was opened read-only and cannot be mutated."
+            );
+        }
     }
 
     private static AteliaError? ValidateAddress(EventAddress address) {

@@ -590,6 +590,87 @@ public sealed class EventJournalTests : IDisposable {
     }
 
     [Fact]
+    public void OpenReadOnlyExisting_ReadsReadOnlyMediaWithoutCreatingCacheAndRejectsWrites() {
+        string path = NewJournalPath();
+        EventAddress root;
+        EventAddress head;
+        using (var journal = EventJournal.CreateNew(path)) {
+            root = journal.AppendEventFrame(null, new byte[] { 1 }).Unwrap();
+            head = journal.AppendEventFrame(root, new byte[] { 2 }).Unwrap();
+            journal.CreateBranch("main", head).Unwrap();
+        }
+
+        string cachePath = Path.Combine(path, "cache");
+        Assert.False(Directory.Exists(cachePath));
+        SetRepositoryReadOnly(path, readOnly: true);
+        try {
+            using var journal = EventJournal.OpenReadOnlyExisting(path);
+            RefId main = journal.OpenBranch("main").Unwrap();
+
+            Assert.Equal(head, journal.GetHead(main));
+            Assert.Equal(
+                new[] { root, head },
+                journal.ReadChronologicalChain(main, checkedRead: true).Unwrap()
+            );
+            Assert.Throws<InvalidOperationException>(
+                () => journal.AppendEventFrame(head, new byte[] { 3 })
+            );
+            Assert.Throws<InvalidOperationException>(
+                () => journal.CreateBranch("other", head)
+            );
+            Assert.False(Directory.Exists(cachePath));
+        }
+        finally {
+            SetRepositoryReadOnly(path, readOnly: false);
+        }
+    }
+
+    [Theory]
+    [InlineData("event")]
+    [InlineData("ref-op")]
+    [InlineData("ref-object")]
+    public void OpenReadOnlyExisting_MalformedActiveTailFailsWithoutRepair(
+        string target
+    ) {
+        string path = NewJournalPath();
+        RefId main;
+        using (var journal = EventJournal.CreateNew(path)) {
+            EventAddress root = journal
+                .AppendEventFrame(null, new byte[] { 1 })
+                .Unwrap();
+            main = journal.CreateBranch("main", root).Unwrap();
+        }
+
+        string activePath = target switch {
+            "event" => Path.Combine(
+                path,
+                "events",
+                "buckets",
+                "000000",
+                "00000001.rbf"
+            ),
+            "ref-op" => Path.Combine(path, "refs", "ref-op-log.rbf"),
+            "ref-object" => Path.Combine(
+                path,
+                "refs",
+                "objects",
+                main.ToHexString(),
+                "segments",
+                "00000001.rbf"
+            ),
+            _ => throw new ArgumentOutOfRangeException(nameof(target))
+        };
+        File.AppendAllBytes(activePath, new byte[] { 0, 0, 0, 0 });
+        byte[] before = File.ReadAllBytes(activePath);
+
+        Assert.ThrowsAny<Exception>(
+            () => EventJournal.OpenReadOnlyExisting(path)
+        );
+
+        Assert.Equal(before, File.ReadAllBytes(activePath));
+    }
+
+    [Fact]
     public void CreateBranch_OpenBranchAndReopenKeepStableRefIdAndHead() {
         string path = NewJournalPath();
         EventAddress root;
@@ -698,6 +779,43 @@ public sealed class EventJournalTests : IDisposable {
         string path = Path.Combine(Path.GetTempPath(), "atelia-event-journal-" + Guid.NewGuid().ToString("N"));
         _tempDirectories.Add(path);
         return path;
+    }
+
+    private static void SetRepositoryReadOnly(string path, bool readOnly) {
+        if (!OperatingSystem.IsLinux()) {
+            return;
+        }
+
+        UnixFileMode fileMode = readOnly
+            ? UnixFileMode.UserRead
+                | UnixFileMode.GroupRead
+                | UnixFileMode.OtherRead
+            : UnixFileMode.UserRead | UnixFileMode.UserWrite;
+        UnixFileMode directoryMode = readOnly
+            ? UnixFileMode.UserRead
+                | UnixFileMode.UserExecute
+                | UnixFileMode.GroupRead
+                | UnixFileMode.GroupExecute
+                | UnixFileMode.OtherRead
+                | UnixFileMode.OtherExecute
+            : UnixFileMode.UserRead
+                | UnixFileMode.UserWrite
+                | UnixFileMode.UserExecute;
+
+        foreach (string file in Directory.EnumerateFiles(
+            path,
+            "*",
+            SearchOption.AllDirectories
+        )) {
+            File.SetUnixFileMode(file, fileMode);
+        }
+        foreach (string directory in Directory.EnumerateDirectories(
+                path,
+                "*",
+                SearchOption.AllDirectories
+            ).Prepend(path)) {
+            File.SetUnixFileMode(directory, directoryMode);
+        }
     }
 
     private static void RewriteEventHeaderPayloadCodec(string journalPath, EventAddress address, EventPayloadCodecId codecId, uint payloadLength) {

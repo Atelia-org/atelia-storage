@@ -5,15 +5,17 @@ namespace Atelia.RbfSegmentStore;
 public sealed class RbfSegmentStore : IRbfSegmentStore {
     private readonly string _storePath;
     private readonly RbfSegmentStoreLayout _layout;
+    private readonly bool _isReadOnly;
     private readonly Dictionary<uint, HistoricalReaderEntry> _historicalReaders = new();
     private long _lruClock;
     private IRbfFile _activeFile;
     private int _activeLeaseCount;
     private bool _disposed;
 
-    private RbfSegmentStore(string storePath, RbfSegmentStoreOptions options, RbfSegmentStoreLayout layout, uint activeSegmentNumber, IRbfFile activeFile) {
+    private RbfSegmentStore(string storePath, RbfSegmentStoreOptions options, RbfSegmentStoreLayout layout, uint activeSegmentNumber, IRbfFile activeFile, bool isReadOnly = false) {
         _storePath = Path.GetFullPath(storePath);
         _layout = layout;
+        _isReadOnly = isReadOnly;
         Options = options;
         ActiveSegmentNumber = activeSegmentNumber;
         _activeFile = activeFile;
@@ -47,7 +49,21 @@ public sealed class RbfSegmentStore : IRbfSegmentStore {
             ?? throw new DirectoryNotFoundException($"RBF segment store does not exist: {fullPath}");
 
         uint activeSegmentNumber = DiscoverActiveSegment(RbfSegmentPath.LayoutDirectory(fullPath, layout), layout, allowEmpty: false);
-        return OpenDiscovered(fullPath, options, layout, activeSegmentNumber);
+        return OpenDiscovered(fullPath, options, layout, activeSegmentNumber, isReadOnly: false);
+    }
+
+    /// <summary>
+    /// Opens an existing segment store without recovering, truncating, rotating, or
+    /// otherwise mutating its active segment.
+    /// </summary>
+    public static RbfSegmentStore OpenReadOnlyExisting(string storePath, RbfSegmentStoreOptions? options = null) {
+        options = (options ?? new RbfSegmentStoreOptions()).Validated();
+        string fullPath = Path.GetFullPath(storePath);
+        RbfSegmentStoreLayout layout = DiscoverLayout(fullPath)
+            ?? throw new DirectoryNotFoundException($"RBF segment store does not exist: {fullPath}");
+
+        uint activeSegmentNumber = DiscoverActiveSegment(RbfSegmentPath.LayoutDirectory(fullPath, layout), layout, allowEmpty: false);
+        return OpenDiscovered(fullPath, options, layout, activeSegmentNumber, isReadOnly: true);
     }
 
     public static RbfSegmentStore OpenOrCreate(string storePath, RbfSegmentStoreOptions? options = null) {
@@ -69,11 +85,16 @@ public sealed class RbfSegmentStore : IRbfSegmentStore {
             return new RbfSegmentStore(fullPath, options, layout, 1, activeFile);
         }
 
-        return OpenDiscovered(fullPath, options, layout, activeSegmentNumber);
+        return OpenDiscovered(fullPath, options, layout, activeSegmentNumber, isReadOnly: false);
     }
 
     public RbfSegmentWriterLease OpenActiveWriter() {
         ThrowIfDisposed();
+        if (_isReadOnly) {
+            throw new InvalidOperationException(
+                "Cannot open an active writer on a read-only RBF segment store."
+            );
+        }
         EnsureNoActiveLease();
 
         if (_activeFile.TailOffset >= Options.SegmentSizeThresholdBytes) {
@@ -127,12 +148,38 @@ public sealed class RbfSegmentStore : IRbfSegmentStore {
         _disposed = true;
     }
 
-    private static RbfSegmentStore OpenDiscovered(string fullPath, RbfSegmentStoreOptions options, RbfSegmentStoreLayout layout, uint activeSegmentNumber) {
+    private static RbfSegmentStore OpenDiscovered(
+        string fullPath,
+        RbfSegmentStoreOptions options,
+        RbfSegmentStoreLayout layout,
+        uint activeSegmentNumber,
+        bool isReadOnly
+    ) {
         string activePath = RbfSegmentPath.GetSegmentPath(fullPath, layout, activeSegmentNumber);
-        if (options.RecoverActiveTailOnOpen) { RecoverActiveTail(activePath, options.CacheMode); }
+        if (!isReadOnly && options.RecoverActiveTailOnOpen) {
+            RecoverActiveTail(activePath, options.CacheMode);
+        }
 
-        IRbfFile activeFile = RbfFile.OpenExisting(activePath, options.CacheMode);
-        return new RbfSegmentStore(fullPath, options, layout, activeSegmentNumber, activeFile);
+        IRbfFile activeFile = isReadOnly
+            ? RbfFile.OpenReadOnlyExisting(activePath, options.CacheMode)
+            : RbfFile.OpenExisting(activePath, options.CacheMode);
+        try {
+            if (isReadOnly) {
+                ValidateActiveTail(activeFile, activePath);
+            }
+            return new RbfSegmentStore(
+                fullPath,
+                options,
+                layout,
+                activeSegmentNumber,
+                activeFile,
+                isReadOnly
+            );
+        }
+        catch {
+            activeFile.Dispose();
+            throw;
+        }
     }
 
     private static IRbfFile CreateSegment(string storePath, RbfSegmentStoreLayout layout, uint segmentNumber, RbfSegmentStoreOptions options) {
@@ -242,6 +289,18 @@ public sealed class RbfSegmentStore : IRbfSegmentStore {
         if (recoveryHit is not { } foundHit) { throw new InvalidDataException($"Active segment is not recoverable: {activePath}"); }
 
         RbfRecovery.TruncateToSuggestedTail(activePath, foundHit);
+    }
+
+    private static void ValidateActiveTail(IRbfFile activeFile, string activePath) {
+        var enumerator = activeFile.ScanForward().GetEnumerator();
+        while (enumerator.MoveNext()) {
+            // Framing validation happens as the scanner advances.
+        }
+        if (enumerator.TerminationError is not null) {
+            throw new InvalidDataException(
+                $"Active segment has an invalid tail and read-only open will not recover it: {activePath}. {enumerator.TerminationError.Message}"
+            );
+        }
     }
 
     private HistoricalReaderEntry GetHistoricalReader(uint segmentNumber) {

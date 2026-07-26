@@ -50,7 +50,9 @@ public sealed partial class EventJournal {
 
     internal void EvictForwardPlan(EventAddress targetHead) {
         _forwardPlanCache.Remove(targetHead);
-        TryDeleteCompiledForwardPlan(targetHead);
+        if (!_isReadOnly) {
+            TryDeleteCompiledForwardPlan(targetHead);
+        }
 
         List<RefId>? refsToUnbind = null;
         foreach (KeyValuePair<RefId, RefForwardBinding> pair in _forwardPlanBindings) {
@@ -280,16 +282,18 @@ public sealed partial class EventJournal {
             return new OptionalEphemeralForwardPlan(cachedPlan);
         }
 
-        var diskLoadResult = TryLoadCompiledForwardPlan(head);
-        if (diskLoadResult.IsFailure) { return diskLoadResult.Error!; }
-        OptionalEphemeralForwardPlan optionalDiskPlan = diskLoadResult.Unwrap();
-        if (optionalDiskPlan.HasValue) {
-            EphemeralForwardPlan diskPlan = optionalDiskPlan.Value;
-            if (ExceedsMaxDepth(diskPlan.EventCount, maxDepth)) { return TraversalDepthExceededError(maxDepth.GetValueOrDefault(), "compiled forward plan"); }
+        if (!_isReadOnly) {
+            var diskLoadResult = TryLoadCompiledForwardPlan(head);
+            if (diskLoadResult.IsFailure) { return diskLoadResult.Error!; }
+            OptionalEphemeralForwardPlan optionalDiskPlan = diskLoadResult.Unwrap();
+            if (optionalDiskPlan.HasValue) {
+                EphemeralForwardPlan diskPlan = optionalDiskPlan.Value;
+                if (ExceedsMaxDepth(diskPlan.EventCount, maxDepth)) { return TraversalDepthExceededError(maxDepth.GetValueOrDefault(), "compiled forward plan"); }
 
-            _forwardPlanCache.AddOrReplace(diskPlan);
-            _forwardPlanCache.RecordDiskHit();
-            return new OptionalEphemeralForwardPlan(diskPlan);
+                _forwardPlanCache.AddOrReplace(diskPlan);
+                _forwardPlanCache.RecordDiskHit();
+                return new OptionalEphemeralForwardPlan(diskPlan);
+            }
         }
 
         return OptionalEphemeralForwardPlan.None;
@@ -297,7 +301,7 @@ public sealed partial class EventJournal {
 
     private void CacheAndPersistForwardPlan(EphemeralForwardPlan plan) {
         _forwardPlanCache.AddOrReplace(plan);
-        if (TrySaveCompiledForwardPlan(plan)) {
+        if (!_isReadOnly && TrySaveCompiledForwardPlan(plan)) {
             _forwardPlanCache.RecordDiskWrite();
         }
     }

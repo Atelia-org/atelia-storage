@@ -34,6 +34,28 @@ internal sealed class RefMoveStore : IDisposable {
         return new RefMoveStore(refId, SegmentStore.OpenExisting(GetObjectPath(refObjectRootPath, refId), options));
     }
 
+    internal static RefMoveStore OpenReadOnlyExisting(
+        string refObjectRootPath,
+        RefId refId,
+        RbfSegmentStoreOptions options
+    ) {
+        ValidateRefId(refId);
+        if (options.NewStoreLayout != RbfSegmentStoreLayout.Flat) {
+            throw new ArgumentException(
+                "Ref move store must use Flat segment layout.",
+                nameof(options)
+            );
+        }
+
+        return new RefMoveStore(
+            refId,
+            SegmentStore.OpenReadOnlyExisting(
+                GetObjectPath(refObjectRootPath, refId),
+                options
+            )
+        );
+    }
+
     internal AteliaResult<FrameAddress> AppendMove(in RefMoveFrame move) {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (move.RefId != RefId) {

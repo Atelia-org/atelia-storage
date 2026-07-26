@@ -32,6 +32,7 @@ public sealed partial class EventJournal {
 
     public AteliaResult<RefId> CreateBranch(string branchName, EventAddress? startPoint, uint reasonKind = 0) {
         ThrowIfDisposed();
+        ThrowIfReadOnly();
         var nameError = ValidateBranchName(branchName);
         if (nameError is not null) { return nameError; }
         if (_branches.ContainsKey(branchName)) { return BranchAlreadyExistsError(branchName); }
@@ -66,6 +67,7 @@ public sealed partial class EventJournal {
 
     public AteliaResult<RefId> ForkBranch(string branchName, RefId sourceRefId, EventAddress sourceHead, uint reasonKind = 0) {
         ThrowIfDisposed();
+        ThrowIfReadOnly();
         var sourceStateResult = LoadRefState(sourceRefId);
         if (sourceStateResult.IsFailure) { return sourceStateResult.Error!; }
 
@@ -112,6 +114,7 @@ public sealed partial class EventJournal {
 
     public AteliaResult<bool> AdvanceRef(RefId refId, EventAddress? expectedOldHead, EventAddress newHead, uint reasonKind = 0) {
         ThrowIfDisposed();
+        ThrowIfReadOnly();
         var stateResult = LoadRefState(refId);
         if (stateResult.IsFailure) { return stateResult.Error!; }
 
@@ -135,6 +138,7 @@ public sealed partial class EventJournal {
 
     public AteliaResult<bool> MoveRef(RefId refId, EventAddress? expectedOldHead, EventAddress? newHead, uint reasonKind = 0) {
         ThrowIfDisposed();
+        ThrowIfReadOnly();
         var stateResult = LoadRefState(refId);
         if (stateResult.IsFailure) { return stateResult.Error!; }
 
@@ -150,6 +154,7 @@ public sealed partial class EventJournal {
 
     public AteliaResult<bool> ArchiveRef(RefId refId, EventAddress? expectedOldHead, uint reasonKind = 0) {
         ThrowIfDisposed();
+        ThrowIfReadOnly();
         var stateResult = LoadRefState(refId);
         if (stateResult.IsFailure) { return stateResult.Error!; }
 
@@ -182,7 +187,17 @@ public sealed partial class EventJournal {
     public AteliaResult<IReadOnlyList<RefMoveFrame>> ReadReflog(RefId refId) {
         ThrowIfDisposed();
         try {
-            using var refObject = RefMoveStore.OpenExisting(_refObjectsPath, refId, _options.RefSegmentStoreOptions);
+            using var refObject = _isReadOnly
+                ? RefMoveStore.OpenReadOnlyExisting(
+                    _refObjectsPath,
+                    refId,
+                    _options.RefSegmentStoreOptions
+                )
+                : RefMoveStore.OpenExisting(
+                    _refObjectsPath,
+                    refId,
+                    _options.RefSegmentStoreOptions
+                );
             return refObject.ReadAllMoves();
         }
         catch (Exception ex) when (IsReadException(ex)) {
@@ -249,6 +264,23 @@ public sealed partial class EventJournal {
         return RbfFile.OpenExisting(path, options.RefOpLogOptions.CacheMode);
     }
 
+    private static IRbfFile OpenReadOnlyRefOpLog(
+        string journalPath,
+        EventJournalOptions options
+    ) {
+        string path = RefOpLogPath(journalPath);
+        if (!File.Exists(path)) {
+            throw new FileNotFoundException(
+                "EventJournal ref-op-log does not exist.",
+                path
+            );
+        }
+        return RbfFile.OpenReadOnlyExisting(
+            path,
+            options.RefOpLogOptions.CacheMode
+        );
+    }
+
     private static Dictionary<string, RefId> ReplayRefOpLog(IRbfFile refOpLog) {
         var knownRefs = new HashSet<RefId>();
         var branches = new Dictionary<string, RefId>(StringComparer.Ordinal);
@@ -313,7 +345,17 @@ public sealed partial class EventJournal {
         if (_refStates.TryGetValue(refId, out RefState? cached)) { return cached; }
 
         try {
-            using var refObject = RefMoveStore.OpenExisting(_refObjectsPath, refId, _options.RefSegmentStoreOptions);
+            using var refObject = _isReadOnly
+                ? RefMoveStore.OpenReadOnlyExisting(
+                    _refObjectsPath,
+                    refId,
+                    _options.RefSegmentStoreOptions
+                )
+                : RefMoveStore.OpenExisting(
+                    _refObjectsPath,
+                    refId,
+                    _options.RefSegmentStoreOptions
+                );
             var movesResult = refObject.ReadAllMoves();
             if (movesResult.IsFailure) { return movesResult.Error!; }
 
@@ -322,8 +364,13 @@ public sealed partial class EventJournal {
                 var applyResult = TryApplyMove(state, move, out RefState? nextState);
                 if (applyResult is not null) { return applyResult; }
 
-                if (!TryValidateTarget(move.NewTarget, out _)) {
-                    if (state is null) { return InvalidNullableRefTargetError(move.NewTarget, null); }
+                if (!TryValidateTarget(move.NewTarget, out AteliaError? targetError)) {
+                    if (_isReadOnly || state is null) {
+                        return InvalidNullableRefTargetError(
+                            move.NewTarget,
+                            targetError
+                        );
+                    }
                     break;
                 }
 

@@ -73,6 +73,28 @@ public class RbfFileFactoryTests : IDisposable {
         Assert.Equal(4, opened.TailOffset);
     }
 
+    [Fact]
+    public void OpenReadOnlyExisting_ReadsButCannotAppend() {
+        var path = GetTempFilePath();
+        Atelia.Data.SizedPtr ticket;
+        using (var created = RbfFile.CreateNew(path)) {
+            ticket = created.Append(
+                7,
+                new byte[] { 1, 2, 3, 4 }
+            ).Unwrap();
+        }
+        byte[] before = File.ReadAllBytes(path);
+
+        using var opened = RbfFile.OpenReadOnlyExisting(path);
+        using var frame = opened.ReadPooledFrame(ticket).Unwrap();
+
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, frame.PayloadAndMeta.ToArray());
+        Assert.Throws<UnauthorizedAccessException>(
+            () => opened.Append(8, new byte[] { 5, 6, 7, 8 })
+        );
+        Assert.Equal(before, File.ReadAllBytes(path));
+    }
+
     /// <summary>OpenExisting 在 HeaderFence 不匹配时抛出 InvalidDataException。</summary>
     [Fact]
     public void OpenExisting_FailsWithInvalidHeaderFence() {
