@@ -62,6 +62,7 @@ using Atelia.RbfSegmentStore;
 
 using var created = RbfSegmentStore.CreateNew(storePath);
 using var opened = RbfSegmentStore.OpenExisting(storePath);
+using var readOnly = RbfSegmentStore.OpenReadOnlyExisting(storePath);
 using var store = RbfSegmentStore.OpenOrCreate(storePath);
 ```
 
@@ -71,9 +72,12 @@ using var store = RbfSegmentStore.OpenOrCreate(storePath);
 |:-----|:---------|:-----------|:-------------|:---------------|
 | `CreateNew` | 明确创建新 store | 创建 | 抛异常 | 不适用 |
 | `OpenExisting` | 只接受已有 store | 抛异常 | 打开 | 抛异常 |
+| `OpenReadOnlyExisting` | 审计/只读挂载 | 抛异常 | 共享只读打开，不 recovery | 抛异常 |
 | `OpenOrCreate` | CLI / 原型默认入口 | 创建 | 打开 | 创建 segment `1` |
 
 结构错误、命名错误、编号缺口、corruption、权限和 I/O 错误都直接抛异常。当前 lease API 不使用 `AteliaResult`。
+`OpenReadOnlyExisting` 会完整扫描 active segment 验证 framing；若尾部需要 recovery，它直接报错，
+不会 truncate。该实例允许 `OpenReader()`，但 `OpenActiveWriter()` 会 fail-fast。
 
 ## Options
 
@@ -166,6 +170,10 @@ MVP 固定为单写串读模型：
 不要在 scanner 仍打开时调用 truncate；`TruncateToSuggestedTail` 需要独占打开文件。
 
 closed historical segment 遇到损坏只报告 corruption，不自动截断。
+
+`OpenReadOnlyExisting` 是独立合同：active 与 historical segment 都通过
+`RbfFile.OpenReadOnlyExisting` 打开；不执行 recovery、rotation、目录创建或任何写入。它适合
+offline validator 和只读文件系统。坏 active tail 只报告 corruption，原文件长度与 bytes 保持不变。
 
 ## 常见任务
 

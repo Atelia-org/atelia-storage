@@ -33,6 +33,18 @@
 - `refs/objects/<ref-id>/segments/*.rbf`：单个 ref 的 move chain / reflog，默认使用 flat segment store。
 - `cache/forward-plans/v1/*.efplan`：ForwardPlan compiled cache，是可删除、可重建的派生产物，不是 correctness source。
 
+离线审计应使用真正的只读入口：
+
+```csharp
+using var journal = EventJournal.OpenReadOnlyExisting(path);
+RefId main = journal.OpenBranch("main").Unwrap();
+EventAddress? head = journal.GetHead(main);
+```
+
+它以共享只读方式打开 active event segment、ref-op-log 和 live ref object，验证但不 recovery/truncate
+任何 active tail，也不创建、读取后回写或删除 compiled ForwardPlan cache。所有 mutation API 都
+fail-fast，因此可在只读挂载上运行；坏尾只会报告 corruption。
+
 ## 基本 EventFrame API
 
 ```csharp
@@ -209,6 +221,8 @@ using var journal = EventJournal.OpenOrCreate(path, options);
 ## 当前边界与注意事项
 
 - EventFrame append-only；没有 event deletion / compaction / repack 语义。
+- `OpenExisting` / `OpenOrCreate` 是可恢复的 read-write 入口；严格审计必须使用
+  `OpenReadOnlyExisting`，避免把 recovery mutation 混入 validation。
 - ForwardPlan 是 disposable cache，不应作为持久事实源。
 - `ReadChronologicalChain(...)` 当前返回 `IReadOnlyList<EventAddress>`，超长历史未来需要 streaming API。
 - `CommitToRef` 的 append 与 ref advance 不是事务：CAS 失败会留下 orphan event，这是当前设计可接受的派生产物。
