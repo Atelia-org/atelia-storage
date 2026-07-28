@@ -775,11 +775,119 @@ public sealed class EventJournalTests : IDisposable {
         Assert.Equal(first.EventAddress, secondFrame.Header.Parent);
     }
 
+    [Fact]
+    public void CommitToRef_RefIdTargetsExactBranchWithoutAdvancingMain() {
+        string path = NewJournalPath();
+        using var journal = EventJournal.CreateNew(path);
+
+        EventAddress root = journal.AppendEventFrame(null, new byte[] { 1 }).Unwrap();
+        RefId main = journal.CreateBranch("main", root).Unwrap();
+        RefId feature = journal.ForkBranch("feature", main, root).Unwrap();
+
+        CommitToRefOutcome committed = journal.CommitToRef(
+            feature,
+            expectedHead: root,
+            new byte[] { 2 }
+        ).Unwrap();
+
+        Assert.Equal(feature, committed.RefId);
+        Assert.Equal(root, journal.GetHead(main));
+        Assert.Equal(committed.EventAddress, journal.GetHead(feature));
+    }
+
+    [Fact]
+    public void CommitToRef_DefaultAndMissingRefFailBeforeAppendingEvent() {
+        string path = NewJournalPath();
+        using var journal = EventJournal.CreateNew(path);
+
+        EventAddress root = journal.AppendEventFrame(null, new byte[] { 1 }).Unwrap();
+        _ = journal.CreateBranch("main", root).Unwrap();
+        long eventBytesBefore = GetEventStoreLength(path);
+
+        var defaultResult = journal.CommitToRef(
+            default(RefId),
+            expectedHead: root,
+            new byte[] { 2 }
+        );
+        var missingResult = journal.CommitToRef(
+            new RefId(ulong.MaxValue),
+            expectedHead: root,
+            new byte[] { 3 }
+        );
+
+        Assert.True(defaultResult.IsFailure);
+        Assert.Equal("EventJournal.RefIdInvalid", defaultResult.Error!.ErrorCode);
+        Assert.True(missingResult.IsFailure);
+        Assert.Equal("EventJournal.RefObjectReadFailed", missingResult.Error!.ErrorCode);
+        Assert.Equal(eventBytesBefore, GetEventStoreLength(path));
+    }
+
+    [Fact]
+    public void CommitToRef_ClosedRefDoesNotFollowSameNameRebindingOrAppendEvent() {
+        string path = NewJournalPath();
+        using var journal = EventJournal.CreateNew(path);
+
+        EventAddress root = journal.AppendEventFrame(null, new byte[] { 1 }).Unwrap();
+        RefId first = journal.CreateBranch("main", root).Unwrap();
+        Assert.True(journal.ArchiveRef(first, root).Unwrap());
+        RefId replacement = journal.CreateBranch("main", root).Unwrap();
+        long eventBytesBefore = GetEventStoreLength(path);
+
+        var oldRefResult = journal.CommitToRef(
+            first,
+            expectedHead: root,
+            new byte[] { 2 }
+        );
+        long eventBytesAfterOldRefAttempt = GetEventStoreLength(path);
+        CommitToRefOutcome replacementCommit = journal.CommitToRef(
+            "main",
+            expectedHead: root,
+            new byte[] { 3 }
+        ).Unwrap();
+
+        Assert.True(oldRefResult.IsFailure);
+        Assert.Equal("EventJournal.RefClosed", oldRefResult.Error!.ErrorCode);
+        Assert.Equal(eventBytesBefore, eventBytesAfterOldRefAttempt);
+        Assert.Equal(replacement, replacementCommit.RefId);
+        Assert.Equal(replacementCommit.EventAddress, journal.GetHead(replacement));
+    }
+
+    [Fact]
+    public void CommitToRef_RefIdCasMismatchStillReportsAppendedOrphan() {
+        string path = NewJournalPath();
+        using var journal = EventJournal.CreateNew(path);
+
+        EventAddress root = journal.AppendEventFrame(null, new byte[] { 1 }).Unwrap();
+        RefId main = journal.CreateBranch("main", root).Unwrap();
+        long eventBytesBefore = GetEventStoreLength(path);
+
+        var result = journal.CommitToRef(
+            main,
+            expectedHead: null,
+            new byte[] { 2 }
+        );
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("EventJournal.CommitRefAdvanceFailed", result.Error!.ErrorCode);
+        Assert.Equal("EventJournal.RefCasMismatch", result.Error.Cause!.ErrorCode);
+        Assert.True(result.Error.Details!.ContainsKey("OrphanEventAddress"));
+        Assert.True(GetEventStoreLength(path) > eventBytesBefore);
+        Assert.Equal(root, journal.GetHead(main));
+    }
+
     private string NewJournalPath() {
         string path = Path.Combine(Path.GetTempPath(), "atelia-event-journal-" + Guid.NewGuid().ToString("N"));
         _tempDirectories.Add(path);
         return path;
     }
+
+    private static long GetEventStoreLength(string journalPath)
+        => Directory.EnumerateFiles(
+                Path.Combine(journalPath, "events"),
+                "*.rbf",
+                SearchOption.AllDirectories
+            )
+            .Sum(static path => new FileInfo(path).Length);
 
     private static void SetRepositoryReadOnly(string path, bool readOnly) {
         if (!OperatingSystem.IsLinux()) {

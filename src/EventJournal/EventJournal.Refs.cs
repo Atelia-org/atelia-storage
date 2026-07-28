@@ -222,7 +222,32 @@ public sealed partial class EventJournal {
         var refIdResult = OpenBranch(branchName);
         if (refIdResult.IsFailure) { return refIdResult.Error!; }
 
-        RefId refId = refIdResult.Unwrap();
+        return CommitToRef(
+            refIdResult.Unwrap(),
+            expectedHead,
+            payload,
+            opaqueEventKind,
+            hint,
+            reasonKind,
+            writeOptions
+        );
+    }
+
+    public AteliaResult<CommitToRefOutcome> CommitToRef(
+        RefId refId,
+        EventAddress? expectedHead,
+        ReadOnlySpan<byte> payload,
+        uint opaqueEventKind = 0,
+        AddressHint hint = default,
+        uint reasonKind = 0,
+        EventPayloadWriteOptions? writeOptions = null
+    ) {
+        ThrowIfDisposed();
+        ThrowIfReadOnly();
+        var stateResult = LoadRefState(refId);
+        if (stateResult.IsFailure) { return stateResult.Error!; }
+        if (stateResult.Unwrap().Closed) { return RefClosedError(refId); }
+
         var eventResult = AppendEventFrame(expectedHead, payload, opaqueEventKind, hint, writeOptions: writeOptions);
         if (eventResult.IsFailure) { return eventResult.Error!; }
 

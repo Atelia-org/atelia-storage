@@ -116,20 +116,21 @@ using var journal = EventJournal.OpenOrCreate(path);
 RefId main = journal.CreateBranch("main", startPoint: null).Unwrap();
 
 CommitToRefOutcome first = journal.CommitToRef(
-    branchName: "main",
+    refId: main,
     expectedHead: null,
     payload: "first"u8
 ).Unwrap();
 
 CommitToRefOutcome second = journal.CommitToRef(
-    branchName: "main",
+    refId: main,
     expectedHead: first.EventAddress,
     payload: "second"u8
 ).Unwrap();
 
-EventAddress? head = journal.GetHead(main);
+EventAddress head = journal.GetHead(main)
+    ?? throw new InvalidDataException("main has no head");
 IReadOnlyList<RefMoveFrame> reflog = journal.ReadReflog(main).Unwrap();
-IReadOnlyList<EventAddress> replay = journal.ReadChronologicalChain(main).Unwrap();
+IReadOnlyList<EventAddress> replay = journal.ReadChronologicalChain(head).Unwrap();
 ```
 
 主要 ref API：
@@ -143,7 +144,11 @@ IReadOnlyList<EventAddress> replay = journal.ReadChronologicalChain(main).Unwrap
 - `MoveRef(refId, expectedOldHead, newHead)`：reset / rewind / retarget；允许 `newHead == null`。
 - `ArchiveRef(refId, expectedOldHead)`：关闭 ref 并移除 active branch name 绑定。
 - `ReadReflog(refId)`：读取 ref object 中的 move chain。
-- `CommitToRef(branchName, expectedHead, payload, ...)`：append event 后调用 `AdvanceRef`，CAS 失败时会保留刚 append 的 orphan event。
+- `CommitToRef(refId, expectedHead, payload, ...)`：对 lifetime-bound exact ref append event 后调用
+  `AdvanceRef`；default/missing/closed ref 在 event append 前失败，CAS 失败时会保留刚 append 的
+  orphan event。
+- `CommitToRef(branchName, ...)`：便利 overload，只执行一次 `OpenBranch(name)` 后委托给 RefId
+  overload。长期运行的上层对象应在自身 open 时保存 `RefId`，不要在每次 commit 时重新解析名字。
 
 `AdvanceRef` / `MoveRef` 都是 CAS 风格：当前 head 必须等于 `expectedOldHead`，否则不会写入 move。
 
@@ -227,3 +232,7 @@ using var journal = EventJournal.OpenOrCreate(path, options);
 - `ReadChronologicalChain(...)` 当前返回 `IReadOnlyList<EventAddress>`，超长历史未来需要 streaming API。
 - `CommitToRef` 的 append 与 ref advance 不是事务：CAS 失败会留下 orphan event，这是当前设计可接受的派生产物。
 - `RefId` 来源于 ref-op-log 中 Create/Fork frame 的 RBF ticket packed value；不要手写 default `RefId(0)`。
+- ref state 与 active branch table 在一个 `EventJournal` instance 内使用 process-local cache；当前是
+  single-driver、非线程安全模型。不要在该 instance 生命周期内用另一个 `EventJournal` instance
+  live move/archive 同一 ref，并期待前者自动 refresh 或提供跨 instance CAS。需要外部 move/archive
+  时，先 dispose owning driver，完成 ref 操作后再 reopen。
