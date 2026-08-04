@@ -3,7 +3,7 @@
 > **状态**：Design Baseline / 待拆分为 Decision 与 Spec
 > **日期**：2026-07-22
 > **依赖**：[RBF Layer Interface Contract](../Rbf/rbf-interface.md)
-> **上层路线图**：[SessionJournal 事件源会话与长期上下文架构路线图](../SessionJournal/event-sourced-session-architecture-roadmap.md)
+> **上层路线图**：[SessionJournal 事件源会话与长期上下文架构路线图](../SessionJournal/archive/studies/event-sourced-session-architecture-roadmap.md)
 
 ## 1. 文档定位
 
