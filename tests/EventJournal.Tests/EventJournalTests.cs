@@ -97,6 +97,118 @@ public sealed class EventJournalTests : IDisposable {
     }
 
     [Fact]
+    public void PhysicalAppendFrontier_ValidatesCoordinatesAndAddresses() {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new EventJournalPhysicalAppendFrontier(0, SizedPtr.Alignment)
+        );
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new EventJournalPhysicalAppendFrontier(1, 0)
+        );
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new EventJournalPhysicalAppendFrontier(
+                1,
+                SizedPtr.Alignment + 1
+            )
+        );
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new EventJournalPhysicalAppendFrontier(
+                1,
+                SizedPtr.MaxOffset
+                    + SizedPtr.MaxLength
+                    + 2L * SizedPtr.Alignment
+            )
+        );
+        _ = new EventJournalPhysicalAppendFrontier(
+            1,
+            SizedPtr.MaxOffset
+                + SizedPtr.MaxLength
+                + SizedPtr.Alignment
+        );
+
+        var frontier = new EventJournalPhysicalAppendFrontier(
+            1,
+            SizedPtr.Alignment
+        );
+        Assert.Throws<InvalidOperationException>(
+            () => default(EventJournalPhysicalAppendFrontier).Contains(new(
+                SizedPtr.Create(SizedPtr.Alignment, SizedPtr.Alignment),
+                1,
+                default
+            ))
+        );
+        Assert.Throws<ArgumentException>(() => frontier.Contains(default));
+        Assert.Throws<ArgumentException>(() => frontier.Contains(new(
+            SizedPtr.Create(SizedPtr.Alignment, 0),
+            1,
+            default
+        )));
+    }
+
+    [Fact]
+    public void PhysicalAppendFrontier_IncludesSelectedAndOrphanFramesButNotLaterSameSegmentAppend() {
+        string path = NewJournalPath();
+        using var journal = EventJournal.CreateNew(path);
+        EventAddress root = journal.AppendEventFrame(
+            null,
+            new byte[] { 1 }
+        ).Unwrap();
+        RefId main = journal.CreateBranch("main", root).Unwrap();
+        EventAddress orphan = journal.AppendEventFrame(
+            root,
+            new byte[] { 2 }
+        ).Unwrap();
+
+        EventJournalPhysicalAppendFrontier frontier =
+            journal.ReadPhysicalAppendFrontier();
+        EventAddress later = journal.AppendEventFrame(
+            root,
+            new byte[] { 3 }
+        ).Unwrap();
+
+        Assert.Equal(root, journal.GetHead(main));
+        Assert.True(frontier.Contains(root));
+        Assert.True(frontier.Contains(orphan));
+        Assert.Equal(frontier.SegmentNumber, later.SegmentNumber);
+        Assert.Equal(frontier.TailOffset, later.Ticket.Offset);
+        Assert.False(frontier.Contains(later));
+    }
+
+    [Fact]
+    public void PhysicalAppendFrontier_DoesNotMoveOnRewindAndExcludesLaterRotatedAppend() {
+        string path = NewJournalPath();
+        var options = new EventJournalOptions {
+            EventSegmentStoreOptions = new RbfSegmentStoreOptions {
+                SegmentSizeThresholdBytes = 8
+            }
+        };
+        using var journal = EventJournal.CreateNew(path, options);
+        EventAddress root = journal.AppendEventFrame(
+            null,
+            new byte[] { 1 }
+        ).Unwrap();
+        EventAddress selected = journal.AppendEventFrame(
+            root,
+            new byte[] { 2 }
+        ).Unwrap();
+        RefId main = journal.CreateBranch("main", selected).Unwrap();
+        EventJournalPhysicalAppendFrontier captured =
+            journal.ReadPhysicalAppendFrontier();
+
+        Assert.True(journal.MoveRef(main, selected, root).Unwrap());
+        EventJournalPhysicalAppendFrontier afterRewind =
+            journal.ReadPhysicalAppendFrontier();
+        EventAddress later = journal.AppendEventFrame(
+            root,
+            new byte[] { 3 }
+        ).Unwrap();
+
+        Assert.Equal(captured, afterRewind);
+        Assert.True(captured.Contains(selected));
+        Assert.True(later.SegmentNumber > captured.SegmentNumber);
+        Assert.False(captured.Contains(later));
+    }
+
+    [Fact]
     public void AppendAndReadEvent_BrotliRoundTripsLogicalPayload() {
         string path = NewJournalPath();
         var options = new EventJournalOptions {
@@ -594,10 +706,12 @@ public sealed class EventJournalTests : IDisposable {
         string path = NewJournalPath();
         EventAddress root;
         EventAddress head;
+        EventJournalPhysicalAppendFrontier expectedFrontier;
         using (var journal = EventJournal.CreateNew(path)) {
             root = journal.AppendEventFrame(null, new byte[] { 1 }).Unwrap();
             head = journal.AppendEventFrame(root, new byte[] { 2 }).Unwrap();
             journal.CreateBranch("main", head).Unwrap();
+            expectedFrontier = journal.ReadPhysicalAppendFrontier();
         }
 
         string cachePath = Path.Combine(path, "cache");
@@ -606,8 +720,13 @@ public sealed class EventJournalTests : IDisposable {
         try {
             using var journal = EventJournal.OpenReadOnlyExisting(path);
             RefId main = journal.OpenBranch("main").Unwrap();
+            EventJournalPhysicalAppendFrontier frontier =
+                journal.ReadPhysicalAppendFrontier();
 
             Assert.Equal(head, journal.GetHead(main));
+            Assert.Equal(expectedFrontier, frontier);
+            Assert.True(frontier.Contains(root));
+            Assert.True(frontier.Contains(head));
             Assert.Equal(
                 new[] { root, head },
                 journal.ReadChronologicalChain(main, checkedRead: true).Unwrap()

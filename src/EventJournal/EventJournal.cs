@@ -44,6 +44,24 @@ public sealed partial class EventJournal : IDisposable {
     public string JournalPath { get; }
     public uint ActiveSegmentNumber => _segments.ActiveSegmentNumber;
 
+    /// <summary>
+    /// Captures the end-exclusive physical append frontier of the events
+    /// store in O(1). Unlike a Ref head, this includes every selected or orphan
+    /// EventFrame physically appended before the capture. Callers must obey the
+    /// EventJournal's existing single-active-lease concurrency contract.
+    /// </summary>
+    public EventJournalPhysicalAppendFrontier
+        ReadPhysicalAppendFrontier() {
+        ThrowIfDisposed();
+        using RbfSegmentReaderLease lease = _segments.OpenReader(
+            _segments.ActiveSegmentNumber
+        );
+        return new EventJournalPhysicalAppendFrontier(
+            lease.SegmentNumber,
+            lease.File.TailOffset
+        );
+    }
+
     public static EventJournal CreateNew(string journalPath, EventJournalOptions? options = null) {
         options = (options ?? new EventJournalOptions()).Normalized();
         string fullPath = Path.GetFullPath(journalPath);
