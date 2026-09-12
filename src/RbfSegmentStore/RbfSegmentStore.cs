@@ -191,9 +191,7 @@ public sealed class RbfSegmentStore : IRbfSegmentStore {
         bool hasBucketed = Directory.Exists(RbfSegmentPath.BucketedDirectory(fullPath));
         bool hasFlat = Directory.Exists(RbfSegmentPath.FlatDirectory(fullPath));
 
-        if (hasBucketed && hasFlat) {
-            throw new InvalidDataException($"RBF segment store contains both '{RbfSegmentPath.BucketedDirectoryName}' and '{RbfSegmentPath.FlatDirectoryName}' layout directories: {fullPath}");
-        }
+        if (hasBucketed && hasFlat) { throw new InvalidDataException($"RBF segment store contains both '{RbfSegmentPath.BucketedDirectoryName}' and '{RbfSegmentPath.FlatDirectoryName}' layout directories: {fullPath}"); }
 
         if (hasBucketed) { return RbfSegmentStoreLayout.Bucketed; }
         if (hasFlat) { return RbfSegmentStoreLayout.Flat; }
@@ -213,22 +211,16 @@ public sealed class RbfSegmentStore : IRbfSegmentStore {
 
         foreach (string bucketDirectory in Directory.EnumerateDirectories(bucketsPath)) {
             string bucketName = Path.GetFileName(bucketDirectory);
-            if (!RbfSegmentPath.TryParseBucketName(bucketName, out uint bucketNumber)) {
-                throw new InvalidDataException($"Invalid segment bucket directory: {bucketDirectory}");
-            }
+            if (!RbfSegmentPath.TryParseBucketName(bucketName, out uint bucketNumber)) { throw new InvalidDataException($"Invalid segment bucket directory: {bucketDirectory}"); }
 
             foreach (string entryPath in Directory.EnumerateFileSystemEntries(bucketDirectory)) {
                 if (Directory.Exists(entryPath)) { throw new InvalidDataException($"Unexpected directory inside segment bucket: {entryPath}"); }
 
                 string fileName = Path.GetFileName(entryPath);
-                if (!RbfSegmentPath.TryParseSegmentFileName(fileName, out uint segmentNumber)) {
-                    throw new InvalidDataException($"Invalid segment file name: {entryPath}");
-                }
+                if (!RbfSegmentPath.TryParseSegmentFileName(fileName, out uint segmentNumber)) { throw new InvalidDataException($"Invalid segment file name: {entryPath}"); }
 
                 if (segmentNumber == 0) { throw new InvalidDataException("Segment number 0 is reserved."); }
-                if ((segmentNumber >> RbfSegmentPath.SegmentBucketBits) != bucketNumber) {
-                    throw new InvalidDataException($"Segment file is in the wrong bucket: {entryPath}");
-                }
+                if ((segmentNumber >> RbfSegmentPath.SegmentBucketBits) != bucketNumber) { throw new InvalidDataException($"Segment file is in the wrong bucket: {entryPath}"); }
 
                 if (!discovered.Add(segmentNumber)) { throw new InvalidDataException($"Duplicate segment number: {segmentNumber}"); }
             }
@@ -248,9 +240,7 @@ public sealed class RbfSegmentStore : IRbfSegmentStore {
             if (Directory.Exists(entryPath)) { throw new InvalidDataException($"Unexpected directory inside flat segments directory: {entryPath}"); }
 
             string fileName = Path.GetFileName(entryPath);
-            if (!RbfSegmentPath.TryParseSegmentFileName(fileName, out uint segmentNumber)) {
-                throw new InvalidDataException($"Invalid segment file name: {entryPath}");
-            }
+            if (!RbfSegmentPath.TryParseSegmentFileName(fileName, out uint segmentNumber)) { throw new InvalidDataException($"Invalid segment file name: {entryPath}"); }
 
             if (segmentNumber == 0) { throw new InvalidDataException("Segment number 0 is reserved."); }
             if (!discovered.Add(segmentNumber)) { throw new InvalidDataException($"Duplicate segment number: {segmentNumber}"); }
@@ -314,10 +304,24 @@ public sealed class RbfSegmentStore : IRbfSegmentStore {
     }
 
     private void RotateActiveSegment() {
+        uint nextSegmentNumber = NextSegmentNumber(ActiveSegmentNumber);
+        IRbfFile nextFile = CreateSegment(
+            _storePath,
+            _layout,
+            nextSegmentNumber,
+            Options
+        );
         _activeFile.Dispose();
-        ActiveSegmentNumber++;
-        _activeFile = CreateSegment(_storePath, _layout, ActiveSegmentNumber, Options);
+        _activeFile = nextFile;
+        ActiveSegmentNumber = nextSegmentNumber;
     }
+
+    internal static uint NextSegmentNumber(uint activeSegmentNumber) =>
+        activeSegmentNumber == uint.MaxValue
+            ? throw new InvalidOperationException(
+                "No SegmentNumber remains after the active Segment."
+            )
+            : activeSegmentNumber + 1;
 
     private void EvictIdleHistoricalReaders() {
         while (_historicalReaders.Count > Options.HistoricalReaderPoolCapacity) {

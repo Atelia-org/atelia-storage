@@ -207,7 +207,15 @@ MVP 固定为单写串读模型：同一个 `RbfSegmentStore` 实例不承诺线
 
 MVP 不使用时间阈值。低吞吐 Agent 让同一个 active segment 使用多年是可接受状态。
 
-轮转判断发生在写入前，因此单个 frame 可能使 segment 最终大小超过阈值；最大超出量约为一个 RBF frame 的最大大小。该简化被接受，以换取 `RbfSegmentStore` 不需要预估下一 frame 大小，也不需要理解上层写入策略。RBF 仍保证单个 frame 不跨 segment。
+轮转判断发生在写入前，因此单个 frame 可能使 segment 最终大小超过阈值。若上层像 §5 的范式一样为每个
+逻辑写入重新借 lease，并且每个 lease 只 append 一个 Frame，则最大超出量约为一个 RBF frame 的最大大小；
+`IRbfFile` 本身允许同一 lease 多次 append，底层不为这种用法承诺相同上界。该简化被接受，以换取
+`RbfSegmentStore` 不需要预估下一 frame 大小，也不需要理解上层写入策略。RBF 仍保证单个 frame 不跨
+segment。
+
+`SegmentSizeThresholdBytes` 必须 4-byte aligned、严格大于 header-only tail，并且不超过 `SizedPtr` 最大
+Frame start。轮转必须在关闭或替换 active file 前 checked 计算 next `SegmentNumber`；耗尽时 fail closed，
+不 wrap 到 `0`。
 
 推荐首轮 `SegmentSizeThresholdBytes` 仍可从 64 GiB 起步，但这是 options 默认值，不影响路径和地址格式。
 

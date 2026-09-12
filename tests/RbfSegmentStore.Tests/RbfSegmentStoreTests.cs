@@ -30,9 +30,23 @@ public sealed class RbfSegmentStoreTests : IDisposable {
     public void Options_RejectInvalidValues() {
         Assert.Throws<ArgumentOutOfRangeException>(() => new RbfSegmentStoreOptions { NewStoreLayout = (RbfSegmentStoreLayout)999 }.Validated());
         Assert.Throws<ArgumentOutOfRangeException>(() => new RbfSegmentStoreOptions { SegmentSizeThresholdBytes = 0 }.Validated());
+        Assert.Throws<ArgumentOutOfRangeException>(() => new RbfSegmentStoreOptions { SegmentSizeThresholdBytes = RbfSegmentPath.RbfHeaderOnlyLength }.Validated());
         Assert.Throws<ArgumentOutOfRangeException>(() => new RbfSegmentStoreOptions { SegmentSizeThresholdBytes = 7 }.Validated());
+        Assert.Throws<ArgumentOutOfRangeException>(() => new RbfSegmentStoreOptions { SegmentSizeThresholdBytes = SizedPtr.MaxOffset + SizedPtr.Alignment }.Validated());
         Assert.Throws<ArgumentOutOfRangeException>(() => new RbfSegmentStoreOptions { HistoricalReaderPoolCapacity = -1 }.Validated());
         Assert.Throws<ArgumentOutOfRangeException>(() => new RbfSegmentStoreOptions { CacheMode = (RbfCacheMode)999 }.Validated());
+
+        _ = new RbfSegmentStoreOptions { SegmentSizeThresholdBytes = 8 }.Validated();
+        _ = new RbfSegmentStoreOptions { SegmentSizeThresholdBytes = SizedPtr.MaxOffset }.Validated();
+    }
+
+    [Fact]
+    public void NextSegmentNumber_FailsBeforeWrappingZero() {
+        Assert.Equal(2u, RbfSegmentStore.NextSegmentNumber(1));
+        Assert.Throws<InvalidOperationException>(
+            () =>
+            RbfSegmentStore.NextSegmentNumber(uint.MaxValue)
+        );
     }
 
     [Fact]
@@ -145,11 +159,12 @@ public sealed class RbfSegmentStoreTests : IDisposable {
     [Fact]
     public void OpenActiveWriter_RotatesWhenThresholdReached() {
         string storePath = NewStorePath();
-        using var store = RbfSegmentStore.CreateNew(storePath, new RbfSegmentStoreOptions { SegmentSizeThresholdBytes = 8 });
+        using var store = RbfSegmentStore.CreateNew(storePath, new RbfSegmentStoreOptions { SegmentSizeThresholdBytes = 32 });
 
         using (var lease = store.OpenActiveWriter()) {
             Assert.Equal<uint>(1, lease.SegmentNumber);
-            _ = lease.File.Append(1, new byte[] { 1, 2, 3, 4 }).Unwrap();
+            _ = lease.File.Append(1, Array.Empty<byte>()).Unwrap();
+            Assert.Equal(32, lease.File.TailOffset);
         }
 
         using (var lease = store.OpenActiveWriter()) {

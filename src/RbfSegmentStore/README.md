@@ -94,7 +94,8 @@ var options = new RbfSegmentStoreOptions {
 说明：
 
 - `NewStoreLayout` 只影响创建新 store；打开已有 store 时从 `buckets/` / `segments/` 发现实际 layout。
-- `SegmentSizeThresholdBytes` 是 soft threshold，只在 `OpenActiveWriter()` 借出前检查；单个 frame 可能让 segment 最终超过阈值。
+- `SegmentSizeThresholdBytes` 是 soft threshold，只在 `OpenActiveWriter()` 借出前检查；必须 4-byte aligned、
+  大于 header-only tail 且不超过 `SizedPtr.MaxOffset`。单个 frame 可能让 segment 最终超过阈值。
 - `HistoricalReaderPoolCapacity = 0` 表示不保留 idle historical reader，但 live lease 仍不会被关闭。
 - `CacheMode` 直接传给底层 `RbfFile`。
 - `RecoverActiveTailOnOpen = true` 时，打开现有 store 会扫描 active segment 并截断到最后一个完整 frame 尾部。header-only 空 active segment 是合法状态。
@@ -122,6 +123,8 @@ uint segmentNumber = lease.SegmentNumber;
 注意：
 
 - `RbfSegmentStore` 不替你调用 `Append`、`BeginAppend` 或 `DurableFlush`。
+- 若调用方需要“最多 overshoot 一个 Frame”的界限，必须像上例一样每个逻辑写入重新借 lease，并在该 lease
+  中只 append 一个 Frame；底层 `IRbfFile` 本身允许同一 lease 连续 append 多次。
 - lease dispose 后不得继续使用其中的 `IRbfFile`，即使你提前把 `lease.File` 存到了局部变量。
 - active segment 同一时刻只能有一个 live active lease。未释放 writer lease 时再打开 active reader/writer 会抛异常。
 
@@ -147,6 +150,7 @@ active segment reader 复用 active read/write `IRbfFile` 单例；historical se
 2. 若 `TailOffset >= SegmentSizeThresholdBytes`，关闭当前 active segment，创建下一个 segment，然后返回新 segment。
 
 轮转只发生在两次 append 之间。RBF frame 不会跨 segment；一个上层逻辑事件如果包含多个 frame，可以由上层决定是否允许这些 frame 分布在不同 segment。
+`SegmentNumber` 耗尽时在关闭或替换 active file 前 fail closed，不 wrap 到 `0`。
 
 ## 单线程模型
 
