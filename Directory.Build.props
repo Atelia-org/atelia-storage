@@ -6,6 +6,13 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/Atelia-org/atelia-storage</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
+    <_StorageLibrary Condition="$([System.String]::Copy('$(MSBuildProjectDirectory)').StartsWith('$(MSBuildThisFileDirectory)src'))">true</_StorageLibrary>
+  </PropertyGroup>
+
+  <!-- The SDK derives DocumentationFile before Directory.Build.targets is imported. -->
+  <PropertyGroup Condition="'$(_StorageLibrary)' == 'true'">
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <DebugType>portable</DebugType>
   </PropertyGroup>
 
   <ItemGroup>

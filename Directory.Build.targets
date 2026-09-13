@@ -1,13 +1,10 @@
 <Project>
   <PropertyGroup>
     <IsPackable>false</IsPackable>
-    <_StorageLibrary Condition="$([System.String]::Copy('$(MSBuildProjectDirectory)').StartsWith('$(MSBuildThisFileDirectory)src'))">true</_StorageLibrary>
   </PropertyGroup>
   <PropertyGroup Condition="'$(_StorageLibrary)' == 'true'">
     <IsPackable>true</IsPackable>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
-    <DebugType>portable</DebugType>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
