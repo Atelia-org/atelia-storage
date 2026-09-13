@@ -1,0 +1,14 @@
+<Project>
+  <PropertyGroup>
+    <AssemblyName>Atelia.$(MSBuildProjectName)</AssemblyName>
+    <RootNamespace>Atelia.$(MSBuildProjectName)</RootNamespace>
+    <PackageId>Atelia.$(MSBuildProjectName)</PackageId>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/Atelia-org/atelia-storage</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)LICENSE" Pack="true" PackagePath="" />
+  </ItemGroup>
+</Project>

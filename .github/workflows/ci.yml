@@ -1,0 +1,29 @@
+name: Storage CI
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Build, test and verify isolated packages
+        shell: pwsh
+        run: |
+          dotnet build Atelia.Storage.slnx -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet test Atelia.Storage.slnx -c Release --no-build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $version = '0.1.1-ci.${{ github.run_id }}.${{ github.run_attempt }}'
+          ./eng/Pack.ps1 -Version $version -OutputDirectory ./artifacts/feed
+          ./eng/Test-Package.ps1 -Version $version -FeedDirectory ./artifacts/feed -WorkDirectory (Join-Path '${{ runner.temp }}' 'storage-package-smoke')

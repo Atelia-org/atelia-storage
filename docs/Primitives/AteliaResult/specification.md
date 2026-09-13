@@ -62,8 +62,8 @@
 
 | 类型 | 代码位置 | 用途 |
 |:-----|:---------|:-----|
-| `AteliaError` | [AteliaError.cs](../../src/Primitives/AteliaError.cs) | 错误基类 |
-| `AteliaException` | [AteliaException.cs](../../src/Primitives/AteliaException.cs) | 异常基类（与 Error 同源同表） |
+| `AteliaError` | [AteliaError.cs](../../../src/Primitives/AteliaError.cs) | 错误基类 |
+| `AteliaException` | [AteliaException.cs](../../../src/Primitives/AteliaException.cs) | 异常基类（与 Error 同源同表） |
 | `IAteliaHasError` | [IAteliaHasError.cs](../../../src/Primitives/IAteliaHasError.cs) | 统一访问接口 |
 
 ### 3.3 结果类型共享契约

@@ -4,7 +4,7 @@
 
 > （Informative）本文档定义"如何写规范"的写作与表示约定：**在满足 Design-DSL 的机读语法约束前提下**，规定正文中 `@Term-ID`、`@Clause-ID` 等标记的书写/编码方式，以及章节组织、图表/表格/Mermaid 等 规范（Spec） 表示与 LLM 友好写法等内容。
 >
-> Design-DSL 的机读语法与解析规则（例如条款类型 `decision/spec/derived`、定义/引用区分、依赖图建模）见 [AI-Design-DSL.md](../../agent-team/wiki/SoftwareDesignModeling/AI-Design-DSL.md)。
+> Design-DSL 的机读语法与解析规则来自历史外部资料 `agent-team/wiki/SoftwareDesignModeling/AI-Design-DSL.md`，未随本仓迁入。本文件保留存储规范实际使用的写作约定；该外部资料不是构建或使用本仓的前置条件。
 
 > **术语迁移锁定**：本文档已完成术语统一（2026-01-12），使用 **Clause-ID（条款ID）** 作为标准术语。
 > 禁止重新引入：章节编号、语义锚点、REQID、Semantic Anchor、Requirement ID。
@@ -41,7 +41,7 @@
 
 > **Canonical Source** 是某一类事实的 canonical definition 所在的**权威载体**（文件/章节/条款）。与 SSOT（属性——"是什么"）区分：Canonical Source 描述"在哪"。
 >
-> 详见 [Decision-Spec-Derived-Model.md §3.3](../../agent-team/wiki/SoftwareDesignModeling/Decision-Spec-Derived-Model.md#33-canonical-source-权威源)。
+> 历史外部方法来源：`agent-team/wiki/SoftwareDesignModeling/Decision-Spec-Derived-Model.md §3.3`，未随本仓迁入。
 
 ## 2. 条款编号（Clause-IDs）
 
@@ -355,4 +355,3 @@ Derived-Layer MUST 明确标注为（Informative / Derived），并满足：
 | 0.3 | 2025-12-25 | 新增 @[S-DOC-RELATIONS-AS-TEXT] 条款；澄清 @[S-DOC-RELATIONS-AS-TABLE] 和 @[S-DOC-SIMPLE-FLOW-INLINE] 的适用边界（[畅谈会决议](../../agent-team/meeting/2025-12-25-llm-friendly-notation-field-test.md)）|
 | 0.2 | 2025-12-24 | 新增第 3 章"信息表示与图表"（LLM-Friendly Notation）|
 | 0.1 | 2025-12-22 | 从 StateJournal mvp-design-v2.md 提取 |
-

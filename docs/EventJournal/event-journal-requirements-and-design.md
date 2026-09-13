@@ -3,7 +3,7 @@
 > **状态**：Design Baseline / 待拆分为 Decision 与 Spec
 > **日期**：2026-07-22
 > **依赖**：[RBF Layer Interface Contract](../Rbf/rbf-interface.md)
-> **上层路线图**：[SessionJournal 事件源会话与长期上下文架构路线图](../SessionJournal/archive/studies/event-sourced-session-architecture-roadmap.md)
+> **上层路线图**：[SessionJournal 事件源会话与长期上下文架构路线图](https://github.com/Atelia-org/atelia/blob/6242f3bb6b631079d2513288ca54d823f630802f/docs/SessionJournal/archive/studies/event-sourced-session-architecture-roadmap.md)（原仓固定版本）
 
 ## 1. 文档定位
 

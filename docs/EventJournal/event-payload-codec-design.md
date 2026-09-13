@@ -3,7 +3,7 @@
 > **状态**：Implemented Baseline（EventFrame v2 + identity/brotli/zlib 已落地）
 > **日期**：2026-07-24
 > **动机**：为 SessionJournal 等长寿命文本事件提供写入时可选压缩，同时保持上层 payload 语义稳定。
-> **相关文档**：[EventFrame Parent Chain 设计基线](event-frame-parent-chain-design.md)、[EventJournal 功能需求与粗粒度设计基线](event-journal-requirements-and-design.md)、[SessionJournal 主干设计基线](../SessionJournal/archive/superseded/session-journal-trunk-design.md)
+> **相关文档**：[EventFrame Parent Chain 设计基线](event-frame-parent-chain-design.md)、[EventJournal 功能需求与粗粒度设计基线](event-journal-requirements-and-design.md)、[SessionJournal 主干设计基线](https://github.com/Atelia-org/atelia/blob/6242f3bb6b631079d2513288ca54d823f630802f/docs/SessionJournal/archive/superseded/session-journal-trunk-design.md)（原仓固定版本）
 
 > **实现说明**：当前代码已原地升级 `EventFrameHeaderCodec` 到 v2；writer 支持 `identity`、BCL `brotli` 与 BCL `zlib`，`zstd-frame` 仍只保留 codec id。`ReadEventHeaderChecked` 只校验 stored frame/header，不解码 payload；`ReadEvent` 返回 logical payload。SessionJournal beta 默认使用 `zlib` 的保守自动压缩策略。
 

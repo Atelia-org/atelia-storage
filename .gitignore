@@ -1,0 +1,11 @@
+**/bin/
+**/obj/
+.vs/
+.idea/
+.atelia/
+artifacts/
+BenchmarkDotNet.Artifacts/
+TestResults/
+*.trx
+*.user
+*.suo

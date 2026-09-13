@@ -13,7 +13,7 @@ RBF（Reversible Binary Framing）是 Atelia 的二进制信封格式，用于�
 
 本文档集遵循：
 - [Atelia 规范约定](../spec-conventions.md)
-- [AI-Design-DSL](../../../agent-team/wiki/SoftwareDesignModeling/AI-Design-DSL.md)
+- AI-Design-DSL（历史外部方法来源，原 `agent-team/wiki/SoftwareDesignModeling/AI-Design-DSL.md` 不在本仓；本仓所需约定见上一项）
 
 ## 文档层级（SSOT）
 

@@ -1,0 +1,49 @@
+name: Publish storage packages
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: New immutable package version, for example 0.1.1-preview.1
+        required: true
+        type: string
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: nuget
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Validate release artifacts
+        shell: pwsh
+        env:
+          STORAGE_VERSION: ${{ inputs.version }}
+        run: |
+          dotnet build Atelia.Storage.slnx -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet test Atelia.Storage.slnx -c Release --no-build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./eng/Pack.ps1 -Version $env:STORAGE_VERSION -OutputDirectory ./artifacts/feed
+          ./eng/Test-Package.ps1 -Version $env:STORAGE_VERSION -FeedDirectory ./artifacts/feed -WorkDirectory (Join-Path '${{ runner.temp }}' 'storage-package-smoke')
+      # Configure this repository/workflow/environment as a nuget.org trusted publisher first.
+      - uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ vars.NUGET_USER }}
+      - name: Publish dependency order from verified manifest
+        shell: pwsh
+        env:
+          STORAGE_VERSION: ${{ inputs.version }}
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: |
+          $manifest = Get-Content "./artifacts/feed/manifest.$env:STORAGE_VERSION.json" -Raw | ConvertFrom-Json
+          foreach ($package in $manifest.packages) {
+            dotnet nuget push (Join-Path './artifacts/feed' $package.file) --source https://api.nuget.org/v3/index.json --api-key $env:NUGET_API_KEY
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
