@@ -105,7 +105,7 @@ public class RbfFrameBuilderTests : IDisposable {
     public void BeginAppend_TailOffsetAtMaxOffset_EndAppendEmpty_Succeeds() {
         // Arrange
         var path = GetTempFilePath();
-        using var file = RbfFile.CreateNew(path);
+        using var file = SparseRbfTestFile.CreateNew(path);
         file.Truncate(SizedPtr.MaxOffset);
 
         // Act
@@ -125,7 +125,7 @@ public class RbfFrameBuilderTests : IDisposable {
     public void BeginAppend_TailOffsetExceedsMaxOffset_Throws() {
         // Arrange
         var path = GetTempFilePath();
-        using var file = RbfFile.CreateNew(path);
+        using var file = SparseRbfTestFile.CreateNew(path);
         long tailOffset = SizedPtr.MaxOffset + RbfLayout.Alignment;
         file.Truncate(tailOffset);
 

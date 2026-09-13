@@ -5,7 +5,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
-$feed = [IO.Path]::GetFullPath($OutputDirectory)
+$feed = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputDirectory)
 $repositoryUrl = 'https://github.com/Atelia-org/atelia-storage'
 # The production package list and pack algorithm have one owner: this script.
 $projects = @('Primitives', 'Data', 'Rbf', 'RbfSegmentStore', 'EventJournal')

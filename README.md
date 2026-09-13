@@ -40,6 +40,8 @@ using (var journal = EventJournal.OpenReadOnlyExisting(path)) {
 
 需要 Git、.NET 10 SDK、PowerShell 7；不需要原 atelia 仓或其两个 Analyzer 项目。Windows/Linux 使用相同命令，.NET 操作串行执行：
 
+Windows 的三个极限偏移测试使用稀疏文件，TEMP 所在文件系统需要支持稀疏文件，无须为测试准备约 1 TiB 空闲空间。
+
 ```powershell
 dotnet build Atelia.Storage.slnx -c Release
 dotnet test Atelia.Storage.slnx -c Release --no-build

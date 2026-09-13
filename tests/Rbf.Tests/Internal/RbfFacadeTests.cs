@@ -219,7 +219,7 @@ public class RbfFacadeTests : IDisposable {
     public void Append_AtMaxOffset_WithMaximumPayloadAndMeta_Succeeds_ThenFurtherAppendFails() {
         // Arrange
         var path = GetTempFilePath();
-        using var rbf = RbfFile.CreateNew(path);
+        using var rbf = SparseRbfTestFile.CreateNew(path);
         rbf.Truncate(SizedPtr.MaxOffset);
         byte[] payload = GC.AllocateUninitializedArray<byte>(RbfFile.MaxPayloadAndMetaLength);
 
