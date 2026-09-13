@@ -16,7 +16,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 10.0.x
+          global-json-file: global.json
       - name: Build, test and verify isolated packages
         shell: pwsh
         run: |
