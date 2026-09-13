@@ -4,19 +4,19 @@ Atelia 的 .NET 10 存储基础库，使用 MIT 许可证。五个库保留原�
 
 | NuGet 包 | 作用与入口 |
 | --- | --- |
-| `Atelia.Primitives` | [结果与错误类型](docs/Primitives/AteliaResult/README.md) |
-| `Atelia.Data` | [二进制数据结构与缓冲区](docs/Data/) |
-| `Atelia.Rbf` | [Reversible Binary Framing](docs/Rbf/rbf-interface.md) |
-| `Atelia.RbfSegmentStore` | [分段存储、writer lease 与恢复约定](src/RbfSegmentStore/README.md) |
-| `Atelia.EventJournal` | [事件、parent chain、branch/ref 与只读打开](src/EventJournal/README.md) |
+| `Atelia.Primitives` | [结果与错误类型](https://github.com/Atelia-org/atelia-storage/blob/v0.1.1-preview.2/docs/Primitives/AteliaResult/README.md) |
+| `Atelia.Data` | [二进制数据结构与缓冲区](https://github.com/Atelia-org/atelia-storage/tree/v0.1.1-preview.2/docs/Data/) |
+| `Atelia.Rbf` | [Reversible Binary Framing](https://github.com/Atelia-org/atelia-storage/blob/v0.1.1-preview.2/docs/Rbf/rbf-interface.md) |
+| `Atelia.RbfSegmentStore` | [分段存储、writer lease 与恢复约定](https://github.com/Atelia-org/atelia-storage/blob/v0.1.1-preview.2/src/RbfSegmentStore/README.md) |
+| `Atelia.EventJournal` | [事件、parent chain、branch/ref 与只读打开](https://github.com/Atelia-org/atelia-storage/blob/v0.1.1-preview.2/src/EventJournal/README.md) |
 
-首次公开发布尚未完成；当前从固定源码 commit 生成本地包。消费应用默认使用明确版本的 `PackageReference`，例如只引用 `Atelia.EventJournal` 即可获得其余四个传递依赖。存储版本独立于 DurableGraph 等消费库版本。
+五个包通过 nuget.org 公开分发。消费应用使用明确版本的 `PackageReference`，正常还原不需要克隆或构建本仓；只引用 `Atelia.EventJournal` 即可获得其余四个传递依赖。下面使用当前预发布版本，存储版本独立于 DurableGraph 等消费库版本。
 
 ```xml
-<PackageReference Include="Atelia.EventJournal" Version="0.1.1-dev.20260913.4" />
+<PackageReference Include="Atelia.EventJournal" Version="0.1.1-preview.2" />
 ```
 
-下面的 public API 示例来自可执行的 [EventJournalSmoke](examples/EventJournalSmoke/Program.cs)。`Unwrap()` 用于已知应成功的示例；生产调用可检查结果的错误信息。`EventFrame.Payload` 是借用的 span，必须在 frame Dispose 前使用。
+下面的 public API 示例来自可执行的 [EventJournalSmoke](https://github.com/Atelia-org/atelia-storage/blob/v0.1.1-preview.2/examples/EventJournalSmoke/Program.cs)。`Unwrap()` 用于已知应成功的示例；生产调用可检查结果的错误信息。`EventFrame.Payload` 是借用的 span，必须在 frame Dispose 前使用。
 
 ```csharp
 using Atelia.EventJournal;
@@ -46,8 +46,9 @@ Windows 的三个极限偏移测试使用稀疏文件，TEMP 所在文件系统�
 dotnet build Atelia.Storage.slnx -c Release
 dotnet test Atelia.Storage.slnx -c Release --no-build
 # 先提交源码；从干净 HEAD 打包。不同内容必须使用新版本。
-./eng/Pack.ps1 -Version 0.1.1-dev.20260913.4 -OutputDirectory ./artifacts/feed
-./eng/Test-Package.ps1 -Version 0.1.1-dev.20260913.4 -FeedDirectory ./artifacts/feed -WorkDirectory ../storage-package-smoke-4
+$version = "0.1.1-dev.$([DateTime]::UtcNow.ToString('yyyyMMddHHmmss'))"
+./eng/Pack.ps1 -Version $version -OutputDirectory ./artifacts/feed
+./eng/Test-Package.ps1 -Version $version -FeedDirectory ./artifacts/feed -WorkDirectory "../storage-package-smoke-$version"
 ```
 
 `Pack.ps1` 是五个生产包清单和打包算法的唯一入口，要求 origin 指向 `https://github.com/Atelia-org/atelia-storage.git`，拒绝未提交的源码。它在源码仓选择并核对 SDK；相对输出路径仍按调用者的 PowerShell 当前目录解析。输出五个 nupkg、五个 snupkg 与 `manifest.<版本>.json`，记录 commit、SDK 版本和 SHA256。相同版本只允许复用匹配来源且所有 hash 相符的既有产物，不覆盖内容。
@@ -62,7 +63,7 @@ Pack 临时固定 CLI 语言为 en-US，并启用 `StorageDeterministicPack`：�
 
 ## 文档与 Agent 入口
 
-- 从 [AGENTS.md](AGENTS.md) 和以上库指南进入；[RBF 规范](docs/Rbf/) 与 [EventJournal 设计](docs/EventJournal/) 给出格式与语义约定。
-- 来源与历史提取范围见 [extraction-origin](docs/extraction-origin.md)。历史讨论保留原始语境，不代表当前活动入口。
+- 从 [AGENTS.md](https://github.com/Atelia-org/atelia-storage/blob/v0.1.1-preview.2/AGENTS.md) 和以上库指南进入；[RBF 规范](https://github.com/Atelia-org/atelia-storage/tree/v0.1.1-preview.2/docs/Rbf/) 与 [EventJournal 设计](https://github.com/Atelia-org/atelia-storage/tree/v0.1.1-preview.2/docs/EventJournal/) 给出格式与语义约定。
+- 来源与历史提取范围见 [extraction-origin](https://github.com/Atelia-org/atelia-storage/blob/v0.1.1-preview.2/docs/extraction-origin.md)。历史讨论保留原始语境，不代表当前活动入口。
 - 排查某个包时先读消费仓的 `eng/StorageDependency.props`，用其 `StorageSourceRevision` 打开本仓对应 commit 的指南/源码；不要用最新分支解释旧包。Source Link 提供定位与调试信息，包引用不会自动把本仓 AGENTS.md 或指南注入 Agent 上下文。
 - CI 复用上述构建/验证入口；公开发布采用手动 workflow 与 nuget.org Trusted Publishing，须先配置仓权限及包所有权。仓库内不保存 token。
