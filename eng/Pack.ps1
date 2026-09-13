@@ -21,7 +21,7 @@ function Assert-Clean {
 }
 function Normalize-UnsignedPackage([string]$Path) {
     # .NET 10 NuGet pack emits random OPC metadata names and nonrepeatable ZIP timestamps.
-    # Keep library/document payloads unchanged; normalize only the container and OPC relationships.
+    # Keep binary payloads unchanged; normalize the container and equivalent generated XML text.
     $entries = [Collections.Generic.SortedDictionary[string, byte[]]]::new([StringComparer]::Ordinal)
     $archive = [IO.Compression.ZipFile]::OpenRead($Path)
     try {
@@ -36,8 +36,22 @@ function Normalize-UnsignedPackage([string]$Path) {
             finally { $inputStream.Dispose(); $buffer.Dispose() }
             $name = $entry.FullName
             if ($name -ceq $coreName) { $name = 'package/services/metadata/core-properties/nuget.psmdcp' }
+            if ($name.EndsWith('.nuspec', [StringComparison]::Ordinal)) {
+                $nuspec = [xml]([Text.Encoding]::UTF8.GetString($bytes).TrimStart([char]0xFEFF))
+                foreach ($repository in $nuspec.SelectNodes("//*[local-name()='repository']")) {
+                    $repository.RemoveAttribute('branch')
+                }
+                foreach ($group in $nuspec.SelectNodes("//*[local-name()='dependencies']/*[local-name()='group']")) {
+                    $dependencies = [Collections.Generic.SortedDictionary[string, Xml.XmlElement]]::new([StringComparer]::Ordinal)
+                    foreach ($dependency in @($group.ChildNodes)) {
+                        if ($dependency.LocalName -eq 'dependency') { $dependencies.Add($dependency.GetAttribute('id'), $dependency) }
+                    }
+                    foreach ($dependency in $dependencies.Values) { [void]$group.AppendChild($dependency) }
+                }
+                $bytes = [Text.Encoding]::UTF8.GetBytes($nuspec.OuterXml)
+            }
             if ($name -ceq '_rels/.rels') {
-                $relationships = [xml][Text.Encoding]::UTF8.GetString($bytes)
+                $relationships = [xml]([Text.Encoding]::UTF8.GetString($bytes).TrimStart([char]0xFEFF))
                 foreach ($relationship in $relationships.DocumentElement.ChildNodes) {
                     if ($relationship.LocalName -ne 'Relationship') { continue }
                     if ($relationship.GetAttribute('Target').TrimStart('/') -ceq $coreName) {
@@ -48,6 +62,11 @@ function Normalize-UnsignedPackage([string]$Path) {
                     $relationship.SetAttribute('Id', 'R' + [Convert]::ToHexString($idHash).Substring(0, 16))
                 }
                 $bytes = [Text.Encoding]::UTF8.GetBytes($relationships.OuterXml)
+            }
+            if ($name.EndsWith('.xml', [StringComparison]::Ordinal) -or $name.EndsWith('.nuspec', [StringComparison]::Ordinal) -or
+                $name.EndsWith('.psmdcp', [StringComparison]::Ordinal) -or $name -ceq '_rels/.rels') {
+                $xmlText = [Text.Encoding]::UTF8.GetString($bytes).TrimStart([char]0xFEFF).Replace("`r`n", "`n").Replace("`r", "`n")
+                $bytes = [Text.Encoding]::UTF8.GetBytes($xmlText)
             }
             if ($entries.ContainsKey($name)) { throw "Duplicate normalized package entry: $name" }
             $entries.Add($name, $bytes)
@@ -103,7 +122,9 @@ function Normalize-UnsignedPackage([string]$Path) {
 
 # Resolve caller-relative arguments above, then select the SDK from this repository's global.json.
 Push-Location $repo
+$previousUiLanguage = $env:DOTNET_CLI_UI_LANGUAGE
 try {
+$env:DOTNET_CLI_UI_LANGUAGE = 'en-US'
 $requiredSdk = (Get-Content -LiteralPath (Join-Path $repo 'global.json') -Raw | ConvertFrom-Json).sdk.version
 $sdkVersion = (& dotnet --version | Out-String).Trim()
 if ($LASTEXITCODE -ne 0 -or $sdkVersion -cne $requiredSdk) { throw "Pack requires exact .NET SDK $requiredSdk; selected '$sdkVersion'." }
@@ -146,7 +167,7 @@ New-Item -ItemType Directory -Path $stage | Out-Null
 $packages = @()
 foreach ($name in $projects) {
     # PackageVersion is independent of the existing 1.0.0.0 assembly/file identity.
-    & dotnet pack (Join-Path $repo "src/$name/$name.csproj") -c Release -o $stage "-p:PackageVersion=$Version" "-p:RepositoryCommit=$revision" '-p:RepositoryBranch=' '-p:ContinuousIntegrationBuild=true' | Out-Host
+    & dotnet pack (Join-Path $repo "src/$name/$name.csproj") -c Release -o $stage "-p:PackageVersion=$Version" "-p:RepositoryCommit=$revision" '-p:RepositoryBranch=' '-p:ContinuousIntegrationBuild=true' '-p:StorageDeterministicPack=true' | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "dotnet pack failed: $name (partial output retained at $stage)" }
     $file = "Atelia.$name.$Version.nupkg"
     $symbols = "Atelia.$name.$Version.snupkg"
@@ -171,4 +192,7 @@ foreach ($package in $packages) {
 Write-Host "Packed $($packages.Count) libraries from $revision. No remote publication was performed."
 Write-Output $manifestPath
 }
-finally { Pop-Location }
+finally {
+    $env:DOTNET_CLI_UI_LANGUAGE = $previousUiLanguage
+    Pop-Location
+}
