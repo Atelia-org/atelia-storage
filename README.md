@@ -13,7 +13,7 @@ Atelia 的 .NET 10 存储基础库，使用 MIT 许可证。五个库保留原�
 首次公开发布尚未完成；当前从固定源码 commit 生成本地包。消费应用默认使用明确版本的 `PackageReference`，例如只引用 `Atelia.EventJournal` 即可获得其余四个传递依赖。存储版本独立于 DurableGraph 等消费库版本。
 
 ```xml
-<PackageReference Include="Atelia.EventJournal" Version="0.1.1-dev.20260913.1" />
+<PackageReference Include="Atelia.EventJournal" Version="0.1.1-dev.20260913.2" />
 ```
 
 下面的 public API 示例来自可执行的 [EventJournalSmoke](examples/EventJournalSmoke/Program.cs)。`Unwrap()` 用于已知应成功的示例；生产调用可检查结果的错误信息。`EventFrame.Payload` 是借用的 span，必须在 frame Dispose 前使用。
@@ -46,8 +46,8 @@ Windows 的三个极限偏移测试使用稀疏文件，TEMP 所在文件系统�
 dotnet build Atelia.Storage.slnx -c Release
 dotnet test Atelia.Storage.slnx -c Release --no-build
 # 先提交源码；从干净 HEAD 打包。不同内容必须使用新版本。
-./eng/Pack.ps1 -Version 0.1.1-dev.20260913.1 -OutputDirectory ./artifacts/feed
-./eng/Test-Package.ps1 -Version 0.1.1-dev.20260913.1 -FeedDirectory ./artifacts/feed -WorkDirectory ../storage-package-smoke-1
+./eng/Pack.ps1 -Version 0.1.1-dev.20260913.2 -OutputDirectory ./artifacts/feed
+./eng/Test-Package.ps1 -Version 0.1.1-dev.20260913.2 -FeedDirectory ./artifacts/feed -WorkDirectory ../storage-package-smoke-1
 ```
 
 `Pack.ps1` 是五个生产包清单和打包算法的唯一入口，要求 origin 指向 `https://github.com/Atelia-org/atelia-storage.git`，拒绝未提交的源码。输出五个 nupkg、五个 snupkg 与 `manifest.<版本>.json`，记录 commit 和 SHA256。相同版本只允许复用匹配来源且所有 hash 相符的既有产物，不覆盖内容。
