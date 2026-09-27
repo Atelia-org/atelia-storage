@@ -65,7 +65,8 @@ Pack 临时固定 CLI 语言为 en-US，并启用 `StorageDeterministicPack`：�
 
 当前源码还提供不可变 `CreateTag` / `ResolveTag`，见 [tag 合同](docs/EventJournal/immutable-tags-design.md)
 和 [源码使用指南](src/EventJournal/README.md#不可变-tag)。上文 `0.1.1-preview.2` 是既有公开包示例，
-不包含新 API；tag 需要从本次源码构建的新版本包。首次写入 tag 后旧版本 reader 会拒绝打开。
+不包含新 API；本次已验证的本地开发包为 `0.1.2-dev.20260927.1`，来源和验收见
+[交付记录](docs/EventJournal/immutable-tags-delivery.md)。首次写入 tag 后旧版本 reader 会拒绝打开。
 
 - 从 [AGENTS.md](https://github.com/Atelia-org/atelia-storage/blob/v0.1.1-preview.2/AGENTS.md) 和以上库指南进入；[RBF 规范](https://github.com/Atelia-org/atelia-storage/tree/v0.1.1-preview.2/docs/Rbf/) 与 [EventJournal 设计](https://github.com/Atelia-org/atelia-storage/tree/v0.1.1-preview.2/docs/EventJournal/) 给出格式与语义约定。
 - 来源与历史提取范围见 [extraction-origin](https://github.com/Atelia-org/atelia-storage/blob/v0.1.1-preview.2/docs/extraction-origin.md)。历史讨论保留原始语境，不代表当前活动入口。

@@ -56,4 +56,4 @@ RBF CRC 覆盖 payload。replay 显式扫描 tombstone 并拒绝它，严格拒�
 | 段确认不轮转与 lease 保护 | `RbfSegmentStoreConfirmDurableTests` |
 | public PackageReference 跨重开解析 | `examples/EventJournalSmoke` + `eng/Test-Package.ps1` |
 
-源码、包与旧 reader 验证结果在交付记录中维护。测试故障注入验证软件边界，不是断电实验。
+源码、包与旧 reader 验证结果见 [交付记录](immutable-tags-delivery.md)。测试故障注入验证软件边界，不是断电实验。
