@@ -27,6 +27,7 @@ public sealed partial class EventJournal : IDisposable {
         RbfSegmentStore.RbfSegmentStore segments,
         IRbfFile refOpLog,
         Dictionary<string, RefId> branches,
+        Dictionary<string, EventAddress> tags,
         ulong nextSequenceNumber,
         bool isReadOnly = false
     ) {
@@ -38,11 +39,18 @@ public sealed partial class EventJournal : IDisposable {
         _refObjectsPath = RefObjectsDirectory(JournalPath);
         _forwardPlanCachePath = ForwardPlanCacheDirectory(JournalPath);
         _branches = branches;
+        _tags = tags;
         _nextSequenceNumber = nextSequenceNumber;
+        ValidateTagTargets();
     }
 
     public string JournalPath { get; }
-    public uint ActiveSegmentNumber => _segments.ActiveSegmentNumber;
+    public uint ActiveSegmentNumber {
+        get {
+            ThrowIfDisposed();
+            return _segments.ActiveSegmentNumber;
+        }
+    }
 
     /// <summary>
     /// Captures the end-exclusive physical append frontier of the events
@@ -73,7 +81,9 @@ public sealed partial class EventJournal : IDisposable {
         try {
             segments = RbfSegmentStore.RbfSegmentStore.CreateNew(EventsStorePath(fullPath), options.EventSegmentStoreOptions);
             refOpLog = CreateRefOpLog(fullPath, options);
-            return new EventJournal(fullPath, options, segments, refOpLog, new Dictionary<string, RefId>(StringComparer.Ordinal), nextSequenceNumber: 1);
+            return new EventJournal(fullPath, options, segments, refOpLog,
+                new Dictionary<string, RefId>(StringComparer.Ordinal),
+                new Dictionary<string, EventAddress>(StringComparer.Ordinal), nextSequenceNumber: 1);
         }
         catch {
             refOpLog?.Dispose();
@@ -90,7 +100,8 @@ public sealed partial class EventJournal : IDisposable {
         IRbfFile? refOpLog = null;
         try {
             refOpLog = OpenRefOpLog(fullPath, options, createIfMissing: false);
-            return new EventJournal(fullPath, options, segments, refOpLog, ReplayRefOpLog(refOpLog), ComputeNextSequenceNumber(segments));
+            var branches = ReplayRefOpLog(refOpLog, out var tags);
+            return new EventJournal(fullPath, options, segments, refOpLog, branches, tags, ComputeNextSequenceNumber(segments));
         }
         catch {
             refOpLog?.Dispose();
@@ -119,13 +130,14 @@ public sealed partial class EventJournal : IDisposable {
         EventJournal? journal = null;
         try {
             refOpLog = OpenReadOnlyRefOpLog(fullPath, options);
-            var branches = ReplayRefOpLog(refOpLog);
+            var branches = ReplayRefOpLog(refOpLog, out var tags);
             journal = new EventJournal(
                 fullPath,
                 options,
                 segments,
                 refOpLog,
                 branches,
+                tags,
                 ComputeNextSequenceNumber(
                     segments,
                     requireEventFramesOnly: true
@@ -159,7 +171,8 @@ public sealed partial class EventJournal : IDisposable {
         IRbfFile? refOpLog = null;
         try {
             refOpLog = OpenRefOpLog(fullPath, options, createIfMissing: true);
-            return new EventJournal(fullPath, options, segments, refOpLog, ReplayRefOpLog(refOpLog), ComputeNextSequenceNumber(segments));
+            var branches = ReplayRefOpLog(refOpLog, out var tags);
+            return new EventJournal(fullPath, options, segments, refOpLog, branches, tags, ComputeNextSequenceNumber(segments));
         }
         catch {
             refOpLog?.Dispose();
@@ -429,9 +442,9 @@ public sealed partial class EventJournal : IDisposable {
 
     public void Dispose() {
         if (_disposed) { return; }
-        _refOpLog.Dispose();
-        _segments.Dispose();
         _disposed = true;
+        try { _refOpLog.Dispose(); }
+        finally { _segments.Dispose(); }
     }
 
     private static string EventsStorePath(string journalPath) => Path.Combine(journalPath, "events");
@@ -548,6 +561,9 @@ public sealed partial class EventJournal : IDisposable {
 
     private void ThrowIfDisposed() {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_tagPublicationFaulted) {
+            throw new InvalidOperationException("EventJournal is faulted after tag publication. Dispose and reopen strictly.", _tagPublicationFault);
+        }
     }
 
     private static void TryDeleteDirectory(string path) {

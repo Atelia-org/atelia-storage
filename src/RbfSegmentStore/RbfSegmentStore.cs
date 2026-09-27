@@ -123,6 +123,37 @@ public sealed class RbfSegmentStore : IRbfSegmentStore {
         return new RbfSegmentReaderLease(new RbfSegmentLeaseState(this, segmentNumber, entry.File, RbfSegmentLeaseKind.Historical));
     }
 
+    /// <inheritdoc />
+    public void ConfirmDurable(uint segmentNumber) {
+        ThrowIfDisposed();
+        if (_isReadOnly) {
+            throw new InvalidOperationException(
+                "Cannot confirm durability on a read-only RBF segment store."
+            );
+        }
+        if (segmentNumber == 0) { throw new ArgumentOutOfRangeException(nameof(segmentNumber), segmentNumber, "Segment number 0 is reserved."); }
+        if (segmentNumber > ActiveSegmentNumber) { throw new FileNotFoundException($"Segment {segmentNumber} does not exist."); }
+        EnsureNoActiveLease();
+
+        if (segmentNumber == ActiveSegmentNumber) {
+            _activeFile.DurableFlush();
+            return;
+        }
+
+        if (_historicalReaders.TryGetValue(segmentNumber, out var entry)) {
+            if (entry.LeaseCount != 0) {
+                throw new InvalidOperationException($"Historical segment {segmentNumber} has a live reader lease.");
+            }
+
+            entry.File.Dispose();
+            _historicalReaders.Remove(segmentNumber);
+        }
+
+        string path = RbfSegmentPath.GetSegmentPath(_storePath, _layout, segmentNumber);
+        using var file = RbfFile.OpenExisting(path, Options.CacheMode);
+        file.DurableFlush();
+    }
+
     internal void ReleaseLease(uint segmentNumber, RbfSegmentLeaseKind kind) {
         if (kind == RbfSegmentLeaseKind.Active) {
             if (_activeLeaseCount > 0) { _activeLeaseCount--; }

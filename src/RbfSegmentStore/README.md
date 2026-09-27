@@ -122,11 +122,26 @@ uint segmentNumber = lease.SegmentNumber;
 
 注意：
 
-- `RbfSegmentStore` 不替你调用 `Append`、`BeginAppend` 或 `DurableFlush`。
+- `RbfSegmentStore` 不替你调用 `Append` 或 `BeginAppend`，也不会在每次写入后自动落盘。
 - 若调用方需要“最多 overshoot 一个 Frame”的界限，必须像上例一样每个逻辑写入重新借 lease，并在该 lease
   中只 append 一个 Frame；底层 `IRbfFile` 本身允许同一 lease 连续 append 多次。
 - lease dispose 后不得继续使用其中的 `IRbfFile`，即使你提前把 `lease.File` 存到了局部变量。
 - active segment 同一时刻只能有一个 live active lease。未释放 writer lease 时再打开 active reader/writer 会抛异常。
+
+## 单文件 durable 确认
+
+上层在发布依赖某个 segment 的 tag、ref 或其他元数据之前，可以显式调用：
+
+```csharp
+store.ConfirmDurable(segmentNumber);
+```
+
+它只对指定的一个已有 segment 调用 RBF 的 `DurableFlush`。确认 active segment 不会借 writer lease，
+因此不会触发阈值轮转；确认 historical segment 会先拒绝 live historical reader lease，或关闭其 idle
+pooled reader 后以临时可写句柄执行 flush。任意 live active lease 都会使确认失败。
+
+该 API 不验证 frame、payload 或上层语义，不执行 tail recovery，不修改文件 bytes，不轮转 segment，
+也不确认目录元数据。因此它不提供目录项在断电后的存在性承诺；上层若需要该保证，必须另行定义并实现。
 
 ## 读取范式
 

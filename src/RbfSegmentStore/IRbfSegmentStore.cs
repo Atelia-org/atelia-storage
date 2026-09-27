@@ -6,6 +6,11 @@ public interface IRbfSegmentStore : IDisposable {
     RbfSegmentWriterLease OpenActiveWriter();
     RbfSegmentReaderLease OpenReader(uint segmentNumber);
 
+    /// <summary>Flushes an existing segment to disk without rotating or recovering it.</summary>
+    /// <remarks>Requires a writable store, no active lease, and no live reader for the target historical segment.
+    /// Does not validate frames or confirm directory metadata.</remarks>
+    void ConfirmDurable(uint segmentNumber);
+
     uint ActiveSegmentNumber { get; }
     RbfSegmentStoreLayout Layout { get; }
     RbfSegmentStoreOptions Options { get; }

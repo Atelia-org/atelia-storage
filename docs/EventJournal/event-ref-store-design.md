@@ -3,6 +3,9 @@
 > **状态**：Design Baseline / 待拆分为 Spec
 > **日期**：2026-07-23
 > **依赖**：[EventJournal 功能需求与粗粒度设计基线](event-journal-requirements-and-design.md)、[EventFrame Parent Chain 设计基线](event-frame-parent-chain-design.md)、[RBF Layer Interface Contract](../Rbf/rbf-interface.md)
+>
+> **2026-09-27 扩展**：`ref-op-log.rbf` 也承载独立的不可变 tag frame；格式与失败合同见
+> [不可变 tag 设计](immutable-tags-design.md)。它不使用下述 ref object / move 生命周期。
 
 ## 1. 文档定位
 

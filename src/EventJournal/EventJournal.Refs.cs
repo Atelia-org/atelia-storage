@@ -306,13 +306,23 @@ public sealed partial class EventJournal {
         );
     }
 
-    private static Dictionary<string, RefId> ReplayRefOpLog(IRbfFile refOpLog) {
+    private static Dictionary<string, RefId> ReplayRefOpLog(IRbfFile refOpLog, out Dictionary<string, EventAddress> tags) {
         var knownRefs = new HashSet<RefId>();
         var branches = new Dictionary<string, RefId>(StringComparer.Ordinal);
+        tags = new Dictionary<string, EventAddress>(StringComparer.Ordinal);
 
-        var enumerator = refOpLog.ScanForward().GetEnumerator();
+        var enumerator = refOpLog.ScanForward(showTombstone: true).GetEnumerator();
         while (enumerator.MoveNext()) {
             RbfFrameInfo info = enumerator.Current;
+            if (info.IsTombstone) { throw new InvalidDataException("ref-op-log contains a tombstone."); }
+            if (info.Tag == TagBindingFrameTag) {
+                if (info.TailMetaLength != 0) { throw new InvalidDataException("Tag bindings cannot contain TailMeta."); }
+                using var tagFrame = info.ReadPooledFrame().ToDisposable();
+                if (tagFrame.IsFailure) { throw new InvalidDataException($"Failed to read tag binding: {tagFrame.Error!.Message}"); }
+                TagBindingFrame binding = TagBindingFrameCodec.Decode(tagFrame.Unwrap().PayloadAndMeta);
+                if (!tags.TryAdd(binding.Name, binding.Target)) { throw new InvalidDataException($"Duplicate immutable tag '{binding.Name}'."); }
+                continue;
+            }
             if (info.Tag != RefOpFrameTag) { throw new InvalidDataException($"ref-op-log contains unexpected frame tag 0x{info.Tag:X8}."); }
 
             using var frameResult = info.ReadPooledFrame().ToDisposable();

@@ -63,6 +63,10 @@ Pack 临时固定 CLI 语言为 en-US，并启用 `StorageDeterministicPack`：�
 
 ## 文档与 Agent 入口
 
+当前源码还提供不可变 `CreateTag` / `ResolveTag`，见 [tag 合同](docs/EventJournal/immutable-tags-design.md)
+和 [源码使用指南](src/EventJournal/README.md#不可变-tag)。上文 `0.1.1-preview.2` 是既有公开包示例，
+不包含新 API；tag 需要从本次源码构建的新版本包。首次写入 tag 后旧版本 reader 会拒绝打开。
+
 - 从 [AGENTS.md](https://github.com/Atelia-org/atelia-storage/blob/v0.1.1-preview.2/AGENTS.md) 和以上库指南进入；[RBF 规范](https://github.com/Atelia-org/atelia-storage/tree/v0.1.1-preview.2/docs/Rbf/) 与 [EventJournal 设计](https://github.com/Atelia-org/atelia-storage/tree/v0.1.1-preview.2/docs/EventJournal/) 给出格式与语义约定。
 - 来源与历史提取范围见 [extraction-origin](https://github.com/Atelia-org/atelia-storage/blob/v0.1.1-preview.2/docs/extraction-origin.md)。历史讨论保留原始语境，不代表当前活动入口。
 - 排查某个包时先读消费仓的 `eng/StorageDependency.props`，用其 `StorageSourceRevision` 打开本仓对应 commit 的指南/源码；不要用最新分支解释旧包。Source Link 提供定位与调试信息，包引用不会自动把本仓 AGENTS.md 或指南注入 Agent 上下文。

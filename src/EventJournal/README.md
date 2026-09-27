@@ -29,7 +29,7 @@
 ```
 
 - `events/`：真正的 EventFrame 存储，默认使用 bucketed `RbfSegmentStore`。
-- `refs/ref-op-log.rbf`：branch name 与稳定 `RefId` 的绑定、fork、archive 历史。
+- `refs/ref-op-log.rbf`：branch name 与稳定 `RefId` 的绑定、fork、archive 历史，以及不可变 tag 绑定。
 - `refs/objects/<ref-id>/segments/*.rbf`：单个 ref 的 move chain / reflog，默认使用 flat segment store。
 - `cache/forward-plans/v1/*.efplan`：ForwardPlan compiled cache，是可删除、可重建的派生产物，不是 correctness source。
 
@@ -152,6 +152,36 @@ IReadOnlyList<EventAddress> replay = journal.ReadChronologicalChain(head).Unwrap
 
 `AdvanceRef` / `MoveRef` 都是 CAS 风格：当前 head 必须等于 `expectedOldHead`，否则不会写入 move。
 
+## 不可变 tag
+
+```csharp
+journal.CreateTag("before-experiment", head).Unwrap();
+// 关闭后，使用严格可写选项或 OpenReadOnlyExisting 重开。
+EventAddress selected = reopened.ResolveTag("before-experiment").Unwrap();
+```
+
+`CreateTag(name, target)` 返回 `AteliaResult<bool>`，成功为 true；`ResolveTag(name)` 返回
+`AteliaResult<EventAddress>`。tag 与 branch 使用独立 ordinal 名称空间，可以同名，名称字符/长度约束相同。
+同名 tag 一律拒绝（`TagAlreadyExists`），即使目标相同；不存在返回 `TagNotFound`，非法名称为
+`TagNameInvalid`，坏目标为 `TagTargetInvalid`。tag 没有 move、delete、archive 或 checkout。
+
+创建和解析均 checked-read 目标帧；所有重开入口校验持久绑定及其目标，损坏记录或目标使打开失败。
+branch 后续移动、归档不会改变 tag。只读打开允许解析、拒绝创建；不会物化任何领域模型。
+`EventAddress` 只是本地物理坐标，不能识别另一个仓库碰巧相同的坐标；上层负责地址来源与生命周期。
+
+普通校验失败不会追加，driver 仍可使用。创建先准备记录和索引容量，确认目标 segment 耐久，再向
+ref-op-log 追加一条 tag frame，日志 `DurableFlush` 成功后安装内存绑定。目标确认或后续发布异常抛
+`TagPublicationException`，其 `Outcome` 区分 `NotAttempted`、`Unknown` 与 `Confirmed`；此时整个
+journal 拒绝后续数据操作，只能 Dispose。严格重开并 Resolve 查看实际结果，不能盲目重试 Create。
+确认目标只覆盖目标所在文件；payload 引用的外部数据和 parent 依赖由调用方先确认。
+
+查询不确定发布结果时，使用 `OpenReadOnlyExisting`，或将三个 options 的
+`RecoverActiveTailOnOpen` 全部设为 false；默认可写打开仍保留既有自动修尾行为。不得为查询结果而默认修尾。
+
+新 reader 可读旧格式；首次写入 tag 后，旧版本 reader 会因未知 frame tag 明确拒绝打开。
+本功能不增加文件/目录或额外断电保证。完整格式、故障结果和下游依赖顺序见
+[不可变 tag 设计](../../docs/EventJournal/immutable-tags-design.md)。
+
 ## ForwardPlan：正序 replay 的派生计划
 
 EventJournal 的事实源只有 `EventFrameHeader.Parent`。ForwardPlan 是为了高效正序遍历而“编译”出来的派生 artifact，可以随时删除并重建。
@@ -217,6 +247,7 @@ using var journal = EventJournal.OpenOrCreate(path, options);
 
 - `EventJournal.cs`：journal 生命周期、event append/read、ancestor traversal。
 - `EventJournal.Refs.cs`：branch/ref API、ref-op-log replay、ref object state loading。
+- `EventJournal.Tags.cs` / `TagBindingFrame.cs` / `TagPublicationException.cs`：不可变 tag、独立记录格式与发布故障证据。
 - `EventJournal.ForwardPlan.cs`：ForwardPlan 构建、replay、memory cache、compiled disk cache、tail-merge 增量编译。
 - `EventFrameHeader.cs` / `EventAddresses.cs`：核心固定宽度 codec。
 - `RefMoveFrame.cs` / `RefOpFrame.cs`：ref/reflog 固定格式 codec。
