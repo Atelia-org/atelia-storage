@@ -4,6 +4,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- Package mode relocates SDK output, so keep excluding source-mode outputs from default globs. -->
+    <DefaultItemExcludes Condition="'$(StoragePackageMode)' == 'true'">$(DefaultItemExcludes);obj/**;bin/**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
@@ -12,10 +14,16 @@
     </AssemblyAttribute>
   </ItemGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="'$(StoragePackageMode)' != 'true'">
     <ProjectReference Include="..\Data\Data.csproj" />
     <ProjectReference Include="..\Primitives\Primitives.csproj" />
     <ProjectReference Include="..\Rbf\Rbf.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(StoragePackageMode)' == 'true'">
+    <PackageReference Include="Atelia.Data" Version="$(StorageDependencyVersionData)" />
+    <PackageReference Include="Atelia.Primitives" Version="$(StorageDependencyVersionPrimitives)" />
+    <PackageReference Include="Atelia.Rbf" Version="$(StorageDependencyVersionRbf)" />
   </ItemGroup>
 
 </Project>

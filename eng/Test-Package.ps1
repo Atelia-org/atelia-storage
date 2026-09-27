@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('All', 'EventJournal')][string]$Project = 'All',
+    [ValidateSet('All', 'EventJournal', 'RbfSegmentStore')][string]$Project = 'All',
     [Parameter(Mandatory)][string]$Version,
     [Parameter(Mandatory)][string]$FeedDirectory,
     [Parameter(Mandatory)][string]$WorkDirectory
@@ -13,10 +13,10 @@ if (Test-Path -LiteralPath $work) { throw 'WorkDirectory must be a fresh directo
 if ($work.StartsWith($repo + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
     throw 'WorkDirectory must be outside the source repository.'
 }
-$manifestName = if ($Project -eq 'EventJournal') { "manifest.Atelia.EventJournal.$Version.json" } else { "manifest.$Version.json" }
+$manifestName = if ($Project -eq 'All') { "manifest.$Version.json" } else { "manifest.Atelia.$Project.$Version.json" }
 $manifestPath = Join-Path $feed $manifestName
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-if ($Project -eq 'EventJournal' -and $manifest.schemaVersion -ne 2) { throw 'EventJournal selective smoke requires a schema 2 manifest.' }
+if ($Project -ne 'All' -and $manifest.schemaVersion -ne 2) { throw 'Selective smoke requires a schema 2 manifest.' }
 if ($Project -eq 'All' -and $manifest.schemaVersion -ne 1) { throw 'Five-package smoke requires a schema 1 manifest.' }
 $revision = & git -C $repo rev-parse HEAD
 if ($LASTEXITCODE -ne 0 -or $revision -ne $manifest.sourceRevision) { throw 'Checkout does not match package source revision.' }
@@ -28,7 +28,8 @@ New-Item -ItemType Directory -Path $work | Out-Null
 '<Project />' | Set-Content -LiteralPath (Join-Path $work 'Directory.Build.targets') -Encoding utf8NoBOM
 '<Project />' | Set-Content -LiteralPath (Join-Path $work 'Directory.Packages.props') -Encoding utf8NoBOM
 Copy-Item -LiteralPath (Join-Path $repo 'global.json') -Destination $work
-Copy-Item -LiteralPath (Join-Path $repo 'examples/EventJournalSmoke') -Destination $work -Recurse
+$smokeProject = if ($Project -eq 'RbfSegmentStore') { 'RbfSegmentStoreSmoke' } else { 'EventJournalSmoke' }
+Copy-Item -LiteralPath (Join-Path $repo "examples/$smokeProject") -Destination $work -Recurse
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'PackageMetadataCheck') -Destination $work -Recurse
 $escapedFeed = [Security.SecurityElement]::Escape($feed)
 @"
@@ -44,15 +45,16 @@ $previousHttpCache = $env:NUGET_HTTP_CACHE_PATH
 try {
     $env:NUGET_PACKAGES = Join-Path $work 'packages'
     $env:NUGET_HTTP_CACHE_PATH = Join-Path $work 'http-cache'
+    $smokeData = if ($Project -eq 'RbfSegmentStore') { 'segment-store' } else { 'journal' }
     Push-Location $work
     try {
-        & dotnet restore EventJournalSmoke/EventJournalSmoke.csproj --configfile NuGet.Config "-p:StoragePackageVersion=$Version"
+        & dotnet restore "$smokeProject/$smokeProject.csproj" --configfile NuGet.Config "-p:StoragePackageVersion=$Version"
         if ($LASTEXITCODE -ne 0) { throw 'Isolated PackageReference restore failed.' }
-        & dotnet run --project EventJournalSmoke/EventJournalSmoke.csproj -c Release --no-restore "-p:StoragePackageVersion=$Version" -- (Join-Path $work 'journal')
-        if ($LASTEXITCODE -ne 0) { throw 'EventJournal public API smoke failed.' }
+        & dotnet run --project "$smokeProject/$smokeProject.csproj" -c Release --no-restore "-p:StoragePackageVersion=$Version" -- (Join-Path $work $smokeData)
+        if ($LASTEXITCODE -ne 0) { throw "$Project public API smoke failed." }
         & dotnet restore PackageMetadataCheck/PackageMetadataCheck.csproj --configfile NuGet.Config
         if ($LASTEXITCODE -ne 0) { throw 'Metadata checker restore failed.' }
-        & dotnet run --project PackageMetadataCheck/PackageMetadataCheck.csproj -c Release --no-restore -- $manifestPath $repo (Join-Path $work 'EventJournalSmoke/obj/project.assets.json') $Version
+        & dotnet run --project PackageMetadataCheck/PackageMetadataCheck.csproj -c Release --no-restore -- $manifestPath $repo (Join-Path $work "$smokeProject/obj/project.assets.json") $Version
         if ($LASTEXITCODE -ne 0) { throw 'Package metadata / Source Link / dependency graph verification failed.' }
     }
     finally { Pop-Location }

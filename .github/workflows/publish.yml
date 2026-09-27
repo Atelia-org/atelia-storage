@@ -7,18 +7,18 @@ on:
         required: true
         type: string
       project:
-        description: Publish all five packages or only EventJournal
+        description: Publish all five packages or one selected project
         required: true
         type: choice
         default: EventJournal
         options:
           - EventJournal
+          - RbfSegmentStore
           - All
       dependency_versions:
-        description: JSON of EventJournal's four published dependency versions; used only for EventJournal
+        description: JSON of selected project's published dependency versions; only for single-package mode
         required: false
         type: string
-        default: '{"Atelia.Primitives":"0.1.1-preview.2","Atelia.Data":"0.1.1-preview.2","Atelia.Rbf":"0.1.1-preview.2","Atelia.RbfSegmentStore":"0.1.1-preview.2"}'
 permissions:
   contents: read
   id-token: write
@@ -30,13 +30,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Require EventJournal package tag
-        if: inputs.project == 'EventJournal'
+      - name: Require selected package tag
+        if: inputs.project != 'All'
         shell: pwsh
         env:
           STORAGE_VERSION: ${{ inputs.version }}
+          STORAGE_PROJECT: ${{ inputs.project }}
         run: |
-          $expected = "refs/tags/Atelia.EventJournal-v$env:STORAGE_VERSION"
+          $expected = "refs/tags/Atelia.${env:STORAGE_PROJECT}-v${env:STORAGE_VERSION}"
           if ($env:GITHUB_REF -cne $expected) { throw "Dispatch selective publication from $expected." }
           $tagCommit = (& git rev-parse --verify "$expected^{commit}" | Out-String).Trim()
           $headCommit = (& git rev-parse --verify HEAD | Out-String).Trim()
@@ -55,10 +56,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet test Atelia.Storage.slnx -c Release --no-build
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          if ($env:STORAGE_PROJECT -eq 'EventJournal') {
+          if ($env:STORAGE_PROJECT -ne 'All') {
             $dependencies = $env:STORAGE_DEPENDENCY_VERSIONS | ConvertFrom-Json -AsHashtable
-            ./eng/Pack.ps1 -Project EventJournal -Version $env:STORAGE_VERSION -DependencyVersions $dependencies -OutputDirectory ./artifacts/feed
-            ./eng/Test-Package.ps1 -Project EventJournal -Version $env:STORAGE_VERSION -FeedDirectory ./artifacts/feed -WorkDirectory (Join-Path '${{ runner.temp }}' 'storage-package-smoke')
+            ./eng/Pack.ps1 -Project $env:STORAGE_PROJECT -Version $env:STORAGE_VERSION -DependencyVersions $dependencies -OutputDirectory ./artifacts/feed
+            ./eng/Test-Package.ps1 -Project $env:STORAGE_PROJECT -Version $env:STORAGE_VERSION -FeedDirectory ./artifacts/feed -WorkDirectory (Join-Path '${{ runner.temp }}' 'storage-package-smoke')
           } else {
             ./eng/Pack.ps1 -Version $env:STORAGE_VERSION -OutputDirectory ./artifacts/feed
             ./eng/Test-Package.ps1 -Version $env:STORAGE_VERSION -FeedDirectory ./artifacts/feed -WorkDirectory (Join-Path '${{ runner.temp }}' 'storage-package-smoke')
@@ -75,11 +76,11 @@ jobs:
           STORAGE_PROJECT: ${{ inputs.project }}
           NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
         run: |
-          $manifestName = if ($env:STORAGE_PROJECT -eq 'EventJournal') { "manifest.Atelia.EventJournal.$env:STORAGE_VERSION.json" } else { "manifest.$env:STORAGE_VERSION.json" }
+          $manifestName = if ($env:STORAGE_PROJECT -ne 'All') { "manifest.Atelia.${env:STORAGE_PROJECT}.${env:STORAGE_VERSION}.json" } else { "manifest.$env:STORAGE_VERSION.json" }
           $manifest = Get-Content (Join-Path './artifacts/feed' $manifestName) -Raw | ConvertFrom-Json
           $revision = (& git rev-parse HEAD | Out-String).Trim()
           if ($LASTEXITCODE -ne 0 -or $manifest.sourceRevision -cne $revision -or $manifest.version -cne $env:STORAGE_VERSION) { throw 'Manifest does not match the selected release.' }
-          $expectedIds = @(if ($env:STORAGE_PROJECT -eq 'EventJournal') { 'Atelia.EventJournal' } else { 'Atelia.Primitives'; 'Atelia.Data'; 'Atelia.Rbf'; 'Atelia.RbfSegmentStore'; 'Atelia.EventJournal' })
+          $expectedIds = @(if ($env:STORAGE_PROJECT -eq 'All') { 'Atelia.Primitives'; 'Atelia.Data'; 'Atelia.Rbf'; 'Atelia.RbfSegmentStore'; 'Atelia.EventJournal' } else { "Atelia.$env:STORAGE_PROJECT" })
           if (@($manifest.packages).Count -ne $expectedIds.Count) { throw 'Unexpected release package count.' }
           for ($index = 0; $index -lt $expectedIds.Count; $index++) {
             $package = $manifest.packages[$index]
@@ -91,13 +92,14 @@ jobs:
             dotnet nuget push $path --source https://api.nuget.org/v3/index.json --api-key $env:NUGET_API_KEY
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
-      - name: Verify public EventJournal package and consumer
-        if: inputs.project == 'EventJournal'
+      - name: Verify selected public package and consumer
+        if: inputs.project != 'All'
         shell: pwsh
         env:
           STORAGE_VERSION: ${{ inputs.version }}
+          STORAGE_PROJECT: ${{ inputs.project }}
         run: |
-          ./eng/Verify-Published.ps1 -Version $env:STORAGE_VERSION -FeedDirectory ./artifacts/feed -WorkDirectory (Join-Path '${{ runner.temp }}' 'storage-public-smoke')
+          ./eng/Verify-Published.ps1 -Project $env:STORAGE_PROJECT -Version $env:STORAGE_VERSION -FeedDirectory ./artifacts/feed -WorkDirectory (Join-Path '${{ runner.temp }}' 'storage-public-smoke')
       - uses: actions/upload-artifact@v4
         if: always()
         with:

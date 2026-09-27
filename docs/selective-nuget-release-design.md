@@ -1,6 +1,6 @@
 # 多项目仓库的按包 NuGet 发布方案
 
-状态：提案；2026-09-27。本文供 `atelia-storage` 与 `atelia-completion` 分别落地，不改变当前发布脚本，也不授权公开发布。
+状态：方案；2026-09-27 提出，2026-09-28 用本仓首片实测修订。本文供 `atelia-storage` 与 `atelia-completion` 分别落地；公开发布范围仍以当前会话授权为准。
 
 ## 目标与边界
 
@@ -41,7 +41,7 @@ publish Atelia.EventJournal <新候选版本>
 
 ## 最小实现路径
 
-1. **先支持单个有依赖的新包。** 在 `atelia-storage` 以 `EventJournal` 为第一条纵向切片；在 `atelia-completion` 可独立以 `Completion` 或 `Completion.Tools` 验证同一合同。无内部依赖项目也能单独发包。先沿用各仓 `eng/Pack.ps1` 的生产包清单，只选择其子集；日常仍做整仓源码构建与受影响测试，不先建设任意 DAG 调度器。
+1. **先支持单包候选，再按真实依赖顺序交付。** `atelia-storage` 首片原计划只打 `EventJournal`；针对旧版 `RbfSegmentStore 0.1.1-preview.2` 的实际编译在 `ConfirmDurable` 处失败，因此应先单独验证并发布新 `RbfSegmentStore`，再用该公开版本构建新 `EventJournal`。两次各只发布一个有变化的包，`Primitives`、`Data`、`Rbf` 沿用旧版。`atelia-completion` 可独立以 `Completion` 或 `Completion.Tools` 验证同一合同。先沿用各仓 `eng/Pack.ps1` 的生产包清单，只选择其子集；日常仍做整仓源码构建与受影响测试，不先建设任意 DAG 调度器。
 2. **发布构建使用声明的包依赖。** 日常项目继续使用 `ProjectReference`；仅打包模式让新包的仓内直接依赖解析为 `PackageReference`。发布构建与源码构建使用隔离的 `obj`/缓存，或明确重新 restore 并核验 assets，防止两个引用图共用旧资产。旧依赖从公开源取得并冻结，新依赖先从本次候选包取得；按现有项目依赖顺序构建。具体 MSBuild 条件在各仓局部实现，不建跨仓框架。
 3. **生成逐包证据。** 对新包保存 ID、版本、源码 commit、SDK、上传前 nupkg/snupkg 哈希与直接依赖下限；对参与验证的旧包保存实际取得的公开包哈希、元数据中的原来源，并复用既有验收记录。来源记录不可得时如实标注，不用当前 HEAD 冒充旧包来源。生成的证据核对输入和 nuspec；公开回读再单独记录签名后包哈希，并核对身份、仓库 commit 与包资产，不能直接比较两个阶段的整包哈希。
 4. **按新入口隔离验收。** 用新候选包与冻结的公开旧包组成固定 feed，在新目录与新 NuGet 缓存中验证。每个新入口都要有仅直接引用该包的 `PackageReference` 探针，检查实际 `project.assets.json`、仓内闭包、包身份/哈希并编译；复用相关公开 API 行为 smoke。`Completion` 与 `Completion.Tools` 的现有联合 smoke 不能代替各自的单入口探针。新包继续按对应源码 commit 做当前 Source Link/PDB 验证；旧包不在每次发布时重新检出历史源码。存储旧数据或 Completion 行为兼容承诺另做对应见证。
@@ -63,4 +63,4 @@ publish Atelia.EventJournal <新候选版本>
 
 ## 暂不纳入
 
-不拆仓，不构建跨仓通用发布服务，不自动从 Git diff 推断 SemVer，不自动给所有反向依赖涨版，不改变现有公开包字节，不借本方案承诺磁盘格式或旧数据兼容。首片先做单包构建和验收；多包同次发布保留上述语义，调度与续跑自动化等出现真实需求时再实现。
+不拆仓，不构建跨仓通用发布服务，不自动从 Git diff 推断 SemVer，不自动给所有反向依赖涨版，不改变现有公开包字节，不借本方案承诺磁盘格式或旧数据兼容。首片使用连续两次单包构建和验收；多包同次发布保留上述语义，调度与续跑自动化等出现真实需求时再实现。

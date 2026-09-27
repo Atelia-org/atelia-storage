@@ -2,7 +2,7 @@
 param(
     [Parameter(Mandatory)][ValidatePattern('^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[a-z0-9]+([.-][a-z0-9]+)*)?$')][string]$Version,
     [Parameter(Mandatory)][string]$OutputDirectory,
-    [ValidateSet('EventJournal')][string]$Project,
+    [ValidateSet('EventJournal', 'RbfSegmentStore')][string]$Project,
     [hashtable]$DependencyVersions
 )
 $ErrorActionPreference = 'Stop'
@@ -148,7 +148,20 @@ function Read-PackageNuspec([string]$Path, [string]$ExpectedId, [string]$Expecte
 
 function Download-PublicPackage([string]$Id, [string]$PackageVersion, [string]$Destination) {
     $url = "https://api.nuget.org/v3-flatcontainer/$($Id.ToLowerInvariant())/$($PackageVersion.ToLowerInvariant())/$($Id.ToLowerInvariant()).$($PackageVersion.ToLowerInvariant()).nupkg"
-    Invoke-WebRequest -Uri $url -OutFile $Destination -ErrorAction Stop
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        try {
+            Invoke-WebRequest -Uri $url -OutFile $Destination -TimeoutSec 60 -ErrorAction Stop
+            return
+        }
+        catch {
+            if (Test-Path -LiteralPath $Destination) { Remove-Item -LiteralPath $Destination }
+            if ($_.Exception.Response.StatusCode -eq [Net.HttpStatusCode]::NotFound) {
+                throw "Published dependency does not exist: $Id $PackageVersion"
+            }
+            if ($attempt -eq 3) { throw }
+            Start-Sleep -Seconds (2 * $attempt)
+        }
+    }
 }
 
 function Assert-NewVersionUnused([string]$Id, [string]$PackageVersion) {
@@ -175,12 +188,13 @@ $revision = Git-Value @('rev-parse', 'HEAD')
 $origin = (Git-Value @('remote', 'get-url', 'origin')) -replace '\.git$', ''
 if ($origin -cne $repositoryUrl) { throw "origin must be $repositoryUrl (optional .git suffix) for reproducible Source Link metadata." }
 if ($Project) {
-    if (!$PSBoundParameters.ContainsKey('DependencyVersions')) { throw '-DependencyVersions is required with -Project EventJournal.' }
-    $dependencyNames = @('Primitives', 'Data', 'Rbf', 'RbfSegmentStore')
+    if (!$PSBoundParameters.ContainsKey('DependencyVersions')) { throw "-DependencyVersions is required with -Project $Project." }
+    $dependencyNames = if ($Project -ceq 'EventJournal') { @('Primitives', 'Data', 'Rbf', 'RbfSegmentStore') } else { @('Primitives', 'Data', 'Rbf') }
+    $packageId = "Atelia.$Project"
     $expectedIds = @($dependencyNames | ForEach-Object { "Atelia.$_" })
     $actualIds = @($DependencyVersions.Keys | ForEach-Object { [string]$_ })
     if ($actualIds.Count -ne $expectedIds.Count -or @($actualIds | Where-Object { $expectedIds -cnotcontains $_ }).Count -ne 0) {
-        throw '-DependencyVersions must contain exactly Atelia.Primitives, Atelia.Data, Atelia.Rbf, and Atelia.RbfSegmentStore.'
+        throw "-DependencyVersions for $Project must contain exactly $($expectedIds -join ', ')."
     }
     foreach ($id in $expectedIds) {
         if ($DependencyVersions[$id] -isnot [string] -or
@@ -188,16 +202,16 @@ if ($Project) {
             throw "Invalid dependency version for $id."
         }
     }
-    $selectiveManifestPath = Join-Path $feed "manifest.Atelia.EventJournal.$Version.json"
-    $newFile = "Atelia.EventJournal.$Version.nupkg"
-    $newSymbols = "Atelia.EventJournal.$Version.snupkg"
+    $selectiveManifestPath = Join-Path $feed "manifest.$packageId.$Version.json"
+    $newFile = "$packageId.$Version.nupkg"
+    $newSymbols = "$packageId.$Version.snupkg"
     $previous = $null
     if (Test-Path -LiteralPath $selectiveManifestPath) {
         $previous = Get-Content -LiteralPath $selectiveManifestPath -Raw | ConvertFrom-Json
         if ($previous.schemaVersion -ne 2 -or $previous.version -cne $Version -or
             $previous.sourceRevision -cne $revision -or $previous.repositoryUrl -cne $repositoryUrl -or
             $previous.sdkVersion -cne $sdkVersion -or @($previous.packages).Count -ne 1 -or
-            $previous.packages[0].id -cne 'Atelia.EventJournal' -or
+            $previous.packages[0].id -cne $packageId -or
             @($previous.dependencies).Count -ne $expectedIds.Count) {
             throw 'Existing selective manifest has different provenance. Choose a new version.'
         }
@@ -206,7 +220,7 @@ if ($Project) {
         throw "Package $Version exists without its complete selective manifest. Choose a new version."
     }
     New-Item -ItemType Directory -Path $feed -Force | Out-Null
-    $stage = Join-Path $feed ('.pack-EventJournal-' + $Version + '-' + [Guid]::NewGuid().ToString('N'))
+    $stage = Join-Path $feed ('.pack-' + $Project + '-' + $Version + '-' + [Guid]::NewGuid().ToString('N'))
     $dependencyFeed = Join-Path $stage 'public-dependencies'
     New-Item -ItemType Directory -Path $dependencyFeed -Force | Out-Null
     $dependencies = @()
@@ -241,11 +255,11 @@ if ($Project) {
                 throw "Existing dependency provenance differs: $($dependency.id)"
             }
         }
-        Write-Host "Reusing verified immutable EventJournal package $Version from $revision"
+        Write-Host "Reusing verified immutable $Project package $Version from $revision"
         Write-Output $selectiveManifestPath
         return
     }
-    Assert-NewVersionUnused 'Atelia.EventJournal' $Version
+    Assert-NewVersionUnused $packageId $Version
     $configPath = Join-Path $stage 'NuGet.Config'
     $escapedFeed = [Security.SecurityElement]::Escape($dependencyFeed)
     "<?xml version=`"1.0`" encoding=`"utf-8`"?><configuration><packageSources><clear/><add key=`"frozen-public`" value=`"$escapedFeed`" /></packageSources></configuration>" |
@@ -253,7 +267,7 @@ if ($Project) {
     $obj = Join-Path $stage 'obj'
     $bin = Join-Path $stage 'bin'
     $cache = Join-Path $stage 'cache'
-    $projectPath = Join-Path $repo 'src/EventJournal/EventJournal.csproj'
+    $projectPath = Join-Path $repo "src/$Project/$Project.csproj"
     $props = @(
         '-p:StoragePackageMode=true', "-p:PackageVersion=$Version", "-p:RepositoryCommit=$revision",
         '-p:RepositoryBranch=', '-p:ContinuousIntegrationBuild=true', '-p:StorageDeterministicPack=true',
@@ -262,7 +276,7 @@ if ($Project) {
     )
     foreach ($name in $dependencyNames) { $props += "-p:StorageDependencyVersion$name=$($DependencyVersions["Atelia.$name"])" }
     & dotnet restore $projectPath --configfile $configPath @props | Out-Host
-    if ($LASTEXITCODE -ne 0) { throw "Isolated EventJournal restore failed (staging retained at $stage)." }
+    if ($LASTEXITCODE -ne 0) { throw "Isolated $Project restore failed (staging retained at $stage)." }
     $assetsPath = Join-Path $obj 'project.assets.json'
     $assets = Get-Content -LiteralPath $assetsPath -Raw | ConvertFrom-Json
     $target = $assets.targets.PSObject.Properties['net10.0'].Value
@@ -275,12 +289,12 @@ if ($Project) {
         }
     }
     & dotnet pack $projectPath -c Release -o $stage --no-restore @props | Out-Host
-    if ($LASTEXITCODE -ne 0) { throw "EventJournal pack failed (staging retained at $stage)." }
+    if ($LASTEXITCODE -ne 0) { throw "$Project pack failed (staging retained at $stage)." }
     $candidate = Join-Path $stage $newFile
     $symbols = Join-Path $stage $newSymbols
     Normalize-UnsignedPackage $candidate
     Normalize-UnsignedPackage $symbols
-    $newMetadata = Read-PackageNuspec $candidate 'Atelia.EventJournal' $Version $false
+    $newMetadata = Read-PackageNuspec $candidate $packageId $Version $false
     if ($newMetadata.sourceRevision -cne $revision) { throw 'New package source revision differs from HEAD.' }
     $nuspecDependencies = @($newMetadata.metadata.SelectNodes("*[local-name()='dependencies']/*[local-name()='group']/*[local-name()='dependency']"))
     if ($nuspecDependencies.Count -ne $dependencies.Count) { throw 'New nuspec direct dependency count differs from declared inputs.' }
@@ -300,18 +314,18 @@ if ($Project) {
     Move-Item -LiteralPath $candidate -Destination (Join-Path $feed $newFile)
     Move-Item -LiteralPath $symbols -Destination (Join-Path $feed $newSymbols)
     $packages = @([ordered]@{
-        id = 'Atelia.EventJournal'; file = $newFile
+        id = $packageId; file = $newFile
         sha256 = (Get-FileHash -LiteralPath (Join-Path $feed $newFile) -Algorithm SHA256).Hash.ToLowerInvariant()
         symbolsFile = $newSymbols
         symbolsSha256 = (Get-FileHash -LiteralPath (Join-Path $feed $newSymbols) -Algorithm SHA256).Hash.ToLowerInvariant()
     })
     [ordered]@{ schemaVersion = 2; version = $Version; sourceRevision = $revision; repositoryUrl = $repositoryUrl; sdkVersion = $sdkVersion; packages = $packages; dependencies = $dependencies } |
         ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $selectiveManifestPath -Encoding utf8NoBOM
-    Write-Host "Packed EventJournal $Version from $revision against frozen public dependencies. No remote publication was performed."
+    Write-Host "Packed $Project $Version from $revision against frozen public dependencies. No remote publication was performed."
     Write-Output $selectiveManifestPath
     return
 }
-if ($PSBoundParameters.ContainsKey('DependencyVersions')) { throw '-DependencyVersions requires -Project EventJournal.' }
+if ($PSBoundParameters.ContainsKey('DependencyVersions')) { throw '-DependencyVersions requires -Project EventJournal or RbfSegmentStore.' }
 $manifestPath = Join-Path $feed "manifest.$Version.json"
 if (Test-Path -LiteralPath $manifestPath) {
     $previous = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json

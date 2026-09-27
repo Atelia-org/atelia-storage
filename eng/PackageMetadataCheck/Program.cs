@@ -20,14 +20,21 @@ string repository = manifest.GetProperty("repositoryUrl").GetString()!;
 string sourcePrefix = repository.Replace("https://github.com/", "https://raw.githubusercontent.com/", StringComparison.Ordinal) + "/" + revision + "/";
 var expected = manifest.GetProperty("packages").EnumerateArray().Select(p => p.GetProperty("id").GetString()!).ToHashSet(StringComparer.OrdinalIgnoreCase);
 string[] storageIds = ["Atelia.Primitives", "Atelia.Data", "Atelia.Rbf", "Atelia.RbfSegmentStore", "Atelia.EventJournal"];
-Require(schemaVersion == 1 ? expected.SetEquals(storageIds) : expected.SetEquals(["Atelia.EventJournal"]), "Unexpected candidate package set.");
+string candidateId = schemaVersion == 1 ? "Atelia.EventJournal" : expected.Single();
+Require(schemaVersion == 1
+    ? manifest.GetProperty("packages").GetArrayLength() == storageIds.Length && expected.SetEquals(storageIds)
+    : manifest.GetProperty("packages").GetArrayLength() == 1 && (candidateId is "Atelia.EventJournal" or "Atelia.RbfSegmentStore"),
+    "Unexpected candidate package set.");
 JsonElement[] oldPackages = schemaVersion == 2 ? manifest.GetProperty("dependencies").EnumerateArray().ToArray() : [];
 var oldIds = oldPackages.Select(p => p.GetProperty("id").GetString()!).ToHashSet(StringComparer.OrdinalIgnoreCase);
-Require(schemaVersion == 1 || (oldPackages.Length == 4 && oldIds.SetEquals(storageIds.Where(id => id != "Atelia.EventJournal"))), "Expected four distinct frozen dependencies.");
+string[] expectedOldIds = candidateId == "Atelia.EventJournal"
+    ? ["Atelia.Primitives", "Atelia.Data", "Atelia.Rbf", "Atelia.RbfSegmentStore"]
+    : ["Atelia.Primitives", "Atelia.Data", "Atelia.Rbf"];
+Require(schemaVersion == 1 || (oldPackages.Length == expectedOldIds.Length && oldIds.SetEquals(expectedOldIds)), "Unexpected frozen dependency set.");
 var expectedVersions = schemaVersion == 1
     ? storageIds.ToDictionary(id => id, _ => version, StringComparer.OrdinalIgnoreCase)
     : oldPackages.ToDictionary(p => p.GetProperty("id").GetString()!, p => p.GetProperty("version").GetString()!, StringComparer.OrdinalIgnoreCase);
-expectedVersions["Atelia.EventJournal"] = version;
+expectedVersions[candidateId] = version;
 int checkedSourceDocuments = 0;
 foreach (var package in manifest.GetProperty("packages").EnumerateArray()) {
     string id = package.GetProperty("id").GetString()!;
@@ -53,9 +60,9 @@ foreach (var package in manifest.GetProperty("packages").EnumerateArray()) {
         Require(assemblyMetadata.GetString(definition.Name) == id && definition.Version == new Version(1, 0, 0, 0), $"{id}: extraction changed assembly identity/version.");
     }
     var internalDependencies = metadata.Descendants().Where(e => e.Name.LocalName == "dependency")
-        .Where(e => expectedVersions.ContainsKey((string)e.Attribute("id")!)).ToArray();
+        .Where(e => storageIds.Contains((string)e.Attribute("id")!, StringComparer.OrdinalIgnoreCase)).ToArray();
     if (schemaVersion == 2) {
-        Require(internalDependencies.Length == 4, $"{id}: expected exactly four storage dependencies.");
+        Require(internalDependencies.Length == expectedOldIds.Length, $"{id}: unexpected storage dependency count.");
         Require(internalDependencies.Select(e => (string)e.Attribute("id")!).ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(oldIds), $"{id}: storage dependency IDs differ from manifest.");
     }
     foreach (var dependency in internalDependencies) {
@@ -139,7 +146,7 @@ if (schemaVersion == 2) {
     Require(frameworks.Length == 1, "Expected a single smoke target framework.");
     var direct = frameworks[0].Value.GetProperty("dependencies").EnumerateObject()
         .Where(p => p.Name.StartsWith("Atelia.", StringComparison.OrdinalIgnoreCase)).Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-    Require(direct.SetEquals(["Atelia.EventJournal"]), "Smoke must directly reference only Atelia.EventJournal.");
+    Require(direct.SetEquals([candidateId]), $"Smoke must directly reference only {candidateId}.");
 }
 Console.WriteLine($"Package metadata and isolated dependency graph passed; {checkedSourceDocuments} local source documents checked. Remote Source Link download is not tested.");
 
