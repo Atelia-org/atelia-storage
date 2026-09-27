@@ -8,14 +8,14 @@
 
 这不是跨仓共享发布框架。两个仓库复用下面的规则和验收标准，各自保留当前打包、Source Link、签名、CI 与公开发布入口。源码测试仍覆盖整个受影响的项目图；按包选择仅决定哪些包生成新身份并推送。
 
-## 已核对的现状
+## 方案提出时的现状（2026-09-27）
 
-| 仓库 | 项目依赖 | 现有发布假设 |
+| 仓库 | 项目依赖 | 原有发布假设 |
 | --- | --- | --- |
 | `atelia-storage` | `Primitives`、`Data` 为底层；`Rbf` 依赖两者；`RbfSegmentStore` 还依赖 `Rbf`；`EventJournal` 依赖其余四者 | `eng/Pack.ps1` 用一个 `Version` 生成五包；`eng/Test-Package.ps1` 与 `eng/PackageMetadataCheck/Program.cs` 断言五包同版；`.github/workflows/publish.yml` 推送整个 manifest。README 也承诺同一存储版本。 |
 | `atelia-completion` | `Diagnostics` 和 `Completion.Abstractions` 无内部依赖；`Completion` 与 `Completion.Tools` 都依赖这两者，彼此无依赖 | `eng/Pack.ps1` 用一个 `Version` 生成四包；`eng/Test-Package.ps1` 的三种消费者都按同版验证；`.github/workflows/publish.yml` 推送整个 manifest，并要求 `v<version>` 标签。 |
 
-两仓目前均用 `ProjectReference` 做源码开发。`dotnet pack` 会把项目引用表示成包依赖，而非将被引用项目的程序集自动打进当前包。[dotnet pack 文档](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-pack)。因此“只从循环里去掉未变项目”不成立：新包可能引用不存在的同版依赖，或者用当前源码编译、却声明兼容旧包。生产包清单仍以各仓的 `eng/Pack.ps1` 为准，项目文件只提供依赖边。
+两仓日常源码开发均用 `ProjectReference`。`dotnet pack` 会把项目引用表示成包依赖，而非将被引用项目的程序集自动打进当前包。[dotnet pack 文档](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-pack)。因此“只从循环里去掉未变项目”不成立：新包可能引用不存在的同版依赖，或者用当前源码编译、却声明兼容旧包。生产包清单仍以各仓的 `eng/Pack.ps1` 为准，项目文件只提供依赖边。
 
 真实下游也有同版假设：`durable-graph` 的 `eng/StorageDependency.props`、`eng/Prepare-Storage.ps1` 与多个直接 `PackageReference` 共用一个 `StoragePackageVersion`，准备脚本还要求五包同版同来源；`atelia` 的 Storage/Completion 依赖属性及多个直接包引用也分别共用单一版本。发布方支持混合版本，不等于这些消费仓已经能采用它。
 
@@ -34,7 +34,7 @@ publish Atelia.EventJournal <新候选版本>
   requires Atelia.Primitives >= 0.1.1-preview.2
   requires Atelia.Data >= 0.1.1-preview.2
   requires Atelia.Rbf >= 0.1.1-preview.2
-  requires Atelia.RbfSegmentStore >= 0.1.1-preview.2
+  requires Atelia.RbfSegmentStore >= 0.1.2-preview.1
 ```
 
 只发无内部依赖的 `Data` 时，输入只有它的 ID 和新版本。`EventJournal` 旧包仍按自己的旧 nuspec 解析依赖；要让只引用旧 `EventJournal` 的消费者取得新 `Data`，须由消费者显式引用新 `Data`，或发布提高下限的新 `EventJournal`。`atelia-completion` 同理，且单发 `Completion.Tools` 不需要决定无依赖边的 `Completion` 版本。CLI 参数或一次性 JSON 均可承载输入；每仓实施时只保留一种规范输入，不另建长期维护的“最新版本目录”。
@@ -64,3 +64,5 @@ publish Atelia.EventJournal <新候选版本>
 ## 暂不纳入
 
 不拆仓，不构建跨仓通用发布服务，不自动从 Git diff 推断 SemVer，不自动给所有反向依赖涨版，不改变现有公开包字节，不借本方案承诺磁盘格式或旧数据兼容。首片使用连续两次单包构建和验收；多包同次发布保留上述语义，调度与续跑自动化等出现真实需求时再实现。
+
+本仓首次实战的版本、公开包哈希、两次发布任务、混合依赖闭包和旧数据见证记录在[按包预览版交付记录](selective-preview-delivery.md)。
