@@ -1,6 +1,6 @@
 # 多项目仓库的按包 NuGet 发布方案
 
-状态：方案；2026-09-27 提出，2026-09-28 用本仓首片实测修订。本文供 `atelia-storage` 与 `atelia-completion` 分别落地；公开发布范围仍以当前会话授权为准。
+状态：方案与落地记录；2026-09-27 提出，2026-09-28 用本仓首片公开发版和 `atelia-completion` 本地候选实测修订。本文供两仓分别落地；公开发布范围仍以当前会话授权为准。
 
 ## 目标与边界
 
@@ -47,7 +47,7 @@ publish Atelia.EventJournal <新候选版本>
 4. **按新入口隔离验收。** 用新候选包与冻结的公开旧包组成固定 feed，在新目录与新 NuGet 缓存中验证。每个新入口都要有仅直接引用该包的 `PackageReference` 探针，检查实际 `project.assets.json`、仓内闭包、包身份/哈希并编译；复用相关公开 API 行为 smoke。`Completion` 与 `Completion.Tools` 的现有联合 smoke 不能代替各自的单入口探针。新包继续按对应源码 commit 做当前 Source Link/PDB 验证；旧包不在每次发布时重新检出历史源码。存储旧数据或 Completion 行为兼容承诺另做对应见证。
 5. **推送与公开可还原分开判断。** workflow 校验候选证据与字节，每次仅推本次新包。`push` 成功后 nuget.org 仍可能在验证和索引；用有界等待从公开源下载签名包、核对内容与实际还原闭包，再开始依赖它的上层发布。[nuget.org 发布与索引](https://learn.microsoft.com/en-us/nuget/nuget-org/publish-a-package)。等待超时属于“已推送、公开回读未完成”；保留 workflow 上传的候选、manifest 和推送记录，之后单独重跑只读的 `Verify-Published.ps1`，不重启含 `push` 的 workflow，也不重打同版。若将来同批推多个新包，按依赖顺序处理，发生部分成功时逐包确认公开身份后只继续未完成项，不用 `--skip-duplicate` 隐藏冲突。
 
-`atelia-completion` 当前 workflow 的 `v<version>` 标签与单一版本绑定。独立版本后，不同包可能在不同 commit 使用相同版本号，故发布标签需包含包 ID 与版本，例如 `Atelia.Completion.Tools-v0.1.1-preview.1`；旧共版标签保持原义。`atelia-storage` 的版本固定文档链接也应改为包专属标签或明确 commit，不能让一个 `v<version>` 暗指全仓同版。
+`atelia-completion` 在方案提出时的 workflow 用 `v<version>` 标签绑定单一版本。按包模式现使用含包 ID 与版本的标签，例如 `Atelia.Completion.Tools-v0.1.1-preview.1`；旧共版标签保持原义。`atelia-storage` 的新版本固定文档链接使用包专属标签或明确 commit，不能让一个 `v<version>` 暗指全仓同版。
 
 下游迁移单列验收：`durable-graph` 的直接包引用、`Prepare-Storage.ps1` 和 receipt/manifest 同版同来源断言，以及 `atelia` 的单一 Storage/Completion 版本属性、准备脚本和直接引用，都需要按实际包 ID 选择版本并记录来源。第一片先证明发布方与独立消费者；只有完成这些消费仓的正常 build/test 和包消费验证，才宣称它们已支持混合版本。
 
@@ -66,3 +66,5 @@ publish Atelia.EventJournal <新候选版本>
 不拆仓，不构建跨仓通用发布服务，不自动从 Git diff 推断 SemVer，不自动给所有反向依赖涨版，不改变现有公开包字节，不借本方案承诺磁盘格式或旧数据兼容。已验证的是连续单包构建、发布和验收；同批多包候选、调度与续跑自动化等出现真实需求时再实现。
 
 本仓首次实战的版本、公开包哈希、两次发布任务、混合依赖闭包和旧数据见证记录在[按包预览版交付记录](selective-preview-delivery.md)。
+
+`atelia-completion` 已在本地实现四个项目的单包候选、隔离消费与按包发布 workflow，并保留旧四包同版路径。四个单包候选各自通过独立 `PackageReference` smoke；旧四包路径也通过 Pack 与 smoke。公开回读脚本针对现有 `0.1.0-preview.3` 四包完成只读演练；该演练使用去签名的公开包作为合成候选，未替代未来新版本的实际上传验证。本次没有在 completion 仓公开新包。
