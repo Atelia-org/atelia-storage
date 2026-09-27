@@ -1,5 +1,6 @@
 [CmdletBinding()]
 param(
+    [ValidateSet('All', 'EventJournal')][string]$Project = 'All',
     [Parameter(Mandatory)][string]$Version,
     [Parameter(Mandatory)][string]$FeedDirectory,
     [Parameter(Mandatory)][string]$WorkDirectory
@@ -12,8 +13,11 @@ if (Test-Path -LiteralPath $work) { throw 'WorkDirectory must be a fresh directo
 if ($work.StartsWith($repo + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
     throw 'WorkDirectory must be outside the source repository.'
 }
-$manifestPath = Join-Path $feed "manifest.$Version.json"
+$manifestName = if ($Project -eq 'EventJournal') { "manifest.Atelia.EventJournal.$Version.json" } else { "manifest.$Version.json" }
+$manifestPath = Join-Path $feed $manifestName
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+if ($Project -eq 'EventJournal' -and $manifest.schemaVersion -ne 2) { throw 'EventJournal selective smoke requires a schema 2 manifest.' }
+if ($Project -eq 'All' -and $manifest.schemaVersion -ne 1) { throw 'Five-package smoke requires a schema 1 manifest.' }
 $revision = & git -C $repo rev-parse HEAD
 if ($LASTEXITCODE -ne 0 -or $revision -ne $manifest.sourceRevision) { throw 'Checkout does not match package source revision.' }
 $status = & git -C $repo status --porcelain --untracked-files=normal
