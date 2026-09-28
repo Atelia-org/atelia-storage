@@ -256,6 +256,9 @@ using var journal = EventJournal.OpenOrCreate(path, options);
 
 ## 当前边界与注意事项
 
+长期运行性能的下一版设计建议见 [有界日常 I/O 重构方案](../../docs/EventJournal/bounded-online-io-design.md)及[辩证简化审查记录](../../docs/EventJournal/bounded-online-io-review.md)。该方案尚未实施；下列条目和本文 API 说明仍描述当前版本。
+后续施工使用 [task级工单](../../docs/EventJournal/bounded-online-io-work-order.md)与[合同冻结附件](../../docs/EventJournal/bounded-online-io-contracts.md)；[源码阶段Goal](../../docs/EventJournal/GOAL-bounded-online-io.md)仅为待启动提示词。
+
 - EventFrame append-only；没有 event deletion / compaction / repack 语义。
 - `OpenExisting` / `OpenOrCreate` 是可恢复的 read-write 入口；严格审计必须使用
   `OpenReadOnlyExisting`，避免把 recovery mutation 混入 validation。
