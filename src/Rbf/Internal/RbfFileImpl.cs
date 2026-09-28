@@ -27,6 +27,10 @@ internal enum FileState {
 internal sealed class RbfFileImpl : IRbfFile {
     private readonly SafeFileHandle _handle;
     private readonly RandomAccessReader _reader;
+    internal Action<long, int, bool>? ReadObserver {
+        get => _reader.ReadObserver;
+        set => _reader.ReadObserver = value;
+    }
     private long _tailOffset;
     private bool _disposed;
 
@@ -285,6 +289,38 @@ internal sealed class RbfFileImpl : IRbfFile {
     public RbfForwardSequence ScanForward(bool showTombstone = false) {
         EnsureIdleForRead();
         return new RbfForwardSequence(_reader, RbfLayout.FirstFrameOffset, _tailOffset, showTombstone);
+    }
+
+    /// <inheritdoc />
+    public AteliaResult<RbfScanBoundary> GetScanBoundaryAfter(SizedPtr ticket) {
+        EnsureIdleForRead();
+        return RbfReadImpl.GetScanBoundaryAfter(_reader, ticket, GetPhysicalOffsetImmediatelyAfter(ticket), _tailOffset);
+    }
+
+    /// <inheritdoc />
+    public AteliaResult<RbfForwardSequence> ScanForward(RbfScanBoundary boundary, bool showTombstone = false) {
+        EnsureIdleForRead();
+        if (boundary.EndExclusive < RbfLayout.FirstFrameOffset ||
+            boundary.EndExclusive > _tailOffset ||
+            (boundary.EndExclusive & RbfLayout.AlignmentMask) != 0) {
+            return new RbfArgumentError("Scan boundary must be aligned and within the file.");
+        }
+        if (boundary.AnchorTicket == default) {
+            if (boundary != RbfScanBoundary.Empty) {
+                return new RbfArgumentError("Empty scan boundary must be exactly (4, default, 0).");
+            }
+        }
+        else {
+            if (GetPhysicalOffsetImmediatelyAfter(boundary.AnchorTicket) != boundary.EndExclusive) {
+                return new RbfArgumentError("Scan boundary end does not match its anchor ticket.");
+            }
+            var actual = RbfReadImpl.GetScanBoundaryAfter(_reader, boundary.AnchorTicket, GetPhysicalOffsetImmediatelyAfter(boundary.AnchorTicket), _tailOffset);
+            if (actual.IsFailure) { return actual.Error!; }
+            if (actual.Value.AnchorContentCrc32C != boundary.AnchorContentCrc32C) {
+                return new RbfCrcMismatchError("Scan boundary content witness does not match the anchor.");
+            }
+        }
+        return new RbfForwardSequence(_reader, boundary.EndExclusive, _tailOffset, showTombstone);
     }
 
     /// <inheritdoc />

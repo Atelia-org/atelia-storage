@@ -57,6 +57,9 @@ public ref struct RbfReverseEnumerator {
 
             return true;
         }
+        if (_dataTail != RbfLayout.FirstFrameOffset) {
+            _terminationError = new RbfFramingError("Nonempty tail is too short to contain a complete frame.");
+        }
         return false;
     }
 }

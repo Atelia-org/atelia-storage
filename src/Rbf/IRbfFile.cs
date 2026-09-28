@@ -49,6 +49,12 @@ public interface IRbfFile : IDisposable {
     /// <param name="showTombstone">是否包含墓碑帧。默认 false（不包含）。</param>
     RbfForwardSequence ScanForward(bool showTombstone = false);
 
+    /// <summary>完整校验指定帧与尾 Fence，取得其后的扫描边界。</summary>
+    AteliaResult<RbfScanBoundary> GetScanBoundaryAfter(SizedPtr ticket);
+
+    /// <summary>验证边界见证后直接扫描后缀，不扫描此前的帧。</summary>
+    AteliaResult<RbfForwardSequence> ScanForward(RbfScanBoundary boundary, bool showTombstone = false);
+
     /// <summary>计算指定帧结束后的下一个物理帧 Offset。</summary>
     /// <param name="ticket">已验证或可信来源提供的帧位置凭据。</param>
     /// <remarks>

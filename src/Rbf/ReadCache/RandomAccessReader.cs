@@ -18,6 +18,9 @@ internal class RandomAccessReader : IDisposable {
         _logger = new ReadLogger();
     }
 
+    // Test/diagnostic observation at the actual reader boundary; raw=true includes cache prefetch.
+    internal Action<long, int, bool>? ReadObserver { get; set; }
+
     public SafeFileHandle File => _file;
     public bool IsDisposed => _disposed;
 
@@ -32,6 +35,7 @@ internal class RandomAccessReader : IDisposable {
         if (buffer.Length == 0) { return 0; }
         Debug.Assert(offset <= long.MaxValue - buffer.Length);
 
+        ReadObserver?.Invoke(offset, buffer.Length, false);
         var cacheSegments = _logger.NeedCacheSegments ? GetCacheSegments() : null;
         _logger.OnReadBegin(offset, buffer.Length, cacheSegments);
         int bytesRead = ReadWithCache(offset, buffer);
@@ -40,6 +44,7 @@ internal class RandomAccessReader : IDisposable {
     }
 
     protected int RawRead(long offset, Span<byte> buffer) {
+        ReadObserver?.Invoke(offset, buffer.Length, true);
         var startTick = Stopwatch.GetTimestamp();
         int bytesRead = RandomAccess.Read(_file, buffer, offset);
         _logger.OnRawRead(offset, buffer.Length, bytesRead, Stopwatch.GetTimestamp() - startTick);

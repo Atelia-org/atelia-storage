@@ -443,6 +443,36 @@ public ref struct RbfReverseEnumerator {
 }
 ```
 
+### spec [A-RBF-SCAN-BOUNDARY] 有见证的边界起扫
+
+```csharp
+public readonly record struct RbfScanBoundary(
+    long EndExclusive, SizedPtr AnchorTicket, uint AnchorContentCrc32C) {
+    public static RbfScanBoundary Empty => new(4, default, 0);
+}
+// IRbfFile
+AteliaResult<RbfScanBoundary> GetScanBoundaryAfter(SizedPtr ticket);
+AteliaResult<RbfForwardSequence> ScanForward(RbfScanBoundary boundary, bool showTombstone = false);
+```
+
+`GetScanBoundaryAfter` MUST 只读取指定帧及其尾 Fence，执行完整 framing、PayloadCrc 和 TrailerCrc 校验。
+`EndExclusive` 等于 `GetPhysicalOffsetImmediatelyAfter(ticket)`。
+内容见证 CRC32C 的输入严格为 `LE u32 Tag || LE u32 TailMetaLength || LE u32 IsTombstone(0/1) || PayloadAndMeta`，不含 padding 或存储 CRC。
+
+边界起扫 MUST 先检查 end 的 4B 对齐及 `4 <= end <= EOF`。
+空 anchor 只允许精确的 `(4, default, 0)`；该边界可用于已有 suffix 的非空文件。
+Frame anchor MUST 验证 ticket 与 end 一致、完整帧 CRC、内容见证及尾 Fence，随后直接从 end 起扫，MUST NOT 为寻找边界扫描 prefix。
+Malformed 参数返回 `Rbf.ArgumentError`；损坏 framing 和 CRC 返回对应 RBF 错误；I/O 异常保留。
+起扫后的枚举仍遵循 framing/trailer 校验及 `TerminationError`、tombstone 过滤合同。
+缓存可能预读 anchor 邻近页的 prefix 字节，但不得解析或验证无关 prefix 帧。
+
+### spec [S-RBF-DETERMINISTIC-TAIL] 确定性尾读基础
+
+只有 HeaderFence 正确且物理文件长度恰为 4B 才是空文件。
+`ScanReverse(showTombstone: true)` MUST 对非空短尾返回非 null `TerminationError`，MUST NOT 将其吞为空序列或向前寻找有效帧。
+需要完整尾帧的调用方只取紧贴 EOF 的第一帧，核对 `GetPhysicalOffsetImmediatelyAfter(ticket) == EOF`，并使用 `ReadFrame` / `ReadPooledFrame` 执行完整 CRC 校验。
+非 4B 对齐的文件由打开入口拒绝；读取失败不修改文件 bytes。
+
 ### spec [A-RBF-FORWARD-SEQUENCE] RbfForwardSequence定义
 
 ```csharp

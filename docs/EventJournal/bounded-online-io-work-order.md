@@ -1,6 +1,6 @@
 # EventJournal v2：task 级实施与调度工单
 
-日期：2026-09-29。状态：**实施中；T00 启动核验中，依次放行实现任务**。
+日期：2026-09-29。状态：**实施中；T00–T01 Passed；T02 待派发，依次放行任务**。
 基线：`bb7c4fb3eb6477783c70ee61bc62b832be195d07`。设计基线保持不变；用户于本轮明确授权按本工单完整实施并按需 Git 提交。网络发布、真实数据迁移和兄弟仓修改不在范围内。
 
 目标：保持 Event/Parent、exact RefId、CAS、reflog、不可变 tag 语义；固定当前工作集时，日常打开和 ref 更新不再扫描累计历史。新格式拒绝旧目录，完整校验独立离线执行。
@@ -35,8 +35,8 @@
 
 | Task | 能力/产物 | 前置 | 默认执行者 | 强审阅点 | 初始状态 |
 | --- | --- | --- | --- | --- | --- |
-| T00 | 核验已冻结wire/API/error/fault及toolkit输出合同 | 读基线与设计 | gpt-6-astra | 调度主线程按反例核验 | DesignFrozen；启动门待核验 |
-| T01 | RBF边界起扫与确定性尾帧读取 | T00 | gpt-6-sol | 不读prefix、不吞短尾 | NotStarted |
+| T00 | 核验已冻结wire/API/error/fault及toolkit输出合同 | 读基线与设计 | gpt-6-astra | 调度主线程按反例核验 | Passed |
+| T01 | RBF边界起扫与确定性尾帧读取 | T00 | gpt-6-sol | 不读prefix、不吞短尾 | Passed |
 | T02 | locator生命周期、严格打开、轮转/fault | T01 | gpt-6-sol | gpt-6-astra审发布窗口 | NotStarted |
 | T03 | EventJournal格式门、尾读sequence/ref、tag局部验证 | T02 | gpt-6-sol | gpt-6-astra审身份/故障语义 | NotStarted |
 | T04 | catalog snapshot、有界suffix、缩容与发布 | T03 | gpt-6-sol | gpt-6-astra审预算/三态 | NotStarted |
@@ -236,3 +236,9 @@ $candidateSmoke = Join-Path ([IO.Path]::GetTempPath()) ("atelia-v2-smoke-" + [Gu
 - 起始 HEAD：`bb7c4fb3eb6477783c70ee61bc62b832be195d07`；起始 dirty 仅上述设计文档与 EventJournal README 导航。
 - Linux / .NET SDK 10.0.201：Release solution build 通过（45 个既有 XML 文档警告，0 error）；匹配配置全量测试 777/777 通过（Data 212、EventJournal 79、Primitives 75、Rbf 388、RbfSegmentStore 23）。
 - Windows 平台门仍待实际环境证据。
+
+- T00：astra 对当前源码启动核验 Passed；AteliaResult 支持 ref struct，五个冻结 CRC 向量及 tag anchor 复算一致，控制 frame 上限 248/252B 一致。额外 unborn/nonempty-head 向量见合同附件。5/8B 短尾、old locator+next、suffix 超 Q、百万→1缩容、tag flush 后安装失败反例均有明确处理；实现与平台验证留给所属任务。
+
+- T07 消费者只读预查（不代表适配完成）：兄弟仓 `eng/StorageDependency.props` 仍固定 `0.1.1-preview.2` / `976aa345f923da09e2a5cf1dc25ba592b3818b63`；`prototypes/SessionJournal.Cli/BranchRewindCommand.cs:14` 三处 `RecoverActiveTailOnOpen=false` 必须在消费者升级时去除。`prototypes/SessionJournal.Offline/SessionJournalOfflineValidator.cs` 已经调用领域 `ScanCheckedAuditEvents`，保留该审计，不把 daily open 成功当全库健康。当前兄弟仓未检出 DurableGraph 项目；未修改或升级任何消费者。
+
+- T01：冻结 boundary API 已编译，反向扫描拒绝非空短尾；实际 reader probe 证明 Off 模式不读 anchor 之前，缓存模式仅有有界相邻页预读。Release Rbf.Tests 403/403（新增 boundary 15；原 forward 9/reverse 26）；build 0 errors，25 个既有 XML warnings；`git diff --check`通过。日志 `/tmp/t01-build.log`、`/tmp/t01-test.log`，TRX `tests/Rbf.Tests/TestResults/t01-rbf.trx`（本地证据，不提交产物）。
