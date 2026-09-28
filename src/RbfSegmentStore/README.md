@@ -11,7 +11,7 @@
 - 创建、打开、扫描和轮转 segment。
 - active writer lease 与 reader lease。
 - historical reader pool 与 lease 保护。
-- 打开现有 store 时的 active-tail recovery 编排。
+- locator 定点打开、严格尾帧校验与轮转发布。
 
 它不负责：
 
@@ -52,8 +52,8 @@ Flat layout 适合很多小型独立对象：
 - bucketed layout 的 bucket 目录名是 `segmentNumber >> 10` 的 6 位小写 hex。
 - flat layout 没有 bucket 目录。
 - segment 文件名是完整 `SegmentNumber` 的 8 位小写 hex 加 `.rbf`。
-- 打开 store 时要求 segment 编号从 `1` 到 active segment 连续。
-- 当前没有 manifest；`buckets/` 或 `segments/` 目录名就是 layout identity。
+- `active.segment` 是精确 20B 的 locator，编码 layout 与 active segment number。
+- 日常打开只探测相反 layout root、active 和 active+1；不枚举库存。全量连续性/命名审计归离线 toolkit。
 
 ## 打开模式
 
@@ -73,11 +73,11 @@ using var store = RbfSegmentStore.OpenOrCreate(storePath);
 | `CreateNew` | 明确创建新 store | 创建 | 抛异常 | 不适用 |
 | `OpenExisting` | 只接受已有 store | 抛异常 | 打开 | 抛异常 |
 | `OpenReadOnlyExisting` | 审计/只读挂载 | 抛异常 | 共享只读打开，不 recovery | 抛异常 |
-| `OpenOrCreate` | CLI / 原型默认入口 | 创建 | 打开 | 创建 segment `1` |
+| `OpenOrCreate` | CLI / 原型默认入口 | 创建 | 严格打开 | 拒绝缺 locator 的半成品 |
 
-结构错误、命名错误、编号缺口、corruption、权限和 I/O 错误都直接抛异常。当前 lease API 不使用 `AteliaResult`。
-`OpenReadOnlyExisting` 会完整扫描 active segment 验证 framing；若尾部需要 recovery，它直接报错，
-不会 truncate。该实例允许 `OpenReader()`，但 `OpenActiveWriter()` 会 fail-fast。
+打开缺 locator 的旧目录或半成品抛 `StorageOpenException(FormatUnsupported, LegacyOrIncompleteLayout)`；locator 损坏、layout 冲突、next 已存在及坏尾返回对应可识别维护错误。权限和设备 I/O 保留原异常。
+两个打开入口只校验紧贴 EOF 的末帧 framing/CRC，不扫描历史，不 truncate；合法空 active 精确为 4B HeaderFence。
+只读实例允许 `OpenReader()`，但 `OpenActiveWriter()` 会 fail-fast。
 
 ## Options
 
@@ -86,19 +86,18 @@ var options = new RbfSegmentStoreOptions {
     NewStoreLayout = RbfSegmentStoreLayout.Bucketed,
     SegmentSizeThresholdBytes = 64L * 1024 * 1024 * 1024,
     HistoricalReaderPoolCapacity = 32,
-    CacheMode = RbfCacheMode.Slots16,
-    RecoverActiveTailOnOpen = true
+    CacheMode = RbfCacheMode.Slots16
 };
 ```
 
 说明：
 
-- `NewStoreLayout` 只影响创建新 store；打开已有 store 时从 `buckets/` / `segments/` 发现实际 layout。
+- `NewStoreLayout` 只影响创建新 store；打开已有 store 时从 locator 读取实际 layout。
 - `SegmentSizeThresholdBytes` 是 soft threshold，只在 `OpenActiveWriter()` 借出前检查；必须 4-byte aligned、
   大于 header-only tail 且不超过 `SizedPtr.MaxOffset`。单个 frame 可能让 segment 最终超过阈值。
 - `HistoricalReaderPoolCapacity = 0` 表示不保留 idle historical reader，但 live lease 仍不会被关闭。
 - `CacheMode` 直接传给底层 `RbfFile`。
-- `RecoverActiveTailOnOpen = true` 时，打开现有 store 会扫描 active segment 并截断到最后一个完整 frame 尾部。header-only 空 active segment 是合法状态。
+- `RecoverActiveTailOnOpen` 已移除；新 runtime 不自动恢复旧格式或坏尾。
 
 测试里可以把 `SegmentSizeThresholdBytes` 设得很小来触发轮转。
 
@@ -162,7 +161,9 @@ active segment reader 复用 active read/write `IRbfFile` 单例；historical se
 `OpenActiveWriter()` 会在借出前检查当前 active segment 的 `TailOffset`：
 
 1. 若 `TailOffset < SegmentSizeThresholdBytes`，继续返回当前 active segment。
-2. 若 `TailOffset >= SegmentSizeThresholdBytes`，关闭当前 active segment，创建下一个 segment，然后返回新 segment。
+2. 若 `TailOffset >= SegmentSizeThresholdBytes`，flush 旧 active → create-only 创建 next → flush 空 next → 同目录原子覆盖发布 locator → 关闭旧 active → 返回 next。
+
+locator 使用同目录独占 temp，Flush(true) 后关闭，再 overwrite move；不先删除目标。新建也先 flush segment 1 再发布 locator。不保证目录项断电持久性。
 
 轮转只发生在两次 append 之间。RBF frame 不会跨 segment；一个上层逻辑事件如果包含多个 frame，可以由上层决定是否允许这些 frame 分布在不同 segment。
 `SegmentNumber` 耗尽时在关闭或替换 active file 前 fail closed，不 wrap 到 `0`。
@@ -177,22 +178,14 @@ MVP 固定为单写串读模型：
 - historical reader 可以有多个 live lease；pool eviction 不会关闭 live lease。
 - 跨进程 writer 和共享写句柄不在 MVP 范围内。
 
-## Recovery 边界
+## 严格打开与 fault 边界
 
-`OpenExisting` / `OpenOrCreate` 默认会对 active segment 执行 tail recovery。实现顺序是：
+日常打开拒绝坏尾，不自动 recovery。历史 segment 缺失在按地址访问时报告；日常成功不代表全历史健康。
+旧 locator 指向 old 且规范 next 路径已存在时停维，不删除或接管 next。
 
-1. 用 `RbfRecovery.OpenReadOnly(path).ScanBackward()` 找第一个有效 `RbfRecoveryHit`。
-2. 释放 scanner。
-3. 调用 `RbfRecovery.TruncateToSuggestedTail(path, hit)`。
-4. 用 `RbfFile.OpenExisting` 打开 active segment。
-
-不要在 scanner 仍打开时调用 truncate；`TruncateToSuggestedTail` 需要独占打开文件。
-
-closed historical segment 遇到损坏只报告 corruption，不自动截断。
-
-`OpenReadOnlyExisting` 是独立合同：active 与 historical segment 都通过
-`RbfFile.OpenReadOnlyExisting` 打开；不执行 recovery、rotation、目录创建或任何写入。它适合
-offline validator 和只读文件系统。坏 active tail 只报告 corruption，原文件长度与 bytes 保持不变。
+本层 rotation/ConfirmDurable 的 owned operation 异常会 latch fault；此后数据入口拒绝，lease 释放与 Dispose 仍可执行。
+参数、只读和 live lease 前置 guard 不 fault。调用方通过 `lease.File` 自行 Append/flush 的异常由调用方负责停止使用；本层不代理其 IRbfFile。
+Dispose 标记关闭并尝试释放所有 owned handles；释放异常汇总报告。显式离线 recovery 仍属于 RBF API，不是 daily open 行为。
 
 ## 常见任务
 

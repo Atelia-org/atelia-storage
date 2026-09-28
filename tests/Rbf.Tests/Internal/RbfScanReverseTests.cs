@@ -32,6 +32,29 @@ public class RbfScanReverseTests : IDisposable {
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ScanReverse_RejectsUnrepresentableTicketWithoutThrowing(bool invalidStart) {
+        string path = GetTempFilePath();
+        uint tailLength = invalidStart ? 24u : (uint)SizedPtr.MaxLength + 4u;
+        long start = invalidStart ? SizedPtr.MaxOffset + 4 : 4;
+        long end = start + tailLength + 4;
+        using (var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write)) {
+            stream.Write(RbfLayout.Fence);
+            stream.SetLength(end);
+            stream.Position = end - 20;
+            Span<byte> trailer = stackalloc byte[16];
+            TrailerCodewordHelper.Serialize(trailer, 0, 7, tailLength);
+            stream.Write(trailer);
+            stream.Write(RbfLayout.Fence);
+        }
+        using var file = RbfFile.OpenReadOnlyExisting(path, RbfCacheMode.Off);
+        var enumerator = file.ScanReverse(showTombstone: true).GetEnumerator();
+        Assert.False(enumerator.MoveNext());
+        Assert.IsType<RbfFramingError>(enumerator.TerminationError);
+    }
+
     #region 辅助方法
 
     /// <summary>创建一个新的 RBF 文件并写入指定帧数据。</summary>

@@ -8,7 +8,6 @@ public sealed class RbfSegmentStoreOptions {
     public long SegmentSizeThresholdBytes { get; init; } = 64L * 1024 * 1024 * 1024;
     public int HistoricalReaderPoolCapacity { get; init; } = 32;
     public RbfCacheMode CacheMode { get; init; } = RbfCacheMode.Slots16;
-    public bool RecoverActiveTailOnOpen { get; init; } = true;
 
     internal RbfSegmentStoreOptions Validated() {
         if (!Enum.IsDefined(NewStoreLayout)) { throw new ArgumentOutOfRangeException(nameof(NewStoreLayout), NewStoreLayout, "Unknown RBF segment store layout."); }

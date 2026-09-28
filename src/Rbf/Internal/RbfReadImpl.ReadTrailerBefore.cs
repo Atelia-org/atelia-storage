@@ -54,14 +54,14 @@ partial class RbfReadImpl {
 
         var trailer = trailerResult.Value;
 
-        // 7. 验证 TailLen（包含 int 可表示性检查）
+        // 7. 验证 TailLen（包含 SizedPtr 可表示性检查）
         // @[F-FRAMEBYTES-LAYOUT]: MinFrameLength = 24
-        // TailLen MUST 在 [MinFrameLength, int.MaxValue] 且 4B 对齐
+        // TailLen MUST 在 [MinFrameLength, SizedPtr.MaxLength] 且 4B 对齐
         if (trailer.TailLen < RbfLayout.MinFrameLength ||
-            trailer.TailLen > int.MaxValue ||
+            trailer.TailLen > SizedPtr.MaxLength ||
             (trailer.TailLen & RbfLayout.AlignmentMask) != 0) {
             return new RbfFramingError(
-                $"Invalid TailLen: {trailer.TailLen} (min={RbfLayout.MinFrameLength}, max={int.MaxValue}, must be 4B-aligned).",
+                $"Invalid TailLen: {trailer.TailLen} (min={RbfLayout.MinFrameLength}, max={SizedPtr.MaxLength}, must be 4B-aligned).",
                 RecoveryHint: "The frame length field is corrupted."
             );
         }
@@ -69,7 +69,7 @@ partial class RbfReadImpl {
         // 8. 计算并验证 frameStart
         // frameStart = fenceEndOffset - FenceSize - TailLen
         long frameStart = fenceEndOffset - RbfLayout.FenceSize - trailer.TailLen;
-        if (frameStart < RbfLayout.HeaderOnlyLength) {
+        if (frameStart < RbfLayout.HeaderOnlyLength || frameStart > SizedPtr.MaxOffset || (frameStart & RbfLayout.AlignmentMask) != 0) {
             return new RbfFramingError(
                 $"Frame extends before HeaderFence: frameStart={frameStart}, HeaderOnlyLength={RbfLayout.HeaderOnlyLength}.",
                 RecoveryHint: "The TailLen value is too large for this position."

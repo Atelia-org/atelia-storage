@@ -53,7 +53,6 @@ public sealed class EventJournalOptions {
             SegmentSizeThresholdBytes = source.SegmentSizeThresholdBytes,
             HistoricalReaderPoolCapacity = source.HistoricalReaderPoolCapacity,
             CacheMode = source.CacheMode,
-            RecoverActiveTailOnOpen = source.RecoverActiveTailOnOpen
         };
     }
 }

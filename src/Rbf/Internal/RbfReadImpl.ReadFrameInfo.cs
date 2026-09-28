@@ -12,7 +12,7 @@ partial class RbfReadImpl {
         long frameStart,
         long dataTail
     ) {
-        if (frameStart < RbfLayout.HeaderOnlyLength || (frameStart & RbfLayout.AlignmentMask) != 0) {
+        if (frameStart < RbfLayout.HeaderOnlyLength || frameStart > SizedPtr.MaxOffset || (frameStart & RbfLayout.AlignmentMask) != 0) {
             return new RbfFramingError(
                 $"Invalid frame start offset: {frameStart}.",
                 RecoveryHint: "Forward scan must start at a 4-byte aligned frame boundary after HeaderFence."

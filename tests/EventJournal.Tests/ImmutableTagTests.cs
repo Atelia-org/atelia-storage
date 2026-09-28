@@ -286,8 +286,8 @@ public sealed class ImmutableTagTests : IDisposable {
     };
 
     private static EventJournalOptions StrictOptions() => new() {
-        EventSegmentStoreOptions = new RbfSegmentStoreOptions { RecoverActiveTailOnOpen = false },
-        RefSegmentStoreOptions = new RbfSegmentStoreOptions { RecoverActiveTailOnOpen = false },
+        EventSegmentStoreOptions = new RbfSegmentStoreOptions(),
+        RefSegmentStoreOptions = new RbfSegmentStoreOptions(),
         RefOpLogOptions = new RefOpLogOptions { RecoverActiveTailOnOpen = false }
     };
 
