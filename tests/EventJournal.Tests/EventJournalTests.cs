@@ -782,9 +782,11 @@ public sealed class EventJournalTests : IDisposable {
         File.AppendAllBytes(activePath, new byte[] { 0, 0, 0, 0 });
         byte[] before = File.ReadAllBytes(activePath);
 
-        Assert.ThrowsAny<Exception>(
-            () => EventJournal.OpenReadOnlyExisting(path)
-        );
+        if (target == "ref-object") {
+            using var journal = EventJournal.OpenReadOnlyExisting(path);
+            Assert.ThrowsAny<Exception>(() => journal.GetHead(main));
+        }
+        else { Assert.ThrowsAny<Exception>(() => EventJournal.OpenReadOnlyExisting(path)); }
 
         Assert.Equal(before, File.ReadAllBytes(activePath));
     }
@@ -937,7 +939,7 @@ public sealed class EventJournalTests : IDisposable {
         Assert.True(defaultResult.IsFailure);
         Assert.Equal("EventJournal.RefIdInvalid", defaultResult.Error!.ErrorCode);
         Assert.True(missingResult.IsFailure);
-        Assert.Equal("EventJournal.RefObjectReadFailed", missingResult.Error!.ErrorCode);
+        Assert.Equal("EventJournal.MaintenanceRequired", missingResult.Error!.ErrorCode);
         Assert.Equal(eventBytesBefore, GetEventStoreLength(path));
     }
 

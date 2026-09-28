@@ -80,7 +80,8 @@ public static class RefMoveFrameCodec {
             return new EventJournalError(
                 "RefMoveVersionUnsupported",
                 $"Unsupported RefMoveFrame version {version}.",
-                "Open this journal with an implementation that supports this ref move format."
+                "Open this journal with an implementation that supports this ref move format.",
+                Details: new Dictionary<string, string> { ["ObservedVersion"] = version.ToString(System.Globalization.CultureInfo.InvariantCulture) }
             );
         }
 

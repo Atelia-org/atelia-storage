@@ -4,6 +4,13 @@ using SegmentStore = Atelia.RbfSegmentStore.RbfSegmentStore;
 
 namespace Atelia.EventJournal;
 
+internal readonly record struct RefMoveEndpoints(
+    RefMoveFrame Init,
+    FrameAddress InitAddress,
+    RefMoveFrame Last,
+    FrameAddress LastAddress
+);
+
 internal sealed class RefMoveStore : IDisposable {
     private readonly SegmentStore _segments;
     private bool _disposed;
@@ -77,13 +84,94 @@ internal sealed class RefMoveStore : IDisposable {
         return new FrameAddress(appendResult.Unwrap(), lease.SegmentNumber);
     }
 
+    // Daily state loading reads two endpoints, never the intervening move history.
+    internal AteliaResult<RefMoveEndpoints> ReadEndpoints() {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        RefMoveFrame init;
+        FrameAddress initAddress;
+        using (var first = _segments.OpenReader(1)) {
+            var result = ReadEndpoint(first.File, 1, first: true);
+            if (result.IsFailure) { return result.Error!; }
+            (init, initAddress) = result.Unwrap();
+        }
+
+        uint lastSegment = ActiveSegmentNumber;
+        using (var active = _segments.OpenReader(lastSegment)) {
+            if (active.File.TailOffset != 4 || lastSegment == 1) {
+                var result = ReadEndpoint(active.File, lastSegment, first: false);
+                if (result.IsFailure) { return result.Error!; }
+                var (last, address) = result.Unwrap();
+                return new RefMoveEndpoints(init, initAddress, last, address);
+            }
+        }
+        // Rotation can publish an empty active. Only its immediate predecessor is eligible.
+        using (var previous = _segments.OpenReader(lastSegment - 1)) {
+            var result = ReadEndpoint(previous.File, lastSegment - 1, first: false);
+            if (result.IsFailure) { return result.Error!; }
+            var (last, address) = result.Unwrap();
+            return new RefMoveEndpoints(init, initAddress, last, address);
+        }
+    }
+
+    private AteliaResult<(RefMoveFrame Move, FrameAddress Address)> ReadEndpoint(IRbfFile file, uint segmentNumber, bool first) {
+        RbfFrameInfo info;
+        if (first) {
+            var scan = file.ScanForward(showTombstone: true).GetEnumerator();
+            if (!scan.MoveNext()) { return scan.TerminationError ?? EmptyObjectError(); }
+            info = scan.Current;
+            if (info.Ticket.Offset != 4) { return EmptyObjectError(); }
+        }
+        else {
+            var scan = file.ScanReverse(showTombstone: true).GetEnumerator();
+            if (!scan.MoveNext()) { return scan.TerminationError ?? EmptyObjectError(); }
+            info = scan.Current;
+            if (file.GetPhysicalOffsetImmediatelyAfter(info.Ticket) != file.TailOffset) {
+                return new EventJournalError("RefObjectTailInvalid", "The last move does not end at the physical file tail.");
+            }
+        }
+        var move = ReadCheckedMove(info);
+        if (move.IsFailure) {
+            if (move.Error is EventJournalError error) {
+                var details = error.Details is null ? new Dictionary<string, string>() : new Dictionary<string, string>(error.Details);
+                details["SegmentNumber"] = segmentNumber.ToString("x8", System.Globalization.CultureInfo.InvariantCulture);
+                details["Offset"] = info.Ticket.Offset.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                return new EventJournalError(error.ErrorName, error.Message, error.RecoveryHint, details, error.Cause);
+            }
+            return move.Error!;
+        }
+        return (move.Unwrap(), new FrameAddress(info.Ticket, segmentNumber));
+    }
+
+    private EventJournalError EmptyObjectError() => new(
+        "RefObjectEmpty", "A required ref segment contains no complete move.",
+        "A ref object must contain Init; an empty active may have only one nonempty predecessor."
+    );
+
+    private AteliaResult<RefMoveFrame> ReadCheckedMove(RbfFrameInfo info) {
+        if (info.IsTombstone || info.Tag != EventJournal.RefMoveFrameTag) {
+            return new EventJournalError("RefObjectUnexpectedFrameTag", "Ref objects contain only non-tombstone RefMoveFrame records.");
+        }
+        if (info.TailMetaLength != 0 || info.PayloadLength != RefMoveFrameCodec.FixedLength) {
+            return new EventJournalError("RefMoveLengthInvalid", "RefMoveFrame must have its fixed payload length and no TailMeta.");
+        }
+        using var frame = info.ReadPooledFrame().ToDisposable();
+        if (frame.IsFailure) { return frame.Error!; }
+        var decoded = RefMoveFrameCodec.Decode(frame.Unwrap().PayloadAndMeta);
+        if (decoded.IsFailure) { return decoded.Error!; }
+        if (decoded.Value.RefId != RefId) {
+            return new EventJournalError("RefMoveRefIdMismatch", "RefMoveFrame identity does not match its owning ref object.");
+        }
+        return decoded.Value;
+    }
+
     internal AteliaResult<IReadOnlyList<RefMoveFrame>> ReadAllMoves() {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         var moves = new List<RefMoveFrame>();
-        for (uint segmentNumber = 1; segmentNumber <= ActiveSegmentNumber; segmentNumber++) {
+        for (uint segmentNumber = 1; ; segmentNumber++) {
             using var lease = _segments.OpenReader(segmentNumber);
             if (!ReadMovesFromFile(lease.File, moves, out AteliaError? error)) { return error!; }
+            if (segmentNumber == ActiveSegmentNumber) { break; }
         }
 
         if (moves.Count == 0) {
@@ -108,8 +196,8 @@ internal sealed class RefMoveStore : IDisposable {
 
     public void Dispose() {
         if (_disposed) { return; }
-        _segments.Dispose();
         _disposed = true;
+        _segments.Dispose();
     }
 
     internal static string GetObjectPath(string refObjectsRootPath, RefId refId) {
@@ -119,51 +207,14 @@ internal sealed class RefMoveStore : IDisposable {
     private bool ReadMovesFromFile(IRbfFile file, List<RefMoveFrame> moves, out AteliaError? error) {
         error = null;
 
-        var enumerator = file.ScanForward().GetEnumerator();
+        var enumerator = file.ScanForward(showTombstone: true).GetEnumerator();
         while (enumerator.MoveNext()) {
-            RbfFrameInfo info = enumerator.Current;
-            if (info.Tag != EventJournal.RefMoveFrameTag) {
-                error = new EventJournalError(
-                    "RefObjectUnexpectedFrameTag",
-                    $"Ref object {RefId} contains unexpected frame tag 0x{info.Tag:X8}.",
-                    "A ref object may only contain RefMoveFrame records."
-                );
-                return false;
-            }
-
-            using var frameResult = info.ReadPooledFrame().ToDisposable();
-            if (frameResult.IsFailure) {
-                error = frameResult.Error;
-                return false;
-            }
-
-            RbfPooledFrame frame = frameResult.Unwrap();
-            if (frame.TailMetaLength != 0) {
-                error = new EventJournalError(
-                    "RefMoveTailMetaInvalid",
-                    "RefMoveFrame must not carry RBF TailMeta.",
-                    "Treat this ref object as malformed."
-                );
-                return false;
-            }
-
-            var moveResult = RefMoveFrameCodec.Decode(frame.PayloadAndMeta);
+            var moveResult = ReadCheckedMove(enumerator.Current);
             if (moveResult.IsFailure) {
                 error = moveResult.Error;
                 return false;
             }
-
-            RefMoveFrame move = moveResult.Unwrap();
-            if (move.RefId != RefId) {
-                error = new EventJournalError(
-                    "RefMoveRefIdMismatch",
-                    $"RefMoveFrame RefId {move.RefId} does not match object RefId {RefId}.",
-                    "Treat this ref object as malformed."
-                );
-                return false;
-            }
-
-            moves.Add(move);
+            moves.Add(moveResult.Unwrap());
         }
 
         if (enumerator.TerminationError is not null) {

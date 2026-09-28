@@ -20,6 +20,11 @@ public sealed partial class EventJournal : IDisposable {
     private readonly Dictionary<RefId, RefForwardBinding> _forwardPlanBindings = new();
     private ulong _nextSequenceNumber;
     private bool _disposed;
+    private bool _faulted;
+    private Exception? _fault;
+    internal Action<string>? OperationProbe { get; set; }
+
+    private void LatchFault(Exception error) { _faulted = true; _fault = error; }
 
     private EventJournal(
         string journalPath,
@@ -41,7 +46,6 @@ public sealed partial class EventJournal : IDisposable {
         _branches = branches;
         _tags = tags;
         _nextSequenceNumber = nextSequenceNumber;
-        ValidateTagTargets();
     }
 
     public string JournalPath { get; }
@@ -81,6 +85,7 @@ public sealed partial class EventJournal : IDisposable {
         try {
             segments = RbfSegmentStore.RbfSegmentStore.CreateNew(EventsStorePath(fullPath), options.EventSegmentStoreOptions);
             refOpLog = CreateRefOpLog(fullPath, options);
+            JournalFormat.PublishInitial(fullPath, refOpLog);
             return new EventJournal(fullPath, options, segments, refOpLog,
                 new Dictionary<string, RefId>(StringComparer.Ordinal),
                 new Dictionary<string, EventAddress>(StringComparer.Ordinal), nextSequenceNumber: 1);
@@ -96,12 +101,13 @@ public sealed partial class EventJournal : IDisposable {
     public static EventJournal OpenExisting(string journalPath, EventJournalOptions? options = null) {
         options = (options ?? new EventJournalOptions()).Normalized();
         string fullPath = Path.GetFullPath(journalPath);
+        JournalFormat.Validate(fullPath);
         var segments = RbfSegmentStore.RbfSegmentStore.OpenExisting(EventsStorePath(fullPath), options.EventSegmentStoreOptions);
         IRbfFile? refOpLog = null;
         try {
-            refOpLog = OpenRefOpLog(fullPath, options, createIfMissing: false);
-            var branches = ReplayRefOpLog(refOpLog, out var tags);
-            return new EventJournal(fullPath, options, segments, refOpLog, branches, tags, ComputeNextSequenceNumber(segments));
+            refOpLog = OpenRefOpLog(fullPath, options);
+            var branches = ReplayRefOpLog(refOpLog, RefOpLogPath(fullPath), out var tags);
+            return new EventJournal(fullPath, options, segments, refOpLog, branches, tags, ComputeNextSequenceNumber(segments, fullPath));
         }
         catch {
             refOpLog?.Dispose();
@@ -121,6 +127,7 @@ public sealed partial class EventJournal : IDisposable {
     ) {
         options = (options ?? new EventJournalOptions()).Normalized();
         string fullPath = Path.GetFullPath(journalPath);
+        JournalFormat.Validate(fullPath);
         var segments =
             RbfSegmentStore.RbfSegmentStore.OpenReadOnlyExisting(
                 EventsStorePath(fullPath),
@@ -130,7 +137,7 @@ public sealed partial class EventJournal : IDisposable {
         EventJournal? journal = null;
         try {
             refOpLog = OpenReadOnlyRefOpLog(fullPath, options);
-            var branches = ReplayRefOpLog(refOpLog, out var tags);
+            var branches = ReplayRefOpLog(refOpLog, RefOpLogPath(fullPath), out var tags);
             journal = new EventJournal(
                 fullPath,
                 options,
@@ -139,16 +146,12 @@ public sealed partial class EventJournal : IDisposable {
                 branches,
                 tags,
                 ComputeNextSequenceNumber(
-                    segments,
-                    requireEventFramesOnly: true
+                    segments, fullPath
                 ),
                 isReadOnly: true
             );
             refOpLog = null;
 
-            foreach (RefId refId in branches.Values.Distinct()) {
-                journal.LoadRefState(refId).Unwrap();
-            }
             return journal;
         }
         catch {
@@ -162,23 +165,9 @@ public sealed partial class EventJournal : IDisposable {
     }
 
     public static EventJournal OpenOrCreate(string journalPath, EventJournalOptions? options = null) {
-        options = (options ?? new EventJournalOptions()).Normalized();
         string fullPath = Path.GetFullPath(journalPath);
-        if (File.Exists(fullPath)) { throw new IOException($"EventJournal path is a file: {fullPath}"); }
-
-        Directory.CreateDirectory(fullPath);
-        var segments = RbfSegmentStore.RbfSegmentStore.OpenOrCreate(EventsStorePath(fullPath), options.EventSegmentStoreOptions);
-        IRbfFile? refOpLog = null;
-        try {
-            refOpLog = OpenRefOpLog(fullPath, options, createIfMissing: true);
-            var branches = ReplayRefOpLog(refOpLog, out var tags);
-            return new EventJournal(fullPath, options, segments, refOpLog, branches, tags, ComputeNextSequenceNumber(segments));
-        }
-        catch {
-            refOpLog?.Dispose();
-            segments.Dispose();
-            throw;
-        }
+        return Directory.Exists(fullPath) || File.Exists(fullPath)
+            ? OpenExisting(fullPath, options) : CreateNew(fullPath, options);
     }
 
     public AteliaResult<EventAddress> AppendEventFrame(
@@ -191,6 +180,8 @@ public sealed partial class EventJournal : IDisposable {
     ) {
         ThrowIfDisposed();
         ThrowIfReadOnly();
+
+        if (_nextSequenceNumber == ulong.MaxValue) { return new EventJournalError("SequenceNumberExhausted", "Event sequence number cannot advance."); }
 
         var lengthError = ValidateLogicalPayloadLength(payload.Length);
         if (lengthError is not null) { return lengthError; }
@@ -218,13 +209,16 @@ public sealed partial class EventJournal : IDisposable {
 
         try {
             using var lease = _segments.OpenActiveWriter();
+            OperationProbe?.Invoke("EventBeforeAppend");
             var appendResult = lease.File.Append(EventFrameTag, storedPayload.Payload, tailMeta);
             if (appendResult.IsFailure) { return appendResult.Error!; }
 
             lease.File.DurableFlush();
-            _nextSequenceNumber++;
+            OperationProbe?.Invoke("EventAfterDurableFlush");
+            _nextSequenceNumber = checked(_nextSequenceNumber + 1);
             return new EventAddress(appendResult.Unwrap(), lease.SegmentNumber, hint);
         }
+        catch (Exception ex) { LatchFault(ex); throw; }
         finally {
             storedPayload.Dispose();
         }
@@ -452,40 +446,34 @@ public sealed partial class EventJournal : IDisposable {
 
     private static ulong ComputeNextSequenceNumber(
         RbfSegmentStore.RbfSegmentStore segments,
-        bool requireEventFramesOnly = false
+        string journalPath
     ) {
-        ulong maxSequenceNumber = 0;
-        bool found = false;
-
-        for (uint segmentNumber = 1; segmentNumber <= segments.ActiveSegmentNumber; segmentNumber++) {
-            using var lease = segments.OpenReader(segmentNumber);
-            var enumerator = lease.File.ScanForward().GetEnumerator();
-            while (enumerator.MoveNext()) {
-                RbfFrameInfo info = enumerator.Current;
-                if (info.Tag != EventFrameTag || info.IsTombstone) {
-                    if (requireEventFramesOnly) {
-                        throw new InvalidDataException(
-                            $"EventJournal segment {segmentNumber} contains a non-event or tombstone frame at {info.Ticket}."
-                        );
-                    }
-                    continue;
-                }
-                if (info.TailMetaLength != EventFrameHeaderCodec.FixedLength) {
-                    throw new InvalidDataException(
-                        $"EventJournal segment {segmentNumber} frame at {info.Ticket} has invalid TailMeta length {info.TailMetaLength}."
-                    );
-                }
-
-                using var tailMeta = info.ReadPooledTailMeta().Unwrap();
-                var header = EventFrameHeaderCodec.Decode(tailMeta.TailMeta).Unwrap();
-                maxSequenceNumber = Math.Max(maxSequenceNumber, header.SequenceNumber);
-                found = true;
-            }
-
-            if (enumerator.TerminationError is not null) { throw new InvalidDataException($"EventJournal segment {segmentNumber} forward scan failed: {enumerator.TerminationError.Message}"); }
+        uint segmentNumber = segments.ActiveSegmentNumber;
+        using var active = segments.OpenReader(segmentNumber);
+        if (active.File.TailOffset == 4) {
+            if (segmentNumber == 1) { return 1; }
+            using var previous = segments.OpenReader(segmentNumber - 1);
+            return ReadNext(previous.File, segmentNumber - 1, journalPath);
         }
+        return ReadNext(active.File, segmentNumber, journalPath);
 
-        return found ? maxSequenceNumber + 1 : 1;
+        static ulong ReadNext(IRbfFile file, uint number, string root) {
+            var reverse = file.ScanReverse(showTombstone: true).GetEnumerator();
+            if (!reverse.MoveNext()) { throw Invalid(); }
+            RbfFrameInfo info = reverse.Current;
+            if (info.Tag != EventFrameTag || info.IsTombstone || info.TailMetaLength != EventFrameHeaderCodec.FixedLength
+                || file.GetPhysicalOffsetImmediatelyAfter(info.Ticket) != file.TailOffset) { throw Invalid(); }
+            var frameResult = file.ReadPooledFrame(info.Ticket);
+            if (frameResult.IsFailure) { throw Invalid(); }
+            using var frame = frameResult.Unwrap();
+            var headerResult = EventFrameHeaderCodec.Decode(frame.PayloadAndMeta[^frame.TailMetaLength..]);
+            if (headerResult.IsFailure) { throw Invalid(); }
+            EventFrameHeader header = headerResult.Unwrap();
+            if (header.PayloadCodecId == EventPayloadCodecId.Identity && header.PayloadLength != (uint)(frame.PayloadAndMeta.Length - frame.TailMetaLength)) { throw Invalid(); }
+            try { return checked(header.SequenceNumber + 1); }
+            catch (OverflowException ex) { throw new StorageOpenException(StorageOpenErrorKind.MaintenanceRequired, "InvalidTail", Path.Combine(root, "events", "buckets", $"{number >> 10:x6}", $"{number:x8}.rbf"), innerException: ex); }
+            StorageOpenException Invalid() => new(StorageOpenErrorKind.MaintenanceRequired, "InvalidTail", Path.Combine(root, "events", "buckets", $"{number >> 10:x6}", $"{number:x8}.rbf"), offset: file.TailOffset);
+        }
     }
 
     private void ThrowIfReadOnly() {
@@ -561,8 +549,8 @@ public sealed partial class EventJournal : IDisposable {
 
     private void ThrowIfDisposed() {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (_tagPublicationFaulted) {
-            throw new InvalidOperationException("EventJournal is faulted after tag publication. Dispose and reopen strictly.", _tagPublicationFault);
+        if (_faulted) {
+            throw new InvalidOperationException("EventJournal is faulted. Dispose and reopen strictly.", _fault);
         }
     }
 

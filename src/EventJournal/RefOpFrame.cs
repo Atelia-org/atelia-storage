@@ -89,7 +89,8 @@ public static class RefOpFrameCodec {
             return new EventJournalError(
                 "RefOpVersionUnsupported",
                 $"Unsupported RefOpFrame version {version}.",
-                "Open this journal with an implementation that supports this ref-op-log format."
+                "Open this journal with an implementation that supports this ref-op-log format.",
+                Details: new Dictionary<string, string> { ["ObservedVersion"] = version.ToString(System.Globalization.CultureInfo.InvariantCulture) }
             );
         }
 

@@ -5,8 +5,6 @@ internal enum TagPublicationStage { BeforeTargetFlush, BeforeAppend, AfterAppend
 public sealed partial class EventJournal {
     public const uint TagBindingFrameTag = 0x5446_4A45; // "EJFT"
     private readonly Dictionary<string, EventAddress> _tags;
-    private bool _tagPublicationFaulted;
-    private TagPublicationException? _tagPublicationFault;
 
     // Deterministic failure witnesses; never exposed to application code.
     internal Action<TagPublicationStage>? TagPublicationProbe { get; set; }
@@ -46,9 +44,8 @@ public sealed partial class EventJournal {
         }
         catch (Exception ex) {
             // Latch before allocating the diagnostic exception, including allocation failures.
-            _tagPublicationFaulted = true;
-            _tagPublicationFault = new TagPublicationException(name, outcome, ex);
-            throw _tagPublicationFault;
+            LatchFault(ex);
+            throw new TagPublicationException(name, outcome, ex);
         }
     }
 
@@ -63,13 +60,6 @@ public sealed partial class EventJournal {
         var result = ReadEventHeaderChecked(target);
         if (result.IsFailure) { return InvalidTagTarget(name, result.Error!); }
         return target;
-    }
-
-    private void ValidateTagTargets() {
-        foreach (var pair in _tags) {
-            var result = ReadEventHeaderChecked(pair.Value);
-            if (result.IsFailure) { throw new InvalidDataException($"Tag '{pair.Key}' target is invalid: {result.Error!.Message}"); }
-        }
     }
 
     internal static AteliaError? ValidateTagName(string name) =>

@@ -182,7 +182,6 @@ public sealed class ImmutableTagTests : IDisposable {
         yield return Case("reserved", p => { p[26] = 1; return p; });
         yield return Case("non-ascii", p => { p[32] = 0xFF; return p; });
         yield return Case("default-address", p => { p.AsSpan(8, 16).Clear(); return p; });
-        yield return Case("missing-target", p => { BinaryPrimitives.WriteUInt32LittleEndian(p.AsSpan(16), 99); return p; });
         yield return Case("tail-meta", p => p, true, false);
         yield return Case("crc", p => p, false, true);
 
@@ -230,18 +229,22 @@ public sealed class ImmutableTagTests : IDisposable {
     }
 
     [Fact]
-    public void StrictOpen_RejectsTagWhoseTargetEventCrcIsBadWithoutChangingEitherStore() {
+    public void ResolveTag_RejectsBadHistoricalTargetWithoutBlockingUnrelatedOpen() {
         string path = NewPath();
         EventAddress target;
         using (var journal = EventJournal.CreateNew(path)) {
             target = journal.AppendEventFrame(null, [1], hint: new AddressHint(0xCC)).Unwrap();
             Assert.True(journal.CreateTag("event-crc", target).Unwrap());
+            journal.AppendEventFrame(null, [2]).Unwrap();
         }
         CorruptPayloadByte(EventSegmentPath(path, target.SegmentNumber), target.Ticket);
         byte[] eventBefore = File.ReadAllBytes(EventSegmentPath(path, target.SegmentNumber));
         byte[] refBefore = File.ReadAllBytes(RefLogPath(path));
 
-        AssertAllStrictOpenEntrypointsReject(path, refBefore);
+        using (var reopened = EventJournal.OpenReadOnlyExisting(path)) {
+            Assert.Equal("EventJournal.TagTargetInvalid", reopened.ResolveTag("event-crc").Error!.ErrorCode);
+        }
+        Assert.Equal(refBefore, File.ReadAllBytes(RefLogPath(path)));
         Assert.Equal(eventBefore, File.ReadAllBytes(EventSegmentPath(path, target.SegmentNumber)));
     }
 
@@ -288,7 +291,7 @@ public sealed class ImmutableTagTests : IDisposable {
     private static EventJournalOptions StrictOptions() => new() {
         EventSegmentStoreOptions = new RbfSegmentStoreOptions(),
         RefSegmentStoreOptions = new RbfSegmentStoreOptions(),
-        RefOpLogOptions = new RefOpLogOptions { RecoverActiveTailOnOpen = false }
+        RefOpLogOptions = new RefOpLogOptions()
     };
 
     private string NewPath() {
@@ -317,11 +320,11 @@ public sealed class ImmutableTagTests : IDisposable {
     );
 
     private static void AssertAllStrictOpenEntrypointsReject(string path, byte[] expectedRefLogBytes) {
-        Assert.Throws<InvalidDataException>(() => { using var unexpected = EventJournal.OpenExisting(path, StrictOptions()); });
+        Assert.Throws<StorageOpenException>(() => { using var unexpected = EventJournal.OpenExisting(path, StrictOptions()); });
         Assert.Equal(expectedRefLogBytes, File.ReadAllBytes(RefLogPath(path)));
-        Assert.Throws<InvalidDataException>(() => { using var unexpected = EventJournal.OpenOrCreate(path, StrictOptions()); });
+        Assert.Throws<StorageOpenException>(() => { using var unexpected = EventJournal.OpenOrCreate(path, StrictOptions()); });
         Assert.Equal(expectedRefLogBytes, File.ReadAllBytes(RefLogPath(path)));
-        Assert.Throws<InvalidDataException>(() => { using var unexpected = EventJournal.OpenReadOnlyExisting(path, StrictOptions()); });
+        Assert.Throws<StorageOpenException>(() => { using var unexpected = EventJournal.OpenReadOnlyExisting(path, StrictOptions()); });
         Assert.Equal(expectedRefLogBytes, File.ReadAllBytes(RefLogPath(path)));
     }
 

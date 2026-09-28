@@ -1,6 +1,6 @@
 # EventJournal v2：task 级实施与调度工单
 
-日期：2026-09-29。状态：**实施中；T00–T02 Passed；T03 待派发，依次放行任务**。
+日期：2026-09-29。状态：**实施中；T00–T03 Passed；T04 待派发，依次放行任务**。
 基线：`bb7c4fb3eb6477783c70ee61bc62b832be195d07`。设计基线保持不变；用户于本轮明确授权按本工单完整实施并按需 Git 提交。网络发布、真实数据迁移和兄弟仓修改不在范围内。
 
 目标：保持 Event/Parent、exact RefId、CAS、reflog、不可变 tag 语义；固定当前工作集时，日常打开和 ref 更新不再扫描累计历史。新格式拒绝旧目录，完整校验独立离线执行。
@@ -38,7 +38,7 @@
 | T00 | 核验已冻结wire/API/error/fault及toolkit输出合同 | 读基线与设计 | gpt-6-astra | 调度主线程按反例核验 | Passed |
 | T01 | RBF边界起扫与确定性尾帧读取 | T00 | gpt-6-sol | 不读prefix、不吞短尾 | Passed |
 | T02 | locator生命周期、严格打开、轮转/fault | T01 | gpt-6-sol | gpt-6-astra审发布窗口 | Passed（Linux；Windows Pending） |
-| T03 | EventJournal格式门、尾读sequence/ref、tag局部验证 | T02 | gpt-6-sol | gpt-6-astra审身份/故障语义 | NotStarted |
+| T03 | EventJournal格式门、尾读sequence/ref、tag局部验证 | T02 | gpt-6-sol | gpt-6-astra审身份/故障语义 | Passed |
 | T04 | catalog snapshot、有界suffix、缩容与发布 | T03 | gpt-6-sol | gpt-6-astra审预算/三态 | NotStarted |
 | T05 | 有界ref entry与单一ForwardPlan缓存 | T04 | gpt-6-sol | 调度主线程检查强引用/Dispose | NotStarted |
 | T06 | 离线audit与健康事实索引候选重建 | T04，集成前T05 | gpt-6-sol | gpt-6-astra审重建拒绝边界 | NotStarted |
@@ -244,3 +244,7 @@ $candidateSmoke = Join-Path ([IO.Path]::GetTempPath()) ("atelia-v2-smoke-" + [Gu
 - T01：冻结 boundary API 已编译，反向扫描拒绝非空短尾；实际 reader probe 证明 Off 模式不读 anchor 之前，缓存模式仅有有界相邻页预读。Release Rbf.Tests 403/403（新增 boundary 15；原 forward 9/reverse 26）；build 0 errors，25 个既有 XML warnings；`git diff --check`通过。日志 `/tmp/t01-build.log`、`/tmp/t01-test.log`，TRX `tests/Rbf.Tests/TestResults/t01-rbf.trx`（本地证据，不提交产物）。
 
 - T02：locator/严格打开/轮转/fault 实施完成，astra发布边界审阅两项finding（非法SizedPtr尾边界、next冲突后未fault）均已修正并回归。主线程另收口坏头/短尾异常映射、active存在性检查不吞IO错误。8个rotation异常probe时点、closed-owned-handle flush、active空时最多读前一段、缺段按需失败通过。Release SegmentStore 47/47，RBF 405/405；SegmentStore增量build 0 warning/0 error，`git diff --check`通过。日志 `/tmp/t02-{build,test,rbf-build,rbf-test}.log`。实际进程kill留T07；Windows PendingPlatform。
+
+- T03 调度细分：同一任务内按不重叠文件分片，sol负责format/snapshot及EventJournal主入口，主线程负责RefMoveStore首末读取及独立测试；主线程分片已交接。只有sol运行.NET，未并行构建。
+
+- T03：v2 format最后发布、共享流式snapshot codec、真实public branch/tag向量、event尾序号、ref allocation+Init+末move、当前target懒验证及统一fault完成。astra两项finding（未知ref格式降类、CommitToRef已知move耗尽仍append）已修并有针对性回归；主线程核验实际diff。Release EventJournal 110/110，增量build 0 warnings/errors，`git diff --check`通过；日志 `/tmp/t03-{build,test}.log`。历史坏move/target不阻止无关daily读取，显式reflog或直接target读取仍失败。旧自动recovery与eager helper已删。catalog仍全量回放，仅T03阶段通过，不代表成本目标完成；T04须复用snapshot解码结果。

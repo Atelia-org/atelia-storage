@@ -7,8 +7,6 @@ namespace Atelia.EventJournal;
 public readonly record struct CommitToRefOutcome(RefId RefId, EventAddress EventAddress);
 
 public sealed partial class EventJournal {
-    private const long RbfHeaderOnlyLength = 4;
-
     public AteliaResult<RefId> OpenBranch(string branchName) {
         ThrowIfDisposed();
         var nameError = ValidateBranchName(branchName);
@@ -47,22 +45,34 @@ public sealed partial class EventJournal {
 
         long timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var createOp = new RefOpFrame(RefOpOperation.Create, branchName, default, default, 0, null, startPoint, timestamp, reasonKind);
-        var createTicketResult = AppendRefOp(createOp);
-        if (createTicketResult.IsFailure) { return createTicketResult.Error!; }
+        byte[] allocationPayload = RefOpFrameCodec.Encode(in createOp);
+        var preparedBind = createOp with { Operation = RefOpOperation.BindName };
+        byte[] bindPayload = RefOpFrameCodec.Encode(in preparedBind);
+        _branches.EnsureCapacity(checked(_branches.Count + 1));
+        _refStates.EnsureCapacity(checked(_refStates.Count + 1));
+        try {
+            if (startPoint is { } target) { _segments.ConfirmDurable(target.SegmentNumber); }
+            var createTicketResult = AppendRefOpPayload(allocationPayload);
+            if (createTicketResult.IsFailure) { return createTicketResult.Error!; }
 
-        var refId = new RefId(createTicketResult.Unwrap().Packed);
-        using var refObject = RefMoveStore.CreateNew(_refObjectsPath, refId, _options.RefSegmentStoreOptions);
-        var initMove = new RefMoveFrame(refId, 1, timestamp, RefMoveOperation.Init, null, null, startPoint, reasonKind);
-        var initResult = refObject.AppendMove(in initMove);
-        if (initResult.IsFailure) { return initResult.Error!; }
+            var refId = new RefId(createTicketResult.Unwrap().Packed);
+            using var refObject = RefMoveStore.CreateNew(_refObjectsPath, refId, _options.RefSegmentStoreOptions);
+            var initMove = new RefMoveFrame(refId, 1, timestamp, RefMoveOperation.Init, null, null, startPoint, reasonKind);
+            var initResult = refObject.AppendMove(in initMove);
+            if (initResult.IsFailure) { return initResult.Error!; }
 
-        var bindOp = new RefOpFrame(RefOpOperation.BindName, branchName, refId, default, 0, null, startPoint, timestamp, reasonKind);
-        var bindResult = AppendRefOp(bindOp);
-        if (bindResult.IsFailure) { return bindResult.Error!; }
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(bindPayload.AsSpan(12),
+                System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(bindPayload.AsSpan(12)) | 1u);
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt64LittleEndian(bindPayload.AsSpan(16), refId.Packed);
+            var bindResult = AppendRefOpPayload(bindPayload);
+            if (bindResult.IsFailure) { return bindResult.Error!; }
 
-        _branches[branchName] = refId;
-        _refStates[refId] = new RefState(refId, startPoint, LastMoveSequenceNumber: 1, Closed: false);
-        return refId;
+            OperationProbe?.Invoke("RefBeforeInstall");
+            _branches[branchName] = refId;
+            _refStates[refId] = new RefState(refId, startPoint, LastMoveSequenceNumber: 1, Closed: false);
+            return refId;
+        }
+        catch (Exception ex) { LatchFault(ex); throw; }
     }
 
     public AteliaResult<RefId> ForkBranch(string branchName, RefId sourceRefId, EventAddress sourceHead, uint reasonKind = 0) {
@@ -87,22 +97,34 @@ public sealed partial class EventJournal {
 
         long timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var forkOp = new RefOpFrame(RefOpOperation.Fork, branchName, default, sourceRefId, sourceState.LastMoveSequenceNumber, sourceHead, sourceHead, timestamp, reasonKind);
-        var forkTicketResult = AppendRefOp(forkOp);
-        if (forkTicketResult.IsFailure) { return forkTicketResult.Error!; }
+        byte[] allocationPayload = RefOpFrameCodec.Encode(in forkOp);
+        var preparedBind = forkOp with { Operation = RefOpOperation.BindName };
+        byte[] bindPayload = RefOpFrameCodec.Encode(in preparedBind);
+        _branches.EnsureCapacity(checked(_branches.Count + 1));
+        _refStates.EnsureCapacity(checked(_refStates.Count + 1));
+        try {
+            _segments.ConfirmDurable(sourceHead.SegmentNumber);
+            var forkTicketResult = AppendRefOpPayload(allocationPayload);
+            if (forkTicketResult.IsFailure) { return forkTicketResult.Error!; }
 
-        var refId = new RefId(forkTicketResult.Unwrap().Packed);
-        using var refObject = RefMoveStore.CreateNew(_refObjectsPath, refId, _options.RefSegmentStoreOptions);
-        var initMove = new RefMoveFrame(refId, 1, timestamp, RefMoveOperation.Init, null, null, sourceHead, reasonKind);
-        var initResult = refObject.AppendMove(in initMove);
-        if (initResult.IsFailure) { return initResult.Error!; }
+            var refId = new RefId(forkTicketResult.Unwrap().Packed);
+            using var refObject = RefMoveStore.CreateNew(_refObjectsPath, refId, _options.RefSegmentStoreOptions);
+            var initMove = new RefMoveFrame(refId, 1, timestamp, RefMoveOperation.Init, null, null, sourceHead, reasonKind);
+            var initResult = refObject.AppendMove(in initMove);
+            if (initResult.IsFailure) { return initResult.Error!; }
 
-        var bindOp = new RefOpFrame(RefOpOperation.BindName, branchName, refId, sourceRefId, sourceState.LastMoveSequenceNumber, sourceHead, sourceHead, timestamp, reasonKind);
-        var bindResult = AppendRefOp(bindOp);
-        if (bindResult.IsFailure) { return bindResult.Error!; }
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(bindPayload.AsSpan(12),
+                System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(bindPayload.AsSpan(12)) | 1u);
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt64LittleEndian(bindPayload.AsSpan(16), refId.Packed);
+            var bindResult = AppendRefOpPayload(bindPayload);
+            if (bindResult.IsFailure) { return bindResult.Error!; }
 
-        _branches[branchName] = refId;
-        _refStates[refId] = new RefState(refId, sourceHead, LastMoveSequenceNumber: 1, Closed: false);
-        return refId;
+            OperationProbe?.Invoke("RefBeforeInstall");
+            _branches[branchName] = refId;
+            _refStates[refId] = new RefState(refId, sourceHead, LastMoveSequenceNumber: 1, Closed: false);
+            return refId;
+        }
+        catch (Exception ex) { LatchFault(ex); throw; }
     }
 
     public EventAddress? GetHead(RefId refId) {
@@ -172,16 +194,22 @@ public sealed partial class EventJournal {
             );
         }
 
-        var closeResult = AppendRefMove(state, RefMoveOperation.Close, expectedOldHead, null, reasonKind);
-        if (closeResult.IsFailure) { return closeResult.Error!; }
+        if (state.LastMoveSequenceNumber == ulong.MaxValue) { return new EventJournalError("RefMoveSequenceExhausted", "Ref move sequence cannot advance."); }
+        ulong closeSequence = checked(state.LastMoveSequenceNumber + 1);
+        var archiveOp = new RefOpFrame(RefOpOperation.Archive, branchName, refId, default, closeSequence, null, null, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), reasonKind);
+        byte[] archivePayload = RefOpFrameCodec.Encode(in archiveOp);
+        try {
+            var closeResult = AppendRefMove(state, RefMoveOperation.Close, expectedOldHead, null, reasonKind);
+            if (closeResult.IsFailure) { return closeResult.Error!; }
 
-        var archiveOp = new RefOpFrame(RefOpOperation.Archive, branchName, refId, default, state.LastMoveSequenceNumber + 1, null, null, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), reasonKind);
-        var archiveResult = AppendRefOp(archiveOp);
-        if (archiveResult.IsFailure) { return archiveResult.Error!; }
+            var archiveResult = AppendRefOpPayload(archivePayload);
+            if (archiveResult.IsFailure) { return archiveResult.Error!; }
 
-        _branches.Remove(branchName);
-        _refStates[refId] = state with { Head = null, LastMoveSequenceNumber = state.LastMoveSequenceNumber + 1, Closed = true };
-        return true;
+            _branches.Remove(branchName);
+            _refStates[refId] = state with { Head = null, LastMoveSequenceNumber = closeSequence, Closed = true };
+            return true;
+        }
+        catch (Exception ex) { LatchFault(ex); throw; }
     }
 
     public AteliaResult<IReadOnlyList<RefMoveFrame>> ReadReflog(RefId refId) {
@@ -198,7 +226,11 @@ public sealed partial class EventJournal {
                     refId,
                     _options.RefSegmentStoreOptions
                 );
-            return refObject.ReadAllMoves();
+            var moves = refObject.ReadAllMoves();
+            return moves.IsFailure ? RefReadError(moves.Error!, RefMoveStore.GetObjectPath(_refObjectsPath, refId)) : moves;
+        }
+        catch (StorageOpenException ex) {
+            return ex.ReasonCode == "LegacyOrIncompleteLayout" ? MaintenanceError("MetadataMissing", ex.StoragePath) : OpenError(ex);
         }
         catch (Exception ex) when (IsReadException(ex)) {
             return new EventJournalError(
@@ -247,6 +279,7 @@ public sealed partial class EventJournal {
         var stateResult = LoadRefState(refId);
         if (stateResult.IsFailure) { return stateResult.Error!; }
         if (stateResult.Unwrap().Closed) { return RefClosedError(refId); }
+        if (stateResult.Unwrap().LastMoveSequenceNumber == ulong.MaxValue) { return new EventJournalError("RefMoveSequenceExhausted", "Ref move sequence cannot advance."); }
 
         var eventResult = AppendEventFrame(expectedHead, payload, opaqueEventKind, hint, writeOptions: writeOptions);
         if (eventResult.IsFailure) { return eventResult.Error!; }
@@ -276,37 +309,25 @@ public sealed partial class EventJournal {
         return RbfFile.CreateNew(RefOpLogPath(journalPath), options.RefOpLogOptions.CacheMode);
     }
 
-    private static IRbfFile OpenRefOpLog(string journalPath, EventJournalOptions options, bool createIfMissing) {
-        Directory.CreateDirectory(RefsDirectory(journalPath));
-        Directory.CreateDirectory(RefObjectsDirectory(journalPath));
-        string path = RefOpLogPath(journalPath);
-        if (!File.Exists(path)) {
-            if (!createIfMissing) { throw new FileNotFoundException("EventJournal ref-op-log does not exist.", path); }
-            return RbfFile.CreateNew(path, options.RefOpLogOptions.CacheMode);
-        }
+    private static IRbfFile OpenRefOpLog(string journalPath, EventJournalOptions options) => OpenRefOpLogCore(journalPath, options, readOnly: false);
 
-        if (options.RefOpLogOptions.RecoverActiveTailOnOpen) { RecoverRbfTail(path, options.RefOpLogOptions.CacheMode); }
-        return RbfFile.OpenExisting(path, options.RefOpLogOptions.CacheMode);
+    private static IRbfFile OpenReadOnlyRefOpLog(string journalPath, EventJournalOptions options) => OpenRefOpLogCore(journalPath, options, readOnly: true);
+
+    private static IRbfFile OpenRefOpLogCore(string journalPath, EventJournalOptions options, bool readOnly) {
+        string path = RefOpLogPath(journalPath);
+        try {
+            return readOnly ? RbfFile.OpenReadOnlyExisting(path, options.RefOpLogOptions.CacheMode)
+                : RbfFile.OpenExisting(path, options.RefOpLogOptions.CacheMode);
+        }
+        catch (InvalidDataException ex) { throw new StorageOpenException(StorageOpenErrorKind.MaintenanceRequired, "InvalidTail", path, innerException: ex); }
     }
 
-    private static IRbfFile OpenReadOnlyRefOpLog(
-        string journalPath,
-        EventJournalOptions options
-    ) {
-        string path = RefOpLogPath(journalPath);
-        if (!File.Exists(path)) {
-            throw new FileNotFoundException(
-                "EventJournal ref-op-log does not exist.",
-                path
-            );
-        }
-        return RbfFile.OpenReadOnlyExisting(
-            path,
-            options.RefOpLogOptions.CacheMode
-        );
+    private static Dictionary<string, RefId> ReplayRefOpLog(IRbfFile refOpLog, string path, out Dictionary<string, EventAddress> tags) {
+        try { return ReplayRefOpLogCore(refOpLog, path, out tags); }
+        catch (InvalidDataException ex) { throw new StorageOpenException(StorageOpenErrorKind.MaintenanceRequired, "CatalogInvalid", path, innerException: ex); }
     }
 
-    private static Dictionary<string, RefId> ReplayRefOpLog(IRbfFile refOpLog, out Dictionary<string, EventAddress> tags) {
+    private static Dictionary<string, RefId> ReplayRefOpLogCore(IRbfFile refOpLog, string path, out Dictionary<string, EventAddress> tags) {
         var knownRefs = new HashSet<RefId>();
         var branches = new Dictionary<string, RefId>(StringComparer.Ordinal);
         tags = new Dictionary<string, EventAddress>(StringComparer.Ordinal);
@@ -314,6 +335,7 @@ public sealed partial class EventJournal {
         var enumerator = refOpLog.ScanForward(showTombstone: true).GetEnumerator();
         while (enumerator.MoveNext()) {
             RbfFrameInfo info = enumerator.Current;
+            if (info.Ticket.Length > 248) { throw new StorageOpenException(StorageOpenErrorKind.MaintenanceRequired, "ControlFrameTooLarge", path, info.Ticket.Offset); }
             if (info.IsTombstone) { throw new InvalidDataException("ref-op-log contains a tombstone."); }
             if (info.Tag == TagBindingFrameTag) {
                 if (info.TailMetaLength != 0) { throw new InvalidDataException("Tag bindings cannot contain TailMeta."); }
@@ -328,7 +350,18 @@ public sealed partial class EventJournal {
             using var frameResult = info.ReadPooledFrame().ToDisposable();
             if (frameResult.IsFailure) { throw new InvalidDataException($"Failed to read ref-op-log frame: {frameResult.Error!.Message}"); }
 
-            RefOpFrame op = RefOpFrameCodec.Decode(frameResult.Unwrap().PayloadAndMeta).Unwrap();
+            var decoded = RefOpFrameCodec.Decode(frameResult.Unwrap().PayloadAndMeta);
+            if (decoded.IsFailure) {
+                AteliaError error = decoded.Error!;
+                if (error.ErrorCode is "EventJournal.RefOpVersionUnsupported" or "EventJournal.RefOpFlagsUnsupported") {
+                    ushort? version = error.Details is { } details && details.TryGetValue("ObservedVersion", out string? observed)
+                        ? ushort.Parse(observed, System.Globalization.CultureInfo.InvariantCulture) : null;
+                    throw new StorageOpenException(StorageOpenErrorKind.FormatUnsupported,
+                        version is null ? "UnsupportedFlags" : "UnsupportedVersion", path, info.Ticket.Offset, version);
+                }
+                throw new InvalidDataException("Invalid ref allocation/control record.");
+            }
+            RefOpFrame op = decoded.Unwrap();
             RefId allocatedRefId = new(info.Ticket.Packed);
 
             switch (op.Operation) {
@@ -353,26 +386,34 @@ public sealed partial class EventJournal {
         return branches;
     }
 
-    private AteliaResult<SizedPtr> AppendRefOp(in RefOpFrame op) {
-        byte[] payload = RefOpFrameCodec.Encode(in op);
-        var appendResult = _refOpLog.Append(RefOpFrameTag, payload);
-        if (appendResult.IsFailure) { return appendResult.Error!; }
+    private AteliaResult<SizedPtr> AppendRefOpPayload(byte[] payload) {
+        try {
+            OperationProbe?.Invoke("RefOpBeforeAppend");
+            var appendResult = _refOpLog.Append(RefOpFrameTag, payload);
+            if (appendResult.IsFailure) { return appendResult.Error!; }
 
-        _refOpLog.DurableFlush();
-        return appendResult.Unwrap();
+            _refOpLog.DurableFlush();
+            OperationProbe?.Invoke("RefOpAfterDurableFlush");
+            return appendResult.Unwrap();
+        } catch (Exception ex) { LatchFault(ex); throw; }
     }
 
     private AteliaResult<bool> AppendRefMove(RefState state, RefMoveOperation operation, EventAddress? expectedOldHead, EventAddress? newHead, uint reasonKind) {
         long timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var move = new RefMoveFrame(state.RefId, state.LastMoveSequenceNumber + 1, timestamp, operation, expectedOldHead, state.Head, newHead, reasonKind);
+        if (state.LastMoveSequenceNumber == ulong.MaxValue) { return new EventJournalError("RefMoveSequenceExhausted", "Ref move sequence cannot advance."); }
+        var move = new RefMoveFrame(state.RefId, checked(state.LastMoveSequenceNumber + 1), timestamp, operation, expectedOldHead, state.Head, newHead, reasonKind);
 
-        using var refObject = RefMoveStore.OpenExisting(_refObjectsPath, state.RefId, _options.RefSegmentStoreOptions);
-        var appendResult = refObject.AppendMove(in move);
-        if (appendResult.IsFailure) { return appendResult.Error!; }
+        try {
+            if (newHead is { } target) { _segments.ConfirmDurable(target.SegmentNumber); }
+            using var refObject = RefMoveStore.OpenExisting(_refObjectsPath, state.RefId, _options.RefSegmentStoreOptions);
+            var appendResult = refObject.AppendMove(in move);
+            if (appendResult.IsFailure) { return appendResult.Error!; }
 
-        bool closed = operation == RefMoveOperation.Close;
-        _refStates[state.RefId] = state with { Head = newHead, LastMoveSequenceNumber = move.MoveSequenceNumber, Closed = closed };
-        return true;
+            OperationProbe?.Invoke("RefMoveAfterDurableFlush");
+            bool closed = operation == RefMoveOperation.Close;
+            _refStates[state.RefId] = state with { Head = newHead, LastMoveSequenceNumber = move.MoveSequenceNumber, Closed = closed };
+            return true;
+        } catch (Exception ex) { LatchFault(ex); throw; }
     }
 
     private AteliaResult<RefState> LoadRefState(RefId refId) {
@@ -380,6 +421,9 @@ public sealed partial class EventJournal {
         if (_refStates.TryGetValue(refId, out RefState? cached)) { return cached; }
 
         try {
+            var allocationResult = ReadAllocation(refId);
+            if (allocationResult.IsFailure) { return allocationResult.Error!; }
+            RefOpFrame allocation = allocationResult.Unwrap();
             using var refObject = _isReadOnly
                 ? RefMoveStore.OpenReadOnlyExisting(
                     _refObjectsPath,
@@ -391,37 +435,32 @@ public sealed partial class EventJournal {
                     refId,
                     _options.RefSegmentStoreOptions
                 );
-            var movesResult = refObject.ReadAllMoves();
-            if (movesResult.IsFailure) { return movesResult.Error!; }
-
-            RefState? state = null;
-            foreach (RefMoveFrame move in movesResult.Unwrap()) {
-                var applyResult = TryApplyMove(state, move, out RefState? nextState);
-                if (applyResult is not null) { return applyResult; }
-
-                if (!TryValidateTarget(move.NewTarget, out AteliaError? targetError)) {
-                    if (_isReadOnly || state is null) {
-                        return InvalidNullableRefTargetError(
-                            move.NewTarget,
-                            targetError
-                        );
-                    }
-                    break;
-                }
-
-                state = nextState;
+            var endpointsResult = refObject.ReadEndpoints();
+            if (endpointsResult.IsFailure) { return RefReadError(endpointsResult.Error!, RefMoveStore.GetObjectPath(_refObjectsPath, refId)); }
+            var endpoints = endpointsResult.Unwrap();
+            RefMoveFrame init = endpoints.Init;
+            RefMoveFrame last = endpoints.Last;
+            if (init.Operation != RefMoveOperation.Init || init.MoveSequenceNumber != 1 || init.OldTarget is not null
+                || init.ExpectedOldTarget is not null || !Nullable.Equals(init.NewTarget, allocation.StartHead)) {
+                return MaintenanceError("CatalogInvalid", RefMoveStore.GetObjectPath(_refObjectsPath, refId));
             }
-
-            if (state is null) {
-                return new EventJournalError(
-                    "RefObjectEmpty",
-                    $"Ref object {refId} does not contain a usable Init move.",
-                    "Inspect or repair the ref object."
-                );
+            bool same = endpoints.InitAddress == endpoints.LastAddress;
+            if (last.Operation == RefMoveOperation.Init) {
+                if (!same) { return MaintenanceError("CatalogInvalid", RefMoveStore.GetObjectPath(_refObjectsPath, refId)); }
             }
-
+            else if (same || last.MoveSequenceNumber <= 1 || !Nullable.Equals(last.OldTarget, last.ExpectedOldTarget)
+                || last.Operation == RefMoveOperation.Advance && last.NewTarget is null
+                || last.Operation == RefMoveOperation.Close && last.NewTarget is not null) {
+                return MaintenanceError("CatalogInvalid", RefMoveStore.GetObjectPath(_refObjectsPath, refId));
+            }
+            if (!TryValidateTarget(last.NewTarget, out AteliaError? targetError)) { return InvalidNullableRefTargetError(last.NewTarget, targetError); }
+            var state = new RefState(refId, last.NewTarget, last.MoveSequenceNumber, last.Operation == RefMoveOperation.Close);
             _refStates[refId] = state;
             return state;
+        }
+        catch (StorageOpenException ex) {
+            if (ex.ReasonCode == "LegacyOrIncompleteLayout") { return MaintenanceError("MetadataMissing", ex.StoragePath); }
+            return OpenError(ex);
         }
         catch (Exception ex) when (IsReadException(ex)) {
             return new EventJournalError(
@@ -433,53 +472,47 @@ public sealed partial class EventJournal {
         }
     }
 
-    private AteliaError? TryApplyMove(RefState? current, RefMoveFrame move, out RefState? next) {
-        next = null;
+    private AteliaResult<RefOpFrame> ReadAllocation(RefId refId) {
+        SizedPtr ticket = SizedPtr.FromPacked(refId.Packed);
+        if (ticket.Offset < 4 || ticket.Length is < 24 or > 248) { return MaintenanceError("CatalogInvalid", RefOpLogPath(JournalPath)); }
+        using var result = _refOpLog.ReadPooledFrame(ticket).ToDisposable();
+        if (result.IsFailure) { return MaintenanceError("CatalogInvalid", RefOpLogPath(JournalPath), result.Error); }
+        var frame = result.Unwrap();
+        if (frame.Tag != RefOpFrameTag || frame.IsTombstone || frame.TailMetaLength != 0) { return MaintenanceError("CatalogInvalid", RefOpLogPath(JournalPath)); }
+        var decoded = RefOpFrameCodec.Decode(frame.PayloadAndMeta);
+        if (decoded.IsFailure) { return RefReadError(decoded.Error!, RefOpLogPath(JournalPath)); }
+        var op = decoded.Unwrap();
+        if (ValidateBranchName(op.BranchName) is not null || op.Operation is not (RefOpOperation.Create or RefOpOperation.Fork)
+            || !op.RefId.IsDefault || op.Operation == RefOpOperation.Create && (!op.SourceRefId.IsDefault || op.SourceMoveSequenceNumber != 0 || op.SourceHead is not null)
+            || op.Operation == RefOpOperation.Fork && (op.SourceRefId.IsDefault || op.SourceMoveSequenceNumber == 0 || op.SourceHead is null || !Nullable.Equals(op.SourceHead, op.StartHead))) {
+            return MaintenanceError("CatalogInvalid", RefOpLogPath(JournalPath));
+        }
+        return op;
+    }
 
-        if (current is null) {
-            if (move.Operation != RefMoveOperation.Init || move.MoveSequenceNumber != 1 || move.OldTarget is not null || move.ExpectedOldTarget is not null) {
-                return new EventJournalError(
-                    "RefObjectFirstMoveInvalid",
-                    "Ref object first move must be Init sequence 1 with null old/expected target.",
-                    "Treat this ref object as malformed."
-                );
+    private static EventJournalError RefReadError(AteliaError error, string path) {
+        bool version = error.ErrorCode is "EventJournal.RefMoveVersionUnsupported" or "EventJournal.RefOpVersionUnsupported";
+        bool flags = error.ErrorCode is "EventJournal.RefMoveFlagsUnsupported" or "EventJournal.RefOpFlagsUnsupported";
+        if (error.Details is { } metadata && metadata.TryGetValue("SegmentNumber", out string? segment)) {
+            path = Path.Combine(path, "segments", segment + ".rbf");
+        }
+        var details = new Dictionary<string, string> { ["ReasonCode"] = version ? "UnsupportedVersion" : flags ? "UnsupportedFlags" : "InvalidTail", ["StoragePath"] = path };
+        if (error.Details is { } fields) {
+            foreach (string key in new[] { "ObservedVersion", "Offset" }) {
+                if (fields.TryGetValue(key, out string? value)) { details[key] = value; }
             }
-
-            next = new RefState(move.RefId, move.NewTarget, move.MoveSequenceNumber, Closed: false);
-            return null;
         }
+        return new EventJournalError(version || flags ? "FormatUnsupported" : "MaintenanceRequired", "Ref record cannot be read strictly.", Details: details, Cause: error);
+    }
 
-        if (current.RefId != move.RefId || move.MoveSequenceNumber != current.LastMoveSequenceNumber + 1) {
-            return new EventJournalError(
-                "RefMoveSequenceInvalid",
-                "RefMoveFrame sequence is not contiguous for its ref object.",
-                "Treat this ref object as malformed."
-            );
-        }
+    private static EventJournalError MaintenanceError(string code, string path, AteliaError? cause = null) => new(
+        "MaintenanceRequired", "Storage requires offline maintenance.", Details: new Dictionary<string, string> { ["ReasonCode"] = code, ["StoragePath"] = path }, Cause: cause);
 
-        if (current.Closed) { return RefClosedError(current.RefId); }
-        if (move.Operation == RefMoveOperation.Init) {
-            return new EventJournalError(
-                "RefMoveOperationInvalid",
-                "Init may only appear as the first RefMoveFrame.",
-                "Treat this ref object as malformed."
-            );
-        }
-
-        if (!Nullable.Equals(move.OldTarget, current.Head) || !Nullable.Equals(move.ExpectedOldTarget, current.Head)) {
-            return new EventJournalError(
-                "RefMoveOldTargetMismatch",
-                "RefMoveFrame old/expected target does not match previous ref head.",
-                "Treat this ref object as malformed."
-            );
-        }
-
-        if (move.Operation == RefMoveOperation.Advance && move.NewTarget is null) { return new EventJournalError("RefMoveOperationInvalid", "Advance move must have a non-null new target.", "Treat this ref object as malformed."); }
-
-        if (move.Operation == RefMoveOperation.Close && move.NewTarget is not null) { return new EventJournalError("RefMoveOperationInvalid", "Close move must have a null new target.", "Treat this ref object as malformed."); }
-
-        next = new RefState(move.RefId, move.NewTarget, move.MoveSequenceNumber, Closed: move.Operation == RefMoveOperation.Close);
-        return null;
+    private static EventJournalError OpenError(StorageOpenException ex) {
+        var details = new Dictionary<string, string> { ["ReasonCode"] = ex.ReasonCode, ["StoragePath"] = ex.StoragePath };
+        if (ex.Offset is { } offset) { details["Offset"] = offset.ToString(System.Globalization.CultureInfo.InvariantCulture); }
+        if (ex.ObservedVersion is { } version) { details["ObservedVersion"] = version.ToString(System.Globalization.CultureInfo.InvariantCulture); }
+        return new EventJournalError(ex.Kind == StorageOpenErrorKind.MaintenanceRequired ? "MaintenanceRequired" : "FormatUnsupported", "Storage cannot be read strictly.", Details: details);
     }
 
     private bool TryValidateTarget(EventAddress? target, out AteliaError? error) {
@@ -553,23 +586,6 @@ public sealed partial class EventJournal {
     );
 
     private static string FormatEventAddress(EventAddress address) => $"{address.SegmentNumber:x8}:{address.Ticket.Packed:x16}:{address.Hint.Packed:x8}";
-
-    private static void RecoverRbfTail(string path, RbfCacheMode cacheMode) {
-        long fileLength = new FileInfo(path).Length;
-        if (fileLength == RbfHeaderOnlyLength) { return; }
-
-        RbfRecoveryHit? recoveryHit = null;
-        using (var scanner = RbfRecovery.OpenReadOnly(path, cacheMode)) {
-            foreach (RbfRecoveryHit hit in scanner.ScanBackward()) {
-                recoveryHit = hit;
-                break;
-            }
-        }
-
-        if (recoveryHit is not { } foundHit) { throw new InvalidDataException($"RBF file is not recoverable: {path}"); }
-
-        RbfRecovery.TruncateToSuggestedTail(path, foundHit);
-    }
 
     private sealed record RefState(RefId RefId, EventAddress? Head, ulong LastMoveSequenceNumber, bool Closed);
 }
