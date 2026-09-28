@@ -51,7 +51,6 @@ public sealed partial class EventJournal {
         byte[] initPayload = new byte[RefMoveFrameCodec.FixedLength];
         _branches.EnsureCapacity(checked(_branches.Count + 1));
         _activeRefNames.EnsureCapacity(checked(_activeRefNames.Count + 1));
-        _refStates.EnsureCapacity(checked(_refStates.Count + 1));
         var capacityError = PrecheckCatalogOperation(checked((long)_branches.Count + _tags.Count + 1), [allocationPayload, bindPayload], out bool checkpoint);
         if (capacityError is not null) { return capacityError; }
         if (checkpoint) { CheckpointCatalog(); }
@@ -61,7 +60,8 @@ public sealed partial class EventJournal {
             if (createTicketResult.IsFailure) { return createTicketResult.Error!; }
 
             var refId = new RefId(createTicketResult.Unwrap().Packed);
-            using var refObject = RefMoveStore.CreateNew(_refObjectsPath, refId, _options.RefSegmentStoreOptions);
+            using var storeUse = new RefStoreUse(RefMoveStore.CreateNew(_refObjectsPath, refId, _options.RefSegmentStoreOptions), owned: true);
+            var refObject = storeUse.Store;
             var initMove = new RefMoveFrame(refId, 1, timestamp, RefMoveOperation.Init, null, null, startPoint, reasonKind);
             RefMoveFrameCodec.Encode(in initMove, initPayload);
             var initResult = refObject.AppendPreparedMove(in initMove, initPayload);
@@ -76,7 +76,7 @@ public sealed partial class EventJournal {
             OperationProbe?.Invoke("RefBeforeInstall");
             _branches[branchName] = refId;
             _activeRefNames.Add(refId, branchName);
-            _refStates[refId] = new RefState(refId, startPoint, LastMoveSequenceNumber: 1, Closed: false);
+            RetainRef(new RefState(refId, startPoint, LastMoveSequenceNumber: 1, Closed: false), storeUse);
             return refId;
         }
         catch (Exception ex) { LatchFault(ex); throw; }
@@ -110,7 +110,6 @@ public sealed partial class EventJournal {
         byte[] initPayload = new byte[RefMoveFrameCodec.FixedLength];
         _branches.EnsureCapacity(checked(_branches.Count + 1));
         _activeRefNames.EnsureCapacity(checked(_activeRefNames.Count + 1));
-        _refStates.EnsureCapacity(checked(_refStates.Count + 1));
         var capacityError = PrecheckCatalogOperation(checked((long)_branches.Count + _tags.Count + 1), [allocationPayload, bindPayload], out bool checkpoint);
         if (capacityError is not null) { return capacityError; }
         if (checkpoint) { CheckpointCatalog(); }
@@ -120,7 +119,8 @@ public sealed partial class EventJournal {
             if (forkTicketResult.IsFailure) { return forkTicketResult.Error!; }
 
             var refId = new RefId(forkTicketResult.Unwrap().Packed);
-            using var refObject = RefMoveStore.CreateNew(_refObjectsPath, refId, _options.RefSegmentStoreOptions);
+            using var storeUse = new RefStoreUse(RefMoveStore.CreateNew(_refObjectsPath, refId, _options.RefSegmentStoreOptions), owned: true);
+            var refObject = storeUse.Store;
             var initMove = new RefMoveFrame(refId, 1, timestamp, RefMoveOperation.Init, null, null, sourceHead, reasonKind);
             RefMoveFrameCodec.Encode(in initMove, initPayload);
             var initResult = refObject.AppendPreparedMove(in initMove, initPayload);
@@ -135,7 +135,7 @@ public sealed partial class EventJournal {
             OperationProbe?.Invoke("RefBeforeInstall");
             _branches[branchName] = refId;
             _activeRefNames.Add(refId, branchName);
-            _refStates[refId] = new RefState(refId, sourceHead, LastMoveSequenceNumber: 1, Closed: false);
+            RetainRef(new RefState(refId, sourceHead, LastMoveSequenceNumber: 1, Closed: false), storeUse);
             return refId;
         }
         catch (Exception ex) { LatchFault(ex); throw; }
@@ -227,7 +227,7 @@ public sealed partial class EventJournal {
 
             _branches.Remove(branchName);
             _activeRefNames.Remove(refId);
-            _refStates[refId] = state with { Head = null, LastMoveSequenceNumber = closeSequence, Closed = true };
+            RemoveRefEntry(refId);
             return true;
         }
         catch (Exception ex) { LatchFault(ex); throw; }
@@ -236,17 +236,8 @@ public sealed partial class EventJournal {
     public AteliaResult<IReadOnlyList<RefMoveFrame>> ReadReflog(RefId refId) {
         ThrowIfDisposed();
         try {
-            using var refObject = _isReadOnly
-                ? RefMoveStore.OpenReadOnlyExisting(
-                    _refObjectsPath,
-                    refId,
-                    _options.RefSegmentStoreOptions
-                )
-                : RefMoveStore.OpenExisting(
-                    _refObjectsPath,
-                    refId,
-                    _options.RefSegmentStoreOptions
-                );
+            using var storeUse = OpenRefStore(refId);
+            var refObject = storeUse.Store;
             var moves = refObject.ReadAllMoves();
             return moves.IsFailure ? RefReadError(moves.Error!, RefMoveStore.GetObjectPath(_refObjectsPath, refId)) : moves;
         }
@@ -500,36 +491,28 @@ public sealed partial class EventJournal {
     private AteliaResult<bool> AppendRefMove(RefState state, scoped in RefMoveFrame move, byte[]? preparedPayload = null) {
         try {
             if (move.NewTarget is { } target) { _segments.ConfirmDurable(target.SegmentNumber); }
-            using var refObject = RefMoveStore.OpenExisting(_refObjectsPath, state.RefId, _options.RefSegmentStoreOptions);
+            using var storeUse = OpenRefStore(state.RefId);
+            var refObject = storeUse.Store;
             var appendResult = preparedPayload is null ? refObject.AppendMove(in move) : refObject.AppendPreparedMove(in move, preparedPayload);
             if (appendResult.IsFailure) { return appendResult.Error!; }
 
             OperationProbe?.Invoke("RefMoveAfterDurableFlush");
             bool closed = move.Operation == RefMoveOperation.Close;
-            _refStates[state.RefId] = state with { Head = move.NewTarget, LastMoveSequenceNumber = move.MoveSequenceNumber, Closed = closed };
+            RetainRef(state with { Head = move.NewTarget, LastMoveSequenceNumber = move.MoveSequenceNumber, Closed = closed }, storeUse);
             return true;
         } catch (Exception ex) { LatchFault(ex); throw; }
     }
 
     private AteliaResult<RefState> LoadRefState(RefId refId) {
         if (refId.IsDefault) { return new EventJournalError("RefIdInvalid", "RefId cannot be default 0.", "Use a RefId returned by CreateBranch/OpenBranch/ForkBranch."); }
-        if (_refStates.TryGetValue(refId, out RefState? cached)) { return cached; }
+        if (TryGetRefEntry(refId, out var cached)) { return cached.State; }
 
         try {
             var allocationResult = ReadAllocation(refId);
             if (allocationResult.IsFailure) { return allocationResult.Error!; }
             RefOpFrame allocation = allocationResult.Unwrap();
-            using var refObject = _isReadOnly
-                ? RefMoveStore.OpenReadOnlyExisting(
-                    _refObjectsPath,
-                    refId,
-                    _options.RefSegmentStoreOptions
-                )
-                : RefMoveStore.OpenExisting(
-                    _refObjectsPath,
-                    refId,
-                    _options.RefSegmentStoreOptions
-                );
+            using var storeUse = OpenRefStore(refId);
+            var refObject = storeUse.Store;
             var endpointsResult = refObject.ReadEndpoints();
             if (endpointsResult.IsFailure) { return RefReadError(endpointsResult.Error!, RefMoveStore.GetObjectPath(_refObjectsPath, refId)); }
             var endpoints = endpointsResult.Unwrap();
@@ -550,7 +533,7 @@ public sealed partial class EventJournal {
             }
             if (!TryValidateTarget(last.NewTarget, out AteliaError? targetError)) { return InvalidNullableRefTargetError(last.NewTarget, targetError); }
             var state = new RefState(refId, last.NewTarget, last.MoveSequenceNumber, last.Operation == RefMoveOperation.Close);
-            _refStates[refId] = state;
+            RetainRef(state, storeUse);
             return state;
         }
         catch (StorageOpenException ex) {

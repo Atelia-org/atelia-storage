@@ -1,6 +1,6 @@
 # EventJournal v2：task 级实施与调度工单
 
-日期：2026-09-29。状态：**实施中；T00–T04 Passed；T05 待派发，依次放行任务**。
+日期：2026-09-29。状态：**实施中；T00–T05 Passed；T06 待派发，依次放行任务**。
 基线：`bb7c4fb3eb6477783c70ee61bc62b832be195d07`。设计基线保持不变；用户于本轮明确授权按本工单完整实施并按需 Git 提交。网络发布、真实数据迁移和兄弟仓修改不在范围内。
 
 目标：保持 Event/Parent、exact RefId、CAS、reflog、不可变 tag 语义；固定当前工作集时，日常打开和 ref 更新不再扫描累计历史。新格式拒绝旧目录，完整校验独立离线执行。
@@ -40,7 +40,7 @@
 | T02 | locator生命周期、严格打开、轮转/fault | T01 | gpt-6-sol | gpt-6-astra审发布窗口 | Passed（Linux；Windows Pending） |
 | T03 | EventJournal格式门、尾读sequence/ref、tag局部验证 | T02 | gpt-6-sol | gpt-6-astra审身份/故障语义 | Passed |
 | T04 | catalog snapshot、有界suffix、缩容与发布 | T03 | gpt-6-sol | gpt-6-astra审预算/三态 | Passed |
-| T05 | 有界ref entry与单一ForwardPlan缓存 | T04 | gpt-6-sol | 调度主线程检查强引用/Dispose | NotStarted |
+| T05 | 有界ref entry与单一ForwardPlan缓存 | T04 | gpt-6-sol | 调度主线程检查强引用/Dispose | Passed |
 | T06 | 离线audit与健康事实索引候选重建 | T04，集成前T05 | gpt-6-sol | gpt-6-astra审重建拒绝边界 | NotStarted |
 | T07 | 故障/规模证据、消费者合同与源码收口 | T05、T06 | gpt-6-sol | astra一次跨层终审 | NotStarted |
 | T08 | 干净已提交来源的包消费与平台交付门 | T07 + 单独提交/打包授权 | gpt-6-sol | 调度主线程核验manifest/版本闭包 | AwaitingAuthority |
@@ -256,3 +256,9 @@ $candidateSmoke = Join-Path ([IO.Path]::GetTempPath()) ("atelia-v2-smoke-" + [Gu
 - T04 容量错误命名收口：新增完整控制操作预检使用业务Result `EventJournal.RefOpCapacityExhausted`；旧测试对内部RBF错误前缀的断言迁移，仍验证无写/无checkpoint/不fault/可重试。未改StorageOpenException错误集合或wire。
 
 - T04：snapshot只解码一次，直接boundary suffix、双侧Q预算、缩容、完整多帧容量、预checkpoint和tag三态完成；astra身份finding由allocation/Bind精确相邻拒绝并回归。共享RefOp reserved/presence及RefMove reserved缺口同包收口，不改有效编码bytes。Release EventJournal 158/158（35s），build 0 warnings/errors；日志 `/tmp/t04-{build,test}.log`，diff检查通过。包含7个checkpoint异常时点、真实1100次churn、公共路径2500→1、合成2048/2049临界点（不冒充健康全事实fixture）、实际RBF日志证明Q+1不读和恢复不扫描旧prefix。
+
+- T05 调度细分：为减少等待，在同一已放行task内安排两个明确不重叠sol分片：A拥有core/Refs/options/RefMoveStore和新ref-cache tests；B只拥有ForwardPlan及旧遍历测试。A负责移除core旧binding字段，B提供cache.Clear；源码集成后仅一个worker运行.NET，主线程审阅整体所有权。任务间依赖门不变。
+
+- T06只读准备与astra分类裁决：从未Bind的合法orphan allocation，其缺object/只有合法empty segment1均UnpublishedRef warning；缺locator独立记索引Missing，可生成纯索引候选。Close未Archive为IncompleteArchive Error/FactsInvalid，无论索引一致或缺失都拒绝rebuild。完整限制已写contracts；没有补Init/Bind/Archive或repair授权。
+
+- T05：单一有界ref entry LRU（RefStoreCacheCapacity默认32/允许0）、store复用、Archive/eviction/Dispose清理完成；磁盘ForwardPlan codec/load/save及ref binding/tailmerge全部删除，内存exact/prefix保留双预算。主线程审整体所有权无剩余finding。Release EventJournal 173/173（41s）；证据 `/tmp/atelia-storage-t05-tests/build-release.log` 与 `t05-eventjournal.trx`。完整重建46 warnings中识别1条T01 nullable分析警告，主线程加成功值非空标注（无IL行为变化），随后build通过；`/tmp/t05-nullability-build.log`。其余既有XML warnings保留。冷编译ParentWalkReads与实际句柄/容量测试已提供，不把cache预算称总进程内存上限。

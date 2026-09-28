@@ -146,6 +146,8 @@ ref entry持有store，不持有跨调用writer lease。LRU eviction/Dispose尝�
 
 audit直接读取事实，不依赖daily open。报告schemaVersion=1，含FactsStatus（Healthy/Invalid/Incomplete）、IndexesStatus（Consistent/Missing/Invalid/Ambiguous）、扫描计数、带相对路径/offset/code的findings、Completed。独立区分事实与索引：缺locator可使daily不可用，但不因此跳过事实扫描。orphan event/allocation可以是warning；坏frame、错误Parent/sequence、重复tag、ref转移链非法属于事实错误。取消/I/O中断是Incomplete，不是Healthy。
 
+T06报告分类收口：合法allocation从未Bind，且没有object，或其object仅有规范segment1的合法4B HeaderFence，均为`UnpublishedRef` Warning，FactsStatus仍可Healthy；必须核对归属与全历史“从未Bind”，不能只看当前无名字。空object缺locator独立报告IndexesStatus=Missing，并允许生成locator候选；不补Init/Bind。未知归属、坏尾、多余段及locator冲突不享此例外。已Close但缺Archive且catalog事实仍绑定该ref时，报告`IncompleteArchive` Error、FactsStatus=Invalid并拒绝rebuild；若索引准确反映事实，IndexesStatus可独立为Consistent。
+
 退出码：0=Completed且事实/索引均一致；2=已明确发现事实/索引问题或不支持的格式（不代表扫描过全部历史，查看Completed）；3=I/O/取消/无法完成判定，优先于已有局部finding；64=CLI输入错误。只输出metadata、计数与错误码，不输出payload、codec解压内容或任意exception.Message。--report必须在source外create-only；未指定则JSON到stdout。
 
 rebuild只接受FactsStatus=Healthy且目录/边界唯一可解释。缺locator但规范连续段的最高段非空，或唯一segment1合法空，可生成定位候选；locator合法却指向old且next存在、缺段、highest为空且无法证明是否发布等多义情况拒绝。不得通过重建选择较旧head、补Bind/Archive或改事实bytes。

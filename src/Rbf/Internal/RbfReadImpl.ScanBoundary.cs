@@ -12,7 +12,7 @@ internal static partial class RbfReadImpl {
         }
         var result = ReadPooledFrame(reader, ticket);
         if (result.IsFailure) { return result.Error!; }
-        using var frame = result.Value;
+        using var frame = result.Value!; // Success guarantees a non-null pooled frame.
         Span<byte> fence = stackalloc byte[RbfLayout.FenceSize];
         if (reader.Read(fence, end - RbfLayout.FenceSize) != fence.Length || !fence.SequenceEqual(RbfLayout.Fence)) {
             return new RbfFramingError("Anchor tail Fence is missing or corrupted.");

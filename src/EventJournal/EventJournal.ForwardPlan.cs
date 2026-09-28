@@ -1,6 +1,4 @@
-using System.Buffers.Binary;
 using System.Diagnostics.CodeAnalysis;
-using Atelia.Data.Hashing;
 using Atelia.Rbf;
 
 namespace Atelia.EventJournal;
@@ -13,8 +11,6 @@ internal sealed class EphemeralForwardPlan {
     public required ulong EventCount { get; init; }
     public required IReadOnlyList<RouteRedirect> Redirects { get; init; }
 }
-
-internal sealed record RefForwardBinding(EventAddress BoundHead, EphemeralForwardPlan Plan);
 
 internal readonly record struct OptionalEphemeralForwardPlan {
     private readonly EphemeralForwardPlan? _value;
@@ -38,34 +34,17 @@ internal readonly record struct ForwardPlanCacheStats(
     ulong Misses,
     ulong PrefixHits,
     ulong Evictions,
-    ulong DiskHits,
-    ulong DiskWrites,
-    ulong TailMergeHits,
-    ulong TailMergeMisses
+    ulong ParentWalkReads
 );
 
 public sealed partial class EventJournal {
     internal int ForwardPlanCacheEntryCount => _forwardPlanCache.Count;
     internal ForwardPlanCacheStats ForwardPlanCacheStats => _forwardPlanCache.Stats;
 
+    internal long ForwardPlanCacheEstimatedBytes => _forwardPlanCache.EstimatedBytes;
+
     internal void EvictForwardPlan(EventAddress targetHead) {
         _forwardPlanCache.Remove(targetHead);
-        if (!_isReadOnly) {
-            TryDeleteCompiledForwardPlan(targetHead);
-        }
-
-        List<RefId>? refsToUnbind = null;
-        foreach (KeyValuePair<RefId, RefForwardBinding> pair in _forwardPlanBindings) {
-            if (pair.Value.BoundHead != targetHead) { continue; }
-
-            refsToUnbind ??= new List<RefId>();
-            refsToUnbind.Add(pair.Key);
-        }
-
-        if (refsToUnbind is null) { return; }
-        foreach (RefId refId in refsToUnbind) {
-            _forwardPlanBindings.Remove(refId);
-        }
     }
 
     public AteliaResult<IReadOnlyList<EventAddress>> ReadChronologicalChain(
@@ -83,171 +62,9 @@ public sealed partial class EventJournal {
 
         RefState state = stateResult.Unwrap();
         if (state.Closed) { return RefClosedError(refId); }
-        if (state.Head is not { } head) {
-            _forwardPlanBindings.Remove(refId);
-            return Array.Empty<EventAddress>();
-        }
+        if (state.Head is not { } head) { return Array.Empty<EventAddress>(); }
 
-        var planResult = GetOrBuildForwardPlanForRef(refId, head, maxDepth, detectCycles, cancellationToken);
-        if (planResult.IsFailure) { return planResult.Error!; }
-
-        EphemeralForwardPlan plan = planResult.Unwrap();
-        var replayResult = ReplayForwardPlanAddresses(plan, checkedRead, cancellationToken);
-        if (replayResult.IsFailure) {
-            EvictForwardPlan(plan.TargetHead);
-            _forwardPlanBindings.Remove(refId);
-        }
-
-        return replayResult;
-    }
-
-    private AteliaResult<EphemeralForwardPlan> GetOrBuildForwardPlanForRef(
-        RefId refId,
-        EventAddress head,
-        int? maxDepth,
-        bool detectCycles,
-        CancellationToken cancellationToken
-    ) {
-        if (_forwardPlanBindings.TryGetValue(refId, out RefForwardBinding? binding) && binding.BoundHead == head) {
-            if (ExceedsMaxDepth(binding.Plan.EventCount, maxDepth)) { return TraversalDepthExceededError(maxDepth.GetValueOrDefault(), "ref-bound forward plan"); }
-
-            return binding.Plan;
-        }
-
-        var cachedResult = TryGetCachedOrCompiledForwardPlan(head, maxDepth);
-        if (cachedResult.IsFailure) { return cachedResult.Error!; }
-
-        OptionalEphemeralForwardPlan optionalCached = cachedResult.Unwrap();
-        if (optionalCached.HasValue) {
-            EphemeralForwardPlan plan = optionalCached.Value;
-            _forwardPlanBindings[refId] = new RefForwardBinding(head, plan);
-            return plan;
-        }
-
-        if (binding is not null) {
-            var mergeResult = TryTailMergeForwardPlan(binding.Plan, head, maxDepth, cancellationToken);
-            if (mergeResult.IsFailure) { return mergeResult.Error!; }
-
-            OptionalEphemeralForwardPlan optionalMerged = mergeResult.Unwrap();
-            if (optionalMerged.HasValue) {
-                EphemeralForwardPlan mergedPlan = optionalMerged.Value;
-                _forwardPlanCache.RecordTailMergeHit();
-                CacheAndPersistForwardPlan(mergedPlan);
-                _forwardPlanBindings[refId] = new RefForwardBinding(head, mergedPlan);
-                return mergedPlan;
-            }
-
-            _forwardPlanCache.RecordTailMergeMiss();
-        }
-
-        _forwardPlanCache.RecordMiss();
-        var buildResult = BuildEphemeralForwardPlanCore(head, maxDepth, detectCycles, cancellationToken);
-        if (buildResult.IsFailure) { return buildResult.Error!; }
-
-        EphemeralForwardPlan builtPlan = buildResult.Unwrap();
-        CacheAndPersistForwardPlan(builtPlan);
-        _forwardPlanBindings[refId] = new RefForwardBinding(head, builtPlan);
-        return builtPlan;
-    }
-
-    private AteliaResult<OptionalEphemeralForwardPlan> TryTailMergeForwardPlan(
-        EphemeralForwardPlan oldPlan,
-        EventAddress newHead,
-        int? maxDepth,
-        CancellationToken cancellationToken
-    ) {
-        EventAddress oldCursor = oldPlan.TargetHead;
-        EventAddress newCursor = newHead;
-        ulong oldRemovedEventCount = 0;
-        ulong newSuffixEventCount = 0;
-        var newSuffixRedirectsReverse = new List<RouteRedirect>();
-
-        while (true) {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            if (oldCursor == newCursor) {
-                ulong oldPrefixEventCount = oldPlan.EventCount - oldRemovedEventCount;
-                ulong totalEventCount = checked(oldPrefixEventCount + newSuffixEventCount);
-                if (ExceedsMaxDepth(totalEventCount, maxDepth)) { return TraversalDepthExceededError(maxDepth.GetValueOrDefault(), "tail-merged forward plan"); }
-
-                return new OptionalEphemeralForwardPlan(
-                    BuildTailMergedForwardPlan(oldPlan, newHead, oldCursor, totalEventCount, newSuffixRedirectsReverse)
-                );
-            }
-
-            int comparison = ComparePhysicalCoordinate(oldCursor, newCursor);
-            if (comparison > 0) {
-                var oldHeaderResult = ReadEventHeaderPreview(oldCursor);
-                if (oldHeaderResult.IsFailure) { return OptionalEphemeralForwardPlan.None; }
-
-                EventFrameHeader oldHeader = oldHeaderResult.Unwrap();
-                if (oldHeader.Parent is not { } oldParent) { return OptionalEphemeralForwardPlan.None; }
-                if (ComparePhysicalCoordinate(oldParent, oldCursor) >= 0) { return OptionalEphemeralForwardPlan.None; }
-
-                oldRemovedEventCount++;
-                if (oldRemovedEventCount >= oldPlan.EventCount) { return OptionalEphemeralForwardPlan.None; }
-
-                oldCursor = oldParent;
-                continue;
-            }
-
-            if (comparison < 0) {
-                if (maxDepth is { } depthLimit && newSuffixEventCount >= (ulong)depthLimit) { return TraversalDepthExceededError(depthLimit, "tail-merge new suffix walk"); }
-
-                var newHeaderResult = ReadEventHeaderPreview(newCursor);
-                if (newHeaderResult.IsFailure) { return newHeaderResult.Error!; }
-
-                EventFrameHeader newHeader = newHeaderResult.Unwrap();
-                if (newHeader.Parent is not { } newParent) { return OptionalEphemeralForwardPlan.None; }
-                if (ComparePhysicalCoordinate(newParent, newCursor) >= 0) {
-                    return new EventJournalError(
-                        "ParentPhysicalOrderInvalid",
-                        "EventFrame parent must be physically earlier than its child.",
-                        "Inspect the EventFrame parent chain for corruption."
-                    );
-                }
-
-                if (!IsImplicitEdge(newParent, newCursor)) {
-                    newSuffixRedirectsReverse.Add(new RouteRedirect(newParent, newCursor));
-                }
-
-                newSuffixEventCount++;
-                newCursor = newParent;
-                continue;
-            }
-
-            return OptionalEphemeralForwardPlan.None;
-        }
-    }
-
-    private static EphemeralForwardPlan BuildTailMergedForwardPlan(
-        EphemeralForwardPlan oldPlan,
-        EventAddress newHead,
-        EventAddress common,
-        ulong totalEventCount,
-        List<RouteRedirect> newSuffixRedirectsReverse
-    ) {
-        int oldPrefixRedirectCount = 0;
-        while (oldPrefixRedirectCount < oldPlan.Redirects.Count
-            && ComparePhysicalCoordinate(oldPlan.Redirects[oldPrefixRedirectCount].ToChild, common) <= 0) {
-            oldPrefixRedirectCount++;
-        }
-
-        var redirects = new RouteRedirect[oldPrefixRedirectCount + newSuffixRedirectsReverse.Count];
-        for (int i = 0; i < oldPrefixRedirectCount; i++) {
-            redirects[i] = oldPlan.Redirects[i];
-        }
-
-        for (int i = 0; i < newSuffixRedirectsReverse.Count; i++) {
-            redirects[oldPrefixRedirectCount + i] = newSuffixRedirectsReverse[newSuffixRedirectsReverse.Count - 1 - i];
-        }
-
-        return new EphemeralForwardPlan {
-            RootEvent = oldPlan.RootEvent,
-            TargetHead = newHead,
-            EventCount = totalEventCount,
-            Redirects = redirects
-        };
+        return ReadChronologicalChain(head, checkedRead, maxDepth, detectCycles, cancellationToken);
     }
 
     internal AteliaResult<EphemeralForwardPlan> BuildEphemeralForwardPlan(
@@ -259,7 +76,7 @@ public sealed partial class EventJournal {
         ThrowIfDisposed();
         if (maxDepth is <= 0) { return MaxDepthInvalidError(maxDepth.Value); }
 
-        var cachedResult = TryGetCachedOrCompiledForwardPlan(head, maxDepth);
+        var cachedResult = TryGetCachedForwardPlan(head, maxDepth);
         if (cachedResult.IsFailure) { return cachedResult.Error!; }
 
         OptionalEphemeralForwardPlan optionalCached = cachedResult.Unwrap();
@@ -270,11 +87,11 @@ public sealed partial class EventJournal {
         if (buildResult.IsFailure) { return buildResult.Error!; }
 
         EphemeralForwardPlan plan = buildResult.Unwrap();
-        CacheAndPersistForwardPlan(plan);
+        _forwardPlanCache.AddOrReplace(plan);
         return plan;
     }
 
-    private AteliaResult<OptionalEphemeralForwardPlan> TryGetCachedOrCompiledForwardPlan(EventAddress head, int? maxDepth) {
+    private AteliaResult<OptionalEphemeralForwardPlan> TryGetCachedForwardPlan(EventAddress head, int? maxDepth) {
         if (_forwardPlanCache.TryGet(head, out EphemeralForwardPlan? cachedPlan)) {
             if (ExceedsMaxDepth(cachedPlan.EventCount, maxDepth)) { return TraversalDepthExceededError(maxDepth.GetValueOrDefault(), "cached forward plan"); }
 
@@ -282,30 +99,12 @@ public sealed partial class EventJournal {
             return new OptionalEphemeralForwardPlan(cachedPlan);
         }
 
-        if (!_isReadOnly) {
-            var diskLoadResult = TryLoadCompiledForwardPlan(head);
-            if (diskLoadResult.IsFailure) { return diskLoadResult.Error!; }
-            OptionalEphemeralForwardPlan optionalDiskPlan = diskLoadResult.Unwrap();
-            if (optionalDiskPlan.HasValue) {
-                EphemeralForwardPlan diskPlan = optionalDiskPlan.Value;
-                if (ExceedsMaxDepth(diskPlan.EventCount, maxDepth)) { return TraversalDepthExceededError(maxDepth.GetValueOrDefault(), "compiled forward plan"); }
-
-                _forwardPlanCache.AddOrReplace(diskPlan);
-                _forwardPlanCache.RecordDiskHit();
-                return new OptionalEphemeralForwardPlan(diskPlan);
-            }
-        }
-
         return OptionalEphemeralForwardPlan.None;
     }
 
-    private void CacheAndPersistForwardPlan(EphemeralForwardPlan plan) {
-        _forwardPlanCache.AddOrReplace(plan);
-        if (!_isReadOnly && TrySaveCompiledForwardPlan(plan)) {
-            _forwardPlanCache.RecordDiskWrite();
-        }
-    }
-
+    // A cold full replay first walks authoritative Parent links, then replays the plan.
+    // Cache budgets bound retained plans only: redirects, cycle detection and the returned
+    // chronological list can each require O(N) temporary/output space.
     private AteliaResult<EphemeralForwardPlan> BuildEphemeralForwardPlanCore(
         EventAddress head,
         int? maxDepth,
@@ -354,6 +153,7 @@ public sealed partial class EventJournal {
                 );
             }
 
+            _forwardPlanCache.RecordParentWalkRead();
             var childHeaderResult = ReadEventHeaderPreview(child);
             if (childHeaderResult.IsFailure) { return childHeaderResult.Error!; }
 
@@ -524,7 +324,7 @@ public sealed partial class EventJournal {
         "Increase maxDepth or inspect the parent chain for unexpectedly long history."
     );
 
-    private sealed class ForwardPlanCache {
+    internal sealed class ForwardPlanCache {
         private const long BasePlanEstimatedBytes = 128;
         private const long RedirectEstimatedBytes = 32;
 
@@ -537,10 +337,7 @@ public sealed partial class EventJournal {
         private ulong _misses;
         private ulong _prefixHits;
         private ulong _evictions;
-        private ulong _diskHits;
-        private ulong _diskWrites;
-        private ulong _tailMergeHits;
-        private ulong _tailMergeMisses;
+        private ulong _parentWalkReads;
 
         internal ForwardPlanCache(int maxEntries, long maxEstimatedBytes) {
             _maxEntries = maxEntries;
@@ -548,7 +345,8 @@ public sealed partial class EventJournal {
         }
 
         internal int Count => _entries.Count;
-        internal ForwardPlanCacheStats Stats => new(_exactHits, _misses, _prefixHits, _evictions, _diskHits, _diskWrites, _tailMergeHits, _tailMergeMisses);
+        internal long EstimatedBytes => _estimatedBytes;
+        internal ForwardPlanCacheStats Stats => new(_exactHits, _misses, _prefixHits, _evictions, _parentWalkReads);
 
         internal bool TryGet(EventAddress targetHead, [NotNullWhen(true)] out EphemeralForwardPlan? plan) {
             if (_entries.TryGetValue(targetHead, out LinkedListNode<Entry>? node)) {
@@ -560,6 +358,10 @@ public sealed partial class EventJournal {
 
             plan = null;
             return false;
+        }
+
+        internal void RecordParentWalkRead() {
+            _parentWalkReads++;
         }
 
         internal void RecordMiss() {
@@ -574,20 +376,10 @@ public sealed partial class EventJournal {
             _prefixHits++;
         }
 
-        internal void RecordDiskHit() {
-            _diskHits++;
-        }
-
-        internal void RecordDiskWrite() {
-            _diskWrites++;
-        }
-
-        internal void RecordTailMergeHit() {
-            _tailMergeHits++;
-        }
-
-        internal void RecordTailMergeMiss() {
-            _tailMergeMisses++;
+        internal void Clear() {
+            _entries.Clear();
+            _lru.Clear();
+            _estimatedBytes = 0;
         }
 
         internal void AddOrReplace(EphemeralForwardPlan plan) {
@@ -635,199 +427,5 @@ public sealed partial class EventJournal {
             BasePlanEstimatedBytes + plan.Redirects.Count * RedirectEstimatedBytes;
 
         private sealed record Entry(EphemeralForwardPlan Plan, long EstimatedBytes);
-    }
-
-    private AteliaResult<OptionalEphemeralForwardPlan> TryLoadCompiledForwardPlan(EventAddress head) {
-        string path = CompiledForwardPlanPath(head);
-        if (!File.Exists(path)) { return OptionalEphemeralForwardPlan.None; }
-
-        try {
-            byte[] bytes = File.ReadAllBytes(path);
-            var decodeResult = ForwardPlanCompiledCacheCodec.Decode(bytes, head);
-            if (decodeResult.IsFailure) {
-                TryDeleteFile(path);
-                return OptionalEphemeralForwardPlan.None;
-            }
-
-            EphemeralForwardPlan plan = decodeResult.Unwrap();
-            var headerResult = ReadEventHeaderPreview(plan.TargetHead);
-            if (headerResult.IsFailure) {
-                TryDeleteFile(path);
-                return OptionalEphemeralForwardPlan.None;
-            }
-
-            return new OptionalEphemeralForwardPlan(plan);
-        }
-        catch (Exception ex) when (IsCompiledCacheException(ex)) {
-            TryDeleteFile(path);
-            return OptionalEphemeralForwardPlan.None;
-        }
-    }
-
-    private bool TrySaveCompiledForwardPlan(EphemeralForwardPlan plan) {
-        try {
-            Directory.CreateDirectory(_forwardPlanCachePath);
-            string finalPath = CompiledForwardPlanPath(plan.TargetHead);
-            string tempPath = finalPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            byte[] bytes = ForwardPlanCompiledCacheCodec.Encode(plan);
-
-            using (var stream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None)) {
-                stream.Write(bytes);
-                stream.Flush(flushToDisk: true);
-            }
-
-            File.Move(tempPath, finalPath, overwrite: true);
-            return true;
-        }
-        catch (Exception ex) when (IsCompiledCacheException(ex)) {
-            return false;
-        }
-    }
-
-    private void TryDeleteCompiledForwardPlan(EventAddress targetHead) {
-        TryDeleteFile(CompiledForwardPlanPath(targetHead));
-    }
-
-    private string CompiledForwardPlanPath(EventAddress targetHead) {
-        string fileName = $"s{targetHead.SegmentNumber:x8}-t{targetHead.Ticket.Packed:x16}-h{targetHead.Hint.Packed:x8}.efplan";
-        return Path.Combine(_forwardPlanCachePath, fileName);
-    }
-
-    private static void TryDeleteFile(string path) {
-        try {
-            if (File.Exists(path)) { File.Delete(path); }
-        }
-        catch {
-            // Best-effort cleanup: compiled cache files are disposable.
-        }
-    }
-
-    private static bool IsCompiledCacheException(Exception ex) =>
-        ex is IOException or UnauthorizedAccessException or InvalidDataException or ArgumentException or NotSupportedException or OverflowException;
-
-    private static class ForwardPlanCompiledCacheCodec {
-        private const uint Magic = 0x5046_4A45; // "EJFP" as little-endian bytes.
-        private const uint FormatVersion = 1;
-        private const uint PolicyVersion = 1;
-        private const int FixedHeaderLength =
-            sizeof(uint) + sizeof(uint) + sizeof(uint) + sizeof(uint) +
-            EventAddressCodec.EventAddressLength +
-            EventAddressCodec.EventAddressLength +
-            sizeof(ulong) +
-            sizeof(uint);
-        private const int CrcLength = sizeof(uint);
-        private const int RedirectLength = EventAddressCodec.EventAddressLength * 2;
-
-        internal static byte[] Encode(EphemeralForwardPlan plan) {
-            checked {
-                int length = FixedHeaderLength + plan.Redirects.Count * RedirectLength + CrcLength;
-                byte[] bytes = new byte[length];
-                Span<byte> span = bytes;
-                int offset = 0;
-
-                WriteUInt32(span, ref offset, Magic);
-                WriteUInt32(span, ref offset, FormatVersion);
-                WriteUInt32(span, ref offset, PolicyVersion);
-                WriteUInt32(span, ref offset, 0);
-                WriteAddress(span, ref offset, plan.TargetHead);
-                WriteAddress(span, ref offset, plan.RootEvent);
-                WriteUInt64(span, ref offset, plan.EventCount);
-                WriteUInt32(span, ref offset, (uint)plan.Redirects.Count);
-
-                foreach (RouteRedirect redirect in plan.Redirects) {
-                    WriteAddress(span, ref offset, redirect.FromEvent);
-                    WriteAddress(span, ref offset, redirect.ToChild);
-                }
-
-                uint crc = RollingCrc.CrcForward(span[..offset]);
-                WriteUInt32(span, ref offset, crc);
-                return bytes;
-            }
-        }
-
-        internal static AteliaResult<EphemeralForwardPlan> Decode(ReadOnlySpan<byte> bytes, EventAddress expectedHead) {
-            if (bytes.Length < FixedHeaderLength + CrcLength) { return InvalidCompiledCache("Compiled ForwardPlan cache file is too short."); }
-
-            uint actualCrc = BinaryPrimitives.ReadUInt32LittleEndian(bytes[^CrcLength..]);
-            uint expectedCrc = RollingCrc.CrcForward(bytes[..^CrcLength]);
-            if (actualCrc != expectedCrc) { return InvalidCompiledCache("Compiled ForwardPlan cache CRC mismatch."); }
-
-            int offset = 0;
-            uint magic = ReadUInt32(bytes, ref offset);
-            uint formatVersion = ReadUInt32(bytes, ref offset);
-            uint policyVersion = ReadUInt32(bytes, ref offset);
-            _ = ReadUInt32(bytes, ref offset);
-            if (magic != Magic || formatVersion != FormatVersion || policyVersion != PolicyVersion) { return InvalidCompiledCache("Compiled ForwardPlan cache format or policy version does not match this implementation."); }
-
-            var targetResult = ReadAddress(bytes, ref offset);
-            if (targetResult.IsFailure) { return targetResult.Error!; }
-            EventAddress targetHead = targetResult.Unwrap();
-            if (targetHead != expectedHead) { return InvalidCompiledCache("Compiled ForwardPlan cache target head does not match requested head."); }
-
-            var rootResult = ReadAddress(bytes, ref offset);
-            if (rootResult.IsFailure) { return rootResult.Error!; }
-            EventAddress rootEvent = rootResult.Unwrap();
-            ulong eventCount = ReadUInt64(bytes, ref offset);
-            uint redirectCount = ReadUInt32(bytes, ref offset);
-            if (eventCount == 0) { return InvalidCompiledCache("Compiled ForwardPlan cache has zero EventCount."); }
-
-            int expectedLength = checked(FixedHeaderLength + (int)redirectCount * RedirectLength + CrcLength);
-            if (bytes.Length != expectedLength) { return InvalidCompiledCache("Compiled ForwardPlan cache length does not match RedirectCount."); }
-
-            var redirects = new RouteRedirect[redirectCount];
-            for (int i = 0; i < redirects.Length; i++) {
-                var fromResult = ReadAddress(bytes, ref offset);
-                if (fromResult.IsFailure) { return fromResult.Error!; }
-                var toResult = ReadAddress(bytes, ref offset);
-                if (toResult.IsFailure) { return toResult.Error!; }
-                redirects[i] = new RouteRedirect(fromResult.Unwrap(), toResult.Unwrap());
-            }
-
-            return new EphemeralForwardPlan {
-                RootEvent = rootEvent,
-                TargetHead = targetHead,
-                EventCount = eventCount,
-                Redirects = redirects
-            };
-        }
-
-        private static void WriteAddress(Span<byte> destination, ref int offset, EventAddress address) {
-            EventAddressCodec.Encode(address, destination.Slice(offset, EventAddressCodec.EventAddressLength));
-            offset += EventAddressCodec.EventAddressLength;
-        }
-
-        private static AteliaResult<EventAddress> ReadAddress(ReadOnlySpan<byte> source, ref int offset) {
-            var result = EventAddressCodec.Decode(source.Slice(offset, EventAddressCodec.EventAddressLength));
-            offset += EventAddressCodec.EventAddressLength;
-            return result;
-        }
-
-        private static void WriteUInt32(Span<byte> destination, ref int offset, uint value) {
-            BinaryPrimitives.WriteUInt32LittleEndian(destination.Slice(offset, sizeof(uint)), value);
-            offset += sizeof(uint);
-        }
-
-        private static void WriteUInt64(Span<byte> destination, ref int offset, ulong value) {
-            BinaryPrimitives.WriteUInt64LittleEndian(destination.Slice(offset, sizeof(ulong)), value);
-            offset += sizeof(ulong);
-        }
-
-        private static uint ReadUInt32(ReadOnlySpan<byte> source, ref int offset) {
-            uint value = BinaryPrimitives.ReadUInt32LittleEndian(source.Slice(offset, sizeof(uint)));
-            offset += sizeof(uint);
-            return value;
-        }
-
-        private static ulong ReadUInt64(ReadOnlySpan<byte> source, ref int offset) {
-            ulong value = BinaryPrimitives.ReadUInt64LittleEndian(source.Slice(offset, sizeof(ulong)));
-            offset += sizeof(ulong);
-            return value;
-        }
-
-        private static EventJournalError InvalidCompiledCache(string message) => new(
-            "ForwardPlanCompiledCacheInvalid",
-            message,
-            "Delete the compiled cache file and rebuild the ForwardPlan from the parent chain."
-        );
     }
 }

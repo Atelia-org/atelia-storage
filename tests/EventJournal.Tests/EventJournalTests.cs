@@ -501,7 +501,7 @@ public sealed class EventJournalTests : IDisposable {
     }
 
     [Fact]
-    public void CompiledForwardPlanCache_ReopenLoadsDiskPlanForExactHead() {
+    public void ForwardPlanCache_ReopenBuildsColdPlanWithoutDiskCache() {
         string path = NewJournalPath();
         EventAddress root;
         EventAddress head;
@@ -510,19 +510,23 @@ public sealed class EventJournalTests : IDisposable {
             root = journal.AppendEventFrame(null, new byte[] { 1 }, hint: new AddressHint(0x10)).Unwrap();
             head = journal.AppendEventFrame(root, new byte[] { 2 }, hint: new AddressHint(0x20)).Unwrap();
             _ = journal.ReadChronologicalChain(head).Unwrap();
-            Assert.Equal<ulong>(1, journal.ForwardPlanCacheStats.DiskWrites);
+            Assert.Equal<ulong>(2, journal.ForwardPlanCacheStats.ParentWalkReads);
+            _ = journal.ReadChronologicalChain(head).Unwrap();
+            Assert.Equal<ulong>(2, journal.ForwardPlanCacheStats.ParentWalkReads);
+            Assert.False(Directory.Exists(Path.Combine(path, "cache")));
         }
 
         using var reopened = EventJournal.OpenExisting(path);
         IReadOnlyList<EventAddress> chronological = reopened.ReadChronologicalChain(head).Unwrap();
 
         Assert.Equal(new[] { root, head }, chronological);
-        Assert.Equal<ulong>(1, reopened.ForwardPlanCacheStats.DiskHits);
-        Assert.Equal<ulong>(0, reopened.ForwardPlanCacheStats.Misses);
+        Assert.Equal<ulong>(2, reopened.ForwardPlanCacheStats.ParentWalkReads);
+        Assert.Equal<ulong>(1, reopened.ForwardPlanCacheStats.Misses);
+        Assert.False(Directory.Exists(Path.Combine(path, "cache")));
     }
 
     [Fact]
-    public void CompiledForwardPlanCache_ReadByRefUsesCurrentHeadAndMissesAfterMove() {
+    public void ForwardPlanCache_ReadByRefUsesCurrentHeadAfterColdReopen() {
         string path = NewJournalPath();
         RefId main;
         EventAddress root;
@@ -542,13 +546,12 @@ public sealed class EventJournalTests : IDisposable {
         IReadOnlyList<EventAddress> chronological = reopened.ReadChronologicalChain(main).Unwrap();
 
         Assert.Equal(new[] { root, oldHead, newHead }, chronological);
-        Assert.Equal<ulong>(0, reopened.ForwardPlanCacheStats.DiskHits);
         Assert.Equal<ulong>(1, reopened.ForwardPlanCacheStats.Misses);
-        Assert.Equal<ulong>(1, reopened.ForwardPlanCacheStats.DiskWrites);
+        Assert.False(Directory.Exists(Path.Combine(path, "cache")));
     }
 
     [Fact]
-    public void CompiledForwardPlanCache_CorruptFileIsDeletedAndRebuilt() {
+    public void ForwardPlanCache_LegacyCorruptFileIsIgnoredAndPreserved() {
         string path = NewJournalPath();
         EventAddress head;
 
@@ -558,22 +561,23 @@ public sealed class EventJournalTests : IDisposable {
             _ = journal.ReadChronologicalChain(head).Unwrap();
         }
 
-        string cacheFile = Directory.GetFiles(Path.Combine(path, "cache", "forward-plans", "v1"), "*.efplan").Single();
-        byte[] bytes = File.ReadAllBytes(cacheFile);
-        bytes[^1] ^= 0xFF;
+        string cacheDirectory = Path.Combine(path, "cache", "forward-plans", "v1");
+        Directory.CreateDirectory(cacheDirectory);
+        string cacheFile = Path.Combine(cacheDirectory,
+            $"s{head.SegmentNumber:x8}-t{head.Ticket.Packed:x16}-h{head.Hint.Packed:x8}.efplan");
+        byte[] bytes = { 0xFF, 0x00, 0x42 };
         File.WriteAllBytes(cacheFile, bytes);
 
         using var reopened = EventJournal.OpenExisting(path);
         _ = reopened.ReadChronologicalChain(head).Unwrap();
 
-        Assert.Equal<ulong>(0, reopened.ForwardPlanCacheStats.DiskHits);
         Assert.Equal<ulong>(1, reopened.ForwardPlanCacheStats.Misses);
-        Assert.Equal<ulong>(1, reopened.ForwardPlanCacheStats.DiskWrites);
-        Assert.True(File.Exists(cacheFile));
+        Assert.Equal(bytes, File.ReadAllBytes(cacheFile));
+        Assert.Single(Directory.GetFiles(cacheDirectory));
     }
 
     [Fact]
-    public void ForwardPlanTailMerge_ReadByRefAppendsSuffixFromBoundPlan() {
+    public void ForwardPlanCache_ReadByRefAppendsSuffixFromCachedPrefix() {
         string path = NewJournalPath();
         using var journal = EventJournal.CreateNew(path);
 
@@ -589,12 +593,12 @@ public sealed class EventJournalTests : IDisposable {
         IReadOnlyList<EventAddress> chronological = journal.ReadChronologicalChain(main).Unwrap();
 
         Assert.Equal(new[] { root, oldHead, newHead }, chronological);
-        Assert.Equal<ulong>(1, journal.ForwardPlanCacheStats.TailMergeHits);
-        Assert.Equal<ulong>(1, journal.ForwardPlanCacheStats.Misses);
+        Assert.Equal<ulong>(1, journal.ForwardPlanCacheStats.PrefixHits);
+        Assert.Equal<ulong>(2, journal.ForwardPlanCacheStats.Misses);
     }
 
     [Fact]
-    public void ForwardPlanTailMerge_ReadByRefRewindsToAncestorByTrimmingOldSuffix() {
+    public void ForwardPlanCache_ReadByRefRewindsToAncestor() {
         string path = NewJournalPath();
         using var journal = EventJournal.CreateNew(path);
 
@@ -609,11 +613,11 @@ public sealed class EventJournalTests : IDisposable {
         IReadOnlyList<EventAddress> chronological = journal.ReadChronologicalChain(main).Unwrap();
 
         Assert.Equal(new[] { root, middle }, chronological);
-        Assert.Equal<ulong>(1, journal.ForwardPlanCacheStats.TailMergeHits);
+        Assert.Equal<ulong>(2, journal.ForwardPlanCacheStats.Misses);
     }
 
     [Fact]
-    public void ForwardPlanTailMerge_ReadByRefRewindsThenForksAtCommonAncestor() {
+    public void ForwardPlanCache_ReadByRefRetargetsAtCommonAncestor() {
         string path = NewJournalPath();
         using var journal = EventJournal.CreateNew(path);
 
@@ -631,11 +635,11 @@ public sealed class EventJournalTests : IDisposable {
         IReadOnlyList<EventAddress> chronological = journal.ReadChronologicalChain(main, checkedRead: true).Unwrap();
 
         Assert.Equal(new[] { root, shared, newMiddle, newHead }, chronological);
-        Assert.Equal<ulong>(1, journal.ForwardPlanCacheStats.TailMergeHits);
+        Assert.Equal<ulong>(2, journal.ForwardPlanCacheStats.Misses);
     }
 
     [Fact]
-    public void ForwardPlanTailMerge_DoesNotTreatEarlierOrphanSiblingAsCommonPoint() {
+    public void ForwardPlanCache_ReadByRefSelectsEarlierOrphanSiblingPath() {
         string path = NewJournalPath();
         using var journal = EventJournal.CreateNew(path);
 
@@ -656,7 +660,7 @@ public sealed class EventJournalTests : IDisposable {
         Assert.Equal(new[] { root, shared, orphanSibling, newHead }, chronological);
         Assert.DoesNotContain(oldPathMiddle, chronological);
         Assert.DoesNotContain(oldHead, chronological);
-        Assert.Equal<ulong>(1, journal.ForwardPlanCacheStats.TailMergeHits);
+        Assert.Equal<ulong>(2, journal.ForwardPlanCacheStats.Misses);
     }
 
     [Fact]

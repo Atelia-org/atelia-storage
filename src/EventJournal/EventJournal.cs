@@ -13,14 +13,11 @@ public sealed partial class EventJournal : IDisposable {
     private readonly IRbfFile _refOpLog;
     private readonly bool _isReadOnly;
     private readonly string _refObjectsPath;
-    private readonly string _forwardPlanCachePath;
     private readonly Dictionary<string, RefId> _branches;
     private readonly Dictionary<RefId, string> _activeRefNames = new();
     private long _catalogSnapshotLiveCount;
     private long _catalogSuffixCount;
-    private readonly Dictionary<RefId, RefState> _refStates = new();
     private readonly ForwardPlanCache _forwardPlanCache = new(maxEntries: 4096, maxEstimatedBytes: 16 * 1024 * 1024);
-    private readonly Dictionary<RefId, RefForwardBinding> _forwardPlanBindings = new();
     private ulong _nextSequenceNumber;
     private bool _disposed;
     private bool _faulted;
@@ -47,7 +44,6 @@ public sealed partial class EventJournal : IDisposable {
         _refOpLog = refOpLog;
         _isReadOnly = isReadOnly;
         _refObjectsPath = RefObjectsDirectory(JournalPath);
-        _forwardPlanCachePath = ForwardPlanCacheDirectory(JournalPath);
         _branches = branches;
         _tags = tags;
         foreach (var entry in branches) { _activeRefNames.Add(entry.Value, entry.Key); }
@@ -449,12 +445,20 @@ public sealed partial class EventJournal : IDisposable {
     public void Dispose() {
         if (_disposed) { return; }
         _disposed = true;
-        try { _refOpLog.Dispose(); }
-        finally { _segments.Dispose(); }
+        _forwardPlanCache.Clear();
+        _activeRefNames.Clear();
+        var errors = new List<Exception>();
+        foreach (var entry in _refEntries.Values) {
+            try { entry.Value.Store.Dispose(); } catch (Exception ex) { errors.Add(ex); }
+        }
+        _refEntries.Clear();
+        _refLru.Clear();
+        try { _refOpLog.Dispose(); } catch (Exception ex) { errors.Add(ex); }
+        try { _segments.Dispose(); } catch (Exception ex) { errors.Add(ex); }
+        if (errors.Count != 0) { throw new AggregateException(errors); }
     }
 
     private static string EventsStorePath(string journalPath) => Path.Combine(journalPath, "events");
-    private static string ForwardPlanCacheDirectory(string journalPath) => Path.Combine(journalPath, "cache", "forward-plans", "v1");
 
     private static ulong ComputeNextSequenceNumber(
         RbfSegmentStore.RbfSegmentStore segments,

@@ -4,6 +4,9 @@ using Atelia.Rbf;
 namespace Atelia.EventJournal;
 
 public sealed class EventJournalOptions {
+    /// <summary>Maximum retained ref state/store entries; zero disables retention.</summary>
+    public int RefStoreCacheCapacity { get; init; } = 32;
+
     public int MaxLogicalPayloadLength { get; init; } = RbfFile.MaxPayloadAndMetaLength - EventFrameHeaderCodec.FixedLength;
 
     public EventPayloadCodecPolicy PayloadCodecPolicy { get; init; } = EventPayloadCodecPolicy.Identity;
@@ -21,11 +24,13 @@ public sealed class EventJournalOptions {
     public RefOpLogOptions RefOpLogOptions { get; init; } = new();
 
     internal EventJournalOptions Normalized() {
+        if (RefStoreCacheCapacity < 0) { throw new ArgumentOutOfRangeException(nameof(RefStoreCacheCapacity)); }
         RefOpLogOptions.Validated();
         ValidateMaxLogicalPayloadLength(MaxLogicalPayloadLength);
         if (EventPayloadCodec.ValidatePolicy(PayloadCodecPolicy) is { } policyError) { throw new ArgumentException(policyError.Message, nameof(PayloadCodecPolicy)); }
 
         return new EventJournalOptions {
+            RefStoreCacheCapacity = RefStoreCacheCapacity,
             MaxLogicalPayloadLength = MaxLogicalPayloadLength,
             PayloadCodecPolicy = PayloadCodecPolicy,
             EventSegmentStoreOptions = WithLayout(EventSegmentStoreOptions, RbfSegmentStoreLayout.Bucketed),

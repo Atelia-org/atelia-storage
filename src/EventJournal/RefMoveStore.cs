@@ -20,6 +20,8 @@ internal sealed class RefMoveStore : IDisposable {
         _segments = segments;
     }
 
+    internal bool IsDisposed => _disposed;
+    internal Action? DisposeProbe { get; set; }
     internal RefId RefId { get; }
     internal uint ActiveSegmentNumber => _segments.ActiveSegmentNumber;
 
@@ -206,7 +208,8 @@ internal sealed class RefMoveStore : IDisposable {
     public void Dispose() {
         if (_disposed) { return; }
         _disposed = true;
-        _segments.Dispose();
+        try { _segments.Dispose(); }
+        finally { DisposeProbe?.Invoke(); }
     }
 
     internal static string GetObjectPath(string refObjectsRootPath, RefId refId) {
