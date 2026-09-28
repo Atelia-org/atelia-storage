@@ -129,10 +129,10 @@ ref entry持有store，不持有跨调用writer lease。LRU eviction/Dispose尝�
 控制操作顺序：
 
 1. 检查名称/目标/CAS/sequence溢出，预分配可知长度的frame缓冲、预备正反索引容量。Create/Fork的RefId必须由allocation Append返回；之后回填预分配的Init/Bind缓冲，不预测ticket、不增加dry-run API。路径字符串/对象创建等后续分配仍可能失败，按fault/orphan协议处理，不声称所有后半段异常已被前置消除。
-2. checked计算Lnext/r与完整操作空间；每个计划frame的起始offset≤SizedPtr.MaxOffset。不能只查第一次append，亦不能错误要求最终含Fence tail≤MaxOffset。
+2. checked计算Lnext/r与完整操作空间；每个计划frame的起始offset≤SizedPtr.MaxOffset。不能只查第一次append，亦不能错误要求最终含Fence tail≤MaxOffset。完整控制操作容量不足返回`EventJournal.RefOpCapacityExhausted`的业务Result，不写、不触发checkpoint、不fault，可由调用方处理；不为了沿用旧单次Append的内部RBF错误类型新增公共接口。
 3. 在本次第一处业务写入之前，按`d+r>max(1024,L0)`或`L0>2*max(1024,Lnext)`执行checkpoint。Archive必须先checkpoint再Close；Create/Fork必须先checkpoint再allocation。
 4. checkpoint：确认既有op-log durable→取得精确boundary见证→流式写temp→Flush(true)/close→同目录原子replace→安装L0/Q/d。失败fault；本次tag为NotAttempted。不使用delete目标再move。
-5. 非空业务目标确认durable后，Create/Fork：allocation append+flush→object/locator→Init append+flush→Bind append+flush→内存安装；Archive：Close append+flush→Archive append+flush→内存解绑；Move/Advance：move append+flush→内存安装。
+5. 非空业务目标确认durable后，Create/Fork：allocation append+flush→object/locator→Init append+flush→Bind append+flush→内存安装；单driver串行操作使allocation与Bind在op-log中物理相邻，Bind的起点必须等于allocation含Fence的结束位置，字段与allocation身份信息一致。这是T04按现有发布顺序收口的局部验证规则，拒绝在Archive之后重放旧Bind，不引入历史knownRefs；Archive：Close append+flush→Archive append+flush→内存解绑；Move/Advance：move append+flush→内存安装。
 6. Tag：Append调用前NotAttempted，开始Append为Unknown，日志flush返回即Confirmed，随后内存安装失败不降级。成功之后无额外强制checkpoint。确定的RBF前置Result拒绝没有I/O，不等同异常的Unknown。
 7. 每个成功durable的控制frame更新实际d；一旦异常不继续运行补计数。snapshot记录的是checkpoint当时的已发布状态，不能预写尚未完成的业务效果。
 

@@ -76,6 +76,15 @@ internal sealed class RefMoveStore : IDisposable {
         Span<byte> payload = stackalloc byte[RefMoveFrameCodec.FixedLength];
         RefMoveFrameCodec.Encode(in move, payload);
 
+        return AppendPreparedMove(in move, payload);
+    }
+
+    // Caller can prepare the known-size buffer before catalog checkpoint/allocation publication.
+    internal AteliaResult<FrameAddress> AppendPreparedMove(scoped in RefMoveFrame move, scoped ReadOnlySpan<byte> payload) {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (move.RefId != RefId || payload.Length != RefMoveFrameCodec.FixedLength) {
+            throw new ArgumentException("Prepared move does not belong to this object or has invalid length.");
+        }
         using var lease = _segments.OpenActiveWriter();
         var appendResult = lease.File.Append(EventJournal.RefMoveFrameTag, payload);
         if (appendResult.IsFailure) { return appendResult.Error!; }

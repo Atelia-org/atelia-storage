@@ -113,10 +113,11 @@ public static class RefOpFrameCodec {
         }
 
         uint flags = BinaryPrimitives.ReadUInt32LittleEndian(payload[12..16]);
-        if ((flags & ~KnownFlags) != 0) {
+        if ((flags & ~KnownFlags) != 0 || payload[54..56].ContainsAnyExcept((byte)0)
+            || payload[88..96].ContainsAnyExcept((byte)0)) {
             return new EventJournalError(
                 "RefOpFlagsUnsupported",
-                $"RefOpFrame has unsupported flags 0x{flags & ~KnownFlags:X8}.",
+                $"RefOpFrame has unsupported flags 0x{flags & ~KnownFlags:X8} or nonzero reserved bytes.",
                 "Open this journal with an implementation that understands these flags."
             );
         }
@@ -128,6 +129,11 @@ public static class RefOpFrameCodec {
                 $"RefOpFrame branch name length {branchNameLength} does not match payload length {payload.Length}.",
                 "Treat this ref-op-log frame as corrupted."
             );
+        }
+
+        if (((flags & HasRefIdFlag) != 0) != (BinaryPrimitives.ReadUInt64LittleEndian(payload[16..24]) != 0)
+            || ((flags & HasSourceRefIdFlag) != 0) != (BinaryPrimitives.ReadUInt64LittleEndian(payload[24..32]) != 0)) {
+            return new EventJournalError("RefOpRefIdFlagMismatch", "RefId presence flags disagree with their encoded packed values.");
         }
 
         RefId refId = DecodeOptionalRefId(payload[16..24], flags, HasRefIdFlag);

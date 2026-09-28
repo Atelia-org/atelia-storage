@@ -1,6 +1,6 @@
 # EventJournal v2：task 级实施与调度工单
 
-日期：2026-09-29。状态：**实施中；T00–T03 Passed；T04 待派发，依次放行任务**。
+日期：2026-09-29。状态：**实施中；T00–T04 Passed；T05 待派发，依次放行任务**。
 基线：`bb7c4fb3eb6477783c70ee61bc62b832be195d07`。设计基线保持不变；用户于本轮明确授权按本工单完整实施并按需 Git 提交。网络发布、真实数据迁移和兄弟仓修改不在范围内。
 
 目标：保持 Event/Parent、exact RefId、CAS、reflog、不可变 tag 语义；固定当前工作集时，日常打开和 ref 更新不再扫描累计历史。新格式拒绝旧目录，完整校验独立离线执行。
@@ -39,7 +39,7 @@
 | T01 | RBF边界起扫与确定性尾帧读取 | T00 | gpt-6-sol | 不读prefix、不吞短尾 | Passed |
 | T02 | locator生命周期、严格打开、轮转/fault | T01 | gpt-6-sol | gpt-6-astra审发布窗口 | Passed（Linux；Windows Pending） |
 | T03 | EventJournal格式门、尾读sequence/ref、tag局部验证 | T02 | gpt-6-sol | gpt-6-astra审身份/故障语义 | Passed |
-| T04 | catalog snapshot、有界suffix、缩容与发布 | T03 | gpt-6-sol | gpt-6-astra审预算/三态 | NotStarted |
+| T04 | catalog snapshot、有界suffix、缩容与发布 | T03 | gpt-6-sol | gpt-6-astra审预算/三态 | Passed |
 | T05 | 有界ref entry与单一ForwardPlan缓存 | T04 | gpt-6-sol | 调度主线程检查强引用/Dispose | NotStarted |
 | T06 | 离线audit与健康事实索引候选重建 | T04，集成前T05 | gpt-6-sol | gpt-6-astra审重建拒绝边界 | NotStarted |
 | T07 | 故障/规模证据、消费者合同与源码收口 | T05、T06 | gpt-6-sol | astra一次跨层终审 | NotStarted |
@@ -248,3 +248,11 @@ $candidateSmoke = Join-Path ([IO.Path]::GetTempPath()) ("atelia-v2-smoke-" + [Gu
 - T03 调度细分：同一任务内按不重叠文件分片，sol负责format/snapshot及EventJournal主入口，主线程负责RefMoveStore首末读取及独立测试；主线程分片已交接。只有sol运行.NET，未并行构建。
 
 - T03：v2 format最后发布、共享流式snapshot codec、真实public branch/tag向量、event尾序号、ref allocation+Init+末move、当前target懒验证及统一fault完成。astra两项finding（未知ref格式降类、CommitToRef已知move耗尽仍append）已修并有针对性回归；主线程核验实际diff。Release EventJournal 110/110，增量build 0 warnings/errors，`git diff --check`通过；日志 `/tmp/t03-{build,test}.log`。历史坏move/target不阻止无关daily读取，显式reflog或直接target读取仍失败。旧自动recovery与eager helper已删。catalog仍全量回放，仅T03阶段通过，不代表成本目标完成；T04须复用snapshot解码结果。
+
+- T04 实施校准：snapshot要求ordinal排序，现Dictionary写出实际为O(L log L) CPU、O(L)字节/辅助空间；综合方案已据此修正延迟表述。历史增长维度仍被消除，不为旧O(L)笼统表述引入额外索引。
+
+- T04 门内裁决：按既有单driver串行Create/Fork顺序，allocation与BindName在op-log中必须物理相邻；追加旧Bind复活已归档RefId的反例由精确邻接验证拒绝，无需历史knownRefs。合同与综合方案已同步；不改变writer格式或发布順序。
+
+- T04 容量错误命名收口：新增完整控制操作预检使用业务Result `EventJournal.RefOpCapacityExhausted`；旧测试对内部RBF错误前缀的断言迁移，仍验证无写/无checkpoint/不fault/可重试。未改StorageOpenException错误集合或wire。
+
+- T04：snapshot只解码一次，直接boundary suffix、双侧Q预算、缩容、完整多帧容量、预checkpoint和tag三态完成；astra身份finding由allocation/Bind精确相邻拒绝并回归。共享RefOp reserved/presence及RefMove reserved缺口同包收口，不改有效编码bytes。Release EventJournal 158/158（35s），build 0 warnings/errors；日志 `/tmp/t04-{build,test}.log`，diff检查通过。包含7个checkpoint异常时点、真实1100次churn、公共路径2500→1、合成2048/2049临界点（不冒充健康全事实fixture）、实际RBF日志证明Q+1不读和恢复不扫描旧prefix。

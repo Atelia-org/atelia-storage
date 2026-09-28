@@ -15,6 +15,9 @@ public sealed partial class EventJournal : IDisposable {
     private readonly string _refObjectsPath;
     private readonly string _forwardPlanCachePath;
     private readonly Dictionary<string, RefId> _branches;
+    private readonly Dictionary<RefId, string> _activeRefNames = new();
+    private long _catalogSnapshotLiveCount;
+    private long _catalogSuffixCount;
     private readonly Dictionary<RefId, RefState> _refStates = new();
     private readonly ForwardPlanCache _forwardPlanCache = new(maxEntries: 4096, maxEstimatedBytes: 16 * 1024 * 1024);
     private readonly Dictionary<RefId, RefForwardBinding> _forwardPlanBindings = new();
@@ -34,7 +37,9 @@ public sealed partial class EventJournal : IDisposable {
         Dictionary<string, RefId> branches,
         Dictionary<string, EventAddress> tags,
         ulong nextSequenceNumber,
-        bool isReadOnly = false
+        bool isReadOnly = false,
+        long snapshotLiveCount = 0,
+        long suffixCount = 0
     ) {
         JournalPath = Path.GetFullPath(journalPath);
         _options = options;
@@ -45,6 +50,9 @@ public sealed partial class EventJournal : IDisposable {
         _forwardPlanCachePath = ForwardPlanCacheDirectory(JournalPath);
         _branches = branches;
         _tags = tags;
+        foreach (var entry in branches) { _activeRefNames.Add(entry.Value, entry.Key); }
+        _catalogSnapshotLiveCount = snapshotLiveCount;
+        _catalogSuffixCount = suffixCount;
         _nextSequenceNumber = nextSequenceNumber;
     }
 
@@ -101,13 +109,14 @@ public sealed partial class EventJournal : IDisposable {
     public static EventJournal OpenExisting(string journalPath, EventJournalOptions? options = null) {
         options = (options ?? new EventJournalOptions()).Normalized();
         string fullPath = Path.GetFullPath(journalPath);
-        JournalFormat.Validate(fullPath);
+        CatalogSnapshot snapshot = JournalFormat.Validate(fullPath);
         var segments = RbfSegmentStore.RbfSegmentStore.OpenExisting(EventsStorePath(fullPath), options.EventSegmentStoreOptions);
         IRbfFile? refOpLog = null;
         try {
             refOpLog = OpenRefOpLog(fullPath, options);
-            var branches = ReplayRefOpLog(refOpLog, RefOpLogPath(fullPath), out var tags);
-            return new EventJournal(fullPath, options, segments, refOpLog, branches, tags, ComputeNextSequenceNumber(segments, fullPath));
+            long snapshotLiveCount = snapshot.LiveCount;
+            var branches = ReplayRefOpLog(refOpLog, RefOpLogPath(fullPath), snapshot, out var tags, out long suffixCount);
+            return new EventJournal(fullPath, options, segments, refOpLog, branches, tags, ComputeNextSequenceNumber(segments, fullPath), snapshotLiveCount: snapshotLiveCount, suffixCount: suffixCount);
         }
         catch {
             refOpLog?.Dispose();
@@ -127,7 +136,7 @@ public sealed partial class EventJournal : IDisposable {
     ) {
         options = (options ?? new EventJournalOptions()).Normalized();
         string fullPath = Path.GetFullPath(journalPath);
-        JournalFormat.Validate(fullPath);
+        CatalogSnapshot snapshot = JournalFormat.Validate(fullPath);
         var segments =
             RbfSegmentStore.RbfSegmentStore.OpenReadOnlyExisting(
                 EventsStorePath(fullPath),
@@ -137,7 +146,8 @@ public sealed partial class EventJournal : IDisposable {
         EventJournal? journal = null;
         try {
             refOpLog = OpenReadOnlyRefOpLog(fullPath, options);
-            var branches = ReplayRefOpLog(refOpLog, RefOpLogPath(fullPath), out var tags);
+            long snapshotLiveCount = snapshot.LiveCount;
+            var branches = ReplayRefOpLog(refOpLog, RefOpLogPath(fullPath), snapshot, out var tags, out long suffixCount);
             journal = new EventJournal(
                 fullPath,
                 options,
@@ -148,7 +158,9 @@ public sealed partial class EventJournal : IDisposable {
                 ComputeNextSequenceNumber(
                     segments, fullPath
                 ),
-                isReadOnly: true
+                isReadOnly: true,
+                snapshotLiveCount: snapshotLiveCount,
+                suffixCount: suffixCount
             );
             refOpLog = null;
 

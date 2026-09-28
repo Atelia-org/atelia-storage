@@ -131,7 +131,7 @@ public sealed class ImmutableTagTests : IDisposable {
             tailOffset.SetValue(refLog, SizedPtr.MaxOffset + SizedPtr.Alignment);
             var refused = journal.CreateTag("retry", target);
             Assert.True(refused.IsFailure);
-            Assert.StartsWith("Rbf.", refused.Error!.ErrorCode);
+            Assert.Equal("EventJournal.RefOpCapacityExhausted", refused.Error!.ErrorCode);
             Assert.Equal(before, Measure(path));
         }
         finally {

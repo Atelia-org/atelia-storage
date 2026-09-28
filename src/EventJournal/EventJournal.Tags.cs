@@ -26,8 +26,11 @@ public sealed partial class EventJournal {
         byte[] payload = TagBindingFrameCodec.Encode(name, target);
         _tags.EnsureCapacity(checked(_tags.Count + 1));
 
+        var capacityError = PrecheckCatalogOperation(checked((long)_branches.Count + _tags.Count + 1), [payload], out bool checkpoint);
+        if (capacityError is not null) { return capacityError; }
         var outcome = TagPublicationOutcome.NotAttempted;
         try {
+            if (checkpoint) { CheckpointCatalog(); }
             TagPublicationProbe?.Invoke(TagPublicationStage.BeforeTargetFlush);
             _segments.ConfirmDurable(target.SegmentNumber);
             TagPublicationProbe?.Invoke(TagPublicationStage.BeforeAppend);
@@ -38,6 +41,7 @@ public sealed partial class EventJournal {
             TagPublicationProbe?.Invoke(TagPublicationStage.AfterAppend);
             _refOpLog.DurableFlush();
             outcome = TagPublicationOutcome.Confirmed;
+            _catalogSuffixCount++;
             TagPublicationProbe?.Invoke(TagPublicationStage.AfterDurableFlush);
             _tags.Add(name, target);
             return true;

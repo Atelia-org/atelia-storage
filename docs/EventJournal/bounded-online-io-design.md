@@ -119,7 +119,7 @@ EventJournal v2 writer 保证 event sequence 随物理 append 严格递增，che
 
 ref-op-log 仍单文件、保留全部历史，RefId 仍为原 Create/Fork ticket。快照消除重放成本，不做物理压缩/重排；`SizedPtr.MaxOffset = 2^40-4` bytes 是 frame 起始偏移上限，不能把此方案描述成无限容量。容量预检覆盖整个 Create/Fork+BindName 最坏字节，越界在开始发布前拒绝，不 wrap。若未来确需跨 segment 的 RefOpLog，另行升级身份格式，本轮不预做。
 
-在正常串行 API 操作边界写 snapshot；初建发布空 snapshot。snapshot 只含 active branches 和所有不可变 tags，不含 archived refs、历史 knownRefs 或各 ref 的 heads。从 snapshot boundary 到 EOF replay suffix，BindName 的 allocation 验证用 RefId 直接 checked-read 创建帧，不重建全部 knownRefs。
+在正常串行 API 操作边界写 snapshot；初建发布空 snapshot。snapshot 只含 active branches 和所有不可变 tags，不含 archived refs、历史 knownRefs 或各 ref 的 heads。从 snapshot boundary 到 EOF replay suffix，BindName 的 allocation 验证用 RefId 直接 checked-read 创建帧；还要求该 allocation 含Fence的物理结束位置恰等于 BindName 起点，并校核身份字段。单driver串行 Create/Fork 本来保证这两个控制帧相邻，这项局部约束防止归档后重放旧 Bind 复活原 RefId，不重建全部 knownRefs。
 
 加载snapshot检查名字规范、地址/RefId编码、重复名字及同一RefId的多重active绑定；suffix延续相同局部语义检查，不能以CRC正确替代schema验证。branch与tag同名仍合法。snapshot不要求checked-read全部所指目标或打开全部ref对象。
 
@@ -136,7 +136,7 @@ checkpoint 记录操作前的已发布状态，不能提前把尚未 durable 的
 
 **必须真正在 boundary seek**：当前公开 `IRbfFile.ScanForward` 只能从文件头扫描。增加一个窄的 boundary-start 扫描入口，复用已有 `RbfForwardSequence.dataStart`；检查对齐、范围、边界前已验证 frame 的 ticket/CRC 见证及 end-exclusive 位置。空日志 boundary=4，用明确 empty anchor。不能用从头 ScanForward 再 Skip 模拟后缀。文件短于 boundary、anchor 不匹配或 EOF 不完整均报错。
 
-这样累计 H 次历史 churn 不进入正常打开成本；checkpoint 的 O(live entries) 写入按 Q 次元操作摊销。代价是 checkpoint 那次操作仍会有 O(live entries) 的延迟尖峰。本轮接受这一显式权衡，不建设后台任务、分页 B-tree 或数据库引擎。大量 active tags 是必要 live 数据增长，不能声称 O(1)。
+这样累计 H 次历史 churn 不进入正常打开成本；checkpoint 的 O(live entries) 写入按 Q 次元操作摊销。实现校准：固定 ordinal 顺序需要对当前 Dictionary 条目排序，因此 checkpoint 的 CPU 时间为 O(L log L)、写入量和辅助空间为 O(L)，其中 L 为当前 live entries；该次操作仍有相应延迟尖峰。本轮接受这一显式权衡，不建设后台任务、分页 B-tree 或数据库引擎。大量 active tags 是必要 live 数据增长，不能声称 O(1)。
 
 发布顺序：确保 boundary 前 ref-op-log 已 durable → 序列化快照 → temp durable → replace 固定 snapshot。旧 snapshot + 未超过Q的 suffix 或新 snapshot + 更短 suffix 均合法；超限旧快照要求离线重建。历史日志从不在 checkpoint 后删除，中断不得截断 op-log 到 snapshot boundary。
 
@@ -220,7 +220,7 @@ toolkit 不是启动前强制跑的服务。通用 `repair-tail` 延期，不单
 | OpenBranch / cache-hit GetHead | 期望O(1)，名称长度有上限 |
 | cache-miss GetHead | 常数个allocation/Init/末move/locator读取 + O(P)当前head校验 |
 | Advance/Move | 常数帧和持久屏障 + O(P)指定目标；不枚举历史segment |
-| Create/Fork/Archive/CreateTag | 常规常数控制记录，非空指定目标另加O(P)；checkpoint偶发O(L)，按元操作摊销，不承诺每次尾延迟恒定 |
+| Create/Fork/Archive/CreateTag | 常规常数控制记录，非空指定目标另加O(P)；checkpoint偶发O(L log L) CPU / O(L)写入，按元操作摊销，不承诺每次尾延迟恒定 |
 | ResolveTag | 期望O(1)名字查询 + O(P)本次目标校验 |
 | ListBranches | O(B log B)排序，B为当前active branches |
 | 全量reflog/Parent traversal/audit | 与实际请求的历史量成正比，不属于日常隐含打开工作 |

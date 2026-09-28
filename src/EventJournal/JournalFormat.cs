@@ -15,7 +15,7 @@ internal static class JournalFormat {
         RollingCrc.SealCodewordForward(bytes);
         return bytes;
     }
-    internal static void Validate(string root) {
+    internal static CatalogSnapshot Validate(string root) {
         if (!Directory.Exists(root)) { throw new DirectoryNotFoundException(root); }
         string path = Path.Combine(root, FileName);
         Span<byte> bytes = stackalloc byte[16];
@@ -36,7 +36,7 @@ internal static class JournalFormat {
         string snapshot = Path.Combine(root, "refs", CatalogSnapshotCodec.FileName);
         RequireFile(snapshot);
         using var file = new FileStream(snapshot, FileMode.Open, FileAccess.Read, FileShare.Read);
-        CatalogSnapshotCodec.Read(file, snapshot);
+        return CatalogSnapshotCodec.Read(file, snapshot);
     }
     internal static void PublishInitial(string root, IRbfFile refOpLog) {
         refOpLog.DurableFlush();
@@ -45,14 +45,18 @@ internal static class JournalFormat {
             new Dictionary<string, RefId>(StringComparer.Ordinal), new Dictionary<string, EventAddress>(StringComparer.Ordinal))));
         Publish(Path.Combine(root, FileName), stream => stream.Write(Encode()));
     }
-    internal static void Publish(string target, Action<Stream> write) {
+    internal static void Publish(string target, Action<Stream> write, Action<string>? probe = null) {
         string temporary = target + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try {
             using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None)) {
+                probe?.Invoke("CheckpointBeforeWrite");
                 write(stream);
+                probe?.Invoke("CheckpointBeforeTempFlush");
                 stream.Flush(flushToDisk: true);
             }
+            probe?.Invoke("CheckpointBeforeReplace");
             File.Move(temporary, target, overwrite: true);
+            probe?.Invoke("CheckpointAfterReplace");
         }
         finally { if (File.Exists(temporary)) { File.Delete(temporary); } }
     }

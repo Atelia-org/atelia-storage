@@ -104,10 +104,10 @@ public static class RefMoveFrameCodec {
         }
 
         uint flags = BinaryPrimitives.ReadUInt32LittleEndian(payload[12..16]);
-        if ((flags & ~KnownFlags) != 0) {
+        if ((flags & ~KnownFlags) != 0 || payload[44..48].ContainsAnyExcept((byte)0)) {
             return new EventJournalError(
                 "RefMoveFlagsUnsupported",
-                $"RefMoveFrame has unsupported flags 0x{flags & ~KnownFlags:X8}.",
+                $"RefMoveFrame has unsupported flags 0x{flags & ~KnownFlags:X8} or nonzero reserved bytes.",
                 "Open this journal with an implementation that understands these flags."
             );
         }
