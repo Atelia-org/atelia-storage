@@ -6,7 +6,9 @@
     <Project Path="src/RbfSegmentStore/RbfSegmentStore.csproj" />
     <Project Path="src/EventJournal/EventJournal.csproj" />
   </Folder>
+  <Folder Name="/tools/"><Project Path="tools/EventJournal.Toolkit/EventJournal.Toolkit.csproj" /></Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/EventJournal.Toolkit.Tests/EventJournal.Toolkit.Tests.csproj" />
     <Project Path="tests/Primitives.Tests/Primitives.Tests.csproj" />
     <Project Path="tests/Data.Tests/Data.Tests.csproj" />
     <Project Path="tests/Rbf.Tests/Rbf.Tests.csproj" />

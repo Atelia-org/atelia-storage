@@ -15,7 +15,7 @@ internal static class JournalFormat {
         RollingCrc.SealCodewordForward(bytes);
         return bytes;
     }
-    internal static CatalogSnapshot Validate(string root) {
+    internal static void ValidateMarker(string root) {
         if (!Directory.Exists(root)) { throw new DirectoryNotFoundException(root); }
         string path = Path.Combine(root, FileName);
         Span<byte> bytes = stackalloc byte[16];
@@ -32,6 +32,9 @@ internal static class JournalFormat {
         if (version != 2) { throw new StorageOpenException(StorageOpenErrorKind.FormatUnsupported, "UnsupportedVersion", path, observedVersion: version); }
         if (BinaryPrimitives.ReadUInt16LittleEndian(bytes[6..]) != 16 || !RollingCrc.CheckCodewordForward(bytes)) { throw Bad("MetadataCorrupt", path); }
         if (BinaryPrimitives.ReadUInt32LittleEndian(bytes[8..]) != 0) { throw new StorageOpenException(StorageOpenErrorKind.FormatUnsupported, "UnsupportedFlags", path); }
+    }
+    internal static CatalogSnapshot Validate(string root) {
+        ValidateMarker(root);
         RequireFile(Path.Combine(root, "events", "active.segment"));
         string snapshot = Path.Combine(root, "refs", CatalogSnapshotCodec.FileName);
         RequireFile(snapshot);

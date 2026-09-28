@@ -616,7 +616,7 @@ public sealed partial class EventJournal {
         );
     }
 
-    private static AteliaError? ValidateBranchName(string branchName) {
+    internal static AteliaError? ValidateBranchName(string branchName) {
         if (branchName is null || branchName.Length == 0 || branchName == "." || branchName == ".." || branchName.EndsWith(".", StringComparison.Ordinal) || branchName.EndsWith(".lock", StringComparison.Ordinal)) { return InvalidBranchNameError(branchName); }
 
         int utf8Length = System.Text.Encoding.UTF8.GetByteCount(branchName);
