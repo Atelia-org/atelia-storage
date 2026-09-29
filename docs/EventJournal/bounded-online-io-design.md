@@ -1,13 +1,13 @@
 # EventJournal 长期运行性能重构方案
 
-日期：2026-09-29。状态：经 dialectical-simplification 三方独立审查、交叉质询及一项第三轮裁决后的设计建议，尚未实施。
-代码基线：`bb7c4fb3eb6477783c70ee61bc62b832be195d07`。
-本次仅设计；不授权实现、改写现有数据、发布包或切换消费者。
+日期：2026-09-29。状态：经 dialectical-simplification 审查后实施；T00–T07 Linux 已通过，T08 当前证据见[实施工单](bounded-online-io-work-order.md)及[候选交付记录](bounded-online-io-delivery.md)。
+调查与设计时的代码基线：`bb7c4fb3eb6477783c70ee61bc62b832be195d07`。
+后续用户已授权源码实施、Git提交和Linux本地包验证。本文本身不授权改写真实数据、网络发布或切换消费者。
 审查过程与删减依据见 [审查记录](bounded-online-io-review.md)。本文件描述目标合同，不覆盖当前已发布版本的使用指南。
 
 ## 1. 最小模型与需求账本
 
-保留不可变 Event + Parent、branch name → 稳定 RefId、每 ref 的 append-only move log、独立不可变 tag。日常打开只读取定位信息、catalog 快照及有限后缀；ref 当前状态直接读取末条 move。完整历史校验、损坏修复和索引重建交给离线 toolkit。
+保留不可变 Event + Parent、branch name → 稳定 RefId、每 ref 的 append-only move log、独立不可变 tag。日常打开只读取定位信息、catalog 快照及有限后缀；ref 当前状态直接读取末条 move。完整历史校验和索引候选重建交给离线 toolkit；坏事实修复另行设计，不在首版范围。
 
 | 要求 | 来源 | 处理 |
 | --- | --- | --- |
@@ -27,9 +27,9 @@
 
 本方案接受 live branch/tag 数量的必要成本，不承诺在无限活跃实体下常量内存。目标是固定当前工作集时，在线成本不随已积累历史增长。
 
-## 2. 代码证据与问题范围
+## 2. 重构前基线的代码证据与问题范围
 
-| 位置 | 当前行为 | 累积维度 |
+| 位置 | 重构前行为 | 累积维度 |
 | --- | --- | --- |
 | [LoadRefState](../../src/EventJournal/EventJournal.Refs.cs)、[ReadAllMoves](../../src/EventJournal/RefMoveStore.cs) | 读全 reflog 为 List，逐条 checked-read NewTarget | move 数及重复目标的 stored bytes |
 | [AppendRefMove](../../src/EventJournal/EventJournal.Refs.cs)、[DiscoverFlatActiveSegment](../../src/RbfSegmentStore/RbfSegmentStore.cs) | 每次写重新打开、枚举全部 segment、执行 recovery | segment 数、句柄及系统调用 |
@@ -208,7 +208,7 @@ toolkit 不是启动前强制跑的服务。通用 `repair-tail` 延期，不单
 
 语义回归：CAS 失败不写 move、Commit CAS 失败保留 orphan、fork 捕获 source identity/head/move number、同名重建 RefId 不复用、tag 与 branch 同名而互不影响、旧版本拒绝在任何写入前发生（新 reader 对旧格式）、Dispose/lease 保护。
 
-最终 build/test 按仓规串行 Release；包交付必须运行 `eng/Test-Package.ps1`。这份设计没有性能测量结果，也不代表已完成数据升级。
+最终 build/test 按仓规串行 Release；包交付必须运行 `eng/Test-Package.ps1`。实际测量、验证与版本状态见[候选交付记录](bounded-online-io-delivery.md)；本设计不代表真实数据已升级。
 
 ## 13. 交付后复杂度与明确的剩余边界
 

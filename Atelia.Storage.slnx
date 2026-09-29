@@ -8,6 +8,7 @@
   </Folder>
   <Folder Name="/tools/"><Project Path="tools/EventJournal.Toolkit/EventJournal.Toolkit.csproj" /></Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/EventJournal.Validation/EventJournal.Validation.csproj" />
     <Project Path="tests/EventJournal.Toolkit.Tests/EventJournal.Toolkit.Tests.csproj" />
     <Project Path="tests/Primitives.Tests/Primitives.Tests.csproj" />
     <Project Path="tests/Data.Tests/Data.Tests.csproj" />

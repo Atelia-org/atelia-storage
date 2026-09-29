@@ -1,5 +1,8 @@
 # EventJournal 功能需求与粗粒度设计基线
 
+> **现行状态（2026-09-29）**：历史需求与粗粒度设计背景。main v2 的格式门、locator/catalog、严格有界打开、有界缓存和离线工具以后述当前合同为准；旧恢复/回放说明不是当前默认行为。
+> 当前入口：[v2 方案](bounded-online-io-design.md)、[冻结合同](bounded-online-io-contracts.md)、[EventJournal 指南](../../src/EventJournal/README.md)、[交付记录](bounded-online-io-delivery.md)。v2 仍是未发布 breaking 候选；以下正文保留历史原貌。
+
 > **状态**：Design Baseline / 待拆分为 Decision 与 Spec
 > **日期**：2026-07-22
 > **依赖**：[RBF Layer Interface Contract](../Rbf/rbf-interface.md)

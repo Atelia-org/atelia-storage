@@ -1,6 +1,6 @@
 # EventJournal v2：实施合同冻结附件
 
-日期：2026-09-29。状态：T00设计冻结稿，由本轮gpt-6-astra有界子任务提出并经主线程源码核对；T00 已在同一生产基线上核验 Passed；生产实现及编译/故障测试仍由后续任务提供。实施开始时按[工单](bounded-online-io-work-order.md) T00做一次基线确认，不能让后续sol工作包各自定义格式。
+日期：2026-09-29。状态：T00设计冻结稿，由本轮gpt-6-astra有界子任务提出并经主线程源码核对；T00–T06 的实现与验证已通过；当前综合验证和包交付证据见[工单](bounded-online-io-work-order.md)及[交付记录](bounded-online-io-delivery.md)。后续修改遵守此共同合同，不由各工作包另定义格式。
 
 本附件补充[综合方案](bounded-online-io-design.md)的字段/API/错误边界，不改变事实源、格式拒旧、严格坏尾停维或首版无repair的范围。实验证明本合同不能实现时，上报T00；不得边编码边静默改版。
 

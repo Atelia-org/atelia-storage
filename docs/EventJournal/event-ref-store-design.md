@@ -1,5 +1,8 @@
 # Event Ref Store 设计基线
 
+> **现行状态（2026-09-29）**：历史 ref/reflog 设计。RefId、CAS 和 orphan 语义延续；下述全历史回放、默认恢复和无限 state/store 缓存已被 v2 的 snapshot+有限 suffix、首末局部读取及有界 ref entry 取代。
+> 当前入口：[v2 方案](bounded-online-io-design.md)、[冻结合同](bounded-online-io-contracts.md)、[EventJournal 指南](../../src/EventJournal/README.md)、[交付记录](bounded-online-io-delivery.md)。v2 仍是未发布 breaking 候选；以下正文保留历史原貌。
+
 > **状态**：Design Baseline / 待拆分为 Spec
 > **日期**：2026-07-23
 > **依赖**：[EventJournal 功能需求与粗粒度设计基线](event-journal-requirements-and-design.md)、[EventFrame Parent Chain 设计基线](event-frame-parent-chain-design.md)、[RBF Layer Interface Contract](../Rbf/rbf-interface.md)

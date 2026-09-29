@@ -1,0 +1,2276 @@
+{
+  "environment": {
+    "measurementBinarySha256": "3c16957e507a8c4dc10e3ef7ba284a5baddc4554da9b8b1fb935d9900686fc55",
+    "sdkFromGlobalJson": "10.0.201",
+    "osCache": "not dropped",
+    "cold": "new journal instance",
+    "fixtureSidecars": "outside journal root",
+    "mounts": [
+      "/dev/sde / ext4 rw,relatime,discard,errors=remount-ro,data=ordered 0 0"
+    ]
+  },
+  "scope": "Linux kernel syscalls over all 25 repetitions; timings from separate untraced processes; cold means new instance, OS cache uncontrolled; ext2/ext3 statfs is ext4 mount; tmpfs is RAM-backed functional/read-cost evidence only",
+  "measurements": [
+    {
+      "Kind": "moves",
+      "Count": 1000,
+      "mode": "head",
+      "repetitions": 25,
+      "p50Ms": 0.3765,
+      "p95Ms": 1.4847,
+      "allocatedBytesPerIteration": 252045,
+      "maxDatasetHandles": 3,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 1,
+      "forwardPlanEntries": 0,
+      "parentWalkReads": 0,
+      "datasetReadSyscalls": 275,
+      "datasetRequestedBytes": 819500,
+      "datasetReturnedBytes": 145900,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 3,
+      "filesystem": "ext2/ext3",
+      "construction": "production codecs+RBF append; one completion flush; fixture creation is not write latency",
+      "before": {
+        "sha256": "313de3a2760d909239a2fb8d4570c4922a959cadb1bb81e0792c15b9e246f268",
+        "files": 7,
+        "bytes": 124608
+      },
+      "after": {
+        "sha256": "313de3a2760d909239a2fb8d4570c4922a959cadb1bb81e0792c15b9e246f268",
+        "files": 7,
+        "bytes": 124608
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 400
+        },
+        "catalogSnapshot": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 1700
+        },
+        "locators": {
+          "calls": 50,
+          "requestedBytes": 204800,
+          "returnedBytes": 1000
+        },
+        "eventSegments": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 2500
+        },
+        "refOpLog": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 6600
+        },
+        "refSegments": {
+          "calls": 75,
+          "requestedBytes": 204900,
+          "returnedBytes": 133700
+        }
+      }
+    },
+    {
+      "Kind": "moves",
+      "Count": 1000,
+      "mode": "warm-head",
+      "repetitions": 25,
+      "p50Ms": 0.0026,
+      "p95Ms": 0.094,
+      "allocatedBytesPerIteration": 3317,
+      "maxDatasetHandles": 3,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 1,
+      "forwardPlanEntries": 0,
+      "parentWalkReads": 0,
+      "datasetReadSyscalls": 11,
+      "datasetRequestedBytes": 32780,
+      "datasetReturnedBytes": 5836,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 3,
+      "filesystem": "ext2/ext3",
+      "construction": "production codecs+RBF append; one completion flush; fixture creation is not write latency",
+      "before": {
+        "sha256": "313de3a2760d909239a2fb8d4570c4922a959cadb1bb81e0792c15b9e246f268",
+        "files": 7,
+        "bytes": 124608
+      },
+      "after": {
+        "sha256": "313de3a2760d909239a2fb8d4570c4922a959cadb1bb81e0792c15b9e246f268",
+        "files": 7,
+        "bytes": 124608
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 1,
+          "requestedBytes": 4096,
+          "returnedBytes": 16
+        },
+        "catalogSnapshot": {
+          "calls": 1,
+          "requestedBytes": 4096,
+          "returnedBytes": 68
+        },
+        "locators": {
+          "calls": 2,
+          "requestedBytes": 8192,
+          "returnedBytes": 40
+        },
+        "eventSegments": {
+          "calls": 2,
+          "requestedBytes": 4100,
+          "returnedBytes": 100
+        },
+        "refOpLog": {
+          "calls": 2,
+          "requestedBytes": 4100,
+          "returnedBytes": 264
+        },
+        "refSegments": {
+          "calls": 3,
+          "requestedBytes": 8196,
+          "returnedBytes": 5348
+        }
+      }
+    },
+    {
+      "Kind": "moves",
+      "Count": 100000,
+      "mode": "head",
+      "repetitions": 25,
+      "p50Ms": 0.3945,
+      "p95Ms": 2.0089,
+      "allocatedBytesPerIteration": 252149,
+      "maxDatasetHandles": 3,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 1,
+      "forwardPlanEntries": 0,
+      "parentWalkReads": 0,
+      "datasetReadSyscalls": 275,
+      "datasetRequestedBytes": 819500,
+      "datasetReturnedBytes": 153100,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 3,
+      "filesystem": "ext2/ext3",
+      "construction": "production codecs+RBF append; one completion flush; fixture creation is not write latency",
+      "before": {
+        "sha256": "b5b7ce814daa0be91d7e22452b3b40c023f5a76766722b737dd49a0cd8f5fb1d",
+        "files": 7,
+        "bytes": 12400608
+      },
+      "after": {
+        "sha256": "b5b7ce814daa0be91d7e22452b3b40c023f5a76766722b737dd49a0cd8f5fb1d",
+        "files": 7,
+        "bytes": 12400608
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 400
+        },
+        "catalogSnapshot": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 1700
+        },
+        "locators": {
+          "calls": 50,
+          "requestedBytes": 204800,
+          "returnedBytes": 1000
+        },
+        "eventSegments": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 2500
+        },
+        "refOpLog": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 6600
+        },
+        "refSegments": {
+          "calls": 75,
+          "requestedBytes": 204900,
+          "returnedBytes": 140900
+        }
+      }
+    },
+    {
+      "Kind": "moves",
+      "Count": 100000,
+      "mode": "warm-head",
+      "repetitions": 25,
+      "p50Ms": 0.0031,
+      "p95Ms": 0.1082,
+      "allocatedBytesPerIteration": 3319,
+      "maxDatasetHandles": 3,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 1,
+      "forwardPlanEntries": 0,
+      "parentWalkReads": 0,
+      "datasetReadSyscalls": 11,
+      "datasetRequestedBytes": 32780,
+      "datasetReturnedBytes": 6124,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 3,
+      "filesystem": "ext2/ext3",
+      "construction": "production codecs+RBF append; one completion flush; fixture creation is not write latency",
+      "before": {
+        "sha256": "b5b7ce814daa0be91d7e22452b3b40c023f5a76766722b737dd49a0cd8f5fb1d",
+        "files": 7,
+        "bytes": 12400608
+      },
+      "after": {
+        "sha256": "b5b7ce814daa0be91d7e22452b3b40c023f5a76766722b737dd49a0cd8f5fb1d",
+        "files": 7,
+        "bytes": 12400608
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 1,
+          "requestedBytes": 4096,
+          "returnedBytes": 16
+        },
+        "catalogSnapshot": {
+          "calls": 1,
+          "requestedBytes": 4096,
+          "returnedBytes": 68
+        },
+        "locators": {
+          "calls": 2,
+          "requestedBytes": 8192,
+          "returnedBytes": 40
+        },
+        "eventSegments": {
+          "calls": 2,
+          "requestedBytes": 4100,
+          "returnedBytes": 100
+        },
+        "refOpLog": {
+          "calls": 2,
+          "requestedBytes": 4100,
+          "returnedBytes": 264
+        },
+        "refSegments": {
+          "calls": 3,
+          "requestedBytes": 8196,
+          "returnedBytes": 5636
+        }
+      }
+    },
+    {
+      "Kind": "moves",
+      "Count": 1000000,
+      "mode": "head",
+      "repetitions": 25,
+      "p50Ms": 0.4082,
+      "p95Ms": 1.6734,
+      "allocatedBytesPerIteration": 251744,
+      "maxDatasetHandles": 3,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 1,
+      "forwardPlanEntries": 0,
+      "parentWalkReads": 0,
+      "datasetReadSyscalls": 275,
+      "datasetRequestedBytes": 819500,
+      "datasetReturnedBytes": 162700,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 3,
+      "filesystem": "ext2/ext3",
+      "construction": "production codecs+RBF append; one completion flush; fixture creation is not write latency",
+      "before": {
+        "sha256": "faa07e09443575601c69a77234fbcdf573d1129871d2cbe6093e7127ca0e3bbf",
+        "files": 7,
+        "bytes": 124000608
+      },
+      "after": {
+        "sha256": "faa07e09443575601c69a77234fbcdf573d1129871d2cbe6093e7127ca0e3bbf",
+        "files": 7,
+        "bytes": 124000608
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 400
+        },
+        "catalogSnapshot": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 1700
+        },
+        "locators": {
+          "calls": 50,
+          "requestedBytes": 204800,
+          "returnedBytes": 1000
+        },
+        "eventSegments": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 2500
+        },
+        "refOpLog": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 6600
+        },
+        "refSegments": {
+          "calls": 75,
+          "requestedBytes": 204900,
+          "returnedBytes": 150500
+        }
+      }
+    },
+    {
+      "Kind": "moves",
+      "Count": 1000000,
+      "mode": "warm-head",
+      "repetitions": 25,
+      "p50Ms": 0.0026,
+      "p95Ms": 0.1163,
+      "allocatedBytesPerIteration": 3320,
+      "maxDatasetHandles": 3,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 1,
+      "forwardPlanEntries": 0,
+      "parentWalkReads": 0,
+      "datasetReadSyscalls": 11,
+      "datasetRequestedBytes": 32780,
+      "datasetReturnedBytes": 6508,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 3,
+      "filesystem": "ext2/ext3",
+      "construction": "production codecs+RBF append; one completion flush; fixture creation is not write latency",
+      "before": {
+        "sha256": "faa07e09443575601c69a77234fbcdf573d1129871d2cbe6093e7127ca0e3bbf",
+        "files": 7,
+        "bytes": 124000608
+      },
+      "after": {
+        "sha256": "faa07e09443575601c69a77234fbcdf573d1129871d2cbe6093e7127ca0e3bbf",
+        "files": 7,
+        "bytes": 124000608
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 1,
+          "requestedBytes": 4096,
+          "returnedBytes": 16
+        },
+        "catalogSnapshot": {
+          "calls": 1,
+          "requestedBytes": 4096,
+          "returnedBytes": 68
+        },
+        "locators": {
+          "calls": 2,
+          "requestedBytes": 8192,
+          "returnedBytes": 40
+        },
+        "eventSegments": {
+          "calls": 2,
+          "requestedBytes": 4100,
+          "returnedBytes": 100
+        },
+        "refOpLog": {
+          "calls": 2,
+          "requestedBytes": 4100,
+          "returnedBytes": 264
+        },
+        "refSegments": {
+          "calls": 3,
+          "requestedBytes": 8196,
+          "returnedBytes": 6020
+        }
+      }
+    },
+    {
+      "Kind": "orphans",
+      "Count": 1000,
+      "mode": "open",
+      "repetitions": 25,
+      "p50Ms": 0.2675,
+      "p95Ms": 0.4382,
+      "allocatedBytesPerIteration": 169393,
+      "maxDatasetHandles": 2,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 0,
+      "forwardPlanEntries": 0,
+      "parentWalkReads": 0,
+      "datasetReadSyscalls": 175,
+      "datasetRequestedBytes": 512200,
+      "datasetReturnedBytes": 58900,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 2,
+      "filesystem": "ext2/ext3",
+      "construction": "production codecs+RBF append; one completion flush; fixture creation is not write latency",
+      "before": {
+        "sha256": "7ec484c44b1e7cb515f59ed8eab876bbc8f7d6f57b061b8fd428c7a1cfeaef14",
+        "files": 7,
+        "bytes": 92608
+      },
+      "after": {
+        "sha256": "7ec484c44b1e7cb515f59ed8eab876bbc8f7d6f57b061b8fd428c7a1cfeaef14",
+        "files": 7,
+        "bytes": 92608
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 400
+        },
+        "catalogSnapshot": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 1700
+        },
+        "locators": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 500
+        },
+        "eventSegments": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 49700
+        },
+        "refOpLog": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 6600
+        }
+      }
+    },
+    {
+      "Kind": "orphans",
+      "Count": 100000,
+      "mode": "open",
+      "repetitions": 25,
+      "p50Ms": 0.3688,
+      "p95Ms": 0.4877,
+      "allocatedBytesPerIteration": 169481,
+      "maxDatasetHandles": 2,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 0,
+      "forwardPlanEntries": 0,
+      "parentWalkReads": 0,
+      "datasetReadSyscalls": 175,
+      "datasetRequestedBytes": 512200,
+      "datasetReturnedBytes": 21300,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 2,
+      "filesystem": "ext2/ext3",
+      "construction": "production codecs+RBF append; one completion flush; fixture creation is not write latency",
+      "before": {
+        "sha256": "9289e524e1648815c212aa92b92cba2209b729bb205b4d3a3fc999b507face05",
+        "files": 7,
+        "bytes": 9200608
+      },
+      "after": {
+        "sha256": "9289e524e1648815c212aa92b92cba2209b729bb205b4d3a3fc999b507face05",
+        "files": 7,
+        "bytes": 9200608
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 400
+        },
+        "catalogSnapshot": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 1700
+        },
+        "locators": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 500
+        },
+        "eventSegments": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 12100
+        },
+        "refOpLog": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 6600
+        }
+      }
+    },
+    {
+      "Kind": "orphans",
+      "Count": 1000000,
+      "mode": "open",
+      "repetitions": 25,
+      "p50Ms": 0.259,
+      "p95Ms": 0.5174,
+      "allocatedBytesPerIteration": 169513,
+      "maxDatasetHandles": 2,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 0,
+      "forwardPlanEntries": 0,
+      "parentWalkReads": 0,
+      "datasetReadSyscalls": 175,
+      "datasetRequestedBytes": 512200,
+      "datasetReturnedBytes": 107700,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 2,
+      "filesystem": "ext2/ext3",
+      "construction": "production codecs+RBF append; one completion flush; fixture creation is not write latency",
+      "before": {
+        "sha256": "e86639d58a3edf8c245936b42906c42530805a82ce967952c8cb46ce3ea3cc2f",
+        "files": 7,
+        "bytes": 92000608
+      },
+      "after": {
+        "sha256": "e86639d58a3edf8c245936b42906c42530805a82ce967952c8cb46ce3ea3cc2f",
+        "files": 7,
+        "bytes": 92000608
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 400
+        },
+        "catalogSnapshot": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 1700
+        },
+        "locators": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 500
+        },
+        "eventSegments": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 98500
+        },
+        "refOpLog": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 6600
+        }
+      }
+    },
+    {
+      "Kind": "control-allocations",
+      "Count": 1000,
+      "mode": "open",
+      "repetitions": 25,
+      "p50Ms": 0.276,
+      "p95Ms": 0.5871,
+      "allocatedBytesPerIteration": 169388,
+      "maxDatasetHandles": 2,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 0,
+      "forwardPlanEntries": 0,
+      "parentWalkReads": 0,
+      "datasetReadSyscalls": 175,
+      "datasetRequestedBytes": 512200,
+      "datasetReturnedBytes": 34900,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 2,
+      "filesystem": "ext2/ext3",
+      "construction": "production codecs+RBF append; one completion flush; fixture creation is not write latency",
+      "before": {
+        "sha256": "5f883c63dc8aac9c7181b0a47bb5da95a1561c72d654e255e54dbf2b1753dc65",
+        "files": 7,
+        "bytes": 132608
+      },
+      "after": {
+        "sha256": "5f883c63dc8aac9c7181b0a47bb5da95a1561c72d654e255e54dbf2b1753dc65",
+        "files": 7,
+        "bytes": 132608
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 400
+        },
+        "catalogSnapshot": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 1700
+        },
+        "locators": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 500
+        },
+        "eventSegments": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 2500
+        },
+        "refOpLog": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 29800
+        }
+      }
+    },
+    {
+      "Kind": "control-allocations",
+      "Count": 100000,
+      "mode": "open",
+      "repetitions": 25,
+      "p50Ms": 0.2569,
+      "p95Ms": 1.4726,
+      "allocatedBytesPerIteration": 169969,
+      "maxDatasetHandles": 2,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 0,
+      "forwardPlanEntries": 0,
+      "parentWalkReads": 0,
+      "datasetReadSyscalls": 175,
+      "datasetRequestedBytes": 512200,
+      "datasetReturnedBytes": 78900,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 2,
+      "filesystem": "ext2/ext3",
+      "construction": "production codecs+RBF append; one completion flush; fixture creation is not write latency",
+      "before": {
+        "sha256": "a5c991174f4b64d76b59469fbd41c913786ed5c300c80c2cab7c10074b4fa034",
+        "files": 7,
+        "bytes": 13200608
+      },
+      "after": {
+        "sha256": "a5c991174f4b64d76b59469fbd41c913786ed5c300c80c2cab7c10074b4fa034",
+        "files": 7,
+        "bytes": 13200608
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 400
+        },
+        "catalogSnapshot": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 1700
+        },
+        "locators": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 500
+        },
+        "eventSegments": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 2500
+        },
+        "refOpLog": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 73800
+        }
+      }
+    },
+    {
+      "Kind": "control-allocations",
+      "Count": 1000000,
+      "mode": "open",
+      "repetitions": 25,
+      "p50Ms": 0.2552,
+      "p95Ms": 1.5854,
+      "allocatedBytesPerIteration": 169508,
+      "maxDatasetHandles": 2,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 0,
+      "forwardPlanEntries": 0,
+      "parentWalkReads": 0,
+      "datasetReadSyscalls": 175,
+      "datasetRequestedBytes": 512200,
+      "datasetReturnedBytes": 69300,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 2,
+      "filesystem": "ext2/ext3",
+      "construction": "production codecs+RBF append; one completion flush; fixture creation is not write latency",
+      "before": {
+        "sha256": "c34327356ed2b0f39908edd5f59bf821bab24826458edbe9c72e59337e60b3ae",
+        "files": 7,
+        "bytes": 132000608
+      },
+      "after": {
+        "sha256": "c34327356ed2b0f39908edd5f59bf821bab24826458edbe9c72e59337e60b3ae",
+        "files": 7,
+        "bytes": 132000608
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 400
+        },
+        "catalogSnapshot": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 1700
+        },
+        "locators": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 500
+        },
+        "eventSegments": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 2500
+        },
+        "refOpLog": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 64200
+        }
+      }
+    },
+    {
+      "Kind": "segments",
+      "Count": 1,
+      "mode": "head",
+      "repetitions": 25,
+      "p50Ms": 0.3595,
+      "p95Ms": 1.3292,
+      "allocatedBytesPerIteration": 252045,
+      "maxDatasetHandles": 3,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 1,
+      "forwardPlanEntries": 0,
+      "parentWalkReads": 0,
+      "datasetReadSyscalls": 250,
+      "datasetRequestedBytes": 717100,
+      "datasetReturnedBytes": 15500,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 3,
+      "filesystem": "ext2/ext3",
+      "construction": "production codecs+RBF append; each synthetic segment flushed; fixture creation is not write latency",
+      "before": {
+        "sha256": "50afc31a6d9e21da53ab70df8232c210181d7b4bc691b7d76fa4e99dcf4d83b1",
+        "files": 7,
+        "bytes": 608
+      },
+      "after": {
+        "sha256": "50afc31a6d9e21da53ab70df8232c210181d7b4bc691b7d76fa4e99dcf4d83b1",
+        "files": 7,
+        "bytes": 608
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 400
+        },
+        "catalogSnapshot": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 1700
+        },
+        "locators": {
+          "calls": 50,
+          "requestedBytes": 204800,
+          "returnedBytes": 1000
+        },
+        "eventSegments": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 2500
+        },
+        "refOpLog": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 6600
+        },
+        "refSegments": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 3300
+        }
+      }
+    },
+    {
+      "Kind": "segments",
+      "Count": 1,
+      "mode": "warm-head",
+      "repetitions": 25,
+      "p50Ms": 0.0023,
+      "p95Ms": 0.112,
+      "allocatedBytesPerIteration": 3317,
+      "maxDatasetHandles": 3,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 1,
+      "forwardPlanEntries": 0,
+      "parentWalkReads": 0,
+      "datasetReadSyscalls": 10,
+      "datasetRequestedBytes": 28684,
+      "datasetReturnedBytes": 620,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 3,
+      "filesystem": "ext2/ext3",
+      "construction": "production codecs+RBF append; each synthetic segment flushed; fixture creation is not write latency",
+      "before": {
+        "sha256": "50afc31a6d9e21da53ab70df8232c210181d7b4bc691b7d76fa4e99dcf4d83b1",
+        "files": 7,
+        "bytes": 608
+      },
+      "after": {
+        "sha256": "50afc31a6d9e21da53ab70df8232c210181d7b4bc691b7d76fa4e99dcf4d83b1",
+        "files": 7,
+        "bytes": 608
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 1,
+          "requestedBytes": 4096,
+          "returnedBytes": 16
+        },
+        "catalogSnapshot": {
+          "calls": 1,
+          "requestedBytes": 4096,
+          "returnedBytes": 68
+        },
+        "locators": {
+          "calls": 2,
+          "requestedBytes": 8192,
+          "returnedBytes": 40
+        },
+        "eventSegments": {
+          "calls": 2,
+          "requestedBytes": 4100,
+          "returnedBytes": 100
+        },
+        "refOpLog": {
+          "calls": 2,
+          "requestedBytes": 4100,
+          "returnedBytes": 264
+        },
+        "refSegments": {
+          "calls": 2,
+          "requestedBytes": 4100,
+          "returnedBytes": 132
+        }
+      }
+    },
+    {
+      "Kind": "segments",
+      "Count": 100,
+      "mode": "head",
+      "repetitions": 25,
+      "p50Ms": 0.408,
+      "p95Ms": 1.5754,
+      "allocatedBytesPerIteration": 327837,
+      "maxDatasetHandles": 4,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 1,
+      "forwardPlanEntries": 0,
+      "parentWalkReads": 0,
+      "datasetReadSyscalls": 300,
+      "datasetRequestedBytes": 819600,
+      "datasetReturnedBytes": 18800,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 4,
+      "filesystem": "ext2/ext3",
+      "construction": "production codecs+RBF append; each synthetic segment flushed; fixture creation is not write latency",
+      "before": {
+        "sha256": "db396767f225b6f920f6120d7313578c892dcdb4396551bc2bb3c7b8d1204c4d",
+        "files": 106,
+        "bytes": 13280
+      },
+      "after": {
+        "sha256": "db396767f225b6f920f6120d7313578c892dcdb4396551bc2bb3c7b8d1204c4d",
+        "files": 106,
+        "bytes": 13280
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 400
+        },
+        "catalogSnapshot": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 1700
+        },
+        "locators": {
+          "calls": 50,
+          "requestedBytes": 204800,
+          "returnedBytes": 1000
+        },
+        "eventSegments": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 2500
+        },
+        "refOpLog": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 6600
+        },
+        "refSegments": {
+          "calls": 100,
+          "requestedBytes": 205000,
+          "returnedBytes": 6600
+        }
+      }
+    },
+    {
+      "Kind": "segments",
+      "Count": 100,
+      "mode": "warm-head",
+      "repetitions": 25,
+      "p50Ms": 0.0029,
+      "p95Ms": 0.1008,
+      "allocatedBytesPerIteration": 6346,
+      "maxDatasetHandles": 4,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 1,
+      "forwardPlanEntries": 0,
+      "parentWalkReads": 0,
+      "datasetReadSyscalls": 12,
+      "datasetRequestedBytes": 32784,
+      "datasetReturnedBytes": 752,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 4,
+      "filesystem": "ext2/ext3",
+      "construction": "production codecs+RBF append; each synthetic segment flushed; fixture creation is not write latency",
+      "before": {
+        "sha256": "db396767f225b6f920f6120d7313578c892dcdb4396551bc2bb3c7b8d1204c4d",
+        "files": 106,
+        "bytes": 13280
+      },
+      "after": {
+        "sha256": "db396767f225b6f920f6120d7313578c892dcdb4396551bc2bb3c7b8d1204c4d",
+        "files": 106,
+        "bytes": 13280
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 1,
+          "requestedBytes": 4096,
+          "returnedBytes": 16
+        },
+        "catalogSnapshot": {
+          "calls": 1,
+          "requestedBytes": 4096,
+          "returnedBytes": 68
+        },
+        "locators": {
+          "calls": 2,
+          "requestedBytes": 8192,
+          "returnedBytes": 40
+        },
+        "eventSegments": {
+          "calls": 2,
+          "requestedBytes": 4100,
+          "returnedBytes": 100
+        },
+        "refOpLog": {
+          "calls": 2,
+          "requestedBytes": 4100,
+          "returnedBytes": 264
+        },
+        "refSegments": {
+          "calls": 4,
+          "requestedBytes": 8200,
+          "returnedBytes": 264
+        }
+      }
+    },
+    {
+      "Kind": "segments",
+      "Count": 10000,
+      "mode": "head",
+      "repetitions": 25,
+      "p50Ms": 0.3944,
+      "p95Ms": 1.3014,
+      "allocatedBytesPerIteration": 327480,
+      "maxDatasetHandles": 4,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 1,
+      "forwardPlanEntries": 0,
+      "parentWalkReads": 0,
+      "datasetReadSyscalls": 300,
+      "datasetRequestedBytes": 819600,
+      "datasetReturnedBytes": 18800,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 4,
+      "filesystem": "ext2/ext3",
+      "construction": "production codecs+RBF append; each synthetic segment flushed; fixture creation is not write latency",
+      "before": {
+        "sha256": "4c92cd3ca7ac85902a32c0114aee3815d4195d14b0e85689f14f5b6802b8c97b",
+        "files": 10006,
+        "bytes": 1280480
+      },
+      "after": {
+        "sha256": "4c92cd3ca7ac85902a32c0114aee3815d4195d14b0e85689f14f5b6802b8c97b",
+        "files": 10006,
+        "bytes": 1280480
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 400
+        },
+        "catalogSnapshot": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 1700
+        },
+        "locators": {
+          "calls": 50,
+          "requestedBytes": 204800,
+          "returnedBytes": 1000
+        },
+        "eventSegments": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 2500
+        },
+        "refOpLog": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 6600
+        },
+        "refSegments": {
+          "calls": 100,
+          "requestedBytes": 205000,
+          "returnedBytes": 6600
+        }
+      }
+    },
+    {
+      "Kind": "segments",
+      "Count": 10000,
+      "mode": "warm-head",
+      "repetitions": 25,
+      "p50Ms": 0.0021,
+      "p95Ms": 0.1015,
+      "allocatedBytesPerIteration": 6348,
+      "maxDatasetHandles": 4,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 1,
+      "forwardPlanEntries": 0,
+      "parentWalkReads": 0,
+      "datasetReadSyscalls": 12,
+      "datasetRequestedBytes": 32784,
+      "datasetReturnedBytes": 752,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 4,
+      "filesystem": "ext2/ext3",
+      "construction": "production codecs+RBF append; each synthetic segment flushed; fixture creation is not write latency",
+      "before": {
+        "sha256": "4c92cd3ca7ac85902a32c0114aee3815d4195d14b0e85689f14f5b6802b8c97b",
+        "files": 10006,
+        "bytes": 1280480
+      },
+      "after": {
+        "sha256": "4c92cd3ca7ac85902a32c0114aee3815d4195d14b0e85689f14f5b6802b8c97b",
+        "files": 10006,
+        "bytes": 1280480
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 1,
+          "requestedBytes": 4096,
+          "returnedBytes": 16
+        },
+        "catalogSnapshot": {
+          "calls": 1,
+          "requestedBytes": 4096,
+          "returnedBytes": 68
+        },
+        "locators": {
+          "calls": 2,
+          "requestedBytes": 8192,
+          "returnedBytes": 40
+        },
+        "eventSegments": {
+          "calls": 2,
+          "requestedBytes": 4100,
+          "returnedBytes": 100
+        },
+        "refOpLog": {
+          "calls": 2,
+          "requestedBytes": 4100,
+          "returnedBytes": 264
+        },
+        "refSegments": {
+          "calls": 4,
+          "requestedBytes": 8200,
+          "returnedBytes": 264
+        }
+      }
+    },
+    {
+      "Kind": "tags",
+      "Count": 100,
+      "mode": "open",
+      "repetitions": 25,
+      "p50Ms": 0.4342,
+      "p95Ms": 1.5692,
+      "allocatedBytesPerIteration": 185269,
+      "maxDatasetHandles": 2,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 0,
+      "forwardPlanEntries": 0,
+      "parentWalkReads": 0,
+      "datasetReadSyscalls": 175,
+      "datasetRequestedBytes": 512200,
+      "datasetReturnedBytes": 157150,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 2,
+      "filesystem": "ext2/ext3",
+      "construction": "production codecs+RBF append; one completion flush; fixture creation is not write latency",
+      "before": {
+        "sha256": "7b2b38095a4656d19d207e89494e986820744c0eb94f6c8661ee324f187ad19c",
+        "files": 7,
+        "bytes": 10522
+      },
+      "after": {
+        "sha256": "7b2b38095a4656d19d207e89494e986820744c0eb94f6c8661ee324f187ad19c",
+        "files": 7,
+        "bytes": 10522
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 400
+        },
+        "catalogSnapshot": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 69550
+        },
+        "locators": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 500
+        },
+        "eventSegments": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 2500
+        },
+        "refOpLog": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 84200
+        }
+      }
+    },
+    {
+      "Kind": "tags",
+      "Count": 1000,
+      "mode": "open",
+      "repetitions": 25,
+      "p50Ms": 2.0396,
+      "p95Ms": 3.2207,
+      "allocatedBytesPerIteration": 339605,
+      "maxDatasetHandles": 2,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 0,
+      "forwardPlanEntries": 0,
+      "parentWalkReads": 0,
+      "datasetReadSyscalls": 475,
+      "datasetRequestedBytes": 1127725,
+      "datasetReturnedBytes": 746250,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 2,
+      "filesystem": "ext2/ext3",
+      "construction": "production codecs+RBF append; one completion flush; fixture creation is not write latency",
+      "before": {
+        "sha256": "145b114a27baaa6d5000dd52ce099badae5930687067c4b6869458c524506ced",
+        "files": 7,
+        "bytes": 99622
+      },
+      "after": {
+        "sha256": "145b114a27baaa6d5000dd52ce099badae5930687067c4b6869458c524506ced",
+        "files": 7,
+        "bytes": 99622
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 400
+        },
+        "catalogSnapshot": {
+          "calls": 325,
+          "requestedBytes": 717925,
+          "returnedBytes": 677050
+        },
+        "locators": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 500
+        },
+        "eventSegments": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 2500
+        },
+        "refOpLog": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 65800
+        }
+      }
+    },
+    {
+      "Kind": "tags",
+      "Count": 10000,
+      "mode": "open",
+      "repetitions": 25,
+      "p50Ms": 19.0382,
+      "p95Ms": 22.2731,
+      "allocatedBytesPerIteration": 1780625,
+      "maxDatasetHandles": 2,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 0,
+      "forwardPlanEntries": 0,
+      "parentWalkReads": 0,
+      "datasetReadSyscalls": 3425,
+      "datasetRequestedBytes": 7181125,
+      "datasetReturnedBytes": 6842050,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 2,
+      "filesystem": "ext2/ext3",
+      "construction": "production codecs+RBF append; one completion flush; fixture creation is not write latency",
+      "before": {
+        "sha256": "28e0c2eb1dd7956115c637ac9c492b9d7ab33da9a1936edf46cbed600eff4df2",
+        "files": 7,
+        "bytes": 990622
+      },
+      "after": {
+        "sha256": "28e0c2eb1dd7956115c637ac9c492b9d7ab33da9a1936edf46cbed600eff4df2",
+        "files": 7,
+        "bytes": 990622
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 400
+        },
+        "catalogSnapshot": {
+          "calls": 3275,
+          "requestedBytes": 6771325,
+          "returnedBytes": 6752050
+        },
+        "locators": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 500
+        },
+        "eventSegments": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 2500
+        },
+        "refOpLog": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 86600
+        }
+      }
+    },
+    {
+      "Kind": "chain",
+      "Count": 1000,
+      "mode": "cold-chain",
+      "repetitions": 25,
+      "p50Ms": 7.0969,
+      "p95Ms": 25.8455,
+      "allocatedBytesPerIteration": 826611,
+      "maxDatasetHandles": 3,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 1,
+      "forwardPlanEntries": 1,
+      "parentWalkReads": 1001,
+      "datasetReadSyscalls": 1000,
+      "datasetRequestedBytes": 3789100,
+      "datasetReturnedBytes": 3085000,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 3,
+      "filesystem": "ext2/ext3",
+      "construction": "production codecs+RBF append; one completion flush; fixture creation is not write latency",
+      "before": {
+        "sha256": "3c3269422042ddff29552bea41344cfa96c2e24f25b4f7741462fee8937bbe00",
+        "files": 7,
+        "bytes": 92732
+      },
+      "after": {
+        "sha256": "3c3269422042ddff29552bea41344cfa96c2e24f25b4f7741462fee8937bbe00",
+        "files": 7,
+        "bytes": 92732
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 400
+        },
+        "catalogSnapshot": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 1700
+        },
+        "locators": {
+          "calls": 50,
+          "requestedBytes": 204800,
+          "returnedBytes": 1000
+        },
+        "eventSegments": {
+          "calls": 800,
+          "requestedBytes": 3174500,
+          "returnedBytes": 3068900
+        },
+        "refOpLog": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 6600
+        },
+        "refSegments": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 6400
+        }
+      }
+    },
+    {
+      "Kind": "chain",
+      "Count": 1000,
+      "mode": "warm-chain",
+      "repetitions": 25,
+      "p50Ms": 4.6182,
+      "p95Ms": 16.6881,
+      "allocatedBytesPerIteration": 302995,
+      "maxDatasetHandles": 3,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 1,
+      "forwardPlanEntries": 1,
+      "parentWalkReads": 1001,
+      "datasetReadSyscalls": 316,
+      "datasetRequestedBytes": 1282060,
+      "datasetReturnedBytes": 1228552,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 3,
+      "filesystem": "ext2/ext3",
+      "construction": "production codecs+RBF append; one completion flush; fixture creation is not write latency",
+      "before": {
+        "sha256": "3c3269422042ddff29552bea41344cfa96c2e24f25b4f7741462fee8937bbe00",
+        "files": 7,
+        "bytes": 92732
+      },
+      "after": {
+        "sha256": "3c3269422042ddff29552bea41344cfa96c2e24f25b4f7741462fee8937bbe00",
+        "files": 7,
+        "bytes": 92732
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 1,
+          "requestedBytes": 4096,
+          "returnedBytes": 16
+        },
+        "catalogSnapshot": {
+          "calls": 1,
+          "requestedBytes": 4096,
+          "returnedBytes": 68
+        },
+        "locators": {
+          "calls": 2,
+          "requestedBytes": 8192,
+          "returnedBytes": 40
+        },
+        "eventSegments": {
+          "calls": 308,
+          "requestedBytes": 1257476,
+          "returnedBytes": 1227908
+        },
+        "refOpLog": {
+          "calls": 2,
+          "requestedBytes": 4100,
+          "returnedBytes": 264
+        },
+        "refSegments": {
+          "calls": 2,
+          "requestedBytes": 4100,
+          "returnedBytes": 256
+        }
+      }
+    },
+    {
+      "Kind": "chain",
+      "Count": 10000,
+      "mode": "cold-chain",
+      "repetitions": 25,
+      "p50Ms": 22.3772,
+      "p95Ms": 85.2044,
+      "allocatedBytesPerIteration": 5915613,
+      "maxDatasetHandles": 3,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 1,
+      "forwardPlanEntries": 1,
+      "parentWalkReads": 10001,
+      "datasetReadSyscalls": 11100,
+      "datasetRequestedBytes": 45158700,
+      "datasetReturnedBytes": 44485000,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 3,
+      "filesystem": "ext2/ext3",
+      "construction": "production codecs+RBF append; one completion flush; fixture creation is not write latency",
+      "before": {
+        "sha256": "1810f856b1a5ab5a79930c30af09955377a42835c09d2d3cf78dd2891b299b32",
+        "files": 7,
+        "bytes": 920732
+      },
+      "after": {
+        "sha256": "1810f856b1a5ab5a79930c30af09955377a42835c09d2d3cf78dd2891b299b32",
+        "files": 7,
+        "bytes": 920732
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 400
+        },
+        "catalogSnapshot": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 1700
+        },
+        "locators": {
+          "calls": 50,
+          "requestedBytes": 204800,
+          "returnedBytes": 1000
+        },
+        "eventSegments": {
+          "calls": 10900,
+          "requestedBytes": 44544100,
+          "returnedBytes": 44468900
+        },
+        "refOpLog": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 6600
+        },
+        "refSegments": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 6400
+        }
+      }
+    },
+    {
+      "Kind": "chain",
+      "Count": 10000,
+      "mode": "warm-chain",
+      "repetitions": 25,
+      "p50Ms": 26.6037,
+      "p95Ms": 64.9482,
+      "allocatedBytesPerIteration": 2994828,
+      "maxDatasetHandles": 3,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 1,
+      "forwardPlanEntries": 1,
+      "parentWalkReads": 10001,
+      "datasetReadSyscalls": 5844,
+      "datasetRequestedBytes": 23924748,
+      "datasetReturnedBytes": 23861704,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 3,
+      "filesystem": "ext2/ext3",
+      "construction": "production codecs+RBF append; one completion flush; fixture creation is not write latency",
+      "before": {
+        "sha256": "1810f856b1a5ab5a79930c30af09955377a42835c09d2d3cf78dd2891b299b32",
+        "files": 7,
+        "bytes": 920732
+      },
+      "after": {
+        "sha256": "1810f856b1a5ab5a79930c30af09955377a42835c09d2d3cf78dd2891b299b32",
+        "files": 7,
+        "bytes": 920732
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 1,
+          "requestedBytes": 4096,
+          "returnedBytes": 16
+        },
+        "catalogSnapshot": {
+          "calls": 1,
+          "requestedBytes": 4096,
+          "returnedBytes": 68
+        },
+        "locators": {
+          "calls": 2,
+          "requestedBytes": 8192,
+          "returnedBytes": 40
+        },
+        "eventSegments": {
+          "calls": 5836,
+          "requestedBytes": 23900164,
+          "returnedBytes": 23861060
+        },
+        "refOpLog": {
+          "calls": 2,
+          "requestedBytes": 4100,
+          "returnedBytes": 264
+        },
+        "refSegments": {
+          "calls": 2,
+          "requestedBytes": 4100,
+          "returnedBytes": 256
+        }
+      }
+    },
+    {
+      "Kind": "cache",
+      "Count": 32,
+      "mode": "cache",
+      "repetitions": 25,
+      "p50Ms": 3.3361,
+      "p95Ms": 6.2379,
+      "allocatedBytesPerIteration": 2830837,
+      "maxDatasetHandles": 10,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 8,
+      "forwardPlanEntries": 0,
+      "parentWalkReads": 0,
+      "datasetReadSyscalls": 2625,
+      "datasetRequestedBytes": 7273800,
+      "datasetReturnedBytes": 344100,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 11,
+      "filesystem": "ext2/ext3",
+      "construction": "public APIs; production fsync unchanged",
+      "before": {
+        "sha256": "0be454dfacf5664b1aa3ce314be698bf978e157c5277f2e0236c3214df064968",
+        "files": 69,
+        "bytes": 13628
+      },
+      "after": {
+        "sha256": "0be454dfacf5664b1aa3ce314be698bf978e157c5277f2e0236c3214df064968",
+        "files": 69,
+        "bytes": 13628
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 400
+        },
+        "catalogSnapshot": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 1700
+        },
+        "locators": {
+          "calls": 825,
+          "requestedBytes": 3379200,
+          "returnedBytes": 16500
+        },
+        "eventSegments": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 2500
+        },
+        "refOpLog": {
+          "calls": 100,
+          "requestedBytes": 307300,
+          "returnedBytes": 217400
+        },
+        "refSegments": {
+          "calls": 1600,
+          "requestedBytes": 3280000,
+          "returnedBytes": 105600
+        }
+      }
+    },
+    {
+      "Kind": "churn-public",
+      "Count": 1100,
+      "mode": "open",
+      "repetitions": 25,
+      "p50Ms": 1.6225,
+      "p95Ms": 3.1077,
+      "allocatedBytesPerIteration": 211022,
+      "maxDatasetHandles": 2,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 0,
+      "forwardPlanEntries": 0,
+      "parentWalkReads": 0,
+      "datasetReadSyscalls": 375,
+      "datasetRequestedBytes": 1331400,
+      "datasetReturnedBytes": 889650,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 2,
+      "filesystem": "tmpfs",
+      "construction": "public APIs; production fsync unchanged",
+      "before": {
+        "sha256": "dc596b45c5ce7047e99e425f35271331007febfd8aa07838b0d6256695bd2e5e",
+        "files": 2207,
+        "bytes": 748622
+      },
+      "after": {
+        "sha256": "dc596b45c5ce7047e99e425f35271331007febfd8aa07838b0d6256695bd2e5e",
+        "files": 2207,
+        "bytes": 748622
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 400
+        },
+        "catalogSnapshot": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 2050
+        },
+        "locators": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 500
+        },
+        "eventSegments": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 2500
+        },
+        "refOpLog": {
+          "calls": 250,
+          "requestedBytes": 921700,
+          "returnedBytes": 884200
+        }
+      }
+    },
+    {
+      "Kind": "shrink-public",
+      "Count": 2500,
+      "mode": "open",
+      "repetitions": 25,
+      "p50Ms": 7.3738,
+      "p95Ms": 29.2535,
+      "allocatedBytesPerIteration": 649110,
+      "maxDatasetHandles": 2,
+      "datasetHandlesAfterDispose": 0,
+      "retainedRefEntries": 0,
+      "forwardPlanEntries": 0,
+      "parentWalkReads": 0,
+      "datasetReadSyscalls": 1375,
+      "datasetRequestedBytes": 4916375,
+      "datasetReturnedBytes": 4544575,
+      "datasetFailedSyscalls": 0,
+      "datasetInterruptedSyscalls": 0,
+      "datasetGetdentsSyscalls": 0,
+      "maxDatasetFdsFromTrace": 2,
+      "filesystem": "tmpfs",
+      "construction": "public APIs; production fsync unchanged",
+      "before": {
+        "sha256": "6cdac896d2a1ef3ba18db0e6b03203fb79a5caedceeb4d70f381b3e62eb13fb9",
+        "files": 5005,
+        "bytes": 1721811
+      },
+      "after": {
+        "sha256": "6cdac896d2a1ef3ba18db0e6b03203fb79a5caedceeb4d70f381b3e62eb13fb9",
+        "files": 5005,
+        "bytes": 1721811
+      },
+      "datasetReadsByClass": {
+        "journalFormat": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 400
+        },
+        "catalogSnapshot": {
+          "calls": 275,
+          "requestedBytes": 615375,
+          "returnedBytes": 548775
+        },
+        "locators": {
+          "calls": 25,
+          "requestedBytes": 102400,
+          "returnedBytes": 500
+        },
+        "eventSegments": {
+          "calls": 50,
+          "requestedBytes": 102500,
+          "returnedBytes": 2500
+        },
+        "refOpLog": {
+          "calls": 1000,
+          "requestedBytes": 3993700,
+          "returnedBytes": 3992400
+        }
+      }
+    }
+  ],
+  "processInterruptions": [
+    {
+      "mechanism": "SIGKILL after internal phase readiness; not power-loss proof",
+      "phase": "EventBeforeAppend",
+      "exitCode": -9,
+      "verification": {
+        "status": "StrictReopenSucceeded",
+        "phase": "EventBeforeAppend",
+        "savedTagPresent": false,
+        "eventTail": 96,
+        "tailSequence": 1,
+        "nextSequence": 2
+      },
+      "before": {
+        "sha256": "c79bda9b544a98061e6e9444d33c78a1606e3301743980d28d77848d022fd9e7",
+        "files": 7,
+        "bytes": 608
+      },
+      "after": {
+        "sha256": "c79bda9b544a98061e6e9444d33c78a1606e3301743980d28d77848d022fd9e7",
+        "files": 7,
+        "bytes": 608
+      }
+    },
+    {
+      "mechanism": "SIGKILL after internal phase readiness; not power-loss proof",
+      "phase": "EventAfterAppend",
+      "exitCode": -9,
+      "verification": {
+        "status": "StrictReopenSucceeded",
+        "phase": "EventAfterAppend",
+        "savedTagPresent": false,
+        "eventTail": 188,
+        "tailSequence": 2,
+        "nextSequence": 3
+      },
+      "before": {
+        "sha256": "d1d6690a8a25c7ba262a2572d4aa3524b723599753c9244bb219f6ff87420f52",
+        "files": 7,
+        "bytes": 700
+      },
+      "after": {
+        "sha256": "d1d6690a8a25c7ba262a2572d4aa3524b723599753c9244bb219f6ff87420f52",
+        "files": 7,
+        "bytes": 700
+      }
+    },
+    {
+      "mechanism": "SIGKILL after internal phase readiness; not power-loss proof",
+      "phase": "EventAfterDurableFlush",
+      "exitCode": -9,
+      "verification": {
+        "status": "StrictReopenSucceeded",
+        "phase": "EventAfterDurableFlush",
+        "savedTagPresent": false,
+        "eventTail": 188,
+        "tailSequence": 2,
+        "nextSequence": 3
+      },
+      "before": {
+        "sha256": "30b6e9453fd14b475da179b17f024432bdf82d9b2d1953009fad32b3cc3587c4",
+        "files": 7,
+        "bytes": 700
+      },
+      "after": {
+        "sha256": "30b6e9453fd14b475da179b17f024432bdf82d9b2d1953009fad32b3cc3587c4",
+        "files": 7,
+        "bytes": 700
+      }
+    },
+    {
+      "mechanism": "SIGKILL after internal phase readiness; not power-loss proof",
+      "phase": "tag:BeforeTargetFlush",
+      "exitCode": -9,
+      "verification": {
+        "status": "StrictReopenSucceeded",
+        "phase": "tag:BeforeTargetFlush",
+        "savedTagPresent": false,
+        "eventTail": 96,
+        "tailSequence": 0,
+        "nextSequence": 2
+      },
+      "before": {
+        "sha256": "027ce87b7454c8acc5dd81a307e22dbb12979b52377f413694724ce771a4a008",
+        "files": 7,
+        "bytes": 608
+      },
+      "after": {
+        "sha256": "027ce87b7454c8acc5dd81a307e22dbb12979b52377f413694724ce771a4a008",
+        "files": 7,
+        "bytes": 608
+      }
+    },
+    {
+      "mechanism": "SIGKILL after internal phase readiness; not power-loss proof",
+      "phase": "tag:BeforeAppend",
+      "exitCode": -9,
+      "verification": {
+        "status": "StrictReopenSucceeded",
+        "phase": "tag:BeforeAppend",
+        "savedTagPresent": false,
+        "eventTail": 96,
+        "tailSequence": 0,
+        "nextSequence": 2
+      },
+      "before": {
+        "sha256": "c256fe40e4069fdc5c697ab8f5ab55872328f2ac64c618beaaedad09511a3ac1",
+        "files": 7,
+        "bytes": 608
+      },
+      "after": {
+        "sha256": "c256fe40e4069fdc5c697ab8f5ab55872328f2ac64c618beaaedad09511a3ac1",
+        "files": 7,
+        "bytes": 608
+      }
+    },
+    {
+      "mechanism": "SIGKILL after internal phase readiness; not power-loss proof",
+      "phase": "tag:AfterAppend",
+      "exitCode": -9,
+      "verification": {
+        "status": "StrictReopenSucceeded",
+        "phase": "tag:AfterAppend",
+        "savedTagPresent": true,
+        "eventTail": 96,
+        "tailSequence": 0,
+        "nextSequence": 2
+      },
+      "before": {
+        "sha256": "417321ea1a395b1904f3c37a9762267e2098f30c79746985b98074d4d8bcbe6d",
+        "files": 7,
+        "bytes": 676
+      },
+      "after": {
+        "sha256": "417321ea1a395b1904f3c37a9762267e2098f30c79746985b98074d4d8bcbe6d",
+        "files": 7,
+        "bytes": 676
+      }
+    },
+    {
+      "mechanism": "SIGKILL after internal phase readiness; not power-loss proof",
+      "phase": "tag:AfterDurableFlush",
+      "exitCode": -9,
+      "verification": {
+        "status": "StrictReopenSucceeded",
+        "phase": "tag:AfterDurableFlush",
+        "savedTagPresent": true,
+        "eventTail": 96,
+        "tailSequence": 0,
+        "nextSequence": 2
+      },
+      "before": {
+        "sha256": "001a5b7312fbfea56af4b11ffed5ae05b55b7f79ddda1ec74d880e6c3c84904c",
+        "files": 7,
+        "bytes": 676
+      },
+      "after": {
+        "sha256": "001a5b7312fbfea56af4b11ffed5ae05b55b7f79ddda1ec74d880e6c3c84904c",
+        "files": 7,
+        "bytes": 676
+      }
+    },
+    {
+      "mechanism": "SIGKILL after internal phase readiness; not power-loss proof",
+      "phase": "CheckpointBeforeLogFlush",
+      "exitCode": -9,
+      "verification": {
+        "status": "StrictReopenSucceeded",
+        "phase": "CheckpointBeforeLogFlush",
+        "savedTagPresent": false,
+        "eventTail": 96,
+        "tailSequence": 0,
+        "nextSequence": 2
+      },
+      "before": {
+        "sha256": "748716e8ed6875b65e2075e05d2f59519ebce59df21f18d8c626959e3da98ad7",
+        "files": 7,
+        "bytes": 608
+      },
+      "after": {
+        "sha256": "748716e8ed6875b65e2075e05d2f59519ebce59df21f18d8c626959e3da98ad7",
+        "files": 7,
+        "bytes": 608
+      }
+    },
+    {
+      "mechanism": "SIGKILL after internal phase readiness; not power-loss proof",
+      "phase": "CheckpointBeforeBoundary",
+      "exitCode": -9,
+      "verification": {
+        "status": "StrictReopenSucceeded",
+        "phase": "CheckpointBeforeBoundary",
+        "savedTagPresent": false,
+        "eventTail": 96,
+        "tailSequence": 0,
+        "nextSequence": 2
+      },
+      "before": {
+        "sha256": "b19208c19e86270bbb89b645e7e1c7611e6da0bafafa9253d33762840f16b849",
+        "files": 7,
+        "bytes": 608
+      },
+      "after": {
+        "sha256": "b19208c19e86270bbb89b645e7e1c7611e6da0bafafa9253d33762840f16b849",
+        "files": 7,
+        "bytes": 608
+      }
+    },
+    {
+      "mechanism": "SIGKILL after internal phase readiness; not power-loss proof",
+      "phase": "CheckpointBeforeWrite",
+      "exitCode": -9,
+      "verification": {
+        "status": "StrictReopenSucceeded",
+        "phase": "CheckpointBeforeWrite",
+        "savedTagPresent": false,
+        "eventTail": 96,
+        "tailSequence": 0,
+        "nextSequence": 2
+      },
+      "before": {
+        "sha256": "fa3871162525a7a67accbfb4b92813cb15af0ecea344a161188747469c593788",
+        "files": 8,
+        "bytes": 608
+      },
+      "after": {
+        "sha256": "fa3871162525a7a67accbfb4b92813cb15af0ecea344a161188747469c593788",
+        "files": 8,
+        "bytes": 608
+      }
+    },
+    {
+      "mechanism": "SIGKILL after internal phase readiness; not power-loss proof",
+      "phase": "CheckpointBeforeTempFlush",
+      "exitCode": -9,
+      "verification": {
+        "status": "StrictReopenSucceeded",
+        "phase": "CheckpointBeforeTempFlush",
+        "savedTagPresent": false,
+        "eventTail": 96,
+        "tailSequence": 0,
+        "nextSequence": 2
+      },
+      "before": {
+        "sha256": "d0138444626c683ae396d14bc2447f1a199cca412353d9514d5175b1adce76bf",
+        "files": 8,
+        "bytes": 608
+      },
+      "after": {
+        "sha256": "d0138444626c683ae396d14bc2447f1a199cca412353d9514d5175b1adce76bf",
+        "files": 8,
+        "bytes": 608
+      }
+    },
+    {
+      "mechanism": "SIGKILL after internal phase readiness; not power-loss proof",
+      "phase": "CheckpointBeforeReplace",
+      "exitCode": -9,
+      "verification": {
+        "status": "StrictReopenSucceeded",
+        "phase": "CheckpointBeforeReplace",
+        "savedTagPresent": false,
+        "eventTail": 96,
+        "tailSequence": 0,
+        "nextSequence": 2
+      },
+      "before": {
+        "sha256": "792892f15f611a105a1a1a3ecd58c6e7981dce65e222116d6e734f07826eff75",
+        "files": 8,
+        "bytes": 690
+      },
+      "after": {
+        "sha256": "792892f15f611a105a1a1a3ecd58c6e7981dce65e222116d6e734f07826eff75",
+        "files": 8,
+        "bytes": 690
+      }
+    },
+    {
+      "mechanism": "SIGKILL after internal phase readiness; not power-loss proof",
+      "phase": "CheckpointAfterReplace",
+      "exitCode": -9,
+      "verification": {
+        "status": "StrictReopenSucceeded",
+        "phase": "CheckpointAfterReplace",
+        "savedTagPresent": false,
+        "eventTail": 96,
+        "tailSequence": 0,
+        "nextSequence": 2
+      },
+      "before": {
+        "sha256": "92f17fd72a639543b2c4a80d315bd0ed0ebc41bb21d40a9a8f5f7cfcbcc3ba65",
+        "files": 7,
+        "bytes": 622
+      },
+      "after": {
+        "sha256": "92f17fd72a639543b2c4a80d315bd0ed0ebc41bb21d40a9a8f5f7cfcbcc3ba65",
+        "files": 7,
+        "bytes": 622
+      }
+    },
+    {
+      "mechanism": "SIGKILL after internal phase readiness; not power-loss proof",
+      "phase": "CheckpointBeforeInstall",
+      "exitCode": -9,
+      "verification": {
+        "status": "StrictReopenSucceeded",
+        "phase": "CheckpointBeforeInstall",
+        "savedTagPresent": false,
+        "eventTail": 96,
+        "tailSequence": 0,
+        "nextSequence": 2
+      },
+      "before": {
+        "sha256": "0dd43712dc67709e731388f3b6e6c06d6687926ec499bd280a54d52d0059da9f",
+        "files": 7,
+        "bytes": 622
+      },
+      "after": {
+        "sha256": "0dd43712dc67709e731388f3b6e6c06d6687926ec499bd280a54d52d0059da9f",
+        "files": 7,
+        "bytes": 622
+      }
+    },
+    {
+      "mechanism": "SIGKILL after internal phase readiness; not power-loss proof",
+      "phase": "rotation:OldFlush",
+      "exitCode": -9,
+      "verification": {
+        "status": "StrictReopenSucceeded",
+        "phase": "rotation:OldFlush",
+        "active": 1
+      },
+      "before": {
+        "sha256": "3cad8713402afec4d3999ef3425d7545a2166812da871ef28c2036d4ede83330",
+        "files": 2,
+        "bytes": 52
+      },
+      "after": {
+        "sha256": "3cad8713402afec4d3999ef3425d7545a2166812da871ef28c2036d4ede83330",
+        "files": 2,
+        "bytes": 52
+      }
+    },
+    {
+      "mechanism": "SIGKILL after internal phase readiness; not power-loss proof",
+      "phase": "rotation:NextCreate",
+      "exitCode": -9,
+      "verification": {
+        "status": "StrictReopenSucceeded",
+        "phase": "rotation:NextCreate",
+        "active": 1
+      },
+      "before": {
+        "sha256": "3cad8713402afec4d3999ef3425d7545a2166812da871ef28c2036d4ede83330",
+        "files": 2,
+        "bytes": 52
+      },
+      "after": {
+        "sha256": "3cad8713402afec4d3999ef3425d7545a2166812da871ef28c2036d4ede83330",
+        "files": 2,
+        "bytes": 52
+      }
+    },
+    {
+      "mechanism": "SIGKILL after internal phase readiness; not power-loss proof",
+      "phase": "rotation:NextFlush",
+      "exitCode": -9,
+      "verification": {
+        "status": "StrictReopenRejected",
+        "phase": "rotation:NextFlush",
+        "kind": "MaintenanceRequired",
+        "code": "NextSegmentPresent"
+      },
+      "before": {
+        "sha256": "73d8400d456a28de5748924531fadce38cdc7809abdaea6a16652dd02d0caf3e",
+        "files": 3,
+        "bytes": 56
+      },
+      "after": {
+        "sha256": "73d8400d456a28de5748924531fadce38cdc7809abdaea6a16652dd02d0caf3e",
+        "files": 3,
+        "bytes": 56
+      }
+    },
+    {
+      "mechanism": "SIGKILL after internal phase readiness; not power-loss proof",
+      "phase": "rotation:LocatorCreate",
+      "exitCode": -9,
+      "verification": {
+        "status": "StrictReopenRejected",
+        "phase": "rotation:LocatorCreate",
+        "kind": "MaintenanceRequired",
+        "code": "NextSegmentPresent"
+      },
+      "before": {
+        "sha256": "73d8400d456a28de5748924531fadce38cdc7809abdaea6a16652dd02d0caf3e",
+        "files": 3,
+        "bytes": 56
+      },
+      "after": {
+        "sha256": "73d8400d456a28de5748924531fadce38cdc7809abdaea6a16652dd02d0caf3e",
+        "files": 3,
+        "bytes": 56
+      }
+    },
+    {
+      "mechanism": "SIGKILL after internal phase readiness; not power-loss proof",
+      "phase": "rotation:LocatorFlush",
+      "exitCode": -9,
+      "verification": {
+        "status": "StrictReopenRejected",
+        "phase": "rotation:LocatorFlush",
+        "kind": "MaintenanceRequired",
+        "code": "NextSegmentPresent"
+      },
+      "before": {
+        "sha256": "f08dd11b3568b49e1c0f8d3be7829ae4370ec3425800a0871941f77533a5bb05",
+        "files": 4,
+        "bytes": 56
+      },
+      "after": {
+        "sha256": "f08dd11b3568b49e1c0f8d3be7829ae4370ec3425800a0871941f77533a5bb05",
+        "files": 4,
+        "bytes": 56
+      }
+    },
+    {
+      "mechanism": "SIGKILL after internal phase readiness; not power-loss proof",
+      "phase": "rotation:LocatorReplace",
+      "exitCode": -9,
+      "verification": {
+        "status": "StrictReopenRejected",
+        "phase": "rotation:LocatorReplace",
+        "kind": "MaintenanceRequired",
+        "code": "NextSegmentPresent"
+      },
+      "before": {
+        "sha256": "41d8dfd3c102fe2d71d82b0cbd5fd98732cbc7272c3218e2674c36247f582a4c",
+        "files": 4,
+        "bytes": 76
+      },
+      "after": {
+        "sha256": "41d8dfd3c102fe2d71d82b0cbd5fd98732cbc7272c3218e2674c36247f582a4c",
+        "files": 4,
+        "bytes": 76
+      }
+    },
+    {
+      "mechanism": "SIGKILL after internal phase readiness; not power-loss proof",
+      "phase": "rotation:LocatorPublished",
+      "exitCode": -9,
+      "verification": {
+        "status": "StrictReopenSucceeded",
+        "phase": "rotation:LocatorPublished",
+        "active": 2
+      },
+      "before": {
+        "sha256": "b95652d735251f42d5ea1d1d06ecca2ee2e14bff0f8604e42161022394c75188",
+        "files": 3,
+        "bytes": 56
+      },
+      "after": {
+        "sha256": "b95652d735251f42d5ea1d1d06ecca2ee2e14bff0f8604e42161022394c75188",
+        "files": 3,
+        "bytes": 56
+      }
+    },
+    {
+      "mechanism": "SIGKILL after internal phase readiness; not power-loss proof",
+      "phase": "rotation:OldDispose",
+      "exitCode": -9,
+      "verification": {
+        "status": "StrictReopenSucceeded",
+        "phase": "rotation:OldDispose",
+        "active": 2
+      },
+      "before": {
+        "sha256": "b95652d735251f42d5ea1d1d06ecca2ee2e14bff0f8604e42161022394c75188",
+        "files": 3,
+        "bytes": 56
+      },
+      "after": {
+        "sha256": "b95652d735251f42d5ea1d1d06ecca2ee2e14bff0f8604e42161022394c75188",
+        "files": 3,
+        "bytes": 56
+      }
+    }
+  ],
+  "summary": {
+    "measurementCases": 28,
+    "killCases": 22,
+    "allReadOnlyHashesUnchanged": true,
+    "allDatasetDirectoryEnumerationZero": true,
+    "allReadSyscallsSucceeded": true,
+    "parserSha256": "62ec9c7b07c767d195b4abab81c7b8cd47da52fb487a611420c781d3ee8f7a2b"
+  }
+}

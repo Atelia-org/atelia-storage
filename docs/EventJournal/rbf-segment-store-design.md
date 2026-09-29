@@ -1,5 +1,8 @@
 # RbfSegmentStore 设计基线
 
+> **现行状态（2026-09-29）**：历史 SegmentStore 设计。main v2 使用 active.segment locator 定点打开、严格末帧验证与 owned-operation fault；下述目录全扫描/active-tail 恢复编排不再是日常行为。
+> 当前入口：[v2 方案](bounded-online-io-design.md)、[冻结合同](bounded-online-io-contracts.md)、[EventJournal 指南](../../src/EventJournal/README.md)、[交付记录](bounded-online-io-delivery.md)。v2 仍是未发布 breaking 候选；以下正文保留历史原貌。
+
 > **状态**：Design Baseline / 可作为独立 C# Project 的施工输入
 > **日期**：2026-07-22
 > **上层依赖者**：[EventJournal 功能需求与粗粒度设计基线](event-journal-requirements-and-design.md)

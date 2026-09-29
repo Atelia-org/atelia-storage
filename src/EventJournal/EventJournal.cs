@@ -122,9 +122,9 @@ public sealed partial class EventJournal : IDisposable {
     }
 
     /// <summary>
-    /// Opens an existing journal for strict read-only inspection. Active event,
-    /// ref-op, and live ref-object tails are validated but never recovered or
-    /// truncated, and compiled forward-plan caches are neither created nor changed.
+    /// Opens an existing journal for strict read-only inspection. Validates format,
+    /// catalog snapshot and bounded suffix, and the active event tail. Ref endpoints
+    /// and tag targets are validated when accessed. Never recovers or truncates data.
     /// </summary>
     public static EventJournal OpenReadOnlyExisting(
         string journalPath,
@@ -221,6 +221,7 @@ public sealed partial class EventJournal : IDisposable {
             var appendResult = lease.File.Append(EventFrameTag, storedPayload.Payload, tailMeta);
             if (appendResult.IsFailure) { return appendResult.Error!; }
 
+            OperationProbe?.Invoke("EventAfterAppend");
             lease.File.DurableFlush();
             OperationProbe?.Invoke("EventAfterDurableFlush");
             _nextSequenceNumber = checked(_nextSequenceNumber + 1);

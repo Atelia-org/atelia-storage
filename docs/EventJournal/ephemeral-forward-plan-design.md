@@ -1,5 +1,8 @@
 # Ephemeral Forward Plan 与进程内缓存设计基线
 
+> **现行状态（2026-09-29）**：原始 EphemeralForwardPlan 模型背景。main v2 保留 exact-head memory LRU 与 ancestor prefix reuse；只限制保留缓存，cold Parent walk、全量结果和 cycle detection 仍可能需要 O(N) 时间/临时空间。
+> 当前入口：[v2 方案](bounded-online-io-design.md)、[冻结合同](bounded-online-io-contracts.md)、[EventJournal 指南](../../src/EventJournal/README.md)、[交付记录](bounded-online-io-delivery.md)。v2 仍是未发布 breaking 候选；以下正文保留历史原貌。
+
 > **状态**：Design Baseline / 可作为首轮实施输入
 > **日期**：2026-07-23
 > **依赖**：[EventFrame Parent Chain 设计基线](event-frame-parent-chain-design.md)、[Event Ref Store 设计基线](event-ref-store-design.md)、[RbfSegmentStore 设计基线](rbf-segment-store-design.md)

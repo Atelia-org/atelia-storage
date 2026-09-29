@@ -1,5 +1,8 @@
 # 不可变 tag：实现合同
 
+> **现行状态（2026-09-29）**：已发布 0.1.2-preview.1 的 tag 合同历史记录。tag API/不可变性及三态延续；main v2 的布局、打开时目标懒校验、前置 checkpoint 与统一 fault 以后述当前入口为准。本文“新 reader 可读旧格式”和不新增文件的描述不适用于 v2。
+> 当前入口：[v2 方案](bounded-online-io-design.md)、[冻结合同](bounded-online-io-contracts.md)、[EventJournal 指南](../../src/EventJournal/README.md)、[交付记录](bounded-online-io-delivery.md)。v2 仍是未发布 breaking 候选；以下正文保留历史原貌。
+
 2026-09-27。需求来源：DurableGraph DB-084；本片交付 EventJournal 与独立包验证，DG 接入另行完成。
 
 ## 范围与接口

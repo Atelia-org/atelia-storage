@@ -1,5 +1,8 @@
 # ForwardPlan Compiled Cache 设计备忘
 
+> **现行状态（2026-09-29）**：历史 compiled disk cache 设计，已从 main v2 runtime 移除。v2 仅保留内存 ForwardPlan LRU，不创建、读取、更新或删除旧磁盘 cache；本文不是当前实施输入。
+> 当前入口：[v2 方案](bounded-online-io-design.md)、[冻结合同](bounded-online-io-contracts.md)、[EventJournal 指南](../../src/EventJournal/README.md)、[交付记录](bounded-online-io-delivery.md)。v2 仍是未发布 breaking 候选；以下正文保留历史原貌。
+
 > **状态**：Implementation Memo / 用于离线 replay 工况
 > **日期**：2026-07-23
 > **前置**：[Ephemeral Forward Plan 与进程内缓存设计基线](ephemeral-forward-plan-design.md)

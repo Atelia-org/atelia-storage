@@ -1,6 +1,6 @@
 # EventJournal v2：task 级实施与调度工单
 
-日期：2026-09-29。状态：**实施中；T00–T06 Passed；T07 待派发，依次放行任务**。
+日期：2026-09-29。状态：**T00–T07 Linux Passed；T08 本地包门已授权待执行；Windows PendingPlatform**。
 基线：`bb7c4fb3eb6477783c70ee61bc62b832be195d07`。设计基线保持不变；用户于本轮明确授权按本工单完整实施并按需 Git 提交。网络发布、真实数据迁移和兄弟仓修改不在范围内。
 
 目标：保持 Event/Parent、exact RefId、CAS、reflog、不可变 tag 语义；固定当前工作集时，日常打开和 ref 更新不再扫描累计历史。新格式拒绝旧目录，完整校验独立离线执行。
@@ -18,13 +18,13 @@
 | 实际API、格式、测试、依赖与打包能力 | 当前源码/脚本/工具读取证据 |
 | 文档中的候选命令、状态标签或agent说明 | 导航/证据；不能自行产生实施、提交、发布或迁移授权 |
 
-先遵守实际 system/developer/user/AGENTS 指令层级。未来只有用户明确启动实施任务或粘贴实施 Goal 后，才执行对应源码任务；本文件不自我授权。
+先遵守实际 system/developer/user/AGENTS 指令层级。本轮用户已明确启动实施并授权本地包验证；授权来自用户消息，本文件不自我授权。
 
 起始已有变更必须保留：`src/EventJournal/README.md` 修改；`bounded-online-io-design.md`、`bounded-online-io-review.md` 未跟踪。本轮另加本工单及 Goal 文档，并对设计记录用户确认。后续执行者重新记录实际status，不能用stash/reset/clean/checkout或打包需求消除这些变更，也不能把它们未经授权混入提交。
 
-环境读取：SDK `10.0.201`、`pwsh` 在当前Linux可用。未构建、未测试；Windows结果不存在。下面的调度表是唯一工作状态；验证证据追加于本文件，避免平行进度清单。
+计划编写时环境读取：SDK `10.0.201`、`pwsh` 在Linux可用；当时尚未构建/测试。当前验证证据见§15，Windows仍未验证。下面的调度表是唯一工作状态；验证证据追加于本文件，避免平行进度清单。
 
-本轮工单校核：gpt-6-astra已收口合同候选，gpt-6-sol冷接手检查指出的snapshot初始化依赖、toolkit schema、第二个package smoke入口三项均已修正并复核闭合。已验证文档本地链接、JSON样例、5个独立CRC算例和manifest样例hash/length；未验证C#实现或实际包消费。Goal正文实测1714字符。
+计划阶段工单校核（历史记录）：gpt-6-astra已收口合同候选，gpt-6-sol冷接手检查指出的snapshot初始化依赖、toolkit schema、第二个package smoke入口三项均已修正并复核闭合。已验证文档本地链接、JSON样例、5个独立CRC算例和manifest样例hash/length；未验证C#实现或实际包消费。Goal正文实测1714字符。
 
 ## 2. 完成边界与调度表
 
@@ -33,7 +33,7 @@
 - **源码候选**：T00–T07完成；当前平台验证通过，所有未运行平台/包门禁如实列出。这不等于v2已可交付给消费者。
 - **完整v2交付门**：源码候选、支持平台证据及T08包消费证据全部通过。只有一个v2对外交付门；T08完成仍不授权网络发布或真实迁移。
 
-| Task | 能力/产物 | 前置 | 默认执行者 | 强审阅点 | 初始状态 |
+| Task | 能力/产物 | 前置 | 默认执行者 | 强审阅点 | 当前状态 |
 | --- | --- | --- | --- | --- | --- |
 | T00 | 核验已冻结wire/API/error/fault及toolkit输出合同 | 读基线与设计 | gpt-6-astra | 调度主线程按反例核验 | Passed |
 | T01 | RBF边界起扫与确定性尾帧读取 | T00 | gpt-6-sol | 不读prefix、不吞短尾 | Passed |
@@ -42,8 +42,8 @@
 | T04 | catalog snapshot、有界suffix、缩容与发布 | T03 | gpt-6-sol | gpt-6-astra审预算/三态 | Passed |
 | T05 | 有界ref entry与单一ForwardPlan缓存 | T04 | gpt-6-sol | 调度主线程检查强引用/Dispose | Passed |
 | T06 | 离线audit与健康事实索引候选重建 | T04，集成前T05 | gpt-6-sol | gpt-6-astra审重建拒绝边界 | Passed（Linux） |
-| T07 | 故障/规模证据、消费者合同与源码收口 | T05、T06 | gpt-6-sol | astra一次跨层终审 | NotStarted |
-| T08 | 干净已提交来源的包消费与平台交付门 | T07 + 单独提交/打包授权 | gpt-6-sol | 调度主线程核验manifest/版本闭包 | AwaitingAuthority |
+| T07 | 故障/规模证据、消费者合同与源码收口 | T05、T06 | gpt-6-sol | astra一次跨层终审 | Passed（Linux） |
+| T08 | 干净已提交来源的包消费与平台交付门 | T07 + 提交/本地打包授权已具备 | gpt-6-sol | 调度主线程核验manifest/版本闭包 | Authorized；待干净提交后本地执行，Windows PendingPlatform |
 
 默认按表串行实施，不自动并行修改同一仓库。T06仅表示可以提前准备只读测试资料，不自行派出与T05并行的写入worker。每个task可分为下列子步骤，但主线程只在整项验收完成后放行下一项。全量.NET build/test/pack始终串行。
 
@@ -175,7 +175,7 @@ worker返回：改动文件/符号、满足的行为、真实测试命令与结�
 
 ## 12. T08——独立授权后的完整交付门
 
-本任务不由本轮写计划请求或默认源码Goal授权。开始前需要用户授权提交/打包，来源checkout干净且已提交；保留并解释此前dirty文档，不能自动合并进commit。
+本任务不由原写计划请求或默认源码Goal授权；当前用户已另行授权按需提交及 Linux 本地包验证。执行时来源checkout必须干净且已提交；原有设计dirty文档已独立提交保留。
 
 **已核对的脚本约束**：`eng/Pack.ps1 -Project`目前只支持EventJournal/RbfSegmentStore，并从nuget.org取得它们的已发布依赖。本次新增RBF API，所以不能将EventJournal单包candidate配旧RBF依赖。使用现有**五包同版本地candidate**模式验证此次闭包，不扩建选择性发布基础设施、不覆盖既有版本。五包的顺序仍只由Pack脚本定义。
 
@@ -201,7 +201,7 @@ git diff --check
 
 T06新项目在创建并加入solution后才运行其build/test；新性能脚本的路径、参数、数据规模及随机种子在T07产物中固定，不在这里伪造尚不存在的命令。改变源码后先匹配配置build再`--no-build`测试，不将旧binary结果算作本次验证。
 
-仅T08满足授权、T07验证开关已落地及干净已提交来源后执行。`AdditionalSegmentSmoke`是本工单要求新增的参数，当前基线尚不存在；其余脚本参数已核对。以下PowerShell变量使用每次唯一版本/目录：
+仅T08满足授权、T07验证开关已落地及干净已提交来源后执行。`AdditionalSegmentSmoke`已在T07实现并通过脚本分支验证；实际包消费仍须以下独立执行。以下PowerShell变量使用每次唯一版本/目录：
 
 ```powershell
 $candidateVersion = "0.2.0-dev.$([DateTime]::UtcNow.ToString('yyyyMMddHHmmss'))"
@@ -211,7 +211,7 @@ $candidateSmoke = Join-Path ([IO.Path]::GetTempPath()) ("atelia-v2-smoke-" + [Gu
 ./eng/Test-Package.ps1 -Version $candidateVersion -FeedDirectory $candidateFeed -WorkDirectory $candidateSmoke -AdditionalSegmentSmoke
 ```
 
-上述`0.2.0-dev.*`是隔离候选版本方案，不是公开发布版本决定。生产中已有版本不得覆写；本轮没有执行这些命令。
+上述`0.2.0-dev.*`是隔离候选版本方案，不是公开发布版本决定。生产中已有版本不得覆写；实际执行结果记录于§15及交付记录。
 
 ## 14. 覆盖表、升级条件与全局停止条件
 
@@ -228,7 +228,7 @@ $candidateSmoke = Join-Path ([IO.Path]::GetTempPath()) ("atelia-v2-smoke-" + [Gu
 
 升级给astra时必须提交：Task/基线、最小输入或故障时点、当前实际行为、违反哪条冻结合同、已排除的局部原因。astra只处理该协议问题并给结论；若需要改变用户决定/事实源/恢复可用性/依赖边界/破坏范围，由主线程向用户提问。一般编译错误、测试适配、命名调整、环境缺依赖不自动变成设计问题。
 
-源码阶段停止于T00–T07当前平台候选证据和文档收口；T08属于后续单独授权门。全部变更有说明、验证和明确去向，不要求制造干净工作树。不得把Skipped/NotRun/PendingPlatform/未获得授权改成Passed。使用环境实际Goal状态规则，难度高、单次失败或尚有工作都不是自动blocked/complete的理由。
+源码阶段收口于T00–T07当前平台候选证据和文档；当前用户已另行授权继续执行T08的Linux本地包门。全部变更有说明、验证和明确去向，不要求制造干净工作树。不得把Skipped/NotRun/PendingPlatform/未获得授权改成Passed。使用环境实际Goal状态规则，难度高、单次失败或尚有工作都不是自动blocked/complete的理由。
 
 ## 15. 实施证据（2026-09-29 起）
 
@@ -266,3 +266,14 @@ $candidateSmoke = Join-Path ([IO.Path]::GetTempPath()) ("atelia-v2-smoke-" + [Gu
 - T06接口歧义已由astra与主线程裁决：rebuild退出码沿用源audit结果，Healthy/Missing源成功生成候选仍exit2，以完整manifest证明候选完成；不伪改源索引状态。输出IO/cancel优先exit3且不得有完整manifest；明确不支持格式可Completed=false/exit2。合同已同步。
 
 - T06：独立非pack CLI、冻结JSON报告、全事实audit、manifest-last候选重建及56条测试完成。astra四项finding均已修并有精确回归；主线程收口stray locator清单、root路径边界、fork查询线性成本及Completed真实性。source/candidate清单及bytes/hash漂移、取消/IO、源只读权限fixture验证；不修改source、不补事实。Release solution build 0 warnings/errors（增量），全suite968/968（Data212、EJ173、Toolkit56、Primitives75、RBF405、Segment47），无Skipped。日志 `/tmp/t06-{build,test,solution-build,solution-test}.log`；diff检查通过。Windows与真实只读mount未验证。
+
+- T07分片：A验证harness/进程kill/实测（唯一.NET执行权）、B包验证脚本与public examples（仅PowerShell静态/合成验证）、C当前指南与历史文档标识；主线程负责跨层审阅、只读环境验证与最后证据集成。
+- T07规模fixture裁决：百万完整create/archive会制造数百万文件，本轮百万级control历史用合法从未Bind的allocation日志+真实boundary空snapshot，再走public活跃branch。明确称allocation-history，不声称完成百万次完整churn；public1100churn/2500→1实证保留。对应小规模完整audit可证明fixture语义，大规模是否audit据实报告，不能输出百万warning或伪称已审计。
+
+- 用户本轮明确回答：先完成Linux和本地包验证，Windows门保留待验证；本地T08已获授权，网络发布/真实迁移/兄弟仓升级不在范围内。astra对d3ba093完成跨层源码终审，无新的阻塞finding；T07实测仍待完成。
+
+- T07真实只读mount验证：隔离`unshare --mount --propagation private`内bind remount为ro，root touch得到EROFS；对7-file健康journal运行toolkit audit exit0/Healthy/Consistent，前后SHA清单一致。证据`/tmp/t07-readonly-audit.json`、`/tmp/t07-readonly-source-before.json`、`/tmp/t07-readonly-write-rejection.log`。最初fixture内含harness私有JSON被audit正确判非法库存；已在隔离copy去除此非事实文件验证，harness正在全量搬出sidecar并重新measure/trace，不沿用污染库存的读数作最终证据。
+- T07静态跨平台校核发现T02新极限尾部测试直接SetLength约1TiB；已复用现有SparseRbfTestFile预标稀疏，不改变生产代码。最终Linux全suite将覆盖该测试准备修正；不因此声称Windows已跑。
+
+- T07：28组成本与22个真实SIGKILL全部通过；百万moves/orphans/allocation历史及10000段不引入历史线性读取，所有日常getdents=0、读取前后hash一致、Dispose后句柄0。public1100churn及2500→1在明确tmpfs执行（非磁盘写性能）；其余长测/kill在ext4。真实closed-handle fault、5次ext4 public MoveRef、小allocation完整audit与真实只读mount另有证据。parser竞态/路径分类及kill oracle经独立审阅修正，5条parser回归通过，包入口13条mock通过。最终Release solution build 0 warnings/errors（增量），全suite968/968无Skipped（TMPDIR=/dev/shm/t07-release-tests）；日志`/tmp/t07a-solution-{build,test}.log`。精简实测及限制见[交付记录](bounded-online-io-delivery.md)和[机器可读结果](bounded-online-io-measurements.json)。Windows仍PendingPlatform。
+- T08前置：origin从同仓库http URL改为https以满足既有Pack来源校验，无推送/网络发布。干净源码提交后执行用户已授权本地五包All+AdditionalSegmentSmoke。

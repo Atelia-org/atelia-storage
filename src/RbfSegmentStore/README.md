@@ -1,7 +1,7 @@
 # RbfSegmentStore 使用指南
 
 本文面向后续 LLM Coding Agent 会话，说明如何在上层模块中使用 `Atelia.RbfSegmentStore`。
-设计背景见 [RbfSegmentStore 设计基线](../../docs/EventJournal/rbf-segment-store-design.md)。
+本文描述 main 的 **v2 未发布 breaking 候选**；已发布 `Atelia.RbfSegmentStore 0.1.2-preview.1` 的格式/恢复行为以根 README 的固定版本链接为准。v2 拒绝无 locator 的旧目录，没有自动迁移。当前合同见[冻结附件](../../docs/EventJournal/bounded-online-io-contracts.md)，交付状态见[候选记录](../../docs/EventJournal/bounded-online-io-delivery.md)；[原始设计基线](../../docs/EventJournal/rbf-segment-store-design.md)保留为历史背景。
 
 ## 定位
 
@@ -72,11 +72,13 @@ using var store = RbfSegmentStore.OpenOrCreate(storePath);
 |:-----|:---------|:-----------|:-------------|:---------------|
 | `CreateNew` | 明确创建新 store | 创建 | 抛异常 | 不适用 |
 | `OpenExisting` | 只接受已有 store | 抛异常 | 打开 | 抛异常 |
-| `OpenReadOnlyExisting` | 审计/只读挂载 | 抛异常 | 共享只读打开，不 recovery | 抛异常 |
+| `OpenReadOnlyExisting` | 日常只读查询/只读挂载 | 抛异常 | 共享只读打开，不 recovery | 抛异常 |
 | `OpenOrCreate` | CLI / 原型默认入口 | 创建 | 严格打开 | 拒绝缺 locator 的半成品 |
 
 打开缺 locator 的旧目录或半成品抛 `StorageOpenException(FormatUnsupported, LegacyOrIncompleteLayout)`；locator 损坏、layout 冲突、next 已存在及坏尾返回对应可识别维护错误。权限和设备 I/O 保留原异常。
-两个打开入口只校验紧贴 EOF 的末帧 framing/CRC，不扫描历史，不 truncate；合法空 active 精确为 4B HeaderFence。
+两个打开入口只校验必要 EOF 末帧 framing/CRC，不扫描历史、不 truncate；合法空 active 精确为 4B HeaderFence。active 空且编号大于 1 时最多访问前一段，前一段必须非空。历史 segment 缺失按地址访问时报告。
+
+使用 `StorageOpenException.Kind` 区分 `FormatUnsupported` 与 `MaintenanceRequired`，再按 `ReasonCode`、`StoragePath`、可用 `Offset` / `ObservedVersion` 判定，不解析 message。日常打开成功不等于全历史健康；完整 EventJournal 历史/目录验证使用[离线 toolkit](../../tools/EventJournal.Toolkit/README.md)。
 只读实例允许 `OpenReader()`，但 `OpenActiveWriter()` 会 fail-fast。
 
 ## Options
@@ -154,7 +156,7 @@ uint tag = frame.Tag;
 byte[] payload = frame.PayloadAndMeta.ToArray();
 ```
 
-active segment reader 复用 active read/write `IRbfFile` 单例；historical segment reader 通过 read-only pool 打开。
+active segment reader 复用 active `IRbfFile` 单例（只读 store 使用只读句柄）；historical segment reader 通过 read-only pool 打开。
 
 ## 轮转行为
 
@@ -185,7 +187,7 @@ MVP 固定为单写串读模型：
 
 本层 rotation/ConfirmDurable 的 owned operation 异常会 latch fault；此后数据入口拒绝，lease 释放与 Dispose 仍可执行。
 参数、只读和 live lease 前置 guard 不 fault。调用方通过 `lease.File` 自行 Append/flush 的异常由调用方负责停止使用；本层不代理其 IRbfFile。
-Dispose 标记关闭并尝试释放所有 owned handles；释放异常汇总报告。显式离线 recovery 仍属于 RBF API，不是 daily open 行为。
+Dispose 标记关闭并尝试释放所有 owned handles；释放异常汇总报告。独立 RBF 仍保留显式 recovery API，但 v2 的日常打开和首版 toolkit 不调用它，也不提供 repair-tail。
 
 ## 常见任务
 

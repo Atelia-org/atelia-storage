@@ -40,7 +40,9 @@ public class RbfScanReverseTests : IDisposable {
         uint tailLength = invalidStart ? 24u : (uint)SizedPtr.MaxLength + 4u;
         long start = invalidStart ? SizedPtr.MaxOffset + 4 : 4;
         long end = start + tailLength + 4;
-        using (var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write)) {
+        // Mark sparse before extending on Windows, just like the existing maximum-offset tests.
+        using (SparseRbfTestFile.CreateNew(path)) { }
+        using (var stream = new FileStream(path, FileMode.Open, FileAccess.Write)) {
             stream.Write(RbfLayout.Fence);
             stream.SetLength(end);
             stream.Position = end - 20;
