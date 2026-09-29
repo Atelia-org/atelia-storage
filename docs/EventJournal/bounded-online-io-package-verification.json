@@ -1,0 +1,37 @@
+{
+  "result": "Passed",
+  "sourceRevision": "18c256ebf5d98b1e1b497963b491dc2e734cc98c",
+  "version": "0.2.0-dev.20260929001100",
+  "platform": "Linux",
+  "sdkVersion": "10.0.201",
+  "manifest": "/tmp/atelia-storage-t08-20260929001100-c13801dbe11c4a1eb50effba7e00da59/feed/manifest.0.2.0-dev.20260929001100.json",
+  "all10FeedHashesVerified": true,
+  "all5PrivateCacheArchiveHashesVerified": true,
+  "consumers": {
+    "EventJournalSmoke": {
+      "assets": "/tmp/atelia-storage-t08-20260929001100-c13801dbe11c4a1eb50effba7e00da59/smoke/EventJournalSmoke/obj/project.assets.json",
+      "packages": [
+        "Atelia.Data/0.2.0-dev.20260929001100",
+        "Atelia.EventJournal/0.2.0-dev.20260929001100",
+        "Atelia.Primitives/0.2.0-dev.20260929001100",
+        "Atelia.Rbf/0.2.0-dev.20260929001100",
+        "Atelia.RbfSegmentStore/0.2.0-dev.20260929001100"
+      ]
+    },
+    "RbfSegmentStoreSmoke": {
+      "assets": "/tmp/atelia-storage-t08-20260929001100-c13801dbe11c4a1eb50effba7e00da59/smoke/RbfSegmentStoreSmoke/obj/project.assets.json",
+      "packages": [
+        "Atelia.Data/0.2.0-dev.20260929001100",
+        "Atelia.Primitives/0.2.0-dev.20260929001100",
+        "Atelia.Rbf/0.2.0-dev.20260929001100",
+        "Atelia.RbfSegmentStore/0.2.0-dev.20260929001100"
+      ]
+    }
+  },
+  "localSourceDocumentChecksums": 90,
+  "remoteSourceLinkDownload": "NotRun",
+  "Windows": "PendingPlatform",
+  "consumerUpgrade": "NotRun",
+  "networkPublication": "NotRun",
+  "packLogLimitation": "Initial Primitives/Data host output retained only in tool transcript; pack.log begins at Data completion"
+}

@@ -1,6 +1,6 @@
 # EventJournal v2：task 级实施与调度工单
 
-日期：2026-09-29。状态：**T00–T07 Linux Passed；T08 本地包门已授权待执行；Windows PendingPlatform**。
+日期：2026-09-29。状态：**T00–T07 Linux Passed；T08 Linux 本地包 Passed；Windows PendingPlatform**。
 基线：`bb7c4fb3eb6477783c70ee61bc62b832be195d07`。设计基线保持不变；用户于本轮明确授权按本工单完整实施并按需 Git 提交。网络发布、真实数据迁移和兄弟仓修改不在范围内。
 
 目标：保持 Event/Parent、exact RefId、CAS、reflog、不可变 tag 语义；固定当前工作集时，日常打开和 ref 更新不再扫描累计历史。新格式拒绝旧目录，完整校验独立离线执行。
@@ -43,7 +43,7 @@
 | T05 | 有界ref entry与单一ForwardPlan缓存 | T04 | gpt-6-sol | 调度主线程检查强引用/Dispose | Passed |
 | T06 | 离线audit与健康事实索引候选重建 | T04，集成前T05 | gpt-6-sol | gpt-6-astra审重建拒绝边界 | Passed（Linux） |
 | T07 | 故障/规模证据、消费者合同与源码收口 | T05、T06 | gpt-6-sol | astra一次跨层终审 | Passed（Linux） |
-| T08 | 干净已提交来源的包消费与平台交付门 | T07 + 提交/本地打包授权已具备 | gpt-6-sol | 调度主线程核验manifest/版本闭包 | Authorized；待干净提交后本地执行，Windows PendingPlatform |
+| T08 | 干净已提交来源的包消费与平台交付门 | T07 + 提交/本地打包授权已具备 | gpt-6-sol | 调度主线程核验manifest/版本闭包 | Passed（Linux本地包）；Windows PendingPlatform |
 
 默认按表串行实施，不自动并行修改同一仓库。T06仅表示可以提前准备只读测试资料，不自行派出与T05并行的写入worker。每个task可分为下列子步骤，但主线程只在整项验收完成后放行下一项。全量.NET build/test/pack始终串行。
 
@@ -277,3 +277,5 @@ $candidateSmoke = Join-Path ([IO.Path]::GetTempPath()) ("atelia-v2-smoke-" + [Gu
 
 - T07：28组成本与22个真实SIGKILL全部通过；百万moves/orphans/allocation历史及10000段不引入历史线性读取，所有日常getdents=0、读取前后hash一致、Dispose后句柄0。public1100churn及2500→1在明确tmpfs执行（非磁盘写性能）；其余长测/kill在ext4。真实closed-handle fault、5次ext4 public MoveRef、小allocation完整audit与真实只读mount另有证据。parser竞态/路径分类及kill oracle经独立审阅修正，5条parser回归通过，包入口13条mock通过。最终Release solution build 0 warnings/errors（增量），全suite968/968无Skipped（TMPDIR=/dev/shm/t07-release-tests）；日志`/tmp/t07a-solution-{build,test}.log`。精简实测及限制见[交付记录](bounded-online-io-delivery.md)和[机器可读结果](bounded-online-io-measurements.json)。Windows仍PendingPlatform。
 - T08前置：origin从同仓库http URL改为https以满足既有Pack来源校验，无推送/网络发布。干净源码提交后执行用户已授权本地五包All+AdditionalSegmentSmoke。
+
+- T08：干净源码`18c256ebf5d98b1e1b497963b491dc2e734cc98c`、五包候选`0.2.0-dev.20260929001100`，All+AdditionalSegmentSmoke通过。两种隔离PackageReference smoke、五包/四包assets、10个feed hash及5个私有cache nupkg hash、metadata/PDB/90个本地源码checksum均通过。精确保留[manifest](bounded-online-io-package-manifest.json)与[消费核验摘要](bounded-online-io-package-verification.json)；日志和限制见[交付记录](bounded-online-io-delivery.md)。Windows PendingPlatform，远端SourceLink未下载；未推送/网络发布/迁移真实数据/修改兄弟仓。此后仅补证据文档，不变更包来源revision。

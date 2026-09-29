@@ -13,7 +13,7 @@ T07-C 接手基线为 `d3ba093`；astra 对该基线跨层源码终审完成，�
 | T07-A 性能矩阵与进程 kill | Passed（Linux） | 下文28组成本、22个SIGKILL及机器可读结果 |
 | T07 最终源码收口 | Passed（Linux） | 968/968、跨层审阅及harness独立复核通过；来源见下文 |
 | Windows 平台 | PendingPlatform，无实际证据 | Windows build/test、原子替换/坏尾/进程中断结果 |
-| T08 隔离五包消费 | 用户已授权 Linux 本地包验证，尚未执行 | 唯一候选版本、已提交干净 source revision、manifest/nupkg/snupkg hashes、独立 assets/Source Link 与两种 public smoke 日志 |
+| T08 隔离五包消费 | Passed（Linux）；Windows PendingPlatform | 下文候选、来源、十包文件hash、两种public smoke与90个源码checksum |
 | 消费者升级与旧数据兼容 | 仅只读适配检查 | 另行授权后的消费者编译/测试及应用旧数据证明 |
 | 网络发布与真实迁移 | 未执行 | 单独授权、来源与停止服务/备份/验证/切换证据 |
 
@@ -79,8 +79,24 @@ tag规模增长时eventSegments始终为50 calls / 102500 requested bytes / 2500
 
 真实只读挂载另在私有mount namespace中完成：bind remount为ro后root写入得到EROFS；7-file健康journal的toolkit audit为exit0、Healthy/Consistent，源SHA不变。证据：`/tmp/t07-readonly-audit.json`、`/tmp/t07-readonly-source-before.json`、`/tmp/t07-readonly-write-rejection.log`。
 
-另有真实关闭SafeFileHandle后ConfirmDurable失败、driver拒绝后续调用并strict reopen成功（`/tmp/t07-closed-handle.log`）；10条allocation小fixture完整audit为Healthy/Consistent，10条UnpublishedRef warning（`/tmp/t07-control-small-audit.json`）。ext4公开warm MoveRef同目标5次，生产Flush保持，p50=65.5725ms、p95=86.6706ms、每次分配449B（`/tmp/t07-ext4-write.log`）；仅是本机小样本，不外推吞吐或百分位SLA。
+另有真实关闭SafeFileHandle后ConfirmDurable失败、driver拒绝后续调用并strict reopen成功（`/tmp/t07-closed-handle.log`）；10条allocation小fixture完整audit为Healthy/Consistent，10条UnpublishedRef warning（`/tmp/t07-control-small-audit-final.json`）。ext4公开warm MoveRef同目标5次，生产Flush保持，p50=65.5725ms、p95=86.6706ms、每次分配449B（`/tmp/t07-ext4-write.log`）；仅是本机小样本，不外推吞吐或百分位SLA。
 
 ## 最终源码与本地包
 
-最终Release验证命令：`dotnet build Atelia.Storage.slnx -c Release -m:1 -nr:false`，然后 `TMPDIR=/dev/shm/t07-release-tests dotnet test Atelia.Storage.slnx -c Release --no-build --no-restore -m:1 -nr:false`。T08将从本次干净源码提交制作候选；包来源与消费结果在完成后追加。
+最终Release验证命令：`dotnet build Atelia.Storage.slnx -c Release -m:1 -nr:false`，然后 `TMPDIR=/dev/shm/t07-release-tests dotnet test Atelia.Storage.slnx -c Release --no-build --no-restore -m:1 -nr:false`。T08从干净提交 `18c256ebf5d98b1e1b497963b491dc2e734cc98c` 制作五包候选 `0.2.0-dev.20260929001100`，All + `AdditionalSegmentSmoke` 实际执行成功（exit0）。后续提交仅补交付证据，不改变此包来源。
+
+
+完整[包manifest](bounded-online-io-package-manifest.json)保留五个nupkg与五个snupkg的SHA256、SDK及source revision；[独立消费核验摘要](bounded-online-io-package-verification.json)记录实际五包/四包闭包和assets位置。
+
+实际执行命令（PowerShell7 / SDK10.0.201）：
+
+```powershell
+./eng/Pack.ps1 -Version 0.2.0-dev.20260929001100 -OutputDirectory /tmp/atelia-storage-t08-20260929001100-c13801dbe11c4a1eb50effba7e00da59/feed
+./eng/Test-Package.ps1 -Version 0.2.0-dev.20260929001100 -FeedDirectory /tmp/atelia-storage-t08-20260929001100-c13801dbe11c4a1eb50effba7e00da59/feed -WorkDirectory /tmp/atelia-storage-t08-20260929001100-c13801dbe11c4a1eb50effba7e00da59/smoke -AdditionalSegmentSmoke
+```
+
+EventJournal与SegmentStore两个隔离public smoke通过，分别核对五包/四包PackageReference闭包；十个feed产物hash与五个私有cache nupkg字节hash独立核验通过。metadata/PDB/Source Link映射及90个本地源码checksum通过；未测试远端Source Link下载。执行前后源码clean、HEAD未变。
+
+证据根 `/tmp/atelia-storage-t08-20260929001100-c13801dbe11c4a1eb50effba7e00da59` 保留feed、isolated assets/private cache、`SHA256SUMS.txt`、`package-smoke.log`和smoke内逐步日志。`pack.log`初始Primitives/Data的host输出仅保留在工具transcript，中后段已保存；不把日志完整性说成全量捕获。
+
+当前用户授权范围内的Linux源码与本地包门已完成。Windows仍PendingPlatform，完整跨平台交付门未宣称通过；未推送、网络发布、升级兄弟消费者或迁移真实数据。

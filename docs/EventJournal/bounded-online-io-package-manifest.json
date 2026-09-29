@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "version": "0.2.0-dev.20260929001100",
+  "sourceRevision": "18c256ebf5d98b1e1b497963b491dc2e734cc98c",
+  "repositoryUrl": "https://github.com/Atelia-org/atelia-storage",
+  "sdkVersion": "10.0.201",
+  "packages": [
+    {
+      "id": "Atelia.Primitives",
+      "file": "Atelia.Primitives.0.2.0-dev.20260929001100.nupkg",
+      "sha256": "45903e3403cb47dc2653d66d8ae79fb1bf8f26c9f99bc6e8b9e92db399eaa250",
+      "symbolsFile": "Atelia.Primitives.0.2.0-dev.20260929001100.snupkg",
+      "symbolsSha256": "7ce2f49f7723811d656fb13eb3a1a1619a1ad236517cbbcc09b49b1151238927"
+    },
+    {
+      "id": "Atelia.Data",
+      "file": "Atelia.Data.0.2.0-dev.20260929001100.nupkg",
+      "sha256": "f884dd6a3fd5e088064c183bf1defa162f680f3819edc56b504707b4b53a7f16",
+      "symbolsFile": "Atelia.Data.0.2.0-dev.20260929001100.snupkg",
+      "symbolsSha256": "431dcd2603ac79d05a4b35fb0c2aae40656727120136f895ae91ddfe18190f98"
+    },
+    {
+      "id": "Atelia.Rbf",
+      "file": "Atelia.Rbf.0.2.0-dev.20260929001100.nupkg",
+      "sha256": "57c3ecd074e7040e79d409866c3c84860a2ef198a96349e10a232e18a7fb65b8",
+      "symbolsFile": "Atelia.Rbf.0.2.0-dev.20260929001100.snupkg",
+      "symbolsSha256": "43ac235498b001268dae3d87341a1154f9097a4c237e92885642a66caa6edebf"
+    },
+    {
+      "id": "Atelia.RbfSegmentStore",
+      "file": "Atelia.RbfSegmentStore.0.2.0-dev.20260929001100.nupkg",
+      "sha256": "dcf03b70552af67a08a79a727e1bf61ac34754658a4fc380431bf4adf16b59be",
+      "symbolsFile": "Atelia.RbfSegmentStore.0.2.0-dev.20260929001100.snupkg",
+      "symbolsSha256": "1a93fa5b5cca87428653f9e3a57aa2790ee559e1defe3940cd39e1b465738dbe"
+    },
+    {
+      "id": "Atelia.EventJournal",
+      "file": "Atelia.EventJournal.0.2.0-dev.20260929001100.nupkg",
+      "sha256": "82185b417d8df4eb702ae9ba824518f7a1f89aeed1516e5e3f6f3db1caf276dc",
+      "symbolsFile": "Atelia.EventJournal.0.2.0-dev.20260929001100.snupkg",
+      "symbolsSha256": "8ff449c8776b21f59d3a80290370e88a9dc3bdb7ed21ad2a749c8b2e7b67ad3d"
+    }
+  ]
+}
