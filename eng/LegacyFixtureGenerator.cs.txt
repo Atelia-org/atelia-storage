@@ -1,0 +1,150 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using Atelia;
+using Atelia.Data;
+using Atelia.EventJournal;
+using Atelia.Rbf;
+using Atelia.RbfSegmentStore;
+using Journal = Atelia.EventJournal.EventJournal;
+using Store = Atelia.RbfSegmentStore.RbfSegmentStore;
+
+// Compiled only against the exported legacy commit by Generate-LegacyFixtures.py.
+// No reflection, private APIs, source patches, or modern assemblies participate.
+static class Program {
+    static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
+    static object? Address(EventAddress? value) => value is { } a
+        ? new { ticketPacked = a.Ticket.Packed.ToString("x16"), segmentNumber = a.SegmentNumber, hint = a.Hint.Packed.ToString("x8") } : null;
+    static EventJournalOptions Options() => new() {
+        PayloadCodecPolicy = EventPayloadCodecPolicy.Brotli,
+        EventSegmentStoreOptions = new() { SegmentSizeThresholdBytes = 192 },
+        RefSegmentStoreOptions = new() { SegmentSizeThresholdBytes = 128 }
+    };
+    static IEnumerable<EventAddress> Events(string root) {
+        var addresses = new List<EventAddress>();
+        foreach (string path in Directory.EnumerateFiles(Path.Combine(root, "events"), "*.rbf", SearchOption.AllDirectories).Order(StringComparer.Ordinal)) {
+            uint segment = Convert.ToUInt32(Path.GetFileNameWithoutExtension(path), 16);
+            using var file = RbfFile.OpenReadOnlyExisting(path);
+            foreach (var info in file.ScanForward()) {
+                using var pooled = file.ReadPooledFrame(info.Ticket).ToDisposable();
+                var frame = pooled.Unwrap();
+                var header = EventFrameHeaderCodec.Decode(frame.PayloadAndMeta[^frame.TailMetaLength..]).Unwrap();
+                addresses.Add(new(info.Ticket, segment, header.Hint));
+            }
+        }
+        return addresses;
+    }
+    static List<RefOpFrame> Ops(string root) {
+        using var file = RbfFile.OpenReadOnlyExisting(Path.Combine(root, "refs", "ref-op-log.rbf"));
+        var ops = new List<RefOpFrame>();
+        foreach (var info in file.ScanForward()) {
+            if (info.Tag != Journal.RefOpFrameTag) { continue; }
+            using var pooled = file.ReadPooledFrame(info.Ticket).ToDisposable();
+            ops.Add(RefOpFrameCodec.Decode(pooled.Unwrap().PayloadAndMeta).Unwrap());
+        }
+        return ops;
+    }
+    static bool HasArchiveDelta(string root, Journal journal) => Ops(root).Any(op =>
+        op.Operation == RefOpOperation.Archive && journal.ReadReflog(op.RefId).Unwrap()[^1].UtcUnixTimeMilliseconds != op.UtcUnixTimeMilliseconds);
+    static void FinishComplex(string root, List<string> tagNames) {
+        EventAddress orphan = Events(root).Last();
+        using (var journal = Journal.OpenExisting(root, Options())) {
+            RefId oldMain = journal.OpenBranch("main").Unwrap();
+            RefId feature = journal.OpenBranch("feature").Unwrap();
+            EventAddress middle = journal.GetHead(oldMain)!.Value;
+            journal.CreateTag("orphan", orphan).Unwrap(); tagNames.Add("orphan");
+            journal.CommitToRef(feature, middle, Encoding.UTF8.GetBytes(new string('Z', 8192)), hint: new AddressHint(0xFEDCBA98),
+                writeOptions: new(EventPayloadCodecPolicy.Zlib)).Unwrap();
+            journal.ArchiveRef(oldMain, middle, reasonKind: 17).Unwrap();
+            RefId newMain = journal.CreateBranch("main", orphan).Unwrap();
+            journal.CommitToRef(newMain, orphan, "recreated-head"u8, hint: new AddressHint(0x87654321)).Unwrap();
+            journal.ReadChronologicalChain(feature, checkedRead: true).Unwrap();
+        }
+        // Real old ArchiveRef has two clock reads separated by a durable Close write.
+        // Observe only after releasing the old writer's FileShare.None handles.
+        for (int attempt = 0; attempt <= 64; attempt++) {
+            using (var reader = Journal.OpenReadOnlyExisting(root, Options())) {
+                if (HasArchiveDelta(root, reader)) { return; }
+            }
+            using var writer = Journal.OpenExisting(root, Options());
+            RefId scratch = writer.CreateBranch("archive-clock", null).Unwrap();
+            writer.ArchiveRef(scratch, null, reasonKind: 100 + (uint)attempt).Unwrap();
+        }
+        throw new InvalidOperationException("No real old-writer Archive timestamp difference observed; regenerate on a filesystem with observable flush latency.");
+    }
+    static int Main(string[] args) {
+        string output = args[0];
+        Directory.CreateDirectory(output);
+        foreach (string kind in new[] { "empty", "events-only", "complex", "empty-active" }) {
+            string bundle = Path.Combine(output, kind);
+            string root = Path.Combine(bundle, "journal");
+            Directory.CreateDirectory(bundle);
+            var tagNames = new List<string>();
+            bool casOrphan = false;
+            using (var journal = Journal.CreateNew(root, Options())) {
+                if (kind != "empty") {
+                    EventAddress start = journal.AppendEventFrame(null, "legacy-root"u8, hint: new AddressHint(0x12345678)).Unwrap();
+                    if (kind != "events-only") {
+                        RefId oldMain = journal.CreateBranch("main", start).Unwrap();
+                        if (kind == "complex") {
+                            EventAddress middle = journal.CommitToRef(oldMain, start, Encoding.UTF8.GetBytes(new string('B', 8192)), hint: new AddressHint(0xABCDEF01)).Unwrap().EventAddress;
+                            RefId feature = journal.ForkBranch("feature", oldMain, middle).Unwrap();
+                            journal.CreateBranch("saved", null).Unwrap();
+                            journal.CreateTag("saved", start).Unwrap(); tagNames.Add("saved");
+                            var failed = journal.CommitToRef(oldMain, start, "cas-orphan"u8, hint: new AddressHint(0xCAFEBABE));
+                            if (!failed.IsFailure) { throw new InvalidOperationException("Expected CAS failure after append."); }
+                            casOrphan = true;
+                        }
+                    }
+                }
+            }
+            if (kind == "complex") { FinishComplex(root, tagNames); }
+            if (kind == "empty-active") {
+                using (var store = Store.OpenExisting(Path.Combine(root, "events"), new() { NewStoreLayout = RbfSegmentStoreLayout.Bucketed, SegmentSizeThresholdBytes = 8 })) {
+                    using var emptyLease = store.OpenActiveWriter(); // Public API rotation, no append.
+                    if (emptyLease.File.TailOffset != 4 || emptyLease.SegmentNumber != 2) { throw new InvalidOperationException("Expected empty highest event segment."); }
+                }
+                string refObject = Directory.GetDirectories(Path.Combine(root, "refs", "objects")).Single();
+                using var refs = Store.OpenExisting(refObject, new() { NewStoreLayout = RbfSegmentStoreLayout.Flat, SegmentSizeThresholdBytes = 8 });
+                using var emptyRefLease = refs.OpenActiveWriter();
+                if (emptyRefLease.File.TailOffset != 4 || emptyRefLease.SegmentNumber != 2) { throw new InvalidOperationException("Expected empty highest ref segment."); }
+            }
+            using var reopened = Journal.OpenReadOnlyExisting(root, Options());
+            var refsExpected = new List<object>();
+            var archives = Ops(root).Where(op => op.Operation == RefOpOperation.Archive).ToList();
+            var archiveEvidence = new List<object>();
+            int unequalArchiveTimestamps = 0;
+            foreach (string objectRoot in Directory.GetDirectories(Path.Combine(root, "refs", "objects")).Order(StringComparer.Ordinal)) {
+                RefId id = new(Convert.ToUInt64(Path.GetFileName(objectRoot), 16));
+                var moves = reopened.ReadReflog(id).Unwrap();
+                bool closed = moves[^1].Operation == RefMoveOperation.Close;
+                refsExpected.Add(new { refId = id.ToHexString(), closed, head = Address(moves[^1].NewTarget), moves = moves.Select(m => new {
+                    m.MoveSequenceNumber, m.UtcUnixTimeMilliseconds, operation = m.Operation.ToString(), expectedOldTarget = Address(m.ExpectedOldTarget),
+                    oldTarget = Address(m.OldTarget), newTarget = Address(m.NewTarget), m.ReasonKind }) });
+                foreach (var archive in archives.Where(a => a.RefId == id)) {
+                    long closeTime = moves[^1].UtcUnixTimeMilliseconds;
+                    if (closeTime != archive.UtcUnixTimeMilliseconds) { unequalArchiveTimestamps++; }
+                    archiveEvidence.Add(new { refId = id.ToHexString(), closeTime, archiveTime = archive.UtcUnixTimeMilliseconds,
+                        deltaMilliseconds = archive.UtcUnixTimeMilliseconds - closeTime, sequence = archive.SourceMoveSequenceNumber, archive.ReasonKind,
+                        mechanism = "actual old public ArchiveRef; original bytes not rewritten" });
+                }
+            }
+            var eventsExpected = new List<object>();
+            foreach (var address in Events(root)) {
+                using var frame = reopened.ReadEvent(address).Unwrap();
+                eventsExpected.Add(new { address = Address(address), parent = Address(frame.Header.Parent), frame.Header.SequenceNumber,
+                    frame.Header.UtcUnixTimeMilliseconds, frame.Header.OpaqueEventKind, frame.Header.PayloadLength,
+                    payloadCodecId = frame.Header.PayloadCodecId.ToString(), payloadSha256 = Convert.ToHexString(SHA256.HashData(frame.Payload)).ToLowerInvariant() });
+            }
+            var expected = new { fixture = kind, casFailureProducedOrphan = casOrphan, oldReadOnlyOpen = "Passed",
+                branches = reopened.ListBranches().Select(n => new { name = n, refId = reopened.OpenBranch(n).Unwrap().ToHexString(), head = Address(reopened.GetHead(reopened.OpenBranch(n).Unwrap())) }),
+                tags = tagNames.Select(n => new { name = n, target = Address(reopened.ResolveTag(n).Unwrap()) }), refs = refsExpected,
+                events = eventsExpected, archiveEvidence,
+                stores = Directory.EnumerateFiles(root, "*.rbf", SearchOption.AllDirectories).GroupBy(p => Path.GetDirectoryName(p)!).Select(g => new {
+                    directory = Path.GetRelativePath(root, g.Key).Replace('\\', '/'), files = g.Select(p => new { name = Path.GetFileName(p), length = new FileInfo(p).Length }).OrderBy(f => f.name, StringComparer.Ordinal) }) };
+            File.WriteAllText(Path.Combine(bundle, "expected.json"), JsonSerializer.Serialize(expected, Json));
+            Console.WriteLine(JsonSerializer.Serialize(new { fixture = kind, events = eventsExpected.Count, refs = refsExpected.Count, observedArchiveDifferences = unequalArchiveTimestamps }, new JsonSerializerOptions()));
+        }
+        return 0;
+    }
+}

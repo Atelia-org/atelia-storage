@@ -1,0 +1,30 @@
+{
+  "fixture": "empty",
+  "casFailureProducedOrphan": false,
+  "oldReadOnlyOpen": "Passed",
+  "branches": [],
+  "tags": [],
+  "refs": [],
+  "events": [],
+  "archiveEvidence": [],
+  "stores": [
+    {
+      "directory": "refs",
+      "files": [
+        {
+          "name": "ref-op-log.rbf",
+          "length": 4
+        }
+      ]
+    },
+    {
+      "directory": "events/buckets/000000",
+      "files": [
+        {
+          "name": "00000001.rbf",
+          "length": 4
+        }
+      ]
+    }
+  ]
+}

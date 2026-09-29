@@ -1,0 +1,45 @@
+{
+  "fixture": "events-only",
+  "casFailureProducedOrphan": false,
+  "oldReadOnlyOpen": "Passed",
+  "branches": [],
+  "tags": [],
+  "refs": [],
+  "events": [
+    {
+      "address": {
+        "ticketPacked": "0000000004000019",
+        "segmentNumber": 1,
+        "hint": "12345678"
+      },
+      "parent": null,
+      "SequenceNumber": 1,
+      "UtcUnixTimeMilliseconds": 1790644650604,
+      "OpaqueEventKind": 0,
+      "PayloadLength": 11,
+      "payloadCodecId": "Identity",
+      "payloadSha256": "2d1aa1f599c91c8f563034d755a4345ceda9b6694479b2f8e643661dad93c42d"
+    }
+  ],
+  "archiveEvidence": [],
+  "stores": [
+    {
+      "directory": "refs",
+      "files": [
+        {
+          "name": "ref-op-log.rbf",
+          "length": 4
+        }
+      ]
+    },
+    {
+      "directory": "events/buckets/000000",
+      "files": [
+        {
+          "name": "00000001.rbf",
+          "length": 108
+        }
+      ]
+    }
+  ]
+}

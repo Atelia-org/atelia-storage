@@ -1,0 +1,393 @@
+{
+  "fixture": "complex",
+  "casFailureProducedOrphan": true,
+  "oldReadOnlyOpen": "Passed",
+  "branches": [
+    {
+      "name": "feature",
+      "refId": "0000000104000020",
+      "head": {
+        "ticketPacked": "000000006c00001e",
+        "segmentNumber": 2,
+        "hint": "fedcba98"
+      }
+    },
+    {
+      "name": "main",
+      "refId": "000000041c00001f",
+      "head": {
+        "ticketPacked": "000000000400001a",
+        "segmentNumber": 3,
+        "hint": "87654321"
+      }
+    },
+    {
+      "name": "saved",
+      "refId": "000000020c000020",
+      "head": null
+    }
+  ],
+  "tags": [
+    {
+      "name": "saved",
+      "target": {
+        "ticketPacked": "0000000004000019",
+        "segmentNumber": 1,
+        "hint": "12345678"
+      }
+    },
+    {
+      "name": "orphan",
+      "target": {
+        "ticketPacked": "0000000004000019",
+        "segmentNumber": 2,
+        "hint": "cafebabe"
+      }
+    }
+  ],
+  "refs": [
+    {
+      "refId": "000000000400001f",
+      "closed": true,
+      "head": null,
+      "moves": [
+        {
+          "MoveSequenceNumber": 1,
+          "UtcUnixTimeMilliseconds": 1790644650786,
+          "operation": "Init",
+          "expectedOldTarget": null,
+          "oldTarget": null,
+          "newTarget": {
+            "ticketPacked": "0000000004000019",
+            "segmentNumber": 1,
+            "hint": "12345678"
+          },
+          "ReasonKind": 0
+        },
+        {
+          "MoveSequenceNumber": 2,
+          "UtcUnixTimeMilliseconds": 1790644651069,
+          "operation": "Advance",
+          "expectedOldTarget": {
+            "ticketPacked": "0000000004000019",
+            "segmentNumber": 1,
+            "hint": "12345678"
+          },
+          "oldTarget": {
+            "ticketPacked": "0000000004000019",
+            "segmentNumber": 1,
+            "hint": "12345678"
+          },
+          "newTarget": {
+            "ticketPacked": "000000006c00001a",
+            "segmentNumber": 1,
+            "hint": "abcdef01"
+          },
+          "ReasonKind": 0
+        },
+        {
+          "MoveSequenceNumber": 3,
+          "UtcUnixTimeMilliseconds": 1790644653237,
+          "operation": "Close",
+          "expectedOldTarget": {
+            "ticketPacked": "000000006c00001a",
+            "segmentNumber": 1,
+            "hint": "abcdef01"
+          },
+          "oldTarget": {
+            "ticketPacked": "000000006c00001a",
+            "segmentNumber": 1,
+            "hint": "abcdef01"
+          },
+          "newTarget": null,
+          "ReasonKind": 17
+        }
+      ]
+    },
+    {
+      "refId": "0000000104000020",
+      "closed": false,
+      "head": {
+        "ticketPacked": "000000006c00001e",
+        "segmentNumber": 2,
+        "hint": "fedcba98"
+      },
+      "moves": [
+        {
+          "MoveSequenceNumber": 1,
+          "UtcUnixTimeMilliseconds": 1790644652514,
+          "operation": "Init",
+          "expectedOldTarget": null,
+          "oldTarget": null,
+          "newTarget": {
+            "ticketPacked": "000000006c00001a",
+            "segmentNumber": 1,
+            "hint": "abcdef01"
+          },
+          "ReasonKind": 0
+        },
+        {
+          "MoveSequenceNumber": 2,
+          "UtcUnixTimeMilliseconds": 1790644653177,
+          "operation": "Advance",
+          "expectedOldTarget": {
+            "ticketPacked": "000000006c00001a",
+            "segmentNumber": 1,
+            "hint": "abcdef01"
+          },
+          "oldTarget": {
+            "ticketPacked": "000000006c00001a",
+            "segmentNumber": 1,
+            "hint": "abcdef01"
+          },
+          "newTarget": {
+            "ticketPacked": "000000006c00001e",
+            "segmentNumber": 2,
+            "hint": "fedcba98"
+          },
+          "ReasonKind": 0
+        }
+      ]
+    },
+    {
+      "refId": "000000020c000020",
+      "closed": false,
+      "head": null,
+      "moves": [
+        {
+          "MoveSequenceNumber": 1,
+          "UtcUnixTimeMilliseconds": 1790644652719,
+          "operation": "Init",
+          "expectedOldTarget": null,
+          "oldTarget": null,
+          "newTarget": null,
+          "ReasonKind": 0
+        }
+      ]
+    },
+    {
+      "refId": "000000041c00001f",
+      "closed": false,
+      "head": {
+        "ticketPacked": "000000000400001a",
+        "segmentNumber": 3,
+        "hint": "87654321"
+      },
+      "moves": [
+        {
+          "MoveSequenceNumber": 1,
+          "UtcUnixTimeMilliseconds": 1790644653338,
+          "operation": "Init",
+          "expectedOldTarget": null,
+          "oldTarget": null,
+          "newTarget": {
+            "ticketPacked": "0000000004000019",
+            "segmentNumber": 2,
+            "hint": "cafebabe"
+          },
+          "ReasonKind": 0
+        },
+        {
+          "MoveSequenceNumber": 2,
+          "UtcUnixTimeMilliseconds": 1790644653531,
+          "operation": "Advance",
+          "expectedOldTarget": {
+            "ticketPacked": "0000000004000019",
+            "segmentNumber": 2,
+            "hint": "cafebabe"
+          },
+          "oldTarget": {
+            "ticketPacked": "0000000004000019",
+            "segmentNumber": 2,
+            "hint": "cafebabe"
+          },
+          "newTarget": {
+            "ticketPacked": "000000000400001a",
+            "segmentNumber": 3,
+            "hint": "87654321"
+          },
+          "ReasonKind": 0
+        }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "address": {
+        "ticketPacked": "0000000004000019",
+        "segmentNumber": 1,
+        "hint": "12345678"
+      },
+      "parent": null,
+      "SequenceNumber": 1,
+      "UtcUnixTimeMilliseconds": 1790644650732,
+      "OpaqueEventKind": 0,
+      "PayloadLength": 11,
+      "payloadCodecId": "Identity",
+      "payloadSha256": "2d1aa1f599c91c8f563034d755a4345ceda9b6694479b2f8e643661dad93c42d"
+    },
+    {
+      "address": {
+        "ticketPacked": "000000006c00001a",
+        "segmentNumber": 1,
+        "hint": "abcdef01"
+      },
+      "parent": {
+        "ticketPacked": "0000000004000019",
+        "segmentNumber": 1,
+        "hint": "12345678"
+      },
+      "SequenceNumber": 2,
+      "UtcUnixTimeMilliseconds": 1790644650959,
+      "OpaqueEventKind": 0,
+      "PayloadLength": 8192,
+      "payloadCodecId": "Brotli",
+      "payloadSha256": "766c00ba277e84ef9550596c7eda86bad4d66a3fee2255924e6388ee9c272792"
+    },
+    {
+      "address": {
+        "ticketPacked": "0000000004000019",
+        "segmentNumber": 2,
+        "hint": "cafebabe"
+      },
+      "parent": {
+        "ticketPacked": "0000000004000019",
+        "segmentNumber": 1,
+        "hint": "12345678"
+      },
+      "SequenceNumber": 3,
+      "UtcUnixTimeMilliseconds": 1790644652945,
+      "OpaqueEventKind": 0,
+      "PayloadLength": 10,
+      "payloadCodecId": "Identity",
+      "payloadSha256": "c24a01836ca26c9b408dd0a6f112c67da90a635b71ea55f07dde9b45085ac7cc"
+    },
+    {
+      "address": {
+        "ticketPacked": "000000006c00001e",
+        "segmentNumber": 2,
+        "hint": "fedcba98"
+      },
+      "parent": {
+        "ticketPacked": "000000006c00001a",
+        "segmentNumber": 1,
+        "hint": "abcdef01"
+      },
+      "SequenceNumber": 4,
+      "UtcUnixTimeMilliseconds": 1790644653124,
+      "OpaqueEventKind": 0,
+      "PayloadLength": 8192,
+      "payloadCodecId": "Zlib",
+      "payloadSha256": "1ae62b3110141bf43af6a7a14875442afaea8460122b814e36466febf39ca654"
+    },
+    {
+      "address": {
+        "ticketPacked": "000000000400001a",
+        "segmentNumber": 3,
+        "hint": "87654321"
+      },
+      "parent": {
+        "ticketPacked": "0000000004000019",
+        "segmentNumber": 2,
+        "hint": "cafebabe"
+      },
+      "SequenceNumber": 5,
+      "UtcUnixTimeMilliseconds": 1790644653482,
+      "OpaqueEventKind": 0,
+      "PayloadLength": 14,
+      "payloadCodecId": "Identity",
+      "payloadSha256": "914b8dcd805d484fa29f28dc794c9400678154ce689cd4008bf9a3f4e9ce4d1a"
+    }
+  ],
+  "archiveEvidence": [
+    {
+      "refId": "000000000400001f",
+      "closeTime": 1790644653237,
+      "archiveTime": 1790644653289,
+      "deltaMilliseconds": 52,
+      "sequence": 3,
+      "ReasonKind": 17,
+      "mechanism": "actual old public ArchiveRef; original bytes not rewritten"
+    }
+  ],
+  "stores": [
+    {
+      "directory": "refs",
+      "files": [
+        {
+          "name": "ref-op-log.rbf",
+          "length": 1308
+        }
+      ]
+    },
+    {
+      "directory": "events/buckets/000000",
+      "files": [
+        {
+          "name": "00000001.rbf",
+          "length": 216
+        },
+        {
+          "name": "00000002.rbf",
+          "length": 232
+        },
+        {
+          "name": "00000003.rbf",
+          "length": 112
+        }
+      ]
+    },
+    {
+      "directory": "refs/objects/0000000104000020/segments",
+      "files": [
+        {
+          "name": "00000001.rbf",
+          "length": 128
+        },
+        {
+          "name": "00000002.rbf",
+          "length": 128
+        }
+      ]
+    },
+    {
+      "directory": "refs/objects/000000000400001f/segments",
+      "files": [
+        {
+          "name": "00000001.rbf",
+          "length": 128
+        },
+        {
+          "name": "00000002.rbf",
+          "length": 128
+        },
+        {
+          "name": "00000003.rbf",
+          "length": 128
+        }
+      ]
+    },
+    {
+      "directory": "refs/objects/000000020c000020/segments",
+      "files": [
+        {
+          "name": "00000001.rbf",
+          "length": 128
+        }
+      ]
+    },
+    {
+      "directory": "refs/objects/000000041c00001f/segments",
+      "files": [
+        {
+          "name": "00000001.rbf",
+          "length": 128
+        },
+        {
+          "name": "00000002.rbf",
+          "length": 128
+        }
+      ]
+    }
+  ]
+}

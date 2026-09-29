@@ -51,7 +51,7 @@ EventAddress? head = journal.GetHead(main);
 
 factory 使用 `StorageOpenException` 的 `Kind`、`ReasonCode`、`StoragePath`、`Offset`、`ObservedVersion` 报告 `FormatUnsupported` 与 `MaintenanceRequired`；缺 v2 marker、未知格式和损坏 metadata/必要坏尾不会 fallback 到旧格式或更早 head。首次 ref 访问的 Result 保留 `EventJournal.FormatUnsupported` / `EventJournal.MaintenanceRequired` 及 Details；权限/设备 I/O 保留标准异常。`GetHead` 继续使用既有便利抛错语义。
 
-完整历史校验使用独立 [离线 toolkit](../../tools/EventJournal.Toolkit/README.md)，输入必须停写或为稳定副本。它扫描全部事实，提供 `audit` 与健康事实的索引候选重建；没有 repair-tail、apply 或旧格式迁移。
+完整历史校验使用独立 [离线 toolkit](../../tools/EventJournal.Toolkit/README.md)，输入必须停写或为稳定副本。它扫描全部事实，提供 `audit` 与健康事实的索引候选重建；显式 `upgrade-v1tov2` 可把指定旧布局复制升级为独立 v2 目录。没有 repair-tail、原地 apply 或自动迁移。
 
 ## Catalog 预算与发布
 

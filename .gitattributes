@@ -37,6 +37,10 @@
 *.pdb -text
 *.nupkg -text
 
+# Persist storage fixtures byte-for-byte, including header-only RBF files.
+*.rbf -text
+*.efplan -text
+
 # Fonts and other binaries
 *.woff -text
 *.woff2 -text

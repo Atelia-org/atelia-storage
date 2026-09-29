@@ -148,6 +148,8 @@ audit直接读取事实，不依赖daily open。报告schemaVersion=1，含Facts
 
 T06报告分类收口：合法allocation从未Bind，且没有object，或其object仅有规范segment1的合法4B HeaderFence，均为`UnpublishedRef` Warning，FactsStatus仍可Healthy；必须核对归属与全历史“从未Bind”，不能只看当前无名字。空object缺locator独立报告IndexesStatus=Missing，并允许生成locator候选；不补Init/Bind。未知归属、坏尾、多余段及locator冲突不享此例外。已Close但缺Archive且catalog事实仍绑定该ref时，报告`IncompleteArchive` Error、FactsStatus=Invalid并拒绝rebuild；若索引准确反映事实，IndexesStatus可独立为Consistent。
 
+旧库升级兼容修订：Archive与其最终Close必须满足RefId、Close状态、sequence、ReasonKind及绑定归属一致，但二者时间戳不要求相等或单调。`bb7c4fb`的正常writer分别采样时间，时间不承担跨日志身份；当前writer可以继续共用时间。Create/Fork allocation、Init、Bind原有同源字段匹配保持。依据见[旧库升级设计](legacy-upgrade-design.md#21-必须先修正-archiveclose-时间戳审计)。
+
 退出码：0=Completed且事实/索引均一致；2=已明确发现事实/索引问题或不支持的格式（不代表扫描过全部历史，查看Completed）；3=I/O/取消/无法完成判定，优先于已有局部finding；64=CLI输入错误。`rebuild-indexes`退出码仍报告源审计结果或执行失败：源索引缺失时exit2也可能已成功生成候选，候选完成以输出目录中完整且completed=true的manifest为准；不得为候选成功伪改源IndexesStatus。输出I/O/取消为exit3且不发布完整manifest；额外重建拒绝原因必须进入报告，不能exit0但没有候选。只输出metadata、计数与错误码，不输出payload、codec解压内容或任意exception.Message。--report必须在source外create-only；未指定则JSON到stdout。
 
 rebuild只接受FactsStatus=Healthy且目录/边界唯一可解释。缺locator但规范连续段的最高段非空，或唯一segment1合法空，可生成定位候选；locator合法却指向old且next存在、缺段、highest为空且无法证明是否发布等多义情况拒绝。不得通过重建选择较旧head、补Bind/Archive或改事实bytes。

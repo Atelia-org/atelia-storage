@@ -1,0 +1,97 @@
+{
+  "fixture": "empty-active",
+  "casFailureProducedOrphan": false,
+  "oldReadOnlyOpen": "Passed",
+  "branches": [
+    {
+      "name": "main",
+      "refId": "000000000400001f",
+      "head": {
+        "ticketPacked": "0000000004000019",
+        "segmentNumber": 1,
+        "hint": "12345678"
+      }
+    }
+  ],
+  "tags": [],
+  "refs": [
+    {
+      "refId": "000000000400001f",
+      "closed": false,
+      "head": {
+        "ticketPacked": "0000000004000019",
+        "segmentNumber": 1,
+        "hint": "12345678"
+      },
+      "moves": [
+        {
+          "MoveSequenceNumber": 1,
+          "UtcUnixTimeMilliseconds": 1790644653739,
+          "operation": "Init",
+          "expectedOldTarget": null,
+          "oldTarget": null,
+          "newTarget": {
+            "ticketPacked": "0000000004000019",
+            "segmentNumber": 1,
+            "hint": "12345678"
+          },
+          "ReasonKind": 0
+        }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "address": {
+        "ticketPacked": "0000000004000019",
+        "segmentNumber": 1,
+        "hint": "12345678"
+      },
+      "parent": null,
+      "SequenceNumber": 1,
+      "UtcUnixTimeMilliseconds": 1790644653689,
+      "OpaqueEventKind": 0,
+      "PayloadLength": 11,
+      "payloadCodecId": "Identity",
+      "payloadSha256": "2d1aa1f599c91c8f563034d755a4345ceda9b6694479b2f8e643661dad93c42d"
+    }
+  ],
+  "archiveEvidence": [],
+  "stores": [
+    {
+      "directory": "refs",
+      "files": [
+        {
+          "name": "ref-op-log.rbf",
+          "length": 260
+        }
+      ]
+    },
+    {
+      "directory": "events/buckets/000000",
+      "files": [
+        {
+          "name": "00000001.rbf",
+          "length": 108
+        },
+        {
+          "name": "00000002.rbf",
+          "length": 4
+        }
+      ]
+    },
+    {
+      "directory": "refs/objects/000000000400001f/segments",
+      "files": [
+        {
+          "name": "00000001.rbf",
+          "length": 128
+        },
+        {
+          "name": "00000002.rbf",
+          "length": 4
+        }
+      ]
+    }
+  ]
+}

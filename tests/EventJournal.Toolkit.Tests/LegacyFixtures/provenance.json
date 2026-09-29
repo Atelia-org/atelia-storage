@@ -1,0 +1,197 @@
+{
+  "schemaVersion": 1,
+  "sourceRevision": "bb7c4fb3eb6477783c70ee61bc62b832be195d07",
+  "sdk": "10.0.201",
+  "sourceArchiveSha256": "13da3811795550d31489de91b91c50cfb189596dfcf9e57eb30841e21594f115",
+  "generatorVersion": 1,
+  "generatorSha256": "6a8bd01441872831dc7d05b4bce2244974dce7e1897a304f7091f2ae29971f92",
+  "oldProductionSourceUnchanged": true,
+  "assemblyBoundary": "independent old-only process; new toolkit not loaded",
+  "fixtures": {
+    "complex": [
+      {
+        "relativePath": "expected.json",
+        "length": 9714,
+        "sha256": "6bb4c55bed37d947def36ea38011f9e01bcad45bfa80ca95a60964c728e447a8"
+      },
+      {
+        "relativePath": "journal/cache/forward-plans/v1/s00000002-t000000006c00001e-hfedcba98.efplan",
+        "length": 96,
+        "sha256": "16c597735909b3a875ffe8b8543d0a27f43b8710ffb44134b84a771c72f4fa49"
+      },
+      {
+        "relativePath": "journal/events/buckets/000000/00000001.rbf",
+        "length": 216,
+        "sha256": "a244b50d1fc6ef2f3e1e224e9cb404a1f7d2af92ce060de3aa38ac6fee5a9826"
+      },
+      {
+        "relativePath": "journal/events/buckets/000000/00000002.rbf",
+        "length": 232,
+        "sha256": "a4f863d37cbae0c5f7d99a6a253a39f6cd054a06382bd94a6b880659e4030c9e"
+      },
+      {
+        "relativePath": "journal/events/buckets/000000/00000003.rbf",
+        "length": 112,
+        "sha256": "cb2840e4d5d3cf766de8d25ee388d345f7c404121e76b663e7a6869efba62a5c"
+      },
+      {
+        "relativePath": "journal/refs/objects/000000000400001f/segments/00000001.rbf",
+        "length": 128,
+        "sha256": "81dc0b19dae43084c83038eb461ca960c85c9de0cc0b9f8dc8065817fb213ef6"
+      },
+      {
+        "relativePath": "journal/refs/objects/000000000400001f/segments/00000002.rbf",
+        "length": 128,
+        "sha256": "6991a94767ff187b7fa0de506319bcc0df5aefcd8390c116a82ea3086a1e6cd4"
+      },
+      {
+        "relativePath": "journal/refs/objects/000000000400001f/segments/00000003.rbf",
+        "length": 128,
+        "sha256": "78ce7c1816b48ad6c0ee6c2a639da99daa41034f34a4a3253471da8fbd33d079"
+      },
+      {
+        "relativePath": "journal/refs/objects/0000000104000020/segments/00000001.rbf",
+        "length": 128,
+        "sha256": "2f8b51dc8e05568eae522746a684d2183cf3cc4920040796bbde1f2a3e86b949"
+      },
+      {
+        "relativePath": "journal/refs/objects/0000000104000020/segments/00000002.rbf",
+        "length": 128,
+        "sha256": "18eca7344720f01ad9291e4cc896ebeab1f0fb7c0f00c852e64ccad41adb895b"
+      },
+      {
+        "relativePath": "journal/refs/objects/000000020c000020/segments/00000001.rbf",
+        "length": 128,
+        "sha256": "09544aef63615fe65dc9cac179635f3a43405a37e4e054a8986ed21bb255be45"
+      },
+      {
+        "relativePath": "journal/refs/objects/000000041c00001f/segments/00000001.rbf",
+        "length": 128,
+        "sha256": "d6d17f9bf38e6aee2f5a86659871c7619c2b1930c117c6ee5181213e1ceabbd6"
+      },
+      {
+        "relativePath": "journal/refs/objects/000000041c00001f/segments/00000002.rbf",
+        "length": 128,
+        "sha256": "6e237c09064ac2f6566d2bcf4a86f5ff2f0fcd9a4436cb74014933af6ee4656a"
+      },
+      {
+        "relativePath": "journal/refs/ref-op-log.rbf",
+        "length": 1308,
+        "sha256": "d474cdc6d68545a54006b03f5a28153964237631d6448897154ca3b75bc4f964"
+      }
+    ],
+    "empty": [
+      {
+        "relativePath": "expected.json",
+        "length": 498,
+        "sha256": "eeecc7bb62f8a46d206d19a54fbd75428eed1cd21f5f7cd1dd655a00759f5fbb"
+      },
+      {
+        "relativePath": "journal/events/buckets/000000/00000001.rbf",
+        "length": 4,
+        "sha256": "9c015e3e48da804c41adc4cf8834dc8055689d3ed68fce65c10b2e85153c71e6"
+      },
+      {
+        "relativePath": "journal/refs/ref-op-log.rbf",
+        "length": 4,
+        "sha256": "9c015e3e48da804c41adc4cf8834dc8055689d3ed68fce65c10b2e85153c71e6"
+      }
+    ],
+    "empty-active": [
+      {
+        "relativePath": "expected.json",
+        "length": 2056,
+        "sha256": "b7e625c567c95666b7b575014ca88eab1b424a6a66056bd030bdd555b4abe97a"
+      },
+      {
+        "relativePath": "journal/events/buckets/000000/00000001.rbf",
+        "length": 108,
+        "sha256": "b644ee2ecdd872056f996a74c43e4fca12e03e72638448094ca8e7f5892cac76"
+      },
+      {
+        "relativePath": "journal/events/buckets/000000/00000002.rbf",
+        "length": 4,
+        "sha256": "9c015e3e48da804c41adc4cf8834dc8055689d3ed68fce65c10b2e85153c71e6"
+      },
+      {
+        "relativePath": "journal/refs/objects/000000000400001f/segments/00000001.rbf",
+        "length": 128,
+        "sha256": "62eea29a27951b43e2da5c15b92ad58a3deba16275308b6cf94012e005462885"
+      },
+      {
+        "relativePath": "journal/refs/objects/000000000400001f/segments/00000002.rbf",
+        "length": 4,
+        "sha256": "9c015e3e48da804c41adc4cf8834dc8055689d3ed68fce65c10b2e85153c71e6"
+      },
+      {
+        "relativePath": "journal/refs/ref-op-log.rbf",
+        "length": 260,
+        "sha256": "d916efe46855d21d5fdf5127c2c8f0b3348e1a687cd8bf781270288158f4238a"
+      }
+    ],
+    "events-only": [
+      {
+        "relativePath": "expected.json",
+        "length": 926,
+        "sha256": "3f6c5275d7a966c6b316e23b9bd6401a1262a52d600a51bf35bbc00481c4919e"
+      },
+      {
+        "relativePath": "journal/events/buckets/000000/00000001.rbf",
+        "length": 108,
+        "sha256": "b49f81bd4613c159dfe38a0a3bcdf33e72878f56fcac6e2a6ba2fd9842b77313"
+      },
+      {
+        "relativePath": "journal/refs/ref-op-log.rbf",
+        "length": 4,
+        "sha256": "9c015e3e48da804c41adc4cf8834dc8055689d3ed68fce65c10b2e85153c71e6"
+      }
+    ]
+  },
+  "fixtureDirectories": {
+    "events-only": [
+      "journal",
+      "journal/events",
+      "journal/events/buckets",
+      "journal/events/buckets/000000",
+      "journal/refs",
+      "journal/refs/objects"
+    ],
+    "empty": [
+      "journal",
+      "journal/events",
+      "journal/events/buckets",
+      "journal/events/buckets/000000",
+      "journal/refs",
+      "journal/refs/objects"
+    ],
+    "complex": [
+      "journal",
+      "journal/cache",
+      "journal/cache/forward-plans",
+      "journal/cache/forward-plans/v1",
+      "journal/events",
+      "journal/events/buckets",
+      "journal/events/buckets/000000",
+      "journal/refs",
+      "journal/refs/objects",
+      "journal/refs/objects/000000000400001f",
+      "journal/refs/objects/000000000400001f/segments",
+      "journal/refs/objects/0000000104000020",
+      "journal/refs/objects/0000000104000020/segments",
+      "journal/refs/objects/000000020c000020",
+      "journal/refs/objects/000000020c000020/segments",
+      "journal/refs/objects/000000041c00001f",
+      "journal/refs/objects/000000041c00001f/segments"
+    ],
+    "empty-active": [
+      "journal",
+      "journal/events",
+      "journal/events/buckets",
+      "journal/events/buckets/000000",
+      "journal/refs",
+      "journal/refs/objects",
+      "journal/refs/objects/000000000400001f",
+      "journal/refs/objects/000000000400001f/segments"
+    ]
+  }
+}

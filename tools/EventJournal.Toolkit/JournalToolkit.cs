@@ -82,6 +82,7 @@ internal sealed record Allocation(RefOpFrame Op, long Offset, long NextOffset);
 internal sealed class AuditEngine {
     internal readonly string Root;
     private readonly CancellationToken _token;
+    private readonly bool _legacy;
     internal AuditReport Report { get; } = new();
     internal List<StoreInventory> Stores { get; } = new();
     internal Inventory Before { get; private set; } = new([], []);
@@ -102,16 +103,21 @@ internal sealed class AuditEngine {
     private long _suffixCount;
     private ulong _sequence;
     private bool _coverageComplete = true;
-    internal AuditEngine(string source, CancellationToken token) { Root = Path.GetFullPath(source); _token = token; }
+    internal AuditEngine(string source, CancellationToken token, bool legacy = false) { Root = Path.GetFullPath(source); _token = token; _legacy = legacy; }
+    internal EventAddress? LastEventAddress { get; private set; }
+    internal ulong LastEventSequence => _sequence;
+    internal EventAddress? RefHead(RefId id) => _moves[id][^1].Move.NewTarget;
     internal AuditEngine Run() {
         try {
             _token.ThrowIfCancellationRequested();
             ToolkitPaths.RequireNoReparse(Root);
             Before = Capture();
             InventoryStores();
-            try { JournalFormat.ValidateMarker(Root); ValidFormat = true; }
-            catch (StorageOpenException e) { Fact(e.ReasonCode, "journal.format", e.Offset); }
-            ReadSnapshot();
+            if (!_legacy) {
+                try { JournalFormat.ValidateMarker(Root); ValidFormat = true; }
+                catch (StorageOpenException e) { Fact(e.ReasonCode, "journal.format", e.Offset); }
+                ReadSnapshot();
+            }
             foreach (var store in Stores.Where(s => s.Root == "events")) { ScanEvents(store); }
             ScanLog();
             foreach (var store in Stores.Where(s => s.Root != "events")) { ScanMoves(store); }
@@ -147,9 +153,8 @@ internal sealed class AuditEngine {
     private IEnumerable<string> Walk(string directory, bool directories = false) {
         foreach (string path in Directory.EnumerateFileSystemEntries(directory).Order(StringComparer.Ordinal)) {
             _token.ThrowIfCancellationRequested();
-            var attrs = File.GetAttributes(path);
-            if ((attrs & FileAttributes.ReparsePoint) != 0) { throw new ArgumentException("Reparse inventory."); }
-            if ((attrs & FileAttributes.Directory) != 0) {
+            bool isDirectory = ToolkitPaths.RequireOrdinaryEntry(path);
+            if (isDirectory) {
                 if (directories) { yield return Relative(path); }
                 foreach (string entry in Walk(path, directories)) { yield return entry; }
             }
@@ -233,6 +238,7 @@ internal sealed class AuditEngine {
         foreach (var segment in store.Segments.Where(s => s.Key != highest)) {
             if (new FileInfo(Full(segment.Value)).Length == 4) { Fact("DirectoryInventoryInvalid", segment.Value); UniqueBoundaries = false; }
         }
+        if (_legacy) { return; }
         string locator = root + "/active.segment";
         if (!File.Exists(Full(locator))) {
             Index("MetadataMissing", locator, "Missing");
@@ -291,6 +297,7 @@ internal sealed class AuditEngine {
                 if (decoded.IsFailure) { Fact("EventFrameInvalid", segment.Value, info.Ticket.Offset); return; }
                 var header = decoded.Unwrap();
                 var address = new EventAddress(info.Ticket, segment.Key, header.Hint);
+                LastEventAddress = address;
                 Report.Counts.Events++;
                 if (_sequence == ulong.MaxValue || header.SequenceNumber != _sequence + 1) { Fact("EventSequenceInvalid", segment.Value, info.Ticket.Offset, address: address); }
                 _sequence = header.SequenceNumber;
@@ -433,7 +440,7 @@ internal sealed class AuditEngine {
                 var last = moves[^1];
                 if (_archives.TryGetValue(id, out var archive)) {
                     if (last.Move.Operation != RefMoveOperation.Close || last.Move.MoveSequenceNumber != archive.SourceMoveSequenceNumber
-                        || last.Move.UtcUnixTimeMilliseconds != archive.UtcUnixTimeMilliseconds || last.Move.ReasonKind != archive.ReasonKind) { Fact("RefMoveInvalid", last.Path, last.Offset, id); }
+                        || last.Move.ReasonKind != archive.ReasonKind) { Fact("RefMoveInvalid", last.Path, last.Offset, id); }
                 }
                 else if (last.Move.Operation == RefMoveOperation.Close) { Fact(_everBound.Contains(id) ? "IncompleteArchive" : "RefMoveInvalid", last.Path, last.Offset, id); }
             }
