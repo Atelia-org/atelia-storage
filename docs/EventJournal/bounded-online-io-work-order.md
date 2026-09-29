@@ -1,6 +1,6 @@
 # EventJournal v2：task 级实施与调度工单
 
-日期：2026-09-29。状态：**T00–T07 Linux Passed；T08 Linux 本地包 Passed；Windows PendingPlatform**。
+日期：2026-09-29。状态：**T00–T07 Linux Passed；T08 Linux/Windows 本地包 Passed；Windows 文件发布与中断门 Passed（NTFS/ReFS）**。Windows 精确范围见[平台交付记录](windows-platform-delivery.md)。
 基线：`bb7c4fb3eb6477783c70ee61bc62b832be195d07`。设计基线保持不变；用户于本轮明确授权按本工单完整实施并按需 Git 提交。网络发布、真实数据迁移和兄弟仓修改不在范围内。
 
 目标：保持 Event/Parent、exact RefId、CAS、reflog、不可变 tag 语义；固定当前工作集时，日常打开和 ref 更新不再扫描累计历史。新格式拒绝旧目录，完整校验独立离线执行。
@@ -22,7 +22,7 @@
 
 起始已有变更必须保留：`src/EventJournal/README.md` 修改；`bounded-online-io-design.md`、`bounded-online-io-review.md` 未跟踪。本轮另加本工单及 Goal 文档，并对设计记录用户确认。后续执行者重新记录实际status，不能用stash/reset/clean/checkout或打包需求消除这些变更，也不能把它们未经授权混入提交。
 
-计划编写时环境读取：SDK `10.0.201`、`pwsh` 在Linux可用；当时尚未构建/测试。当前验证证据见§15，Windows仍未验证。下面的调度表是唯一工作状态；验证证据追加于本文件，避免平行进度清单。
+计划编写时环境读取：SDK `10.0.201`、`pwsh` 在Linux可用；当时尚未构建/测试。当前验证证据见§15；Windows 后补验证已通过，见[平台交付记录](windows-platform-delivery.md)。下面的调度表是唯一工作状态；验证证据追加于本文件，避免平行进度清单。
 
 计划阶段工单校核（历史记录）：gpt-6-astra已收口合同候选，gpt-6-sol冷接手检查指出的snapshot初始化依赖、toolkit schema、第二个package smoke入口三项均已修正并复核闭合。已验证文档本地链接、JSON样例、5个独立CRC算例和manifest样例hash/length；未验证C#实现或实际包消费。Goal正文实测1714字符。
 
@@ -37,13 +37,13 @@
 | --- | --- | --- | --- | --- | --- |
 | T00 | 核验已冻结wire/API/error/fault及toolkit输出合同 | 读基线与设计 | gpt-6-astra | 调度主线程按反例核验 | Passed |
 | T01 | RBF边界起扫与确定性尾帧读取 | T00 | gpt-6-sol | 不读prefix、不吞短尾 | Passed |
-| T02 | locator生命周期、严格打开、轮转/fault | T01 | gpt-6-sol | gpt-6-astra审发布窗口 | Passed（Linux；Windows Pending） |
+| T02 | locator生命周期、严格打开、轮转/fault | T01 | gpt-6-sol | gpt-6-astra审发布窗口 | Passed（Linux/Windows） |
 | T03 | EventJournal格式门、尾读sequence/ref、tag局部验证 | T02 | gpt-6-sol | gpt-6-astra审身份/故障语义 | Passed |
 | T04 | catalog snapshot、有界suffix、缩容与发布 | T03 | gpt-6-sol | gpt-6-astra审预算/三态 | Passed |
 | T05 | 有界ref entry与单一ForwardPlan缓存 | T04 | gpt-6-sol | 调度主线程检查强引用/Dispose | Passed |
 | T06 | 离线audit与健康事实索引候选重建 | T04，集成前T05 | gpt-6-sol | gpt-6-astra审重建拒绝边界 | Passed（Linux） |
 | T07 | 故障/规模证据、消费者合同与源码收口 | T05、T06 | gpt-6-sol | astra一次跨层终审 | Passed（Linux） |
-| T08 | 干净已提交来源的包消费与平台交付门 | T07 + 提交/本地打包授权已具备 | gpt-6-sol | 调度主线程核验manifest/版本闭包 | Passed（Linux本地包）；Windows PendingPlatform |
+| T08 | 干净已提交来源的包消费与平台交付门 | T07 + 提交/本地打包授权已具备 | gpt-6-sol | 调度主线程核验manifest/版本闭包 | Passed（Linux/Windows本地包） |
 
 默认按表串行实施，不自动并行修改同一仓库。T06仅表示可以提前准备只读测试资料，不自行派出与T05并行的写入worker。每个task可分为下列子步骤，但主线程只在整项验收完成后放行下一项。全量.NET build/test/pack始终串行。
 
@@ -279,3 +279,5 @@ $candidateSmoke = Join-Path ([IO.Path]::GetTempPath()) ("atelia-v2-smoke-" + [Gu
 - T08前置：origin从同仓库http URL改为https以满足既有Pack来源校验，无推送/网络发布。干净源码提交后执行用户已授权本地五包All+AdditionalSegmentSmoke。
 
 - T08：干净源码`18c256ebf5d98b1e1b497963b491dc2e734cc98c`、五包候选`0.2.0-dev.20260929001100`，All+AdditionalSegmentSmoke通过。两种隔离PackageReference smoke、五包/四包assets、10个feed hash及5个私有cache nupkg hash、metadata/PDB/90个本地源码checksum均通过。精确保留[manifest](bounded-online-io-package-manifest.json)与[消费核验摘要](bounded-online-io-package-verification.json)；日志和限制见[交付记录](bounded-online-io-delivery.md)。Windows PendingPlatform，远端SourceLink未下载；未推送/网络发布/迁移真实数据/修改兄弟仓。此后仅补证据文档，不变更包来源revision。
+
+- Windows 后补门：原生 Windows 11 / SDK10.0.201，`5288bd5` 全suite1034/1034通过；新增两条真实deny-delete测试在NTFS/ReFS共4次通过，22+7真实Process.Kill矩阵在两文件系统共58次通过。Windows干净`5288bd5`五包候选`0.2.0-dev.20260929031204`、双隔离smoke、十个feed及私有cache hash、90个本地源码checksum通过。生产代码未改；此前PendingPlatform条目保留为历史。完整证据和已排除的初次失败见[Windows交付](windows-platform-delivery.md)及[机器记录](windows-platform-verification.json)。未网络发布或切换消费者。

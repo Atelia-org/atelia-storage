@@ -21,7 +21,7 @@ dotnet run --project tools/EventJournal.Toolkit -c Release -- upgrade-v1tov2 /ol
 dotnet run --project tools/EventJournal.Toolkit -c Release -- upgrade-v1tov2 /old/journal --profile legacy-bb7c4fb --output /outside/new-upgrade-bundle
 ```
 
-`v1/v2`指journal整体布局，不是EventFrame header版本。唯一profile固定为`bb7c4fb3eb6477783c70ee61bc62b832be195d07`对应writer的旧布局；它是调用方的来源声明，不是从磁盘鉴定出的commit。升级实现面向Linux/Windows，当前Linux验证通过、Windows待验证，详见[设计](../../docs/EventJournal/legacy-upgrade-design.md)与[交付记录](../../docs/EventJournal/legacy-upgrade-delivery.md)。
+`v1/v2`指journal整体布局，不是EventFrame header版本。唯一profile固定为`bb7c4fb3eb6477783c70ee61bc62b832be195d07`对应writer的旧布局；它是调用方的来源声明，不是从磁盘鉴定出的commit。升级实现面向Linux/Windows，Linux验证与[Windows平台门](../../docs/EventJournal/windows-platform-delivery.md)均已通过，详见[设计](../../docs/EventJournal/legacy-upgrade-design.md)与[交付记录](../../docs/EventJournal/legacy-upgrade-delivery.md)。
 
 输入必须停写或为稳定副本。命令逐字节复制全部RBF事实至`<output>/journal/`，生成v2 locator、EOF catalog和format，再执行完整audit与日常只读核对，最后发布`<output>/manifest.json`。原EventAddress、RefId、Parent、reflog、tags及orphan保留；源不修改，旧`cache/forward-plans/v1/`记录后不复制。目标必须尚不存在，拒绝源内输出、symlink/reparse、特殊文件、未知库存及任何混合v2 metadata。
 

@@ -1,6 +1,6 @@
 # EventJournal 旧库升级设计：保留事实字节，生成 v2 元数据
 
-日期：2026-09-29。状态：**已实施；Linux源码、跨版本、中断及两份真实storage输入验证通过；未切换真实实例，Windows PendingPlatform**。实际证据见[交付记录](legacy-upgrade-delivery.md)。
+日期：2026-09-29。状态：**已实施；Linux源码、跨版本、中断及两份真实storage输入验证通过；Windows平台门通过，未切换真实实例**。实际证据见[交付记录](legacy-upgrade-delivery.md)。
 
 来源基线：`bb7c4fb3eb6477783c70ee61bc62b832be195d07`；目标调查基线：`402054c`（实现源码与候选包来源 `18c256e`）。本文给出本次实施合同；实际验收证据在文末追加，当前CLI使用方式见toolkit指南。
 

@@ -19,7 +19,7 @@ python3 eng/Validate-BoundedOnlineIo.py --output /tmp/atelia-v2-long-UNIQUE --pu
 
 这些是 kernel read/pread 返回字节，不是块设备物理读量；未清 OS cache，不能据此推断磁盘吞吐。真实 I/O 统计按 `openat` 获得的绝对路径追踪共享 fd table，重组多线程 unfinished/resumed 行，统计 dataset 的 read/pread64 请求量及返回字节、getdents64、open/close 和峰值 fd。trace 保留外置 metadata 读取，但 dataset 路径过滤明确排除该固定开销；aggregate 仅包括全部 iterations 的 journal 文件读取与释放，不包含 fixture 生成及脚本前后 hash 扫描。已知 dataset fd 的任何失败/中断都显式分类，不可解析的行导致失败。`/proc/self/fd` 观测是测量操作完成时的持有量；trace 峰值可包含瞬时验证句柄。分配量不是总进程 RSS。fixture 前后哈希含相对路径及全部文件字节，保证读取没有改源；这些哈希不证明文件系统崩溃恢复能力。
 
-进程中断验证：子进程 public 操作在既有内部 phase probe 输出 metadata ready，父进程 SIGKILL，再用全新进程 strict read-only reopen。old locator+已经创建 next 的中间窗口必须拒绝；完成 locator 发布后接受新 active。append/tag/checkpoint阶段保存实际 reopen 结果。它是进程中断证据，不是断电/目录项硬件持久性保证；Windows 独立标记 PendingPlatform。异常 probe 与真实关闭句柄失败继续由聚焦测试分别覆盖。
+进程中断验证：子进程 public 操作在既有内部 phase probe 输出 metadata ready，父进程 SIGKILL，再用全新进程 strict read-only reopen。old locator+已经创建 next 的中间窗口必须拒绝；完成 locator 发布后接受新 active。append/tag/checkpoint阶段保存实际 reopen 结果。它是进程中断证据，不是断电/目录项硬件持久性保证；该Linux入口本身不验证Windows；原生Windows入口及NTFS/ReFS实证见[中断脚本](Test-WindowsInterruption.md)与[平台交付](../docs/EventJournal/windows-platform-delivery.md)。异常 probe 与真实关闭句柄失败继续由聚焦测试分别覆盖。
 
 额外窄验证（均用新临时目录；`describe` 只读已生成 fixture）：
 

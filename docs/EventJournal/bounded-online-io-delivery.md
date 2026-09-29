@@ -12,12 +12,12 @@ T07-C 接手基线为 `d3ba093`；astra 对该基线跨层源码终审完成，�
 | --- | --- | --- |
 | T07-A 性能矩阵与进程 kill | Passed（Linux） | 下文28组成本、22个SIGKILL及机器可读结果 |
 | T07 最终源码收口 | Passed（Linux） | 968/968、跨层审阅及harness独立复核通过；来源见下文 |
-| Windows 平台 | PendingPlatform，无实际证据 | Windows build/test、原子替换/坏尾/进程中断结果 |
-| T08 隔离五包消费 | Passed（Linux）；Windows PendingPlatform | 下文候选、来源、十包文件hash、两种public smoke与90个源码checksum |
+| Windows 平台 | Passed（后补） | [Windows记录](windows-platform-delivery.md)：原生1034测试、NTFS/ReFS共58次强杀及4次共享冲突 |
+| T08 隔离五包消费 | Passed（Linux/Windows） | 下文保留Linux候选；[Windows独立候选](windows-platform-delivery.md)含五包双smoke与90个源码checksum |
 | 消费者升级与旧数据兼容 | 仅只读适配检查 | 另行授权后的消费者编译/测试及应用旧数据证明 |
 | 网络发布与真实迁移 | 未执行 | 单独授权、来源与停止服务/备份/验证/切换证据 |
 
-用户已明确当前交付先完成 Linux 源码与本地包验证，Windows 门保持待验证。该范围不授权网络发布或真实实例迁移；Linux/本地包通过也不能声明 Windows 已验证。
+首次交付按用户选择先完成 Linux 源码与本地包验证；用户随后提供 Windows 工作副本，已完成[Windows 后补验证](windows-platform-delivery.md)。下文Linux实测及其当时限制保留为历史，不能与Windows独立证据混用。本次仍未网络发布或切换真实应用。
 
 ## 当前成本与恢复边界
 
@@ -99,4 +99,4 @@ EventJournal与SegmentStore两个隔离public smoke通过，分别核对五包/�
 
 证据根 `/tmp/atelia-storage-t08-20260929001100-c13801dbe11c4a1eb50effba7e00da59` 保留feed、isolated assets/private cache、`SHA256SUMS.txt`、`package-smoke.log`和smoke内逐步日志。`pack.log`初始Primitives/Data的host输出仅保留在工具transcript，中后段已保存；不把日志完整性说成全量捕获。
 
-当前用户授权范围内的Linux源码与本地包门已完成。Windows仍PendingPlatform，完整跨平台交付门未宣称通过；未推送、网络发布、升级兄弟消费者或迁移真实数据。
+以上为首次Linux交付时的记录。Windows平台及本地包门现已由[后补验证](windows-platform-delivery.md)关闭；原有Linux包manifest/verification中的PendingPlatform是当时快照，不改写成新候选的证据。用户已自行推送原实现；本次未网络发布、升级兄弟消费者或切换真实数据。

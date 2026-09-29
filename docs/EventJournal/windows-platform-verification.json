@@ -1,0 +1,1549 @@
+{
+  "sourceRevision": "5288bd55b4a5181942dadd76516f799002508144",
+  "environment": {
+    "volumes": [
+      {
+        "DeviceID": "C:",
+        "FileSystem": "NTFS",
+        "DriveType": 3
+      },
+      {
+        "DeviceID": "D:",
+        "FileSystem": "NTFS",
+        "DriveType": 3
+      },
+      {
+        "DeviceID": "E:",
+        "FileSystem": "ReFS",
+        "DriveType": 3
+      },
+      {
+        "DeviceID": "F:",
+        "FileSystem": "NTFS",
+        "DriveType": 3
+      },
+      {
+        "DeviceID": "W:",
+        "FileSystem": "NTFS",
+        "DriveType": 3
+      }
+    ],
+    "sourceRevision": "5288bd55b4a5181942dadd76516f799002508144",
+    "temp": "C:\\Users\\gdtut\\AppData\\Local\\Temp\\atelia-windows-validation-20260929\\",
+    "sdk": "10.0.201",
+    "powershell": "7.6.3",
+    "os": "Microsoft Windows NT 10.0.22000.0"
+  },
+  "sourceTests": [
+    {
+      "resultsFile": "gdtutu_TUTU17_2026-09-29_11_17_44.trx",
+      "assembly": "atelia.data.tests.dll",
+      "counts": {
+        "total": 212,
+        "executed": 212,
+        "passed": 212,
+        "failed": 0,
+        "error": 0,
+        "timeout": 0,
+        "aborted": 0,
+        "inconclusive": 0,
+        "passedButRunAborted": 0,
+        "notRunnable": 0,
+        "notExecuted": 0,
+        "disconnected": 0,
+        "warning": 0,
+        "completed": 0,
+        "inProgress": 0,
+        "pending": 0
+      },
+      "sha256": "5c500c321094e905f9a8cf949a99a977e74bf6d001bb9e471c155f1b55f60d77"
+    },
+    {
+      "resultsFile": "gdtutu_TUTU17_2026-09-29_11_17_46.trx",
+      "assembly": "atelia.eventjournal.tests.dll",
+      "counts": {
+        "total": 173,
+        "executed": 173,
+        "passed": 173,
+        "failed": 0,
+        "error": 0,
+        "timeout": 0,
+        "aborted": 0,
+        "inconclusive": 0,
+        "passedButRunAborted": 0,
+        "notRunnable": 0,
+        "notExecuted": 0,
+        "disconnected": 0,
+        "warning": 0,
+        "completed": 0,
+        "inProgress": 0,
+        "pending": 0
+      },
+      "sha256": "5db6b6b27aa3df71016349ea9e494d3f59be92b928f319f6887f2780285d4f36"
+    },
+    {
+      "resultsFile": "gdtutu_TUTU17_2026-09-29_11_18_30.trx",
+      "assembly": "atelia.eventjournal.toolkit.tests.dll",
+      "counts": {
+        "total": 122,
+        "executed": 122,
+        "passed": 122,
+        "failed": 0,
+        "error": 0,
+        "timeout": 0,
+        "aborted": 0,
+        "inconclusive": 0,
+        "passedButRunAborted": 0,
+        "notRunnable": 0,
+        "notExecuted": 0,
+        "disconnected": 0,
+        "warning": 0,
+        "completed": 0,
+        "inProgress": 0,
+        "pending": 0
+      },
+      "sha256": "3f78cc442ad6022ad92f8a592798230745d1877f48139aab2898ac8db98de863"
+    },
+    {
+      "resultsFile": "gdtutu_TUTU17_2026-09-29_11_18_43.trx",
+      "assembly": "atelia.primitives.tests.dll",
+      "counts": {
+        "total": 75,
+        "executed": 75,
+        "passed": 75,
+        "failed": 0,
+        "error": 0,
+        "timeout": 0,
+        "aborted": 0,
+        "inconclusive": 0,
+        "passedButRunAborted": 0,
+        "notRunnable": 0,
+        "notExecuted": 0,
+        "disconnected": 0,
+        "warning": 0,
+        "completed": 0,
+        "inProgress": 0,
+        "pending": 0
+      },
+      "sha256": "41d5dcc24c15edebb5a42c7f4acec1f3088d895cd97405798316fdda63c6cde5"
+    },
+    {
+      "resultsFile": "gdtutu_TUTU17_2026-09-29_11_18_46.trx",
+      "assembly": "atelia.rbf.tests.dll",
+      "counts": {
+        "total": 405,
+        "executed": 405,
+        "passed": 405,
+        "failed": 0,
+        "error": 0,
+        "timeout": 0,
+        "aborted": 0,
+        "inconclusive": 0,
+        "passedButRunAborted": 0,
+        "notRunnable": 0,
+        "notExecuted": 0,
+        "disconnected": 0,
+        "warning": 0,
+        "completed": 0,
+        "inProgress": 0,
+        "pending": 0
+      },
+      "sha256": "2c14b954e3ab98f527009efe7a112c2e4940f48f947c2054d8e047c68ae4dfca"
+    },
+    {
+      "resultsFile": "gdtutu_TUTU17_2026-09-29_11_18_51.trx",
+      "assembly": "atelia.rbfsegmentstore.tests.dll",
+      "counts": {
+        "total": 47,
+        "executed": 47,
+        "passed": 47,
+        "failed": 0,
+        "error": 0,
+        "timeout": 0,
+        "aborted": 0,
+        "inconclusive": 0,
+        "passedButRunAborted": 0,
+        "notRunnable": 0,
+        "notExecuted": 0,
+        "disconnected": 0,
+        "warning": 0,
+        "completed": 0,
+        "inProgress": 0,
+        "pending": 0
+      },
+      "sha256": "c7455b972d6104e9e49a1cbeff85fbeb06f0b5be22873fdf05437eb31735df4d"
+    }
+  ],
+  "packageManifest": {
+    "schemaVersion": 1,
+    "version": "0.2.0-dev.20260929031204",
+    "sourceRevision": "5288bd55b4a5181942dadd76516f799002508144",
+    "repositoryUrl": "https://github.com/Atelia-org/atelia-storage",
+    "sdkVersion": "10.0.201",
+    "packages": [
+      {
+        "id": "Atelia.Primitives",
+        "file": "Atelia.Primitives.0.2.0-dev.20260929031204.nupkg",
+        "sha256": "0842f10e53cbee7e67bc9caffaaaa7f3bb0c22cfe839ab56443898371f1f50b1",
+        "symbolsFile": "Atelia.Primitives.0.2.0-dev.20260929031204.snupkg",
+        "symbolsSha256": "e2723ca60ec1d9a36cfa17175ff28c76b17a26a33468734d992fa064ec454253"
+      },
+      {
+        "id": "Atelia.Data",
+        "file": "Atelia.Data.0.2.0-dev.20260929031204.nupkg",
+        "sha256": "929dc7ee828790de7e2b59cc5107a066f129c61cbecc6561f5d445aeebc2d7d9",
+        "symbolsFile": "Atelia.Data.0.2.0-dev.20260929031204.snupkg",
+        "symbolsSha256": "1b93d02ea2ec62985b82a3590a0ef638d7fbbd5e4fad0e48fe9bad5a8f23e0ba"
+      },
+      {
+        "id": "Atelia.Rbf",
+        "file": "Atelia.Rbf.0.2.0-dev.20260929031204.nupkg",
+        "sha256": "345f7c685ba1af0d93a15b269243c3d9ce8bef8fd579c7b450d20ee732e10b17",
+        "symbolsFile": "Atelia.Rbf.0.2.0-dev.20260929031204.snupkg",
+        "symbolsSha256": "81376893cf8caf23fd71b1fd361909b41476b3b120f927ce9480f4db5baea05d"
+      },
+      {
+        "id": "Atelia.RbfSegmentStore",
+        "file": "Atelia.RbfSegmentStore.0.2.0-dev.20260929031204.nupkg",
+        "sha256": "1be54b348b41cf91a1b9206014d1400137e08e580c104d5e57483d748b70626f",
+        "symbolsFile": "Atelia.RbfSegmentStore.0.2.0-dev.20260929031204.snupkg",
+        "symbolsSha256": "4363f0182d6736068ad8faa19b514d64cfbd23aa4b1de36a947c8d95e56c122f"
+      },
+      {
+        "id": "Atelia.EventJournal",
+        "file": "Atelia.EventJournal.0.2.0-dev.20260929031204.nupkg",
+        "sha256": "46f84fdc8a7fd26604cc244b34bbb5f7f6173c64b663ad3059f39b51b6db81a9",
+        "symbolsFile": "Atelia.EventJournal.0.2.0-dev.20260929031204.snupkg",
+        "symbolsSha256": "80f39df927a675308df4ac54761a53f5a8f9541375c44062718c92077cb7c3e7"
+      }
+    ]
+  },
+  "all10FeedHashesVerified": true,
+  "consumers": {
+    "EventJournalSmoke": {
+      "packages": [
+        "Atelia.Data/0.2.0-dev.20260929031204",
+        "Atelia.EventJournal/0.2.0-dev.20260929031204",
+        "Atelia.Primitives/0.2.0-dev.20260929031204",
+        "Atelia.Rbf/0.2.0-dev.20260929031204",
+        "Atelia.RbfSegmentStore/0.2.0-dev.20260929031204"
+      ],
+      "assetsSha256": "3b7ba6da10c872cb655b0aedf709fde72417e3ce496ed016a4cf4d8ffff8b0b2",
+      "privateCacheHashesVerified": true
+    },
+    "RbfSegmentStoreSmoke": {
+      "packages": [
+        "Atelia.Data/0.2.0-dev.20260929031204",
+        "Atelia.Primitives/0.2.0-dev.20260929031204",
+        "Atelia.Rbf/0.2.0-dev.20260929031204",
+        "Atelia.RbfSegmentStore/0.2.0-dev.20260929031204"
+      ],
+      "assetsSha256": "a0d88fa884f2bddc43404d5ca20f72c68f15ab01a2c0566c79224635e6044386",
+      "privateCacheHashesVerified": true
+    }
+  },
+  "remoteSourceLinkDownload": "NotRun",
+  "networkPublication": "NotRun",
+  "status": "Passed",
+  "date": "2026-09-29",
+  "sourceBuild": {
+    "warnings": 45,
+    "errors": 0,
+    "warningScope": "Existing XML documentation warnings",
+    "logSha256": "7006a5ff4b1132a79af38cb2304a3aa92b68a92692399fa4a5056117f559a597"
+  },
+  "sourceSuiteFileSystem": "NTFS",
+  "sourceSuiteNote": "Original 1034 tests; Linux-only FIFO body and Unix read-only permission helper are not exercised on Windows.",
+  "interruptionMatrices": [
+    {
+      "environment": {
+        "outputDirectory": "C:\\Users\\gdtut\\AppData\\Local\\Temp\\atelia-windows-extra-20260929\\interruption-final",
+        "repositoryRoot": "E:\\repos\\Atelia-org\\atelia-storage",
+        "outputDrive": "C:\\",
+        "outputFileSystem": "NTFS",
+        "platform": "Windows",
+        "os": "Microsoft Windows NT 10.0.22000.0",
+        "powershell": "7.6.3",
+        "matrix": "All",
+        "legacyFixture": "complex",
+        "dotnetPath": "dotnet",
+        "binaryHashes": {
+          "tests/EventJournal.Validation/bin/Release/net10.0/Atelia.EventJournal.Validation.dll": "39cc91e4606bc97c8571d6da2ce80c0217282c8a095feed21c3958ae291f3bf9",
+          "eng/LegacyUpgradeValidation/bin/Release/net10.0/Atelia.EventJournal.LegacyUpgradeValidation.dll": "d24b8b7a2642819e32fe5b6f21b90f332c457dfc354a9821a0a1abb2d85043b3",
+          "tools/EventJournal.Toolkit/bin/Release/net10.0/Atelia.EventJournal.Toolkit.dll": "48d93a0ec40a4c44d59456e0c2d8a34d0238723c8bea577cc563a0313e81ad64",
+          "tests/EventJournal.Toolkit.Tests/LegacyFixtures/provenance.json": "b50b82ca06fc6fd6aa01f1445c648e0e6bbe8c17a4bd90d45b9dc435b57fa363"
+        },
+        "mechanism": "Process.Kill",
+        "powerLossProof": false
+      },
+      "summary": {
+        "status": "Passed",
+        "platform": "Windows",
+        "matrix": "All",
+        "cases": 29,
+        "processKill": "Native",
+        "powerLossProof": false
+      },
+      "resultsSha256": "c894e6c08ea5500748af29e4944cc89398f54b986a4a3637f6f8fb6a9515419b",
+      "cases": [
+        {
+          "matrix": "Bounded",
+          "phase": "EventBeforeAppend",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 16652,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "EventBeforeAppend",
+            "savedTagPresent": false,
+            "eventTail": 96,
+            "tailSequence": 1,
+            "nextSequence": 2
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "EventAfterAppend",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 11976,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "EventAfterAppend",
+            "savedTagPresent": false,
+            "eventTail": 188,
+            "tailSequence": 2,
+            "nextSequence": 3
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "EventAfterDurableFlush",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 15252,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "EventAfterDurableFlush",
+            "savedTagPresent": false,
+            "eventTail": 188,
+            "tailSequence": 2,
+            "nextSequence": 3
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "tag:BeforeTargetFlush",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 23496,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "tag:BeforeTargetFlush",
+            "savedTagPresent": false,
+            "eventTail": 96,
+            "tailSequence": 0,
+            "nextSequence": 2
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "tag:BeforeAppend",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 29100,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "tag:BeforeAppend",
+            "savedTagPresent": false,
+            "eventTail": 96,
+            "tailSequence": 0,
+            "nextSequence": 2
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "tag:AfterAppend",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 6900,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "tag:AfterAppend",
+            "savedTagPresent": true,
+            "eventTail": 96,
+            "tailSequence": 0,
+            "nextSequence": 2
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "tag:AfterDurableFlush",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 10248,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "tag:AfterDurableFlush",
+            "savedTagPresent": true,
+            "eventTail": 96,
+            "tailSequence": 0,
+            "nextSequence": 2
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "CheckpointBeforeLogFlush",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 22928,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "CheckpointBeforeLogFlush",
+            "savedTagPresent": false,
+            "eventTail": 96,
+            "tailSequence": 0,
+            "nextSequence": 2,
+            "checkpointPublication": {
+              "boundary": 4,
+              "branchCount": 0,
+              "tagCount": 0,
+              "replacementPublished": false,
+              "completeCodecValidation": "StrictReopenPassed"
+            }
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "CheckpointBeforeBoundary",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 22880,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "CheckpointBeforeBoundary",
+            "savedTagPresent": false,
+            "eventTail": 96,
+            "tailSequence": 0,
+            "nextSequence": 2,
+            "checkpointPublication": {
+              "boundary": 4,
+              "branchCount": 0,
+              "tagCount": 0,
+              "replacementPublished": false,
+              "completeCodecValidation": "StrictReopenPassed"
+            }
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "CheckpointBeforeWrite",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 1732,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "CheckpointBeforeWrite",
+            "savedTagPresent": false,
+            "eventTail": 96,
+            "tailSequence": 0,
+            "nextSequence": 2,
+            "checkpointPublication": {
+              "boundary": 4,
+              "branchCount": 0,
+              "tagCount": 0,
+              "replacementPublished": false,
+              "completeCodecValidation": "StrictReopenPassed"
+            }
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "CheckpointBeforeTempFlush",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 18516,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "CheckpointBeforeTempFlush",
+            "savedTagPresent": false,
+            "eventTail": 96,
+            "tailSequence": 0,
+            "nextSequence": 2,
+            "checkpointPublication": {
+              "boundary": 4,
+              "branchCount": 0,
+              "tagCount": 0,
+              "replacementPublished": false,
+              "completeCodecValidation": "StrictReopenPassed"
+            }
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "CheckpointBeforeReplace",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 17344,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "CheckpointBeforeReplace",
+            "savedTagPresent": false,
+            "eventTail": 96,
+            "tailSequence": 0,
+            "nextSequence": 2,
+            "checkpointPublication": {
+              "boundary": 4,
+              "branchCount": 0,
+              "tagCount": 0,
+              "replacementPublished": false,
+              "completeCodecValidation": "StrictReopenPassed"
+            }
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "CheckpointAfterReplace",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 22940,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "CheckpointAfterReplace",
+            "savedTagPresent": false,
+            "eventTail": 96,
+            "tailSequence": 0,
+            "nextSequence": 2,
+            "checkpointPublication": {
+              "boundary": 260,
+              "branchCount": 1,
+              "tagCount": 0,
+              "replacementPublished": true,
+              "completeCodecValidation": "StrictReopenPassed"
+            }
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "CheckpointBeforeInstall",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 16636,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "CheckpointBeforeInstall",
+            "savedTagPresent": false,
+            "eventTail": 96,
+            "tailSequence": 0,
+            "nextSequence": 2,
+            "checkpointPublication": {
+              "boundary": 260,
+              "branchCount": 1,
+              "tagCount": 0,
+              "replacementPublished": true,
+              "completeCodecValidation": "StrictReopenPassed"
+            }
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "rotation:OldFlush",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 10312,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "rotation:OldFlush",
+            "active": 1
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "rotation:NextCreate",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 24156,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "rotation:NextCreate",
+            "active": 1
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "rotation:NextFlush",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 15388,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenRejected",
+            "phase": "rotation:NextFlush",
+            "kind": "MaintenanceRequired",
+            "code": "NextSegmentPresent"
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "rotation:LocatorCreate",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 22424,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenRejected",
+            "phase": "rotation:LocatorCreate",
+            "kind": "MaintenanceRequired",
+            "code": "NextSegmentPresent"
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "rotation:LocatorFlush",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 5136,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenRejected",
+            "phase": "rotation:LocatorFlush",
+            "kind": "MaintenanceRequired",
+            "code": "NextSegmentPresent"
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "rotation:LocatorReplace",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 20804,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenRejected",
+            "phase": "rotation:LocatorReplace",
+            "kind": "MaintenanceRequired",
+            "code": "NextSegmentPresent"
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "rotation:LocatorPublished",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 24720,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "rotation:LocatorPublished",
+            "active": 2
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "rotation:OldDispose",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 16988,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "rotation:OldDispose",
+            "active": 2
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Legacy",
+          "phase": "CopyChunkWritten",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 25524,
+            "powerLossProof": false
+          },
+          "verification": {
+            "manifest": "Absent",
+            "bundle": "IncompleteAndNotEligibleForCutover"
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Legacy",
+          "phase": "LocatorWritten",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 19460,
+            "powerLossProof": false
+          },
+          "verification": {
+            "manifest": "Absent",
+            "bundle": "IncompleteAndNotEligibleForCutover"
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Legacy",
+          "phase": "CatalogWritten",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 16492,
+            "powerLossProof": false
+          },
+          "verification": {
+            "manifest": "Absent",
+            "bundle": "IncompleteAndNotEligibleForCutover"
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Legacy",
+          "phase": "FormatWritten",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 20380,
+            "powerLossProof": false
+          },
+          "verification": {
+            "manifest": "Absent",
+            "bundle": "IncompleteAndNotEligibleForCutover"
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Legacy",
+          "phase": "TargetAudited",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 5684,
+            "powerLossProof": false
+          },
+          "verification": {
+            "manifest": "Absent",
+            "bundle": "IncompleteAndNotEligibleForCutover"
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Legacy",
+          "phase": "BeforeManifestPublish",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 12840,
+            "powerLossProof": false
+          },
+          "verification": {
+            "manifest": "Absent",
+            "bundle": "IncompleteAndNotEligibleForCutover"
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Legacy",
+          "phase": "ManifestPublished",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 26932,
+            "powerLossProof": false
+          },
+          "verification": {
+            "manifest": "CompleteAndHashesMatched",
+            "targetFullAudit": "Passed",
+            "terminalCreatedReceived": false
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        }
+      ]
+    },
+    {
+      "environment": {
+        "outputDirectory": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\windows-validation-20260929\\refs-extra\\interruption-final",
+        "repositoryRoot": "E:\\repos\\Atelia-org\\atelia-storage",
+        "outputDrive": "E:\\",
+        "outputFileSystem": "ReFS",
+        "platform": "Windows",
+        "os": "Microsoft Windows NT 10.0.22000.0",
+        "powershell": "7.6.3",
+        "matrix": "All",
+        "legacyFixture": "complex",
+        "dotnetPath": "dotnet",
+        "binaryHashes": {
+          "tests/EventJournal.Validation/bin/Release/net10.0/Atelia.EventJournal.Validation.dll": "39cc91e4606bc97c8571d6da2ce80c0217282c8a095feed21c3958ae291f3bf9",
+          "eng/LegacyUpgradeValidation/bin/Release/net10.0/Atelia.EventJournal.LegacyUpgradeValidation.dll": "d24b8b7a2642819e32fe5b6f21b90f332c457dfc354a9821a0a1abb2d85043b3",
+          "tools/EventJournal.Toolkit/bin/Release/net10.0/Atelia.EventJournal.Toolkit.dll": "48d93a0ec40a4c44d59456e0c2d8a34d0238723c8bea577cc563a0313e81ad64",
+          "tests/EventJournal.Toolkit.Tests/LegacyFixtures/provenance.json": "b50b82ca06fc6fd6aa01f1445c648e0e6bbe8c17a4bd90d45b9dc435b57fa363"
+        },
+        "mechanism": "Process.Kill",
+        "powerLossProof": false
+      },
+      "summary": {
+        "status": "Passed",
+        "platform": "Windows",
+        "matrix": "All",
+        "cases": 29,
+        "processKill": "Native",
+        "powerLossProof": false
+      },
+      "resultsSha256": "0f5f9a09bdf6aa0e5c5d476cebaf914603e6705e58b862efade6e697a82b6bb0",
+      "cases": [
+        {
+          "matrix": "Bounded",
+          "phase": "EventBeforeAppend",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 15272,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "EventBeforeAppend",
+            "savedTagPresent": false,
+            "eventTail": 96,
+            "tailSequence": 1,
+            "nextSequence": 2
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "EventAfterAppend",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 264,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "EventAfterAppend",
+            "savedTagPresent": false,
+            "eventTail": 188,
+            "tailSequence": 2,
+            "nextSequence": 3
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "EventAfterDurableFlush",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 13456,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "EventAfterDurableFlush",
+            "savedTagPresent": false,
+            "eventTail": 188,
+            "tailSequence": 2,
+            "nextSequence": 3
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "tag:BeforeTargetFlush",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 28580,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "tag:BeforeTargetFlush",
+            "savedTagPresent": false,
+            "eventTail": 96,
+            "tailSequence": 0,
+            "nextSequence": 2
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "tag:BeforeAppend",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 29628,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "tag:BeforeAppend",
+            "savedTagPresent": false,
+            "eventTail": 96,
+            "tailSequence": 0,
+            "nextSequence": 2
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "tag:AfterAppend",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 19352,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "tag:AfterAppend",
+            "savedTagPresent": true,
+            "eventTail": 96,
+            "tailSequence": 0,
+            "nextSequence": 2
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "tag:AfterDurableFlush",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 24416,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "tag:AfterDurableFlush",
+            "savedTagPresent": true,
+            "eventTail": 96,
+            "tailSequence": 0,
+            "nextSequence": 2
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "CheckpointBeforeLogFlush",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 16244,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "CheckpointBeforeLogFlush",
+            "savedTagPresent": false,
+            "eventTail": 96,
+            "tailSequence": 0,
+            "nextSequence": 2,
+            "checkpointPublication": {
+              "boundary": 4,
+              "branchCount": 0,
+              "tagCount": 0,
+              "replacementPublished": false,
+              "completeCodecValidation": "StrictReopenPassed"
+            }
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "CheckpointBeforeBoundary",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 30508,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "CheckpointBeforeBoundary",
+            "savedTagPresent": false,
+            "eventTail": 96,
+            "tailSequence": 0,
+            "nextSequence": 2,
+            "checkpointPublication": {
+              "boundary": 4,
+              "branchCount": 0,
+              "tagCount": 0,
+              "replacementPublished": false,
+              "completeCodecValidation": "StrictReopenPassed"
+            }
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "CheckpointBeforeWrite",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 29336,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "CheckpointBeforeWrite",
+            "savedTagPresent": false,
+            "eventTail": 96,
+            "tailSequence": 0,
+            "nextSequence": 2,
+            "checkpointPublication": {
+              "boundary": 4,
+              "branchCount": 0,
+              "tagCount": 0,
+              "replacementPublished": false,
+              "completeCodecValidation": "StrictReopenPassed"
+            }
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "CheckpointBeforeTempFlush",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 31580,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "CheckpointBeforeTempFlush",
+            "savedTagPresent": false,
+            "eventTail": 96,
+            "tailSequence": 0,
+            "nextSequence": 2,
+            "checkpointPublication": {
+              "boundary": 4,
+              "branchCount": 0,
+              "tagCount": 0,
+              "replacementPublished": false,
+              "completeCodecValidation": "StrictReopenPassed"
+            }
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "CheckpointBeforeReplace",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 26852,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "CheckpointBeforeReplace",
+            "savedTagPresent": false,
+            "eventTail": 96,
+            "tailSequence": 0,
+            "nextSequence": 2,
+            "checkpointPublication": {
+              "boundary": 4,
+              "branchCount": 0,
+              "tagCount": 0,
+              "replacementPublished": false,
+              "completeCodecValidation": "StrictReopenPassed"
+            }
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "CheckpointAfterReplace",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 30476,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "CheckpointAfterReplace",
+            "savedTagPresent": false,
+            "eventTail": 96,
+            "tailSequence": 0,
+            "nextSequence": 2,
+            "checkpointPublication": {
+              "boundary": 260,
+              "branchCount": 1,
+              "tagCount": 0,
+              "replacementPublished": true,
+              "completeCodecValidation": "StrictReopenPassed"
+            }
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "CheckpointBeforeInstall",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 21464,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "CheckpointBeforeInstall",
+            "savedTagPresent": false,
+            "eventTail": 96,
+            "tailSequence": 0,
+            "nextSequence": 2,
+            "checkpointPublication": {
+              "boundary": 260,
+              "branchCount": 1,
+              "tagCount": 0,
+              "replacementPublished": true,
+              "completeCodecValidation": "StrictReopenPassed"
+            }
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "rotation:OldFlush",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 24948,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "rotation:OldFlush",
+            "active": 1
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "rotation:NextCreate",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 4772,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "rotation:NextCreate",
+            "active": 1
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "rotation:NextFlush",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 10484,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenRejected",
+            "phase": "rotation:NextFlush",
+            "kind": "MaintenanceRequired",
+            "code": "NextSegmentPresent"
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "rotation:LocatorCreate",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 2968,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenRejected",
+            "phase": "rotation:LocatorCreate",
+            "kind": "MaintenanceRequired",
+            "code": "NextSegmentPresent"
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "rotation:LocatorFlush",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 19044,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenRejected",
+            "phase": "rotation:LocatorFlush",
+            "kind": "MaintenanceRequired",
+            "code": "NextSegmentPresent"
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "rotation:LocatorReplace",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 4424,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenRejected",
+            "phase": "rotation:LocatorReplace",
+            "kind": "MaintenanceRequired",
+            "code": "NextSegmentPresent"
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "rotation:LocatorPublished",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 23104,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "rotation:LocatorPublished",
+            "active": 2
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Bounded",
+          "phase": "rotation:OldDispose",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 24720,
+            "powerLossProof": false
+          },
+          "verification": {
+            "status": "StrictReopenSucceeded",
+            "phase": "rotation:OldDispose",
+            "active": 2
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Legacy",
+          "phase": "CopyChunkWritten",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 21196,
+            "powerLossProof": false
+          },
+          "verification": {
+            "manifest": "Absent",
+            "bundle": "IncompleteAndNotEligibleForCutover"
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Legacy",
+          "phase": "LocatorWritten",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 15380,
+            "powerLossProof": false
+          },
+          "verification": {
+            "manifest": "Absent",
+            "bundle": "IncompleteAndNotEligibleForCutover"
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Legacy",
+          "phase": "CatalogWritten",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 13308,
+            "powerLossProof": false
+          },
+          "verification": {
+            "manifest": "Absent",
+            "bundle": "IncompleteAndNotEligibleForCutover"
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Legacy",
+          "phase": "FormatWritten",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 12664,
+            "powerLossProof": false
+          },
+          "verification": {
+            "manifest": "Absent",
+            "bundle": "IncompleteAndNotEligibleForCutover"
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Legacy",
+          "phase": "TargetAudited",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 7776,
+            "powerLossProof": false
+          },
+          "verification": {
+            "manifest": "Absent",
+            "bundle": "IncompleteAndNotEligibleForCutover"
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Legacy",
+          "phase": "BeforeManifestPublish",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 11312,
+            "powerLossProof": false
+          },
+          "verification": {
+            "manifest": "Absent",
+            "bundle": "IncompleteAndNotEligibleForCutover"
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        },
+        {
+          "matrix": "Legacy",
+          "phase": "ManifestPublished",
+          "termination": {
+            "mechanism": "native Windows Process.Kill after exact internal phase readiness",
+            "processKillCalled": true,
+            "exitCode": -1,
+            "processId": 22296,
+            "powerLossProof": false
+          },
+          "verification": {
+            "manifest": "CompleteAndHashesMatched",
+            "targetFullAudit": "Passed",
+            "terminalCreatedReceived": false
+          },
+          "sourceBytesAndDirectoriesUnchanged": true
+        }
+      ]
+    }
+  ],
+  "additionalSharingTests": [
+    {
+      "fileSystem": "NTFS",
+      "name": "Atelia.EventJournal.Tests.WindowsPublicationTests.CheckpointDenyDeleteSharingConflictLeavesTagNotAttemptedAndOriginalCatalogReadable",
+      "outcome": "Passed",
+      "trxSha256": "1c0d60ff0aca39d5d686c373f761934b88a882759afe09c636108d7f33745892"
+    },
+    {
+      "fileSystem": "NTFS",
+      "name": "Atelia.RbfSegmentStore.Tests.WindowsPublicationTests.RotationDenyDeleteSharingConflictPreservesOldLocatorAndStopsInstance",
+      "outcome": "Passed",
+      "trxSha256": "d0471785660f10c5cac58a492fb589d16a42af307b8a168e5cd0cc4cc5cebd67"
+    },
+    {
+      "fileSystem": "ReFS",
+      "name": "Atelia.EventJournal.Tests.WindowsPublicationTests.CheckpointDenyDeleteSharingConflictLeavesTagNotAttemptedAndOriginalCatalogReadable",
+      "outcome": "Passed",
+      "trxSha256": "875d81b51f433e805fdb1da82e9373e4dfd63a431c7b8b4a3b0e6f7a63df8fbd"
+    },
+    {
+      "fileSystem": "ReFS",
+      "name": "Atelia.RbfSegmentStore.Tests.WindowsPublicationTests.RotationDenyDeleteSharingConflictPreservesOldLocatorAndStopsInstance",
+      "outcome": "Passed",
+      "trxSha256": "9b439552cd8875d2a78c4e1b1107a3a469f953f645c7bc9d430b837e9e77b06e"
+    }
+  ],
+  "nativeMoveControls": [
+    {
+      "type": "System.UnauthorizedAccessException",
+      "path": "C:\\Users\\gdtut\\AppData\\Local\\Temp\\atelia-native-move-20260929",
+      "originalRetained": true,
+      "releaseThenSameReplacePassed": true,
+      "hresult": "80070005"
+    },
+    {
+      "type": "System.UnauthorizedAccessException",
+      "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\windows-validation-20260929\\native-move",
+      "originalRetained": true,
+      "releaseThenSameReplacePassed": true,
+      "hresult": "80070005"
+    }
+  ],
+  "verificationSourceFiles": {
+    "eng/Test-WindowsInterruption.ps1": "baf824f92b3be7dc580c4fe02f511fdd7c2724aa308e06168a68c4ac5a8bac6e",
+    "eng/Test-WindowsInterruption.Tests.ps1": "24133b6638d4f474f0944aaab4f85e9de70f6224c44d5a4b0c74c410018ffc15",
+    "tests/EventJournal.Tests/WindowsPublicationTests.cs": "2b77dc5ce6c82f831960b57227865aa56c4e344bcc8745e11a9150621e9ee28b",
+    "tests/RbfSegmentStore.Tests/WindowsPublicationTests.cs": "e978a6fbc0bd76d8dc0df8b7ff583893c28e12321eb655fcce24c712f47573dc"
+  },
+  "localSourceDocumentChecksums": 90,
+  "metadataLogSha256": "d0e4f7381e8330a554092f453fdd07c77f6ea629d8abf72632169d2145bc51b3",
+  "powerLossProof": false,
+  "windowsKernelIoPerformanceMeasurement": "NotRun",
+  "consumerUpgrade": "NotRun",
+  "supersededRuns": [
+    "Default F TEMP suite deliberately interrupted for slow synchronous flush; not a pass.",
+    "Initial sharing test required Win32 32 but actual paired UnauthorizedAccessException/5 was witnessed on NTFS/ReFS; narrowed oracle plus release controls passed.",
+    "Initial NTFS matrix passed 28 cases then harness rejected multiline audit JSON. Parser fixed; complete 29-case matrix rerun on each filesystem in fresh directories."
+  ],
+  "packLogLimitation": "pack.log contains final summary; detailed native pack output only in execution transcript. Isolated consumer per-step logs retained.",
+  "verificationSourceHashEncoding": "SHA256 of tested LF source bytes, identical to Git blobs; .gitattributes may materialize *.ps1 as CRLF on checkout."
+}

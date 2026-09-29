@@ -1,6 +1,6 @@
 # upgrade-v1tov2 实施与验证记录
 
-日期：2026-09-29。Linux 实施与验证通过；Windows PendingPlatform。设计见[升级方案](legacy-upgrade-design.md)，命令见[toolkit 指南](../../tools/EventJournal.Toolkit/README.md)。本轮只制作独立候选，未切换 Galatea、修改源 repo 或升级应用依赖。
+日期：2026-09-29。Linux 实施与验证通过；[Windows 后补门](windows-platform-delivery.md)通过（原生 suite、NTFS/ReFS create-only/rename 与进程中断）。设计见[升级方案](legacy-upgrade-design.md)，命令见[toolkit 指南](../../tools/EventJournal.Toolkit/README.md)。本轮只制作独立候选，未切换 Galatea、修改源 repo 或升级应用依赖。
 
 ## 实施范围
 
@@ -65,4 +65,4 @@ artifacts/upgrade-v1tov2-validation-20260929T011345Z-76eaf78c/
     continued-copy.json
 ```
 
-候选的实际使用目录是`upgrade-bundle/journal/`，不是包含manifest的外层bundle，也不是continued-copy。**这些是EventJournal候选，尚不是完整可运行的Galatea升级实例。** 消费者版本适配、领域selected-chain/sidecar验证及应用切换仍是后续工作。Windows create-only/rename及中断测试也仍待运行。
+候选的实际使用目录是`upgrade-bundle/journal/`，不是包含manifest的外层bundle，也不是continued-copy。**这些是EventJournal候选，尚不是完整可运行的Galatea升级实例。** 消费者版本适配、领域selected-chain/sidecar验证及应用切换仍是后续工作。Windows create-only/rename及中断测试已在NTFS/ReFS通过，见[平台记录](windows-platform-delivery.md)；真实数据集仍仅有本文列出的Linux验证范围。
