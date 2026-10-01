@@ -166,13 +166,14 @@ public interface IRbfFile : IDisposable {
     /// </remarks>
     void DurableFlush();
 
-    /// <summary>截断（恢复用）。</summary>
-    void Truncate(long newLengthBytes);
 }
 
 public static class RbfFile {
     public static IRbfFile CreateNew(string path);       // FailIfExists
-    public static IRbfFile OpenExisting(string path);    // 验证 HeaderFence
+    public static IRbfFile OpenExisting(string path, out RbfTailRecoveryReport recovery,
+        RbfCacheMode cacheMode = RbfCacheMode.Slots16);    // 默认恢复单个残缺尾帧
+    public static IRbfFile OpenReadOnlyExisting(string path,
+        RbfCacheMode cacheMode = RbfCacheMode.Slots16);    // 验证，不修改
 }
 ```
 
@@ -203,8 +204,7 @@ public static class RbfFile {
 ### spec [S-RBF-TAILOFFSET-UPDATE] TailOffset更新规则
 `TailOffset` MUST 只在以下时刻推进：
 - `Append()` 成功返回后；
-- `BeginAppend()` 返回的 `RbfFrameBuilder.EndAppend()` 成功返回后；
-- `Truncate()` 成功返回后。
+- `BeginAppend()` 返回的 `RbfFrameBuilder.EndAppend()` 成功返回后。
 
 在 open Builder 的生命周期内（`EndAppend/Dispose` 之前），`TailOffset` MUST NOT 提前更新。
 
@@ -214,11 +214,41 @@ public static class RbfFile {
 - 若发生不可恢复的 I/O 错误，允许抛出异常（具体异常类型由实现选择）。
 - 本方法不对“未提交的 Builder 写入”做任何可观察承诺。
 
-### spec [S-RBF-TRUNCATE-REQUIRES-NONNEGATIVE-4B-ALIGNED] Truncate语义
-`IRbfFile.Truncate(long newLengthBytes)` MUST 将文件逻辑长度设置为 `newLengthBytes`。
+### spec [S-RBF-OPEN-RECOVERS-SINGLE-INCOMPLETE-TAIL] 普通打开与单尾帧恢复
 
-- `newLengthBytes` MUST 为非负且满足 4B 对齐（否则 MUST throw `ArgumentOutOfRangeException`）。
-- 截断是恢复路径能力；调用方 MUST 自行确保截断点符合其恢复语义（例如指向 Fence 位置）。
+`RbfFile.OpenExisting(path, out recovery, cacheMode)` MUST 在同一个独占可写 handle 上先验证、恢复尾部，再建立正式 reader/cache。成功返回的文件 MUST 是闭合的 `[Fence] ([Frame] [Fence])*` 主序列。
+
+- MUST 从完整 HeaderFence 连续按 HeadLen 检查主序列元信息，包括 HeadLen/TailLen、descriptor、Trailer CRC 与 Fence。不能把 payload 中内嵌的合法帧误当成文件尾。
+- MUST 流式完整校验最后一个已闭合帧；存在残尾时同时校验其紧邻的前一闭合帧及残尾已可校验的字节。普通打开不等于全历史 Payload CRC Audit。
+- 完整合法 FrameBytes 仅缺全部或部分 Fence 时，MUST 保留原帧，仅补齐 `RBF1` 的缺失后缀。
+- 合法 HeadLen 完整、FrameBytes 未完成且已存在字节无已知矛盾时，MUST 保留长度和 coverage，缺失 coverage 补零，将帧补成合法墓碑。已有未完成 CRC/Trailer 最多撤回到 Payload CRC 起点，flush 后再续写；不能修改旧帧、HeadLen 或 coverage。
+- 仅有合法 1–3B HeadLen 前缀时，MUST 截到该帧起点，不猜长度。
+- 完整长度帧 CRC 校验失败属于数据损坏；即使同时缺 Fence，也 MUST 拒绝且不修改。非法字段、已知 CRC 矛盾或 Fence 矛盾同样 MUST 拒绝，不越过坏帧寻找旧好帧。
+- 0–3B HeaderFence 残留 MUST 拒绝，不能当残帧或自动初始化。
+- 修改 MUST durable flush 并重新验证最终尾部后才返回。任何 SetLength/write/flush 异常 MUST 关闭 handle 并使打开失败，不能在该 handle 上改走其他恢复动作。
+
+墓碑编码 MUST 为原长度、原已有 coverage（缺失部分补零）、TailMetaLength=0、PaddingLen=0、IsTombstone=true、reserved=0、FrameTag=0、正确两项 CRC 与 Fence。Tag 0 仅是此编码取值，不是保留业务 Tag。
+
+```csharp
+public enum RbfTailRecoveryAction {
+    None, CompletedFence, CompletedTombstone, Truncated
+}
+public readonly record struct RbfTailRecoveryReport(
+    RbfTailRecoveryAction Action, long OriginalLength, long FinalLength,
+    long? AffectedFrameOffset, SizedPtr? FrameTicket);
+```
+
+`recovery` 只对成功打开有意义。None 的 offset/ticket 为空；CompletedFence 返回保留帧 ticket，CompletedTombstone 返回墓碑 ticket，Truncated 只有受影响起点，没有可读 ticket。报告不是业务 publication 证明。
+
+`OpenReadOnlyExisting` MUST 只验证，不恢复；需恢复时抛 `InvalidDataException`。格式/资格错误使用 `InvalidDataException` 并提供位置/detail；权限和设备 I/O 异常原样传播。离线 scanner/candidate 不受普通打开的恢复策略支配。普通 `IRbfFile` 不提供任意 Truncate，离线显式截断独立保留。
+
+恢复模型是单 writer 顺序追加留下最后一次 append 的字节前缀，包含恢复续写再次中断。此模型不承诺任意设备乱序、空洞、sector 损坏或多文件事务。定位最坏为 O(历史帧数) 元信息读取；内容校验与补零使用固定小 buffer，不租整帧内存。详细动作与边界见 [实施设计](rbf-tail-recovery-refactoring.md)。
+
+### spec [S-RBF-WRITER-FAULT-STOPS-INSTANCE] writer 故障后停止实例
+
+原始 Append/Builder 输出或 DurableFlush 抛异常后，实例 MUST 永久拒绝新读写与枚举器 MoveNext，只允许释放与 Dispose，重开时依据实际文件镜像判断。前置 Result/参数/state 拒绝不触发 fault。
+
+File、reader、已有 FrameInfo 和枚举器 MUST 共享一份 fault 事实；缓存命中、零 TailMeta、无 I/O 的结束早退亦 MUST 检查。已物化 buffer/span 与元信息值属性不追溯撤销。Builder Dispose MUST 不重试输出或解除 fault，File Dispose MUST 尝试释放所有 owned resources。
 
 ### spec [A-RBF-FRAME-BUILDER] RbfFrameBuilder定义
 
@@ -254,7 +284,7 @@ public readonly struct RbfFrameBuilder : IDisposable {
     /// <summary>释放构建器。若未 EndAppend，自动执行 Auto-Abort。</summary>
     /// <remarks>
     /// Auto-Abort 分支约束：<see cref="Dispose"/> 在 Auto-Abort 分支 MUST NOT 抛出异常
-    /// （除非出现不可恢复的不变量破坏），并且必须让 File Facade 回到可继续写状态。
+    /// （除非出现不可恢复的不变量破坏）；健康 File Facade 必须回到可继续写状态，已有 writer fault 仍须 Dispose 并重开。
     /// </remarks>
     public void Dispose();
 }
@@ -290,8 +320,9 @@ public readonly struct RbfFrameBuilder : IDisposable {
 - 上层 Record Reader 遍历时 MUST NOT 看到此帧作为业务记录
 
 **后置条件**：
-- `Dispose()` 后，底层 MUST 可继续写入后续帧
-- 后续 `Append()` / `BeginAppend()` 调用 MUST 成功
+- 健康实例 `Dispose()` Builder 后，底层 MUST 可继续写入后续帧
+- 健康实例的后续 `Append()` / `BeginAppend()` 调用 MUST 成功
+- 若已有 writer fault，Builder `Dispose()` MUST 不再输出、不解除 fault；File 须释放后重开
 - `Dispose()` 在此分支 MUST NOT 抛出异常（除非出现不可恢复的不变量破坏）
 
 此机制防止上层异常导致 Writer 死锁，同时在可能时优化为零 I/O。

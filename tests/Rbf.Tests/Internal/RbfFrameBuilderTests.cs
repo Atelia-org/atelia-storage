@@ -105,8 +105,7 @@ public class RbfFrameBuilderTests : IDisposable {
     public void BeginAppend_TailOffsetAtMaxOffset_EndAppendEmpty_Succeeds() {
         // Arrange
         var path = GetTempFilePath();
-        using var file = SparseRbfTestFile.CreateNew(path);
-        file.Truncate(SizedPtr.MaxOffset);
+        using var file = SparseRbfTestFile.CreateNew(path, SizedPtr.MaxOffset);
 
         // Act
         using var builder = file.BeginAppend();
@@ -125,9 +124,8 @@ public class RbfFrameBuilderTests : IDisposable {
     public void BeginAppend_TailOffsetExceedsMaxOffset_Throws() {
         // Arrange
         var path = GetTempFilePath();
-        using var file = SparseRbfTestFile.CreateNew(path);
         long tailOffset = SizedPtr.MaxOffset + RbfLayout.Alignment;
-        file.Truncate(tailOffset);
+        using var file = SparseRbfTestFile.CreateNew(path, tailOffset);
 
         // Act
         var ex = Assert.Throws<InvalidOperationException>(() => file.BeginAppend());
@@ -1365,7 +1363,7 @@ public class RbfFrameBuilderTests : IDisposable {
         }
 
         // Assert: 文件可以重新打开读取
-        using var reopenedFile = RbfFile.OpenExisting(path);
+        using var reopenedFile = RbfFile.OpenExisting(path, out _);
         var frameCount = 0;
         foreach (var _ in reopenedFile.ScanReverse()) {
             frameCount++;

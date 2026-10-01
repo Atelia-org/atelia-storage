@@ -67,7 +67,7 @@ public class RbfFileFactoryTests : IDisposable {
         }
 
         // Act
-        using var opened = RbfFile.OpenExisting(path);
+        using var opened = RbfFile.OpenExisting(path, out _);
 
         // Assert
         Assert.Equal(4, opened.TailOffset);
@@ -89,7 +89,7 @@ public class RbfFileFactoryTests : IDisposable {
         using var frame = opened.ReadPooledFrame(ticket).Unwrap();
 
         Assert.Equal(new byte[] { 1, 2, 3, 4 }, frame.PayloadAndMeta.ToArray());
-        Assert.Throws<UnauthorizedAccessException>(
+        Assert.Throws<InvalidOperationException>(
             () => opened.Append(8, new byte[] { 5, 6, 7, 8 })
         );
         Assert.Equal(before, File.ReadAllBytes(path));
@@ -103,7 +103,7 @@ public class RbfFileFactoryTests : IDisposable {
         File.WriteAllBytes(path, new byte[] { 0x00, 0x00, 0x00, 0x00 });
 
         // Act & Assert
-        var ex = Assert.Throws<InvalidDataException>(() => RbfFile.OpenExisting(path));
+        var ex = Assert.Throws<InvalidDataException>(() => RbfFile.OpenExisting(path, out _));
         Assert.Contains("HeaderFence mismatch", ex.Message);
     }
 
@@ -115,7 +115,7 @@ public class RbfFileFactoryTests : IDisposable {
         // 不创建文件
 
         // Act & Assert
-        Assert.Throws<FileNotFoundException>(() => RbfFile.OpenExisting(path));
+        Assert.Throws<FileNotFoundException>(() => RbfFile.OpenExisting(path, out _));
     }
 
     /// <summary>OpenExisting 在文件小于 4 字节时抛出 InvalidDataException。</summary>
@@ -126,20 +126,20 @@ public class RbfFileFactoryTests : IDisposable {
         File.WriteAllBytes(path, new byte[] { 0x52, 0x42, 0x46 }); // 只有 3 字节
 
         // Act & Assert
-        var ex = Assert.Throws<InvalidDataException>(() => RbfFile.OpenExisting(path));
-        Assert.Contains("file too short", ex.Message);
+        var ex = Assert.Throws<InvalidDataException>(() => RbfFile.OpenExisting(path, out _));
+        Assert.Contains("HeaderFence", ex.Message);
     }
 
-    /// <summary>OpenExisting 在文件长度非 4B 对齐时抛出 InvalidDataException。</summary>
-    /// <remarks>规范引用：@[S-RBF-DECISION-4B-ALIGNMENT-ROOT]</remarks>
+    /// <summary>Malformed partial HeadLen cannot authorize recovery.</summary>
     [Fact]
-    public void OpenExisting_FailsWhenLengthNotAligned() {
+    public void OpenExisting_FailsWithImpossiblePartialHeadLen() {
         // Arrange - 创建有效 HeaderFence 但长度非 4B 对齐的文件 (5 字节)
         var path = GetTempFilePath();
         File.WriteAllBytes(path, new byte[] { 0x52, 0x42, 0x46, 0x31, 0xFF }); // 5 字节
 
         // Act & Assert
-        var ex = Assert.Throws<InvalidDataException>(() => RbfFile.OpenExisting(path));
-        Assert.Contains("not 4-byte aligned", ex.Message);
+        var ex = Assert.Throws<InvalidDataException>(() => RbfFile.OpenExisting(path, out _));
+        Assert.NotEmpty(ex.Message);
+        Assert.Equal(new byte[] { 0x52, 0x42, 0x46, 0x31, 0xFF }, File.ReadAllBytes(path));
     }
 }

@@ -61,6 +61,8 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
     /// 生命周期：返回的 TailMeta 直接引用 buffer，调用方 MUST 确保 buffer 有效。
     /// </remarks>
     public AteliaResult<RbfTailMeta> ReadTailMeta(Span<byte> buffer) {
+        var candidateError = Reader?.ValidateTicket(Ticket);
+        if (candidateError != null) { return candidateError; }
         int tailMetaLen = TailMetaLength;
 
         // 1. TailMetaLength == 0：直接返回成功 + 空 Span
@@ -82,7 +84,7 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
 
         // 4. 读取 TailMeta 数据
         var tailMetaBuffer = buffer[..tailMetaLen];
-        int tailMetaBytesRead = Reader.Read(tailMetaBuffer, tailMetaOffset);
+        int tailMetaBytesRead = Reader!.Read(tailMetaBuffer, tailMetaOffset);
 
         // 5. I/O 级校验：short read
         if (tailMetaBytesRead < tailMetaLen) {
@@ -104,12 +106,15 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
     /// 生命周期：成功时调用方拥有 buffer 所有权，MUST 调用 Dispose。
     /// </remarks>
     public AteliaResult<RbfPooledTailMeta> ReadPooledTailMeta() {
+        var candidateError = Reader?.ValidateTicket(Ticket);
+        if (candidateError != null) { return candidateError; }
         int tailMetaLen = TailMetaLength;
 
         // 1. TailMetaLength == 0：返回无 buffer 的 RbfPooledTailMeta
         if (tailMetaLen == 0) { return new RbfPooledTailMeta(Ticket, Tag, IsTombstone); }
 
         // 2. 从 ArrayPool 租 buffer（只租 TailMetaLength 大小）
+        Reader!.BufferRentObserver?.Invoke(tailMetaLen);
         byte[] rentedBuffer = ArrayPool<byte>.Shared.Rent(tailMetaLen);
 
         try {
@@ -118,7 +123,7 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
 
             // 4. 读取 TailMeta 数据（限定 Span 长度）
             var tailMetaBuffer = rentedBuffer.AsSpan(0, tailMetaLen);
-            int tailMetaBytesRead = Reader.Read(tailMetaBuffer, tailMetaOffset);
+            int tailMetaBytesRead = Reader!.Read(tailMetaBuffer, tailMetaOffset);
 
             // 5. I/O 级校验：short read
             if (tailMetaBytesRead < tailMetaLen) {

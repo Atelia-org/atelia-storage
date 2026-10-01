@@ -33,7 +33,8 @@ public static class RbfFile {
 
         try {
             // 写入 HeaderFence
-            RandomAccess.Write(handle, RbfLayout.Fence, 0);
+            RbfWriteInstrumentation.RegisterPath(handle, path);
+            RbfWriteInstrumentation.Write(handle, RbfLayout.Fence, 0);
             return new RbfFileImpl(handle, RbfLayout.HeaderOnlyLength, cacheMode);
         }
         catch {
@@ -43,18 +44,14 @@ public static class RbfFile {
         }
     }
 
-    /// <summary>打开已有的 RBF 文件（验证 HeaderFence）。</summary>
+    /// <summary>独占打开已有 RBF 文件，默认修复唯一残缺尾帧。</summary>
     /// <param name="path">文件路径。</param>
     /// <param name="cacheMode">读缓存策略。默认 <see cref="RbfCacheMode.Slots16"/>（64KB）。</param>
     /// <returns>RBF 文件对象。</returns>
-    /// <exception cref="InvalidDataException">HeaderFence 验证失败、文件过短或长度非 4B 对齐。</exception>
-    /// <remarks>
-    /// 规范引用：
-    /// - @[F-FILE-STARTS-WITH-HEADER-FENCE] - 文件 MUST 以 HeaderFence 开头。
-    /// - @[S-RBF-DECISION-4B-ALIGNMENT-ROOT] - 文件长度 MUST 4B 对齐。
-    /// </remarks>
-    public static IRbfFile OpenExisting(string path, RbfCacheMode cacheMode = RbfCacheMode.Slots16) {
-        return OpenExistingCore(path, FileAccess.ReadWrite, FileShare.None, cacheMode);
+    /// <param name="recovery">成功打开时报告本次物理尾帧恢复动作，不代表业务发布。</param>
+    /// <exception cref="InvalidDataException">Header、主序列结构或已知 CRC 损坏；不修改损坏文件。</exception>
+    public static IRbfFile OpenExisting(string path, out RbfTailRecoveryReport recovery, RbfCacheMode cacheMode = RbfCacheMode.Slots16) {
+        return OpenExistingCore(path, FileAccess.ReadWrite, FileShare.None, cacheMode, out recovery);
     }
 
     /// <summary>
@@ -62,14 +59,44 @@ public static class RbfFile {
     /// 用于读取已冻结的历史 segment，允许后续在同一卷内移动到 archive bucket。
     /// </summary>
     public static IRbfFile OpenReadOnlyExisting(string path, RbfCacheMode cacheMode = RbfCacheMode.Slots16) {
-        return OpenExistingCore(path, FileAccess.Read, FileShare.Read | FileShare.Delete, cacheMode);
+        return OpenExistingCore(path, FileAccess.Read, FileShare.Read | FileShare.Delete, cacheMode, out _);
+    }
+
+    /// <summary>Internal bound view only; caller supplies stable ownership and continuous physical prefix evidence.</summary>
+    internal static IRbfFile OpenReadOnlyCandidate(string path, long eof, RbfCacheMode cacheMode = RbfCacheMode.Off,
+        Action<int>? beforeRead = null, CancellationToken token = default) {
+        if (eof < RbfLayout.HeaderOnlyLength || (eof & RbfLayout.AlignmentMask) != 0) {
+            throw new ArgumentOutOfRangeException(nameof(eof), "Candidate EOF must include HeaderFence and be 4-byte aligned.");
+        }
+        token.ThrowIfCancellationRequested();
+        SafeFileHandle handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        try {
+            RbfWriteInstrumentation.RegisterPath(handle, path);
+            if (eof > RandomAccess.GetLength(handle)) { throw new ArgumentOutOfRangeException(nameof(eof), "Candidate EOF exceeds actual file length."); }
+            using (var reader = new ReadCache.RandomAccessReader(handle, eof, beforeRead, token)) {
+                Span<byte> fence = stackalloc byte[RbfLayout.FenceSize];
+                if (reader.Read(fence, 0) != fence.Length || !fence.SequenceEqual(RbfLayout.Fence)) {
+                    throw new InvalidDataException("Invalid candidate HeaderFence.");
+                }
+                if (eof != RbfLayout.HeaderOnlyLength) {
+                    var tail = RbfReadImpl.ReadTrailerBefore(reader, eof);
+                    if (tail.IsFailure) { throw new InvalidDataException(tail.Error!.ToString()); }
+                }
+            }
+            return new RbfFileImpl(handle, eof, cacheMode, readOnlyCandidate: true, beforeRead: beforeRead, cancellationToken: token);
+        }
+        catch {
+            handle.Dispose();
+            throw;
+        }
     }
 
     private static IRbfFile OpenExistingCore(
         string path,
         FileAccess access,
         FileShare share,
-        RbfCacheMode cacheMode
+        RbfCacheMode cacheMode,
+        out RbfTailRecoveryReport recovery
     ) {
         SafeFileHandle handle = File.OpenHandle(
             path,
@@ -79,22 +106,11 @@ public static class RbfFile {
         );
 
         try {
-            // 获取文件长度
-            long fileLength = RandomAccess.GetLength(handle);
-
-            // 边界条件：文件过短
-            if (fileLength < RbfLayout.FenceSize) { throw new InvalidDataException("Invalid RBF file: file too short for HeaderFence"); }
-
-            // 4B 对齐校验（根不变量）
-            if (fileLength % RbfLayout.Alignment != 0) { throw new InvalidDataException("Invalid RBF file: length is not 4-byte aligned"); }
-
-            // 读取前 4 字节并验证
-            Span<byte> buffer = stackalloc byte[RbfLayout.FenceSize];
-            int bytesRead = RandomAccess.Read(handle, buffer, 0);
-
-            if (bytesRead < RbfLayout.FenceSize || !buffer.SequenceEqual(RbfLayout.Fence)) { throw new InvalidDataException("Invalid RBF file: HeaderFence mismatch"); }
-
-            return new RbfFileImpl(handle, fileLength, cacheMode);
+            RbfWriteInstrumentation.RegisterPath(handle, path);
+            var report = RbfTailRecovery.Open(handle, writable: access == FileAccess.ReadWrite);
+            var file = new RbfFileImpl(handle, report.FinalLength, cacheMode, readOnly: access == FileAccess.Read);
+            recovery = report;
+            return file;
         }
         catch {
             // 失败路径：确保句柄关闭

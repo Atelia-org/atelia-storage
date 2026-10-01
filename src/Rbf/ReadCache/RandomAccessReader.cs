@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using Atelia.Data;
+using Atelia.Rbf.Internal;
 using Microsoft.Win32.SafeHandles;
 
 namespace Atelia.Rbf.ReadCache;
@@ -12,14 +14,48 @@ internal class RandomAccessReader : IDisposable {
     private readonly SafeFileHandle _file;
     private readonly ReadLogger _logger;
     private bool _disposed;
+    // The single irreversible write-fault fact shared by the facade, old frame handles and scans.
+    private bool _writeFaulted;
+    private RbfReadMetrics? _activeReadMetrics;
+    private long _logicalReadOffset;
+    private int _logicalReadRequested;
+    private readonly long? _fixedEof;
+    private readonly Action<int>? _beforeRead;
+    private readonly CancellationToken _cancellationToken;
 
-    internal RandomAccessReader(SafeFileHandle file) {
+    internal RandomAccessReader(SafeFileHandle file, long? fixedEof = null, Action<int>? beforeRead = null, CancellationToken cancellationToken = default) {
         _file = file ?? throw new ArgumentNullException(nameof(file));
+        if (fixedEof < 0) { throw new ArgumentOutOfRangeException(nameof(fixedEof)); }
+        _fixedEof = fixedEof;
+        _beforeRead = beforeRead;
+        _cancellationToken = cancellationToken;
         _logger = new ReadLogger();
+    }
+
+    // A range/Fence check only. Continuous physical membership belongs to the caller's prefix proof.
+    internal AteliaError? ValidateTicket(SizedPtr ticket) {
+        EnsureUsable();
+        if (_fixedEof is not long eof) { return null; }
+        _cancellationToken.ThrowIfCancellationRequested();
+        if (ticket.Offset < RbfLayout.FirstFrameOffset || ticket.Length < RbfLayout.MinFrameLength ||
+            ticket.Offset > eof || (long)ticket.Length + RbfLayout.FenceSize > eof - ticket.Offset) {
+            return new RbfArgumentError("Ticket and its complete Fence must lie within the fixed candidate EOF.");
+        }
+        Span<byte> fence = stackalloc byte[RbfLayout.FenceSize];
+        if (Read(fence, ticket.EndOffsetExclusive) != fence.Length || !fence.SequenceEqual(RbfLayout.Fence)) {
+            return new RbfFramingError("Candidate ticket Fence is missing or corrupted.");
+        }
+        return null;
+    }
+
+    private int BoundedLength(long offset, int length) {
+        if (_fixedEof is not long eof) { return length; }
+        return offset >= eof ? 0 : (int)Math.Min(length, eof - offset);
     }
 
     // Test/diagnostic observation at the actual reader boundary; raw=true includes cache prefetch.
     internal Action<long, int, bool>? ReadObserver { get; set; }
+    internal Action<int>? BufferRentObserver { get; set; }
 
     public SafeFileHandle File => _file;
     public bool IsDisposed => _disposed;
@@ -32,30 +68,56 @@ internal class RandomAccessReader : IDisposable {
     public int Read(Span<byte> buffer, long offset) {
         ThrowIfDisposed();
         if (offset < 0) { throw new ArgumentOutOfRangeException(nameof(offset)); }
+        _cancellationToken.ThrowIfCancellationRequested();
+        buffer = buffer[..BoundedLength(offset, buffer.Length)];
         if (buffer.Length == 0) { return 0; }
         Debug.Assert(offset <= long.MaxValue - buffer.Length);
 
         ReadObserver?.Invoke(offset, buffer.Length, false);
         var cacheSegments = _logger.NeedCacheSegments ? GetCacheSegments() : null;
         _logger.OnReadBegin(offset, buffer.Length, cacheSegments);
-        int bytesRead = ReadWithCache(offset, buffer);
-        _logger.OnReadFinish(bytesRead);
-        return bytesRead;
+        var previousMetrics = _activeReadMetrics;
+        long previousOffset = _logicalReadOffset;
+        int previousRequested = _logicalReadRequested;
+        var metrics = RbfReadMetrics.Current;
+        _activeReadMetrics = metrics;
+        _logicalReadOffset = offset;
+        _logicalReadRequested = buffer.Length;
+        metrics?.ReadRequested(buffer.Length);
+        try {
+            int bytesRead = ReadWithCache(offset, buffer);
+            metrics?.ReadReturned(bytesRead);
+            _logger.OnReadFinish(bytesRead);
+            return bytesRead;
+        }
+        finally {
+            _activeReadMetrics = previousMetrics;
+            _logicalReadOffset = previousOffset;
+            _logicalReadRequested = previousRequested;
+        }
     }
 
     protected int RawRead(long offset, Span<byte> buffer) {
+        _cancellationToken.ThrowIfCancellationRequested();
+        buffer = buffer[..BoundedLength(offset, buffer.Length)];
+        if (buffer.IsEmpty) { return 0; }
+        _beforeRead?.Invoke(buffer.Length);
         ReadObserver?.Invoke(offset, buffer.Length, true);
+        var metrics = _activeReadMetrics;
+        metrics?.RawRequested(buffer.Length);
         var startTick = Stopwatch.GetTimestamp();
         int bytesRead = RandomAccess.Read(_file, buffer, offset);
-        _logger.OnRawRead(offset, buffer.Length, bytesRead, Stopwatch.GetTimestamp() - startTick);
+        long elapsedTicks = Stopwatch.GetTimestamp() - startTick;
+        metrics?.RawReturned(offset, bytesRead, _logicalReadOffset, _logicalReadRequested);
+        _logger.OnRawRead(offset, buffer.Length, bytesRead, elapsedTicks);
         return bytesRead;
     }
 
     public void Dispose() {
         if (_disposed) { return; }
-        DisposeCache();
-        _logger.Dispose();
         _disposed = true;
+        try { DisposeCache(); }
+        finally { _logger.Dispose(); }
     }
 
     // ── Cache invalidation ──────────────────────────────────────────
@@ -87,7 +149,14 @@ internal class RandomAccessReader : IDisposable {
     protected virtual void OnFileLengthChanged(long newLength) { }
 
     protected void ThrowIfDisposed() {
+        EnsureUsable();
+    }
+
+    internal void MarkWriteFaulted() => _writeFaulted = true;
+
+    internal void EnsureUsable() {
         if (_disposed) { throw new ObjectDisposedException(GetType().Name); }
+        if (_writeFaulted) { throw new InvalidOperationException("The RBF writer has failed. Dispose the file and reopen it before further operations."); }
     }
 
     protected virtual void DisposeCache() { }

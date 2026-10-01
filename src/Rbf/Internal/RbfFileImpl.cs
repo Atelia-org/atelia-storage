@@ -33,6 +33,7 @@ internal sealed class RbfFileImpl : IRbfFile {
     }
     private long _tailOffset;
     private bool _disposed;
+    private readonly bool _readOnly;
 
     // Builder 写入资源（B 变体：由 File 统一持有）
     private readonly RandomAccessByteSink _builderSink;
@@ -55,22 +56,36 @@ internal sealed class RbfFileImpl : IRbfFile {
     /// <param name="handle">已打开的文件句柄（所有权转移给此实例）。</param>
     /// <param name="tailOffset">初始 TailOffset（文件逻辑长度）。</param>
     /// <param name="cacheMode">读缓存策略。<see cref="RbfCacheMode.Off"/> 使用无缓存直读。</param>
-    internal RbfFileImpl(SafeFileHandle handle, long tailOffset, RbfCacheMode cacheMode = RbfCacheMode.Slots16) {
+    /// <param name="readOnlyCandidate">建立只读固定 EOF 视图；连续物理成员证据由调用方持有。</param>
+    /// <param name="beforeRead">实际原始读取请求前的预算回调，参数已受固定 EOF 裁剪。</param>
+    /// <param name="cancellationToken">读取取消信号，包括缓存命中路径。</param>
+    /// <param name="readOnly">普通文件只读打开；不建立离线固定 EOF candidate。</param>
+    internal RbfFileImpl(SafeFileHandle handle, long tailOffset, RbfCacheMode cacheMode = RbfCacheMode.Slots16,
+        bool readOnlyCandidate = false, Action<int>? beforeRead = null, CancellationToken cancellationToken = default,
+        bool readOnly = false) {
         _handle = handle ?? throw new ArgumentNullException(nameof(handle));
+        _readOnly = readOnly || readOnlyCandidate;
+        long? fixedEof = readOnlyCandidate ? tailOffset : null;
         _reader = cacheMode == RbfCacheMode.Off
-            ? new RandomAccessReader(handle)
-            : new ReverseReadCache(handle, (int)cacheMode);
+            ? new RandomAccessReader(handle, fixedEof, beforeRead, cancellationToken)
+            : new ReverseReadCache(handle, (int)cacheMode, fixedEof, beforeRead, cancellationToken);
         _tailOffset = tailOffset;
 
-        _builderSink = new RandomAccessByteSink(_handle, tailOffset);
+        _builderSink = new RandomAccessByteSink(_handle, tailOffset, _reader.MarkWriteFaulted);
         _builderWriter = new SinkReservableWriter(_builderSink);
     }
 
     /// <inheritdoc />
     public long TailOffset => _tailOffset;
 
+    private void EnsureWritable() {
+        _reader.EnsureUsable();
+        if (_readOnly) { throw new InvalidOperationException("The RBF file is read-only."); }
+    }
+
     private void EnsureIdleForRead() {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        _reader.EnsureUsable();
         if (_fileState != FileState.Idle) { throw new InvalidOperationException("Cannot read while a builder is active. Dispose the builder first."); }
     }
 
@@ -82,13 +97,19 @@ internal sealed class RbfFileImpl : IRbfFile {
     public AteliaResult<SizedPtr> Append(uint tag, ReadOnlySpan<byte> payload, ReadOnlySpan<byte> tailMeta) {
         // 生命周期检查：Dispose 入口检查
         ObjectDisposedException.ThrowIf(_disposed, this);
+        EnsureWritable();
 
         if (_fileState != FileState.Idle) { throw new InvalidOperationException("Cannot call Append while a builder is active. Dispose the builder first."); }
         long tailOffset = _tailOffset;
         InvalidateCacheFrom(tailOffset);
         // 门面层只负责：持有句柄 + 维护 TailOffset。
         // 失败时 RbfAppendImpl 保证不修改 tailOffset
-        var result = RbfAppendImpl.Append(_handle, ref tailOffset, payload, tailMeta, tag);
+        AteliaResult<SizedPtr> result;
+        try { result = RbfAppendImpl.Append(_handle, ref tailOffset, payload, tailMeta, tag); }
+        catch {
+            _reader.MarkWriteFaulted();
+            throw;
+        }
         if (result.IsSuccess) {
             _tailOffset = tailOffset;
             _reader.NotifyFileLengthChanged(_tailOffset);
@@ -100,6 +121,7 @@ internal sealed class RbfFileImpl : IRbfFile {
     /// <inheritdoc />
     public RbfFrameBuilder BeginAppend() {
         if (_disposed) { throw new ObjectDisposedException(nameof(RbfFileImpl)); }
+        EnsureWritable();
         if (_fileState != FileState.Idle) { throw new InvalidOperationException("A builder is already active. Dispose it before calling BeginAppend again."); }
 
         long tailOffset = _tailOffset;
@@ -132,6 +154,7 @@ internal sealed class RbfFileImpl : IRbfFile {
     /// <summary>由 Builder 调用：获取 Payload 写入器（epoch/state 校验）。</summary>
     internal SinkReservableWriter GetPayloadWriter(uint epoch) {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        _reader.EnsureUsable();
         if (epoch != _builderEpoch) {
             throw new InvalidOperationException(
                 $"Stale builder epoch: expected {_builderEpoch}, got {epoch}."
@@ -150,6 +173,7 @@ internal sealed class RbfFileImpl : IRbfFile {
                 RecoveryHint: "Create a new file facade before writing."
             );
         }
+        _reader.EnsureUsable();
         if (epoch != _builderEpoch) {
             return new RbfStateError(
                 $"Stale builder epoch: expected {_builderEpoch}, got {epoch}.",
@@ -331,6 +355,8 @@ internal sealed class RbfFileImpl : IRbfFile {
     /// <inheritdoc />
     public AteliaResult<OptionalRbfFrameInfo> ReadFrameInfoImmediatelyAfter(SizedPtr ticket) {
         EnsureIdleForRead();
+        var candidateError = _reader.ValidateTicket(ticket);
+        if (candidateError != null) { return candidateError; }
 
         long nextFrameOffset = GetPhysicalOffsetImmediatelyAfter(ticket);
         if (nextFrameOffset == _tailOffset) { return OptionalRbfFrameInfo.None; }
@@ -367,60 +393,30 @@ internal sealed class RbfFileImpl : IRbfFile {
     /// <inheritdoc />
     public void SetupReadLog(string? logPath) {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        _reader.EnsureUsable();
         _reader.SetupLogger(new ReadCache.ReadLogger.Params(logPath));
     }
 
     /// <inheritdoc />
     public void DurableFlush() {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        RandomAccess.FlushToDisk(_handle);
-    }
-
-    /// <inheritdoc />
-    public void Truncate(long newLengthBytes) {
-        // 1. Disposed 检查
-        ObjectDisposedException.ThrowIf(_disposed, this);
-
-        // 2. Active builder 检查
-        if (_fileState != FileState.Idle) {
-            throw new InvalidOperationException(
-                "Cannot truncate while a builder is active. Dispose the builder first."
-            );
+        EnsureWritable();
+        try { RbfWriteInstrumentation.Flush(_handle); }
+        catch {
+            _reader.MarkWriteFaulted();
+            throw;
         }
-
-        // 3. 参数校验
-        if (newLengthBytes < 0) {
-            throw new ArgumentOutOfRangeException(
-                nameof(newLengthBytes), newLengthBytes,
-                "newLengthBytes must be non-negative."
-            );
-        }
-
-        if ((newLengthBytes & 0x3) != 0) {
-            throw new ArgumentOutOfRangeException(
-                nameof(newLengthBytes), newLengthBytes,
-                "newLengthBytes must be 4-byte aligned."
-            );
-        }
-
-        InvalidateCacheFrom(newLengthBytes);
-
-        // 4. 执行截断
-        RandomAccess.SetLength(_handle, newLengthBytes);
-
-        // 5. 更新 TailOffset
-        _tailOffset = newLengthBytes;
-        _reader.NotifyFileLengthChanged(_tailOffset);
     }
 
     /// <inheritdoc />
     public void Dispose() {
         if (!_disposed) {
-            _builderWriter.Dispose();
-            _reader.Dispose();
-
-            _handle.Dispose();
             _disposed = true;
+            try { _builderWriter.Dispose(); }
+            finally {
+                try { _reader.Dispose(); }
+                finally { _handle.Dispose(); }
+            }
         }
     }
 }

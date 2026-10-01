@@ -74,13 +74,13 @@ internal static class RbfAppendImpl {
             crc ^= RollingCrc.DefaultFinalXor;
             BinaryPrimitives.WriteUInt32LittleEndian(buffer[^bufferAfterCrcCoverage..], crc); // 填CRC
         }
-        RandomAccess.Write(handle, buffer, fileOffset);
+        RbfWriteInstrumentation.Write(handle, buffer, fileOffset);
         fileOffset += buffer.Length;
     }
 
     private static void WriteMidWithCrc(SafeFileHandle handle, in ReadOnlySpan<byte> buffer, ref long fileOffset, ref uint crc) {
         crc = RollingCrc.CrcForward(crc, buffer);
-        RandomAccess.Write(handle, buffer, fileOffset);
+        RbfWriteInstrumentation.Write(handle, buffer, fileOffset);
         fileOffset += buffer.Length;
     }
 
@@ -103,7 +103,7 @@ internal static class RbfAppendImpl {
     /// </remarks>
     public static AteliaResult<SizedPtr> Append(
         SafeFileHandle file,
-        ref long fileOffset,
+        scoped ref long fileOffset,
         ReadOnlySpan<byte> payload,
         ReadOnlySpan<byte> tailMeta,
         uint tag,

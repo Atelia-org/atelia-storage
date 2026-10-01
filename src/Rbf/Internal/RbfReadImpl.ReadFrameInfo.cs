@@ -12,6 +12,7 @@ partial class RbfReadImpl {
         long frameStart,
         long dataTail
     ) {
+        reader.EnsureUsable();
         if (frameStart < RbfLayout.HeaderOnlyLength || frameStart > SizedPtr.MaxOffset || (frameStart & RbfLayout.AlignmentMask) != 0) {
             return new RbfFramingError(
                 $"Invalid frame start offset: {frameStart}.",
@@ -73,6 +74,8 @@ partial class RbfReadImpl {
         RandomAccessReader reader,
         SizedPtr ticket
     ) {
+        var candidateError = reader.ValidateTicket(ticket);
+        if (candidateError != null) { return candidateError; }
         // 1. 基本参数校验
         int ticketLength = ticket.Length;
         if (ticketLength < FrameLayout.MinFrameLength) {

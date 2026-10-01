@@ -185,7 +185,7 @@ public sealed class RbfRecoveryScannerTests : IDisposable {
 
         RbfRecovery.TruncateToSuggestedTail(path, hit);
 
-        using var reopened = RbfFile.OpenExisting(path);
+        using var reopened = RbfFile.OpenExisting(path, out _);
         var tags = new List<uint>();
         var scan = reopened.ScanReverse().GetEnumerator();
         while (scan.MoveNext()) {

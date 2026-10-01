@@ -30,7 +30,7 @@ public sealed class RbfScanForwardTests : IDisposable {
             Assert.True(rbf.Append(0x33333333, [0x10, 0x20, 0x30, 0x40]).IsSuccess);
         }
 
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         var frames = new List<(uint tag, int payloadLen)>();
 
         foreach (var info in rbfRead.ScanForward()) {
@@ -51,7 +51,7 @@ public sealed class RbfScanForwardTests : IDisposable {
         var path = GetTempFilePath();
         using (RbfFile.CreateNew(path)) { }
 
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         var enumerator = rbfRead.ScanForward().GetEnumerator();
 
         Assert.False(enumerator.MoveNext());
@@ -67,7 +67,7 @@ public sealed class RbfScanForwardTests : IDisposable {
             Assert.True(rbf.Append(0xAABBCCDD, payload).IsSuccess);
         }
 
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         var enumerator = rbfRead.ScanForward().GetEnumerator();
 
         Assert.True(enumerator.MoveNext());
@@ -89,7 +89,7 @@ public sealed class RbfScanForwardTests : IDisposable {
             second = rbf.Append(0x22222222, [0x02]).Unwrap();
         }
 
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         OptionalRbfFrameInfo afterFirst = rbfRead.ReadFrameInfoImmediatelyAfter(first).Unwrap();
         OptionalRbfFrameInfo afterSecond = rbfRead.ReadFrameInfoImmediatelyAfter(second).Unwrap();
 
@@ -107,7 +107,7 @@ public sealed class RbfScanForwardTests : IDisposable {
             (0x33333333, [0x03], false)
         );
 
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         var tags = new List<uint>();
 
         foreach (var info in rbfRead.ScanForward(showTombstone: false)) {
@@ -125,7 +125,7 @@ public sealed class RbfScanForwardTests : IDisposable {
             (0x33333333, [0x03], false)
         );
 
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         var frames = new List<(uint tag, bool isTombstone)>();
 
         foreach (var info in rbfRead.ScanForward(showTombstone: true)) {
@@ -156,7 +156,7 @@ public sealed class RbfScanForwardTests : IDisposable {
 
         CorruptPayload(path, ptr2);
 
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RawRbfTestFile.OpenExisting(path);
         var tags = new List<uint>();
         var enumerator = rbfRead.ScanForward().GetEnumerator();
         while (enumerator.MoveNext()) {
@@ -182,7 +182,7 @@ public sealed class RbfScanForwardTests : IDisposable {
 
         CorruptTrailerCrc(path, ptr2);
 
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RawRbfTestFile.OpenExisting(path);
         var tags = new List<uint>();
         var enumerator = rbfRead.ScanForward().GetEnumerator();
         while (enumerator.MoveNext()) {
@@ -208,7 +208,7 @@ public sealed class RbfScanForwardTests : IDisposable {
 
         CorruptTailFence(path, ptr1);
 
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RawRbfTestFile.OpenExisting(path);
         var enumerator = rbfRead.ScanForward().GetEnumerator();
 
         Assert.False(enumerator.MoveNext());

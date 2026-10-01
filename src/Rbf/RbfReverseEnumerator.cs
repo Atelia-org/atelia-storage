@@ -41,6 +41,7 @@ public ref struct RbfReverseEnumerator {
     /// <summary>移动到下一帧（逆向）。</summary>
     /// <returns>成功移动返回 <c>true</c>，到达文件头或遇到错误返回 <c>false</c>。</returns>
     public bool MoveNext() {
+        _reader.EnsureUsable();
         while (_dataTail >= RbfLayout.MinFirstFrameFenceEnd) {
             var result = RbfReadImpl.ReadTrailerBefore(_reader, _dataTail);
 

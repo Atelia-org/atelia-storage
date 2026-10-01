@@ -231,7 +231,7 @@ public class RbfTestVectorTests : IDisposable {
         }
 
         // Act & Assert: ReadFrame/ReadPooledFrame 应失败
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RawRbfTestFile.OpenExisting(path);
 
         // 测试 ReadPooledFrame
         var readPooledResult = rbfRead.ReadPooledFrame(framePtr);
@@ -285,7 +285,7 @@ public class RbfTestVectorTests : IDisposable {
         }
 
         // Act: ScanReverse 应能成功枚举所有帧（包括 PayloadCrc 损坏的帧）
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RawRbfTestFile.OpenExisting(path);
         var scannedFrames = new List<(uint tag, int payloadLen)>();
         var enumerator = rbfRead.ScanReverse().GetEnumerator();
 
@@ -363,7 +363,7 @@ public class RbfTestVectorTests : IDisposable {
         }
 
         // Assert: 重新打开并验证
-        using (var file = RbfFile.OpenExisting(path)) {
+        using (var file = RbfFile.OpenExisting(path, out _)) {
             // ScanReverse 枚举（逆序：Frame3, Frame2, Frame1）
             var frameInfos = new List<RbfFrameInfo>();
             var enumerator = file.ScanReverse().GetEnumerator();
@@ -440,7 +440,7 @@ public class RbfTestVectorTests : IDisposable {
         }
 
         // Assert: 重新打开并验证
-        using (var file = RbfFile.OpenExisting(path)) {
+        using (var file = RbfFile.OpenExisting(path, out _)) {
             // 1. 使用 ReadPooledTailMeta 验证
             var pooledResult = file.ReadPooledTailMeta(framePtr);
             Assert.True(pooledResult.IsSuccess, "ReadPooledTailMeta should succeed");
@@ -504,14 +504,14 @@ public class RbfTestVectorTests : IDisposable {
         }
 
         // 重新打开以让文件正确识别长度
-        using (var file = RbfFile.OpenExisting(path)) {
+        using (var file = RbfFile.OpenExisting(path, out _)) {
             // Frame 3: Valid
             var result3 = file.Append(tag3, payload3);
             Assert.True(result3.IsSuccess);
         }
 
         // Assert: 验证过滤行为
-        using (var file = RbfFile.OpenExisting(path)) {
+        using (var file = RbfFile.OpenExisting(path, out _)) {
             // 1. ScanReverse() 默认过滤 → 返回 2 帧（tag3, tag1）
             var filteredFrames = new List<(uint tag, bool isTombstone)>();
             var filteredEnum = file.ScanReverse().GetEnumerator();
@@ -551,15 +551,15 @@ public class RbfTestVectorTests : IDisposable {
         return (Microsoft.Win32.SafeHandles.SafeFileHandle)field!.GetValue(file)!;
     }
 
-    /// <summary>E2E_TruncateRecovery：写入 3 帧 → Truncate → 验证只剩前 N 帧。</summary>
+    /// <summary>Fixture truncation to a closed prefix is readable on reopening.</summary>
     /// <remarks>
-    /// 验证 Truncate 恢复场景：
+    /// 验证离线 fixture 的闭合前缀：
     /// 1. 写入 3 帧
-    /// 2. Truncate 到帧 2 末尾
+    /// 2. 关闭文件，由 fixture SetLength 到帧 2 末尾
     /// 3. ScanReverse 只返回前 2 帧
     /// </remarks>
     [Fact]
-    public void E2E_TruncateRecovery() {
+    public void E2E_ClosedPrefixFixture_ReopenPreservesRemainingFrames() {
         // Arrange
         var path = GetTempFilePath();
 
@@ -586,18 +586,14 @@ public class RbfTestVectorTests : IDisposable {
 
             // 验证写入 3 帧
             Assert.Equal(3, CountFrames(file));
-
-            // Truncate 到帧 2 末尾
-            long frame2End = ptr2.Offset + ptr2.Length + RbfLayout.FenceSize;
-            file.Truncate(frame2End);
-
-            // Assert: 只剩 2 帧
-            Assert.Equal(frame2End, file.TailOffset);
-            Assert.Equal(2, CountFrames(file));
         }
 
+        long frame2End = ptr2.Offset + ptr2.Length + RbfLayout.FenceSize;
+        RawRbfTestFile.SetLength(path, frame2End);
+
         // 重新打开验证持久化
-        using (var file = RbfFile.OpenExisting(path)) {
+        using (var file = RbfFile.OpenExisting(path, out _)) {
+            Assert.Equal(frame2End, file.TailOffset);
             var frames = new List<(uint tag, byte[] payload)>();
             foreach (var info in file.ScanReverse()) {
                 var readResult = info.ReadPooledFrame();
@@ -662,7 +658,7 @@ public class RbfTestVectorTests : IDisposable {
         }
 
         // Assert: 重新打开并验证
-        using (var file = RbfFile.OpenExisting(path)) {
+        using (var file = RbfFile.OpenExisting(path, out _)) {
             // 验证 TailOffset
             Assert.Equal(expectedTailOffset, file.TailOffset);
 

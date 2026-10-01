@@ -58,7 +58,8 @@ public sealed class RbfScanBoundaryTests : IDisposable {
         var bytes = File.ReadAllBytes(_path);
         bytes[first.Offset] ^= 1; // corrupt unrelated framing; a prefix scan would fail.
         File.WriteAllBytes(_path, bytes);
-        using (var file = RbfFile.OpenReadOnlyExisting(_path, mode)) {
+        // Exercise direct-boundary reads independently of the public opener's membership validation.
+        using (var file = RawRbfTestFile.OpenExisting(_path, cacheMode: mode)) {
             var reads = new List<(long offset, int length, bool raw)>();
             ((RbfFileImpl)file).ReadObserver = (offset, length, raw) => reads.Add((offset, length, raw));
             Assert.Equal(boundary, file.GetScanBoundaryAfter(anchor).Unwrap());
@@ -90,8 +91,14 @@ public sealed class RbfScanBoundaryTests : IDisposable {
         var bytes = new byte[length];
         RbfLayout.Fence.CopyTo(bytes);
         File.WriteAllBytes(_path, bytes);
-        if (length == 5) {
+        if (length != 4) {
             Assert.Throws<InvalidDataException>(() => RbfFile.OpenReadOnlyExisting(_path));
+            if (length != 5) {
+                using var raw = RawRbfTestFile.OpenExisting(_path);
+                var reverse = raw.ScanReverse(showTombstone: true).GetEnumerator();
+                Assert.False(reverse.MoveNext());
+                Assert.IsType<RbfFramingError>(reverse.TerminationError);
+            }
         }
         else {
             using var file = RbfFile.OpenReadOnlyExisting(_path);
@@ -120,7 +127,7 @@ public sealed class RbfScanBoundaryTests : IDisposable {
         long offset = corruption == -1 ? boundary.EndExclusive - 1 : ticket.Offset + (corruption < 0 ? ticket.Length + corruption : corruption);
         bytes[offset] ^= 1;
         File.WriteAllBytes(_path, bytes);
-        using (var file = RbfFile.OpenReadOnlyExisting(_path)) {
+        using (var file = RawRbfTestFile.OpenExisting(_path)) {
             Assert.True(file.GetScanBoundaryAfter(ticket).IsFailure);
             Assert.True(file.ScanForward(boundary).IsFailure);
             var reverse = file.ScanReverse(showTombstone: true).GetEnumerator();

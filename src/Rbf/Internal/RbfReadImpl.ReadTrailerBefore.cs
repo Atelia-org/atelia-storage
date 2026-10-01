@@ -17,6 +17,7 @@ partial class RbfReadImpl {
         RandomAccessReader reader,
         long fenceEndOffset
     ) {
+        reader.EnsureUsable();
         const int TrailerAndFenceSize = TrailerCodewordHelper.Size + RbfLayout.FenceSize; // 20B
 
         // 1. 边界检查：fenceEndOffset 必须 >= MinFirstFrameFenceEnd

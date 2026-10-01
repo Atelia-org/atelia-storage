@@ -8,9 +8,11 @@ namespace Atelia.Rbf.Internal.Tests;
 internal static class SparseRbfTestFile {
     private const uint FsctlSetSparse = 0x000900C4;
 
-    internal static IRbfFile CreateNew(string path) {
+    internal static IRbfFile CreateNew(string path, long tailOffset = 4) {
         if (!OperatingSystem.IsWindows()) {
-            return RbfFile.CreateNew(path);
+            using (RbfFile.CreateNew(path)) { }
+            RawRbfTestFile.SetLength(path, tailOffset);
+            return RawRbfTestFile.OpenExisting(path, tailOffset);
         }
 
         // 仍由公开 runtime API 创建合法 HeaderFence；其 FileShare.None 句柄关闭后再标记稀疏。
@@ -24,10 +26,11 @@ internal static class SparseRbfTestFile {
                     error
                 );
             }
+            RandomAccess.SetLength(handle, tailOffset);
         }
 
-        // 测试仍使用原来的 Truncate/Append/BeginAppend；只改变文件的测试环境准备。
-        return RbfFile.OpenExisting(path);
+        // Synthetic holes are not a valid main sequence; bypass public open only for offset boundary fixtures.
+        return RawRbfTestFile.OpenExisting(path, tailOffset);
     }
 
     [DllImport("kernel32.dll", ExactSpelling = true, SetLastError = true)]

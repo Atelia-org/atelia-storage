@@ -20,7 +20,9 @@ RBF 已有 `IRbfFile.ScanReverse()`，用于从可信的 `TailOffset` 逐帧逆�
 
 离线数据救援/分析需要另一类能力：当文件尾部有垃圾、未完成写入、损坏帧或偶然截断时，从不可信尾部向前搜索仍然可验证的 frame tail / `TrailerCodeword`，并给出可用于人工判断或工具截断的候选位置。
 
-因此 Recovery Scan 是单独的 analyzer/rescue surface，不改变 `ScanReverse()` 的生产语义。
+普通可写打开现在默认仅恢复主序列中的单个残缺尾帧，动作规范见 [接口契约](rbf-interface.md#spec-s-rbf-open-recovers-single-incomplete-tail-普通打开与单尾帧恢复)。完整帧 CRC 失败归数据损坏，停止自动恢复。需要从损坏字节中提取候选或寻找更早好帧时，才使用本文的离线入口。
+
+因此 Recovery Scan 是单独的 analyzer/rescue surface，不改变 `ScanReverse()` 的生产语义，也不接入默认打开。
 
 ## 2. 能力边界
 

@@ -6,6 +6,8 @@ namespace Atelia.Rbf;
 /// <remarks>
 /// 职责：资源管理（Dispose）、状态维护（TailOffset）、调用转发。
 /// 并发约束：同一实例在任一时刻最多 1 个 open Builder。
+/// 写入或 durable flush 异常后，新的读取、写入与扫描迭代均拒绝；须 Dispose 后重新打开。
+/// 已物化的帧数据和值属性仍可使用；普通文件对象不提供任意截断。
 /// </remarks>
 public interface IRbfFile : IDisposable {
     /// <summary>获取当前文件逻辑长度（也是下一个写入 Offset）。</summary>
@@ -87,7 +89,7 @@ public interface IRbfFile : IDisposable {
     /// <returns>成功时返回 RbfTailMeta（TailMeta 指向 buffer 内部），失败返回错误。</returns>
     /// <remarks>
     /// 信任级别：L2（仅保证 TrailerCrc），不校验 PayloadCrc。
-    /// 若需完整数据完整性保证，请使用 <see cref="ReadFrame(SizedPtr ptr, Span{byte})"/>。
+    /// 若需完整数据完整性保证，请使用 <see cref="ReadFrame(SizedPtr, Span{byte})"/>。
     /// </remarks>
     AteliaResult<RbfTailMeta> ReadTailMeta(SizedPtr ticket, Span<byte> buffer);
 
@@ -106,9 +108,6 @@ public interface IRbfFile : IDisposable {
     /// 用于上层 commit 顺序（例如 data→meta）的 durable 边界。
     /// </remarks>
     void DurableFlush();
-
-    /// <summary>截断（恢复用）。</summary>
-    void Truncate(long newLengthBytes);
 
     /// <summary>启用或禁用读取 I/O 日志。</summary>
     /// <param name="logPath">日志文件路径。传 null 禁用日志。</param>

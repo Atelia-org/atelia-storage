@@ -99,14 +99,18 @@ internal static partial class RbfReadImpl {
     private static AteliaResult<RbfPooledFrame> ReadPooledFrameCore<TInput, TPolicy>(RandomAccessReader reader, scoped in TInput input)
         where TInput : allows ref struct
         where TPolicy : IReadFramePolicy<TInput> {
+        reader.EnsureUsable();
         // 1. 参数校验
         var error = TPolicy.ValidateInput(in input);
         if (error != null) { return error; }
 
         int ticketLength = TPolicy.GetTicketLength(in input);
         long offset = TPolicy.GetOffset(in input);
+        error = reader.ValidateTicket(SizedPtr.Create(offset, ticketLength));
+        if (error != null) { return error; }
 
         // 2. 从 ArrayPool 借 buffer
+        reader.BufferRentObserver?.Invoke(ticketLength);
         byte[] rentedBuffer = ArrayPool<byte>.Shared.Rent(ticketLength);
 
         try {
@@ -154,7 +158,8 @@ internal static partial class RbfReadImpl {
     /// 使用 RandomAccess.Read 实现，无状态，并发安全。
     /// </remarks>
     public static AteliaResult<RbfFrame> ReadFrame(RandomAccessReader reader, SizedPtr ticket, Span<byte> buffer) {
-        var error = SizedPtrReadPolicy.ValidateInput(in ticket) ?? CheckBufferLength(ticket.Length, buffer.Length);
+        reader.EnsureUsable();
+        var error = SizedPtrReadPolicy.ValidateInput(in ticket) ?? reader.ValidateTicket(ticket) ?? CheckBufferLength(ticket.Length, buffer.Length);
         if (error != null) { return error; }
 
         int ticketLength = ticket.Length;
@@ -171,7 +176,7 @@ internal static partial class RbfReadImpl {
     /// </remarks>
     public static AteliaResult<RbfFrame> ReadFrame(RandomAccessReader reader, scoped in RbfFrameInfo info, Span<byte> buffer) {
         int ticketLength = info.Ticket.Length;
-        var error = CheckBufferLength(ticketLength, buffer.Length);
+        var error = reader.ValidateTicket(info.Ticket) ?? CheckBufferLength(ticketLength, buffer.Length);
         if (error != null) { return error; }
 
         return ReadFrameCore<RbfFrameInfo, FrameInfoReadPolicy>(reader, in info, info.Ticket.Offset, ticketLength, buffer[..ticketLength]);

@@ -141,6 +141,8 @@ Reader MUST 验证{§2、§3、§4}中定义的所有结构、对齐与值域约
 CRC32C 校验不匹配 MUST 视为帧损坏。
 Reader MUST NOT 将损坏帧作为有效数据返回。
 
+普通可写打开对合法的单个未完成尾帧执行 [接口契约中的默认恢复](rbf-interface.md#spec-s-rbf-open-recovers-single-incomplete-tail-普通打开与单尾帧恢复)：完整且 CRC 正确的 FrameBytes 缺 Fence 仅补 Fence；未完成 FrameBytes 补成合法墓碑；已知 CRC 错误仍是数据损坏，禁止以恢复掩盖。恢复不改变本文件的 wire layout、CRC、对齐或墓碑过滤规则。
+
 ---
 
 ## 6. 逆向扫描与 Resync

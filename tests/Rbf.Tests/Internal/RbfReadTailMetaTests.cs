@@ -99,7 +99,7 @@ public class RbfReadTailMetaTests : IDisposable {
         }
 
         // Act: ScanReverse 获取 info，然后 ReadTailMeta
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         RbfFrameInfo? frameInfo = null;
         foreach (var info in rbfRead.ScanReverse()) {
             frameInfo = info;
@@ -139,7 +139,7 @@ public class RbfReadTailMetaTests : IDisposable {
         }
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         RbfFrameInfo? frameInfo = null;
         foreach (var info in rbfRead.ScanReverse()) {
             frameInfo = info;
@@ -180,7 +180,7 @@ public class RbfReadTailMetaTests : IDisposable {
         }
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         RbfFrameInfo? frameInfo = null;
         foreach (var info in rbfRead.ScanReverse()) {
             frameInfo = info;
@@ -217,7 +217,7 @@ public class RbfReadTailMetaTests : IDisposable {
         }
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         RbfFrameInfo? frameInfo = null;
         foreach (var info in rbfRead.ScanReverse()) {
             frameInfo = info;
@@ -256,7 +256,7 @@ public class RbfReadTailMetaTests : IDisposable {
         }
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         RbfFrameInfo? frameInfo = null;
         foreach (var info in rbfRead.ScanReverse()) {
             frameInfo = info;
@@ -300,7 +300,7 @@ public class RbfReadTailMetaTests : IDisposable {
         }
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         RbfFrameInfo? frameInfo = null;
         foreach (var info in rbfRead.ScanReverse()) {
             frameInfo = info;
@@ -348,7 +348,7 @@ public class RbfReadTailMetaTests : IDisposable {
         }
 
         // Act: ScanReverse 并逐帧读取 TailMeta
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         var results = new List<(uint tag, byte[] tailMeta)>();
 
         foreach (var info in rbfRead.ScanReverse()) {
@@ -385,7 +385,7 @@ public class RbfReadTailMetaTests : IDisposable {
         }
 
         // Act: 先 ReadTailMeta 预览，再 ReadFrame 读取完整帧
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         RbfFrameInfo? frameInfo = null;
         foreach (var info in rbfRead.ScanReverse()) {
             frameInfo = info;
@@ -447,7 +447,7 @@ public class RbfReadTailMetaTests : IDisposable {
         }
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         RbfFrameInfo? frameInfo = null;
         foreach (var info in rbfRead.ScanReverse()) {
             frameInfo = info;
@@ -482,7 +482,7 @@ public class RbfReadTailMetaTests : IDisposable {
         );
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         RbfFrameInfo? frameInfo = null;
         foreach (var info in rbfRead.ScanReverse(showTombstone: true)) {
             frameInfo = info;
@@ -523,7 +523,7 @@ public class RbfReadTailMetaTests : IDisposable {
         }
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         var results = new List<(uint tag, int tailMetaLen, byte[] tailMeta)>();
 
         foreach (var info in rbfRead.ScanReverse()) {
@@ -574,7 +574,7 @@ public class RbfReadTailMetaTests : IDisposable {
         }
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         var infoResult = rbfRead.ReadFrameInfo(ticket);
 
         // Assert
@@ -605,7 +605,7 @@ public class RbfReadTailMetaTests : IDisposable {
         }
 
         // Act: 分别通过 ScanReverse 和 ReadFrameInfo 获取 info
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
 
         RbfFrameInfo? scanInfo = null;
         foreach (var info in rbfRead.ScanReverse()) {
@@ -644,7 +644,7 @@ public class RbfReadTailMetaTests : IDisposable {
         }
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         var result2 = rbfRead.ReadPooledTailMeta(ticket);
 
         // Assert
@@ -675,7 +675,7 @@ public class RbfReadTailMetaTests : IDisposable {
         }
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         var result2 = rbfRead.ReadPooledTailMeta(ticket);
 
         // Assert
@@ -705,7 +705,7 @@ public class RbfReadTailMetaTests : IDisposable {
         var invalidTicket = SizedPtr.Create(8, 8);
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         var result = rbfRead.ReadFrameInfo(invalidTicket);
 
         // Assert

@@ -61,7 +61,7 @@ public readonly struct RbfFrameBuilder : IDisposable {
     /// <summary>释放构建器。若未 EndAppend，自动执行 Auto-Abort。</summary>
     /// <remarks>
     /// Auto-Abort 分支约束：<see cref="Dispose"/> 在 Auto-Abort 分支 MUST NOT 抛出异常
-    /// （除非出现不可恢复的不变量破坏），并且必须让 File Facade 回到可继续写状态。
+    /// （除非出现不可恢复的不变量破坏）；健康 File Facade 回到可继续写状态，已发生写入异常的实例仍须关闭重开。
     /// B 变体：通过 owner.AbortBuilder 切换状态。
     /// </remarks>
     public readonly void Dispose() {

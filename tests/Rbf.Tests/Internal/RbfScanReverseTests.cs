@@ -51,7 +51,7 @@ public class RbfScanReverseTests : IDisposable {
             stream.Write(trailer);
             stream.Write(RbfLayout.Fence);
         }
-        using var file = RbfFile.OpenReadOnlyExisting(path, RbfCacheMode.Off);
+        using var file = RawRbfTestFile.OpenExisting(path);
         var enumerator = file.ScanReverse(showTombstone: true).GetEnumerator();
         Assert.False(enumerator.MoveNext());
         Assert.IsType<RbfFramingError>(enumerator.TerminationError);
@@ -185,7 +185,7 @@ public class RbfScanReverseTests : IDisposable {
         }
 
         // Act: 重新打开并逆向扫描
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         var frames = new List<(uint tag, int payloadLen)>();
 
         foreach (var info in rbfRead.ScanReverse()) {
@@ -215,7 +215,7 @@ public class RbfScanReverseTests : IDisposable {
         }
 
         // Act & Assert
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         var infos = new List<RbfFrameInfo>();
         foreach (var info in rbfRead.ScanReverse()) {
             infos.Add(info);
@@ -247,7 +247,7 @@ public class RbfScanReverseTests : IDisposable {
         }
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         var enumerator = rbfRead.ScanReverse().GetEnumerator();
         while (enumerator.MoveNext()) {
             // 消费所有帧
@@ -271,7 +271,7 @@ public class RbfScanReverseTests : IDisposable {
         }
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         var frames = new List<RbfFrameInfo>();
         foreach (var info in rbfRead.ScanReverse()) {
             frames.Add(info);
@@ -291,7 +291,7 @@ public class RbfScanReverseTests : IDisposable {
         }
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         var enumerator = rbfRead.ScanReverse().GetEnumerator();
         bool hasAny = enumerator.MoveNext();
 
@@ -315,7 +315,7 @@ public class RbfScanReverseTests : IDisposable {
         );
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         var frames = new List<(uint tag, bool isTombstone)>();
         foreach (var info in rbfRead.ScanReverse(showTombstone: false)) {
             frames.Add((info.Tag, info.IsTombstone));
@@ -338,7 +338,7 @@ public class RbfScanReverseTests : IDisposable {
         );
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         var frames = new List<(uint tag, bool isTombstone)>();
         foreach (var info in rbfRead.ScanReverse(showTombstone: true)) {
             frames.Add((info.Tag, info.IsTombstone));
@@ -361,7 +361,7 @@ public class RbfScanReverseTests : IDisposable {
         );
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         var frames = new List<RbfFrameInfo>();
         foreach (var info in rbfRead.ScanReverse(showTombstone: false)) {
             frames.Add(info);
@@ -397,7 +397,7 @@ public class RbfScanReverseTests : IDisposable {
         CorruptTrailerCrcAt(path, ptr2.Offset, payload2.Length);
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RawRbfTestFile.OpenExisting(path);
         var frames = new List<uint>();
         var enumerator = rbfRead.ScanReverse().GetEnumerator();
         while (enumerator.MoveNext()) {
@@ -441,7 +441,7 @@ public class RbfScanReverseTests : IDisposable {
         CorruptTrailerCrcAt(path, ptr3.Offset, payload3.Length);
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RawRbfTestFile.OpenExisting(path);
         var frames = new List<(uint tag, int payloadLen)>();
         var enumerator = rbfRead.ScanReverse().GetEnumerator();
         while (enumerator.MoveNext()) {
@@ -480,7 +480,7 @@ public class RbfScanReverseTests : IDisposable {
         CorruptTrailerCrcAt(path, ptr2.Offset, payload2.Length);
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RawRbfTestFile.OpenExisting(path);
         var frames = new List<RbfFrameInfo>();
         var enumerator = rbfRead.ScanReverse().GetEnumerator();
         while (enumerator.MoveNext()) {
@@ -510,7 +510,7 @@ public class RbfScanReverseTests : IDisposable {
         }
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         var frames = new List<RbfFrameInfo>();
         foreach (var info in rbfRead.ScanReverse()) {
             frames.Add(info);
@@ -536,7 +536,7 @@ public class RbfScanReverseTests : IDisposable {
         }
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         var frames = new List<RbfFrameInfo>();
         foreach (var info in rbfRead.ScanReverse()) {
             frames.Add(info);
@@ -563,7 +563,7 @@ public class RbfScanReverseTests : IDisposable {
         }
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         var frames = new List<RbfFrameInfo>();
         foreach (var info in rbfRead.ScanReverse()) {
             frames.Add(info);
@@ -596,7 +596,7 @@ public class RbfScanReverseTests : IDisposable {
         }
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         var frames = new List<RbfFrameInfo>();
         foreach (var info in rbfRead.ScanReverse()) {
             frames.Add(info);
@@ -620,7 +620,7 @@ public class RbfScanReverseTests : IDisposable {
         }
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         var offsets = new List<long>();
         foreach (var info in rbfRead.ScanReverse()) {
             offsets.Add(info.Ticket.Offset);
@@ -649,7 +649,7 @@ public class RbfScanReverseTests : IDisposable {
         }
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         RbfFrameInfo? frameInfo = null;
         foreach (var scanInfo in rbfRead.ScanReverse()) {
             frameInfo = scanInfo;
@@ -681,7 +681,7 @@ public class RbfScanReverseTests : IDisposable {
         }
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         RbfFrameInfo? frameInfo = null;
         foreach (var scanInfo in rbfRead.ScanReverse()) {
             frameInfo = scanInfo;
@@ -728,7 +728,7 @@ public class RbfScanReverseTests : IDisposable {
         File.WriteAllBytes(path, fileContent);
 
         // Act: ScanReverse 应该仍然成功
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RawRbfTestFile.OpenExisting(path);
         var tags = new List<uint>();
         AteliaError? error = null;
 
@@ -768,7 +768,7 @@ public class RbfScanReverseTests : IDisposable {
         }
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path);
+        using var rbfRead = RbfFile.OpenExisting(path, out _);
         var frames = new List<(uint tag, int payloadLen)>();
         foreach (var info in rbfRead.ScanReverse()) {
             frames.Add((info.Tag, info.PayloadLength));

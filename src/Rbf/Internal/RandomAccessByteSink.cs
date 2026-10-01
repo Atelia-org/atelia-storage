@@ -14,15 +14,18 @@ namespace Atelia.Rbf.Internal;
 /// </remarks>
 internal sealed class RandomAccessByteSink : IByteSink {
     private readonly SafeFileHandle _file;
+    private readonly Action? _onWriteFailure;
     private long _writeOffset;
 
     /// <summary>创建 RandomAccess 写入适配器</summary>
     /// <param name="file">文件句柄（需具备 Write 权限）</param>
     /// <param name="startOffset">起始写入位置（byte offset）</param>
+    /// <param name="onWriteFailure">原始输出异常时标记共享 writer fault。</param>
     /// <exception cref="ArgumentNullException"><paramref name="file"/> 为 null</exception>
-    public RandomAccessByteSink(SafeFileHandle file, long startOffset) {
+    public RandomAccessByteSink(SafeFileHandle file, long startOffset, Action? onWriteFailure = null) {
         _file = file ?? throw new ArgumentNullException(nameof(file));
         _writeOffset = startOffset;
+        _onWriteFailure = onWriteFailure;
     }
 
     /// <summary>当前写入位置（byte offset）</summary>
@@ -41,7 +44,11 @@ internal sealed class RandomAccessByteSink : IByteSink {
     public void Push(ReadOnlySpan<byte> data) {
         if (data.IsEmpty) { return; }
 
-        RandomAccess.Write(_file, data, _writeOffset);
+        try { RbfWriteInstrumentation.Write(_file, data, _writeOffset); }
+        catch {
+            _onWriteFailure?.Invoke();
+            throw;
+        }
         _writeOffset += data.Length;
     }
 

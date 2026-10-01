@@ -219,8 +219,7 @@ public class RbfFacadeTests : IDisposable {
     public void Append_AtMaxOffset_WithMaximumPayloadAndMeta_Succeeds_ThenFurtherAppendFails() {
         // Arrange
         var path = GetTempFilePath();
-        using var rbf = SparseRbfTestFile.CreateNew(path);
-        rbf.Truncate(SizedPtr.MaxOffset);
+        using var rbf = SparseRbfTestFile.CreateNew(path, SizedPtr.MaxOffset);
         byte[] payload = GC.AllocateUninitializedArray<byte>(RbfFile.MaxPayloadAndMetaLength);
 
         // Act - 最后一帧：用 Append 而非 Builder，避免 builder 路径为未提交帧额外保留整帧缓冲。

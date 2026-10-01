@@ -32,6 +32,7 @@ public ref struct RbfForwardEnumerator {
 
     /// <summary>移动到下一帧（正向）。</summary>
     public bool MoveNext() {
+        _reader.EnsureUsable();
         while (_nextFrameOffset < _dataTail) {
             var result = RbfReadImpl.ReadFrameInfoAt(_reader, _nextFrameOffset, _dataTail);
             if (!result.IsSuccess) {

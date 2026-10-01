@@ -7,6 +7,7 @@ namespace Atelia.Rbf.Internal;
 
 internal static partial class RbfReadImpl {
     internal static AteliaResult<RbfScanBoundary> GetScanBoundaryAfter(RandomAccessReader reader, SizedPtr ticket, long end, long fileLength) {
+        reader.EnsureUsable();
         if (ticket.Offset < RbfLayout.FirstFrameOffset || ticket.Length < RbfLayout.MinFrameLength || end > fileLength) {
             return new RbfArgumentError("Anchor ticket must identify a complete frame within the file.");
         }
