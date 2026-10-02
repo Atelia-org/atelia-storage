@@ -1,0 +1,179 @@
+{
+  "schemaVersion": 1,
+  "sourceRevision": "5711c4706509eb3b144299a75f83c09aa75da75f",
+  "sdk": "10.0.201",
+  "scriptSha256": {
+    "probe.py": "49e669fcf8344a84a75086b0be479b7eba91e99bb5a91c2493d803968c2b0a2a",
+    "compat_probe.py": "2b539d528f2ac6bf9ebeb55d3d0f3e26742c07cd158b5c4df9d3f8d55ab66819",
+    "qualification_probe.py": "80f5d0f4edb034048c9633309bbfbe334ad296f9ecba199aeb9cc9c08e158506",
+    "run_probes.py": "dd7a0c45bf27a91cc1f17c9168ff1897a65e4a9446a8579b189f3afc965dda68",
+    "ProductionProbe/ProductionProbe.csproj": "e6a95b8f60aa81dd7bcf6bfa4128c0b7e2003caa2e645cfb99fab7d10246cc3b",
+    "ProductionProbe/Program.cs": "44dc0fccfad6f4aad4c83b3e26c3d283a6fe14cef5a3fd14fa73b19de1e78b6d"
+  },
+  "model": {
+    "model_only": true,
+    "crc_standard_vector": "passed",
+    "parallel_old_frames": 64,
+    "parallel_image_bytes": 4388,
+    "new_format_fixtures": 13,
+    "recovery_original_cuts": 1788,
+    "recovery_append_prefixes": 412118,
+    "coverage_nonce_cases": 4,
+    "forced_tombstone_tag0_crc_collision": {
+      "length": 17417048,
+      "key": 34
+    },
+    "trailer_crc_direction": "backward",
+    "golden_trailer_vectors": 2,
+    "full_body_key_selection": {
+      "length": 17417048,
+      "selected_minimum_key": 34,
+      "original_tag": 2,
+      "plaintext_coverage_bytes": 17417016,
+      "wire_or_file_written": false
+    },
+    "production_code_or_io_exercised": false
+  },
+  "qualification": {
+    "model_only": true,
+    "fixtures": 6,
+    "original_cuts": 410,
+    "original_unresolved": 66,
+    "recovery_output_prefixes": 17382,
+    "second_recovery_cuts": 10885,
+    "second_unresolved": 3916,
+    "completed_fence_preserved": 24,
+    "original_statuses": {
+      "Complete": 12,
+      "IncompleteSuffix": 332,
+      "Unresolved": 66
+    },
+    "invalid_inputs_rejected_before_action": 26,
+    "header_residue_lengths_rejected": 4,
+    "unresolved_without_oracle_rejected": true,
+    "external_writer_oracle_used": true,
+    "production_qualification_complete": false,
+    "filesystem_or_flush_exercised": false
+  },
+  "compatibility": {
+    "model_only": true,
+    "legacy_tickets_preserved": 3,
+    "mixed_append_prefixes": 287,
+    "nested_new_eof_in_legacy_rejected_by_header_dispatch": true,
+    "mixed_fast_tail_agrees_with_strict_chain": true,
+    "historical_truncation_counterexample_requires_durable_frontier": true,
+    "production_or_upgrade_io_exercised": false
+  },
+  "productionGoldenCrosscheck": {
+    "passed": true,
+    "direction": "production RBF1 writer -> independent Python strict decoder",
+    "fixtures": [
+      {
+        "name": "header-only",
+        "frames": 0,
+        "wireBytes": 4,
+        "wireSha256": "9c015e3e48da804c41adc4cf8834dc8055689d3ed68fce65c10b2e85153c71e6"
+      },
+      {
+        "name": "empty-frame",
+        "frames": 1,
+        "wireBytes": 32,
+        "wireSha256": "9bdd11b19f95f1f1fda7a22447031b21cc0bd6c4bec1ccde5f546f5d76a60402"
+      },
+      {
+        "name": "binary-three",
+        "frames": 3,
+        "wireBytes": 140,
+        "wireSha256": "af88b77e33d8d334e1aa5a57788d2eff8922a66899df3e8dc7269be5f6ac2546"
+      },
+      {
+        "name": "max-meta",
+        "frames": 1,
+        "wireBytes": 65572,
+        "wireSha256": "14095ce4eb104cd5970e4a557afc13d36c10954df120887717c22e9795caf202"
+      }
+    ]
+  },
+  "productionOpenMetrics": [
+    {
+      "frameCount": 1,
+      "cacheMode": "Off",
+      "operation": "OpenReadOnlyExisting only; input creation and later reads excluded",
+      "snapshot": {
+        "readCalls": 8,
+        "requestedBytes": 56,
+        "returnedBytes": 56,
+        "rawReadCalls": 8,
+        "rawRequestedBytes": 56,
+        "rawReturnedBytes": 56,
+        "readAheadReturnedBytes": 0,
+        "headerReadCalls": 1
+      },
+      "expected5711c47": {
+        "readCalls": 8,
+        "requestedBytes": 56,
+        "formula": "3*N+5 calls; 24*N+32 bytes"
+      },
+      "expectedFormulaMatches": true,
+      "baselineAssertionEnabled": true,
+      "metricScope": "Synchronous RBF read requests/returned bytes, including direct factory/recovery reads; not device physical I/O."
+    },
+    {
+      "frameCount": 100,
+      "cacheMode": "Off",
+      "operation": "OpenReadOnlyExisting only; input creation and later reads excluded",
+      "snapshot": {
+        "readCalls": 305,
+        "requestedBytes": 2432,
+        "returnedBytes": 2432,
+        "rawReadCalls": 305,
+        "rawRequestedBytes": 2432,
+        "rawReturnedBytes": 2432,
+        "readAheadReturnedBytes": 0,
+        "headerReadCalls": 1
+      },
+      "expected5711c47": {
+        "readCalls": 305,
+        "requestedBytes": 2432,
+        "formula": "3*N+5 calls; 24*N+32 bytes"
+      },
+      "expectedFormulaMatches": true,
+      "baselineAssertionEnabled": true,
+      "metricScope": "Synchronous RBF read requests/returned bytes, including direct factory/recovery reads; not device physical I/O."
+    },
+    {
+      "frameCount": 10000,
+      "cacheMode": "Off",
+      "operation": "OpenReadOnlyExisting only; input creation and later reads excluded",
+      "snapshot": {
+        "readCalls": 30005,
+        "requestedBytes": 240032,
+        "returnedBytes": 240032,
+        "rawReadCalls": 30005,
+        "rawRequestedBytes": 240032,
+        "rawReturnedBytes": 240032,
+        "readAheadReturnedBytes": 0,
+        "headerReadCalls": 1
+      },
+      "expected5711c47": {
+        "readCalls": 30005,
+        "requestedBytes": 240032,
+        "formula": "3*N+5 calls; 24*N+32 bytes"
+      },
+      "expectedFormulaMatches": true,
+      "baselineAssertionEnabled": true,
+      "metricScope": "Synchronous RBF read requests/returned bytes, including direct factory/recovery reads; not device physical I/O."
+    }
+  ],
+  "historicalFenceTrace": {
+    "currentStrictOpenRejected": true,
+    "ordinaryCheckedReadSucceeded": true,
+    "boundaryRejected": true,
+    "fixedEofCandidateRejected": true
+  },
+  "limits": [
+    "No production RBF2 or mixed codec was exercised.",
+    "Unresolved model qualification uses an explicit external writer oracle.",
+    "Not solution acceptance, package consumption, crash/power-loss testing, or a latency benchmark."
+  ]
+}

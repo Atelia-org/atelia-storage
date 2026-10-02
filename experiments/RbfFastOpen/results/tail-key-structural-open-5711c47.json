@@ -1,0 +1,292 @@
+{
+  "schemaVersion": 3,
+  "recoveryPolicy": "truncate-incomplete-body-complete-tail-key-fence",
+  "openPolicy": "structure-only-payload-crc-on-read",
+  "keyPlacement": "tail-only",
+  "faultTarget": "process-termination",
+  "sourceRevision": "5711c4706509eb3b144299a75f83c09aa75da75f",
+  "sdk": "10.0.201",
+  "scriptSha256": {
+    "probe.py": "6c4da8c4adb13b4ab738925b592777b55df9d96f92b30c0bf7604769b49c8381",
+    "compat_probe.py": "90e4349c39b6e39ee88d460d59d332db968e9d1a3b9c4f7dbdd26c88f684bf03",
+    "qualification_probe.py": "25ef167dfc476bbb60dbeb20697b211b05e35c9e6b63b75b6c0517aad707d12b",
+    "process_termination_probe.py": "683f97e47558d4b1d6f46d6eaefc368d6da1ecf67f494c6f0efcd5553062c38b",
+    "run_probes.py": "a47e6a608e1ac2438f6402c83396b399603f182bc70365235aca946e285a92c7",
+    "ProductionProbe/ProductionProbe.csproj": "e6a95b8f60aa81dd7bcf6bfa4128c0b7e2003caa2e645cfb99fab7d10246cc3b",
+    "ProductionProbe/Program.cs": "44dc0fccfad6f4aad4c83b3e26c3d283a6fe14cef5a3fd14fa73b19de1e78b6d"
+  },
+  "model": {
+    "model_only": true,
+    "crc_standard_vector": "passed",
+    "parallel_old_frames": 64,
+    "parallel_false_frames": 64,
+    "parallel_image_bytes": 4388,
+    "new_format_fixtures": 14,
+    "normal_writer_prefixes": 3086,
+    "crc_word_participates_in_key_selection": true,
+    "closed_tombstone_supported": true,
+    "trailer_crc_direction": "backward",
+    "golden_trailer_vectors": 2,
+    "recovery_tombstone_generation": false,
+    "layout": "raw HeadLen + encoded body + one raw tail Key; fixed overhead 28B",
+    "head_key_present": false,
+    "production_code_or_io_exercised": false
+  },
+  "qualification": {
+    "model_only": true,
+    "layout": "tail-only Key; 28B fixed overhead; payload offset 4",
+    "recovery_policy": "truncate-incomplete-encoded-body; complete-Key-and-Fence",
+    "fixtures": 10,
+    "base_images": 3,
+    "original_cuts": 5226,
+    "incomplete_bodies_truncated": 4926,
+    "unknown_trailer_cuts_discarded": 450,
+    "completed_tail_preserved": 240,
+    "missing_key_0_1_2_3_cases": 120,
+    "second_recovery_states": 11232,
+    "read_only_repairs_rejected": 5166,
+    "nonzero_key_fixture": 301,
+    "nonzero_key_padding_1_2_3_exercised": true,
+    "invalid_structural_inputs_rejected": 17,
+    "boundary_lookup_exercised": true,
+    "first_bad_marker_and_predecessor_rejected": true,
+    "structural_open_cost": {
+      "ordinaryImages": [
+        {
+          "historyFrames": 1,
+          "lastFrameBytes": 28,
+          "readCalls": 3,
+          "requestedBytes": 36
+        },
+        {
+          "historyFrames": 1,
+          "lastFrameBytes": 36,
+          "readCalls": 4,
+          "requestedBytes": 39
+        },
+        {
+          "historyFrames": 1,
+          "lastFrameBytes": 4128,
+          "readCalls": 4,
+          "requestedBytes": 39
+        },
+        {
+          "historyFrames": 100,
+          "lastFrameBytes": 28,
+          "readCalls": 3,
+          "requestedBytes": 36
+        },
+        {
+          "historyFrames": 100,
+          "lastFrameBytes": 36,
+          "readCalls": 4,
+          "requestedBytes": 39
+        },
+        {
+          "historyFrames": 100,
+          "lastFrameBytes": 4128,
+          "readCalls": 4,
+          "requestedBytes": 39
+        },
+        {
+          "historyFrames": 10000,
+          "lastFrameBytes": 28,
+          "readCalls": 3,
+          "requestedBytes": 36
+        },
+        {
+          "historyFrames": 10000,
+          "lastFrameBytes": 36,
+          "readCalls": 4,
+          "requestedBytes": 39
+        },
+        {
+          "historyFrames": 10000,
+          "lastFrameBytes": 4128,
+          "readCalls": 4,
+          "requestedBytes": 39
+        }
+      ],
+      "virtualNearMaximum": {
+        "frameBytes": 268435452,
+        "requestedBytes": 39,
+        "readCalls": 4,
+        "structuralOnlyFixture": true,
+        "payloadAllocatedOrCrcValidated": false
+      }
+    },
+    "payload_crc_orthogonality": {
+      "acceptedStructuralCases": 22,
+      "actions": {
+        "None": 2,
+        "CompletedTail": 16,
+        "Truncated": 4
+      },
+      "locations": [
+        "closed",
+        "missing-Key-0..3",
+        "missing-Fence-0..3",
+        "predecessor",
+        "discarded-tail"
+      ],
+      "completeReadFrameRejectedEveryCorruptedReference": true
+    },
+    "local_missing_key_counterexample": {
+      "localTrailerCrcAndDerivedKeyPassAtFakeStart": 24,
+      "actualBoundary": 4,
+      "properAction": "Truncated",
+      "lesson": "Local footer CRC does not establish membership; obtain the nearest real marker first."
+    },
+    "external_writer_oracle_used": false,
+    "unknown_trailer_completion_solved": false,
+    "filesystem_or_flush_exercised": false,
+    "production_rbf2_exercised": false
+  },
+  "compatibility": {
+    "model_only": true,
+    "legacy_tickets_preserved": 3,
+    "nested_new_eof_in_legacy_rejected_by_header_dispatch": true,
+    "legacy_structural_open_without_payload_crc": true,
+    "legacy_last_payload_crc_corruption_deferred_to_full_reference": true,
+    "legacy_structural_open_reads": {
+      "calls": 11,
+      "requestedBytes": 78
+    },
+    "legacy_structural_open_is_proposed_not_current_production": true,
+    "mixed_profile_exercised": false,
+    "production_or_upgrade_io_exercised": false
+  },
+  "processTermination": {
+    "schemaVersion": 2,
+    "passed": true,
+    "appendTerminationCases": 28,
+    "recoveryTerminationCases": 90,
+    "completedRecoveryTerminationCases": 63,
+    "totalKilledChildren": 181,
+    "closedPredecessorBytes": 136,
+    "candidateFrameBytes": 124,
+    "evidence": {
+      "realChildProcessesKilled": true,
+      "actualFilesReopened": true,
+      "ioFlush": "Python file.flush() to the OS; no fsync or device durability claim",
+      "recoveryAlgorithm": "qualification_probe.recover_image; experimental RBF2 model, not production RBF",
+      "productionRbf2Invoked": false,
+      "terminationPoints": "Only acknowledged READY checkpoints, before/after truncate and after every missing Key/Fence byte prefix",
+      "arbitraryInSyscallTerminationCovered": false,
+      "machinePowerLossCovered": false,
+      "cleanup": "Generated files retained; finally kills only this invocation's own Popen child"
+    }
+  },
+  "productionGoldenCrosscheck": {
+    "passed": true,
+    "direction": "production RBF1 writer -> independent Python strict decoder",
+    "fixtures": [
+      {
+        "name": "header-only",
+        "frames": 0,
+        "wireBytes": 4,
+        "wireSha256": "9c015e3e48da804c41adc4cf8834dc8055689d3ed68fce65c10b2e85153c71e6"
+      },
+      {
+        "name": "empty-frame",
+        "frames": 1,
+        "wireBytes": 32,
+        "wireSha256": "9bdd11b19f95f1f1fda7a22447031b21cc0bd6c4bec1ccde5f546f5d76a60402"
+      },
+      {
+        "name": "binary-three",
+        "frames": 3,
+        "wireBytes": 140,
+        "wireSha256": "af88b77e33d8d334e1aa5a57788d2eff8922a66899df3e8dc7269be5f6ac2546"
+      },
+      {
+        "name": "max-meta",
+        "frames": 1,
+        "wireBytes": 65572,
+        "wireSha256": "14095ce4eb104cd5970e4a557afc13d36c10954df120887717c22e9795caf202"
+      }
+    ]
+  },
+  "productionOpenMetrics": [
+    {
+      "frameCount": 1,
+      "cacheMode": "Off",
+      "operation": "OpenReadOnlyExisting only; input creation and later reads excluded",
+      "snapshot": {
+        "readCalls": 8,
+        "requestedBytes": 56,
+        "returnedBytes": 56,
+        "rawReadCalls": 8,
+        "rawRequestedBytes": 56,
+        "rawReturnedBytes": 56,
+        "readAheadReturnedBytes": 0,
+        "headerReadCalls": 1
+      },
+      "expected5711c47": {
+        "readCalls": 8,
+        "requestedBytes": 56,
+        "formula": "3*N+5 calls; 24*N+32 bytes"
+      },
+      "expectedFormulaMatches": true,
+      "baselineAssertionEnabled": true,
+      "metricScope": "Synchronous RBF read requests/returned bytes, including direct factory/recovery reads; not device physical I/O."
+    },
+    {
+      "frameCount": 100,
+      "cacheMode": "Off",
+      "operation": "OpenReadOnlyExisting only; input creation and later reads excluded",
+      "snapshot": {
+        "readCalls": 305,
+        "requestedBytes": 2432,
+        "returnedBytes": 2432,
+        "rawReadCalls": 305,
+        "rawRequestedBytes": 2432,
+        "rawReturnedBytes": 2432,
+        "readAheadReturnedBytes": 0,
+        "headerReadCalls": 1
+      },
+      "expected5711c47": {
+        "readCalls": 305,
+        "requestedBytes": 2432,
+        "formula": "3*N+5 calls; 24*N+32 bytes"
+      },
+      "expectedFormulaMatches": true,
+      "baselineAssertionEnabled": true,
+      "metricScope": "Synchronous RBF read requests/returned bytes, including direct factory/recovery reads; not device physical I/O."
+    },
+    {
+      "frameCount": 10000,
+      "cacheMode": "Off",
+      "operation": "OpenReadOnlyExisting only; input creation and later reads excluded",
+      "snapshot": {
+        "readCalls": 30005,
+        "requestedBytes": 240032,
+        "returnedBytes": 240032,
+        "rawReadCalls": 30005,
+        "rawRequestedBytes": 240032,
+        "rawReturnedBytes": 240032,
+        "readAheadReturnedBytes": 0,
+        "headerReadCalls": 1
+      },
+      "expected5711c47": {
+        "readCalls": 30005,
+        "requestedBytes": 240032,
+        "formula": "3*N+5 calls; 24*N+32 bytes"
+      },
+      "expectedFormulaMatches": true,
+      "baselineAssertionEnabled": true,
+      "metricScope": "Synchronous RBF read requests/returned bytes, including direct factory/recovery reads; not device physical I/O."
+    }
+  ],
+  "historicalFenceTrace": {
+    "currentStrictOpenRejected": true,
+    "ordinaryCheckedReadSucceeded": true,
+    "boundaryRejected": true,
+    "fixedEofCandidateRejected": true
+  },
+  "limits": [
+    "No production RBF2 codec was exercised; recovery is an experimental model.",
+    "Process termination was tested only at acknowledged I/O checkpoints, not inside arbitrary syscalls.",
+    "Not solution acceptance, package consumption, power-loss testing, or a latency benchmark."
+  ]
+}

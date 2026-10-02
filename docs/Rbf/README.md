@@ -26,6 +26,8 @@ RBF（Reversible Binary Framing）是 Atelia 的二进制信封格式，用于�
 | [rbf-recovery.md](rbf-recovery.md) | Design Memo | 离线救援/分析用 Recovery Scan 设计备忘 |
 | [rbf-tail-recovery-refactoring.md](rbf-tail-recovery-refactoring.md) | Implementation | 单个残缺尾帧默认自愈的实施设计与验收记录；下游适配暂缓 |
 | [rbf-tail-recovery-review.md](rbf-tail-recovery-review.md) | Review | 三位 reviewer 两轮辩证复核的需求、裁决与证据记录 |
+| [rbf-open-fast-path-refactoring.md](rbf-open-fast-path-refactoring.md) | Plan-Tier | 普通打开快路径重构方案（非规范性、实施未开始）；尾 Key 单份、结构 Open/内容 ReadFrame、进程终止下截尾/补 Key+Fence，与 RBF 实施门禁 |
+| [rbf-codec-implementation-study.md](rbf-codec-implementation-study.md) | Research / G1 | writer 预处理与 reader 解码专项；C# 原型、W: 实测、XOR/模加法比较、Builder 原地编码建议，生产接入待实施 |
 | [rbf-derived-notes.md](rbf-derived-notes.md) | Derived | 推导、算例与答疑（允许滞后/可删改） |
 | [rbf-test-vectors.md](rbf-test-vectors.md) | Test | 测试向量 |
 
