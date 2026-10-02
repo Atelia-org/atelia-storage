@@ -8,7 +8,9 @@ normative: false
 
 日期：2026-10-01。源码基线：`5711c4706509eb3b144299a75f83c09aa75da75f`。这是实施前方案；只修改方案与实验，未修改生产实现或现行 RBF1 规范。`RBF2` 是候选名称，尚未分配生产格式版本。实施按 §9 同步规范、源码与验收。
 
-2026-10-02 补充：[writer / reader 实现专项](rbf-codec-implementation-study.md)完成 C# codec 成本原型和 W: 真实读写。推荐固定 Key0/1 检测后 bitmap fallback、Append 有界输出、Builder owned chunks 原地编码、wire cache/caller 解码；生产接入仍待实施。
+2026-10-02 补充：[writer / reader 实现专项](rbf-codec-implementation-study.md)完成 C# codec 成本原型和 W: 真实读写。推荐 Append 有界输出、Builder owned chunks 原地编码、wire cache/caller 解码；生产接入仍待实施。搜索策略随后由下述新实验更新。
+
+2026-10-03 更新：专项新增 **ZeroThenRandom**。先检查 EscapeKey=0，失败后用系统随机源抽取全 uint32 候选（排除0/Fence），完整检测通过后采用；无 bitmap 循环版成为实施主候选，固定1与两次随机后 bitmap 版保留为实验对照。185条CPU、20条W: I/O的7样本证据见[专项结果](../../experiments/RbfCodecCost/results/zero-then-random-0e0df09-20261003.json)。随机搜索没有确定的尝试次数上限；31B反例、概率尾及尚未验证的元信息/恢复入口见专项。该更新不改变恢复动作。
 
 用户当前决定：**单个 RBF 文件优先；恢复目标仅进程终止，断电依赖平台；确认真实边界后可截掉未完成帧；Open 负责分帧结构，PayloadCRC 留给 ReadFrame；只考虑补原尾 Key/Fence；保留约 256MiB 单帧上限；逆序读取优先，研究省头 Key。** 独立反审与字节推演支持采用这些简化。
 
@@ -105,9 +107,9 @@ HeadLen/TailLen 均计 FrameBytes 物理长度 L，不含 Fence。固定开销�
 
 ### 4.1 Key 存在性与前缀证明
 
-每个 plaintext word w 只排除一个 Key：`w XOR Key == F ⇔ Key == w XOR F`。m 个 words 至多排除 m 个 Key，因此 `[0,m]` 必有可用值。取最小缺失值，bitmap 最坏约 8MiB；无需全 32-bit bitmap，也无需无界试 Key 重扫。专项实测支持先定向检查 Key0、Key1，两者都禁用才完整 bitmap；最多三次禁 Key 扫描，常见 Key0/1 不租 bitmap。Key0 省 XOR 变换，所有路径仍选同一最小缺失值。
+每个 plaintext word w 只排除一个 Key：`w XOR Key == F ⇔ Key == w XOR F`。m 个 words 至多排除 m 个 Key，因此 `[0,m]` 必有可用值；这是 bitmap 对照/fallback 的存在性证明，不是所有有效 EscapeKey 的值域限制。当前实施主候选先完整检查 Key0；禁0后，以系统随机源抽取全 uint32 Key，排除0/Fence，再检测完整 body 是否含 `F XOR Key`，遇禁值继续抽取，不建立 bitmap。内容固定、抽样独立均匀时，约256MiB帧每次有效候选失败概率小于1/64，随机尝试次数的期望小于64/63；这些是理论界，无确定次数或耗时上限。实验保留两次有效随机候选扫描失败后 bitmap 的比较版本。Key0 省 XOR；非零随机 Key 不要求最小，wire 可随抽样改变，原文、物理长度和 ticket 不变。
 
-coverage、PayloadCRC 与完整 Trailer 均纳入连续 word 划分，跨 span/chunk 不能重置相位。raw HeadLen 合法对齐，不等于 F；raw TailKey≤m<2^26，不等于 F；所有 encoded body words 不等于 F。因此正常 writer 任意进程终止前缀中，完整的全局 4B 对齐 Fence 只在真实边界出现。删除头 Key 不影响证明。
+coverage、PayloadCRC 与完整 Trailer 均纳入连续 word 划分，跨 span/chunk 不能重置相位。raw HeadLen 合法对齐，不等于 F；raw TailKey 必须不等于 F；所有 encoded body words 不等于 F。因此正常 writer 任意进程终止前缀中，完整的全局 4B 对齐 Fence 只在真实边界出现。尾 Key 的 F 排除不能只靠 body 检测代替；删除头 Key、放宽非零 Key 值域均不影响此证明。
 
 这是正常 writer 与顺序写出前缀的保证。进程终止后 OS/文件系统仍运行；不另建断电、sector 撕裂或设备乱序协议。任意位损坏或手工镜像可能破坏 marker-free invariant；局部 Open 不是任意镜像认证。Open 不遍历 body 重证这个 writer invariant，也不以 PayloadCRC 代替成员证明。
 
@@ -116,7 +118,7 @@ coverage、PayloadCRC 与完整 Trailer 均纳入连续 word 划分，跨 span/c
 Header-only 是正常空文件。非空文件若 EOF 对齐且完整尾 Fence 存在：
 
 1. 固定读尾部 `encoded Trailer16 + TailKey4 + Fence4`，检查已读 Trailer words 不等于 F，解码并验 TrailerCRC。
-2. 验 L、Key≤m、descriptor/reserved/meta/padding 长度及 offset 范围，定位帧起点。
+2. 验 L、Key不等于F、descriptor/reserved/meta/padding 长度及 offset 范围，定位帧起点。
 3. 读该起点的 HeadLen 和紧邻左 Fence，验证长度一致与真实边界。
 4. 仅检查最多 3B padding 为零，不读 payload、TailMeta 或 PayloadCRC 作内容校验。
 
@@ -176,7 +178,7 @@ body 已到 `L-4` 时，encoded TailLen 的 4B 已在 `[L-8,L-4)`。由于 plain
 K* = LE_u32(encoded TailLen) XOR L
 ```
 
-这是唯一确定值，不是尝试 Key，也不是未知 completion 求解。检查已读 encoded Trailer words 不等于 F，解码完整 Trailer，检查 TrailerCRC、descriptor/reserved、长度/meta/padding 约束、Key≤m，以及最多 3B 已有 padding。已有 0–4B 尾 Key 必须等于 `LE(K*)` 前缀；已有 Fence 必须等于原 Fence 前缀。通过后只追加 `LE(K*) || Fence` 的缺失后缀，最多 8B，不重写 footer/CRC/已有字节。完整 Key 时同样核对其值，不容许更换 Key。
+这是唯一确定值，不是尝试 Key，也不是未知 completion 求解。检查已读 encoded Trailer words 不等于 F，解码完整 Trailer，检查 TrailerCRC、descriptor/reserved、长度/meta/padding 约束、Key不等于F，以及最多 3B 已有 padding。已有 0–4B 尾 Key 必须等于 `LE(K*)` 前缀；已有 Fence 必须等于原 Fence 前缀。通过后只追加 `LE(K*) || Fence` 的缺失后缀，最多 8B，不重写 footer/CRC/已有字节。完整 Key 时同样核对其值，不容许更换 Key。随机选择过程无需保留，重建公式适用于全 uint32；旧恢复模型仍使用 `[0,m]` 限制，生产接入须扩展高位 Key 的资格/前缀反例，不能冒称本轮完成恢复验收。
 
 | 现有阶段 | 动作前检查 | 结果 |
 | --- | --- | --- |
@@ -226,7 +228,7 @@ python -B experiments/RbfFastOpen/run_probes.py --assert-baseline-5711c47
 
 runner 串行执行三个字节模型、真实子进程终止探针、RBF1 黄金 fixture 互证、生产探针 Release build/run。详细产物与限制见 [实验说明](../../experiments/RbfFastOpen/README.md)。
 
-本轮主线程实际结果记入 [tail-key-structural-open-5711c47-v2.json](../../experiments/RbfFastOpen/results/tail-key-structural-open-5711c47-v2.json)，含 revision、SDK、七个实验源码 hash、wire hash。通过 5226 cuts、4926 截断、240 次补尾（含 120 个 Key 0–3B 阶段）、11232 再次恢复状态；20 类结构坏输入拒绝（含 CRC 自洽的非法 descriptor）、22 个内容 CRC 正交场景通过；补充 Key=301 / 非零 encoded padding 的 1241 个前缀，以及高位 Key 的 padding 相位结构向量。真实 child kill 为 181 次，四个生产 RBF1 黄金 fixture、原 Open 指标和 Fence 轨迹保持，独立生产探针 Release build 零警告/错误。验收边界如下：
+2026-10-02 尾恢复模型结果记入 [tail-key-structural-open-5711c47-v2.json](../../experiments/RbfFastOpen/results/tail-key-structural-open-5711c47-v2.json)，含 revision、SDK、七个实验源码 hash、wire hash；该资格模型仍限制Key在 `[0,m]`，下列数字不验收全uint随机Key的恢复。通过 5226 cuts、4926 截断、240 次补尾（含 120 个 Key 0–3B 阶段）、11232 再次恢复状态；20 类结构坏输入拒绝（含 CRC 自洽的非法 descriptor）、22 个内容 CRC 正交场景通过；补充 Key=301 / 非零 encoded padding 的 1241 个前缀，以及高位 Key 的 padding 相位结构向量。真实 child kill 为 181 次，四个生产 RBF1 黄金 fixture、原 Open 指标和 Fence 轨迹保持，独立生产探针 Release build 零警告/错误。验收边界如下：
 
 | 证据 | 要证明的事实 | 限制 |
 | --- | --- | --- |
@@ -243,12 +245,14 @@ PayloadCRC forward/LE、TrailerCRC backward/BE 由生产黄金向量和完整 wi
 
 专项成本证据独立保留在 [codec-cost-5711c47-20261002.json](../../experiments/RbfCodecCost/results/codec-cost-5711c47-20261002.json)，不改上述历史快照。模 uint32 加减法同样具存在性与唯一尾 Key，但非对齐 meta 要扩 word、padding 读完整4B word令理想健康上界为40B；实测吞吐接近，暂继续 XOR。reader 默认 Vector 解码后使用现有 CRC，融合候选不进默认路径。
 
+随机搜索新证据独立保留在 [zero-then-random-0e0df09-20261003.json](../../experiments/RbfCodecCost/results/zero-then-random-0e0df09-20261003.json)。完整实验读允许全域 Key（拒绝F），独立bitwise CRC/wire、高位 Key与缺 Key代数重建通过；既有 MetadataProbe/cache和旧恢复资格模型尚未按全域 Key扩展。185 CPU/20 I/O均为7轮转样本，入口 Environment.Samples=5是未参与专项的旧默认，快照已明确。真实最大帧验证不等于生产恢复；没有用少量未重试观察验证理论概率尾。
+
 ## 9. RBF 实施切片与退出门禁
 
 | 切片 | 交付 | 退出证据 |
 | --- | --- | --- |
 | G0：RBF 合同 | profile 标识、结构/内容职责、旧可写拒绝、三动作和报告 enum、进程终止模型 | 两 profile 的内容 CRC 均留 ReadFrame，RBF1 保完整结构主链；末帧/前驱内容坏不阻止结构 Open；结构坏拒绝；body 未完成截尾，完整 body 补 Key/Fence；现行规范差异明确 |
-| G1：C# codec / 成本原型 | 尾 Key/四 Key 策略/跨 chunk XOR/preview 相位及 W: 成本专项已形成；生产 pending visitor、原地 Builder 与 Pool 接入待做 | 黄金向量/模型互证、不需额外整帧复制、读取字节上界与成本表；生产接点与失败反例验证后冻结格式 |
+| G1：C# codec / 成本原型 | 尾 EscapeKey/六种搜索策略/跨 chunk XOR/preview 相位及 W: 成本专项已形成；ZeroThenRandom无bitmap为主候选；生产 pending visitor、原地 Builder、Pool及高位Key元信息/恢复接入待做 | 黄金向量/模型互证、不需额外整帧复制、读取字节上界与成本表；全域Key marker-free、所有reader/恢复入口及生产失败反例验证后冻结格式 |
 | G2：双读与纯新 writer | 同步 interface/format/向量/容量；Append/Builder、FrameInfo/cache/scan/boundary/meta/profile | 旧 ticket/最大容量/墓碑保留，新 user bytes round-trip，入口支持或显式拒绝；G3 前不交付新可写 Open |
 | G3：结构快开与单尾恢复 | 同 handle、定位/资格、截尾/补闭合后缀、flush/报告；实际生产 I/O 异常与进程 kill | 无 oracle/内容 CRC 资格/墓碑补写；健康读取对 N/L 独立，异常扫描≤M+7；再次恢复完整 |
 | G4：RBF 源码验收 | 主线程独立 review，Release 构建 RBF 依赖和匹配 RBF.Tests | RBF 测试通过；其他项目/下游设计/包交付独立，包交付按既有 smoke 与会话授权 |

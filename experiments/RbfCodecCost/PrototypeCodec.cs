@@ -2,11 +2,12 @@ using System;
 using System.Buffers.Binary;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using Atelia.Data.Hashing;
 
 namespace RbfCodecCost;
 
-public enum KeyStrategy { FullBitmap, SmallBitmap, ZeroFirst, ZeroThenOne }
+public enum KeyStrategy { FullBitmap, SmallBitmap, ZeroFirst, ZeroThenOne, ZeroThenRandom, ZeroThenRandom2Bitmap }
 
 /// <summary>Preprocessed RBF2 frame. Chunks remain borrowed and must not change before writing.</summary>
 public sealed class PreparedFrame {
@@ -26,10 +27,12 @@ public sealed class PreparedFrame {
     // Key-search passes started; targeted scans stop when their candidate is forbidden.
     // Payload CRC is a separate traversal and is not included in this count.
     public int BodyWordScanPasses { get; }
+    public int RandomDraws { get; }
+    public int RandomSearches { get; }
 
     internal PreparedFrame(byte[][] chunks, int coverageLength, int metaLength, int frameLength,
         int paddingLength, uint key, byte[] footer, long scratchBytes, long bitmapBytes,
-        int bodyWordScanPasses) {
+        int bodyWordScanPasses, int randomDraws, int randomSearches) {
         Chunks = chunks;
         CoverageLength = coverageLength;
         MetaLength = metaLength;
@@ -40,6 +43,8 @@ public sealed class PreparedFrame {
         ScratchBytes = scratchBytes;
         BitmapBytes = bitmapBytes;
         BodyWordScanPasses = bodyWordScanPasses;
+        RandomDraws = randomDraws;
+        RandomSearches = randomSearches;
     }
 }
 
@@ -51,9 +56,10 @@ public static class PrototypeCodec {
     private const int SmallCandidateCount = 256;
     private const int SmallBitmapWordCount = SmallCandidateCount / 32;
 
-    public static PreparedFrame Prepare(byte[][] chunks, int metaLength, uint tag, KeyStrategy strategy) {
+    public static PreparedFrame Prepare(byte[][] chunks, int metaLength, uint tag, KeyStrategy strategy,
+        Func<uint>? randomCandidate = null) {
         ArgumentNullException.ThrowIfNull(chunks);
-        if (strategy is not (KeyStrategy.FullBitmap or KeyStrategy.SmallBitmap or KeyStrategy.ZeroFirst or KeyStrategy.ZeroThenOne)) {
+        if ((uint)strategy > (uint)KeyStrategy.ZeroThenRandom2Bitmap) {
             throw new ArgumentOutOfRangeException(nameof(strategy));
         }
         if ((uint)metaLength > ushort.MaxValue) {
@@ -95,6 +101,7 @@ public static class PrototypeCodec {
         long heapBitmapBytes = 0;
         long stackBitmapBytes = 0;
         int scanPasses = 1;
+        int randomDraws = 0, randomSearches = 0;
         if (strategy == KeyStrategy.FullBitmap) {
             key = SelectFullBitmap(chunks, footer, bodyWordCount, out heapBitmapBytes);
         }
@@ -117,7 +124,26 @@ public static class PrototypeCodec {
             }
             else {
                 scanPasses++;
-                if (strategy == KeyStrategy.ZeroThenOne) {
+                if (strategy is KeyStrategy.ZeroThenRandom or KeyStrategy.ZeroThenRandom2Bitmap) {
+                    // The raw tail Key must not equal Fence. Zero was already proven forbidden.
+                    // A bounded variant limits valid searches, not rejection draws from the RNG.
+                    while (true) {
+                        do {
+                            key = randomCandidate is null ? NextRandomKey() : randomCandidate();
+                            randomDraws++;
+                        } while (key is 0 or Fence);
+                        randomSearches++;
+                        scan = new WordScan(Span<uint>.Empty, 0, searchOnly: true, searchCandidate: key);
+                        ScanBody(chunks, footer, ref scan);
+                        if (!scan.SearchForbidden) break;
+                        scanPasses++;
+                        if (strategy == KeyStrategy.ZeroThenRandom2Bitmap && randomSearches == 2) {
+                            key = SelectFullBitmap(chunks, footer, bodyWordCount, out heapBitmapBytes);
+                            break;
+                        }
+                    }
+                }
+                else if (strategy == KeyStrategy.ZeroThenOne) {
                     // The body always contains at least five words, so candidate 1 is in 0..m.
                     // Search only this one additional candidate; there is no per-Key retry loop.
                     scan = new WordScan(Span<uint>.Empty, 0, searchOnly: true, searchCandidate: 1);
@@ -137,7 +163,13 @@ public static class PrototypeCodec {
         }
 
         return new PreparedFrame(chunks, coverageLength, metaLength, frameLength, paddingLength,
-            key, footer, heapBitmapBytes + stackBitmapBytes, heapBitmapBytes, scanPasses);
+            key, footer, heapBitmapBytes + stackBitmapBytes, heapBitmapBytes, scanPasses, randomDraws, randomSearches);
+    }
+
+    internal static uint NextRandomKey() {
+        Span<byte> bytes = stackalloc byte[4];
+        RandomNumberGenerator.Fill(bytes);
+        return BinaryPrimitives.ReadUInt32LittleEndian(bytes);
     }
 
     /// <summary>Optional contiguous-output check. Streaming callers can encode chunks independently

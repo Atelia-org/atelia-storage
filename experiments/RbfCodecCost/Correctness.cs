@@ -64,7 +64,7 @@ internal static class Correctness {
             byte[][] chunks = Corpus.Split(payloadAndMeta, chunkSize);
             PreparedFrame canonical = PrototypeCodec.Prepare(chunks, meta, uint.MaxValue, KeyStrategy.FullBitmap);
             byte[] wire = new byte[canonical.FrameLength + 4]; PrototypeCodec.Serialize(canonical, wire);
-            foreach (KeyStrategy strategy in Enum.GetValues<KeyStrategy>()) {
+            foreach (KeyStrategy strategy in new[] { KeyStrategy.FullBitmap, KeyStrategy.SmallBitmap, KeyStrategy.ZeroFirst, KeyStrategy.ZeroThenOne }) {
                 PreparedFrame candidate = PrototypeCodec.Prepare(chunks, meta, uint.MaxValue, strategy);
                 byte[] compare = new byte[wire.Length]; PrototypeCodec.Serialize(candidate, compare);
                 Require(compare.AsSpan().SequenceEqual(wire), "Canonical wire across strategies/chunks");

@@ -22,7 +22,7 @@ internal static class CpuProbe {
                         Span<byte> padding = stackalloc byte[3]; padding.Clear();
                         return RollingCrc.CrcForward(crc, padding[..prepared.PaddingLength]) ^ RollingCrc.DefaultFinalXor;
                     }, samples));
-                    foreach (KeyStrategy strategy in Enum.GetValues<KeyStrategy>()) {
+                    foreach (KeyStrategy strategy in new[] { KeyStrategy.FullBitmap, KeyStrategy.SmallBitmap, KeyStrategy.ZeroFirst, KeyStrategy.ZeroThenOne }) {
                         var reference = PrototypeCodec.Prepare(chunks, 0, 11, strategy);
                         if (reference.Key != prepared.Key) throw new InvalidDataException("Key strategy divergence");
                         results.Add(Timing.Measure(workload, $"prepare-{strategy}", length, chunks.Length, prepared.Key,

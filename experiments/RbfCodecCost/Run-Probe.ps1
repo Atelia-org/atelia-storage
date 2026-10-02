@@ -3,7 +3,8 @@ param(
     [switch]$Quick,
     [switch]$CpuOnly,
     [switch]$IoOnly,
-    [switch]$Focused
+    [switch]$Focused,
+    [switch]$RandomSearch
 )
 $ErrorActionPreference = 'Stop'
 $taskRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
@@ -35,10 +36,15 @@ try {
     if ($CpuOnly) { $taskArguments += '--cpu-only' }
     if ($IoOnly) { $taskArguments += '--io-only' }
     if ($Focused) { $taskArguments += '--focused' }
+    if ($RandomSearch) { $taskArguments += '--random-search' }
     dotnet experiments/RbfCodecCost/bin/Release/net10.0/Atelia.UnifiedRootProbe.dll @taskArguments | Tee-Object -FilePath (Join-Path $taskOutput 'run.log')
     if ($LASTEXITCODE -ne 0) { throw "Probe failed; retain output $taskOutput" }
     python -B experiments/RbfCodecCost/verify_vectors.py $taskDataOutput | Tee-Object -FilePath (Join-Path $taskOutput 'python.log')
     if ($LASTEXITCODE -ne 0) { throw 'Independent Python wire verification failed.' }
+    if ($RandomSearch) {
+        python -B experiments/RbfCodecCost/verify_random_vectors.py $taskDataOutput | Tee-Object -FilePath (Join-Path $taskOutput 'python-random.log')
+        if ($LASTEXITCODE -ne 0) { throw 'Independent Python random-key wire verification failed.' }
+    }
     foreach ($taskSource in $taskSources) {
         $taskCurrentHash = (Get-FileHash -LiteralPath $taskSource.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
         $taskRecorded = $taskBeforeHashes | Where-Object Path -EQ ('experiments/RbfCodecCost/' + $taskSource.Name)

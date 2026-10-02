@@ -93,7 +93,8 @@ internal sealed class StreamCodec(byte[] workspace) {
         if (length < 28 || (length & 3) != 0 || length > PrototypeCodec.MaxFrameLength ||
             BinaryPrimitives.ReadUInt32LittleEndian(frame) != length) throw new InvalidDataException("HeadLen");
         uint key = BinaryPrimitives.ReadUInt32LittleEndian(frame[^4..]);
-        if (key > (length - 8) / 4) throw new InvalidDataException("TailKey");
+        // Random search permits all uint32 Keys except the raw structural Fence.
+        if (key == PrototypeCodec.Fence) throw new InvalidDataException("TailKey");
         // Decode/validate the trailer first, before using its coverage/padding lengths.
         int trailerOffset = length - 20;
         XorTransform.InPlace(frame.Slice(trailerOffset, 16), key, trailerOffset - 4);
