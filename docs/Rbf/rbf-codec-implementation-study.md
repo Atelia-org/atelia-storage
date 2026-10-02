@@ -1,14 +1,16 @@
 ---
-title: "RBF 尾 Key 编码的 writer / reader 实现专项"
+title: "RBF 尾 EscapeKey 编码的 writer / reader 实现专项"
 status: "Measured recommendation / production integration pending"
 normative: false
 ---
 
-# RBF 尾 Key 编码的 writer / reader 实现专项
+# RBF 尾 EscapeKey 编码的 writer / reader 实现专项
 
 日期：2026-10-02。生产源码基线：`5711c4706509eb3b144299a75f83c09aa75da75f`。本文补充[普通打开重构方案](rbf-open-fast-path-refactoring.md)的 G1，只研究整帧预处理、编码输出与读入解码。实验代码见 [RbfCodecCost](../../experiments/RbfCodecCost/README.md)。生产仍为 RBF1；本文没有分配格式版本、修改规范或实现生产 RBF2。
 
-推荐最小实现是：**CRC/footer 完成后，定向检查 Key0、Key1，两者都禁用才建立完整 bitmap；Append 使用借用输入和有界输出缓冲，Builder 在提交前原地编码现有 owned chunks；reader 保留 encoded cache，在 caller/pooled buffer 向量解码，再用现有 CRC。** 模 uint32 加减法同样可行，当前测量未显示吞吐优势，XOR 的非对齐切片更直接，建议继续采用 XOR。融合解码/CRC 留作实验候选。
+术语采用用户建议的 **EscapeKey（二进制转义键）**：每帧选择一个 uint32 值，使 encoded body 的每个对齐32-bit word均不等于 Fence。本文后续 Key/K、TailKey 及原实验 `PreparedFrame.Key` 均指 EscapeKey；TailKey 只是其尾部存放位置。该定义不绑定 XOR 或模加法，禁止的是对齐 Fence，不要求消除滑动 byte 窗口里的同一字节序列。
+
+推荐最小实现是：**CRC/footer 完成后，定向检查 Key0、Key1，两者都禁用才建立完整 bitmap；Append 使用借用输入和有界输出缓冲，Builder 在提交前原地编码现有 owned chunks；reader 保留 encoded cache，在 caller/pooled buffer 向量解码，再用现有 CRC。** 模 uint32 加减法同样可行，当前测量未显示吞吐优势，先保留已验证的 XOR 实现；任意非对齐切片解码不作为格式选择的硬条件。融合解码/CRC 留作实验候选。
 
 ## 1. 需求与证据边界
 
@@ -48,6 +50,8 @@ normative: false
 | **ZeroThenOne** | 检测 F；禁0后检测 `F XOR 1`；两者都禁再 FullBitmap | **Key0/1 无 bitmap**，其余完整 bitmap |
 
 定向检测遍历连续 body words，包括完整 footer。跨 chunk 保留至多3B组 word；对齐中段用现有 span `Contains`。检测遇到对应 word 可以提前停止；后续候选重新从 body 起点检查。四策略选择相同最小 Key，wire 相同。ZeroThenOne 最多启动三次禁 Key 扫描，最坏仍为 O(L)，不使用试 Key 循环。
+
+当前 ZeroThenOne **不是一次扫描同时检测0/1**：先 Contains(F)，禁0再从头 Contains(F XOR 1)，两者都禁才 FullBitmap；这里的扫描次数不含独立 PayloadCRC 遍历。用户提出的两阶段候选可在首遍同时记录两个禁用位，只在两者都禁时启动 bitmap；只出现 F 时仍能选1，只出现 F XOR 1 时仍应选0。两位都置位即可提前停止首遍。此合并检测尚未实现或计时，不能套用本表的 ZeroThenOne 结果；收益需比较 SIMD 每段的额外检测工作与减少整帧遍历的成本。
 
 CRC 与筛 Key 使用不同 loop，未宣称一次 memory load 同时完成两者。保留生产 `RollingCrc`，不用自写 CRC SIMD。完整 bitmap 在生产可以租用并清理**实际 m 所需范围**，释放或复用；无需常驻最大 8MiB。实验 FullBitmap 每次 new，因而表中同时包含清零与分配成本，不能直接等同 pooled 实现。
 
@@ -138,6 +142,8 @@ FrameInfo 固定20B、reverse尾块24B。非对齐 TailMeta直接读原区间并
 用户的数值环解释成立：`E(w)=w+K mod 2^32`，每个 word排除 `K=F-w mod 2^32`；m+1存在性、Key范围和marker-free前缀证明保持。完整 body 缺 Key 时唯一值改为 `encodedTailLen-L mod 2^32`。CRC仍计算 plaintext。两种方案相同固定开销和整帧依赖。
 
 必须逐32-bit lane运算，不能用一次ulong加重复Key；低word的carry会串到高word。向量加减吞吐与XOR接近，前表没有显示稳定优势；数学解释更自然不等于读写管线更少。
+
+Fence、尾 EscapeKey、CRC 和 Trailer 均为4B对齐；完整 body 也由padding补为完整words。现行 TailMeta 的起点/长度不要求对齐，chunk/Advance 边界也不等于格式 word 边界。这些局部情况可通过扩展读取或跨chunk暂存1–3B处理，不要求给 RBF 增加任意切片转义的公开特性；其处理成本是实现比较项，不是模加法的正确性否决条件。
 
 | 边界 | XOR | 模 uint32 加减 |
 | --- | --- | --- |

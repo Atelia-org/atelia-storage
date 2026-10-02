@@ -83,6 +83,8 @@ normative: false
 
 ## 4. 单份尾 Key 布局与快开算法
 
+术语采用 **EscapeKey（二进制转义键）**，指每帧用于消除 encoded body 内对齐 Fence 的 uint32 参数。后文 Key/K 与 TailKey 均指此值；TailKey 仅表示尾部存放位置。其语义不绑定 XOR 或模加法，也不要求消除非对齐滑动窗口内的 Fence 字节序列。
+
 候选 Header / Fence 为 `RBF2`，其 LE u32 值记为 `F=0x32464252`：
 
 ```text
