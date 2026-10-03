@@ -9,9 +9,9 @@ produce_by:
 **文档定位**：Layer 0，定义 RBF 文件的线格式（wire format）。
 文档层级与规范遵循见 [README.md](README.md)。
 
-**状态**：RBF1/RBF3合同已同步，RBF3实施验收待完成 | **版本**：0.41 | **创建日期**：2025-12-22
+**状态**：RBF1/RBF3合同及生产源码已同步，源码/测试/正式证据已独立复核 | **版本**：0.41 | **创建日期**：2025-12-22
 
-2026-10-03：用户授权落实RBF3。历史RBF1布局与byte向量保留；历史实验RBF2不是生产格式，旧实验hash/结果不得重标为RBF3证据。新向量及待验证事项见[测试向量§8](rbf-test-vectors.md#8-rbf3独立向量与生产资格)。
+2026-10-03：用户授权落实RBF3，源码0999851对应内容的Release RBF测试670/670与正式生产探针已通过；身份、精确结果及范围见[实施记录§11](rbf-open-fast-path-refactoring.md#11-本轮最终实施与验收记录)。历史RBF1布局与byte向量保留；历史实验RBF2不是生产格式，旧实验hash/结果不得重标为RBF3证据。独立参考及生产资格见[测试向量§8](rbf-test-vectors.md#8-rbf3独立向量与生产资格)。
 
 ## 1. 范围与分层
 本文档（Layer 0）只定义：
@@ -264,7 +264,7 @@ Resync 为“恢复/修复工具路径”的能力：用于在存在损坏数据
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
-| 0.41 | 2026-10-03 | RBF1只读旧byte布局保留；增加RBF3 Header、4B units、单尾Key、28B开销、marker-free与原LE(U) TrailerCRC；同步结构Open/补原后缀和byte ticket映射；生产验收待完成 |
+| 0.41 | 2026-10-03 | RBF1只读旧byte布局保留；增加RBF3 Header、4B units、单尾Key、28B开销、marker-free与原LE(U) TrailerCRC；同步结构Open/补原后缀和byte ticket映射；本轮源码/测试/正式证据见实施记录§11 |
 | 0.40 | 2026-01-24 | **Wire Format Breaking Change**: 重构 Trailer 结构 为固定 16 字节的 `TrailerCodeword`；引入 `FrameDescriptor` (u32) 统一管理 Padding/TailMetaLen/Tombstone；重命名 PayloadTrailer 为 TailMeta；引入 `PayloadCrc32C` 与 `TrailerCrc32C` 双校验机制 |
 | 0.32 | 2026-01-10 | 修正 @[F-CRC32C-CASTAGNOLI-REFLECTED]：删除对不存在的 `.NET System.IO.Hashing.Crc32C` 的引用，改为引用 RFC 3720；添加 `BitOperations.Crc32C` 作为非规范性实现提示 |
 | 0.31 | 2026-01-09 | **AI-Design-DSL 格式迁移**：将所有条款标识符转换为 DSL 格式（design/hint/term）；将设计理由拆分为独立 hint 条款；添加 @`DataTail` 术语定义 |

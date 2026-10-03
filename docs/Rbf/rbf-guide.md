@@ -9,7 +9,7 @@ produce_by:
 **本文档性质**：Informative（非规范性），提供常见场景的代码范例。
 规范性定义请见 [rbf-interface.md](rbf-interface.md)。
 
-本轮示例按RBF1/RBF3合同同步；生产实施与验收状态见[主方案](rbf-open-fast-path-refactoring.md)，不以示例宣称验证已完成。
+本轮示例按已实施的RBF1/RBF3合同同步；源码0999851对应内容的Release RBF测试670/670与正式生产证据见[实施记录§11](rbf-open-fast-path-refactoring.md#11-本轮最终实施与验收记录)。示例不是独立测试产物。
 
 ## 打开、兼容与单尾恢复
 

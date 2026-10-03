@@ -11,7 +11,7 @@ produce_by:
 
 本文档只描述"对外外观 + 可观察行为"，不暴露内部实现与 wire-format 细节。
 
-2026-10-03 合同同步：新建及写入采用 `RBF3`；`RBF1` 保留只读、旧 ticket 与旧容量；未知 Header（包括历史实验 `RBF2`）拒绝。本轮实现与生产验收正在进行，结果见[实施方案](rbf-open-fast-path-refactoring.md)；此处不声明测试或性能已通过。
+2026-10-03 合同同步：新建及写入采用 `RBF3`；`RBF1` 保留只读、旧 ticket 与旧容量；未知 Header（包括历史实验 `RBF2`）拒绝。源码0999851对应内容的Release RBF测试670/670与正式生产探针已通过并独立复核，证据身份及范围见[实施记录§11](rbf-open-fast-path-refactoring.md#11-本轮最终实施与验收记录)。
 
 ## 1. 概述
 
@@ -226,7 +226,7 @@ Header MUST 在 owned handle 上一次分派，MUST NOT 从 EOF、试解码或 p
 
 - **RBF1 只读**：MUST 从 Header 连续按 byte HeadLen 检查完整结构主链，包括长度、descriptor、TrailerCRC、padding 与 Fence；残尾拒绝。MUST 保留原字节、旧 ticket 及 24B 开销对应的旧完整容量，不自动升级或转码。
 - **RBF3 健康尾**：MUST 检查 Header、尾 Trailer/Key/Fence、长度与直接左 Fence/HeadLenUnits，以及最多3B padding。健康资格只读固定结构，与历史帧数及末帧 payload 大小无关；逻辑请求字节上界为39B。这不是 syscall、cache页、设备I/O或延迟保证，也不证明未访问历史结构或内容完整。
-- **RBF3 异常尾**：MUST 逆扫最近完整的全局4B aligned Fence，最多检查 `M+7` bytes（`M=2^28-4`），并检查直接前驱结构及单个 suffix。MUST 在首个 marker 或已呈现结构矛盾处裁决，MUST NOT 越过坏候选寻找更早好帧。真实边界的依据是正常 writer 的 marker-free 顺序前缀，不是局部CRC成功。
+- **RBF3 异常尾**：MUST 逆扫最近完整的全局4B aligned Fence，定位扫描的覆盖跨度最多 `M+7` bytes（`M=2^28-4`），并检查直接前驱结构及单个 suffix；Header/结构资格额外读取不计入该扫描跨度。MUST 在首个 marker 或已呈现结构矛盾处裁决，MUST NOT 越过坏候选寻找更早好帧。真实边界的依据是正常 writer 的 marker-free 顺序前缀，不是局部CRC成功。
 
 `OpenExisting` MUST 在同一个独占可写 handle 上完成 RBF3 结构资格、恢复、最终验证，再建立正式 reader/cache。令真实边界后的帧起点为B，suffix长度为R bytes；完整raw HeadLenUnits须先验证 `7≤U<2^26`，再得到 `L=U<<2` bytes：
 
@@ -797,11 +797,8 @@ public sealed class RbfPooledTailMeta : IDisposable, IRbfTailMeta {
 | 0.26 | 2026-01-11 | **文档职能分离**：拆分 Auto-Abort 条款为逻辑语义（本文档 @[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME]）+ 实现路径（type-bone.md @[I-RBF-BUILDER-AUTO-ABORT-IMPL]）；明确本文档为规范性契约，type-bone.md 为非规范性实现指南 |
 | 0.25 | 2026-01-11 | **接口细节对齐**：`Truncate` 参数类型改为 `long`（与 `TailOffset` 一致）；更新文档关系表中 `rbf-type-bone.md` 层级描述；§3 标题增加层级标注；统一 `RbfFrame` 生命周期注释；设计原则位置调整 |
 
-## 7. 待实现时确认
+## 7. 实现边界的当前状态
 
-以下问题可在实现阶段确认：
-
-- **错误处理**：`ReadFrame()` 的错误码集合与分层边界（P2）
-- **ScanReverse 终止条件**：遇到损坏数据时的策略（P2）
+旧P2问题不再作为本轮待实现项：读取错误的参数/损坏分层及ScanReverse损坏时硬停止、TerminationError已由§4约束，RBF1/RBF3行为按当前源码与测试执行。源码、测试身份与正式探针结果见[实施记录§11](rbf-open-fast-path-refactoring.md#11-本轮最终实施与验收记录)；离线救援、下游与包交付仍按其独立范围处理。
 
 ---

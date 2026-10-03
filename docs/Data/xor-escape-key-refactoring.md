@@ -6,7 +6,7 @@ normative: false
 
 # ZeroThenTinyBitmapRandom 实现重构方案
 
-日期：2026-10-03；方案源码基线 `dc11774`，Data基础实现提交 `00329fd`。用户随后明确授权实施本切片，现已交付选择/XOR核、三spans入口、具体writer fused成员及测试；实施结果见§9，成本证据归 [writer/reader 专项§3.3](../Rbf/rbf-codec-implementation-study.md#33-data生产入口与真实writer资格)。本方案承接 [RBF 普通打开重构](../Rbf/rbf-open-fast-path-refactoring.md)的 G1 基础部分；当前生产消费者采用RBF3、Fence=`0x33464252`，RBF接入源码已形成，最终生产资格待[主方案§11](../Rbf/rbf-open-fast-path-refactoring.md#11-本轮实施进度与待填验收)。相邻方案来自同一调查，不能彼此充当独立需求证据。
+日期：2026-10-03；方案源码基线 `dc11774`，Data基础实现提交 `00329fd`。用户随后明确授权实施本切片，现已交付选择/XOR核、三spans入口、具体writer fused成员及测试；基础实施结果见§9，历史成本证据归 [writer/reader 专项§3.3](../Rbf/rbf-codec-implementation-study.md#33-data生产入口与真实writer资格)。本方案承接 [RBF 普通打开重构](../Rbf/rbf-open-fast-path-refactoring.md)的 G1 基础部分；当前生产消费者RBF3采用Fence=`0x33464252`，已在0999851接入并完成独立复核的源码/测试/正式资格，结果归[实施记录§11](../Rbf/rbf-open-fast-path-refactoring.md#11-本轮最终实施与验收记录)。相邻方案来自同一调查，不能彼此充当独立需求证据。
 
 采用 **Data窄入口、内部共享选择核和XOR核**：Append传入至多三个借用spans；Builder在具体writer内对reservation后的全部已写bytes选键并原地XOR。Fence限定为uint值域内的 **F≥2^26（0x04000000）**，EscapeKey保留完整uint32值域。先尝试Key0，失败且待编码区间≤63words时，以一个ulong完整标记候选0..63；较大区间循环抽取系统随机Key并检查。RBF负责body组成、CRC、长度字段、文件输出和恢复。没有公共可重放协议、可逃逸chunk视图或新增lease。
 
@@ -16,11 +16,11 @@ normative: false
 
 | 要求 | 来源 | 当前消费者 / 边界 |
 | --- | --- | --- |
-| 采用ZeroThenTinyBitmapRandom，先形成方案并做辩证简化，再实施Data基础 | 用户先接受方案，随后明确授权本轮实施、委派与提交 | 本文§9；授权不扩展到RBF新profile或下游 |
-| 优先评估src/Data，但分层代价高则不强行抽取 | 本轮用户方向 | 只有RBF是已知拟接入消费者，第二种协议尚未找到 |
-| Zero优先，小帧完整ulong bitmap，大帧原随机循环 | 用户及已提交实验 | 历史实验PrototypeCodec；RBF3生产接入待最终资格 |
+| 采用ZeroThenTinyBitmapRandom，先形成方案并做辩证简化，再实施Data基础 | 用户先接受方案，随后明确授权基础实施、委派与提交 | 本文§9记录基础切片；后续RBF3独立授权与交付见实施记录§11，下游未纳入 |
+| 优先评估src/Data，但分层代价高则不强行抽取 | 本轮用户方向 | 只有RBF是已知生产消费者，第二种协议尚未找到 |
+| Zero优先，小帧完整ulong bitmap，大帧原随机循环 | 用户及已提交实验 | 历史实验PrototypeCodec；RBF3生产接入及资格已记录 |
 | 任意二进制bytes，长度有限，禁止对齐Fence，raw EscapeKey也不能等于Fence | 已接受wire方案、实验和独立word存在性证明 | RBF新profile；不是加密或滑动byte序列过滤 |
-| Fence≥2^26；不收窄EscapeKey值域 | 用户后续接受4B units配套Fence下界，替代先前Fence≥64方案 | 两个Data选键入口统一拒绝0..2^26-1；RBF候选Fence已满足 |
+| Fence≥2^26；不收窄EscapeKey值域 | 用户后续接受4B units配套Fence下界，替代先前Fence≥64方案 | 两个Data选键入口统一拒绝0..2^26-1；生产RBF3 Fence已满足 |
 | RBF HeadLen/TailLen以4B units存储，API继续用bytes | 用户采纳的长度比较结论；主方案§4为依据 | Data不参与换算，不接收units或格式模式 |
 | EscapePayload≤256B包含raw HeadLen，实际encoded body≤252B/63words | 用户区间定义与候选布局 | Data只看实际待编码区间，不接收FrameLength或假定HeadLen |
 | 完整body包含payload/meta/padding/CRC/footer；输入冻结到发布完成 | 现实验、Append/Builder实际输入 | Append的少量spans；Builder的任意pending chunks |
@@ -65,7 +65,7 @@ writer成员内部一次校验，选择键后变换owned bytes，返回键。它
 
 Data不负责FrameLength、HeadLen、TrailerCRC、rawKey落点、文件Fence、Header/profile、SizedPtr、recover/flush。两个选键入口的fence参数支持uint范围 **2^26..uint.MaxValue**；其返回键承诺排除raw Key==fence，以便调用方直接存储键。Copy/InPlace没有Fence参数，仍支持任意uint32 Key，不因该约束新增Key范围校验。Data不固定到生产RBF3的0x33464252，也不新增Fence类型、枚举或配置对象。
 
-该范围描述Data选键能力，格式层仍负责其他raw字段。新RBF存 `HeadLenUnits=U=L>>2`，其合法数值满足 `7≤U<2^26≤F`，故raw头长度不可能等于Fence；TailLenUnits在body内参与XOR。仅在RBF wire边界校验并换算L，SizedPtr/ticket/offset/span继续以bytes表示。不附加 `Fence & 3 != 0`，不将U误当byte长度或要求U是4的倍数。新的高Fence下界收窄的是未实施参数域，唯一已知消费者满足；它不要求Data另建格式程序集。
+该范围描述Data选键能力，格式层仍负责其他raw字段。新RBF存 `HeadLenUnits=U=L>>2`，其合法数值满足 `7≤U<2^26≤F`，故raw头长度不可能等于Fence；TailLenUnits在body内参与XOR。仅在RBF wire边界校验并换算L，SizedPtr/ticket/offset/span继续以bytes表示。不附加 `Fence & 3 != 0`，不将U误当byte长度或要求U是4的倍数。新的高Fence下界收窄的是当时未实施的参数域，唯一已知消费者满足；它不要求Data另建格式程序集。
 
 ## 4. 算法与完整性契约
 
@@ -140,7 +140,7 @@ Windows串行Release build Data.Tests，匹配 `--no-build` tests，再按接入
 
 ## 7. 两轮辩证审查裁决
 
-三位独立reviewer分别承担demand skeptic、minimal architect、semantic defender，完成独立源码审查及最强反例的交叉质询；主线程按源码和独立构造裁决。第二轮均撤回byteCount必须保留的原反例：它依赖不再合法的closure提前写入顺序。没有剩余产品语义争议，不继续第三轮。性能/生产接入证据仍是实施门禁。
+三位独立reviewer分别承担demand skeptic、minimal architect、semantic defender，完成独立源码审查及最强反例的交叉质询；主线程按源码和独立构造裁决。第二轮均撤回byteCount必须保留的原反例：它依赖不再合法的closure提前写入顺序。没有剩余产品语义争议，不继续第三轮。性能/生产接入门禁随后由本文§9的Data基础结果及RBF实施记录§11分别落实。
 
 基础API审查后，用户先澄清限制的是Fence并认可Fence≥64；随后独立的两轮分帧长度比较收敛于4B units + Fence≥2^26，用户明确采纳。下表按最新方案列裁决；后两次参数/格式收窄不混入最初API审查的证据。长度字段的详细比较与合同归RBF主方案§4，本基础层只统一Fence入口范围。
 
@@ -163,7 +163,7 @@ Windows串行Release build Data.Tests，匹配 `--no-build` tests，再按接入
 
 主线程在 `W:/RbfCodecCost/layering-shape-20261003` 建立独立Library/Consumer两个.NET10项目，沿用仓库SDK pin，串行Release build为0警告/错误。跨assembly借用ref-struct generic source与固定三span调用均可编译；1+127+124B切分下F=0/1/63/64/大值的五个scalar构造通过；100000次generic source调用当前线程managed allocation为0。主线程另用独立Python重现相位重置把合法word编码成Fence的反例。
 
-上述五个Fence构造验证的是收窄前的一般Fence候选，原始证据保持不改。最新契约将前四个Fence（0/1/63/64）改为参数拒绝；不能用旧探针冒充这项生产入口校验已实现。RBF既有性能/wire快照也仍用byte HeadLen/TailLen；新4B units的CRC和恢复由后续RBF切片独立验收。
+上述五个Fence构造验证的是收窄前的一般Fence候选，原始证据保持不改。最新契约将前四个Fence（0/1/63/64）改为参数拒绝；不能用旧探针冒充这项生产入口校验已实现，实际Data结果见§9。RBF历史性能/wire快照仍用byte HeadLen/TailLen；随后RBF3的4B units CRC和恢复由实施记录§11的新生产证据独立验收。
 
 这证明初稿公开泛型来源并非“语言做不到”，删除它依据的是公开契约较宽；不证明最终Data API、实际writer、JIT全部内联、SIMD吞吐或完整策略已实现。源码/日志及测后hash保留在上述W:目录，并内嵌于 [接口小探针证据](../../experiments/RbfCodecCost/results/escape-source-shape-dc11774-20261003.json)。它没有自动测前/测后源码守护，只作标量接口资格，不混入旧性能快照。该方案阶段没有修改生产源码或运行生产测试，后续实际实施资格另见§9。
 
@@ -182,4 +182,4 @@ Windows串行Release build Data.Tests，匹配 `--no-build` tests，再按接入
 
 成本资格使用真实借用payload/meta/stack footer及实际writer多chunks，详见专项§3.3。初次冒烟暴露空span固定成本，纯SelectKey与JIT证据定位到空块仍触发计数/扫描helper；最终只令内部SpanSource跳过空块，未加inlining属性或第二选择算法。正式测量按提交源码及测前/测后hash保留结果，不以历史原型快照代替Data生产资格。
 
-Data基础切片已尝试AGENTS要求的整仓Release build：当时原HEAD即存在 `RbfSegmentStore.cs:141,184` 的两个CS1620（旧OpenExisting调用缺out），该切片未修改这些调用。整仓 `--no-build` test命令返回成功，但上层仍使用既有bin，不能据此宣称该源码整仓验收；当时确认的是新构建的Data/RBF闭包，没有包消费/发布、新units wire、生产RBF新writer/Open/recovery或下游适配验收。随后用户授权的RBF3切片已形成G0/G2接入源码，并落实§5的真实取消/输出fault边界；新wire与生产结果待RBF主方案§11最终验收，不能由上述Data基础结果替代。
+Data基础切片已尝试AGENTS要求的整仓Release build：当时原HEAD即存在 `RbfSegmentStore.cs:141,184` 的两个CS1620（旧OpenExisting调用缺out），该切片未修改这些调用。整仓 `--no-build` test命令返回成功，但上层仍使用既有bin，不能据此宣称该源码整仓验收；当时确认的是新构建的Data/RBF闭包，没有包消费/发布、新units wire、生产RBF新writer/Open/recovery或下游适配验收。随后用户授权的RBF3切片已在0999851交付G0–G4，并落实§5的真实取消/输出fault边界；对应源码内容的Release RBF测试670/670与正式units生产探针已通过并独立复核，结果归[实施记录§11](../Rbf/rbf-open-fast-path-refactoring.md#11-本轮最终实施与验收记录)，不由上述Data基础结果替代。下游、整仓与包交付仍未纳入。

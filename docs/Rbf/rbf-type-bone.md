@@ -17,7 +17,7 @@ depends_on:
 
 本文档定义 RBF 子系统的核心类型设计。
 
-2026-10-03接点同步：内部只保留RBF1/RBF3两组具体wire布局，不新增公共codec模式或assembly。工厂在owned handle一次Header分派，RBF1只读；RBF3在解析边界先验U再转换成byte布局，FrameInfo、cache范围、Data输入与ticket仍为bytes。详细合同以[接口](rbf-interface.md)、[格式](rbf-format.md)和[主方案](rbf-open-fast-path-refactoring.md)为准；本轮生产验收待完成。
+2026-10-03接点同步：内部只保留RBF1/RBF3两组具体wire布局，不新增公共codec模式或assembly。工厂在owned handle一次Header分派，RBF1只读；RBF3在解析边界先验U再转换成byte布局，FrameInfo、cache范围、Data输入与ticket仍为bytes。详细合同以[接口](rbf-interface.md)、[格式](rbf-format.md)为准；源码0999851及独立复核的测试/正式证据见[实施记录§11](rbf-open-fast-path-refactoring.md#11-本轮最终实施与验收记录)。
 
 ---
 
@@ -247,10 +247,10 @@ see: @[I-RBF-BUILDER-AUTO-ABORT-IMPL]
 | **无 IDisposable** | 生命周期简化 | - | 由 Builder 管理 |
 | **并发安全** | 依赖 @[S-RBF-BUILDER-SINGLE-OPEN] | 多线程写入会破坏 offset 一致性 | 接口契约保证单 Builder |
 
-### 5.6 待实现阶段确认（P2）
+### 5.6 当前实现与延期能力
 
-1. **CRC32C 计算时机**：EndAppend 时遍历 chunks 计算 PayloadCrc 与 TrailerCrc
-2. ~~异步版本~~：如需异步，实现 `RandomAccessByteSinkAsync` 配合 `RandomAccess.WriteAsync`
+1. **CRC32C计算时机**：EndAppend在XOR前遍历plaintext chunks计算PayloadCRC，完成含原wire U的TrailerCRC，再fused选键/变换并Commit；不是本轮待实现问题。
+2. **异步版本**：未纳入本轮；真实需求另案，不预留新adapter或公共异步协议。
 
 ---
 

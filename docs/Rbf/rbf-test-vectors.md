@@ -7,7 +7,7 @@ produce_by:
 
 # RBF 测试向量
 
-2026-10-03范围：§0–§7保留RBF1 v0.40的byte-wire向量及其历史操作案例，不重写成units；旧工厂/修复案例不代表本轮普通打开合同。RBF1兼容读取仍须核对这些原始字节。RBF3独立参考与当前接口资格在§8；生产逐项比对、I/O异常与进程终止验收尚待主线程填入实际结果。历史实验RBF2快照不作RBF3向量。
+2026-10-03范围：§0–§7保留RBF1 v0.40的byte-wire向量及其历史操作案例，不重写成units；旧工厂/修复案例不代表本轮普通打开合同。RBF1兼容读取仍须核对这些原始字节。RBF3独立参考与本轮生产资格在§8，源码/测试/正式证据已独立复核；证据身份、结果及限制归[实施记录§11](rbf-open-fast-path-refactoring.md#11-本轮最终实施与验收记录)。历史实验RBF2快照不作RBF3向量。
 
 > **文档定位**：测试向量，覆盖 Layer 0 的 Frame 编码、扫描、CRC 校验。
 > 文档层级与规范遵循见 [README.md](README.md)。
@@ -530,7 +530,7 @@ produce_by:
 
 ## 8. RBF3独立向量与生产资格
 
-本节对应[格式合同](rbf-format.md)及[接口合同](rbf-interface.md)，使用生产Header/Fence `52 42 46 33`（LE `0x33464252`），不复用历史byte RBF2文件。以下hex由独立bitwise CRC32C参考计算：多项式 `0x82F63B78`，init/final XOR均为 `0xFFFFFFFF`，标准检查串 `123456789` 的CRC为 `0xE3069283`；Trailer对 `descriptor LE || tag LE || U LE` 逐byte逆序计算后按BE存储。它们是明确参考值，尚未声称生产writer/reader已经比对通过。
+本节对应[格式合同](rbf-format.md)及[接口合同](rbf-interface.md)，使用生产Header/Fence `52 42 46 33`（LE `0x33464252`），不复用历史byte RBF2文件。以下hex由独立bitwise CRC32C参考计算：多项式 `0x82F63B78`，init/final XOR均为 `0xFFFFFFFF`，标准检查串 `123456789` 的CRC为 `0xE3069283`；Trailer对 `descriptor LE || tag LE || U LE` 逐byte逆序计算后按BE存储。GOLD-001–003是tag0的字面参考；正式探针的6个Python fixtures使用tag11/17/23/29/31/37，属于另一组独立wire，不把其通过写成这三组字节已逐项公共writer比对。
 
 ### 8.1 独立wire参考
 
@@ -606,13 +606,13 @@ ED 00 7B C7 01 00 00 80 01 00 00 80 06 00 00 80
 - Append和Builder真输入使用独立LE(U)/CRC裁判；全部Result拒绝在首次footer修改前。Builder准备异常取消而非同实例重试；真实Push/flush异常永久fault；Pool只归还一次，wire cache不被解码修改。
 - 生产进程终止覆盖Append、截尾前/后、补原Key/Fence各byte前缀与再次恢复。有限READY检查点结合writer前缀证明，不声称Windows syscall内任意时机或断电已验证。
 
-**待填结果**：生产RBF3黄金向量比对、两profile的ticket两CRC与info资格复用管线、所有读取入口、I/O异常与实际进程终止、健康/异常请求计量及必要W:端到端成本。只由主线程按实际源码/test/evidence补录；本节不预先填“通过”。下游、solution旧编译缺口、pack/publish不属于本轮RBF资格。
+**本轮生产结果**：0999851对应源码内容的Release RBF测试670/670通过，其中RbfWireCodecTests有59项独立scalar codec资格；正式Python6fixtures×Off/Slots16共12views及两份真实writer全wire互证通过。658个Append/Builder小帧cuts、4个Header拒绝、35次managed READY kill、I/O故障及内容/结构正交测试、9个健康Open与2个异常计量、48个7样本成本rows已记录并独立复核。真实最大FrameBytes268435452的caller/pooled和phase1 meta通过。精确身份、PDB源码checksum、扫描跨度与聚合请求的区别、性能分配及独立裁判限度见[实施记录§11](rbf-open-fast-path-refactoring.md#11-本轮最终实施与验收记录)；GOLD-001–003仍按上文保持字面参考身份。下游、整仓solution、冷盘/断电/任意syscall终止、pack/publish不属于本轮RBF资格。
 
 ## 变更日志
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
-| 2026-10-03 | 0.41 | 保留RBF1历史byte-wire身份；增加独立RBF3 units/Key/CRC参考与三动作/双读/异常资格清单；生产比对待完成 |
+| 2026-10-03 | 0.41 | 保留RBF1历史byte-wire身份；增加独立RBF3 units/Key/CRC参考与三动作/双读/异常资格；生产测试与另一组Python wire互证结果见实施记录§11 |
 | 2026-02-01 | 0.40 | **Breaking Change 适配**：完整重写以对齐 rbf-format.md v0.40；FrameBytes 布局重构（旧 FrameStatus → 新 FrameDescriptor + TailMeta + 固定 TrailerCodeword）；双 CRC 机制（PayloadCrc + TrailerCrc）；最小帧长度 20→24；删除所有 FrameStatus/StatusLen 相关测试向量；新增 FrameDescriptor/TailMeta/TrailerCodeword 测试向量；新增 §3.3 CRC 职责分离测试；新增 §4.3 逆向扫描 TrailerCrc 测试；新增 §5 RbfFrameInfo 与 TailMeta 测试 |
 | 2026-01-12 | 0.13 | **Tombstone 过滤测试**：更新 SCAN-EMPTY-002 拆分为两个子用例；新增 SCAN-TOMBSTONE-FILTER-001 |
 | 2026-01-07 | 0.12 | **SizedPtr 迁移**：将旧版地址指针相关测试向量迁移为 `SizedPtr` + `ReadFrame` 行为向量 |

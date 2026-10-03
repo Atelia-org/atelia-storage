@@ -1,22 +1,22 @@
 ---
 title: "RBF 尾 EscapeKey 编码的 writer / reader 实现专项"
-status: "Measured recommendation / Data foundation implemented / RBF integration pending"
+status: "Measured recommendation / Data and RBF3 integration implemented / production evidence recorded"
 normative: false
 ---
 
 # RBF 尾 EscapeKey 编码的 writer / reader 实现专项
 
-日期：2026-10-02，2026-10-03补ZeroThenRandom/Data资格。历史生产基线 `5711c4706509eb3b144299a75f83c09aa75da75f`，随机补测基线 `0e0df096ab7c0afcca20f29ab86c6b996dfde7d0`。本文补充[主方案](rbf-open-fast-path-refactoring.md)的writer/reader成本与接点，旧实验代码见[RbfCodecCost](../../experiments/RbfCodecCost/README.md)。2026-10-03本轮用户已授权生产RBF3（LE0x33464252）及规范同步；实现与验收正在进行，旧RBF1/byte RBF2实测不重标为RBF3结果。
+日期：2026-10-02，2026-10-03补ZeroThenRandom/Data资格。历史生产基线 `5711c4706509eb3b144299a75f83c09aa75da75f`，随机补测基线 `0e0df096ab7c0afcca20f29ab86c6b996dfde7d0`。本文补充[主方案](rbf-open-fast-path-refactoring.md)的writer/reader成本与接点，旧实验代码见[RbfCodecCost](../../experiments/RbfCodecCost/README.md)。2026-10-03已实施生产RBF3（LE0x33464252），源码0999851、Release RBF测试670/670及正式W:证据通过并独立复核；新结果归[实施记录§11](rbf-open-fast-path-refactoring.md#11-本轮最终实施与验收记录)，旧RBF1/byte RBF2实测不重标为RBF3结果。
 
 术语采用用户建议的 **EscapeKey（二进制转义键）**：每帧选择一个 uint32 值，使 encoded body 的每个对齐32-bit word均不等于 Fence。本文后续 Key/K、TailKey 及原实验 `PreparedFrame.Key` 均指 EscapeKey；TailKey 只是其尾部存放位置。**EscapePayload** 指前一条 Fence 之后、尾 EscapeKey 之前的整个区间，即 `raw HeadLen + encoded body`，长度为 `L-4`；这是与业务内容无关的分帧层术语。raw HeadLen 仍不参与 XOR，实际编码 body 为 `[4,L-4)`、长度 `L-8`。该定义不绑定 XOR 或模加法，禁止的是对齐 Fence，不要求消除滑动 byte 窗口里的同一字节序列。
 
 推荐最小实现是：**CRC/footer 完成后，先检测 EscapeKey=0；失败且 EscapePayload≤256B 时使用一个 ulong bitmap，否则以系统随机源抽取候选并完整检测，不建立数组 bitmap；Append 使用借用输入和有界输出缓冲，Builder 在提交前原地编码现有 owned chunks；reader 保留 encoded cache，在 caller/pooled buffer 向量解码，再用现有 CRC。** 2026-10-03 的 ZeroThenRandom 与小帧标量 bitmap 补测见§3.1–3.2；原有测量保留为历史基线。模 uint32 加减法同样可行，当前测量未显示吞吐优势，先保留已验证的 XOR 实现；任意非对齐切片解码不作为格式选择的硬条件。融合解码/CRC 留作实验候选。
 
-基础API及Builder接点由 [Data实现重构方案](../Data/xor-escape-key-refactoring.md)承接：两轮辩证简化选择三个借用spans入口、内部共享核和具体writer一次选键/XOR能力；删公共source/view/visitor及byteCount。Data生产基础已在 `00329fd` 实施，真实输入与成本资格见§3.3；RBF3接入源码已形成，最终生产资格待主方案§11。
+基础API及Builder接点由 [Data实现重构方案](../Data/xor-escape-key-refactoring.md)承接：两轮辩证简化选择三个借用spans入口、内部共享核和具体writer一次选键/XOR能力；删公共source/view/visitor及byteCount。Data生产基础已在 `00329fd` 实施，真实输入与历史成本资格见§3.3；RBF3接入、实际分配与生产资格见实施记录§11。
 
 2026-10-03最终生产profile确定为 **RBF3、HeadLen/TailLen存4B units、Fence=0x33464252≥2^26**，详细合同归[格式规范](rbf-format.md)与[主方案§4](rbf-open-fast-path-refactoring.md#4-单份尾-key-布局与快开算法)。物理L bytes，wire U=L>>2，`7≤U<2^26`；raw头不XOR，尾长度参与body XOR。Data仍接收bytes/int域body，EscapeKey完整uint32；本轮不增加assembly或公共codec配置。
 
-**以下历史实验原型、快照与测量仍使用byte HeadLen/TailLen及实验RBF2 Fence=0x32464252。** 旧结果支撑算法/成本建议，Data资格同样借用明确标识的历史byte fixture，均不验收RBF3 units CRC或恢复。RBF3 Header拒绝实验RBF2文件，不重解释旧hash/向量；新参考见[测试向量§8](rbf-test-vectors.md#8-rbf3独立向量与生产资格)，生产比对待完成。Data的Fence边界测试结果保留，不等同新RBF端到端资格。
+**以下历史实验原型、快照与测量仍使用byte HeadLen/TailLen及实验RBF2 Fence=0x32464252。** 旧结果支撑算法/成本建议，Data资格同样借用明确标识的历史byte fixture，均不验收RBF3 units CRC或恢复。RBF3 Header拒绝实验RBF2文件，不重解释旧hash/向量；新参考及生产资格边界见[测试向量§8](rbf-test-vectors.md#8-rbf3独立向量与生产资格)，新正式Python wire互证及生产结果归实施记录§11。Data的Fence边界测试结果保留，不等同新RBF端到端资格。
 
 ## 1. 需求与证据边界
 
@@ -247,7 +247,7 @@ Data基础实现提交 `00329fd`，正式证据：[data-escape-00329fd-20261003.
 
 [现行故障测试](../../tests/Rbf.Tests/Internal/RbfWriterFaultTests.cs) 明确允许 `EndAppend(-1)` 返回失败后同一个 Builder 修正再提交；优化必须保留这个行为。进程在原地编码中终止时还没有 Push，只损失未提交内存，无需新的恢复状态。
 
-**Data具体方法已实施，真实owned-chunks行为及成本见§3.3；RBF自动取消路径与新Builder端到端性能仍待接入。** 旧Builder的真实64KiB feeds及Data基础生命周期是参照，不能冒充新Builder验收。后续Append也须将预发布RNG/搜索异常与实际输出fault分开，不能沿用包住整个新预处理调用的catch-all来标write fault。
+**Data具体方法及RBF自动取消路径已实施；Data基础行为/历史成本见§3.3，RBF3真实Builder端到端性能与分配见实施记录§11。** 旧Builder的64KiB feeds及Data基础生命周期只是参照，不冒充新Builder验收。当前Append将预发布RNG/搜索异常与实际输出fault分开，不沿用包住整个预处理调用的catch-all来标write fault。
 
 ## 5. reader：wire cache、owned buffer、批量解码
 
@@ -315,4 +315,4 @@ Fence、尾 EscapeKey、CRC 和 Trailer 均为4B对齐；完整 body 也由paddi
 
 Data基础及真实输入资格已完成；本轮按RBF主方案落实RBF3 profile/units向量、Append/Builder尾布局、取消/重试/fault、有界workspace与全部读取入口，并由主线程独立验收。复用现有CRC，保留FrameInfo不可变metadata资格，不加codec框架/配置层或新assembly。
 
-实施退出需要：旧reservation/epoch/Result可纠正拒绝保留；首次footer准备异常零发布且Builder取消，后续新Builder正常；Data fused不callback/Push/泄漏view；Push/flush异常永久fault及池只归还一次；Footer禁Key、任意chunk相位、ticket两CRC及info管线资格复用；U先range后shift、LE(U) CRC、高位Key及units补尾独立资格；必要真实生产Append/Builder/读路径W:成本。本轮RBF3最终测试、I/O与观测尚待[主方案§11](rbf-open-fast-path-refactoring.md#11-本轮实施进度与待填验收)填录；旧byte process-prefix只作历史参照，不声称新恢复通过。
+本轮按上述退出条件实施：保留reservation/epoch/Result可纠正拒绝，首次footer准备异常零发布且Builder取消，实际Push/flush异常永久fault；Data fused不callback/Push/泄漏view；U先range后shift、LE(U) CRC、高位Key、ticket两CRC及info资格复用管线。源码、670项测试及正式units补尾/终止/W:成本已独立复核，精确证据归[实施记录§11](rbf-open-fast-path-refactoring.md#11-本轮最终实施与验收记录)。旧byte process-prefix只作历史参照；新Builder分配及Key0多write分支是已知后续改进点，不宣称零分配或速度最佳。
