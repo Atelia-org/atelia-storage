@@ -27,3 +27,34 @@ python experiments/RbfFastOpen/Rbf3ProductionProbe/export_snapshot.py W:/RbfFast
 `production-results.json`、Python 输出、每个 child 日志和真实 `.rbf` 文件保留在 W:；`provenance.json` 固定 SDK、commit、源码与全部产物 SHA256。计时外采集 `environment.json` 的 CPU/OS/Win32 W逻辑盘事实，Get-Volume/物理 disk provider 不可用则明确记 `Unavailable`，不阻断文件实验；用户对 W: 的 SSD 描述另行标注。运行固定 `DOTNET_TieredCompilation=0`、`DOTNET_TC_QuickJitForLoops=0`，child 继承。导出器拒绝覆盖 existing snapshot，并复核全部 hash。JSON 输出 UTF-8 LF。正式预计数分钟；quick 缩为 4 组 Open、23 个终止 checkpoint、3 样本、不写最大帧。
 
 本证据不代表冷盘、机器断电、下游适配、公开 NuGet 消费或旧离线 Recovery scanner 的 RBF3 支持。
+
+## 4KiB / 8KiB 输出阈值比较入口
+
+`ThresholdProbe.cs` 与 `threshold_compare.py` 只比较冻结的4KiB基线和一个8KiB候选，不运行历史crash/Open矩阵，不修改生产阈值。主线程在同工作树依次构建、freeze，再施加经审阅的RBF3专用阈值补丁、构建、freeze；运行期间仅使用W:中复制的两套完整Release输出。下面的路径均须使用新的名字；build失败时不要freeze。
+
+```powershell
+$probe = 'experiments/RbfFastOpen/Rbf3ProductionProbe/Rbf3ProductionProbe.csproj'
+$runner = 'experiments/RbfFastOpen/Rbf3ProductionProbe/threshold_compare.py'
+dotnet build $probe -c Release *> W:/RbfFastOpen/threshold-baseline-build.log
+if ($LASTEXITCODE -ne 0) { throw 'Baseline Release build failed.' }
+python -B $runner freeze --output W:/RbfFastOpen/threshold-baseline --label baseline --threshold 4096 --build-log W:/RbfFastOpen/threshold-baseline-build.log --build-command 'dotnet build experiments/RbfFastOpen/Rbf3ProductionProbe/Rbf3ProductionProbe.csproj -c Release'
+
+# 主线程此处施加受控8KiB候选补丁；只改AppendRbf3的专用阈值与stackalloc上限。
+dotnet build $probe -c Release *> W:/RbfFastOpen/threshold-candidate-build.log
+if ($LASTEXITCODE -ne 0) { throw 'Candidate Release build failed.' }
+python -B $runner freeze --output W:/RbfFastOpen/threshold-candidate --label candidate --threshold 8192 --build-log W:/RbfFastOpen/threshold-candidate-build.log --build-command 'dotnet build experiments/RbfFastOpen/Rbf3ProductionProbe/Rbf3ProductionProbe.csproj -c Release'
+
+python -B $runner compare --baseline W:/RbfFastOpen/threshold-baseline --candidate W:/RbfFastOpen/threshold-candidate --output W:/RbfFastOpen/threshold-comparison --rounds 7 --batch-mib 8 --operation-cap 16384
+python -B $runner jit --bundle W:/RbfFastOpen/threshold-baseline --output W:/RbfFastOpen/threshold-jit-baseline
+python -B $runner jit --bundle W:/RbfFastOpen/threshold-candidate --output W:/RbfFastOpen/threshold-jit-candidate
+```
+
+freeze保存精确源码/配置副本及哈希、整套二进制哈希、实际build日志、SDK/runtime清单和commit/status。两份源码闭包必须只有`RbfAppendImpl.cs`不同，Data/Primitives DLL须相同；probe入口、Python验证器及输入不能随候选变化。脏树候选的ProductVersion只表示编译元数据，不替代源码快照。每个独立子进程记录实际加载的DLL路径、SHA256、ProductVersion；4100B Key0实际write count与所有count/scratch路径共同检查声明阈值，不能只靠baseline/candidate标签。
+
+固定`DOTNET_TieredCompilation=0`、`DOTNET_TC_QuickJitForLoops=0`，每轮交替A/B、B/A。15个布局包括Key0的total512/4092/4096/4100/6144/8188/8192/8196/65536B及其中6个真实marker非零Key布局；meta0和meta3覆盖payload phase0/1。`total=Align4(payload+meta)+32`另由生产layout/ticket核对。暖态每case目标8MiB、最多16384次；原始batch毫秒数随结果保存，过短或噪声大的样本须另取新目录追加，不由七轮或中位数自动判胜。
+
+先预热JIT及进程Shared pool，再分别记录**新File首次Append**与同File暖态批量：首次不是进程/OS/pool cold，工厂创建与Dispose不在Append时间内。两段Append分配和DurableFlush时间分别保存。只读反射在计时外观察已有`_appendScratch`长度及Dispose后清空；allocated为0不等于File未保留scratch。全部计时结束后，单独count pass在CreateNew完成之后安装既有write hooks，记录首次/暖态请求长度及顺序偏移；它不是设备I/O计数。
+
+每个pass保存实际first/last独立wire文件并记录两个实际Key。生产非零Key可能随Append变化，所以不要求同一文件或A/B编码字节相等。所有计时结束后复用`oracle.py`的独立bitwise CRC32C/units/XOR模型，完整验证这两个端点的payload/meta/Tag、CRC与wire重编码，并核对其对应的真实文件首尾及EOF；中间批量帧不称作独立全审。`comparison.json`保留逐轮原始比值、首次/暖态成本，`provenance.json`固定全部原始工件哈希；脚本不自动决定合入。
+
+JIT另pass使用[官方JIT诊断变量](https://github.com/dotnet/runtime/blob/v10.0.5/docs/design/coreclr/jit/viewing-jit-dumps.md)捕获实际目标runtime的`AppendRbf3`反汇编，保持与计时相同优化JIT设置。主线程审阅saved registers、静态prolog和分支localloc/stack probe；这是该方法的目标JIT栈证据，不能仅按源码stackalloc大小推导峰值，也不代表完整调用链栈峰值。诊断不混入性能计时。本入口目前没有测量结论，候选可能保持延期。

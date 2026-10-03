@@ -12,6 +12,7 @@ internal static class Program {
     internal static int Main(string[] args) {
         try {
             if (args.Length > 0 && args[0] == "--worker") { return CrashProbe.Worker(args[1..]); }
+            if (args.Length > 0 && args[0] == "--threshold-sample") { return ThresholdProbe.Run(args[1..]); }
             int outputIndex = Array.IndexOf(args, "--output");
             if (outputIndex < 0 || outputIndex + 1 >= args.Length) { throw new ArgumentException("Required: --output <fresh W: directory> [--quick]"); }
             string output = Path.GetFullPath(args[outputIndex + 1]);
