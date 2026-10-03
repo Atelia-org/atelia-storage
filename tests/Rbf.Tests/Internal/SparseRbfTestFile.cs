@@ -18,19 +18,26 @@ internal static class SparseRbfTestFile {
         // 仍由公开 runtime API 创建合法 HeaderFence；其 FileShare.None 句柄关闭后再标记稀疏。
         using (RbfFile.CreateNew(path)) { }
         using (SafeFileHandle handle = File.OpenHandle(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) {
-            // FSCTL_SET_SPARSE 的 null input 等价于 SetSparse=true。
-            if (!DeviceIoControl(handle, FsctlSetSparse, 0, 0, 0, 0, out _, 0)) {
-                var error = new Win32Exception(Marshal.GetLastPInvokeError());
-                throw new IOException(
-                    $"Cannot create sparse boundary-test file '{path}'. Use a Windows TEMP directory on a filesystem that supports sparse files.",
-                    error
-                );
-            }
+            MarkSparse(handle, path);
             RandomAccess.SetLength(handle, tailOffset);
         }
 
         // Synthetic holes are not a valid main sequence; bypass public open only for offset boundary fixtures.
         return RawRbfTestFile.OpenExisting(path, tailOffset);
+    }
+
+    /// <summary>在 Windows 上将已有句柄标记为稀疏；其他平台使用 SetLength 的普通稀疏扩展。</summary>
+    internal static void MarkSparse(SafeFileHandle handle, string path) {
+        if (!OperatingSystem.IsWindows()) { return; }
+
+        // FSCTL_SET_SPARSE 的 null input 等价于 SetSparse=true。
+        if (!DeviceIoControl(handle, FsctlSetSparse, 0, 0, 0, 0, out _, 0)) {
+            var error = new Win32Exception(Marshal.GetLastPInvokeError());
+            throw new IOException(
+                $"Cannot create sparse boundary-test file '{path}'. Use a Windows TEMP directory on a filesystem that supports sparse files.",
+                error
+            );
+        }
     }
 
     [DllImport("kernel32.dll", ExactSpelling = true, SetLastError = true)]

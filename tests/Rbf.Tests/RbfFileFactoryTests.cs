@@ -1,3 +1,6 @@
+using System.Buffers.Binary;
+using Atelia.Data;
+using Atelia.Data.Hashing;
 using Atelia.Rbf.Internal.Tests;
 using Xunit;
 
@@ -177,5 +180,46 @@ public class RbfFileFactoryTests : IDisposable {
         Assert.Throws<InvalidDataException>(() => RbfFile.OpenExisting(path, out _));
         Assert.Equal(before, File.ReadAllBytes(path));
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+    }
+
+    /// <summary>最大旧容量的闭合单帧结构正例；不验证 PayloadCRC 或执行完整帧读取。</summary>
+    [Fact]
+    public void LegacyRbf1_MaximumPayload_ReadOnlyOpenPreservesTicketAndFrameInfo() {
+        var path = GetTempFilePath();
+        var ticket = SizedPtr.Create(4, SizedPtr.MaxLength);
+        long fenceOffset = ticket.Offset + ticket.Length;
+        long fileLength = fenceOffset + 4;
+        const uint tag = 123;
+
+        using (var handle = File.OpenHandle(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None)) {
+            SparseRbfTestFile.MarkSparse(handle, path);
+            RandomAccess.SetLength(handle, fileLength);
+
+            Span<byte> head = stackalloc byte[8];
+            "RBF1"u8.CopyTo(head);
+            BinaryPrimitives.WriteUInt32LittleEndian(head[4..], (uint)ticket.Length);
+            RandomAccess.Write(handle, head, 0);
+
+            Span<byte> trailer = stackalloc byte[16];
+            trailer.Clear(); // Descriptor: no tombstone, meta or padding.
+            BinaryPrimitives.WriteUInt32LittleEndian(trailer[8..], tag);
+            BinaryPrimitives.WriteUInt32LittleEndian(trailer[12..], (uint)ticket.Length);
+            RollingCrc.SealCodewordBackward(trailer);
+            RandomAccess.Write(handle, trailer, fenceOffset - trailer.Length);
+            RandomAccess.Write(handle, "RBF1"u8, fenceOffset);
+            // Payload and PayloadCRC remain sparse zeros; only structure/info is qualified.
+        }
+
+        using var file = RbfFile.OpenReadOnlyExisting(path, RbfCacheMode.Off);
+        var info = file.ReadFrameInfo(ticket).Unwrap();
+
+        Assert.Equal(fileLength, file.TailOffset);
+        Assert.Equal(268435452, info.Ticket.Length);
+        Assert.Equal(ticket, info.Ticket);
+        Assert.Equal(268435428, info.PayloadLength);
+        Assert.Equal(RbfFile.MaxPayloadAndMetaLength + 4, info.PayloadLength);
+        Assert.Equal(0, info.TailMetaLength);
+        Assert.Equal(tag, info.Tag);
+        Assert.False(info.IsTombstone);
     }
 }
