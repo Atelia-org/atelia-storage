@@ -342,9 +342,9 @@ Key预扫/bitmap、XOR/解码与历史W:成本保留专项；生产Append/Builde
 
 2026-10-03源码提交 `0999851207978fe947ecabccb1093e5774d007df` 已同步RBF1/RBF3[接口](rbf-interface.md)、[格式](rbf-format.md)、[独立RBF3参考](rbf-test-vectors.md#8-rbf3独立向量与生产资格)、guide与导航。Header/Fence固定RBF3，Data基础00329fd的历史资格保留；以下记录主线程实际运行的新生产结果，源码/测试身份/正式证据独立复核已通过。
 
-实施后的[代码设计审阅](rbf3-code-design-review-0999851.md)另行记录继承的入口状态缺口、公开串行合同、新诊断回归及具体枚举器改进；反例证据独立保留，建议修复尚未实施，不改写下述验收快照。
+实施后的[代码设计审阅](rbf3-code-design-review-0999851.md)保留0999851的入口状态、串行合同、诊断及枚举改进发现与反例证据；后续窄修复已完成，不改写下述0999851验收快照。
 
-后续修复范围及验收由[审阅 finding 处理方案](rbf3-review-findings-disposition.md)指导：该方案已辩证收窄入口承诺并补入归还资格的小修复，尚未应用到生产源码。
+后续[审阅 finding 裁决](rbf3-review-findings-disposition.md)保留最小模型与延期触发条件；[修复验收记录](rbf3-review-repairs-acceptance.md)记录冻结源码c4377fd、RBF677/677及Data288/288的各自构建身份。新证据独立于本节的终止/性能结果。
 
 ### 11.1 证据身份
 

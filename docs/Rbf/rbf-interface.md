@@ -13,6 +13,8 @@ produce_by:
 
 2026-10-03 合同同步：新建及写入采用 `RBF3`；`RBF1` 保留只读、旧 ticket 与旧容量；未知 Header（包括历史实验 `RBF2`）拒绝。源码0999851对应内容的Release RBF测试670/670与正式生产探针已通过并独立复核，证据身份及范围见[实施记录§11](rbf-open-fast-path-refactoring.md#11-本轮最终实施与验收记录)。
 
+后续入口、归还资格与串行/资源异常合同修复已完成，冻结源码c4377fd的RBF677/677及Data288/288的各自构建身份见[修复验收记录](rbf3-review-repairs-acceptance.md)。此次没有重跑或重标0999851的终止/性能证据。
+
 ## 1. 概述
 
 RBF 是"二进制信封"：只关心如何安全封装 payload，不解释 payload 语义。

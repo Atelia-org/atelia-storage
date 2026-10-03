@@ -1,0 +1,729 @@
+{
+  "SchemaVersion": 1,
+  "RecordedAt": "2026-10-03T16:16:14.8046882+08:00",
+  "Repository": "E:\\repos\\Atelia-org\\atelia-storage",
+  "SourceCommit": "c4377fd84e2a47e349e60badc9e4ad3a717f9d96",
+  "SourceTreeWasClean": true,
+  "DataAcceptedContentCommit": "e6ad4d2bb637388fee6bae83c28f91d8c92278c4",
+  "FinalDataBlobsMatchAcceptedCommit": true,
+  "DataAcceptedFileCount": 41,
+  "DataBuildWasPreCommitWorkingTree": true,
+  "DataBuildMetadataRevision": "92e05fc76a4a05e637e8e24d6e6d35236aa14a76",
+  "Configuration": "Release",
+  "Sdk": "10.0.201",
+  "Runtime": "Microsoft.NETCore.App 10.0.5",
+  "TempDirectory": "W:\\RbfFastOpen\\rbf3-review-repairs-20261003\\temp",
+  "RawDirectory": "W:\\RbfFastOpen\\rbf3-review-repairs-20261003",
+  "BuildResults": [
+    {
+      "Project": "tests/Data.Tests/Data.Tests.csproj",
+      "Log": "logs/data-build.log",
+      "ExitCode": 0,
+      "Warnings": 21,
+      "Errors": 0
+    },
+    {
+      "Project": "tests/Rbf.Tests/Rbf.Tests.csproj",
+      "Log": "logs/rbf-final-build.log",
+      "ExitCode": 0,
+      "Warnings": 41,
+      "Errors": 0,
+      "CleanSourceCommit": "c4377fd84e2a47e349e60badc9e4ad3a717f9d96"
+    }
+  ],
+  "TestResults": [
+    {
+      "Trx": "data.trx",
+      "Total": 288,
+      "Passed": 288,
+      "Failed": 0,
+      "Outcome": "Completed"
+    },
+    {
+      "Trx": "rbf-final.trx",
+      "Total": 677,
+      "Passed": 677,
+      "Failed": 0,
+      "Outcome": "Completed"
+    },
+    {
+      "Trx": "rbf-legacy.trx",
+      "Total": 1,
+      "Passed": 1,
+      "Failed": 0,
+      "Outcome": "Completed"
+    },
+    {
+      "Trx": "rbf-r1.trx",
+      "Total": 20,
+      "Passed": 20,
+      "Failed": 0,
+      "Outcome": "Completed"
+    },
+    {
+      "Trx": "rbf-r2-r4.trx",
+      "Total": 51,
+      "Passed": 51,
+      "Failed": 0,
+      "Outcome": "Completed"
+    }
+  ],
+  "SourceManifest": [
+    {
+      "Path": "Directory.Build.props",
+      "Sha256": "24913ea3cb4ff5331f93f46569c8faf0111f82acac62921990b3eda1e7e1eeda"
+    },
+    {
+      "Path": "Directory.Build.targets",
+      "Sha256": "66ea213558913b31ed47e57abf77c2c2011c092871743a612ee4fec0542c39f8"
+    },
+    {
+      "Path": "global.json",
+      "Sha256": "8ede13416e0155ae327d8816fce07b9ba21cb4e2c1e0b17ae2f052fb89cccbd4"
+    },
+    {
+      "Path": "src/Data/Binary/XorEscape.Search.cs",
+      "Sha256": "436d9db35cf6edd7690ebb870a9a1d05a48d5ad617f6f3f9d1e0dbc2fb394971"
+    },
+    {
+      "Path": "src/Data/Binary/XorEscape.Transform.cs",
+      "Sha256": "11a125dfe7156bd40a610e11e60696214d3f32dacf7dfc5059c0d79b2ca1585e"
+    },
+    {
+      "Path": "src/Data/Binary/XorEscape.cs",
+      "Sha256": "77bb8fe7e19ce3b09ded9717e11c345f7d671b264bd75d2215d3e6085c078e0f"
+    },
+    {
+      "Path": "src/Data/ChunkSizingStrategy.cs",
+      "Sha256": "977e43c406c634e1956370d44991b8682acd503f6d4deb182eae0b616c86ea19"
+    },
+    {
+      "Path": "src/Data/ChunkedReservableWriter.cs",
+      "Sha256": "e9d56f2188bcc313f0a3b13df22296f85ef380f25ce6888e19e1ad40266f875e"
+    },
+    {
+      "Path": "src/Data/ChunkedReservableWriterOptions.cs",
+      "Sha256": "466aeacb3be5b219d8b0a12e6195df49b9642fa652babd749fec685fe46192c3"
+    },
+    {
+      "Path": "src/Data/Data.csproj",
+      "Sha256": "43437e216af126d19dd43d97aa9d69a49ae5c2ec20c30c2318e6e39b43c335f3"
+    },
+    {
+      "Path": "src/Data/FuncValuePredicate.cs",
+      "Sha256": "746dc35faea9a71f5df0d0291e9350cc7c1be06483e8e38566b7a2601cf8f1c9"
+    },
+    {
+      "Path": "src/Data/Hashing/RollingCrc.Scanner.cs",
+      "Sha256": "e032ac41b57fb0a2415d03cef460bc716fc0a6f1af49652e22ad3f1c1db642ac"
+    },
+    {
+      "Path": "src/Data/Hashing/RollingCrc.Table.cs",
+      "Sha256": "5413b377014634b20b3cd431f5b2eb8df6df03a81d6d1c8f3e770c9544b6838f"
+    },
+    {
+      "Path": "src/Data/Hashing/RollingCrc.cs",
+      "Sha256": "30603400ba8cb0d47389592be62aa207fc3e800a7a605c9a07a610774a6cb227"
+    },
+    {
+      "Path": "src/Data/Hashing/RollingCrc.impl.cs",
+      "Sha256": "7d6256d275fd4e2b0ca0ea3efd0078633484ecfb8286028d0a9f4eaee9f31615"
+    },
+    {
+      "Path": "src/Data/IByteSink.cs",
+      "Sha256": "89de6d14fec0c54c753bf712ff2c3605e1546771f8df0d96bf2588b71779272f"
+    },
+    {
+      "Path": "src/Data/IReservableBufferWriter.cs",
+      "Sha256": "655a1874a3c8ea7b13d09246e1dd9a8ddcee1a90a098d8c6f6a0cc2265b730bd"
+    },
+    {
+      "Path": "src/Data/IValuePredicate.cs",
+      "Sha256": "94db987266aa920628e67bbfbe6811719ef1c8ccba7ca66b74108c0064174345"
+    },
+    {
+      "Path": "src/Data/ReservableWriterChunk.cs",
+      "Sha256": "615add0d988d3ac0295ea623cc86fc83d0bb934925bbcd6e38b34e1d6cae77f2"
+    },
+    {
+      "Path": "src/Data/ReservationEntry.cs",
+      "Sha256": "1b43df7cb2a430dec76dcd17e253e41fa925c9a63a57f1e186e1e3824140c4f1"
+    },
+    {
+      "Path": "src/Data/ReservationTokenHelper.cs",
+      "Sha256": "a9086c5ac71dd7ac492b24ee1731c0a9b4c0ded783488e3942810f0b05b2b8d2"
+    },
+    {
+      "Path": "src/Data/ReservationTracker.cs",
+      "Sha256": "7d891a6ae8e8f99bc4b2c87a7b8dd59a644806f4c22fe8cc6ce8c0a49db59e7f"
+    },
+    {
+      "Path": "src/Data/SinkReservableWriter.cs",
+      "Sha256": "06ffde8f46b4cae76c6cc380f51ddfcd19056bd9c72a68485970863a788ca73f"
+    },
+    {
+      "Path": "src/Data/SizedPtr.cs",
+      "Sha256": "072248792a0eca507090f3b4f07c372b8f0bb7ac299986538e776b9f5923228d"
+    },
+    {
+      "Path": "src/Data/SlidingQueue.cs",
+      "Sha256": "82fc8c1a595bebd205e1f877bb561407815842e799fe2d42db0262f3ea4e6c28"
+    },
+    {
+      "Path": "src/Primitives/AsyncAteliaResult.cs",
+      "Sha256": "a28be2fdb61006ba86ee8a3b93393d8bc0709cce0567f836d1bdb68b462e8d0a"
+    },
+    {
+      "Path": "src/Primitives/AteliaError.cs",
+      "Sha256": "00ed87c1390293c2ac248bfaf85abdeab121e2a58361f10ae9f615c65bd4a1c5"
+    },
+    {
+      "Path": "src/Primitives/AteliaException.cs",
+      "Sha256": "09383196a62adc0e9525c71e6fd2bc0e1d090915297d0b2d88a20dc466b6b238"
+    },
+    {
+      "Path": "src/Primitives/AteliaResult.cs",
+      "Sha256": "9e7f55af96ccef7e284feb602fa29f6f06e7f20be1f5080341e78fa00cdb9c89"
+    },
+    {
+      "Path": "src/Primitives/DisposableAteliaResult.cs",
+      "Sha256": "fd3d987284bfb911ac4261077567fa62a81733218452a3a31cced3f6cc0071b1"
+    },
+    {
+      "Path": "src/Primitives/IAteliaHasError.cs",
+      "Sha256": "65797ac7d4aa7501ebadaf64cded05191276cf2bbb99df41339be601762e315c"
+    },
+    {
+      "Path": "src/Primitives/Primitives.csproj",
+      "Sha256": "d217bf5cee0cde8d91ff591796955d70c0f84de8bef37104da854251b5eab9f4"
+    },
+    {
+      "Path": "src/Primitives/ResultContractErrors.cs",
+      "Sha256": "3f9bfe2ccde20b3d2014a9e08bb39be844f3af6ce9ca74b70ea7f14c0d7f5d30"
+    },
+    {
+      "Path": "src/Rbf/IRbfFile.cs",
+      "Sha256": "d0c947ce62ebacac44851831459409594d61f6f5ed9c71576548d7debff746ce"
+    },
+    {
+      "Path": "src/Rbf/IRbfFrame.cs",
+      "Sha256": "c57c34624452aeb67867c29dee16763f8e740369427aeee764a291b23f6abdef"
+    },
+    {
+      "Path": "src/Rbf/IRbfTailMeta.cs",
+      "Sha256": "cdf5ae39362bb4a2dbc03eec3ebab74096fc9a41ab0a61da524c30640912563e"
+    },
+    {
+      "Path": "src/Rbf/Internal/RandomAccessByteSink.cs",
+      "Sha256": "d375cce833756c6256990feafa7f1f58e132d8a046557ce200697300885e9301"
+    },
+    {
+      "Path": "src/Rbf/Internal/RbfAppendImpl.cs",
+      "Sha256": "29fca21073b28ab5f60a3ab4dd97031242dbf87cdc538614f7714d3f67815d80"
+    },
+    {
+      "Path": "src/Rbf/Internal/RbfConstants.cs",
+      "Sha256": "0a5f8928f9d576da7c42972922c83b44176ae973ca2323e6a7cd8597ef597424"
+    },
+    {
+      "Path": "src/Rbf/Internal/RbfErrors.cs",
+      "Sha256": "9e0f96ea64d8b5e4acbdba0c986a0f2cfa6fe3651eefe86f3adac208e7179cdd"
+    },
+    {
+      "Path": "src/Rbf/Internal/RbfFileImpl.cs",
+      "Sha256": "0aa5460695033014b9e6107148cb5709398a32f07e68e3bd7e587bc5561a7037"
+    },
+    {
+      "Path": "src/Rbf/Internal/RbfFrameWriteCore.cs",
+      "Sha256": "5c3414b8e59dd714b7dc1f5eab64188e78acfd8034195344a734d10002b07ea4"
+    },
+    {
+      "Path": "src/Rbf/Internal/RbfLayout.cs",
+      "Sha256": "b19c10a1d6a303feed7db7166f57f2fa4655451a893bf75c0cf7facd031795ee"
+    },
+    {
+      "Path": "src/Rbf/Internal/RbfPrefixInspector.cs",
+      "Sha256": "8bf491ddf87993d52fcd183c768e3d9acd5e17ad62b9ac7ef47fa6cfa0e929c3"
+    },
+    {
+      "Path": "src/Rbf/Internal/RbfProfile.cs",
+      "Sha256": "3c0c9625ff29126726beab9987eb3a934c175bb21ad730ee234f837f8f6ddbaa"
+    },
+    {
+      "Path": "src/Rbf/Internal/RbfReadImpl.ReadFrame.cs",
+      "Sha256": "3c88d3316604df9ee5220a12c04e5a1b199914a669f205dfed7c9ef34cb7d86e"
+    },
+    {
+      "Path": "src/Rbf/Internal/RbfReadImpl.ReadFrameInfo.cs",
+      "Sha256": "c909230c1c78614ca5f94b6ca1dd0b56d5e822d1f1219a97ccdd8c4e6d780aea"
+    },
+    {
+      "Path": "src/Rbf/Internal/RbfReadImpl.ReadTailMeta.cs",
+      "Sha256": "b62237350f2fea821893700e953eccf755b9c38eb19958595d17f6bd09f270dc"
+    },
+    {
+      "Path": "src/Rbf/Internal/RbfReadImpl.ReadTrailerBefore.cs",
+      "Sha256": "39a0eb543d38201673112847c0ea7f7d690c0ffa0691db28b6c1a84db97adc9b"
+    },
+    {
+      "Path": "src/Rbf/Internal/RbfReadImpl.ScanBoundary.cs",
+      "Sha256": "66046e3acdba6b8a4081863c5f9b1895d15724318c215cfc3a5ff2c82c8a3859"
+    },
+    {
+      "Path": "src/Rbf/Internal/RbfReadImpl.TailBlock.cs",
+      "Sha256": "13e968458e6721c4fa9e44385c0252edfed693c46eda707574ba283bf811135f"
+    },
+    {
+      "Path": "src/Rbf/Internal/RbfTailRecovery.cs",
+      "Sha256": "1b4643cdfc23f737514b248eb0c7bcc1fa2b4d473d5f1b06e321843f8a8c8608"
+    },
+    {
+      "Path": "src/Rbf/Internal/RbfWireCodec.cs",
+      "Sha256": "1b68749b38e13d667b32943cdb3901c08429b52ed26a5d3e558c16eaeaa3b6f0"
+    },
+    {
+      "Path": "src/Rbf/Internal/RbfWriteInstrumentation.cs",
+      "Sha256": "96f4e92cdef901213275fdaa9cfc66a785961e2a59a5f04550af6e3e3816998b"
+    },
+    {
+      "Path": "src/Rbf/Internal/TrailerCodewordHelper.cs",
+      "Sha256": "990be2d4e2ba7e9f783ef3226c600d96e23c13d4a386c6c28aa2dc85676a4000"
+    },
+    {
+      "Path": "src/Rbf/OptionalRbfFrameInfo.cs",
+      "Sha256": "1c71c9fcc6d064df7672e8c11c35d4d1506ace532ca5c4d85c1fb81d2ae53364"
+    },
+    {
+      "Path": "src/Rbf/Rbf.csproj",
+      "Sha256": "97d28075679aaba54b27fc5f4d4d27a32a04eb2f225279ae5852330024c9f7dd"
+    },
+    {
+      "Path": "src/Rbf/RbfCacheMode.cs",
+      "Sha256": "244fbce46770a5ffbf3045605539da37a756374a10f94ad3da5c6e4ba87acff4"
+    },
+    {
+      "Path": "src/Rbf/RbfFile.cs",
+      "Sha256": "dfb323f773e9f65346dcf1198d5d5d8014002ce67e8e793972cb486c9c29392d"
+    },
+    {
+      "Path": "src/Rbf/RbfForwardEnumerator.cs",
+      "Sha256": "7313a8d4371326c2b1425075215bf5a38219f21bef8bfddbd3e0b519ae9f39ac"
+    },
+    {
+      "Path": "src/Rbf/RbfForwardSequence.cs",
+      "Sha256": "74112097f88251f27dedb677bc5dd9b4b29c21e5c536f06072d38f8d73917f40"
+    },
+    {
+      "Path": "src/Rbf/RbfFrame.cs",
+      "Sha256": "50f82272ccd1f9b8572a2db5ae792008076b76487089d0adfd6ba6134fbea9d5"
+    },
+    {
+      "Path": "src/Rbf/RbfFrameBuilder.cs",
+      "Sha256": "4edbf38b65e97fcf4587670032c4c68e47961c96737ad9bd6410d7bd270b9015"
+    },
+    {
+      "Path": "src/Rbf/RbfFrameInfo.cs",
+      "Sha256": "8ae32b5214631688eaeb5f965680a2c4deb1ce865b9b59dc81b829a28cc7ce06"
+    },
+    {
+      "Path": "src/Rbf/RbfPayloadWriter.cs",
+      "Sha256": "dba777708d3aff341916dc98342b4aa26b896de7cd92ccf445064e0f60fc43c3"
+    },
+    {
+      "Path": "src/Rbf/RbfPooledFrame.cs",
+      "Sha256": "df21d2689515d33a8b6c473fe57c58ad49dd0bb7857f8184e67e3c8f3dc6aee6"
+    },
+    {
+      "Path": "src/Rbf/RbfPooledTailMeta.cs",
+      "Sha256": "b6d884cb36e6d8cf30119d6df73e0649afce1cf9586cbc213ad57f81eef36bd5"
+    },
+    {
+      "Path": "src/Rbf/RbfReadMetrics.cs",
+      "Sha256": "930c8ba01cd7802843cd42967f815fd5a5eb46f29101119f18d4580c89748c4a"
+    },
+    {
+      "Path": "src/Rbf/RbfRecovery.cs",
+      "Sha256": "e1f26b7695bf9d01fede53784f8b617c9727e46f178117b1290b060a0703db71"
+    },
+    {
+      "Path": "src/Rbf/RbfReverseEnumerator.cs",
+      "Sha256": "cc13626733d931eb1e36a64b6c080b24cb424191897641886ba13bccd9137606"
+    },
+    {
+      "Path": "src/Rbf/RbfReverseSequence.cs",
+      "Sha256": "03b2a52d835efd82229bceefbe634585f31fe591c5bd488c188c587cf29482dc"
+    },
+    {
+      "Path": "src/Rbf/RbfScanBoundary.cs",
+      "Sha256": "b17bfcd3da73ecb47873e9311c1dcae25e72278b57dd6a06a87c41822d548342"
+    },
+    {
+      "Path": "src/Rbf/RbfTailMeta.cs",
+      "Sha256": "003b8295b55ae11287595e5570ef58e60b9873333fcfb190a9988ffce0279efc"
+    },
+    {
+      "Path": "src/Rbf/RbfTailRecoveryReport.cs",
+      "Sha256": "0ca2794ea0fc14256f81871477e1845ef68e4068829f084c9cce1f956ce987c3"
+    },
+    {
+      "Path": "src/Rbf/ReadCache/CacheHitMap.cs",
+      "Sha256": "29e8ce19a2f2c5dfc8c99c6fb1bccb36b949053ee1c3f3fa0fdb94e459c225fd"
+    },
+    {
+      "Path": "src/Rbf/ReadCache/OffsetLength.cs",
+      "Sha256": "1e67478a109f2f24cbbbbf02c436276deb13540170afed3d41cf2c90287a72f7"
+    },
+    {
+      "Path": "src/Rbf/ReadCache/RandomAccessReader.cs",
+      "Sha256": "5de6f3b441c72f09455aaba34418c4a4b4404666e4a6436f67c2cbad769e20c1"
+    },
+    {
+      "Path": "src/Rbf/ReadCache/ReadLogger.cs",
+      "Sha256": "8dc0354fee5b19d897704c0da40c3d898fee379445c92ae0dbb4b373efbb92c9"
+    },
+    {
+      "Path": "src/Rbf/ReadCache/ReverseReadCache.cs",
+      "Sha256": "5b5bb055763597668051cd65c3fe3cf326d9655e28c07df7cf2c2c307630d8ee"
+    },
+    {
+      "Path": "src/Rbf/ReadCache/StartEnd.cs",
+      "Sha256": "a88d71ac87e690a010da7fcade352dc7e4d6ca1ee4beb2a892c8d5f78f598bff"
+    },
+    {
+      "Path": "tests/Data.Tests/ChunkSizingStrategyTests.cs",
+      "Sha256": "61fce0ce5612cdb438322f1d135348feffcdb0841bc411621e672529d98bc72a"
+    },
+    {
+      "Path": "tests/Data.Tests/ChunkedReservableWriterOptionsTests.cs",
+      "Sha256": "12753e75d6cb2bd6692d3a597d978be2b1d630d01d133815cafa5b3db0f89474"
+    },
+    {
+      "Path": "tests/Data.Tests/ChunkedReservableWriterP1Tests.cs",
+      "Sha256": "784dfb1fe6afef4fb91e9ed20527396cc2f6b691865059bc1d9eeadfc07788b7"
+    },
+    {
+      "Path": "tests/Data.Tests/ChunkedReservableWriterP2Tests.cs",
+      "Sha256": "4b662deea8921b2fa6661deae1d5fbf33de08dd07489bb740b850274e9e73ba8"
+    },
+    {
+      "Path": "tests/Data.Tests/ChunkedReservableWriterStatsTests.cs",
+      "Sha256": "d3870d74f0bbaa9429593965cd9c9129f93658a59c4a30c1b54a801b18c8b221"
+    },
+    {
+      "Path": "tests/Data.Tests/Data.Tests.csproj",
+      "Sha256": "d1cb7c7f835817c488feb07816dffa0fbc9b4bc09091349d956efa16bf9a8c7b"
+    },
+    {
+      "Path": "tests/Data.Tests/Hashing/AlignCursorTests.cs",
+      "Sha256": "a703023221cf854e50ec2417e36f051640622d1c6f10d3dca61074fcc1d2dc0a"
+    },
+    {
+      "Path": "tests/Data.Tests/Hashing/RollingCrcBufferTests.cs",
+      "Sha256": "7c557f4b6a92e262ff9581cdf4416a4ea06e58e965d0ddac7210c0300db80b87"
+    },
+    {
+      "Path": "tests/Data.Tests/Hashing/RollingCrcCodewordTests.cs",
+      "Sha256": "b4eb017226ca0740344be929d818db6eb699cd2b58d01fd5cc49342c55fad065"
+    },
+    {
+      "Path": "tests/Data.Tests/Hashing/RollingCrcTableTests.cs",
+      "Sha256": "2b2ba127b52a6ff4e538293c90096a4bad6152d93471df9ae0917f1abff74579"
+    },
+    {
+      "Path": "tests/Data.Tests/ReservableWriterNegativeTests.cs",
+      "Sha256": "9d4b6b3d1794fda5d3e9ca2fa1b6e3b94e35de0d410d47f0486cef82ef67a052"
+    },
+    {
+      "Path": "tests/Data.Tests/ReservableWriterPoolReturnTests.cs",
+      "Sha256": "a77a285ce34b49566b660dfc75dbe87d2cf31de898979e2d2c352cef1509ab1b"
+    },
+    {
+      "Path": "tests/Data.Tests/ReservableWriterTests.cs",
+      "Sha256": "4df6621d760485a32a8d7a4d97945393ad9d9fa8c2675bbab399fc69628bb662"
+    },
+    {
+      "Path": "tests/Data.Tests/SinkReservableWriterCrcTests.cs",
+      "Sha256": "eea8db3955c67bcaecfca78581d3445274d8fcffd6afdcfa08ce9217c436017c"
+    },
+    {
+      "Path": "tests/Data.Tests/SinkReservableWriterXorEscapeTests.cs",
+      "Sha256": "1be4c0a621f862a7da525011d9b981f99f2fa2b597b646d40201b26ae2a17cea"
+    },
+    {
+      "Path": "tests/Data.Tests/SizedPtrTests.cs",
+      "Sha256": "663f53488bdaaecac22d8b7de26d3adc46f76c8ea466993b8158eb5d6641a90c"
+    },
+    {
+      "Path": "tests/Data.Tests/SlidingQueueTests.cs",
+      "Sha256": "08d90e85e4fc6ed330c3a53dad3dcb0f3788072eb0250e5330d30656649ecfdd"
+    },
+    {
+      "Path": "tests/Data.Tests/TestHelpers.cs",
+      "Sha256": "9f04a92692c531b6d6afa66093ac970eed9abbe956e15aa871d0642f5a65196d"
+    },
+    {
+      "Path": "tests/Data.Tests/XorEscapeTests.cs",
+      "Sha256": "e4359b1a0c20358c4f20548aa7ab313f8b61a3e7d11a09dd8321765ad7a97175"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/FrameLayoutTests.cs",
+      "Sha256": "31a1353a0b7af4531c038df4b831e6d99302603fa4cc604c87659a541ecaa0cf"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/RandomAccessByteSinkTests.cs",
+      "Sha256": "72c57b8b6f16ab35be7ca14eb74ae4464f18f0d08decbf1dfc08f2d509503b8f"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/RawRbfTestFile.cs",
+      "Sha256": "b271c9e02a53674d2ac99b348637d5ff16a8aa105282bf1c4c498dfefae2dee7"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/Rbf3ReaderTests.cs",
+      "Sha256": "ed7eb886f3e691e753669668151700e429fe11d95963d9e13af7f815e4f156b6"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/Rbf3TailRecoveryTests.cs",
+      "Sha256": "860dae24ac6936f1b91c0b226804891b1147de15456996420638ae0cc6cfe8db"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/Rbf3WriterFaultTests.cs",
+      "Sha256": "c967cb24f3dba1b6fabdce89f77baa342cf37768551c52d2492f6c8891814d58"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/Rbf3WriterTests.cs",
+      "Sha256": "7b2811ab268f3aadf09f89ec0e0b9a544e568e9368df9ef3099ad6254913c30d"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/RbfAppendImplTests.cs",
+      "Sha256": "526e11c204e76f79b58fe1b5e76a994187ef9f180aa39a8e5c3b5d6fb6ecbfc2"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/RbfCandidateTests.cs",
+      "Sha256": "35dca1fe1bc5a82dadc1458b0eda65428a07b4033a3f6fcbca941a76c5f68e23"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/RbfFacadeTests.cs",
+      "Sha256": "3b785b490c7fe8704d9ab91520244b87b2b7d226e0b73ac38524609b001bb0d1"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/RbfFrameBuilderTests.cs",
+      "Sha256": "ec8de564e68af70b4075882d227d5c26fa600cf90ae7c7b25cd0c7ba0c3e458f"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/RbfPooledFrameTests.cs",
+      "Sha256": "b0fcd9f279c9693f2ffa0128a9aac7bcb61d973264876565caa3ae18e0f85443"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/RbfPrefixInspectorTests.cs",
+      "Sha256": "7309c716d6fcb2dd628bc95598c2f2a507265631f9e0a48e9a7c4ef33cf83f19"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/RbfReadImplTests.cs",
+      "Sha256": "d525be0e6606143afba552ceaa6cf1767178503bf80092e8e503dd774def3f2f"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/RbfReadMetricsTests.cs",
+      "Sha256": "4d310958932d9b4b61c23bcf4b20676fa11fb89004676a3ea3f1efeb8767aed3"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/RbfReadTailMetaTests.cs",
+      "Sha256": "cb2f4ea66630e8202fdd77b8ce9c900bdd061c563540d9af58abd56a99679916"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/RbfRecoveryScannerTests.cs",
+      "Sha256": "e0c73b4e895aa16c08bbf45bafe8344bf69652f0c32ce1f5acfe4dbd61aadd72"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/RbfScanBoundaryTests.cs",
+      "Sha256": "02e2151347370b7770288b8f851fdf0f0e6dba5bebc5c8cbf54af515fd2d9a1e"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/RbfScanForwardTests.cs",
+      "Sha256": "46a06ce8c51f9ae7fb31d3167a5d2ff6c0a89678e65f202ca0e705f5dd4ca188"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/RbfScanReverseTests.cs",
+      "Sha256": "1f5f01f0f85a2ddbf158c1f0394012a61ad52f080432f4ffa04ab5afb2c6aef8"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/RbfTailRecoveryAcceptanceTests.cs",
+      "Sha256": "c02be37467c90d12a95e90495093030f39dc8b4c52d646f0700170607c28755f"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/RbfTestVectorTests.cs",
+      "Sha256": "98574e58e30346c7d155f1fdc0631baff2a0ebd70ace3092d31ed7eb3c2dc1b0"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/RbfTruncateTests.cs",
+      "Sha256": "caf59b31b5a84c7342e4e2bbeddd7dea942567451fa0119defe308707437ac62"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/RbfWireCodecTests.cs",
+      "Sha256": "6d257c5f308670746a2d33d2a6968fd7031012753a0889e9abf104aacb965029"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/RbfWriteInstrumentationTests.cs",
+      "Sha256": "c517bf20f5c6c13eebeb6280597f328e55866c2bd4fcb40cdf02dd306c8d00c1"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/RbfWriterFaultTests.cs",
+      "Sha256": "ce85aeaf9df555eb11995f689ead1dd12d51994386493b9dcbe80f5fb334742d"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/ReadTrailerBeforeTests.cs",
+      "Sha256": "88804ce17bd662c8ae45d44ec83239da17341fdd626c8f22ff00ab5e75c2401c"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/SparseRbfTestFile.cs",
+      "Sha256": "0f35f18b0cb557095fdc94ef01d9665ad42d11e3b64cc5b26af711b88a67b9aa"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Internal/TrailerCodewordHelperTests.cs",
+      "Sha256": "7cf51053df1981c48f5bf8f8b2e714b3c6a95962718070991989fec2d1bdd200"
+    },
+    {
+      "Path": "tests/Rbf.Tests/Rbf.Tests.csproj",
+      "Sha256": "d8759c4872a5df329c5953bb9222b2f143c1342aa2022912661f3af45d9a8315"
+    },
+    {
+      "Path": "tests/Rbf.Tests/RbfDurableFlushTests.cs",
+      "Sha256": "1d623b228f3e11b38526afb85179a8c0fb477f9e1e6de119bd3a08250b9fe5a2"
+    },
+    {
+      "Path": "tests/Rbf.Tests/RbfFileFactoryTests.cs",
+      "Sha256": "fbb9605751e55595d4bfb62af29d3312b4be53e19a8df8b8bf9d63142335c59a"
+    },
+    {
+      "Path": "tests/Rbf.Tests/ReadCache/CacheHitMapTests.cs",
+      "Sha256": "308bc4a9ae6be3ae767b625e77805859ba98bba96f86d21c60c6b9ba7b7a8d07"
+    },
+    {
+      "Path": "tests/Rbf.Tests/ReadCache/ReverseReadCacheTests.GetCacheSegments.cs",
+      "Sha256": "231c716f31a39f606e422356dbc8898b5eee7502e5d99481d6b7cbbd90bea949"
+    },
+    {
+      "Path": "tests/Rbf.Tests/ReadCache/ReverseReadCacheTests.Invalidate.cs",
+      "Sha256": "9811bff307404dd3eb0c053da04f6631ede681ec29394afdd70daa275565d0d7"
+    },
+    {
+      "Path": "tests/Rbf.Tests/ReadCache/ReverseReadCacheTests.cs",
+      "Sha256": "fc3906a8197fa3136ee12bdcab75676329c10698dc8c6d91655437fecbcfc530"
+    }
+  ],
+  "Binaries": [
+    {
+      "Path": "src/Data/bin/Release/net10.0/Atelia.Data.dll",
+      "Sha256": "86e73a59fbda7d1581d60fc9c711e2a251cb0891c9623f1d904708198beea2de",
+      "ProductVersion": "1.0.0+c4377fd84e2a47e349e60badc9e4ad3a717f9d96"
+    },
+    {
+      "Path": "src/Rbf/bin/Release/net10.0/Atelia.Rbf.dll",
+      "Sha256": "ba4e479e13ece6eaaf4f30009486adeb212474ab4abce40a331856e81a5bfa0f",
+      "ProductVersion": "1.0.0+c4377fd84e2a47e349e60badc9e4ad3a717f9d96"
+    },
+    {
+      "Path": "src/Primitives/bin/Release/net10.0/Atelia.Primitives.dll",
+      "Sha256": "0dc6a1945e60c7bd4fd3d620d43e0fcaad9a5333e8cb62a450eabe77148daff7",
+      "ProductVersion": "1.0.0+c4377fd84e2a47e349e60badc9e4ad3a717f9d96"
+    },
+    {
+      "Path": "tests/Data.Tests/bin/Release/net10.0/Atelia.Data.Tests.dll",
+      "Sha256": "0fa885b6b97ea7bd0a0b70913960455ec48561d7b33332541ebf51ead0276a1a",
+      "ProductVersion": "1.0.0+92e05fc76a4a05e637e8e24d6e6d35236aa14a76"
+    },
+    {
+      "Path": "tests/Data.Tests/bin/Release/net10.0/Atelia.Data.dll",
+      "Sha256": "4c7900ade6c885b3ebf9b9fa0573e7e3ae5bf8df26e6ecfe9c3779edf0cf0e36",
+      "ProductVersion": "1.0.0+92e05fc76a4a05e637e8e24d6e6d35236aa14a76"
+    },
+    {
+      "Path": "tests/Rbf.Tests/bin/Release/net10.0/Atelia.Rbf.Tests.dll",
+      "Sha256": "95803fe87bb3e230ac79844ddc7b176e5a2fb17a72084b45709455d93b30bd4a",
+      "ProductVersion": "1.0.0+c4377fd84e2a47e349e60badc9e4ad3a717f9d96"
+    }
+  ],
+  "Artifacts": [
+    {
+      "Path": "logs/data-build.log",
+      "Bytes": 9445,
+      "Sha256": "b2328c638b9029b8b669d73c80c794fdfb2a6f48183f64c540c0d5825dc019cc"
+    },
+    {
+      "Path": "logs/data-test.log",
+      "Bytes": 410,
+      "Sha256": "3b1238f932805d0a3acf1a2518150229a2d55d22d80c511e2c2579a62d2a44df"
+    },
+    {
+      "Path": "logs/rbf-final-build.log",
+      "Bytes": 20629,
+      "Sha256": "ec2e31c653f33a10331f0256663efe1af0970ee12a5c24fb3ecc719fbf74ce0c"
+    },
+    {
+      "Path": "logs/rbf-final-test.log",
+      "Bytes": 409,
+      "Sha256": "983b4e9d80688d3cb699580e5857206b0b22f3d3871cea364dd64dafccd3958d"
+    },
+    {
+      "Path": "logs/rbf-legacy-build.log",
+      "Bytes": 20629,
+      "Sha256": "8e9989a1acf5403f3bffd7bb4c6f7bf8a8d337ef4864661a8c6e618596a3f249"
+    },
+    {
+      "Path": "logs/rbf-legacy-test.log",
+      "Bytes": 412,
+      "Sha256": "5c482885f2449c919a8628da3f119ea81ff7ef22f79d4db1effd4356f4590072"
+    },
+    {
+      "Path": "logs/rbf-r1-build.log",
+      "Bytes": 22733,
+      "Sha256": "922196a4ccc7ccb75e3b8051eaa8896f203fe9dd307133d80964ea7c887a0822"
+    },
+    {
+      "Path": "logs/rbf-r1-test.log",
+      "Bytes": 409,
+      "Sha256": "b52be43c22975d3cfd42a34ba35735e40a835edfb24459bdfbee90f075161518"
+    },
+    {
+      "Path": "logs/rbf-r2-r4-build.log",
+      "Bytes": 20629,
+      "Sha256": "2ff0857cff7f57ad64c3eacfe739a9e65dcec21e636dae5c327b18dcac40b44c"
+    },
+    {
+      "Path": "logs/rbf-r2-r4-test.log",
+      "Bytes": 412,
+      "Sha256": "eec7ad18d3ffd765f54d6b2aacfadcc8e9dab7f5b4b4a0fe8d4e846743ceef70"
+    },
+    {
+      "Path": "test-results/data.trx",
+      "Bytes": 389195,
+      "Sha256": "bde4093dee9391bfb0e8d5b924ff52bbc3f2aab448f90be56642cb710bbbfe32"
+    },
+    {
+      "Path": "test-results/rbf-final.trx",
+      "Bytes": 938510,
+      "Sha256": "9b8be1bcf6909509f426aaeb7305963a4f7a8350bed712939990e2c574291083"
+    },
+    {
+      "Path": "test-results/rbf-legacy.trx",
+      "Bytes": 2980,
+      "Sha256": "2a10d991bc2bb9638e8d581ea842dac0eee2a06da35453809e3eaf5d45289597"
+    },
+    {
+      "Path": "test-results/rbf-r1.trx",
+      "Bytes": 30352,
+      "Sha256": "a93d30e15cfe9e7949b662eafc98956d9b61d984e52d350087ca84242c94c76d"
+    },
+    {
+      "Path": "test-results/rbf-r2-r4.trx",
+      "Bytes": 73173,
+      "Sha256": "ea10e81ac1406b51d813f5a80ffd92db587cfa071f35cf6937071d7ff40c66df"
+    }
+  ],
+  "Limits": [
+    "Only Data/Rbf source and test closure; no downstream adaptation/build/tests.",
+    "Data tests use their accepted e6ad4d2 source content, built before that commit; final Rbf clean build uses c4377fd.",
+    "Custom-pool failures simulate acceptance then throw; no real Shared pool OOM.",
+    "Maximum legacy frame fixture qualifies structure and metadata only, not PayloadCRC/full reads.",
+    "No new process-kill/performance/package/publish qualification; historical 0999851 evidence unchanged."
+  ]
+}

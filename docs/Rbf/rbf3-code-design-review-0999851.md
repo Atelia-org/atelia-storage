@@ -6,7 +6,7 @@ normative: false
 
 # RBF3 代码设计审阅：0999851
 
-后续的[辩证处置方案](rbf3-review-findings-disposition.md)已重新裁决各 finding：收窄 R1/R2 的承诺及严重度，保留最小修复与 Commit catch，并补入普通 Dispose 可触发的 Data 重复 Return 证据。实施以该方案的范围和验收为准；本文保留原始发现记录。
+后续[辩证裁决](rbf3-review-findings-disposition.md)已收窄 R1/R2 的承诺及严重度，保留 Commit catch，并补入普通 Dispose 可触发的 Data 重复 Return 证据。窄修复已完成，提交及实际验证身份见[修复验收记录](rbf3-review-repairs-acceptance.md)；本文保留0999851的原始发现和历史建议，不作为当前待办或新验收证据。
 
 2026-10-03。代码对象为 `0999851207978fe947ecabccb1093e5774d007df`，比较基线为 `ddb9c53`；当前文档基线为 `2f46408`。本轮是代码设计审阅，不修改生产源码或替下游设计。四个独立只读工作包分别审恢复、writer、reader、公开契约和测试假设，主线程复核并用 W: 小探针验证关键反例。
 
