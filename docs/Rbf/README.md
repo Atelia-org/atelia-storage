@@ -20,21 +20,21 @@ RBF（Reversible Binary Framing）是 Atelia 的二进制信封格式，用于�
 | 文档 | 层级 | 定义内容 |
 |------|------|----------|
 | [rbf-decisions.md](rbf-decisions.md) | **Decision-Layer** | 关键设计决策（AI 不可修改） |
-| [rbf-interface.md](rbf-interface.md) | Layer 0/1 边界 | `IRbfFile` 门面与对外可见类型/行为契约 |
-| [rbf-format.md](rbf-format.md) | Layer 0 (RBF) | 二进制线格式规范（wire format） |
+| [rbf-interface.md](rbf-interface.md) | Layer 0/1边界 | RBF1只读/RBF3纯新writer、结构Open与单尾截断/补原后缀、byte API与读取资格管线 |
+| [rbf-format.md](rbf-format.md) | Layer 0 (RBF) | RBF1旧byte布局及RBF3 units/Key/28B布局、原wire CRC与Header派发 |
 | [rbf-type-bone.md](rbf-type-bone.md) | Plan-Tier (指导编码) | 核心类型骨架（非规范性实现指南） |
 | [rbf-recovery.md](rbf-recovery.md) | Design Memo | 离线救援/分析用 Recovery Scan 设计备忘 |
 | [rbf-tail-recovery-refactoring.md](rbf-tail-recovery-refactoring.md) | Implementation / RBF1 | 旧byte-length格式单个残缺尾帧自愈的实施记录；新profile后续方案见普通打开重构 |
 | [rbf-tail-recovery-review.md](rbf-tail-recovery-review.md) | Review | 三位 reviewer 两轮辩证复核的需求、裁决与证据记录 |
-| [rbf-open-fast-path-refactoring.md](rbf-open-fast-path-refactoring.md) | Plan-Tier | 已采纳、待实施：Head/Tail长度4B units、Fence≥2^26、尾Key单份、结构Open/内容ReadFrame、进程终止下截尾/补Key+Fence；新wire及RBF实施门禁 |
+| [rbf-open-fast-path-refactoring.md](rbf-open-fast-path-refactoring.md) | Implementation in progress | RBF3 Header/units合同已同步；实现与生产验收进行中，最终测试/I/O/观测待§11填录；不重标旧byte实验 |
 | [rbf-codec-implementation-study.md](rbf-codec-implementation-study.md) | Research / G1 | writer预处理与reader解码专项；Data生产入口/真实writer已测，wire fixture仍为历史byte-length证据；新RBF接入待实施 |
 | [ZeroThenTinyBitmapRandom基础方案](../Data/xor-escape-key-refactoring.md) | Implementation / Data foundation | 已实施：Fence≥2^26、Data窄API、共享选择/XOR核与具体writer fused接点；三spans/真实chunks同切片资格，byte输入/int长度域保留；结果见§9 |
 | [rbf-derived-notes.md](rbf-derived-notes.md) | Derived | 推导、算例与答疑（允许滞后/可删改） |
-| [rbf-test-vectors.md](rbf-test-vectors.md) | Test | 测试向量 |
+| [rbf-test-vectors.md](rbf-test-vectors.md) | Test | RBF1原始byte向量保留；§8新增独立RBF3 wire/CRC参考与待验资格 |
 
 ## Decision-Layer 约束
 
-现行规范和生产代码仍为RBF1 byte-length格式；上述已采纳方案定义后续新profile，实施时按主方案G0/G2同步规范与向量。历史实验使用的RBF2候选名称不代表新units生产格式已经落地。
+本轮用户已授权G0/G2规范与源码同步：权威合同采用RBF1只读兼容及RBF3纯新writer，生产Header为RBF3以区别历史byte RBF2。源码与验收仍在进行，最终状态由主方案§11记录；旧快照不是新units验收。4B根决策澄清的是物理L，wire U无需低2bits对齐；原根语义不变。
 
 `rbf-decisions.md` 中的条款为 **AI 不可主动修改（MVP 固定）**：AI MUST NOT 修改任何 Decision 条款的语义
 受 Decision-Layer 约束的文档：`rbf-interface.md`、`rbf-format.md`

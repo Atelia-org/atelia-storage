@@ -3,6 +3,7 @@ using Xunit;
 
 namespace Atelia.Rbf.Internal.Tests;
 
+/// <summary>RBF1 offline recovery fixtures; production RBF3 Open is tested separately.</summary>
 public sealed class RbfRecoveryScannerTests : IDisposable {
     private readonly List<string> _tempFiles = new();
 
@@ -26,7 +27,7 @@ public sealed class RbfRecoveryScannerTests : IDisposable {
         byte[] payload2 = [0xAA, 0xBB, 0xCC];
         long validTail;
 
-        using (var rbf = RbfFile.CreateNew(path)) {
+        using (var rbf = RawRbfTestFile.CreateLegacy(path)) {
             Assert.True(rbf.Append(0x11111111, payload1).IsSuccess);
             Assert.True(rbf.Append(0x22222222, payload2).IsSuccess);
             validTail = rbf.TailOffset;
@@ -54,7 +55,7 @@ public sealed class RbfRecoveryScannerTests : IDisposable {
         var path = GetTempFilePath();
         SizedPtr ptr3;
 
-        using (var rbf = RbfFile.CreateNew(path)) {
+        using (var rbf = RawRbfTestFile.CreateLegacy(path)) {
             Assert.True(rbf.Append(0x11111111, [0x01]).IsSuccess);
             Assert.True(rbf.Append(0x22222222, [0x02, 0x03]).IsSuccess);
             var result3 = rbf.Append(0x33333333, [0x04, 0x05, 0x06]);
@@ -79,7 +80,7 @@ public sealed class RbfRecoveryScannerTests : IDisposable {
         var path = GetTempFilePath();
         SizedPtr ptr2;
 
-        using (var rbf = RbfFile.CreateNew(path)) {
+        using (var rbf = RawRbfTestFile.CreateLegacy(path)) {
             Assert.True(rbf.Append(0x11111111, [0x01, 0x02, 0x03, 0x04]).IsSuccess);
             var result2 = rbf.Append(0x22222222, [0xAA, 0xBB, 0xCC, 0xDD]);
             Assert.True(result2.IsSuccess);
@@ -104,7 +105,7 @@ public sealed class RbfRecoveryScannerTests : IDisposable {
         byte[] payload = [0xAA, 0xBB, 0xCC, 0xDD];
         SizedPtr ptr2;
 
-        using (var rbf = RbfFile.CreateNew(path)) {
+        using (var rbf = RawRbfTestFile.CreateLegacy(path)) {
             Assert.True(rbf.Append(0x11111111, [0x01]).IsSuccess);
             var result2 = rbf.Append(0x22222222, payload);
             Assert.True(result2.IsSuccess);
@@ -144,7 +145,7 @@ public sealed class RbfRecoveryScannerTests : IDisposable {
         var path = GetTempFilePath();
         SizedPtr ptr2;
 
-        using (var rbf = RbfFile.CreateNew(path)) {
+        using (var rbf = RawRbfTestFile.CreateLegacy(path)) {
             Assert.True(rbf.Append(0x11111111, [0x01]).IsSuccess);
             var result2 = rbf.Append(0x22222222, [0x02]);
             Assert.True(result2.IsSuccess);
@@ -169,7 +170,7 @@ public sealed class RbfRecoveryScannerTests : IDisposable {
     public void TruncateToSuggestedTail_RemovesUnalignedTailGarbage() {
         var path = GetTempFilePath();
 
-        using (var rbf = RbfFile.CreateNew(path)) {
+        using (var rbf = RawRbfTestFile.CreateLegacy(path)) {
             Assert.True(rbf.Append(0x11111111, [0x01]).IsSuccess);
             Assert.True(rbf.Append(0x22222222, [0x02]).IsSuccess);
         }
@@ -185,7 +186,7 @@ public sealed class RbfRecoveryScannerTests : IDisposable {
 
         RbfRecovery.TruncateToSuggestedTail(path, hit);
 
-        using var reopened = RbfFile.OpenExisting(path, out _);
+        using var reopened = RbfFile.OpenReadOnlyExisting(path);
         var tags = new List<uint>();
         var scan = reopened.ScanReverse().GetEnumerator();
         while (scan.MoveNext()) {
@@ -200,7 +201,7 @@ public sealed class RbfRecoveryScannerTests : IDisposable {
     public void TruncateToSuggestedTail_RejectsMissingSuggestedTailFence() {
         var path = GetTempFilePath();
 
-        using (var rbf = RbfFile.CreateNew(path)) {
+        using (var rbf = RawRbfTestFile.CreateLegacy(path)) {
             Assert.True(rbf.Append(0x11111111, [0x01]).IsSuccess);
             Assert.True(rbf.Append(0x22222222, [0x02]).IsSuccess);
         }

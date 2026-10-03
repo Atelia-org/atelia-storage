@@ -17,6 +17,8 @@ depends_on:
 
 本文档定义 RBF 子系统的核心类型设计。
 
+2026-10-03接点同步：内部只保留RBF1/RBF3两组具体wire布局，不新增公共codec模式或assembly。工厂在owned handle一次Header分派，RBF1只读；RBF3在解析边界先验U再转换成byte布局，FrameInfo、cache范围、Data输入与ticket仍为bytes。详细合同以[接口](rbf-interface.md)、[格式](rbf-format.md)和[主方案](rbf-open-fast-path-refactoring.md)为准；本轮生产验收待完成。
+
 ---
 
 ## 快速导航（引用的接口层定义）
@@ -116,9 +118,9 @@ internal static class RbfWriteImpl {
 **类型定义（SSOT）**：见 [rbf-interface.md](rbf-interface.md) @[A-RBF-FRAME-BUILDER]
 
 **实现说明**：
-- 作为 `ref struct` 实现 Zero-Allocation on Hot Path
+- 使用readonly struct携带epoch与owner，按现有借用/取消边界工作
 - 生命周期必须涵盖 Payload 写入过程
-- 在 EndAppend 时一次性调用 RandomAccess.Write 刷入磁盘（或 Flush 内部 Buffer）
+- EndAppend先完成plaintext CRC/Trailer（TailLenUnits=U），对owned pending chunks选Key并原地XOR，最后追加raw Key/Fence、回填raw HeadLenUnits并Commit/Push；一次API调用不是不可中断的磁盘事务
 - 内部字段：`SafeFileHandle _file`、`long _offset`、`byte[] _buffer` 等
 
 ### 3.1.1 Auto-Abort 实现路径
@@ -130,6 +132,8 @@ depends: "@[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME](rbf-interface.md)"
 本条款定义如何实现 @[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME] 的逻辑语义。
 
 **物理实现双路径**：
+
+下表保留旧骨架的备选说明。本轮RBF3绑定SinkReservableWriter，以唯一pending头reservation阻止发布，未提交owned chunks由Reset取消，使用Zero I/O路径；不采用Tombstone fallback。Commit/Push输出开始后的异常属于永久writer fault，不能由Auto-Abort解除。
 
 | 路径 | 条件 | 机制 |
 |------|------|------|
@@ -156,7 +160,7 @@ depends: "@[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME](rbf-interface.md)"
 - 内部持有 handle 和 range/游标
 - 产出 `RbfFrameInfo`，不读取 payload；如需 payload，调用 `ReadFrame`/`ReadPooledFrame`
 - MVP 可直接用多次 `RandomAccess.Read` 完成 framing 校验；缓存层可后置
-- 仅做 framing 校验，不进行 CRC 校验
+- 仅做framing与TrailerCRC校验，不执行PayloadCRC；RBF3读取Trailer16+TailKey4后先验U再得到byte L，仍不读头
 - `Current` 为值语义快照（不依赖内部 buffer 生命周期）
 - `MoveNext()` 返回 `false` 时，`TerminationError` 为空表示正常结束；非空表示硬停止错误
 
@@ -175,8 +179,11 @@ depends: "@[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME](rbf-interface.md)"
 - 在 Builder Dispose/EndAppend 前，TailOffset 不会更新，也不应允许并发 Append
 
 **工厂方法**：
-- `RbfFile.CreateNew(string path)` — 创建新文件（FailIfExists）
-- `RbfFile.OpenExisting(string path, out RbfTailRecoveryReport recovery, RbfCacheMode cacheMode = RbfCacheMode.Slots16)` — 独占打开并默认恢复单个残缺尾帧，返回精简动作报告；只读打开只验证
+- `RbfFile.CreateNew(string path)` — 创建纯RBF3（FailIfExists）
+- `RbfFile.OpenExisting(string path, out RbfTailRecoveryReport recovery, RbfCacheMode cacheMode = RbfCacheMode.Slots16)` — 只接受RBF3，独占结构打开及单尾截断/补原Key+Fence；不校验PayloadCRC、不补墓碑
+- `RbfFile.OpenReadOnlyExisting(string path, RbfCacheMode cacheMode = RbfCacheMode.Slots16)` — RBF1完整结构主链，RBF3局部结构快开；需恢复时拒绝，不修改
+
+HeadLen的4B reservation仅存最终raw U，不属于XOR范围。Data fused操作的范围是reservation之后的完整已写body；调用前不能追加raw Key/Fence。全部可预见拒绝在首次footer修改前结束；准备修改到Push前的异常取消当前Builder，实际输出异常永久fault。普通ticket完整读每次两CRC；FrameInfo完整读复用创建时已验证Trailer/Key，每次检查PayloadCRC，仍受owner生命周期/fault约束；离线共享Write输入另须冻结。
 
 ---
 

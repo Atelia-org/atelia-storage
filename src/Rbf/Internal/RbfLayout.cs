@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Buffers.Binary;
 using Atelia.Data;
 
 namespace Atelia.Rbf.Internal;
@@ -18,6 +17,29 @@ internal static class RbfLayout {
     // === Fence ===
     internal static ReadOnlySpan<byte> Fence => "RBF1"u8;
     internal const int FenceSize = sizeof(uint);
+    internal const int TailKeySize = sizeof(uint);
+
+    internal static ReadOnlySpan<byte> GetFence(RbfProfile profile) => profile switch {
+        RbfProfile.Rbf1 => Fence,
+        RbfProfile.Rbf3 => "RBF3"u8,
+        _ => throw new ArgumentOutOfRangeException(nameof(profile), profile, "Unknown RBF profile.")
+    };
+
+    internal static uint GetFenceWord(RbfProfile profile) => profile switch {
+        RbfProfile.Rbf1 => 0x31464252u,
+        RbfProfile.Rbf3 => 0x33464252u,
+        _ => throw new ArgumentOutOfRangeException(nameof(profile), profile, "Unknown RBF profile.")
+    };
+
+    internal static int GetTailKeySize(RbfProfile profile) => profile switch {
+        RbfProfile.Rbf1 => 0,
+        RbfProfile.Rbf3 => TailKeySize,
+        _ => throw new ArgumentOutOfRangeException(nameof(profile), profile, "Unknown RBF profile.")
+    };
+
+    internal static int GetFixedOverhead(RbfProfile profile) => MinFrameLength + GetTailKeySize(profile);
+    internal static int GetMinFrameLength(RbfProfile profile) => GetFixedOverhead(profile);
+    internal static int GetMaxPayloadAndMetaLength(RbfProfile profile) => SizedPtr.MaxLength - GetFixedOverhead(profile);
 
     // === Header ===
     internal const int HeaderFenceOffset = 0;
@@ -42,7 +64,7 @@ internal static class RbfLayout {
     internal const int MinFrameLength = sizeof(uint) + PayloadCrcSize + TrailerCodewordSize;
 }
 
-/// <summary>帧布局计算器（v0.40 格式）。</summary>
+/// <summary>帧布局计算器，默认构造保留 RBF1 byte-wire 语义。</summary>
 /// <remarks>
 /// 关于数据长度命名：定长又不可分的用 Size，变长或复合的用 Length。
 /// v0.40 布局：[HeadLen][Payload][TailMeta][Padding][PayloadCrc][TrailerCodeword]
@@ -56,11 +78,14 @@ internal readonly struct FrameLayout {
     private readonly int _tailMetaLength;
     private readonly int _paddingLength;
 
-    internal FrameLayout(int payloadLength, int tailMetaLength = 0) {
+    internal FrameLayout(int payloadLength, int tailMetaLength = 0) : this(RbfProfile.Rbf1, payloadLength, tailMetaLength) { }
+
+    internal FrameLayout(RbfProfile profile, int payloadLength, int tailMetaLength = 0) {
+        Profile = profile;
         Debug.Assert(0 <= tailMetaLength, "tailMetaLength must be non-negative");
         Debug.Assert(tailMetaLength <= MaxTailMetaLength, "tailMetaLength exceeds MaxTailMetaLength");
         Debug.Assert(0 <= payloadLength, "payloadLength must be non-negative");
-        Debug.Assert(payloadLength + tailMetaLength <= MaxPayloadAndMetaLength, "payloadLength exceeds MaxPayloadLength");
+        Debug.Assert((long)payloadLength + tailMetaLength <= RbfLayout.GetMaxPayloadAndMetaLength(profile), "payloadLength exceeds MaxPayloadLength");
 
         _payloadLength = payloadLength;
         _tailMetaLength = tailMetaLength;
@@ -91,9 +116,15 @@ internal readonly struct FrameLayout {
     internal const int PayloadCrcSize = RbfLayout.PayloadCrcSize;
     internal const int TrailerCodewordSize = RbfLayout.TrailerCodewordSize;
     internal const int TailLenSize = FrameLenSize;
+    internal const int TailKeySize = RbfLayout.TailKeySize;
 
-    /// <summary>帧总长度 = HeadLen + Payload + TailMeta + Padding + PayloadCrc + TrailerCodeword。</summary>
-    internal int FrameLength => HeadLenSize + _payloadLength + _tailMetaLength + _paddingLength + PayloadCrcSize + TrailerCodewordSize;
+    internal RbfProfile Profile { get; }
+    internal int TailKeyLength => RbfLayout.GetTailKeySize(Profile);
+    internal uint WireFrameLength => RbfWireCodec.EncodeFrameLength(Profile, FrameLength);
+    internal int EncodedBodyLength => FrameLength - HeadLenSize - TailKeyLength;
+
+    /// <summary>以 bytes 表示的帧总长度，RBF3 另含 raw TailKey。</summary>
+    internal int FrameLength => RbfLayout.GetFixedOverhead(Profile) + _payloadLength + _tailMetaLength + _paddingLength;
     #endregion
 
     #region Statistics
@@ -123,6 +154,9 @@ internal readonly struct FrameLayout {
 
     /// <summary>TrailerCodeword 偏移。</summary>
     internal int TrailerCodewordOffset => PayloadCrcOffset + PayloadCrcSize;
+
+    /// <summary>RBF3 raw TailKey 起始偏移；RBF1 中等于帧结束位置。</summary>
+    internal int TailKeyOffset => TrailerCodewordOffset + TrailerCodewordSize;
     #endregion
 
     #region PayloadCrc Coverage
@@ -139,33 +173,24 @@ internal readonly struct FrameLayout {
 
     #region TrailerCodeword 操作
 
-    /// <summary>从完整帧 buffer 解析 TrailerCodeword 并构造 FrameLayout（v0.40 格式）。</summary>
-    /// <param name="frameBuffer">完整帧数据（从 HeadLen 到 TrailerCodeword 末尾）。</param>
-    /// <param name="trailer">输出：解析后的 TrailerCodeword 数据。</param>
-    /// <returns>成功时返回 FrameLayout，失败时返回错误。</returns>
-    /// <remarks>
-    /// Framing 校验：
-    /// - FrameDescriptor 保留位 (bit 28-16) 为 0
-    /// - TrailerCrc32C 校验通过
-    /// - PayloadLength &gt;= 0
-    /// - TailLen &gt;= MinFrameLength
-    /// - TailLen 4B 对齐
-    /// </remarks>
-    internal static AteliaResult<FrameLayout> ResultFromTrailer(ReadOnlySpan<byte> frameBuffer, out TrailerCodewordData trailer) {
-        // 1. 确保 buffer 足够大
-        if (frameBuffer.Length < MinFrameLength) {
+    /// <summary>从完整 RBF1 帧解析 TrailerCodeword 并构造 FrameLayout。</summary>
+    internal static AteliaResult<FrameLayout> ResultFromTrailer(scoped ReadOnlySpan<byte> frameBuffer, out TrailerCodewordData trailer) {
+        return ResultFromTrailer(RbfProfile.Rbf1, frameBuffer, out trailer);
+    }
+
+    /// <summary>从完整帧的 plaintext body 解析 Trailer；RBF3 raw TailKey 仍在帧末尾。</summary>
+    internal static AteliaResult<FrameLayout> ResultFromTrailer(RbfProfile profile, scoped ReadOnlySpan<byte> frameBuffer, out TrailerCodewordData trailer) {
+        int minimum = RbfLayout.GetMinFrameLength(profile);
+        if (frameBuffer.Length < minimum) {
             trailer = default;
             return new RbfFramingError(
-                $"Frame buffer too small: {frameBuffer.Length} bytes, minimum {MinFrameLength} bytes.",
+                $"Frame buffer too small: {frameBuffer.Length} bytes, minimum {minimum} bytes.",
                 RecoveryHint: "The frame data is truncated."
             );
         }
 
-        // 2. 定位 TrailerCodeword（帧末尾 16 字节）
-        var trailerSpan = frameBuffer.Slice(frameBuffer.Length - TrailerCodewordSize, TrailerCodewordSize);
-
-        // 3. 验证并解析 TrailerCodeword（CRC + reserved bits）
-        var trailerResult = TrailerCodewordHelper.ParseAndValidate(trailerSpan);
+        int trailerOffset = frameBuffer.Length - RbfLayout.GetTailKeySize(profile) - TrailerCodewordSize;
+        var trailerResult = RbfWireCodec.ParseTrailer(profile, frameBuffer.Slice(trailerOffset, TrailerCodewordSize));
         if (!trailerResult.IsSuccess) {
             trailer = default;
             return trailerResult.Error!;
@@ -173,8 +198,6 @@ internal readonly struct FrameLayout {
 
         trailer = trailerResult.Value;
 
-        // 6. 验证 TailLen == frameBuffer.Length（完整帧契约）
-        // 调用方承诺传入完整帧数据，TailLen 必须与实际长度匹配
         if (trailer.TailLen != (uint)frameBuffer.Length) {
             return new RbfFramingError(
                 $"TailLen ({trailer.TailLen}) does not match frame buffer length ({frameBuffer.Length}).",
@@ -182,33 +205,15 @@ internal readonly struct FrameLayout {
             );
         }
 
-        // 7. 验证 TailLen 基本合法性
-        if (trailer.TailLen < MinFrameLength) {
-            return new RbfFramingError(
-                $"TailLen too small: {trailer.TailLen}, minimum {MinFrameLength}.",
-                RecoveryHint: "The frame length field is corrupted."
-            );
-        }
-
-        if ((trailer.TailLen & RbfLayout.AlignmentMask) != 0) {
-            return new RbfFramingError(
-                $"TailLen not 4-byte aligned: {trailer.TailLen}.",
-                RecoveryHint: "The frame length field is corrupted."
-            );
-        }
-
-        // 8. 计算 PayloadLength
-        // PayloadLength = TailLen - FixedOverhead - TailMetaLen - PaddingLen
-        var payloadLengthResult = TrailerCodewordHelper.ComputePayloadLength(trailer.TailLen, trailer.TailMetaLen, trailer.PaddingLen);
+        var payloadLengthResult = TrailerCodewordHelper.ComputePayloadLength(profile, trailer.TailLen, trailer.TailMetaLen, trailer.PaddingLen);
         if (!payloadLengthResult.IsSuccess) { return payloadLengthResult.Error!; }
 
         int payloadLength = payloadLengthResult.Value;
 
-        // 9. 构造 FrameLayout
-        return new FrameLayout(payloadLength, trailer.TailMetaLen);
+        return new FrameLayout(profile, payloadLength, trailer.TailMetaLen);
     }
 
-    /// <summary>填充 TrailerCodeword（v0.40 格式）。</summary>
+    /// <summary>填充 plaintext TrailerCodeword，按 profile 写入原始 wire 长度。</summary>
     /// <param name="buffer">目标 buffer，MUST 至少 16 字节。</param>
     /// <param name="tag">帧标签。</param>
     /// <param name="isTombstone">是否为墓碑帧。</param>
@@ -218,7 +223,7 @@ internal readonly struct FrameLayout {
     /// [0-3]   TrailerCrc32C   (u32 BE)  ← SealTrailerCrc 计算并写入
     /// [4-7]   FrameDescriptor (u32 LE)
     /// [8-11]  FrameTag        (u32 LE)
-    /// [12-15] TailLen         (u32 LE)  ← 等于 FrameLength
+    /// [12-15] TailLen         (u32 LE)  ← RBF1 bytes / RBF3 units
     /// </code>
     /// 规范引用：
     /// - @[F-TRAILER-CRC-BIG-ENDIAN]: TrailerCrc 按 BE 存储
@@ -229,7 +234,7 @@ internal readonly struct FrameLayout {
         uint descriptor = TrailerCodewordHelper.BuildDescriptor(isTombstone, _paddingLength, _tailMetaLength);
 
         // 序列化并写入 CRC
-        TrailerCodewordHelper.Serialize(buffer, descriptor, tag, (uint)FrameLength);
+        TrailerCodewordHelper.Serialize(buffer, descriptor, tag, WireFrameLength);
     }
     #endregion
 }

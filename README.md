@@ -4,6 +4,8 @@ Atelia 的 .NET 10 存储基础库，使用 MIT 许可证。五个库保留原�
 
 当前 main 包含 **EventJournal/SegmentStore v2 未公开发布的 breaking 候选**：布局包含 `journal.format`、`active.segment` 与 `catalog.snapshot`，日常打开严格且有界，不自动修尾，旧目录需要另行迁移。当前候选见 [EventJournal 指南](src/EventJournal/README.md)、[SegmentStore 指南](src/RbfSegmentStore/README.md)、[离线 toolkit](tools/EventJournal.Toolkit/README.md)和[交付记录](docs/EventJournal/bounded-online-io-delivery.md)。
 
+当前 main 的 RBF 新建文件采用 **RBF3**（4B 长度单位、单尾 EscapeKey）；RBF1 保留只读及原 ticket 兼容。格式与恢复合同见 [RBF 规范](docs/Rbf/rbf-format.md)，实施资格见 [普通打开重构记录](docs/Rbf/rbf-open-fast-path-refactoring.md)。RbfSegmentStore / EventJournal 的适配属于后续阶段。
+
 下表仍是 nuget.org 已发布包事实，包链接固定到已发布源码；不能用 main 指南替代旧包行为。历史公开包曾按同一版本交付；新包可以按项目独立发版：
 
 | NuGet 包 | 本次公开组合 | 作用与入口 |

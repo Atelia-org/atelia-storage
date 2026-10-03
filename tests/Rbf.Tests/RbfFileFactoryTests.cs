@@ -1,3 +1,4 @@
+using Atelia.Rbf.Internal.Tests;
 using Xunit;
 
 namespace Atelia.Rbf.Tests;
@@ -26,7 +27,7 @@ public class RbfFileFactoryTests : IDisposable {
         }
     }
 
-    /// <summary>CreateNew 创建的文件长度为 4，内容为 HeaderFence (0x52 0x42 0x46 0x31)。</summary>
+    /// <summary>CreateNew 创建的文件长度为 4，内容为 RBF3 HeaderFence。</summary>
     [Fact]
     public void CreateNew_CreatesFileWithHeaderFence() {
         // Arrange
@@ -43,7 +44,7 @@ public class RbfFileFactoryTests : IDisposable {
         Assert.Equal(0x52, content[0]); // 'R'
         Assert.Equal(0x42, content[1]); // 'B'
         Assert.Equal(0x46, content[2]); // 'F'
-        Assert.Equal(0x31, content[3]); // '1'
+        Assert.Equal(0x33, content[3]); // '3'
     }
 
     /// <summary>CreateNew 在文件已存在时抛出 IOException。</summary>
@@ -104,7 +105,7 @@ public class RbfFileFactoryTests : IDisposable {
 
         // Act & Assert
         var ex = Assert.Throws<InvalidDataException>(() => RbfFile.OpenExisting(path, out _));
-        Assert.Contains("HeaderFence mismatch", ex.Message);
+        Assert.Contains("HeaderFence", ex.Message);
     }
 
     /// <summary>OpenExisting 在文件不存在时抛出 FileNotFoundException。</summary>
@@ -141,5 +142,40 @@ public class RbfFileFactoryTests : IDisposable {
         var ex = Assert.Throws<InvalidDataException>(() => RbfFile.OpenExisting(path, out _));
         Assert.NotEmpty(ex.Message);
         Assert.Equal(new byte[] { 0x52, 0x42, 0x46, 0x31, 0xFF }, File.ReadAllBytes(path));
+    }
+
+    [Theory]
+    [InlineData("RBF2")]
+    [InlineData("RBF4")]
+    public void UnknownProfile_RejectsBothOpenModes_WithoutChangingBytes(string magic) {
+        var path = GetTempFilePath();
+        byte[] before = System.Text.Encoding.ASCII.GetBytes(magic);
+        File.WriteAllBytes(path, before);
+        Assert.Throws<InvalidDataException>(() => RbfFile.OpenExisting(path, out _));
+        Assert.Throws<InvalidDataException>(() => RbfFile.OpenReadOnlyExisting(path));
+        Assert.Equal(before, File.ReadAllBytes(path));
+        using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+    }
+
+    [Fact]
+    public void LegacyRbf1_ReadOnlyPreservesTicketAndContent_WritableRejectsWithoutMutation() {
+        var path = GetTempFilePath();
+        Atelia.Data.SizedPtr ticket;
+        using (var fixture = RawRbfTestFile.CreateLegacy(path)) {
+            ticket = fixture.Append(123, "legacy"u8, "meta"u8).Unwrap();
+        }
+        byte[] before = File.ReadAllBytes(path);
+        using (var file = RbfFile.OpenReadOnlyExisting(path)) {
+            using var frame = file.ReadPooledFrame(ticket).Unwrap();
+            Assert.Equal(ticket, frame.Ticket);
+            Assert.Equal("legacymeta"u8.ToArray(), frame.PayloadAndMeta.ToArray());
+            Assert.Equal(123u, frame.Tag);
+            using var meta = file.ReadPooledTailMeta(ticket).Unwrap();
+            Assert.Equal("meta"u8.ToArray(), meta.TailMeta.ToArray());
+            Assert.Throws<InvalidOperationException>(() => file.Append(1, []));
+        }
+        Assert.Throws<InvalidDataException>(() => RbfFile.OpenExisting(path, out _));
+        Assert.Equal(before, File.ReadAllBytes(path));
+        using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
     }
 }

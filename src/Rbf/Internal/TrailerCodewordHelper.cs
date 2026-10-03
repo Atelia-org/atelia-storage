@@ -19,7 +19,7 @@ internal readonly struct TrailerCodewordData {
     /// <summary>FrameTag（LE 解码）。</summary>
     required public uint FrameTag { get; init; }
 
-    /// <summary>TailLen（LE 解码）。</summary>
+    /// <summary>经 RbfWireCodec 解析时为 byte 长度；原始 Helper.Parse 的结果仍保留 wire 字段。</summary>
     required public uint TailLen { get; init; }
 
     // 从 FrameDescriptor 解码的字段（一次解码，多次使用）
@@ -142,7 +142,7 @@ internal static class TrailerCodewordHelper {
         return (descriptor & ReservedMask) == 0;
     }
 
-    internal static AteliaResult<TrailerCodewordData> ParseAndValidate(ReadOnlySpan<byte> trailerCodeword) {
+    internal static AteliaResult<TrailerCodewordData> ParseAndValidate(scoped ReadOnlySpan<byte> trailerCodeword) {
         // @[F-TRAILER-CRC-COVERAGE]: TrailerCrc 覆盖 FrameDescriptor + FrameTag + TailLen
         if (!CheckTrailerCrc(trailerCodeword)) {
             return new RbfCrcMismatchError(
@@ -165,6 +165,11 @@ internal static class TrailerCodewordHelper {
     }
 
     internal static AteliaResult<int> ComputePayloadLength(uint tailLen, int tailMetaLen, int paddingLen) {
+        return ComputePayloadLength(RbfProfile.Rbf1, tailLen, tailMetaLen, paddingLen);
+    }
+
+    /// <summary>tailLen 已在 codec 边界归一为 bytes。</summary>
+    internal static AteliaResult<int> ComputePayloadLength(RbfProfile profile, uint tailLen, int tailMetaLen, int paddingLen) {
         if (tailLen > int.MaxValue) {
             return new RbfFramingError(
                 $"TailLen is too large for int: {tailLen}.",
@@ -172,7 +177,7 @@ internal static class TrailerCodewordHelper {
             );
         }
 
-        int payloadLength = (int)tailLen - FrameLayout.FixedOverhead - tailMetaLen - paddingLen;
+        int payloadLength = (int)tailLen - RbfLayout.GetFixedOverhead(profile) - tailMetaLen - paddingLen;
         if (payloadLength < 0) {
             return new RbfFramingError(
                 $"Computed PayloadLength is negative: {payloadLength} (TailLen={tailLen}, TailMetaLen={tailMetaLen}, PaddingLen={paddingLen}).",

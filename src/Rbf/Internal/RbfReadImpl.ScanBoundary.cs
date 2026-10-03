@@ -8,14 +8,14 @@ namespace Atelia.Rbf.Internal;
 internal static partial class RbfReadImpl {
     internal static AteliaResult<RbfScanBoundary> GetScanBoundaryAfter(RandomAccessReader reader, SizedPtr ticket, long end, long fileLength) {
         reader.EnsureUsable();
-        if (ticket.Offset < RbfLayout.FirstFrameOffset || ticket.Length < RbfLayout.MinFrameLength || end > fileLength) {
+        if (ticket.Offset < RbfLayout.FirstFrameOffset || ticket.Length < RbfLayout.GetMinFrameLength(reader.Profile) || end > fileLength) {
             return new RbfArgumentError("Anchor ticket must identify a complete frame within the file.");
         }
         var result = ReadPooledFrame(reader, ticket);
         if (result.IsFailure) { return result.Error!; }
         using var frame = result.Value!; // Success guarantees a non-null pooled frame.
         Span<byte> fence = stackalloc byte[RbfLayout.FenceSize];
-        if (reader.Read(fence, end - RbfLayout.FenceSize) != fence.Length || !fence.SequenceEqual(RbfLayout.Fence)) {
+        if (reader.Read(fence, end - RbfLayout.FenceSize) != fence.Length || !fence.SequenceEqual(RbfLayout.GetFence(reader.Profile))) {
             return new RbfFramingError("Anchor tail Fence is missing or corrupted.");
         }
         Span<byte> header = stackalloc byte[12];

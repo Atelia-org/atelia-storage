@@ -376,7 +376,7 @@ public class ReadTrailerBeforeTests : IDisposable {
         // Assert
         Assert.False(result.IsSuccess);
         Assert.IsType<RbfFramingError>(result.Error);
-        Assert.Contains("TailLen", result.Error!.Message);
+        Assert.Contains("length", result.Error!.Message.ToLowerInvariant());
     }
 
     /// <summary>验证 TailLen 导致 frameStart 越过 HeaderFence 时返回 FramingError。</summary>
@@ -441,7 +441,7 @@ public class ReadTrailerBeforeTests : IDisposable {
         // Assert
         Assert.False(result.IsSuccess);
         Assert.IsType<RbfFramingError>(result.Error);
-        Assert.Contains("TailLen", result.Error!.Message);
+        Assert.Contains("length", result.Error!.Message.ToLowerInvariant());
     }
 
     #endregion
@@ -567,7 +567,8 @@ public class ReadTrailerBeforeTests : IDisposable {
         Assert.IsType<RbfFramingError>(result.Error);
         // 应该因为 TailLen > int.MaxValue 或 frameStart 越界而失败
         Assert.True(
-            result.Error!.Message.Contains("TailLen") || result.Error!.Message.Contains("HeaderFence"),
+            result.Error!.Message.Contains("TailLen") || result.Error!.Message.Contains("HeaderFence") ||
+                result.Error!.Message.Contains("length", StringComparison.OrdinalIgnoreCase),
             $"Expected error about TailLen or HeaderFence, got: {result.Error!.Message}"
         );
     }
@@ -657,9 +658,9 @@ public class ReadTrailerBeforeTests : IDisposable {
             fileLength = new FileInfo(path).Length;
         }
 
-        // 使用底层 handle 调用 ReadTrailerBefore（RbfFile 已关闭）
+        // 使用明确 RBF3 profile 的底层 reader（旧 raw fixtures 仍默认 RBF1）。
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
-        using var reader = new RandomAccessReader(handle);
+        using var reader = new RandomAccessReader(handle, profile: RbfProfile.Rbf3);
         var result = RbfReadImpl.ReadTrailerBefore(reader, fileLength);
 
         // Assert

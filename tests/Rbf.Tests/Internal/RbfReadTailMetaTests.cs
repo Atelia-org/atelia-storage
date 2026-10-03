@@ -482,7 +482,7 @@ public class RbfReadTailMetaTests : IDisposable {
         );
 
         // Act
-        using var rbfRead = RbfFile.OpenExisting(path, out _);
+        using var rbfRead = RbfFile.OpenReadOnlyExisting(path);
         RbfFrameInfo? frameInfo = null;
         foreach (var info in rbfRead.ScanReverse(showTombstone: true)) {
             frameInfo = info;

@@ -6,7 +6,7 @@ namespace Atelia.Rbf;
 
 /// <summary>帧构建器。支持流式写入 payload，并支持在 payload 内进行预留与回填。</summary>
 /// <remarks>
-/// 生命周期：调用方 MUST 调用 <see cref="EndAppend"/> 或 <see cref="Dispose"/> 之一来结束构建器生命周期。
+/// 生命周期：调用方 MUST 调用 <see cref="EndAppend(uint,int)"/> 或 <see cref="Dispose"/> 之一来结束构建器生命周期。
 /// Auto-Abort（Optimistic Clean Abort）：若未 EndAppend 就 Dispose，
 /// 逻辑上该帧视为不存在；物理实现规则见 @[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME]。
 /// 类型选择：采用 readonly struct 作为一次性值对象，避免 Builder 复用带来的语义混淆。
@@ -56,6 +56,12 @@ public readonly struct RbfFrameBuilder : IDisposable {
     public AteliaResult<SizedPtr> EndAppend(uint tag, int tailMetaLength = 0) {
         var owner = _owner ?? throw new InvalidOperationException("Builder is not initialized.");
         return owner.CommitFromBuilder(_epoch, tag, tailMetaLength);
+    }
+
+    // Selection-stage fault injection is per call and internal; production EndAppend has no callback.
+    internal AteliaResult<SizedPtr> EndAppend(uint tag, int tailMetaLength, Action beforeEscape) {
+        var owner = _owner ?? throw new InvalidOperationException("Builder is not initialized.");
+        return owner.CommitFromBuilder(_epoch, tag, tailMetaLength, beforeEscape);
     }
 
     /// <summary>释放构建器。若未 EndAppend，自动执行 Auto-Abort。</summary>

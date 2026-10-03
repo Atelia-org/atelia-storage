@@ -1,6 +1,8 @@
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Diagnostics;
 using Atelia.Data;
+using Atelia.Data.Hashing;
 using Atelia.Rbf.ReadCache;
 using Microsoft.Win32.SafeHandles;
 
@@ -34,6 +36,10 @@ internal sealed class RbfFileImpl : IRbfFile {
     private long _tailOffset;
     private bool _disposed;
     private readonly bool _readOnly;
+    private readonly RbfProfile _profile;
+    private readonly ArrayPool<byte> _appendPool;
+    private byte[]? _appendScratch;
+    private readonly Action _markWriteFaulted;
 
     // Builder 写入资源（B 变体：由 File 统一持有）
     private readonly RandomAccessByteSink _builderSink;
@@ -60,18 +66,23 @@ internal sealed class RbfFileImpl : IRbfFile {
     /// <param name="beforeRead">实际原始读取请求前的预算回调，参数已受固定 EOF 裁剪。</param>
     /// <param name="cancellationToken">读取取消信号，包括缓存命中路径。</param>
     /// <param name="readOnly">普通文件只读打开；不建立离线固定 EOF candidate。</param>
+    /// <param name="appendPool">非零键大帧输出 scratch 的池；默认共享池。</param>
+    /// <param name="profile">文件已经分派的格式；默认 RBF1 仅用于内部旧格式 fixtures。</param>
     internal RbfFileImpl(SafeFileHandle handle, long tailOffset, RbfCacheMode cacheMode = RbfCacheMode.Slots16,
         bool readOnlyCandidate = false, Action<int>? beforeRead = null, CancellationToken cancellationToken = default,
-        bool readOnly = false) {
+        bool readOnly = false, ArrayPool<byte>? appendPool = null, RbfProfile profile = RbfProfile.Rbf1) {
         _handle = handle ?? throw new ArgumentNullException(nameof(handle));
         _readOnly = readOnly || readOnlyCandidate;
+        _profile = profile;
+        _appendPool = appendPool ?? ArrayPool<byte>.Shared;
         long? fixedEof = readOnlyCandidate ? tailOffset : null;
         _reader = cacheMode == RbfCacheMode.Off
-            ? new RandomAccessReader(handle, fixedEof, beforeRead, cancellationToken)
-            : new ReverseReadCache(handle, (int)cacheMode, fixedEof, beforeRead, cancellationToken);
+            ? new RandomAccessReader(handle, fixedEof, beforeRead, cancellationToken, profile)
+            : new ReverseReadCache(handle, (int)cacheMode, fixedEof, beforeRead, cancellationToken, profile);
+        _markWriteFaulted = _reader.MarkWriteFaulted;
         _tailOffset = tailOffset;
 
-        _builderSink = new RandomAccessByteSink(_handle, tailOffset, _reader.MarkWriteFaulted);
+        _builderSink = new RandomAccessByteSink(_handle, tailOffset, _markWriteFaulted);
         _builderWriter = new SinkReservableWriter(_builderSink);
     }
 
@@ -95,6 +106,10 @@ internal sealed class RbfFileImpl : IRbfFile {
 
     /// <inheritdoc />
     public AteliaResult<SizedPtr> Append(uint tag, ReadOnlySpan<byte> payload, ReadOnlySpan<byte> tailMeta) {
+        return Append(tag, payload, tailMeta, selectKey: null);
+    }
+
+    internal AteliaResult<SizedPtr> Append(uint tag, ReadOnlySpan<byte> payload, ReadOnlySpan<byte> tailMeta, RbfEscapeKeySelector? selectKey) {
         // 生命周期检查：Dispose 入口检查
         ObjectDisposedException.ThrowIf(_disposed, this);
         EnsureWritable();
@@ -105,10 +120,15 @@ internal sealed class RbfFileImpl : IRbfFile {
         // 门面层只负责：持有句柄 + 维护 TailOffset。
         // 失败时 RbfAppendImpl 保证不修改 tailOffset
         AteliaResult<SizedPtr> result;
-        try { result = RbfAppendImpl.Append(_handle, ref tailOffset, payload, tailMeta, tag); }
-        catch {
-            _reader.MarkWriteFaulted();
-            throw;
+        if (_profile == RbfProfile.Rbf3) {
+            // RBF3 marks fault at its output boundary; CRC/search/RNG/pool failures remain prepublication failures.
+            result = RbfAppendImpl.AppendRbf3(_handle, ref tailOffset, payload, tailMeta, tag,
+                ref _appendScratch, _appendPool, _markWriteFaulted, selectKey);
+        }
+        else {
+            // Internal legacy fixtures retain the old writer. Public factories never open RBF1 for writing.
+            try { result = RbfAppendImpl.Append(_handle, ref tailOffset, payload, tailMeta, tag); }
+            catch { _reader.MarkWriteFaulted(); throw; }
         }
         if (result.IsSuccess) {
             _tailOffset = tailOffset;
@@ -165,7 +185,7 @@ internal sealed class RbfFileImpl : IRbfFile {
     }
 
     /// <summary>由 Builder 调用：提交帧（状态机 + 写入逻辑收敛到 File）。</summary>
-    internal AteliaResult<SizedPtr> CommitFromBuilder(uint epoch, uint tag, int tailMetaLength) {
+    internal AteliaResult<SizedPtr> CommitFromBuilder(uint epoch, uint tag, int tailMetaLength, Action? beforeEscape = null) {
         // 1. 生命周期检查（方案 D：状态违规返回 Failure）
         if (_disposed) {
             return new RbfStateError(
@@ -211,9 +231,10 @@ internal sealed class RbfFileImpl : IRbfFile {
         long payloadAndMetaLength = _builderWriter.Length - FrameLayout.HeadLenSize;
 
         // 3a. 资源上限校验 (Decision 7.F) - 方案 D：返回 Failure
-        if (payloadAndMetaLength > FrameLayout.MaxPayloadAndMetaLength) {
+        int maxPayloadAndMetaLength = RbfLayout.GetMaxPayloadAndMetaLength(_profile);
+        if (payloadAndMetaLength > maxPayloadAndMetaLength) {
             return new RbfArgumentError(
-                $"Payload + TailMeta length ({payloadAndMetaLength}) exceeds maximum ({FrameLayout.MaxPayloadAndMetaLength}).",
+                $"Payload + TailMeta length ({payloadAndMetaLength}) exceeds maximum ({maxPayloadAndMetaLength}).",
                 RecoveryHint: "Reduce payload size or split into multiple frames."
             );
         }
@@ -237,33 +258,55 @@ internal sealed class RbfFileImpl : IRbfFile {
 
         // 4. 计算 FrameLayout
         int payloadLength = (int)payloadAndMetaLength - tailMetaLength;
-        var layout = new FrameLayout(payloadLength, tailMetaLength);
+        var layout = new FrameLayout(_profile, payloadLength, tailMetaLength);
 
         // 4a. frameStart 校验（方案 A + D：统一委托给 RbfFrameWriteCore）
         var frameStartError = RbfFrameWriteCore.ValidateFrameStartOffset(_builderFrameStart);
         if (frameStartError is not null) { return frameStartError; }
 
-        // 5. 写入 Padding（通过 _builderWriter，CRC 自动累积）
-        if (layout.PaddingLength > 0) {
-            var paddingSpan = _builderWriter.GetSpan(layout.PaddingLength);
-            paddingSpan[..layout.PaddingLength].Clear();
-            _builderWriter.Advance(layout.PaddingLength);
+        if (_builderWriter.PushedLength != 0) {
+            return new RbfStateError("Builder data must remain unpublished until HeadLen is committed.");
         }
+        if (!_builderWriter.TryGetReservedSpan(_builderHeadLenReservationToken, out var headLenSpan)) {
+            return new RbfStateError("HeadLen reservation is no longer pending.");
+        }
+        SizedPtr ticket = SizedPtr.Create(_builderFrameStart, layout.FrameLength);
+        // This read-only pass also enforces the no-unadvanced-borrow guard before any finalize mutation.
+        uint crcRaw = _builderWriter.GetCrcSinceReservationEnd(_builderHeadLenReservationToken,
+            RollingCrc.DefaultInitValue, finalXor: 0);
 
-        // 6. 获取 PayloadCrc：从 HeadLen reservation 末尾到当前写入末尾（覆盖 Payload + TailMeta + Padding）
-        uint payloadCrc = _builderWriter.GetCrcSinceReservationEnd(_builderHeadLenReservationToken);
+        // From the first padding/footer mutation, any pre-Commit failure cancels this builder entirely.
+        try {
+            if (layout.PaddingLength > 0) {
+                var paddingSpan = _builderWriter.GetSpan(layout.PaddingLength)[..layout.PaddingLength];
+                paddingSpan.Clear();
+                crcRaw = RollingCrc.CrcForward(crcRaw, paddingSpan);
+                _builderWriter.Advance(layout.PaddingLength);
+            }
+            uint payloadCrc = crcRaw ^ RollingCrc.DefaultFinalXor;
+            if (_profile == RbfProfile.Rbf3) {
+                var tailSpan = _builderWriter.GetSpan(RbfFrameWriteCore.PlaintextTailSize);
+                RbfFrameWriteCore.WritePlaintextTail(tailSpan, in layout, tag, isTombstone: false, payloadCrc);
+                _builderWriter.Advance(RbfFrameWriteCore.PlaintextTailSize);
+                beforeEscape?.Invoke(); // Internal per-call selection-stage failure seam; no production callback.
+                uint key = _builderWriter.XorEscapeSinceReservationEnd(_builderHeadLenReservationToken, RbfLayout.GetFenceWord(_profile));
+                var closure = _builderWriter.GetSpan(2 * sizeof(uint));
+                BinaryPrimitives.WriteUInt32LittleEndian(closure, key);
+                BinaryPrimitives.WriteUInt32LittleEndian(closure[sizeof(uint)..], RbfLayout.GetFenceWord(_profile));
+                _builderWriter.Advance(2 * sizeof(uint));
+            }
+            else {
+                var tailSpan = _builderWriter.GetSpan(RbfFrameWriteCore.TailSize);
+                RbfFrameWriteCore.WriteTail(tailSpan, in layout, tag, isTombstone: false, payloadCrc);
+                _builderWriter.Advance(RbfFrameWriteCore.TailSize);
+            }
+            BinaryPrimitives.WriteUInt32LittleEndian(headLenSpan, layout.WireFrameLength);
+        }
+        catch { AbortBuilder(epoch); throw; }
 
-        // 7. 构建 Tail buffer（PayloadCrc + Trailer + Fence），写入 _builderWriter
-        var tailSpan = _builderWriter.GetSpan(RbfFrameWriteCore.TailSize);
-        RbfFrameWriteCore.WriteTail(tailSpan, in layout, tag, isTombstone: false, payloadCrc);
-        _builderWriter.Advance(RbfFrameWriteCore.TailSize);
-
-        // 8. 回填 HeadLen（FrameLength，不含 Fence）
-        if (!_builderWriter.TryGetReservedSpan(_builderHeadLenReservationToken, out var headLenSpan)) { throw new InvalidOperationException("HeadLen reservation not found (internal error)."); }
-        BinaryPrimitives.WriteUInt32LittleEndian(headLenSpan, (uint)layout.FrameLength);
-
-        // 9. 调用 Commit（触发 flush 全部数据到磁盘）
-        _builderWriter.Commit(_builderHeadLenReservationToken);
+        // Commit begins publication. Reset/Dispose cannot undo a fault from this point onward.
+        try { _builderWriter.Commit(_builderHeadLenReservationToken); }
+        catch { _reader.MarkWriteFaulted(); throw; }
 
         // 10. 更新 TailOffset 并切换状态
         long endOffset = _builderFrameStart + layout.FrameLength + RbfLayout.FenceSize;
@@ -274,7 +317,7 @@ internal sealed class RbfFileImpl : IRbfFile {
         _builderLastClose = BuilderCloseReason.Committed;
 
         // 11. 返回 SizedPtr（方案 D：包装为 Success）
-        return SizedPtr.Create(_builderFrameStart, layout.FrameLength);
+        return ticket;
     }
 
     /// <summary>由 Builder 调用：取消帧构建，切换状态为 Idle（不更新 TailOffset）。</summary>
@@ -414,8 +457,15 @@ internal sealed class RbfFileImpl : IRbfFile {
             _disposed = true;
             try { _builderWriter.Dispose(); }
             finally {
-                try { _reader.Dispose(); }
-                finally { _handle.Dispose(); }
+                try {
+                    byte[]? scratch = _appendScratch;
+                    _appendScratch = null;
+                    if (scratch is not null) { _appendPool.Return(scratch); }
+                }
+                finally {
+                    try { _reader.Dispose(); }
+                    finally { _handle.Dispose(); }
+                }
             }
         }
     }

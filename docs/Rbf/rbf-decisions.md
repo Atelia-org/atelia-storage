@@ -55,7 +55,7 @@ RBF 数据流 MUST 符合如下交替布局模式：
 RBF wire format 的以下三个信息 MUST 以 **4 字节对齐**为基础不变量（根设计决策）：
 - `[Fence]` 的起始地址（byte offset）
 - `[Frame]` 的起始地址（即 @`Frame` 头部字段位置）
-- `lengthOf([Frame])`（即 HeadLen）
+- `lengthOf([Frame])`（物理FrameBytes长度L；RBF1为byte HeadLen，RBF3为 `4 * HeadLenUnits`；wire U本身不要求低2bits为零）
 
 该不变量用于支撑：
 - 逆向扫描/Resync 以 4B 步进寻找 Fence；

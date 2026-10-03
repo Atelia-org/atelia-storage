@@ -9,6 +9,21 @@ produce_by:
 **本文档性质**：Informative（非规范性），提供常见场景的代码范例。
 规范性定义请见 [rbf-interface.md](rbf-interface.md)。
 
+本轮示例按RBF1/RBF3合同同步；生产实施与验收状态见[主方案](rbf-open-fast-path-refactoring.md)，不以示例宣称验证已完成。
+
+## 打开、兼容与单尾恢复
+
+`RbfFile.CreateNew(path)` 只创建RBF3；`OpenReadOnlyExisting` 读取RBF1或RBF3，保留RBF1原字节、旧ticket与旧容量。`OpenExisting` 只接受RBF3，并在同一独占handle上按结构修复单个残尾；RBF1可写、历史实验RBF2与未知Header拒绝。没有公共格式配置，也不自动转码。
+
+```csharp
+using var file = RbfFile.OpenExisting(path, out var recovery);
+Console.WriteLine($"Recovery={recovery.Action}, {recovery.OriginalLength}->{recovery.FinalLength}");
+```
+
+RBF3恢复只产生None、Truncated、CompletedTail：未完成body截掉，完整body仅补原Key/Fence缺失后缀。Open不校验PayloadCRC，成功只说明所检查的分帧结构可用；业务消费前仍须完整读。普通ticket读每次检查两CRC；FrameInfo在创建时已经验证TrailerCRC，info完整读复用这份不可变元信息资格并检查本次PayloadCRC。恢复报告不证明上层事务提交。只读打开不执行恢复，需动作时拒绝且文件bytes不变。
+
+SizedPtr、TailOffset、payload/meta与buffer长度始终为bytes。RBF3的4B units只在wire边界转换，调用方不要将ticket.Length除以4或手工改写持久ticket。
+
 ---
 
 ## 5. 使用示例 (Informative)
@@ -21,8 +36,13 @@ produce_by:
 
 ```csharp
 void SimpleWrite(IRbfFile file, uint myTag, byte[] data) {
-    // 直接写入，原子性（要么全写进，要么全不写进）
-    SizedPtr ptr = file.Append(myTag, data);
+    // 可预见拒绝在I/O之前返回Failure；输出异常后须释放实例并重开。
+    var result = file.Append(myTag, data);
+    if (result.IsFailure) {
+        Console.WriteLine($"Append failed: {result.Error!.Message}");
+        return;
+    }
+    SizedPtr ptr = result.Value;
 
     Console.WriteLine($"Written at: {ptr.Offset}, Length: {ptr.Length}");
     // 此时 TailOffset 已自动推进
@@ -70,7 +90,8 @@ void StreamingWrite(IRbfFile file, uint myTag, IEnumerable<byte[]> chunks) {
         // 4. 自动回滚 (Auto-Abort)
         // 若发生异常导致 EndAppend 未被调用，
         // 退出 using 块触发 Dispose 时，会自动执行 Auto-Abort。
-        // 该帧在物理上可能由部分脏数据残留，但在逻辑上视为“不存在”。
+        // 未发布的owned chunks被取消；首次footer准备异常禁止原builder重试。
+        // 实际文件输出异常会永久fault，Dispose不能解除，需要释放File后重开。
         Console.WriteLine("Write aborted explicitly or by exception.");
         throw;
     }
@@ -84,9 +105,8 @@ void StreamingWrite(IRbfFile file, uint myTag, IEnumerable<byte[]> chunks) {
 **方式一：Buffer 外置（zero-copy，调用方提供 buffer）**
 
 ```csharp
-void RandomAccessWithBuffer(IRbfFile file, SizedPtr ticket) {
-    // 调用方提供足够大的 buffer
-    Span<byte> buffer = stackalloc byte[ticket.Length];
+void RandomAccessWithBuffer(IRbfFile file, SizedPtr ticket, Span<byte> buffer) {
+    // buffer.Length必须至少为ticket.Length bytes；大帧也可用下面的pooled入口。
 
     var result = file.ReadFrame(ticket, buffer);
 
@@ -140,14 +160,13 @@ void RecoverState(IRbfFile file) {
         Console.WriteLine($"Found Frame: Tag={info.Tag}, PayloadLen={info.PayloadLength}");
 
         // 如需完整数据与 CRC 校验，显式读取
-        Span<byte> buffer = stackalloc byte[info.Ticket.Length];
-        var result = file.ReadFrame(in info, buffer);
+        var result = info.ReadPooledFrame();
         if (result.IsFailure) {
-            Console.WriteLine($"Read failed: {result.Error.Message}");
+            Console.WriteLine($"Read failed: {result.Error!.Message}");
             break;
         }
-
-        if (IsStateRestored(result.Value)) break;
+        using var frame = result.Value;
+        if (IsStateRestored(frame)) break;
     }
 }
 ```

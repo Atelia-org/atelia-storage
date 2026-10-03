@@ -27,13 +27,20 @@ public static class RbfRecovery {
 
         Span<byte> header = stackalloc byte[RbfLayout.FenceSize];
         int bytesRead = RandomAccess.Read(handle, header, RbfLayout.HeaderFenceOffset);
-        if (bytesRead < RbfLayout.FenceSize || !header.SequenceEqual(RbfLayout.Fence)) { throw new InvalidDataException("Invalid RBF file: HeaderFence mismatch."); }
+        RequireLegacyHeader(header[..bytesRead]);
 
         Span<byte> tailFence = stackalloc byte[RbfLayout.FenceSize];
         bytesRead = RandomAccess.Read(handle, tailFence, truncateOffset - RbfLayout.FenceSize);
         if (bytesRead < RbfLayout.FenceSize || !tailFence.SequenceEqual(RbfLayout.Fence)) { throw new InvalidDataException("Invalid RBF file: suggested TailFence mismatch."); }
 
         RandomAccess.SetLength(handle, truncateOffset);
+    }
+
+    internal static void RequireLegacyHeader(ReadOnlySpan<byte> header) {
+        if (header.SequenceEqual(RbfLayout.GetFence(RbfProfile.Rbf3))) {
+            throw new NotSupportedException("Offline Fence/RollingCrc recovery and suggested truncation do not support RBF3.");
+        }
+        if (!header.SequenceEqual(RbfLayout.Fence)) { throw new InvalidDataException("Invalid RBF file: HeaderFence mismatch."); }
     }
 }
 
@@ -151,7 +158,7 @@ public sealed class RbfRecoveryScanner : IDisposable {
 
             Span<byte> header = stackalloc byte[RbfLayout.FenceSize];
             int bytesRead = RandomAccess.Read(handle, header, RbfLayout.HeaderFenceOffset);
-            if (bytesRead < RbfLayout.FenceSize || !header.SequenceEqual(RbfLayout.Fence)) { throw new InvalidDataException("Invalid RBF file: HeaderFence mismatch."); }
+            RbfRecovery.RequireLegacyHeader(header[..bytesRead]);
 
             RandomAccessReader reader = cacheMode == RbfCacheMode.Off
                 ? new RandomAccessReader(handle)
@@ -218,6 +225,9 @@ public ref struct RbfRecoveryEnumerator {
     private RbfRecoveryHit _current;
 
     internal RbfRecoveryEnumerator(RandomAccessReader reader, long fileLength, RbfRecoveryScanOptions options) {
+        if (reader.Profile != RbfProfile.Rbf1) {
+            throw new NotSupportedException("Offline Fence/RollingCrc recovery does not support RBF3.");
+        }
         _reader = reader;
         _fileLength = fileLength;
         _options = options;

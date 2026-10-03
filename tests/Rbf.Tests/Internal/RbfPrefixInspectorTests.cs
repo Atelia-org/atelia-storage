@@ -7,7 +7,7 @@ using Xunit.Abstractions;
 
 namespace Atelia.Rbf.Internal.Tests;
 
-/// <summary>Final writer-image byte cuts model F1 prefixes; these are not process-kill or power-loss tests.</summary>
+/// <summary>Legacy RBF1 prefix qualification fixtures; these are not production RBF3 Open or crash tests.</summary>
 public sealed class RbfPrefixInspectorTests(ITestOutputHelper output) : IDisposable {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "rbf-s0a-" + Guid.NewGuid().ToString("N"));
 
@@ -20,7 +20,7 @@ public sealed class RbfPrefixInspectorTests(ITestOutputHelper output) : IDisposa
         if (Directory.Exists(_directory)) { Directory.Delete(_directory, true); }
     }
 
-    private byte[] WriterImage(int payloadLength, bool builder = false, int metaLength = 0) {
+    private byte[] LegacyFixtureImage(int payloadLength, bool builder = false, int metaLength = 0) {
         string path = NewPath();
         byte[] payload = Enumerable.Range(0, payloadLength).Select(i => (byte)(i * 13 + 7)).ToArray();
         byte[] meta = Enumerable.Range(0, metaLength).Select(i => (byte)(i + 1)).ToArray();
@@ -39,6 +39,20 @@ public sealed class RbfPrefixInspectorTests(ITestOutputHelper output) : IDisposa
             }
             else { Assert.True(file.Append(0x12345678, payload, meta).IsSuccess); }
         }
+        // Preserve the real Append/Builder round-trip, then qualify a separately constructed
+        // RBF1 fixture. The legacy inspector does not qualify the RBF3 writer's wire image.
+        using (var current = RbfFile.OpenReadOnlyExisting(path)) {
+            var scan = current.ScanForward().GetEnumerator();
+            Assert.True(scan.MoveNext());
+            using var frame = scan.Current.ReadPooledFrame().Unwrap();
+            Assert.Equal(payload.Concat(meta).ToArray(), frame.PayloadAndMeta.ToArray());
+            Assert.False(scan.MoveNext());
+            Assert.Null(scan.TerminationError);
+        }
+        File.Delete(path);
+        using (var legacy = RawRbfTestFile.CreateLegacy(path)) {
+            legacy.Append(0x12345678, payload, meta).Unwrap();
+        }
         return File.ReadAllBytes(path);
     }
 
@@ -50,8 +64,8 @@ public sealed class RbfPrefixInspectorTests(ITestOutputHelper output) : IDisposa
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void SmallRealWriterImage_EveryByteCut_IsQualifiedOrExplicitlyUnresolved(bool builder) {
-        byte[] bytes = WriterImage(7, builder, 2);
+    public void LegacyFixtureAfterWriterRoundtrip_EveryByteCut_IsQualifiedOrExplicitlyUnresolved(bool builder) {
+        byte[] bytes = LegacyFixtureImage(7, builder, 2);
         int frameLength = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(4));
         int trailerStart = 4 + frameLength - TrailerCodewordHelper.Size;
         for (int cut = 0; cut <= bytes.Length; cut++) {
@@ -75,8 +89,8 @@ public sealed class RbfPrefixInspectorTests(ITestOutputHelper output) : IDisposa
     [InlineData(8164)]
     [InlineData(8165)]
     [InlineData(200003)]
-    public void RealAppendBoundariesAndLargeFrame_PrefixSamplesAndComplete(int payloadLength) {
-        byte[] bytes = WriterImage(payloadLength);
+    public void LegacyLengthBoundariesAndLargeFrame_PrefixSamplesAndComplete(int payloadLength) {
+        byte[] bytes = LegacyFixtureImage(payloadLength);
         foreach (int cut in new[] { 4, 5, 8, bytes.Length / 2, bytes.Length - 4, bytes.Length - 1, bytes.Length }.Distinct()) {
             var result = Inspect(bytes, cut);
             Assert.Contains(result.Status, new[] { RbfPrefixStatus.Complete, RbfPrefixStatus.IncompleteSuffix, RbfPrefixStatus.Unresolved });
@@ -90,8 +104,8 @@ public sealed class RbfPrefixInspectorTests(ITestOutputHelper output) : IDisposa
     }
 
     [Fact]
-    public void RealLargeBuilder_MultipleAdvances_CommitImagePrefixSamples() {
-        byte[] bytes = WriterImage(200003, builder: true, metaLength: 7);
+    public void LegacyFixtureAfterLargeBuilderRoundtrip_PrefixSamples() {
+        byte[] bytes = LegacyFixtureImage(200003, builder: true, metaLength: 7);
         Assert.Equal(RbfPrefixStatus.Complete, Inspect(bytes).Status);
         foreach (int cut in new[] { 8, 1032, 4096, 65536, 65537, 131072, bytes.Length - 24, bytes.Length - 23, bytes.Length - 4, bytes.Length - 1 }) {
             var result = Inspect(bytes, cut);
@@ -120,13 +134,19 @@ public sealed class RbfPrefixInspectorTests(ITestOutputHelper output) : IDisposa
             Assert.Equal(original, new FileInfo(path).Length);
             Assert.Equal(original, file.TailOffset);
         }
-        Assert.Equal(RbfPrefixStatus.Complete, RbfPrefixInspector.Inspect(path).Status);
+        using var reopened = RbfFile.OpenReadOnlyExisting(path);
+        var scan = reopened.ScanForward().GetEnumerator();
+        Assert.True(scan.MoveNext());
+        using var kept = scan.Current.ReadPooledFrame().Unwrap();
+        Assert.Equal("kept"u8.ToArray(), kept.PayloadAndMeta.ToArray());
+        Assert.False(scan.MoveNext());
+        Assert.Null(scan.TerminationError);
     }
 
     [Fact]
-    public void CreateNewHeader_AllCutsAndContradictoryBytes() {
+    public void LegacyHeader_AllCutsAndContradictoryBytes() {
         string path = NewPath();
-        using (RbfFile.CreateNew(path)) { }
+        using (RawRbfTestFile.CreateLegacy(path)) { }
         byte[] bytes = File.ReadAllBytes(path);
         Assert.Equal("RBF1"u8.ToArray(), bytes);
         for (int cut = 0; cut < 4; cut++) { Assert.Equal(RbfPrefixStatus.IncompleteHeader, Inspect(bytes, cut).Status); }
@@ -142,7 +162,7 @@ public sealed class RbfPrefixInspectorTests(ITestOutputHelper output) : IDisposa
     [InlineData(3)]
     [InlineData(4)]
     public void HeadLen_IllegalCompleteAndImpossiblePartial(int count) {
-        byte[] image = WriterImage(0);
+        byte[] image = LegacyFixtureImage(0);
         image[4] = 1;
         Assert.Equal(RbfPrefixStatus.Invalid, Inspect(image, 4 + count).Status);
         BinaryPrimitives.WriteUInt32LittleEndian(image.AsSpan(4), 0xFFFF_FFFC);
@@ -154,7 +174,7 @@ public sealed class RbfPrefixInspectorTests(ITestOutputHelper output) : IDisposa
 
     [Fact]
     public void ExistingPayloadCrcByte_IsCheckedBeforeTrailerExists() {
-        byte[] bytes = WriterImage(5);
+        byte[] bytes = LegacyFixtureImage(5);
         int crcStart = bytes.Length - 4 - 16 - 4;
         for (int i = 0; i < 4; i++) {
             byte[] bad = (byte[])bytes.Clone(); bad[crcStart + i] ^= 0x80;
@@ -164,7 +184,7 @@ public sealed class RbfPrefixInspectorTests(ITestOutputHelper output) : IDisposa
 
     [Fact]
     public void DescriptorPartial_ReservedAndImpossibleMeta_AreRejectedEarly() {
-        byte[] bytes = WriterImage(0);
+        byte[] bytes = LegacyFixtureImage(0);
         int trailer = bytes.Length - 4 - 16;
         byte[] bad = (byte[])bytes.Clone(); bad[trailer + 6] = 1;
         Assert.Equal(RbfPrefixStatus.Invalid, Inspect(bad, trailer + 7).Status);
@@ -184,12 +204,13 @@ public sealed class RbfPrefixInspectorTests(ITestOutputHelper output) : IDisposa
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4), (uint)SizedPtr.MaxLength + 4);
         Assert.Equal(RbfPrefixStatus.Invalid, Inspect(bytes).Status);
         // This is a legal maximum-sized image prefix, not a 256MiB writer/allocation test.
-        Assert.Equal(SizedPtr.MaxLength - FrameLayout.FixedOverhead, RbfFile.MaxPayloadAndMetaLength);
+        Assert.Equal(SizedPtr.MaxLength - 24, FrameLayout.MaxPayloadAndMetaLength);
+        Assert.Equal(FrameLayout.MaxPayloadAndMetaLength - 4, RbfFile.MaxPayloadAndMetaLength);
     }
 
     [Fact]
     public void KnownDescriptorAndTag_ValidateTrailerCrcBeforeTailLenArrives() {
-        byte[] bytes = WriterImage(3);
+        byte[] bytes = LegacyFixtureImage(3);
         int trailer = bytes.Length - 4 - 16;
         bytes[trailer] ^= 1;
         Assert.Equal(RbfPrefixStatus.Unresolved, Inspect(bytes, trailer + 11).Status);
@@ -199,7 +220,7 @@ public sealed class RbfPrefixInspectorTests(ITestOutputHelper output) : IDisposa
 
     [Fact]
     public void PartialTailLen_ContradictionIsRejectedAndUnresolvedNeverQualifies() {
-        byte[] bytes = WriterImage(3);
+        byte[] bytes = LegacyFixtureImage(3);
         int trailer = bytes.Length - 4 - 16;
         for (int i = 0; i < 4; i++) {
             byte[] bad = (byte[])bytes.Clone(); bad[trailer + 12 + i] ^= 1;
@@ -209,7 +230,7 @@ public sealed class RbfPrefixInspectorTests(ITestOutputHelper output) : IDisposa
 
     [Fact]
     public void MissingFence_StillRejectsBodyPaddingTrailerAndFenceContradictions() {
-        byte[] bytes = WriterImage(1);
+        byte[] bytes = LegacyFixtureImage(1);
         int trailer = bytes.Length - 4 - 16;
         byte[] bad = (byte[])bytes.Clone(); bad[8] ^= 1;
         Assert.Equal(RbfPrefixStatus.Invalid, Inspect(bad, bytes.Length - 4).Status);
@@ -228,9 +249,9 @@ public sealed class RbfPrefixInspectorTests(ITestOutputHelper output) : IDisposa
 
     [Fact]
     public void EmbeddedValidFrame_IsOpaque_AndDoesNotBecomeBoundaryAfterBadOuterFrame() {
-        byte[] embedded = WriterImage(2);
+        byte[] embedded = LegacyFixtureImage(2);
         string path = NewPath();
-        using (var file = RbfFile.CreateNew(path)) {
+        using (var file = RawRbfTestFile.CreateLegacy(path)) {
             Assert.True(file.Append(1, "previous"u8).IsSuccess);
             Assert.True(file.Append(2, embedded).IsSuccess);
         }
@@ -247,7 +268,7 @@ public sealed class RbfPrefixInspectorTests(ITestOutputHelper output) : IDisposa
 
     [Fact]
     public void CompleteTombstone_IsPreservedAsPhysicalFact() {
-        byte[] bytes = WriterImage(5);
+        byte[] bytes = LegacyFixtureImage(5);
         int trailer = bytes.Length - 4 - 16;
         var parsed = TrailerCodewordHelper.Parse(bytes.AsSpan(trailer, 16));
         TrailerCodewordHelper.Serialize(bytes.AsSpan(trailer), parsed.FrameDescriptor | 0x80000000, parsed.FrameTag, parsed.TailLen);
@@ -259,7 +280,7 @@ public sealed class RbfPrefixInspectorTests(ITestOutputHelper output) : IDisposa
     [InlineData(false)]
     [InlineData(true)]
     public void PathInspection_LeavesExactSourceBytesAndLengthUnchanged(bool corrupted) {
-        byte[] bytes = WriterImage(23)[..^1];
+        byte[] bytes = LegacyFixtureImage(23)[..^1];
         if (corrupted) { bytes[8] ^= 1; }
         string path = NewPath(); File.WriteAllBytes(path, bytes);
         var result = RbfPrefixInspector.Inspect(path);
@@ -270,7 +291,7 @@ public sealed class RbfPrefixInspectorTests(ITestOutputHelper output) : IDisposa
 
     [Fact]
     public void BudgetAndCancellationAreUnfinished_NotCorruptionOrShortTail() {
-        byte[] bytes = WriterImage(200003);
+        byte[] bytes = LegacyFixtureImage(200003);
         using var stream = new MemoryStream(bytes, false);
         var limited = RbfPrefixInspector.Inspect(stream, 15);
         Assert.Equal(RbfPrefixStatus.BudgetExceeded, limited.Status);
@@ -290,7 +311,7 @@ public sealed class RbfPrefixInspectorTests(ITestOutputHelper output) : IDisposa
 
     [Fact]
     public void ShortReadsChargeAllRequests_EarlyZeroAndThrownReadAreIoFailure() {
-        byte[] bytes = WriterImage(11);
+        byte[] bytes = LegacyFixtureImage(11);
         using var shortReads = new TestStream(bytes, maxRead: 1);
         var result = RbfPrefixInspector.Inspect(shortReads);
         Assert.Equal(RbfPrefixStatus.Complete, result.Status);
@@ -308,7 +329,7 @@ public sealed class RbfPrefixInspectorTests(ITestOutputHelper output) : IDisposa
     [Fact]
     public void HistoryCost_IsExactlyReturnedFileLength_WithoutPrefetchOrResidentFrameList() {
         string path = NewPath();
-        using (var file = RbfFile.CreateNew(path)) {
+        using (var file = RawRbfTestFile.CreateLegacy(path)) {
             for (int i = 0; i < 1000; i++) { Assert.True(file.Append((uint)i, "data"u8).IsSuccess); }
         }
         var result = RbfPrefixInspector.Inspect(path);
@@ -326,7 +347,7 @@ public sealed class RbfPrefixInspectorTests(ITestOutputHelper output) : IDisposa
     public void CostWitness_ReportsActualReadsAndAllocation(int frameCount, int payloadLength) {
         string path = NewPath();
         byte[] payload = new byte[payloadLength];
-        using (var file = RbfFile.CreateNew(path)) {
+        using (var file = RawRbfTestFile.CreateLegacy(path)) {
             for (int i = 0; i < frameCount; i++) { Assert.True(file.Append((uint)i, payload).IsSuccess); }
         }
         // Warm managed paths only. This measurement does not establish a cold OS/device cache.

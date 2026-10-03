@@ -52,7 +52,7 @@ public class RbfFacadeTests : IDisposable {
         }
 
         // Assert - 只验证状态和返回值
-        int expectedHeadLen = new FrameLayout(payload.Length).FrameLength;
+        int expectedHeadLen = new FrameLayout(RbfProfile.Rbf3, payload.Length).FrameLength;
 
         // SizedPtr 指向 HeaderFence(4) 之后的位置
         Assert.Equal(RbfLayout.FirstFrameOffset, ptr.Offset);
@@ -86,8 +86,8 @@ public class RbfFacadeTests : IDisposable {
         }
 
         // Assert - 只验证状态和返回值
-        int headLen1 = new FrameLayout(payload1.Length).FrameLength;
-        int headLen2 = new FrameLayout(payload2.Length).FrameLength;
+        int headLen1 = new FrameLayout(RbfProfile.Rbf3, payload1.Length).FrameLength;
+        int headLen2 = new FrameLayout(RbfProfile.Rbf3, payload2.Length).FrameLength;
 
         // 第一帧位置
         Assert.Equal(RbfLayout.FirstFrameOffset, ptr1.Offset); // HeaderFence 后
@@ -123,8 +123,8 @@ public class RbfFacadeTests : IDisposable {
         }
 
         // Assert - 只验证状态和返回值
-        int expectedHeadLen = new FrameLayout(0).FrameLength;
-        Assert.Equal(24, expectedHeadLen); // v0.40 最小帧长度为 24
+        int expectedHeadLen = new FrameLayout(RbfProfile.Rbf3, 0).FrameLength;
+        Assert.Equal(28, expectedHeadLen);
 
         Assert.Equal(RbfLayout.FirstFrameOffset, ptr.Offset);
         Assert.Equal(expectedHeadLen, ptr.Length);
@@ -150,7 +150,7 @@ public class RbfFacadeTests : IDisposable {
         }
 
         // Assert - 只验证状态和返回值
-        int expectedHeadLen = new FrameLayout(payload.Length).FrameLength;
+        int expectedHeadLen = new FrameLayout(RbfProfile.Rbf3, payload.Length).FrameLength;
 
         Assert.Equal(RbfLayout.FirstFrameOffset, ptr.Offset);
         Assert.Equal(expectedHeadLen, ptr.Length);

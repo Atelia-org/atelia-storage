@@ -144,7 +144,7 @@ public sealed class RbfScanBoundaryTests : IDisposable {
     [Fact]
     public void TombstoneAnchorAndSuffix_PreserveWitnessAndFiltering() {
         SizedPtr anchor, suffix;
-        using (var file = RbfFile.CreateNew(_path)) {
+        using (var file = RawRbfTestFile.CreateLegacy(_path)) {
             anchor = file.Append(7, [1, 2, 3], [4]).Unwrap();
             suffix = file.Append(8, [5]).Unwrap();
         }

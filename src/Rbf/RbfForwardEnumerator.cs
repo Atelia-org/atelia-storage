@@ -5,7 +5,7 @@ namespace Atelia.Rbf;
 
 /// <summary>正向扫描枚举器。</summary>
 /// <remarks>
-/// 从文件头部之后的第一帧开始，读取 HeadLen 定位下一帧，并产出 <see cref="RbfFrameInfo"/>。
+/// 从文件头部之后的第一帧开始，按 profile 将 HeadLen 转换为 byte 距离，产出 <see cref="RbfFrameInfo"/>。
 /// </remarks>
 public ref struct RbfForwardEnumerator {
     private readonly RandomAccessReader _reader;

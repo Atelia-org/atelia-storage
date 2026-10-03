@@ -14,7 +14,7 @@ internal static partial class RbfReadImpl {
     /// <returns>成功时返回 RbfTailMeta（TailMeta 指向 buffer 子区间），失败时返回错误。</returns>
     /// <remarks>
     /// 实现：内部先调用 ReadFrameInfo 获取已验证的 RbfFrameInfo，再调用实例方法。
-    /// I/O：读取 TrailerCodeword（16B）+ TailMeta 区域。
+    /// I/O：读取 profile 尾块（16B / 20B）+ TailMeta 区域。
     /// 生命周期：返回的 TailMeta 直接引用 buffer，调用方 MUST 确保 buffer 有效。
     /// </remarks>
     public static AteliaResult<RbfTailMeta> ReadTailMeta(
@@ -22,7 +22,7 @@ internal static partial class RbfReadImpl {
         SizedPtr ticket,
         Span<byte> buffer
     ) {
-        // 1. 先获取帧元信息（读取 TrailerCodeword 16B，完成所有结构性验证）
+        // 1. 先获取 profile 帧元信息。
         var infoResult = ReadFrameInfo(reader, ticket);
         if (!infoResult.IsSuccess) { return infoResult.Error!; }
 
@@ -36,13 +36,13 @@ internal static partial class RbfReadImpl {
     /// <returns>成功时返回 RbfPooledTailMeta，失败时返回错误（buffer 已自动归还）。</returns>
     /// <remarks>
     /// 实现：内部先调用 ReadFrameInfo 获取已验证的 RbfFrameInfo，再调用实例方法。
-    /// I/O：读取 TrailerCodeword（16B）+ TailMeta 区域。
+    /// I/O：读取 profile 尾块（16B / 20B）+ TailMeta 区域。
     /// </remarks>
     public static AteliaResult<RbfPooledTailMeta> ReadPooledTailMeta(
         RandomAccessReader reader,
         SizedPtr ticket
     ) {
-        // 1. 先获取帧元信息（读取 TrailerCodeword 16B，完成所有结构性验证）
+        // 1. 先获取 profile 帧元信息。
         var infoResult = ReadFrameInfo(reader, ticket);
         if (!infoResult.IsSuccess) { return infoResult.Error!; }
 

@@ -5,7 +5,7 @@ using Xunit;
 
 namespace Atelia.Rbf.Internal.Tests;
 
-/// <summary>RbfRawOps 格式单元测试（v0.40 格式）。</summary>
+/// <summary>保留 RBF1 内部 fixture 写入入口的黄金 wire 测试；公开 CreateNew 写 RBF3。</summary>
 /// <remarks>
 /// 职责：验证 RawOps 层输出的字节序列符合规范。
 /// 规范引用：

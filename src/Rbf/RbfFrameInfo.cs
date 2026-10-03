@@ -1,5 +1,6 @@
 using System.Buffers;
 using Atelia.Data;
+using Atelia.Data.Binary;
 using Atelia.Rbf.Internal;
 using Atelia.Rbf.ReadCache;
 
@@ -10,7 +11,7 @@ namespace Atelia.Rbf;
 /// 用于 ScanReverse / ScanForward 产出，支持不读取 payload 的元信息迭代。
 /// PayloadLength 与 TailMetaLength 从 TrailerCodeword 解码得出。
 /// 句柄语义：构造时已完成 TrailerCrc、reserved bits、TailLen 一致性等验证，
-/// 后续读取方法只做 I/O 级校验（buffer length、short read），不重复结构性验证。
+/// 后续读取复用已验证的 TrailerCRC/元信息；完整帧读取仍校验本次 PayloadCRC。
 /// 生命周期：File 为非拥有引用，调用方 MUST 确保 File 在使用期间有效。
 /// 规范引用：@[A-RBF-FRAME-INFO]
 /// </remarks>
@@ -33,6 +34,9 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
     /// <summary>关联的读取器（非拥有引用）。</summary>
     internal RandomAccessReader Reader { get; }
 
+    /// <summary>新 profile 的尾部转义键；旧 profile 恒为零。</summary>
+    internal uint EscapeKey { get; }
+
     /// <summary>内部构造函数（只能由验证路径调用）。</summary>
     internal RbfFrameInfo(
         RandomAccessReader reader,
@@ -40,7 +44,8 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
         uint tag,
         int payloadLength,
         int tailMetaLength,
-        bool isTombstone
+        bool isTombstone,
+        uint escapeKey = 0
     ) {
         Reader = reader;
         Ticket = ticket;
@@ -48,6 +53,7 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
         PayloadLength = payloadLength;
         TailMetaLength = tailMetaLength;
         IsTombstone = isTombstone;
+        EscapeKey = escapeKey;
     }
 
     #region Read Methods（成员方法）
@@ -94,6 +100,8 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
             );
         }
 
+        if (Reader.Profile == RbfProfile.Rbf3) { XorEscape.InPlace(tailMetaBuffer, EscapeKey, PayloadLength & 3); }
+
         // 6. 构造并返回 RbfTailMeta
         return new RbfTailMeta(Ticket, Tag, tailMetaBuffer, IsTombstone);
     }
@@ -133,6 +141,8 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
                     RecoveryHint: "The file may be truncated or info is stale."
                 );
             }
+
+            if (Reader.Profile == RbfProfile.Rbf3) { XorEscape.InPlace(tailMetaBuffer, EscapeKey, PayloadLength & 3); }
 
             // 6. 成功：构造 RbfPooledTailMeta
             return new RbfPooledTailMeta(rentedBuffer, Ticket, Tag, tailMetaLen, IsTombstone);

@@ -18,55 +18,44 @@ partial class RbfReadImpl {
         long fenceEndOffset
     ) {
         reader.EnsureUsable();
-        const int TrailerAndFenceSize = TrailerCodewordHelper.Size + RbfLayout.FenceSize; // 20B
+        int trailerAndFenceSize = TrailerCodewordHelper.Size + RbfLayout.GetTailKeySize(reader.Profile) + RbfLayout.FenceSize;
 
         // 1. 边界检查：fenceEndOffset 必须 >= MinFirstFrameFenceEnd
-        if (fenceEndOffset < RbfLayout.MinFirstFrameFenceEnd) {
+        int minimumFenceEnd = RbfLayout.HeaderOnlyLength + RbfLayout.GetMinFrameLength(reader.Profile) + RbfLayout.FenceSize;
+        if (fenceEndOffset < minimumFenceEnd || (fenceEndOffset & RbfLayout.AlignmentMask) != 0) {
             return new RbfFramingError(
-                $"No frame before offset {fenceEndOffset}: minimum required is {RbfLayout.MinFirstFrameFenceEnd}.",
+                $"No frame before offset {fenceEndOffset}: minimum required is {minimumFenceEnd}, with 4B alignment.",
                 RecoveryHint: "The offset may be at or before the first frame."
             );
         }
 
-        // 2. 一次读取 TrailerCodeword + Fence (20B)
-        Span<byte> buffer = stackalloc byte[TrailerAndFenceSize];
-        long readOffset = fenceEndOffset - TrailerAndFenceSize;
+        // 2. 一次读取 Trailer、可选 raw Key 和 Fence（RBF1 20B / RBF3 24B）。
+        Span<byte> buffer = stackalloc byte[trailerAndFenceSize];
+        long readOffset = fenceEndOffset - trailerAndFenceSize;
         int bytesRead = reader.Read(buffer, readOffset);
 
-        if (bytesRead < TrailerAndFenceSize) {
+        if (bytesRead < trailerAndFenceSize) {
             return new RbfFramingError(
-                $"Short read: expected {TrailerAndFenceSize} bytes, got {bytesRead}.",
+                $"Short read: expected {trailerAndFenceSize} bytes, got {bytesRead}.",
                 RecoveryHint: "The file may be truncated."
             );
         }
 
         // 3. 验证 Fence（末尾 4 字节）
-        if (!buffer[^RbfLayout.FenceSize..].SequenceEqual(RbfLayout.Fence)) {
+        if (!buffer[^RbfLayout.FenceSize..].SequenceEqual(RbfLayout.GetFence(reader.Profile))) {
             return new RbfFramingError(
-                "Expected Fence ('RBF1') not found.",
+                "Expected profile Fence not found.",
                 RecoveryHint: "The frame boundary marker is missing or corrupted."
             );
         }
 
         // 4. 验证并解析 TrailerCodeword（前 16 字节，CRC + reserved bits）
-        var trailerSpan = buffer[..TrailerCodewordHelper.Size];
-        var trailerResult = TrailerCodewordHelper.ParseAndValidate(trailerSpan);
+        var trailerResult = ParseTailBlock(reader.Profile, buffer[..^RbfLayout.FenceSize], out uint key);
         if (!trailerResult.IsSuccess) { return trailerResult.Error!; }
 
         var trailer = trailerResult.Value;
 
-        // 7. 验证 TailLen（包含 SizedPtr 可表示性检查）
-        // @[F-FRAMEBYTES-LAYOUT]: MinFrameLength = 24
-        // TailLen MUST 在 [MinFrameLength, SizedPtr.MaxLength] 且 4B 对齐
-        if (trailer.TailLen < RbfLayout.MinFrameLength ||
-            trailer.TailLen > SizedPtr.MaxLength ||
-            (trailer.TailLen & RbfLayout.AlignmentMask) != 0) {
-            return new RbfFramingError(
-                $"Invalid TailLen: {trailer.TailLen} (min={RbfLayout.MinFrameLength}, max={SizedPtr.MaxLength}, must be 4B-aligned).",
-                RecoveryHint: "The frame length field is corrupted."
-            );
-        }
-
+        // TailLen is a validated byte length, normalized only after the original CRC.
         // 8. 计算并验证 frameStart
         // frameStart = fenceEndOffset - FenceSize - TailLen
         long frameStart = fenceEndOffset - RbfLayout.FenceSize - trailer.TailLen;
@@ -79,11 +68,8 @@ partial class RbfReadImpl {
 
         // 9. 计算 PayloadLength
         // PayloadLength = TailLen - FixedOverhead - TailMetaLen - PaddingLen
-        // FixedOverhead = HeadLen(4) + PayloadCrc(4) + TrailerCodeword(16) = 24
-        var payloadLenResult = TrailerCodewordHelper.ComputePayloadLength(trailer.TailLen, trailer.TailMetaLen, trailer.PaddingLen);
-        if (!payloadLenResult.IsSuccess) { return payloadLenResult.Error!; }
-
-        int payloadLen = payloadLenResult.Value;
+        // RBF3 fixed overhead additionally includes raw TailKey4.
+        int payloadLen = (int)trailer.TailLen - RbfLayout.GetFixedOverhead(reader.Profile) - trailer.TailMetaLen - trailer.PaddingLen;
 
         // 10. 构造 RbfFrameInfo（绑定 file 句柄）
         var ticket = SizedPtr.Create(frameStart, (int)trailer.TailLen);
@@ -93,7 +79,8 @@ partial class RbfReadImpl {
             tag: trailer.FrameTag,
             payloadLength: payloadLen,
             tailMetaLength: trailer.TailMetaLen,
-            isTombstone: trailer.IsTombstone
+            isTombstone: trailer.IsTombstone,
+            escapeKey: key
         );
     }
 }

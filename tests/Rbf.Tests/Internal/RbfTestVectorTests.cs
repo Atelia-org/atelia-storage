@@ -487,31 +487,15 @@ public class RbfTestVectorTests : IDisposable {
         uint tag2 = 0x22222222;  // Tombstone
         uint tag3 = 0x33333333;
 
-        // Act: 使用 internal RbfAppendImpl 写入帧（包括 Tombstone）
-        using (var file = RbfFile.CreateNew(path)) {
-            // Frame 1: Valid
-            var result1 = file.Append(tag1, payload1);
-            Assert.True(result1.IsSuccess);
-
-            // Frame 2: Tombstone（使用 internal API 直接写入）
-            // 注意：IRbfFile.Append 不暴露 isTombstone 参数，需要使用 internal 实现
-            long tailOffset = file.TailOffset;
-            var handle = GetFileHandle(file);
-            var result2 = RbfAppendImpl.Append(handle, ref tailOffset, payload2, default, tag2, isTombstone: true);
-            Assert.True(result2.IsSuccess);
-            // 手动更新 TailOffset（通过写入一个空帧来同步状态）
-            // 由于无法直接修改 TailOffset，我们需要关闭并重新打开文件
-        }
-
-        // 重新打开以让文件正确识别长度
-        using (var file = RbfFile.OpenExisting(path, out _)) {
-            // Frame 3: Valid
-            var result3 = file.Append(tag3, payload3);
-            Assert.True(result3.IsSuccess);
+        // RBF1 历史墓碑 fixture；公开新 writer 不创建或修复旧墓碑。
+        using (var fixture = RawRbfTestFile.CreateLegacy(path)) {
+            Assert.True(fixture.Append(tag1, payload1).IsSuccess);
+            Assert.True(fixture.Append(tag2, payload2, isTombstone: true).IsSuccess);
+            Assert.True(fixture.Append(tag3, payload3).IsSuccess);
         }
 
         // Assert: 验证过滤行为
-        using (var file = RbfFile.OpenExisting(path, out _)) {
+        using (var file = RbfFile.OpenReadOnlyExisting(path)) {
             // 1. ScanReverse() 默认过滤 → 返回 2 帧（tag3, tag1）
             var filteredFrames = new List<(uint tag, bool isTombstone)>();
             var filteredEnum = file.ScanReverse().GetEnumerator();
@@ -540,15 +524,6 @@ public class RbfTestVectorTests : IDisposable {
             Assert.Equal(tag1, allFrames[2].tag);
             Assert.False(allFrames[2].isTombstone);
         }
-    }
-
-    /// <summary>从 IRbfFile 获取内部句柄（用于测试）。</summary>
-    private static Microsoft.Win32.SafeHandles.SafeFileHandle GetFileHandle(IRbfFile file) {
-        // 使用反射获取内部句柄
-        var field = typeof(RbfFileImpl).GetField("_handle",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance
-        );
-        return (Microsoft.Win32.SafeHandles.SafeFileHandle)field!.GetValue(file)!;
     }
 
     /// <summary>Fixture truncation to a closed prefix is readable on reopening.</summary>
@@ -738,7 +713,7 @@ public class RbfTestVectorTests : IDisposable {
         uint tag = 0x12345678;
         Atelia.Data.SizedPtr framePtr;
 
-        using (var rbf = RbfFile.CreateNew(path)) {
+        using (var rbf = RawRbfTestFile.CreateLegacy(path)) {
             var appendResult = rbf.Append(tag, payload);
             Assert.True(appendResult.IsSuccess, "Append should succeed");
             framePtr = appendResult.Value!;
@@ -792,7 +767,7 @@ public class RbfTestVectorTests : IDisposable {
         uint tag = 0xDEADBEEF;
         Atelia.Data.SizedPtr framePtr;
 
-        using (var rbf = RbfFile.CreateNew(path)) {
+        using (var rbf = RawRbfTestFile.CreateLegacy(path)) {
             var appendResult = rbf.Append(tag, payload);
             Assert.True(appendResult.IsSuccess, "Append should succeed");
             framePtr = appendResult.Value!;

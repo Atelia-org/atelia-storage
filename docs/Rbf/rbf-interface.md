@@ -11,6 +11,8 @@ produce_by:
 
 本文档只描述"对外外观 + 可观察行为"，不暴露内部实现与 wire-format 细节。
 
+2026-10-03 合同同步：新建及写入采用 `RBF3`；`RBF1` 保留只读、旧 ticket 与旧容量；未知 Header（包括历史实验 `RBF2`）拒绝。本轮实现与生产验收正在进行，结果见[实施方案](rbf-open-fast-path-refactoring.md)；此处不声明测试或性能已通过。
+
 ## 1. 概述
 
 RBF 是"二进制信封"：只关心如何安全封装 payload，不解释 payload 语义。
@@ -155,7 +157,7 @@ public interface IRbfFile : IDisposable {
     /// <returns>成功时返回 RbfPooledTailMeta，失败返回错误。</returns>
     /// <remarks>
     /// 信任级别：L2（仅保证 TrailerCrc），不校验 PayloadCrc。
-    /// I/O：读取 TrailerCodeword（16B）+ TailMeta 区域。
+    /// I/O：读取尾部元信息（RBF1 16B；RBF3 Trailer+Key 20B）+ TailMeta 区域。
     /// 此方法是 ReadFrameInfo(ticket) + ReadPooledTailMeta(info) 的便捷组合。
     /// </remarks>
     AteliaResult<RbfPooledTailMeta> ReadPooledTailMeta(SizedPtr ticket);
@@ -169,9 +171,9 @@ public interface IRbfFile : IDisposable {
 }
 
 public static class RbfFile {
-    public static IRbfFile CreateNew(string path);       // FailIfExists
+    public static IRbfFile CreateNew(string path);       // FailIfExists，只创建 RBF3
     public static IRbfFile OpenExisting(string path, out RbfTailRecoveryReport recovery,
-        RbfCacheMode cacheMode = RbfCacheMode.Slots16);    // 默认恢复单个残缺尾帧
+        RbfCacheMode cacheMode = RbfCacheMode.Slots16);    // RBF3 结构打开与单尾恢复；RBF1 可写拒绝
     public static IRbfFile OpenReadOnlyExisting(string path,
         RbfCacheMode cacheMode = RbfCacheMode.Slots16);    // 验证，不修改
 }
@@ -186,7 +188,9 @@ public static class RbfFile {
 - `tailMeta.Length > MaxTailMetaLength`（64KB）
 - `payload.Length + tailMeta.Length > MaxPayloadAndMetaLength`
 - `TailOffset` 非 4B 对齐
-- 写入后 `EndOffset > SizedPtr.MaxOffset`
+- 帧起点 `TailOffset > SizedPtr.MaxOffset`
+
+`SizedPtr.MaxOffset` 只约束帧起点。合法末帧的 FrameBytes 末端及后续 Fence MAY 超过此偏移上界；MUST NOT 因此额外收窄 `SizedPtr` 已允许的帧长度或起点。后续追加仍检查其新的帧起点。
 
 **抛出异常的场景**（系统级故障）：
 - 磁盘满、权限不足、设备 I/O 错误等底层异常
@@ -216,37 +220,51 @@ public static class RbfFile {
 
 ### spec [S-RBF-OPEN-RECOVERS-SINGLE-INCOMPLETE-TAIL] 普通打开与单尾帧恢复
 
-`RbfFile.OpenExisting(path, out recovery, cacheMode)` MUST 在同一个独占可写 handle 上先验证、恢复尾部，再建立正式 reader/cache。成功返回的文件 MUST 是闭合的 `[Fence] ([Frame] [Fence])*` 主序列。
+Header MUST 在 owned handle 上一次分派，MUST NOT 从 EOF、试解码或 payload magic 猜格式；不提供公共 codec/profile 配置。`CreateNew` MUST 只创建 RBF3。`OpenExisting` MUST 在任何修改前拒绝 RBF1；`OpenReadOnlyExisting` MUST 支持 RBF1 与 RBF3。未知 Header、历史实验 RBF2 及 0–3B Header 残留 MUST 拒绝且不修改。
 
-- MUST 从完整 HeaderFence 连续按 HeadLen 检查主序列元信息，包括 HeadLen/TailLen、descriptor、Trailer CRC 与 Fence。不能把 payload 中内嵌的合法帧误当成文件尾。
-- MUST 流式完整校验最后一个已闭合帧；存在残尾时同时校验其紧邻的前一闭合帧及残尾已可校验的字节。普通打开不等于全历史 Payload CRC Audit。
-- 完整合法 FrameBytes 仅缺全部或部分 Fence 时，MUST 保留原帧，仅补齐 `RBF1` 的缺失后缀。
-- 合法 HeadLen 完整、FrameBytes 未完成且已存在字节无已知矛盾时，MUST 保留长度和 coverage，缺失 coverage 补零，将帧补成合法墓碑。已有未完成 CRC/Trailer 最多撤回到 Payload CRC 起点，flush 后再续写；不能修改旧帧、HeadLen 或 coverage。
-- 仅有合法 1–3B HeadLen 前缀时，MUST 截到该帧起点，不猜长度。
-- 完整长度帧 CRC 校验失败属于数据损坏；即使同时缺 Fence，也 MUST 拒绝且不修改。非法字段、已知 CRC 矛盾或 Fence 矛盾同样 MUST 拒绝，不越过坏帧寻找旧好帧。
-- 0–3B HeaderFence 残留 MUST 拒绝，不能当残帧或自动初始化。
-- 修改 MUST durable flush 并重新验证最终尾部后才返回。任何 SetLength/write/flush 异常 MUST 关闭 handle 并使打开失败，不能在该 handle 上改走其他恢复动作。
+普通 Open MUST 只检查分帧结构，MUST NOT 校验 PayloadCRC 或读取 payload/TailMeta 作内容资格证明。内容及 PayloadCRC 损坏而结构合法时，Open MAY 成功；后续 `ReadFrame` / `ReadPooledFrame` MUST 拒绝坏内容，Open MUST NOT 为内容损坏丢弃帧或回退。
 
-墓碑编码 MUST 为原长度、原已有 coverage（缺失部分补零）、TailMetaLength=0、PaddingLen=0、IsTombstone=true、reserved=0、FrameTag=0、正确两项 CRC 与 Fence。Tag 0 仅是此编码取值，不是保留业务 Tag。
+- **RBF1 只读**：MUST 从 Header 连续按 byte HeadLen 检查完整结构主链，包括长度、descriptor、TrailerCRC、padding 与 Fence；残尾拒绝。MUST 保留原字节、旧 ticket 及 24B 开销对应的旧完整容量，不自动升级或转码。
+- **RBF3 健康尾**：MUST 检查 Header、尾 Trailer/Key/Fence、长度与直接左 Fence/HeadLenUnits，以及最多3B padding。健康资格只读固定结构，与历史帧数及末帧 payload 大小无关；逻辑请求字节上界为39B。这不是 syscall、cache页、设备I/O或延迟保证，也不证明未访问历史结构或内容完整。
+- **RBF3 异常尾**：MUST 逆扫最近完整的全局4B aligned Fence，最多检查 `M+7` bytes（`M=2^28-4`），并检查直接前驱结构及单个 suffix。MUST 在首个 marker 或已呈现结构矛盾处裁决，MUST NOT 越过坏候选寻找更早好帧。真实边界的依据是正常 writer 的 marker-free 顺序前缀，不是局部CRC成功。
+
+`OpenExisting` MUST 在同一个独占可写 handle 上完成 RBF3 结构资格、恢复、最终验证，再建立正式 reader/cache。令真实边界后的帧起点为B，suffix长度为R bytes；完整raw HeadLenUnits须先验证 `7≤U<2^26`，再得到 `L=U<<2` bytes：
+
+| 已有 suffix | 动作 |
+| --- | --- |
+| 无 suffix / 健康闭合尾 | `None`，不修改 |
+| 真实且合法B后的任意1–3B HeadLenUnits前缀 | `Truncated`，截到B；不猜U，不复用RBF1低2bits guard |
+| 完整合法U，`4≤R<L-4`，body未完成 | `Truncated`，截到B；不猜Key或解码partial Trailer |
+| `L-4≤R≤L+3`，body完整、已有结构通过 | `CompletedTail`，仅追加缺失的原Key/Fence后缀 |
+| 完整非法字段、TrailerCRC/Key/padding/Fence矛盾或超出单尾 | 拒绝且不修改 |
+
+完整body的末word为encoded TailLenUnits；MUST 以 `K*=LE_u32(encoded TailLenUnits) XOR U` 唯一重建Key，MUST NOT XOR物理长度L。encoded字段可占全uint32，MUST NOT 在XOR前mask高位或套用U上界。MUST 验 `K*!=F`、完整解码Trailer的原wire CRC及结构/padding，已有Key必须等于 `LE(K*)` 前缀、已有Fence必须等于RBF3 Fence前缀。通过后最多追加8B，不改已有body、Key、CRC、Trailer或其他帧；MUST NOT 补零、合成墓碑或更换Key。
+
+修改 MUST durable flush 并重新验证最终结构尾后才返回。任何 SetLength/write/flush 异常 MUST 关闭 handle 并使打开失败，不能在该 handle 上改走其他恢复动作。成功返回的文件 MUST 是闭合的 `[Fence] ([Frame] [Fence])*` 主序列。
 
 ```csharp
 public enum RbfTailRecoveryAction {
-    None, CompletedFence, CompletedTombstone, Truncated
+    None = 0, CompletedFence = 1, CompletedTombstone = 2, Truncated = 3,
+    CompletedTail = 4
 }
 public readonly record struct RbfTailRecoveryReport(
     RbfTailRecoveryAction Action, long OriginalLength, long FinalLength,
     long? AffectedFrameOffset, SizedPtr? FrameTicket);
 ```
 
-`recovery` 只对成功打开有意义。None 的 offset/ticket 为空；CompletedFence 返回保留帧 ticket，CompletedTombstone 返回墓碑 ticket，Truncated 只有受影响起点，没有可读 ticket。报告不是业务 publication 证明。
+`recovery` 只对成功打开有意义。本轮RBF3只产生 `None / Truncated / CompletedTail`；旧 `CompletedFence / CompletedTombstone` 名称及数值保留，不增加旧格式恢复分支。None的offset/ticket为空；Truncated只有受影响起点，没有可读ticket；CompletedTail返回保留帧的原byte ticket（不含Fence）。报告不是业务 publication 证明。
 
 `OpenReadOnlyExisting` MUST 只验证，不恢复；需恢复时抛 `InvalidDataException`。格式/资格错误使用 `InvalidDataException` 并提供位置/detail；权限和设备 I/O 异常原样传播。离线 scanner/candidate 不受普通打开的恢复策略支配。普通 `IRbfFile` 不提供任意 Truncate，离线显式截断独立保留。
 
-恢复模型是单 writer 顺序追加留下最后一次 append 的字节前缀，包含恢复续写再次中断。此模型不承诺任意设备乱序、空洞、sector 损坏或多文件事务。定位最坏为 O(历史帧数) 元信息读取；内容校验与补零使用固定小 buffer，不租整帧内存。详细动作与边界见 [实施设计](rbf-tail-recovery-refactoring.md)。
+恢复模型限单writer正常顺序追加后因进程终止留下的最后一次append字节前缀，包含闭合后缀续写再次终止；OS/文件系统仍运行。此模型不承诺断电、设备乱序、空洞、sector损坏或多文件事务。RBF1只读资格为O(历史帧数)结构读取；RBF3健康资格固定，异常扫描有界且不分配整帧或计算PayloadCRC。详细动作见[实施方案§4/§6](rbf-open-fast-path-refactoring.md)；[旧RBF1墓碑恢复记录](rbf-tail-recovery-refactoring.md)不支配本轮普通打开。
 
 ### spec [S-RBF-WRITER-FAULT-STOPS-INSTANCE] writer 故障后停止实例
 
 原始 Append/Builder 输出或 DurableFlush 抛异常后，实例 MUST 永久拒绝新读写与枚举器 MoveNext，只允许释放与 Dispose，重开时依据实际文件镜像判断。前置 Result/参数/state 拒绝不触发 fault。
+
+### spec [S-RBF-PREPARATION-FAILURE-BOUNDARY] 预发布准备失败边界
+
+Append的CRC/footer、选Key/RNG等预处理异常若发生于实际文件输出之前，MUST NOT 将健康实例标为write fault。Builder的全部可预见Result/借用/state拒绝 MUST 在首次padding/footer修改前结束，并保留可纠正拒绝后的同Builder重试；从首次padding/footer修改到Commit/Push前的任何异常 MUST 取消/Reset当前Builder，禁止同一Builder重试，允许健康File新建Builder。实际输出开始后的异常仍遵循永久fault；清buffer不能解除fault。
 
 File、reader、已有 FrameInfo 和枚举器 MUST 共享一份 fault 事实；缓存命中、零 TailMeta、无 I/O 的结束早退亦 MUST 检查。已物化 buffer/span 与元信息值属性不追溯撤销。Builder Dispose MUST 不重试输出或解除 fault，File Dispose MUST 尝试释放所有 owned resources。
 
@@ -306,7 +324,7 @@ public readonly struct RbfFrameBuilder : IDisposable {
 - `payloadAndMetaLength > MaxPayloadAndMetaLength`
 - 存在未提交 reservation（除 HeadLen 外）
 - builder 状态不允许（重复提交、已 Dispose）
-- 写入后 `EndOffset > SizedPtr.MaxOffset`
+- 帧起点 `TailOffset > SizedPtr.MaxOffset`；末帧末端可超过该偏移上界
 
 **抛出异常的场景**（系统级故障）：
 - 磁盘满、权限不足、设备 I/O 错误等底层异常
@@ -333,9 +351,11 @@ public readonly struct RbfFrameBuilder : IDisposable {
 在前一个 Builder 完成（EndAppend 或 Dispose）前调用 `BeginAppend()` MUST 抛出 `InvalidOperationException`。
 
 ### spec [S-RBF-READ-DISALLOW-WHILE-BUILDER-ACTIVE] Builder活跃时禁止读取与扫描
-当存在 open Builder（`BeginAppend()` 与 `EndAppend/Dispose` 之间）时：
+当存在 open Builder（`BeginAppend()` 与 `EndAppend/Dispose` 之间）时，以下 `IRbfFile` 门面入口拒绝读取：
 - `ReadFrame` / `ReadPooledFrame` / `ReadFrameInfo` / `ReadTailMeta` / `ReadPooledTailMeta` MUST 抛出 `InvalidOperationException`。
 - `ScanReverse` MUST 抛出 `InvalidOperationException`。
+
+已取得的 `RbfFrameInfo` 绑定 Reader，其历史帧读取不受此门面 Building 检查约束，仍须遵守 Reader 的 Dispose 与共享 fault 拒绝。
 
 ---
 
@@ -430,7 +450,7 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
 ### spec [S-RBF-FRAMEINFO-PAYLOADLEN-RANGE] PayloadLength值域
 `RbfFrameInfo.PayloadLength` MUST 满足：`0 <= PayloadLength <= MaxPayloadLength`。
 
-**上限来源**：受 `TailLen(u32)` 与 `SizedPtr.Length(int)` 共同约束；具体计算见 [rbf-format.md](rbf-format.md) @[S-RBF-PAYLOADLENGTH-FORMULA]。
+**上限来源**：物理FrameBytes长度受 `SizedPtr.MaxLength` 约束；RBF1固定开销24B，RBF3固定开销28B。长度先在profile边界归一化为bytes，再按 [rbf-format.md](rbf-format.md) @[S-RBF-PAYLOADLENGTH-FORMULA] 计算；RBF1旧完整容量保留。
 
 ### derived [H-RBF-FRAMEINFO-USERMETA-READING] 读取TailMeta
 调用方可通过 `RbfFrameInfo` 的成员方法直接读取数据：
@@ -443,7 +463,7 @@ RBF 读取 API 按 CRC 校验程度分为三个信任级别：
 | 级别 | 校验内容 | API | 信任断言 |
 |:-----|:---------|:----|:---------|
 | **L1: Framing** | TrailerCodeword 可解码 | `ScanReverse` | "这是一个结构合法的帧" |
-| **L2: Meta** | TrailerCrc 通过 | `info.ReadTailMeta`, `info.ReadPooledTailMeta` | "帧元信息（含 TailMeta）未被篡改" |
+| **L2: Meta** | TrailerCrc 通过 | `info.ReadTailMeta`, `info.ReadPooledTailMeta` | "尾部元信息结构通过校验；TailMeta bytes未做内容CRC" |
 | **L3: Full** | PayloadCrc + TrailerCrc | `info.ReadFrame`, `info.ReadPooledFrame` | "整个帧内容完整" |
 
 调用方根据场景选择适当的信任级别：预览/筛选场景用 L2，业务处理用 L3。
@@ -502,7 +522,7 @@ Malformed 参数返回 `Rbf.ArgumentError`；损坏 framing 和 CRC 返回对应
 只有 HeaderFence 正确且物理文件长度恰为 4B 才是空文件。
 `ScanReverse(showTombstone: true)` MUST 对非空短尾返回非 null `TerminationError`，MUST NOT 将其吞为空序列或向前寻找有效帧。
 需要完整尾帧的调用方只取紧贴 EOF 的第一帧，核对 `GetPhysicalOffsetImmediatelyAfter(ticket) == EOF`，并使用 `ReadFrame` / `ReadPooledFrame` 执行完整 CRC 校验。
-非 4B 对齐的文件由打开入口拒绝；读取失败不修改文件 bytes。
+只读打开要求已闭合的4B对齐文件；RBF3可写打开 MAY 恢复非对齐的最后byte前缀，成功返回时EOF重新闭合且4B对齐。读取失败不修改文件bytes。
 
 ### spec [A-RBF-FORWARD-SEQUENCE] RbfForwardSequence定义
 
@@ -539,7 +559,10 @@ public ref struct RbfForwardEnumerator {
 **原因**：该序列与枚举器为 `ref struct`，以避免堆分配并满足栈上生命周期约束。
 
 ### spec [S-RBF-READFRAME-ALWAYS-CRC] ReadFrame始终执行CRC校验
-`ReadFrame(...)` / `ReadPooledFrame(...)` MUST 对帧执行完整 CRC 校验（`PayloadCrc32C` + `TrailerCrc32C`）。
+完整读取 MUST 具备 `PayloadCrc32C` 与 `TrailerCrc32C` 两项有效校验资格；普通ticket入口与FrameInfo入口的取得方式如下。
+普通ticket入口在每次完整读中 MUST 验证两项CRC；Open结构成功不能替代内容校验。`RbfFrameInfo` 管线由创建时的TrailerCRC资格与每次 `info.ReadFrame` / `ReadPooledFrame` 的PayloadCRC共同覆盖两项CRC，MAY 复用已取得且不变的尾部元信息资格（RBF3包括Key），无需重复验TrailerCRC。这同时适用于RBF1/RBF3。普通ticket读取不检查ticket外Fence，也不证明主链成员身份。
+
+普通工厂的handle共享策略禁止其他writer，`IRbfFile`只追加且不提供Truncate；已提交帧不被后续Append修改。FrameInfo完整读仍须遵守Reader生命周期与共享fault拒绝，活跃Builder不使历史帧资格失效。离线共享Write扫描器不继承此保证：调用方 MUST 在资格创建至后续读取期间冻结输入，不能把可变镜像上的旧FrameInfo当成当前资格。
 当 CRC 校验失败时，MUST 通过 `AteliaResult` 返回失败（错误类型由实现定义）。
 
 ### spec [S-RBF-SCANREVERSE-NO-PAYLOADCRC] ScanReverse不进行PayloadCRC校验
@@ -551,10 +574,10 @@ public ref struct RbfForwardEnumerator {
 `ScanForward(...)` MUST 执行 framing 校验 + 尾部元信息校验（`TrailerCrc32C`）并输出 `RbfFrameInfo`。
 
 **CRC 职责分离（Normative）**：
-- **ScanReverse / ScanForward**：只校验 `TrailerCrc32C`（覆盖 FrameDescriptor + FrameTag + TailLen）
-- **ReadFrame / ReadPooledFrame**：校验 `PayloadCrc32C` + `TrailerCrc32C`
+- **ScanReverse / ScanForward**：只校验 `TrailerCrc32C`（覆盖FrameDescriptor、FrameTag及profile原wire长度：RBF1 LE(L)，RBF3 LE(U)）
+- **ReadFrame / ReadPooledFrame**：具备 `PayloadCrc32C` + `TrailerCrc32C` 资格，ticket每次检查两项，info管线按 @[S-RBF-READFRAME-ALWAYS-CRC] 复用尾部资格
 
-如需完整校验，调用方 MUST 使用返回的 `Ticket` 调用 `ReadFrame` / `ReadPooledFrame`。
+如需完整校验，调用方 MUST 使用返回的 `Ticket` 完整读取入口或 `info.ReadFrame` / `info.ReadPooledFrame`。
 
 ### spec [S-RBF-SCANREVERSE-EMPTY-IS-OK] 空序列合法
 当文件为空（仅含 HeaderFence）或 **根据过滤条件无可见帧** 时，`ScanReverse()` MUST 返回空序列（0 元素），MUST NOT 抛出异常。

@@ -15,6 +15,8 @@ namespace Atelia.Rbf.Internal;
 /// - @[F-TRAILER-CRC-COVERAGE]: TrailerCrc 覆盖 FrameDescriptor + FrameTag + TailLen
 /// </remarks>
 internal static class RbfFrameWriteCore {
+    /// <summary>明文尾部 = PayloadCrc(4) + TrailerCodeword(16)，不含 Key 或 Fence。</summary>
+    internal const int PlaintextTailSize = FrameLayout.PayloadCrcSize + FrameLayout.TrailerCodewordSize;
     /// <summary>尾部固定长度 = PayloadCrc(4) + TrailerCodeword(16) + Fence(4) = 24 字节。</summary>
     internal const int TailSize = FrameLayout.PayloadCrcSize + FrameLayout.TrailerCodewordSize + RbfLayout.FenceSize;
 
@@ -30,6 +32,9 @@ internal static class RbfFrameWriteCore {
     /// - frameStart &lt;= <see cref="SizedPtr.MaxOffset"/>
     /// </remarks>
     internal static AteliaError? ValidateFrameStartOffset(long frameStart) {
+        if (frameStart < 0 || (frameStart & RbfLayout.AlignmentMask) != 0) {
+            return new RbfArgumentError("Frame start offset must be nonnegative and aligned to four bytes.");
+        }
         if (frameStart > SizedPtr.MaxOffset) {
             return new RbfArgumentError(
                 $"Frame start offset ({frameStart}) exceeds SizedPtr.MaxOffset ({SizedPtr.MaxOffset}).",
@@ -52,11 +57,14 @@ internal static class RbfFrameWriteCore {
     /// 布局：[PayloadCrc(4)][TrailerCodeword(16)][Fence(4)]
     /// </remarks>
     internal static void WriteTail(Span<byte> buffer, in FrameLayout layout, uint tag, bool isTombstone, uint payloadCrc) {
-        // 写入 PayloadCrc (4 bytes, LE)
-        BinaryPrimitives.WriteUInt32LittleEndian(buffer, payloadCrc);
+        WritePlaintextTail(buffer, in layout, tag, isTombstone, payloadCrc);
+        RbfLayout.GetFence(layout.Profile).CopyTo(buffer[PlaintextTailSize..]);
+    }
 
-        // 写入 TrailerCodeword + Fence
-        WriteTrailerAndFence(buffer[FrameLayout.PayloadCrcSize..], in layout, tag, isTombstone);
+    /// <summary>构建供 CRC 后搜索/XOR 的完整明文尾部；layout 决定 TailLen 的 wire 单位。</summary>
+    internal static void WritePlaintextTail(Span<byte> buffer, in FrameLayout layout, uint tag, bool isTombstone, uint payloadCrc) {
+        BinaryPrimitives.WriteUInt32LittleEndian(buffer, payloadCrc);
+        layout.FillTrailer(buffer.Slice(FrameLayout.PayloadCrcSize, FrameLayout.TrailerCodewordSize), tag, isTombstone);
     }
 
     /// <summary>填充 TrailerCodeword + Fence（不含 PayloadCrc）。</summary>
@@ -74,7 +82,7 @@ internal static class RbfFrameWriteCore {
         layout.FillTrailer(buffer[..FrameLayout.TrailerCodewordSize], tag, isTombstone);
 
         // 写入 Fence (4 bytes, "RBF1")
-        RbfLayout.Fence.CopyTo(buffer[FrameLayout.TrailerCodewordSize..]);
+        RbfLayout.GetFence(layout.Profile).CopyTo(buffer[FrameLayout.TrailerCodewordSize..]);
     }
 
     /// <summary>TrailerCodeword + Fence 的大小（20 字节）。</summary>

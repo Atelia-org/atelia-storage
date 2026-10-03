@@ -11,9 +11,9 @@ public static class RbfFile {
     /// </summary>
     /// <remarks>
     /// 该上限由 <see cref="SizedPtr.MaxLength"/> 减去 RBF 帧固定开销推导而来，
-    /// 是 <see cref="IRbfFile.Append"/> 与 <see cref="RbfFrameBuilder.EndAppend"/> 的公开容量契约。
+    /// 是 <see cref="IRbfFile.Append"/> 与 <see cref="RbfFrameBuilder.EndAppend(uint, int)"/> 的公开容量契约。
     /// </remarks>
-    public const int MaxPayloadAndMetaLength = FrameLayout.MaxPayloadAndMetaLength;
+    public const int MaxPayloadAndMetaLength = FrameLayout.MaxPayloadAndMetaLength - sizeof(uint);
     public const int MaxTailMetaLength = FrameLayout.MaxTailMetaLength;
 
     /// <summary>创建新的 RBF 文件（FailIfExists）。</summary>
@@ -34,8 +34,8 @@ public static class RbfFile {
         try {
             // 写入 HeaderFence
             RbfWriteInstrumentation.RegisterPath(handle, path);
-            RbfWriteInstrumentation.Write(handle, RbfLayout.Fence, 0);
-            return new RbfFileImpl(handle, RbfLayout.HeaderOnlyLength, cacheMode);
+            RbfWriteInstrumentation.Write(handle, RbfLayout.GetFence(RbfProfile.Rbf3), 0);
+            return new RbfFileImpl(handle, RbfLayout.HeaderOnlyLength, cacheMode, profile: RbfProfile.Rbf3);
         }
         catch {
             // 失败路径：确保句柄关闭
@@ -73,17 +73,21 @@ public static class RbfFile {
         try {
             RbfWriteInstrumentation.RegisterPath(handle, path);
             if (eof > RandomAccess.GetLength(handle)) { throw new ArgumentOutOfRangeException(nameof(eof), "Candidate EOF exceeds actual file length."); }
-            using (var reader = new ReadCache.RandomAccessReader(handle, eof, beforeRead, token)) {
-                Span<byte> fence = stackalloc byte[RbfLayout.FenceSize];
-                if (reader.Read(fence, 0) != fence.Length || !fence.SequenceEqual(RbfLayout.Fence)) {
-                    throw new InvalidDataException("Invalid candidate HeaderFence.");
-                }
+            Span<byte> fence = stackalloc byte[RbfLayout.FenceSize];
+            using (var headerReader = new ReadCache.RandomAccessReader(handle, eof, beforeRead, token)) {
+                if (headerReader.Read(fence, 0) != fence.Length) { throw new InvalidDataException("Incomplete candidate HeaderFence."); }
+            }
+            RbfProfile profile;
+            if (fence.SequenceEqual(RbfLayout.GetFence(RbfProfile.Rbf1))) { profile = RbfProfile.Rbf1; }
+            else if (fence.SequenceEqual(RbfLayout.GetFence(RbfProfile.Rbf3))) { profile = RbfProfile.Rbf3; }
+            else { throw new InvalidDataException("Unknown candidate HeaderFence."); }
+            using (var reader = new ReadCache.RandomAccessReader(handle, eof, beforeRead, token, profile)) {
                 if (eof != RbfLayout.HeaderOnlyLength) {
                     var tail = RbfReadImpl.ReadTrailerBefore(reader, eof);
                     if (tail.IsFailure) { throw new InvalidDataException(tail.Error!.ToString()); }
                 }
             }
-            return new RbfFileImpl(handle, eof, cacheMode, readOnlyCandidate: true, beforeRead: beforeRead, cancellationToken: token);
+            return new RbfFileImpl(handle, eof, cacheMode, readOnlyCandidate: true, beforeRead: beforeRead, cancellationToken: token, profile: profile);
         }
         catch {
             handle.Dispose();
@@ -107,8 +111,8 @@ public static class RbfFile {
 
         try {
             RbfWriteInstrumentation.RegisterPath(handle, path);
-            var report = RbfTailRecovery.Open(handle, writable: access == FileAccess.ReadWrite);
-            var file = new RbfFileImpl(handle, report.FinalLength, cacheMode, readOnly: access == FileAccess.Read);
+            var report = RbfTailRecovery.Open(handle, writable: access == FileAccess.ReadWrite, out var profile);
+            var file = new RbfFileImpl(handle, report.FinalLength, cacheMode, readOnly: access == FileAccess.Read, profile: profile);
             recovery = report;
             return file;
         }

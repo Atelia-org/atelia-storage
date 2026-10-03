@@ -45,7 +45,7 @@ public sealed class RbfReadMetricsTests : IDisposable {
     }
 
     [Fact]
-    public void NonemptyOpen_MeasuresHistoricalMetadataAndTailValidation_WithoutAuditingOldPayload() {
+    public void NonemptyRbf3Open_ReadsBoundedTailStructure_WithoutAuditingPayloadOrHistory() {
         byte[] oldPayload = new byte[128 * 1024];
         using (var created = RbfFile.CreateNew(_path)) {
             for (int i = 0; i < 8; i++) { created.Append((uint)i, oldPayload).Unwrap(); }
@@ -55,9 +55,8 @@ public sealed class RbfReadMetricsTests : IDisposable {
         using var opened = RbfFile.OpenReadOnlyExisting(_path);
         var measured = metrics.Snapshot();
         Assert.Equal(1, measured.HeaderReadCalls);
-        Assert.True(measured.ReadCalls > 8);
-        Assert.True(measured.RawReturnedBytes >= 16 * 1024);
-        Assert.True(measured.RawReturnedBytes < oldPayload.Length);
+        Assert.InRange(measured.ReadCalls, 1, 8);
+        Assert.InRange(measured.RawReturnedBytes, 4, 64);
         Assert.Equal(measured.RawRequestedBytes, measured.RawReturnedBytes);
         Assert.Equal(0, measured.ReadAheadReturnedBytes);
     }

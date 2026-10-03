@@ -30,16 +30,13 @@ partial class RbfReadImpl {
         }
 
         uint headLen = BinaryPrimitives.ReadUInt32LittleEndian(headLenBuffer);
-        if (headLen < FrameLayout.MinFrameLength ||
-            headLen > SizedPtr.MaxLength ||
-            (headLen & RbfLayout.AlignmentMask) != 0) {
-            return new RbfFramingError(
-                $"Invalid HeadLen: {headLen} (min={FrameLayout.MinFrameLength}, max={SizedPtr.MaxLength}, must be 4B-aligned).",
-                RecoveryHint: "The frame length field is corrupted."
-            );
+        var lengthResult = RbfWireCodec.DecodeFrameLength(reader.Profile, headLen);
+        if (lengthResult.IsFailure) {
+            return lengthResult.Error!;
         }
+        int frameLength = lengthResult.Value;
 
-        long frameEnd = frameStart + headLen;
+        long frameEnd = frameStart + frameLength;
         long fenceEnd = frameEnd + RbfLayout.FenceSize;
         if (frameEnd < frameStart || fenceEnd < frameEnd || fenceEnd > dataTail) {
             return new RbfFramingError(
@@ -50,14 +47,14 @@ partial class RbfReadImpl {
 
         Span<byte> fence = stackalloc byte[RbfLayout.FenceSize];
         int fenceBytesRead = reader.Read(fence, frameEnd);
-        if (fenceBytesRead < RbfLayout.FenceSize || !fence.SequenceEqual(RbfLayout.Fence)) {
+        if (fenceBytesRead < RbfLayout.FenceSize || !fence.SequenceEqual(RbfLayout.GetFence(reader.Profile))) {
             return new RbfFramingError(
-                "Expected Fence ('RBF1') not found after frame.",
+                "Expected profile Fence not found after frame.",
                 RecoveryHint: "The frame boundary marker is missing or corrupted."
             );
         }
 
-        var ticket = SizedPtr.Create(frameStart, (int)headLen);
+        var ticket = SizedPtr.Create(frameStart, frameLength);
         return ReadFrameInfo(reader, ticket);
     }
 
@@ -66,7 +63,7 @@ partial class RbfReadImpl {
     /// <param name="ticket">帧位置凭据。</param>
     /// <returns>成功时返回 RbfFrameInfo（已绑定 file 句柄），失败时返回错误。</returns>
     /// <remarks>
-    /// 最小化 I/O：只读取 TrailerCodeword（16B），不读 Payload。
+    /// 最小化 I/O：读取 Trailer16，RBF3 另读 raw Key4；不读 Payload。
     /// L2 信任：执行 TrailerCrc 校验、reserved bits 校验、TailLen 一致性校验。
     /// 唯一入口：这是创建 RbfFrameInfo 的内部验证路径之一，完成所有结构性验证。
     /// </remarks>
@@ -78,27 +75,29 @@ partial class RbfReadImpl {
         if (candidateError != null) { return candidateError; }
         // 1. 基本参数校验
         int ticketLength = ticket.Length;
-        if (ticketLength < FrameLayout.MinFrameLength) {
+        int minimum = RbfLayout.GetMinFrameLength(reader.Profile);
+        if (ticketLength < minimum) {
             return new RbfArgumentError(
-                $"Ticket length ({ticketLength}) is less than minimum frame length ({FrameLayout.MinFrameLength}).",
-                RecoveryHint: $"Minimum valid frame size is {FrameLayout.MinFrameLength} bytes."
+                $"Ticket length ({ticketLength}) is less than minimum frame length ({minimum}).",
+                RecoveryHint: $"Minimum valid frame size is {minimum} bytes."
             );
         }
 
-        // 2. 计算 TrailerCodeword 偏移并读取（16B）
-        long trailerOffset = ticket.Offset + ticketLength - TrailerCodewordHelper.Size;
-        Span<byte> trailerBuffer = stackalloc byte[TrailerCodewordHelper.Size];
+        // 2. 按 profile 读取完整固定尾块。
+        int tailSize = TrailerCodewordHelper.Size + RbfLayout.GetTailKeySize(reader.Profile);
+        long trailerOffset = ticket.Offset + ticketLength - tailSize;
+        Span<byte> trailerBuffer = stackalloc byte[tailSize];
         int bytesRead = reader.Read(trailerBuffer, trailerOffset);
 
-        if (bytesRead < TrailerCodewordHelper.Size) {
+        if (bytesRead < tailSize) {
             return new RbfFramingError(
-                $"Short read for TrailerCodeword: expected {TrailerCodewordHelper.Size} bytes, got {bytesRead}.",
+                $"Short read for frame tail: expected {tailSize} bytes, got {bytesRead}.",
                 RecoveryHint: "The file may be truncated."
             );
         }
 
         // 3. 验证并解析 TrailerCodeword（CRC + reserved bits）
-        var trailerResult = TrailerCodewordHelper.ParseAndValidate(trailerBuffer);
+        var trailerResult = ParseTailBlock(reader.Profile, trailerBuffer, out uint key);
         if (!trailerResult.IsSuccess) { return trailerResult.Error!; }
 
         var trailer = trailerResult.Value;
@@ -112,10 +111,7 @@ partial class RbfReadImpl {
         }
 
         // 7. 计算 PayloadLength
-        var payloadLenResult = TrailerCodewordHelper.ComputePayloadLength(trailer.TailLen, trailer.TailMetaLen, trailer.PaddingLen);
-        if (!payloadLenResult.IsSuccess) { return payloadLenResult.Error!; }
-
-        int payloadLen = payloadLenResult.Value;
+        int payloadLen = ticketLength - RbfLayout.GetFixedOverhead(reader.Profile) - trailer.TailMetaLen - trailer.PaddingLen;
 
         // 8. 构造 RbfFrameInfo（绑定 file 句柄）
         return new RbfFrameInfo(
@@ -124,7 +120,8 @@ partial class RbfReadImpl {
             tag: trailer.FrameTag,
             payloadLength: payloadLen,
             tailMetaLength: trailer.TailMetaLen,
-            isTombstone: trailer.IsTombstone
+            isTombstone: trailer.IsTombstone,
+            escapeKey: key
         );
     }
 }

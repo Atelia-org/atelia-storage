@@ -128,7 +128,7 @@ public sealed class RbfCandidateTests : IDisposable {
     public void FullFrameBytesWithoutItsWholeFence_AreRejected() {
         var (first, _, _) = WriteFrames();
         using var handle = File.OpenHandle(_path, FileMode.Open, FileAccess.Read, FileShare.Read);
-        using var reader = new RandomAccessReader(handle, first.EndOffsetExclusive);
+        using var reader = new RandomAccessReader(handle, first.EndOffsetExclusive, profile: RbfProfile.Rbf3);
         int calls = 0;
         reader.ReadObserver = (_, _, _) => calls++;
         Assert.True(RbfReadImpl.ReadPooledFrame(reader, first).IsFailure);
@@ -146,7 +146,7 @@ public sealed class RbfCandidateTests : IDisposable {
         int offset = corruption switch {
             0 => 0,
             1 => checked((int)eof - 1),
-            _ => checked((int)eof - RbfLayout.FenceSize - TrailerCodewordHelper.Size)
+            _ => checked((int)eof - RbfLayout.FenceSize - 4 - TrailerCodewordHelper.Size)
         };
         bytes[offset] ^= 0xFF;
         File.WriteAllBytes(_path, bytes);
@@ -162,7 +162,7 @@ public sealed class RbfCandidateTests : IDisposable {
         bytes[checked((int)first.EndOffsetExclusive)] ^= 0xFF;
         File.WriteAllBytes(_path, bytes);
         using var handle = File.OpenHandle(_path, FileMode.Open, FileAccess.Read, FileShare.Read);
-        using var reader = new RandomAccessReader(handle, eof);
+        using var reader = new RandomAccessReader(handle, eof, profile: RbfProfile.Rbf3);
         int rents = 0;
         reader.BufferRentObserver = _ => rents++;
         Assert.True(RbfReadImpl.ReadPooledFrame(reader, first).IsFailure);
@@ -171,6 +171,17 @@ public sealed class RbfCandidateTests : IDisposable {
     }
 
     private sealed class BudgetStop : Exception { }
+
+    [Fact]
+    public void CandidateRejectsExperimentalRbf2Header_AndReleasesHandle() {
+        var (_, _, eof) = WriteFrames();
+        byte[] bytes = File.ReadAllBytes(_path);
+        "RBF2"u8.CopyTo(bytes);
+        File.WriteAllBytes(_path, bytes);
+        Assert.Throws<InvalidDataException>(() => RbfFile.OpenReadOnlyCandidate(_path, eof));
+        Assert.Equal(bytes, File.ReadAllBytes(_path));
+        using var handle = File.OpenHandle(_path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+    }
 
     [Fact]
     public void BudgetAndIoExceptions_PropagateUnchanged() {
