@@ -46,7 +46,6 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
     }
 
     private bool TryGetLastActiveChunk([MaybeNullWhen(false)] out ReservableWriterChunk item) => _chunks.TryPeekLast(out item);
-    private IEnumerable<ReservableWriterChunk> GetActiveChunks() => _chunks;
 
     private ReservableWriterChunk EnsureSpace(int sizeHint) {
         if (TryGetLastActiveChunk(out var lastChunk) && lastChunk.FreeSpace >= sizeHint) { return lastChunk; }
@@ -86,7 +85,7 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
         ReservationEntry? firstReservation = _reservations.FirstPending;
         bool pushedAny = false;
 
-        foreach (ReservableWriterChunk chunk in GetActiveChunks()) {
+        foreach (ReservableWriterChunk chunk in _chunks) {
             int pushableLength;
             if (firstReservation?.Chunk == chunk) {
                 pushableLength = firstReservation.Offset - chunk.DataBegin;
@@ -125,6 +124,7 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
         int recycled = 0;
         while (_chunks.TryPeekFirst(out var c) && c.IsFullyFlushed) {
             if (c.IsRented) {
+                c.IsRented = false;
                 _pool.Return(c.Buffer);
             }
 
@@ -270,6 +270,7 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
 
         foreach (var c in _chunks) {
             if (c.IsRented) {
+                c.IsRented = false;
                 _pool.Return(c.Buffer);
             }
         }
@@ -467,7 +468,7 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
         uint crcRaw = initValue;
         bool started = false;
 
-        foreach (var chunk in GetActiveChunks()) {
+        foreach (var chunk in _chunks) {
             if (!started) {
                 if (chunk != startChunk) { continue; /* 跳过 reservation 之前的 chunk */ }
                 started = true;

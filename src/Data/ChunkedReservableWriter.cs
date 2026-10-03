@@ -153,6 +153,7 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         int recycled = 0;
         while (_chunks.TryPeekFirst(out var c) && c.IsFullyFlushed) {
             if (c.IsRented) {
+                c.IsRented = false;
                 _pool.Return(c.Buffer);
             }
 
@@ -356,6 +357,7 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         // 归还所有租借的缓冲区
         foreach (var c in _chunks) {
             if (c.IsRented) {
+                c.IsRented = false;
                 _pool.Return(c.Buffer);
             }
         }

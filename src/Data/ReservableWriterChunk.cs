@@ -18,7 +18,7 @@ internal sealed class ReservableWriterChunk {
     /// <summary>已刷新数据的起始位置（下一个待刷新位置）</summary>
     public int DataBegin;
 
-    /// <summary>缓冲区是否从 ArrayPool 租借（需要归还）</summary>
+    /// <summary>该 chunk 是否仍可尝试归还本次租赁；调用 Return 前必须置 false，接收结果未知时不重试。</summary>
     public bool IsRented;
 
     /// <summary>缓冲区剩余可写空间</summary>
