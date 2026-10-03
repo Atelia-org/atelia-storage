@@ -14,6 +14,8 @@ normative: false
 
 基础API及Builder接点由 [Data实现重构方案](../Data/xor-escape-key-refactoring.md)承接：两轮辩证简化选择三个借用spans入口、内部共享核和具体writer一次选键/XOR能力；删公共source/view/visitor及byteCount。下述测量仍是实验结果，Data生产基础和新RBF接入尚未实施。
 
+审查后的用户澄清进一步认可Fence≥64：Data据此删除Fence=0和tiny raw Fence占位/Key64特例，EscapeKey仍支持完整uint32。RBF现有候选Fence满足约束；下述固定Fence实验及其不可变快照无需改写，生产入口拒绝测试仍待基础实施。
+
 ## 1. 需求与证据边界
 
 | 要求 | 来源及本专项处理 |

@@ -16,6 +16,8 @@ normative: false
 
 基础实现另见 [ZeroThenTinyBitmapRandom重构方案](../Data/xor-escape-key-refactoring.md)：两轮辩证审查选择Data窄入口、内部共享选键/XOR核；Append至多三个借用spans，Builder对reservation后全部已写bytes一次选键并原地变换，不公开source/view/visitor。基础及真实Builder资格同一个待实施切片，不改变本文件的格式/恢复规则。
 
+后续需求澄清将Data选键入口的Fence限定为uint范围64..uint.MaxValue，EscapeKey仍保留完整uint32值域。RBF的候选Fence=0x32464252满足约束；tiny无需raw Fence占位或Key64补位，该收窄不改变RBF wire/恢复策略。
+
 用户当前决定：**单个 RBF 文件优先；恢复目标仅进程终止，断电依赖平台；确认真实边界后可截掉未完成帧；Open 负责分帧结构，PayloadCRC 留给 ReadFrame；只考虑补原尾 Key/Fence；保留约 256MiB 单帧上限；逆序读取优先，研究省头 Key。** 独立反审与字节推演支持采用这些简化。
 
 最小方案是 **单份尾 Key、结构快开、未完成 body 截断、完整 body 只补尾 Key/Fence**。恢复只有 `None / Truncated / CompletedTail` 三种动作；`CompletedTail` 仅追加确定的 1–8B 闭合后缀。无需补 coverage、CRC、Trailer、墓碑、nonce、未知 completion 或 writer oracle。

@@ -8,7 +8,7 @@ normative: false
 
 日期：2026-10-03；方案源码基线 `dc11774`。本轮只撰写、审查并修订方案，生产实现未开始。本方案为 [RBF 普通打开重构](../Rbf/rbf-open-fast-path-refactoring.md)的 G1 提供基础算法；原始成本证据见 [writer/reader 专项§3.2](../Rbf/rbf-codec-implementation-study.md#32-小帧用一个-ulong-作为完整-bitmap)。相邻方案来自同一调查，不能彼此充当独立需求证据。
 
-采用 **Data窄入口、内部共享选择核和XOR核**：Append传入至多三个借用spans；Builder在具体writer内对reservation后的全部已写bytes选键并原地XOR。先尝试Key0，失败且待编码区间≤63words时，以一个ulong完整标记候选；较大区间循环抽取系统随机Key并检查。RBF负责body组成、CRC、长度字段、文件输出和恢复。没有公共可重放协议、可逃逸chunk视图或新增lease。
+采用 **Data窄入口、内部共享选择核和XOR核**：Append传入至多三个借用spans；Builder在具体writer内对reservation后的全部已写bytes选键并原地XOR。Fence限定为uint值域内的 **F≥64**，EscapeKey保留完整uint32值域。先尝试Key0，失败且待编码区间≤63words时，以一个ulong完整标记候选0..63；较大区间循环抽取系统随机Key并检查。RBF负责body组成、CRC、长度字段、文件输出和恢复。没有公共可重放协议、可逃逸chunk视图或新增lease。
 
 ## 1. 需求账本与证据边界
 
@@ -18,6 +18,7 @@ normative: false
 | 优先评估src/Data，但分层代价高则不强行抽取 | 本轮用户方向 | 只有RBF是已知拟接入消费者，第二种协议尚未找到 |
 | Zero优先，小帧完整ulong bitmap，大帧原随机循环 | 用户及已提交实验 | 现实验PrototypeCodec；生产仍为RBF1 |
 | 任意二进制bytes，长度有限，禁止对齐Fence，raw EscapeKey也不能等于Fence | 已接受wire方案、实验和独立word存在性证明 | RBF新profile；不是加密或滑动byte序列过滤 |
+| Fence≥64；不收窄EscapeKey值域 | 审查后用户澄清讨论对象为Fence，并认可Fence≥64方向 | Data选键入口拒绝0..63；RBF现有候选Fence已满足 |
 | EscapePayload≤256B包含raw HeadLen，实际encoded body≤252B/63words | 用户区间定义与候选布局 | Data只看实际待编码区间，不接收FrameLength或假定HeadLen |
 | 完整body包含payload/meta/padding/CRC/footer；输入冻结到发布完成 | 现实验、Append/Builder实际输入 | Append的少量spans；Builder的任意pending chunks |
 | 无第二份整帧、无数组bitmap、保持跨chunk相位 | 用户性能目标、现原型与writer拓扑 | Span可以在任意byte切分，整体待编码区间按4B对齐 |
@@ -59,7 +60,9 @@ writer成员内部一次校验，选择键后变换owned bytes，返回键。它
 
 不把原型byte[][]、PreparedFrame、策略enum、扫描统计、RNG配置或CRC融合搬入Data。此时复用来自一个与内容无关的操作，而非第二协议假设。若真实两种输入实测抵消既有收益，先修内部来源/窄入口；只有出现无法小改解决的反例才重新评估RBF内编排，不预先建设通用source框架。
 
-Data不负责FrameLength、HeadLen、TrailerCRC、rawKey落点、文件Fence、Header/profile、SizedPtr、recover/flush。Data的fence参数是一个uint值；其返回键承诺也排除raw Key==fence，以便调用方直接存储键。任意fence与RBF固定大值的差异必须单独证明。
+Data不负责FrameLength、HeadLen、TrailerCRC、rawKey落点、文件Fence、Header/profile、SizedPtr、recover/flush。两个选键入口的fence参数支持uint范围 **64..uint.MaxValue**；其返回键承诺排除raw Key==fence，以便调用方直接存储键。Copy/InPlace没有Fence参数，仍支持任意uint32 Key，不因该约束新增Key范围校验。Data不固定到RBF的0x32464252，也不新增Fence类型、枚举或配置对象。
+
+该范围只描述Data选键能力，格式层仍需排除范围外的其他raw字段。RBF的HeadLen总是4的倍数，现有F的低两位为2，且F大于最大帧长，因此raw HeadLen不可能等于F。`Fence & 3 != 0` 对带raw对齐长度的格式有直接价值，但不属于Data二进制body操作的额外限制；例如Data支持F=64，不代表该值可以直接用作RBF的Fence。
 
 ## 4. 算法与完整性契约
 
@@ -68,12 +71,15 @@ Data不负责FrameLength、HeadLen、TrailerCRC、rawKey落点、文件Fence、H
 令F为fence，plaintext word按LE解释；word w仅禁止K=w XOR F，另外raw Key要求K!=F。Data不接受RBF布局长度，tiny阈值为实际body word数≤63；RBF映射 `EscapePayload=L-4≤256` 到 `body=L-8≤252`。
 
 ```text
-若 F!=0 且完整body中不含F：返回0
+先验证 F≥64
+若完整body中不含F：返回0
 若body words≤63：一遍完整ulong标记，确定返回可用键
 否则：系统随机uint32候选，拒绝0/F；body不含F XOR K才返回
 ```
 
-一般Fence的小帧规则：先把raw F禁用位纳入（F<64时置bit F），再标记0..63。最多m+1≤64个禁值，0..64总有可用键。若64bits全满则返回64；此时F必在0..63，而且64不可能再被body禁止，否则会需要至少64个body words。可直接利用 `TrailingZeroCount(0UL)==64`，无第二bitmap或随机fallback。RBF的F=0x32464252不在0..63，因此原策略仍只返回0..63。F=0时Key0本身不可用，跳过Zero检测而直接进入后续分支。
+小帧bitmap从0UL开始，只标记body禁止的候选0..63。F≥64保证raw F在候选集之外；最多63words禁止63个候选，因此 `~forbidden` 必非零，TrailingZeroCount必在0..63。无需raw F预占位、满bitmap返回Key64的规则或随机fallback。空body直接返回0；无需Fence=0特例。RBF的F=0x32464252满足该约束，已有小帧实验策略不变。
+
+64这个下界来自tiny候选集的边界，整体仅新增一次入口范围检查。限制到某个固定Fence、某种bit图案或重复字节，没有消除一般body扫描、跨chunk word装配或XOR相位的证据；先保持上述连续范围。不能把特殊Fence的图案与特殊EscapeKey的图案混为一谈：XOR相位由Key决定。是否更有利于常见内容避开Fence属于分布及性能问题，不作为新的格式条件。
 
 标记前保留 `candidate<64` 检查，避免C# shift对64取模。各pass共享word装配/carry和SIMD Contains核；tiny热循环保持局部ulong，每chunk写回一次，不以逐word回调处理标记。
 
@@ -81,11 +87,11 @@ Data不负责FrameLength、HeadLen、TrailerCRC、rawKey落点、文件Fence、H
 
 XOR是LE key四bytes的周期流，bytePhase只取0..3；跨chunk由调用方累计相位。Copy只支持分离buffer或精确原地alias，拒绝shifted overlap并在修改前完成长度/phase校验；仅写source.Length前缀。Key0的InPlace为空操作，Copy仍复制。编码与解码共用同一操作；不引入Encode/Decode双重authority、CRC融合、模加法或向量模式公开enum。
 
-无效长度/phase/overlap用参数异常，writer已Dispose用ObjectDisposedException，token/借用状态不合法用InvalidOperationException；全部可预见拒绝在修改前完成。RNG故障正常传播，发生于XOR之前；writer内转换若意外异常，不保证回滚部分已变换bytes，也不自行Reset/Commit/标记RBF fault。调用方按其owner语义丢弃或重建该buffer，RBF规则见§5。Foundation不以返回Failure来假装合法输入“找不到键”。撞禁候选可以提前停止；只有完整消费内部确定的范围且长度/carry闭合后才能成功。
+Fence<64用ArgumentOutOfRangeException；无效长度/phase/overlap用参数异常，writer已Dispose用ObjectDisposedException，token/借用状态不合法用InvalidOperationException；全部可预见拒绝在修改前完成，Fence<64包括空输入也拒绝。RNG故障正常传播，发生于XOR之前；writer内转换若意外异常，不保证回滚部分已变换bytes，也不自行Reset/Commit/标记RBF fault。调用方按其owner语义丢弃或重建该buffer，RBF规则见§5。Foundation不以返回Failure来假装合法输入“找不到键”。撞禁候选可以提前停止；只有完整消费内部确定的范围且长度/carry闭合后才能成功。
 
 ## 5. Builder完整后缀与RBF接入边界
 
-writer成员在入口确定 `[reservation.LogicalOffset + reservation.Length, writer.Length)` 的完整已写后缀，先验证disposed、有效且唯一pending token、无未Advance借用、派生长度int范围及4B对齐。以当前written-end为本次内部扫描终点，不纳入池buffer未写容量；前缀和reservation本身不变。Data可以处理已有Push前缀的writer，不把RBF要求的 `PushedLength==0` 变成Data通用限制。
+writer成员在入口确定 `[reservation.LogicalOffset + reservation.Length, writer.Length)` 的完整已写后缀，先验证disposed、Fence≥64、有效且唯一pending token、无未Advance借用、派生长度int范围及4B对齐。以当前written-end为本次内部扫描终点，不纳入池buffer未写容量；前缀和reservation本身不变。Data可以处理已有Push前缀的writer，不把RBF要求的 `PushedLength==0` 变成Data通用限制。
 
 同一个内部范围完成搜索和变换；每pass cursor独立，不把接口枚举器引用当作值cursor副本。当前 `GetActiveChunks()` 返回IEnumerable，`SlidingQueue`的显式接口入口存在struct→IEnumerator转换，不能据此保证无分配。新遍历用具体struct enumerator或直接索引；必要时CRC复用同一内部范围，但不改其签名/结果，不顺带重构整个writer的Flush/回收。
 
@@ -121,7 +127,7 @@ fused操作同步、单线程，没有用户callback、Trace、Push/Commit或可
 
 完成基础切片后，RBF主方案G1/G2接入§5顺序，并验证首次footer后异常取消、实际输出fault等反例。基础准备本身不实现新profile、结构快开、恢复或下游，不新增移交系统/状态文件。
 
-正确性：Zero无RNG；tiny边界63/64words、raw F=0/1/63/64/大值、空输入F=0返回非零、bitmap全满返回64、shift别名；强制多次随机撞禁、高位Key、全body marker-free与独立LE scalar oracle；同body不同chunk分割键一致性仅要求确定tiny，随机只要求正确；XOR往返、phase0..3、空块/1B/3B边缘、精确alias、Key0也拒绝shifted overlap与错误参数且不修改；writer token/唯一reservation/未Advance/Reset/无Push、真实written-end外bytes不变。long派生长度的int上界拒绝用小fixture验证，不能为它实际分配16GiB。
+正确性：Zero无RNG；tiny边界63/64words、F=64/65/0x32464252/uint.MaxValue、空body返回0、63words禁止0..62时返回63、shift别名；F=0/1/63包括空输入均在扫描/修改前拒绝；强制多次随机撞禁、高位Key、全body marker-free与独立LE scalar oracle；同body不同chunk分割键一致性仅要求确定tiny，随机只要求正确；XOR往返、phase0..3、空块/1B/3B边缘、精确alias、Key0也拒绝shifted overlap与错误参数且不修改；writer token/唯一reservation/未Advance/Reset/无Push、真实written-end外bytes不变。long派生长度的int上界拒绝用小fixture验证，不能为它实际分配16GiB。
 
 性能：复用已有104条小帧和185条随机CPU工作量，不混旧快照；重点比较跨assembly来源/范围开销、分配、Zero与≤256B非零路径、1MiB和近最大body，CSPRNG计入搜索。不规定任意百分比通过线；若公开来源/adapter抵消现有小帧收益，应改用更小入口或将编排留RBF，保留测量反例。真实文件数据均使用W:，不把warm/CPU结果叫cold SSD性能。
 
@@ -131,21 +137,26 @@ Windows串行Release build Data.Tests，匹配 `--no-build` tests，再按接入
 
 三位独立reviewer分别承担demand skeptic、minimal architect、semantic defender，完成独立源码审查及最强反例的交叉质询；主线程按源码和独立构造裁决。第二轮均撤回byteCount必须保留的原反例：它依赖不再合法的closure提前写入顺序。没有剩余产品语义争议，不继续第三轮。性能/生产接入证据仍是实施门禁。
 
+审查后，用户进一步澄清希望限制的是Fence，并认可Fence≥64的简化方向。下表按最新方案列裁决；删去一般Fence支持来自这次需求澄清，不声称三位reviewer已经审查过该后续变更。
+
 | verdict | 最小机制与证据 |
 | --- | --- |
 | simplify | Data接收实际二进制输入，不接收RBF FrameLength/HeadLen/CRC/profile；只新增一个公共静态类型 |
 | delete/defer | 删除public IXorEscapeSource/public generic selector，内部重放保留；第二真实输入形态超出窄入口或测量证明必要时再审公开协议 |
 | merge | Builder选键+原地变换合为一个具体成员；基础算法与真实Builder资格同一个交付切片 |
 | delete | byteCount、公共read/write views、visitor、专用重入guard、lease/generation、策略/向量模式/RNG配置公开面 |
-| keep | 完整成功pass、carry/phase、冻结、rawKey!=Fence、一般Fence的满bitmap→64与int输入上限 |
+| keep | 完整成功pass、carry/phase、冻结、rawKey!=Fence与int输入上限 |
+| simplify | Fence≥64：删除Fence=0特例、raw F预占tiny位及满bitmap→Key64机制；tiny只返回0..63，EscapeKey整体值域不变 |
 | keep | 可预见拒绝先发生；RBF从首次padding/footer修改起取消；真正输出共享永久fault |
 
 相比初稿，公开新增类型从两个（static类型+source接口）减为一个；新增公开成员从六个（source三成员+选择/Copy/InPlace）减为四个（选择/Copy/InPlace+现有writer一成员），内部来源仍复用。删除一个显式范围参数和外部view/visitor候选，并将两个基础交付阶段合成一个；没有减少正确性所需的连续byte信息。
 
-已处理的文档/源码矛盾：实验tiny全满抛错仅适用于固定大F，通用Data应返回64；span被readonly借用不等于冻结；值类型若保存接口cursor仍会共享/装箱；RBF旧catch-all不适合新预发布RNG；旧专项visitor/guard与Key0/1措辞需要随本裁决同步更新。本文为基础实现方案，已测策略结果继续留专项，不复制一份测量authority。
+已处理的文档/源码矛盾：此前一般Fence设计需要tiny全满时返回64，最新Fence≥64契约保证tiny永不全满，删除该扩展；span被readonly借用不等于冻结；值类型若保存接口cursor仍会共享/装箱；RBF旧catch-all不适合新预发布RNG；旧专项visitor/guard与Key0/1措辞需要随本裁决同步更新。本文为基础实现方案，已测策略结果继续留专项，不复制一份测量authority。
 
 ## 8. 本轮接口小探针的限度
 
 主线程在 `W:/RbfCodecCost/layering-shape-20261003` 建立独立Library/Consumer两个.NET10项目，沿用仓库SDK pin，串行Release build为0警告/错误。跨assembly借用ref-struct generic source与固定三span调用均可编译；1+127+124B切分下F=0/1/63/64/大值的五个scalar构造通过；100000次generic source调用当前线程managed allocation为0。主线程另用独立Python重现相位重置把合法word编码成Fence的反例。
+
+上述五个Fence构造验证的是收窄前的一般Fence候选，原始证据保持不改。最新契约将前三个Fence改为参数拒绝；不能用旧探针冒充这项生产入口校验已实现。
 
 这证明初稿公开泛型来源并非“语言做不到”，删除它依据的是公开契约较宽；不证明最终Data API、实际writer、JIT全部内联、SIMD吞吐或完整策略已实现。源码/日志及测后hash保留在上述W:目录，并内嵌于 [接口小探针证据](../../experiments/RbfCodecCost/results/escape-source-shape-dc11774-20261003.json)。它没有自动测前/测后源码守护，只作标量接口资格，不混入旧性能快照。生产源码及旧实验结果未改，本轮没有运行生产测试或声称包消费验收。
