@@ -5,7 +5,8 @@ param(
     [switch]$IoOnly,
     [switch]$Focused,
     [switch]$RandomSearch,
-    [switch]$TinyKey
+    [switch]$TinyKey,
+    [switch]$DataEscape
 )
 $ErrorActionPreference = 'Stop'
 $taskRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
@@ -17,7 +18,12 @@ Push-Location $taskRoot
 $taskPreviousTiering = $env:DOTNET_TieredCompilation
 try {
     $taskSources = @(Get-ChildItem -LiteralPath $PSScriptRoot -File | Where-Object Extension -In '.cs','.csproj','.py','.ps1' | Sort-Object Name)
-    $taskBeforeHashes = @($taskSources | ForEach-Object { [ordered]@{ Path = 'experiments/RbfCodecCost/' + $_.Name; SHA256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() } })
+    if ($DataEscape) {
+        $taskSources += @(Get-ChildItem -LiteralPath (Join-Path $taskRoot 'src/Data') -File -Recurse -Filter '*.cs' |
+            Where-Object { $_.FullName -notmatch '[\\/](bin|obj)[\\/]' } | Sort-Object FullName)
+        $taskSources += Get-Item -LiteralPath (Join-Path $taskRoot 'src/Data/Data.csproj')
+    }
+    $taskBeforeHashes = @($taskSources | ForEach-Object { [ordered]@{ Path = [IO.Path]::GetRelativePath($taskRoot,$_.FullName).Replace('\','/'); SHA256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() } })
     $taskHost = [ordered]@{
         SourceRevision = (git rev-parse HEAD).Trim()
         WorktreeStatus = @(git status --short)
@@ -39,6 +45,7 @@ try {
     if ($Focused) { $taskArguments += '--focused' }
     if ($RandomSearch) { $taskArguments += '--random-search' }
     if ($TinyKey) { $taskArguments += '--tiny-key' }
+    if ($DataEscape) { $taskArguments += '--data-escape' }
     dotnet experiments/RbfCodecCost/bin/Release/net10.0/Atelia.UnifiedRootProbe.dll @taskArguments | Tee-Object -FilePath (Join-Path $taskOutput 'run.log')
     if ($LASTEXITCODE -ne 0) { throw "Probe failed; retain output $taskOutput" }
     python -B experiments/RbfCodecCost/verify_vectors.py $taskDataOutput | Tee-Object -FilePath (Join-Path $taskOutput 'python.log')
@@ -47,9 +54,13 @@ try {
         python -B experiments/RbfCodecCost/verify_random_vectors.py $taskDataOutput | Tee-Object -FilePath (Join-Path $taskOutput 'python-random.log')
         if ($LASTEXITCODE -ne 0) { throw 'Independent Python random-key wire verification failed.' }
     }
+    if ($DataEscape) {
+        python -B experiments/RbfCodecCost/verify_data_vectors.py $taskDataOutput | Tee-Object -FilePath (Join-Path $taskOutput 'python-data.log')
+        if ($LASTEXITCODE -ne 0) { throw 'Independent Python Data wire verification failed.' }
+    }
     foreach ($taskSource in $taskSources) {
         $taskCurrentHash = (Get-FileHash -LiteralPath $taskSource.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-        $taskRecorded = $taskBeforeHashes | Where-Object Path -EQ ('experiments/RbfCodecCost/' + $taskSource.Name)
+        $taskRecorded = $taskBeforeHashes | Where-Object Path -EQ ([IO.Path]::GetRelativePath($taskRoot,$taskSource.FullName).Replace('\','/'))
         if ($taskCurrentHash -ne $taskRecorded.SHA256) { throw "Source changed during measurement: $($taskSource.Name)" }
     }
     $taskHost | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $taskOutput 'provenance.json') -Encoding utf8NoBOM

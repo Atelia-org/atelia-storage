@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
+using Atelia.Data.Binary;
 using Atelia.Data.Hashing;
 
 namespace Atelia.Data;
@@ -294,6 +295,109 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
         Reset();
         _disposed = true;
         GC.SuppressFinalize(this);
+    }
+    #endregion
+
+    #region XOR Escape
+    /// <summary>为指定 pending reservation 末尾到当前已写入末尾的完整后缀选择转义键，并原地 XOR。</summary>
+    /// <param name="reservationToken">必须是当前唯一的 pending reservation。</param>
+    /// <param name="fence">需要排除的对齐 LE word，必须大于等于 0x04000000。</param>
+    /// <returns>用于后缀的 XOR 键；键自身也不会等于 <paramref name="fence"/>。</returns>
+    /// <exception cref="ObjectDisposedException">writer 已 Dispose。</exception>
+    /// <exception cref="InvalidOperationException">token 无效、存在多个 pending reservation 或未 Advance 的借用。</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Fence 或后缀长度不在支持的范围。</exception>
+    /// <exception cref="ArgumentException">后缀长度没有按 4B 对齐。</exception>
+    /// <remarks>
+    /// 不修改 reservation、Length、PushedLength，不调用 Push、Commit 或 Reset。
+    /// 输入必须在整个同步操作期间保持不变。随机数故障发生在 XOR 前并直接传播；
+    /// 意外的变换异常不保证回滚，调用方应按其 owner 语义丢弃或重建缓冲。
+    /// </remarks>
+    public uint XorEscapeSinceReservationEnd(int reservationToken, uint fence) {
+        return XorEscapeSinceReservationEnd(reservationToken, fence, randomCandidate: null);
+    }
+
+    // Per-call injection is restricted to the existing Data.Tests friend; production uses the system RNG.
+    internal uint XorEscapeSinceReservationEnd(int reservationToken, uint fence, Func<uint>? randomCandidate) {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        XorEscape.ValidateFence(fence);
+
+        if (!_reservations.TryPeek(reservationToken, out var entry)) {
+            throw new InvalidOperationException("Invalid or already committed reservation token.");
+        }
+        if (_reservations.PendingCount != 1) {
+            throw new InvalidOperationException(
+                $"XorEscapeSinceReservationEnd requires exactly 1 pending reservation, but found {_reservations.PendingCount}."
+            );
+        }
+        if (_hasLastSpan) {
+            throw new InvalidOperationException("Cannot escape while a buffer is borrowed. Call Advance() or Advance(0) first.");
+        }
+
+        int byteLength = XorEscape.ValidateByteLength(_length - entry.LogicalOffset - entry.Length);
+        int startOffset = entry.Offset + entry.Length;
+        if (startOffset < entry.Chunk.DataBegin || startOffset > entry.Chunk.DataEnd) {
+            throw new InvalidOperationException("Reservation end is outside the active written data (internal error).");
+        }
+
+        int startChunkIndex = 0;
+        while (startChunkIndex < _chunks.Count && _chunks[startChunkIndex] != entry.Chunk) { startChunkIndex++; }
+        if (startChunkIndex == _chunks.Count) {
+            throw new InvalidOperationException("Reservation chunk not found in active chunks (internal error).");
+        }
+
+        var source = new XorEscapeCursor(_chunks, startChunkIndex, startOffset, byteLength);
+        uint key = XorEscape.SelectKey(fence, byteLength, source, randomCandidate);
+        if (key == 0) { return key; }
+
+        int bytePhase = 0;
+        while (source.TryGetNextSpan(out var bytes)) {
+            XorEscape.InPlace(bytes, key, bytePhase);
+            bytePhase = (bytePhase + (bytes.Length & 3)) & 3;
+        }
+        return key;
+    }
+
+    // Each selector pass copies this value; no interface enumerator or pooled storage escapes the writer.
+    private struct XorEscapeCursor : IXorEscapeSource {
+        private readonly SlidingQueue<ReservableWriterChunk> _chunks;
+        private readonly int _startChunkIndex;
+        private readonly int _startOffset;
+        private readonly int _chunkEndExclusive;
+        private int _nextChunkIndex;
+        private int _remaining;
+
+        public XorEscapeCursor(SlidingQueue<ReservableWriterChunk> chunks, int startChunkIndex, int startOffset, int byteLength) {
+            _chunks = chunks;
+            _startChunkIndex = startChunkIndex;
+            _startOffset = startOffset;
+            _chunkEndExclusive = chunks.Count;
+            _nextChunkIndex = startChunkIndex;
+            _remaining = byteLength;
+        }
+
+        public bool TryGetNext(out ReadOnlySpan<byte> bytes) {
+            bool found = TryGetNextSpan(out var writable);
+            bytes = writable;
+            return found;
+        }
+
+        public bool TryGetNextSpan(out Span<byte> bytes) {
+            while (_remaining != 0 && _nextChunkIndex < _chunkEndExclusive) {
+                int index = _nextChunkIndex++;
+                var chunk = _chunks[index];
+                int begin = index == _startChunkIndex ? _startOffset : chunk.DataBegin;
+                int count = Math.Min(_remaining, chunk.DataEnd - begin);
+                if (count == 0) { continue; }
+                bytes = chunk.Buffer.AsSpan(begin, count);
+                _remaining -= count;
+                return true;
+            }
+            if (_remaining != 0) {
+                throw new InvalidOperationException("The written suffix ended before its logical length (internal error).");
+            }
+            bytes = default;
+            return false;
+        }
     }
     #endregion
 
