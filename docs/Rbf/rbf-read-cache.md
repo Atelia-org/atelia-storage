@@ -35,7 +35,8 @@ page cache 的基本粒度是页（通常 4KB，但由内核配置决定），�
 
 具体来说：
 - 不需要 LRU/eviction（单文件单 buffer）
-- 不需要锁（RBF 单线程模型 + Building 期间禁读）
+- 不提供锁；同一 File 派生对象共享 reader/cache 的调用由调用方串行。独立只读实例可并行。
+- Building 期间门面拒绝读取/扫描入口；此前取得的 FrameInfo 仍可串行读取历史帧，不把该门面限制扩展到既有 FrameInfo。
 - 由于RBF是Append-Only，所以缓存永不失效
 
 ---

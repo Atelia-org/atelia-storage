@@ -158,7 +158,7 @@ internal static partial class RbfReadImpl {
     /// <remarks>
     /// 生命周期警告：返回的 RbfFrame.Payload 直接引用 buffer，
     /// 调用方 MUST 确保 buffer 在使用 Payload 期间有效。
-    /// 使用 RandomAccess.Read 实现，无状态，并发安全。
+    /// 本静态方法使用传入的共享 RandomAccessReader（可能含 cache 与 fault 状态）；复用同一 reader 的调用由所属 File 合同要求调用方串行。
     /// </remarks>
     public static AteliaResult<RbfFrame> ReadFrame(RandomAccessReader reader, SizedPtr ticket, Span<byte> buffer) {
         reader.EnsureUsable();

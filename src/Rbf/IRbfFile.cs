@@ -5,8 +5,9 @@ namespace Atelia.Rbf;
 /// <summary>RBF 文件对象门面。</summary>
 /// <remarks>
 /// 职责：资源管理（Dispose）、状态维护（TailOffset）、调用转发。
-/// 并发约束：同一实例在任一时刻最多 1 个 open Builder。
-/// 写入或 durable flush 异常后，新的读取、写入与扫描迭代均拒绝；须 Dispose 后重新打开。
+/// 串行约束：同一 File 及其派生对象访问共享 reader/cache、构建状态或执行 I/O 的操作，由调用方串行；包括 Dispose 与枚举器 MoveNext。不要求固定 OS 线程；独立只读实例可并行。
+/// 门面在 Builder 活跃期间拒绝读取与扫描；此前取得的 RbfFrameInfo 可串行读取历史帧。已物化数据及纯元信息值属性按原生命周期使用。
+/// 实际文件输出、最终 Builder Commit 或 DurableFlush 的异常使实例永久 fault；新的读取、写入与扫描迭代均拒绝，须 Dispose 后重新打开。
 /// 已物化的帧数据和值属性仍可使用；普通文件对象不提供任意截断。
 /// </remarks>
 public interface IRbfFile : IDisposable {
@@ -26,7 +27,7 @@ public interface IRbfFile : IDisposable {
     /// <summary>复杂帧构建（流式写入 payload / payload 内回填）。</summary>
     /// <remarks>
     /// 注意：在 Builder Dispose/EndAppend 前，TailOffset 不会更新。
-    /// 注意：存在 open Builder 时，不应允许并发 Append/BeginAppend。
+    /// 同一 File 及派生对象的共享状态访问由调用方串行；open Builder 时拒绝再次 Append/BeginAppend，门面读取与扫描按活跃 Builder 规则拒绝。
     /// </remarks>
     RbfFrameBuilder BeginAppend();
 

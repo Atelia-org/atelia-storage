@@ -4,7 +4,7 @@ title: "RBF 核心类型骨架 (Type Bone)"
 status: "Draft"
 doc-type: "Implementation Guide"
 normative: false
-summary: "基于 RandomAccess 的无状态核心读写组件与 Facade 设计（非规范性）"
+summary: "基于 RandomAccess 与共享 reader/cache 的核心读写组件和 Facade 设计（非规范性）"
 depends_on:
   - "rbf-interface.md"
   - "rbf-decisions.md"
@@ -38,8 +38,8 @@ depends_on:
 ---
 
 **设计主旨**：
-- **底层**：采用 `System.IO.RandomAccess` API，围绕 `SafeFileHandle` 构建无状态（或临时状态）的静态操作原语。
-- **并发**：核心读写组件线程安全（依赖 OS 的原子读写能力），无副作用。
+- **底层**：采用 `System.IO.RandomAccess` API 与静态操作原语；RBF 调用还会经过携带 cache/fault 状态的 `RandomAccessReader`。
+- **并发**：RandomAccess 单次操作不使持有共享 `RandomAccessReader` 的 RBF 调用成为无状态或可并发调用；同一 File 派生对象的共享状态访问按接口合同串行。
 - **Facade**：通过薄层对象 `IRbfFile` 管理文件句柄生命周期与写入游标（Tail Offset）。
 
 ---
@@ -81,8 +81,7 @@ depends_on:
 
 ## 2. 底层操作原语 (Low-Level Primitives)
 
-`RbfReadImpl` 提供无状态的静态方法，直接操作文件句柄。
-这是具体实现层（Implementation Layer），**便于进行基于临时文件的集成测试**。
+`RbfReadImpl` 以静态方法提供读取原语，但方法使用调用方传入的 `RandomAccessReader`，其 cache 与 fault 状态可能由同一 File 的其他对象共享。这是具体实现层（Implementation Layer），**便于进行基于临时文件的集成测试**。
 
 **核心职责**：
 - **ReadFrame**: 将帧读入调用方提供的 buffer，执行完整 CRC 校验（Payload + Trailer）。
@@ -91,9 +90,8 @@ depends_on:
 - **ScanReverse**: 反向扫描原语，使用 "Tail-Only Reverse Scan" 策略，依赖 Trailer 结构进行快速定位。
 
 **并发模型**：
-- 所有方法均为纯函数（Pure Functions）或无副作用操作。
-- 依赖 OS 文件系统的原子性（RandomAccess APIs）。
-- 支持多线程并发读取（只要 Handle 具备 Read 权限）。
+- 访问同一个 reader/cache 的操作由拥有该 reader 的 File 合同要求调用方串行；静态方法不等同于纯函数或并发安全操作。
+- 独立只读实例各自使用独立 reader 时可并行；不要求绑定固定 OS 线程。
 
 ```csharp
 namespace Atelia.Rbf.Internal;
@@ -133,7 +131,7 @@ depends: "@[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME](rbf-interface.md)"
 
 **物理实现双路径**：
 
-下表保留旧骨架的备选说明。本轮RBF3绑定SinkReservableWriter，以唯一pending头reservation阻止发布，未提交owned chunks由Reset取消，使用Zero I/O路径；不采用Tombstone fallback。Commit/Push输出开始后的异常属于永久writer fault，不能由Auto-Abort解除。
+下表保留旧骨架的备选说明。本轮RBF3绑定SinkReservableWriter，以唯一pending头reservation阻止发布，未提交owned chunks由Reset取消，使用Zero I/O路径；不采用Tombstone fallback。资源归还正常完成时健康取消回到Idle且不输出；Return/OOM等系统异常可传播，异常后不保证同一File继续可写。Auto-Abort不解除已有fault。最终Commit开始尝试发布后，任何异常均保守触发永久writer fault；这不表示已证明写出字节。
 
 | 路径 | 条件 | 机制 |
 |------|------|------|
@@ -175,15 +173,16 @@ depends: "@[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME](rbf-interface.md)"
 **实现说明**：
 - 职责：资源管理 (IDisposable)、状态维护 (TailOffset)、调用转发
 - 写入方法转发到 `RbfWriteImpl` 并更新内部状态
-- 读取方法直接转发到 `RbfReadImpl`（无状态调用）
-- 在 Builder Dispose/EndAppend 前，TailOffset 不会更新，也不应允许并发 Append
+- 读取方法转发到 `RbfReadImpl`，并使用与 File 共享的 reader/cache 状态
+- 同一 File 及其派生对象对共享状态或 I/O 的访问由调用方串行；Dispose 与枚举 MoveNext 也包括在内，不要求固定 OS 线程
+- 门面在 Builder 活跃期间拒绝读取与扫描；此前取得的 FrameInfo 可串行读取历史帧
 
 **工厂方法**：
 - `RbfFile.CreateNew(string path)` — 创建纯RBF3（FailIfExists）
 - `RbfFile.OpenExisting(string path, out RbfTailRecoveryReport recovery, RbfCacheMode cacheMode = RbfCacheMode.Slots16)` — 只接受RBF3，独占结构打开及单尾截断/补原Key+Fence；不校验PayloadCRC、不补墓碑
 - `RbfFile.OpenReadOnlyExisting(string path, RbfCacheMode cacheMode = RbfCacheMode.Slots16)` — RBF1完整结构主链，RBF3局部结构快开；需恢复时拒绝，不修改
 
-HeadLen的4B reservation仅存最终raw U，不属于XOR范围。Data fused操作的范围是reservation之后的完整已写body；调用前不能追加raw Key/Fence。全部可预见拒绝在首次footer修改前结束；准备修改到Push前的异常取消当前Builder，实际输出异常永久fault。普通ticket完整读每次两CRC；FrameInfo完整读复用创建时已验证Trailer/Key，每次检查PayloadCRC，仍受owner生命周期/fault约束；离线共享Write输入另须冻结。
+HeadLen的4B reservation仅存最终raw U，不属于XOR范围。Data fused操作的范围是reservation之后的完整已写body；调用前不能追加raw Key/Fence。全部可预见拒绝在首次footer修改前结束；从首次padding/footer修改到最终Commit调用前的准备异常尝试Reset取消当前Builder，禁止同Builder重试。Reset正常完成时健康File可开始新Builder；Reset自身的资源异常不保证同一File可继续，也不保证保留原异常。最终Commit开始尝试发布后，任何异常都由外层catch保守标记永久fault；即使Push尚未证明写出，或Push完成但Return回收失败且TailOffset未推进，也不能认为安全恢复。普通ticket完整读每次两CRC；FrameInfo完整读复用创建时已验证Trailer/Key，每次检查PayloadCRC，仍受owner生命周期/fault约束；离线共享Write输入另须冻结。
 
 ---
 
@@ -213,7 +212,7 @@ see: @[A-RBF-IRBFFILE-SHAPE](rbf-interface.md)
 
 **实现参考**：
 - 代码位置：`atelia/src/Rbf/Internal/RandomAccessByteSink.cs`
-- **Concurrency**: 非线程安全，依赖 Builder 契约保证单线程使用。
+- **Concurrency**: 不提供并发保护；同一 File 的共享状态访问由调用方串行。单 Builder 限制本身不保证并发安全。
 - **Error Handling**: I/O 异常直接抛出。
 
 ### 5.3 关键实现约束
@@ -245,7 +244,7 @@ see: @[I-RBF-BUILDER-AUTO-ABORT-IMPL]
 | **推式语义** | 与 `RandomAccess.Write` 完美匹配 | - | - |
 | **Zero I/O Abort** | 由 `SinkReservableWriter` reservation 保证 | 需要 HeadLen 必须立即 reserve | 见 @[I-RBF-SEQWRITER-HEADLEN-GUARD] |
 | **无 IDisposable** | 生命周期简化 | - | 由 Builder 管理 |
-| **并发安全** | 依赖 @[S-RBF-BUILDER-SINGLE-OPEN] | 多线程写入会破坏 offset 一致性 | 接口契约保证单 Builder |
+| **串行访问** | 同一 File/派生对象共享状态访问由调用方串行 | 多线程写入会破坏 offset 一致性 | 单 Builder 限制本身不是线程安全保证 |
 
 ### 5.6 当前实现与延期能力
 

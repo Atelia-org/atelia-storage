@@ -8,7 +8,7 @@ namespace Atelia.Rbf;
 /// <remarks>
 /// 生命周期：调用方 MUST 调用 <see cref="EndAppend(uint,int)"/> 或 <see cref="Dispose"/> 之一来结束构建器生命周期。
 /// Auto-Abort（Optimistic Clean Abort）：若未 EndAppend 就 Dispose，
-/// 逻辑上该帧视为不存在；物理实现规则见 @[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME]。
+/// 逻辑上该帧视为不存在；健康取消不输出并回到可写状态，不解除已有 fault。资源归还或内存不足等系统异常可能传播，发生后不保证同一 File 可继续写；物理实现规则见 @[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME]。
 /// 类型选择：采用 readonly struct 作为一次性值对象，避免 Builder 复用带来的语义混淆。
 /// B 变体架构：Builder 为薄 Facade，提交/状态机收敛到 RbfFileImpl。
 /// </remarks>
@@ -66,8 +66,8 @@ public readonly struct RbfFrameBuilder : IDisposable {
 
     /// <summary>释放构建器。若未 EndAppend，自动执行 Auto-Abort。</summary>
     /// <remarks>
-    /// Auto-Abort 分支约束：<see cref="Dispose"/> 在 Auto-Abort 分支 MUST NOT 抛出异常
-    /// （除非出现不可恢复的不变量破坏）；健康 File Facade 回到可继续写状态，已发生写入异常的实例仍须关闭重开。
+    /// 健康 Auto-Abort 不主动抛状态异常、不输出帧并回到可继续写状态；已有 fault 不会解除。
+    /// 资源归还、内存不足等系统异常可能传播；发生后不保证同一 File 可继续写。已有 fault 的实例仍须关闭重开。
     /// B 变体：通过 owner.AbortBuilder 切换状态。
     /// </remarks>
     public readonly void Dispose() {

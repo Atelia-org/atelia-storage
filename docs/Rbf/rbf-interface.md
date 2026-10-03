@@ -80,7 +80,8 @@ RbfFrame 通过 `bool IsTombstone` 属性暴露此状态。
 /// <summary>RBF 文件对象门面。</summary>
 /// <remarks>
 /// 职责：资源管理（Dispose）、状态维护（TailOffset）、调用转发。
-/// 并发约束：同一实例在任一时刻最多 1 个 open Builder。
+/// 串行约束：同一 File 及其派生对象访问共享 reader/cache、构建状态或执行 I/O 的操作，由调用方串行；包括 Dispose 与枚举器 MoveNext。不要求固定 OS 线程；独立只读实例可并行。
+/// 门面在 Builder 活跃期间拒绝读取与扫描；此前取得的 RbfFrameInfo 可串行读取历史帧。已物化数据及纯元信息值属性按原生命周期使用。
 /// </remarks>
 public interface IRbfFile : IDisposable {
     /// <summary>获取当前文件逻辑长度（也是下一个写入 Offset）。</summary>
@@ -262,9 +263,15 @@ public readonly record struct RbfTailRecoveryReport(
 
 原始 Append/Builder 输出或 DurableFlush 抛异常后，实例 MUST 永久拒绝新读写与枚举器 MoveNext，只允许释放与 Dispose，重开时依据实际文件镜像判断。前置 Result/参数/state 拒绝不触发 fault。
 
+### spec [S-RBF-SERIALIZED-INSTANCE-ACCESS] 同一实例串行访问
+
+同一 `IRbfFile` 及其派生对象凡是访问共享 reader/cache、构建状态或执行 I/O 的操作，MUST 由调用方串行，包括 `Dispose()` 与扫描枚举器的 `MoveNext()`。本合同不要求固定 OS 线程；独立只读实例 MAY 并行使用。已物化的帧数据与 `RbfFrameInfo` 等纯元信息值属性不增加访问限制，仍按各自生命周期使用。
+
+该串行合同不改变门面在 open Builder 期间拒绝读取/扫描的规则；此前取得的 `RbfFrameInfo` 可串行读取历史帧，仍遵守 reader 生命周期与共享 fault。枚举器遵守其既有入口及推进规则，不因本合同增加 Building 拒绝条件。
+
 ### spec [S-RBF-PREPARATION-FAILURE-BOUNDARY] 预发布准备失败边界
 
-Append的CRC/footer、选Key/RNG等预处理异常若发生于实际文件输出之前，MUST NOT 将健康实例标为write fault。Builder的全部可预见Result/借用/state拒绝 MUST 在首次padding/footer修改前结束，并保留可纠正拒绝后的同Builder重试；从首次padding/footer修改到Commit/Push前的任何异常 MUST 取消/Reset当前Builder，禁止同一Builder重试，允许健康File新建Builder。实际输出开始后的异常仍遵循永久fault；清buffer不能解除fault。
+Append的CRC/footer、选Key/RNG等预处理异常若发生于实际文件输出之前，MUST NOT 将健康实例标为write fault。Builder的全部可预见Result/借用/state拒绝 MUST 在首次padding/footer修改前结束，并保留可纠正拒绝后的同Builder重试；从首次padding/footer修改到最终 `Commit` 调用前的异常 MUST 尝试取消/Reset当前Builder，禁止同一Builder重试。Reset 正常完成且无 fault 时，File MUST 回到 Idle 并允许新 Builder；若资源 Reset 自身失败，不承诺同一 File 可继续写，也不承诺保留 Reset 与原异常中的哪一个。最终 `Commit` 开始尝试发布后，任何异常均 MUST 保守地永久 fault，即使不能证明已写出字节；此边界也涵盖 Push 后回收失败而 TailOffset 尚未推进的情况。清 buffer不能解除fault。
 
 File、reader、已有 FrameInfo 和枚举器 MUST 共享一份 fault 事实；缓存命中、零 TailMeta、无 I/O 的结束早退亦 MUST 检查。已物化 buffer/span 与元信息值属性不追溯撤销。Builder Dispose MUST 不重试输出或解除 fault，File Dispose MUST 尝试释放所有 owned resources。
 
@@ -288,7 +295,7 @@ public readonly struct RbfFrameBuilder : IDisposable {
     /// 此外它支持 reservation（预留/回填），供需要在 payload 内延后写入长度/计数等字段的 codec 使用。
     /// 接口定义（SSOT）：<c>atelia/src/Data/IReservableBufferWriter.cs</c>（类型：<see cref="IReservableBufferWriter"/>）。
     /// 注意：Payload 类型本身不承诺 Auto-Abort 一定为 Zero I/O；
-    /// Zero I/O 是否可用由实现决定，见 @[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME]。
+    /// 健康取消不输出；系统资源释放异常可能传播，见 @[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME]。
     /// </remarks>
         public RbfPayloadWriter PayloadAndMeta { get; }
 
@@ -301,8 +308,8 @@ public readonly struct RbfFrameBuilder : IDisposable {
 
     /// <summary>释放构建器。若未 EndAppend，自动执行 Auto-Abort。</summary>
     /// <remarks>
-    /// Auto-Abort 分支约束：<see cref="Dispose"/> 在 Auto-Abort 分支 MUST NOT 抛出异常
-    /// （除非出现不可恢复的不变量破坏）；健康 File Facade 必须回到可继续写状态，已有 writer fault 仍须 Dispose 并重开。
+    /// 健康取消不主动抛状态异常、不输出帧并回到可继续写状态；已有 writer fault 不解除。
+    /// 资源归还、内存不足等系统异常可能传播；发生后不保证同一 File 可继续写。
     /// </remarks>
     public void Dispose();
 }
@@ -338,12 +345,11 @@ public readonly struct RbfFrameBuilder : IDisposable {
 - 上层 Record Reader 遍历时 MUST NOT 看到此帧作为业务记录
 
 **后置条件**：
-- 健康实例 `Dispose()` Builder 后，底层 MUST 可继续写入后续帧
-- 健康实例的后续 `Append()` / `BeginAppend()` 调用 MUST 成功
+- 资源归还正常完成且此前无 fault 时，`Dispose()` MUST 将实例恢复到 Idle；此后健康实例的 `Append()` / `BeginAppend()` MUST 可继续成功
 - 若已有 writer fault，Builder `Dispose()` MUST 不再输出、不解除 fault；File 须释放后重开
-- `Dispose()` 在此分支 MUST NOT 抛出异常（除非出现不可恢复的不变量破坏）
+- Auto-Abort 不主动抛出状态异常；资源归还、内存不足等系统异常 MAY 传播，发生后不保证同一 File 可继续写
 
-此机制防止上层异常导致 Writer 死锁，同时在可能时优化为零 I/O。
+此机制防止上层异常导致 Writer 死锁，同时在可能时优化为零 I/O。取消不发布帧，也不解除既有 fault。
 
 
 ### spec [S-RBF-BUILDER-SINGLE-OPEN] 单Builder约束
@@ -356,6 +362,10 @@ public readonly struct RbfFrameBuilder : IDisposable {
 - `ScanReverse` MUST 抛出 `InvalidOperationException`。
 
 已取得的 `RbfFrameInfo` 绑定 Reader，其历史帧读取不受此门面 Building 检查约束，仍须遵守 Reader 的 Dispose 与共享 fault 拒绝。
+
+### spec [S-RBF-FRAMEINFO-DEFAULT-READS] default FrameInfo拒绝读取
+
+default `RbfFrameInfo` 的四个读取入口 MUST 在 ticket 检查、零长度早退、buffer 租用或 I/O 前抛出 `InvalidOperationException`。其值属性与相等性仍保持普通 struct 默认值语义。
 
 ---
 
@@ -417,14 +427,14 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
     /// <param name="buffer">调用方提供的 buffer，长度 MUST &gt;= Ticket.Length。</param>
     /// <returns>成功时返回 RbfFrame（Payload 指向 buffer 子区间），失败时返回错误。</returns>
     /// <remarks>
-    /// 执行完整 framing + CRC 校验（L3 信任级别）。
+    /// 复用创建 FrameInfo 时取得的 TrailerCRC 资格；本次仍验证 PayloadCRC，覆盖 Payload、TailMeta 与 Padding（L3 信任级别）。
     /// </remarks>
     public AteliaResult<RbfFrame> ReadFrame(Span<byte> buffer);
 
     /// <summary>读取完整帧（自动租用 buffer）。</summary>
     /// <returns>成功时返回 RbfPooledFrame，失败时返回错误（buffer 已自动归还）。</returns>
     /// <remarks>
-    /// 执行完整 framing + CRC 校验（L3 信任级别）。
+    /// 复用创建 FrameInfo 时取得的 TrailerCRC 资格；本次仍验证 PayloadCRC，覆盖 Payload、TailMeta 与 Padding（L3 信任级别）。
     /// </remarks>
     public AteliaResult<RbfPooledFrame> ReadPooledFrame();
 
@@ -448,9 +458,17 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
 **上限来源**：`FrameDescriptor.TailMetaLen` 字段为 16-bit（SSOT：[rbf-format.md](rbf-format.md) @[F-FRAME-DESCRIPTOR-LAYOUT]）。
 
 ### spec [S-RBF-FRAMEINFO-PAYLOADLEN-RANGE] PayloadLength值域
-`RbfFrameInfo.PayloadLength` MUST 满足：`0 <= PayloadLength <= MaxPayloadLength`。
+对已验证的 `ticket` / `RbfFrameInfo`，`PayloadLength` MUST 由字节长度计算：
 
-**上限来源**：物理FrameBytes长度受 `SizedPtr.MaxLength` 约束；RBF1固定开销24B，RBF3固定开销28B。长度先在profile边界归一化为bytes，再按 [rbf-format.md](rbf-format.md) @[S-RBF-PAYLOADLENGTH-FORMULA] 计算；RBF1旧完整容量保留。
+```text
+PayloadLength = ticket.Length - overhead - TailMetaLength - PaddingLength
+PayloadLength >= 0
+PayloadLength + TailMetaLength + PaddingLength <= SizedPtr.MaxLength - overhead
+RBF1 overhead = 24 bytes; maximum PayloadLength = 268435428 bytes
+RBF3 overhead = 28 bytes; maximum PayloadLength = 268435424 bytes
+```
+
+`MaxPayloadAndMetaLength` 只约束新 writer 的 `Append` / `EndAppend` 输入，不是通用读取上限；TailMeta 已在公式中扣除一次。长度先在 profile 边界归一化为 bytes，再按 [rbf-format.md](rbf-format.md) @[S-RBF-PAYLOADLENGTH-FORMULA] 计算，RBF1 旧完整容量保留。
 
 ### derived [H-RBF-FRAMEINFO-USERMETA-READING] 读取TailMeta
 调用方可通过 `RbfFrameInfo` 的成员方法直接读取数据：
