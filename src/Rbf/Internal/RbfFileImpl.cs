@@ -68,9 +68,11 @@ internal sealed class RbfFileImpl : IRbfFile {
     /// <param name="readOnly">普通文件只读打开；不建立离线固定 EOF candidate。</param>
     /// <param name="appendPool">非零键大帧输出 scratch 的池；默认共享池。</param>
     /// <param name="profile">文件已经分派的格式；默认 RBF1 仅用于内部旧格式 fixtures。</param>
+    /// <param name="builderPool">Builder 缓冲区的池；默认共享池，仅供内部测试注入。</param>
     internal RbfFileImpl(SafeFileHandle handle, long tailOffset, RbfCacheMode cacheMode = RbfCacheMode.Slots16,
         bool readOnlyCandidate = false, Action<int>? beforeRead = null, CancellationToken cancellationToken = default,
-        bool readOnly = false, ArrayPool<byte>? appendPool = null, RbfProfile profile = RbfProfile.Rbf1) {
+        bool readOnly = false, ArrayPool<byte>? appendPool = null, RbfProfile profile = RbfProfile.Rbf1,
+        ArrayPool<byte>? builderPool = null) {
         _handle = handle ?? throw new ArgumentNullException(nameof(handle));
         _readOnly = readOnly || readOnlyCandidate;
         _profile = profile;
@@ -83,7 +85,7 @@ internal sealed class RbfFileImpl : IRbfFile {
         _tailOffset = tailOffset;
 
         _builderSink = new RandomAccessByteSink(_handle, tailOffset, _markWriteFaulted);
-        _builderWriter = new SinkReservableWriter(_builderSink);
+        _builderWriter = new SinkReservableWriter(_builderSink, builderPool);
     }
 
     /// <inheritdoc />
@@ -154,16 +156,16 @@ internal sealed class RbfFileImpl : IRbfFile {
 
         InvalidateCacheFrom(tailOffset);
 
-        // 递增 epoch，状态切换为 Building
-        _builderEpoch++;
-        _fileState = FileState.Building;
-        _builderLastClose = BuilderCloseReason.None;
-        _builderFrameStart = tailOffset;
-
-        // 重置 writer/sink 并预留 HeadLen
-        _builderSink.Reset(tailOffset);
+        // 初始化成功后才发布新 Builder；失败仍保持 Idle，不遮蔽原异常。
         _builderWriter.Reset();
-        _ = _builderWriter.ReserveSpan(FrameLayout.HeadLenSize, out _builderHeadLenReservationToken, tag: "HeadLen");
+        _builderSink.Reset(tailOffset);
+        _ = _builderWriter.ReserveSpan(FrameLayout.HeadLenSize, out int headLenReservationToken, tag: "HeadLen");
+
+        _builderFrameStart = tailOffset;
+        _builderHeadLenReservationToken = headLenReservationToken;
+        _builderEpoch++;
+        _builderLastClose = BuilderCloseReason.None;
+        _fileState = FileState.Building;
 
         return new RbfFrameBuilder(
             owner: this,

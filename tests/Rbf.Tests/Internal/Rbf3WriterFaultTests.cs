@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Reflection;
 using Atelia.Data;
 using Xunit;
@@ -5,6 +6,155 @@ using Xunit;
 namespace Atelia.Rbf.Internal.Tests;
 
 public sealed class Rbf3WriterFaultTests {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void BeginRentFailure_DoesNotPublishEpochAndClosedBuilderCannotAffectNextBuilder(bool commitOldBuilder) {
+        var pool = new BuilderPool();
+        using var fixture = new Rbf3WriterFixture(builderPool: pool);
+        var original = fixture.File.Append(11, new byte[] { 1 }, ReadOnlySpan<byte>.Empty).Unwrap();
+        var info = fixture.File.ReadFrameInfo(original).Unwrap();
+        var oldBuilder = fixture.File.BeginAppend();
+        var oldWriter = oldBuilder.PayloadAndMeta;
+        Rbf3WriterOracle.WriteBuilder(oldBuilder, new byte[] { 5 });
+        if (commitOldBuilder) { oldBuilder.EndAppend(12).Unwrap(); }
+        else { oldBuilder.Dispose(); }
+        Assert.Equal(1, pool.ReturnCalls);
+        long tail = fixture.File.TailOffset;
+        byte[] before = fixture.ReadBytes();
+        var failure = new OutOfMemoryException("Simulated Builder rent failure.");
+        pool.NextRentFailure = failure;
+        int reads = 0;
+        int outputCalls = 0;
+        fixture.File.ReadObserver = (_, _, _) => reads++;
+        RbfWriteInstrumentation.Current = new() {
+            BeforeWrite = request => { outputCalls++; return request.RequestedBytes; },
+            BeforeFlush = _ => outputCalls++,
+            BeforeSetLength = _ => outputCalls++
+        };
+
+        var actual = Assert.Throws<OutOfMemoryException>(() => fixture.File.BeginAppend());
+
+        Assert.Same(failure, actual);
+        Assert.Equal(2, pool.RentCalls);
+        Assert.Equal(1, pool.ReturnCalls);
+        Assert.Equal(0, pool.OutstandingRentals);
+        Assert.Equal(0, reads);
+        Assert.Equal(0, outputCalls);
+        Assert.Equal(tail, fixture.File.TailOffset);
+        Assert.Equal(before, fixture.ReadBytes());
+        fixture.File.ReadObserver = null;
+        using var oldFrame = info.ReadPooledFrame().Unwrap();
+        Assert.Equal(new byte[] { 1 }, oldFrame.PayloadAndMeta.ToArray());
+        Assert.Equal(original, fixture.File.ReadFrameInfo(original).Unwrap().Ticket);
+
+        // Append retains its own scratch pool and stays usable after Builder initialization fails.
+        fixture.File.Append(13, new byte[9000], ReadOnlySpan<byte>.Empty,
+            Rbf3WriterOracle.KnownKey(uint.MaxValue)).Unwrap();
+        Assert.Equal(2, pool.RentCalls);
+        Assert.Equal(1, fixture.Pool.RentCalls);
+        using var next = fixture.File.BeginAppend();
+        Assert.Equal(3, pool.RentCalls);
+        var nextWriter = next.PayloadAndMeta;
+        nextWriter.ReserveSpan(1, out int nextToken).Fill(7);
+        long nextLength = nextWriter.Length;
+
+        oldBuilder.Dispose();
+        Assert.True(oldBuilder.EndAppend(14).IsFailure);
+        Assert.Throws<InvalidOperationException>(() => { oldBuilder.PayloadAndMeta.GetSpan(1); });
+        Assert.Throws<InvalidOperationException>(() => { oldWriter.GetSpan(1); });
+        Assert.Throws<InvalidOperationException>(() => oldWriter.Advance(1));
+        Assert.Throws<InvalidOperationException>(() => oldWriter.Commit(nextToken));
+        Assert.Throws<InvalidOperationException>(() => { oldWriter.TryGetReservedSpan(nextToken, out _); });
+        Assert.Equal(nextLength, nextWriter.Length);
+        nextWriter.Commit(nextToken);
+        var nextTicket = next.EndAppend(15).Unwrap();
+        Rbf3WriterOracle.AssertWire(fixture.ReadFrame(nextTicket), new byte[] { 7 }, Array.Empty<byte>(), 15);
+    }
+
+    [Fact]
+    public void BuilderDisposeReturnFailure_PropagatesWithoutOutputAndFileDisposeDoesNotReturnLeaseAgain() {
+        var pool = new BuilderPool();
+        using var fixture = new Rbf3WriterFixture(builderPool: pool);
+        var builder = fixture.File.BeginAppend();
+        Rbf3WriterOracle.WriteBuilder(builder, new byte[] { 1, 2, 3 });
+        long tail = fixture.File.TailOffset;
+        byte[] before = fixture.ReadBytes();
+        var failure = new OutOfMemoryException("Simulated accepted Builder return failure.");
+        pool.NextReturnFailure = failure;
+        int reads = 0;
+        int outputCalls = 0;
+        fixture.File.ReadObserver = (_, _, _) => reads++;
+        RbfWriteInstrumentation.Current = new() {
+            BeforeWrite = request => { outputCalls++; return request.RequestedBytes; },
+            BeforeFlush = _ => outputCalls++,
+            BeforeSetLength = _ => outputCalls++
+        };
+
+        var actual = Assert.Throws<OutOfMemoryException>(() => builder.Dispose());
+
+        Assert.Same(failure, actual);
+        Assert.Equal(0, reads);
+        Assert.Equal(0, outputCalls);
+        Assert.Equal(tail, fixture.File.TailOffset);
+        Assert.Equal(before, fixture.ReadBytes());
+        Assert.Equal(1, pool.ReturnCalls);
+        Assert.Equal(0, pool.OutstandingRentals);
+        fixture.File.Dispose();
+        Assert.True(fixture.Handle.IsClosed);
+        Assert.Equal(1, pool.ReturnCalls);
+        Assert.Equal(0, reads);
+        Assert.Equal(0, outputCalls);
+        fixture.File.Dispose();
+        Assert.Equal(1, pool.ReturnCalls);
+    }
+
+    [Fact]
+    public void FinalCommitReturnFailure_AfterCompleteOutputPermanentlyFaultsSharedReader() {
+        var pool = new BuilderPool();
+        using var fixture = new Rbf3WriterFixture(builderPool: pool);
+        var original = fixture.File.Append(11, new byte[] { 1 }, ReadOnlySpan<byte>.Empty).Unwrap();
+        var info = fixture.File.ReadFrameInfo(original).Unwrap();
+        var forward = fixture.File.ScanForward().GetEnumerator();
+        long tail = fixture.File.TailOffset;
+        var builder = fixture.File.BeginAppend();
+        Rbf3WriterOracle.WriteBuilder(builder, new byte[] { 7 });
+        var failure = new OutOfMemoryException("Simulated accepted Builder return failure after output.");
+        pool.NextReturnFailure = failure;
+        var writes = new List<RbfWriteObservation>();
+        RbfWriteInstrumentation.Current = new() { AfterWrite = writes.Add };
+
+        var actual = Assert.Throws<OutOfMemoryException>(() => builder.EndAppend(12));
+
+        Assert.Same(failure, actual);
+        var write = Assert.Single(writes);
+        Assert.Equal(tail, write.Offset);
+        Assert.Equal(36, write.RequestedBytes);
+        Assert.Equal(write.RequestedBytes, write.WrittenBytes);
+        Assert.Equal(tail + 36, RandomAccess.GetLength(fixture.Handle));
+        Assert.Equal(tail, fixture.File.TailOffset);
+        // A complete one-byte frame and its Fence reached the real file before Return threw.
+        var writtenTicket = SizedPtr.Create(tail, 32);
+        Rbf3WriterOracle.AssertWire(fixture.ReadFrame(writtenTicket), new byte[] { 7 }, Array.Empty<byte>(), 12);
+        Assert.Equal(1, pool.ReturnCalls);
+        Assert.Equal(0, pool.OutstandingRentals);
+
+        builder.Dispose();
+        Assert.Throws<InvalidOperationException>(() => fixture.File.Append(13, ReadOnlySpan<byte>.Empty, ReadOnlySpan<byte>.Empty));
+        Assert.Throws<InvalidOperationException>(() => fixture.File.BeginAppend());
+        Assert.Throws<InvalidOperationException>(() => fixture.File.DurableFlush());
+        Assert.Throws<InvalidOperationException>(() => fixture.File.ReadFrameInfo(original));
+        Assert.Throws<InvalidOperationException>(() => info.ReadPooledFrame());
+        bool forwardRefused = false;
+        try { forward.MoveNext(); }
+        catch (InvalidOperationException) { forwardRefused = true; }
+        Assert.True(forwardRefused);
+        Assert.Single(writes);
+        fixture.File.Dispose();
+        Assert.True(fixture.Handle.IsClosed);
+        Assert.Equal(1, pool.ReturnCalls);
+    }
+
     [Fact]
     public void SimulatedSelectionFailure_PrecedesOutputAndDoesNotFaultAppend() {
         using var fixture = new Rbf3WriterFixture();
@@ -192,6 +342,34 @@ public sealed class Rbf3WriterFaultTests {
         Assert.Throws<InvalidOperationException>(() => fixture.File.BeginAppend());
         Assert.Throws<InvalidOperationException>(() => fixture.File.DurableFlush());
         Assert.Equal(before, fixture.ReadBytes());
+    }
+
+    private sealed class BuilderPool : ArrayPool<byte> {
+        private readonly HashSet<byte[]> _owned = new();
+        internal int RentCalls { get; private set; }
+        internal int ReturnCalls { get; private set; }
+        internal int OutstandingRentals => _owned.Count;
+        internal Exception? NextRentFailure { get; set; }
+        internal Exception? NextReturnFailure { get; set; }
+
+        public override byte[] Rent(int minimumLength) {
+            RentCalls++;
+            Exception? failure = NextRentFailure;
+            NextRentFailure = null;
+            if (failure is not null) { throw failure; }
+            byte[] buffer = new byte[minimumLength];
+            Assert.True(_owned.Add(buffer));
+            return buffer;
+        }
+
+        public override void Return(byte[] array, bool clearArray = false) {
+            ReturnCalls++;
+            Assert.True(_owned.Remove(array), "Each outstanding Builder rental may be returned only once.");
+            if (clearArray) { array.AsSpan().Clear(); }
+            Exception? failure = NextReturnFailure;
+            NextReturnFailure = null;
+            if (failure is not null) { throw failure; }
+        }
     }
 
     private sealed class SelectionFailureException : Exception { }

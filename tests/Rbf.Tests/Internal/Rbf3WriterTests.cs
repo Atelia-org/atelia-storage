@@ -161,12 +161,14 @@ internal sealed class Rbf3WriterFixture : IDisposable {
     internal RbfFileImpl File { get; }
     internal Rbf3ScratchPool Pool { get; }
 
-    internal Rbf3WriterFixture(Rbf3ScratchPool? pool = null, RbfProfile profile = RbfProfile.Rbf3, bool readOnly = false) {
+    internal Rbf3WriterFixture(Rbf3ScratchPool? pool = null, RbfProfile profile = RbfProfile.Rbf3, bool readOnly = false,
+        ArrayPool<byte>? builderPool = null) {
         Pool = pool ?? new Rbf3ScratchPool();
         Handle = System.IO.File.OpenHandle(Path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, FileOptions.RandomAccess);
         RandomAccess.Write(Handle, RbfLayout.GetFence(profile), 0);
         RbfWriteInstrumentation.RegisterPath(Handle, Path);
-        File = new RbfFileImpl(Handle, 4, RbfCacheMode.Off, readOnly: readOnly, appendPool: Pool, profile: profile);
+        File = new RbfFileImpl(Handle, 4, RbfCacheMode.Off, readOnly: readOnly, appendPool: Pool, profile: profile,
+            builderPool: builderPool);
     }
 
     internal byte[] ReadBytes() {
