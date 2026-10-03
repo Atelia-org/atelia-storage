@@ -72,23 +72,26 @@ internal static partial class RbfReadImpl {
     /// <summary>从 ArrayPool 借缓存读取帧。调用方 MUST 调用 Dispose() 归还 buffer。</summary>
     /// <param name="file">文件句柄。</param>
     /// <param name="ticket">帧位置凭据。</param>
+    /// <param name="returnOnFailure">内部失败释放接点；为 null 时失败 buffer 归还 Shared。</param>
     /// <returns>成功时返回 RbfPooledFrame，失败时返回错误（buffer 已自动归还）。</returns>
     /// <remarks>
     /// 生命周期：成功时，调用方拥有 buffer 所有权，MUST 调用 Dispose。
     /// 失败路径：buffer 在方法内部自动归还，调用方无需处理。
     /// </remarks>
-    public static AteliaResult<RbfPooledFrame> ReadPooledFrame(RandomAccessReader reader, SizedPtr ticket) =>
-        ReadPooledFrameCore<SizedPtr, SizedPtrReadPolicy>(reader, in ticket);
+    // Internal per-call seam is failure-only; Rent and successful-result Dispose always use Shared.
+    public static AteliaResult<RbfPooledFrame> ReadPooledFrame(RandomAccessReader reader, SizedPtr ticket, Action<byte[]>? returnOnFailure = null) =>
+        ReadPooledFrameCore<SizedPtr, SizedPtrReadPolicy>(reader, in ticket, returnOnFailure);
 
     /// <summary>从 ArrayPool 借缓存读取帧（已验证的 RbfFrameInfo 快路径）。</summary>
     /// <param name="file">文件句柄。</param>
     /// <param name="info">已验证的帧元信息句柄。</param>
+    /// <param name="returnOnFailure">内部失败释放接点；为 null 时失败 buffer 归还 Shared。</param>
     /// <returns>成功时返回 RbfPooledFrame，失败时返回错误（buffer 已自动归还）。</returns>
     /// <remarks>
     /// 复用创建 info 时已验证的 TrailerCRC/元信息，本次仍校验 PayloadCRC。
     /// </remarks>
-    public static AteliaResult<RbfPooledFrame> ReadPooledFrame(RandomAccessReader reader, scoped in RbfFrameInfo info) =>
-        ReadPooledFrameCore<RbfFrameInfo, FrameInfoReadPolicy>(reader, in info);
+    public static AteliaResult<RbfPooledFrame> ReadPooledFrame(RandomAccessReader reader, scoped in RbfFrameInfo info, Action<byte[]>? returnOnFailure = null) =>
+        ReadPooledFrameCore<RbfFrameInfo, FrameInfoReadPolicy>(reader, in info, returnOnFailure);
 
     #endregion
 
@@ -97,7 +100,7 @@ internal static partial class RbfReadImpl {
     /// <summary>通用读取帧实现（静态多态，零运行时开销）。</summary>
     /// <typeparam name="TInput">输入类型。</typeparam>
     /// <typeparam name="TPolicy">读取策略。</typeparam>
-    private static AteliaResult<RbfPooledFrame> ReadPooledFrameCore<TInput, TPolicy>(RandomAccessReader reader, scoped in TInput input)
+    private static AteliaResult<RbfPooledFrame> ReadPooledFrameCore<TInput, TPolicy>(RandomAccessReader reader, scoped in TInput input, Action<byte[]>? returnOnFailure)
         where TInput : allows ref struct
         where TPolicy : IReadFramePolicy<TInput> {
         reader.EnsureUsable();
@@ -114,22 +117,19 @@ internal static partial class RbfReadImpl {
 
         // 2. 从 ArrayPool 借 buffer
         reader.BufferRentObserver?.Invoke(ticketLength);
-        byte[] rentedBuffer = ArrayPool<byte>.Shared.Rent(ticketLength);
+        byte[]? ownedBuffer = ArrayPool<byte>.Shared.Rent(ticketLength);
 
         try {
             // 3. 调用通用 ReadFrameCore（限定 Span 长度）
-            var result = ReadFrameCore<TInput, TPolicy>(reader, in input, offset, ticketLength, rentedBuffer.AsSpan(0, ticketLength));
+            var result = ReadFrameCore<TInput, TPolicy>(reader, in input, offset, ticketLength, ownedBuffer.AsSpan(0, ticketLength));
 
-            // 4. 失败路径：归还 buffer 并返回错误
-            if (!result.IsSuccess) {
-                ArrayPool<byte>.Shared.Return(rentedBuffer);
-                return result.Error!;
-            }
+            // 4. 失败 Result 保持原错误；finally 仍持有唯一释放责任。
+            if (!result.IsSuccess) { return result.Error!; }
 
             // 5. 成功路径：直接构造 RbfPooledFrame（class 直接持有 buffer）
             var frame = result.Value;
             var pooledFrame = new RbfPooledFrame(
-                buffer: rentedBuffer,
+                buffer: ownedBuffer,
                 ptr: frame.Ticket,
                 tag: frame.Tag,
                 payloadOffset: FrameLayout.PayloadOffset,
@@ -138,12 +138,15 @@ internal static partial class RbfReadImpl {
                 isTombstone: frame.IsTombstone
             );
 
-            return pooledFrame;
+            AteliaResult<RbfPooledFrame> success = pooledFrame;
+            ownedBuffer = null;
+            return success;
         }
-        catch {
-            // 异常路径：归还 buffer 避免泄漏
-            ArrayPool<byte>.Shared.Return(rentedBuffer);
-            throw;
+        finally {
+            if (ownedBuffer is not null) {
+                if (returnOnFailure is null) { ArrayPool<byte>.Shared.Return(ownedBuffer); }
+                else { returnOnFailure(ownedBuffer); }
+            }
         }
     }
 

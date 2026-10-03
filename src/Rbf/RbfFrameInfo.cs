@@ -118,6 +118,11 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
     /// 生命周期：成功时调用方拥有 buffer 所有权，MUST 调用 Dispose。
     /// </remarks>
     public AteliaResult<RbfPooledTailMeta> ReadPooledTailMeta() {
+        return ReadPooledTailMeta(returnOnFailure: null);
+    }
+
+    /// <param name="returnOnFailure">Internal failure-only release hook; null returns the failed buffer to Shared.</param>
+    internal AteliaResult<RbfPooledTailMeta> ReadPooledTailMeta(Action<byte[]>? returnOnFailure) {
         RandomAccessReader reader = RequireReader();
         var candidateError = reader.ValidateTicket(Ticket);
         if (candidateError != null) { return candidateError; }
@@ -128,19 +133,18 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
 
         // 2. 从 ArrayPool 租 buffer（只租 TailMetaLength 大小）
         reader.BufferRentObserver?.Invoke(tailMetaLen);
-        byte[] rentedBuffer = ArrayPool<byte>.Shared.Rent(tailMetaLen);
+        byte[]? ownedBuffer = ArrayPool<byte>.Shared.Rent(tailMetaLen);
 
         try {
             // 3. 计算 TailMeta 偏移（结构性验证已在构造时完成）
             long tailMetaOffset = Ticket.Offset + FrameLayout.PayloadOffset + PayloadLength;
 
             // 4. 读取 TailMeta 数据（限定 Span 长度）
-            var tailMetaBuffer = rentedBuffer.AsSpan(0, tailMetaLen);
+            var tailMetaBuffer = ownedBuffer.AsSpan(0, tailMetaLen);
             int tailMetaBytesRead = reader.Read(tailMetaBuffer, tailMetaOffset);
 
             // 5. I/O 级校验：short read
             if (tailMetaBytesRead < tailMetaLen) {
-                ArrayPool<byte>.Shared.Return(rentedBuffer);
                 return new RbfArgumentError(
                     $"Short read for TailMeta: expected {tailMetaLen} bytes, got {tailMetaBytesRead}.",
                     RecoveryHint: "The file may be truncated or info is stale."
@@ -150,12 +154,16 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
             if (reader.Profile == RbfProfile.Rbf3) { XorEscape.InPlace(tailMetaBuffer, EscapeKey, PayloadLength & 3); }
 
             // 6. 成功：构造 RbfPooledTailMeta
-            return new RbfPooledTailMeta(rentedBuffer, Ticket, Tag, tailMetaLen, IsTombstone);
+            var result = new RbfPooledTailMeta(ownedBuffer, Ticket, Tag, tailMetaLen, IsTombstone);
+            AteliaResult<RbfPooledTailMeta> success = result;
+            ownedBuffer = null;
+            return success;
         }
-        catch {
-            // 异常路径：归还 buffer 避免泄漏
-            ArrayPool<byte>.Shared.Return(rentedBuffer);
-            throw;
+        finally {
+            if (ownedBuffer is not null) {
+                if (returnOnFailure is null) { ArrayPool<byte>.Shared.Return(ownedBuffer); }
+                else { returnOnFailure(ownedBuffer); }
+            }
         }
     }
 
