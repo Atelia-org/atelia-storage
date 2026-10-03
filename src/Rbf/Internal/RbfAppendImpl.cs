@@ -38,10 +38,12 @@ internal static class RbfAppendImpl {
         bool isTombstone = false
     ) {
         if (tailMeta.Length > FrameLayout.MaxTailMetaLength) {
-            return new RbfArgumentError("TailMeta exceeds its 16-bit length range.");
+            return new RbfArgumentError("TailMeta exceeds its 16-bit length range.",
+                RecoveryHint: "Reduce TailMeta to at most 65535 bytes.");
         }
         if ((long)payload.Length + tailMeta.Length > RbfLayout.GetMaxPayloadAndMetaLength(RbfProfile.Rbf3)) {
-            return new RbfArgumentError("Payload + TailMeta exceeds the RBF3 frame capacity.");
+            return new RbfArgumentError("Payload + TailMeta exceeds the RBF3 frame capacity.",
+                RecoveryHint: "Reduce the payload or split it across multiple frames.");
         }
         var startError = RbfFrameWriteCore.ValidateFrameStartOffset(fileOffset);
         if (startError is not null) { return startError; }

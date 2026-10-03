@@ -153,6 +153,27 @@ public sealed class Rbf3WriterTests {
         Assert.Null(scratch);
         Assert.Equal(4, RandomAccess.GetLength(fixture.Handle));
     }
+
+    [Fact]
+    public void OversizedTailMeta_ReturnsRecoveryHintWithoutOutputOrTailChange() {
+        using var fixture = new Rbf3WriterFixture();
+        var original = fixture.File.Append(11, new byte[] { 1 }, ReadOnlySpan<byte>.Empty).Unwrap();
+        long tail = fixture.File.TailOffset;
+        byte[] before = fixture.ReadBytes();
+        int writes = 0;
+        RbfWriteInstrumentation.Current = new() { BeforeWrite = request => { writes++; return request.RequestedBytes; } };
+
+        var result = fixture.File.Append(12, ReadOnlySpan<byte>.Empty, new byte[ushort.MaxValue + 1]);
+
+        Assert.IsType<RbfArgumentError>(result.Error);
+        Assert.Equal("Rbf.ArgumentError", result.Error!.ErrorCode);
+        Assert.False(string.IsNullOrWhiteSpace(result.Error.RecoveryHint));
+        Assert.Equal(0, writes);
+        Assert.Equal(tail, fixture.File.TailOffset);
+        Assert.Equal(before, fixture.ReadBytes());
+        Assert.Equal(original, fixture.File.ReadFrameInfo(original).Unwrap().Ticket);
+        fixture.File.Append(13, new byte[] { 2 }, ReadOnlySpan<byte>.Empty).Unwrap();
+    }
 }
 
 internal sealed class Rbf3WriterFixture : IDisposable {
