@@ -23,6 +23,7 @@ internal static class RbfAppendImpl {
     /// 统一缓冲区大小（4KB，复用于 header 和 trailer）。
     private const int MaxBufferSizeShift = 12;
     private const int MaxBufferSize = 1 << MaxBufferSizeShift;
+    private const int Rbf3SmallBufferSize = 8 * 1024;
     internal const int EscapeScratchSize = 1 << 20;
 
     internal static AteliaResult<SizedPtr> AppendRbf3(
@@ -62,8 +63,8 @@ internal static class RbfAppendImpl {
         uint key = selectKey is null ? XorEscape.SelectKey(fence, payload, tailMeta, footer) : selectKey(fence, payload, tailMeta, footer);
 
         int totalLength = layout.FrameLength + RbfLayout.FenceSize;
-        if (totalLength <= MaxBufferSize) {
-            Span<byte> small = stackalloc byte[MaxBufferSize];
+        if (totalLength <= Rbf3SmallBufferSize) {
+            Span<byte> small = stackalloc byte[Rbf3SmallBufferSize];
             BinaryPrimitives.WriteUInt32LittleEndian(small, layout.WireFrameLength);
             int offset = FrameLayout.HeadLenSize;
             CopyBodyPart(payload, small, key, ref offset);
