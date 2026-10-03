@@ -15,6 +15,8 @@ produce_by:
 
 后续入口、归还资格与串行/资源异常合同修复已完成，冻结源码c4377fd的RBF677/677及Data288/288的各自构建身份见[修复验收记录](rbf3-review-repairs-acceptance.md)。此次没有重跑或重标0999851的终止/性能证据。
 
+pooled读取的唯一失败释放及RBF3 total≤8KiB打包输出后续修复已完成，696/696与W:阈值对照的实际源码/构建身份见[读取资源与输出验收](rbf3-resource-and-output-acceptance.md)。格式、读取资格与恢复合同保持。
+
 ## 1. 概述
 
 RBF 是"二进制信封"：只关心如何安全封装 payload，不解释 payload 语义。

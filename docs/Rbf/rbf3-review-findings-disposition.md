@@ -10,7 +10,7 @@ normative: false
 
 2026-10-03，[0999851 原审阅](rbf3-code-design-review-0999851.md)的窄修复已实施，源码冻结于 `c4377fd84e2a47e349e60badc9e4ad3a717f9d96`。完成行为、各提交与本次验证身份见[修复验收记录](rbf3-review-repairs-acceptance.md)。本文件保留裁决依据、仍需保持的边界和延期触发条件，不再作为已完成工作包的实施入口；现行行为由[接口合同](rbf-interface.md)及[格式合同](rbf-format.md)定义。
 
-实施后发现的RBF pooled读取C3，以及Key0输出候选的具体后续入口见[读取资源与输出成本重构方案](rbf3-resource-and-output-refactoring.md)。该方案尚未实施；本页已完成的Data chunk C2与其历史证据身份保持。
+实施后发现的RBF pooled读取C3及Key0输出阈值专题已由[读取资源与输出成本重构记录](rbf3-resource-and-output-refactoring.md)收束，具体696/696与W:测量见[后续验收](rbf3-resource-and-output-acceptance.md)。下面的裁决保留当时身份；本页Data chunk C2及其历史证据保持。
 
 ## 裁决依据
 

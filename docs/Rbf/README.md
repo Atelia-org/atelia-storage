@@ -30,7 +30,8 @@ RBF（Reversible Binary Framing）是 Atelia 的二进制信封格式，用于�
 | [rbf3-code-design-review-0999851.md](rbf3-code-design-review-0999851.md) | Review / post-implementation | 0999851原始发现及反例探针保留；各finding的最终裁决与已完成修复另见处置和验收记录 |
 | [rbf3-review-findings-disposition.md](rbf3-review-findings-disposition.md) | Finding disposition | 三方辩证裁决的最小模型、已收束finding与C1/pre-Push/MaxOffset/输出优化的延期触发条件 |
 | [rbf3-review-repairs-acceptance.md](rbf3-review-repairs-acceptance.md) | Acceptance / review repairs | c4377fd修复及合同收尾；RBF677/677、Data288/288的实际构建身份与新证据；不重标历史crash/perf |
-| [rbf3-resource-and-output-refactoring.md](rbf3-resource-and-output-refactoring.md) | Refactoring / pending | 两处pooled读的单一失败释放与Shared成功所有权；Key0小中帧先比较4/8KiB阈值；三方两轮已收束，runtime与W:实验待实施 |
+| [rbf3-resource-and-output-refactoring.md](rbf3-resource-and-output-refactoring.md) | Refactoring / implemented | pooled读唯一失败释放、RBF3 total≤8KiB打包已实施；已完成切片移入验收，保留后续触发条件 |
+| [rbf3-resource-and-output-acceptance.md](rbf3-resource-and-output-acceptance.md) | Acceptance / resource and output | RBF696/696；W:两组共14对4/8KiB测量、JIT分支栈成本与真实部分写入/重开；源码和binary身份分别记录 |
 | [rbf-codec-implementation-study.md](rbf-codec-implementation-study.md) | Research / implementation notes | writer预处理与reader解码专项保留历史byte测量；Data与RBF3接入已实施，新生产证据归实施记录§11 |
 | [ZeroThenTinyBitmapRandom基础方案](../Data/xor-escape-key-refactoring.md) | Implementation / Data foundation | 已实施：Fence≥2^26、Data窄API、共享选择/XOR核与具体writer fused接点；三spans/真实chunks同切片资格，byte输入/int长度域保留；结果见§9 |
 | [rbf-derived-notes.md](rbf-derived-notes.md) | Derived | 推导、算例与答疑（允许滞后/可删改） |

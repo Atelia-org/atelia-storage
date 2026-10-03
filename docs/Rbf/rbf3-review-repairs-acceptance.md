@@ -6,6 +6,8 @@ normative: false
 
 # RBF3 审阅修复验收
 
+后续pooled读取C3与8KiB打包输出已完成，见[独立后续验收](rbf3-resource-and-output-acceptance.md)；本页的c4377fd测试、binary与历史资格保持原身份。
+
 2026-10-03，R1/R2/R4、Data C2/I1、R3/I2 及 Commit/Auto-Abort 合同收尾已完成，RBF1 最大容量已补公开结构读取正例。最终 clean 源码 `c4377fd84e2a47e349e60badc9e4ad3a717f9d96` 的 Release RBF build 成功，RBF 测试 **677/677**；Data 对应已提交修复内容的 Release build 成功，测试 **288/288**。两组均无失败或跳过，Data 的提交前构建身份如下单独说明。
 
 裁决与仍延期的触发条件见[审阅 finding 裁决](rbf3-review-findings-disposition.md)。本记录只验收 Data/RBF 源码和测试闭包，不新增公共 API、File 状态或 wire-format；下游适配另阶段。

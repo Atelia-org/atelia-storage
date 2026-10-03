@@ -57,4 +57,6 @@ freeze保存精确源码/配置副本及哈希、整套二进制哈希、实际b
 
 每个pass保存实际first/last独立wire文件并记录两个实际Key。生产非零Key可能随Append变化，所以不要求同一文件或A/B编码字节相等。所有计时结束后复用`oracle.py`的独立bitwise CRC32C/units/XOR模型，完整验证这两个端点的payload/meta/Tag、CRC与wire重编码，并核对其对应的真实文件首尾及EOF；中间批量帧不称作独立全审。`comparison.json`保留逐轮原始比值、首次/暖态成本，`provenance.json`固定全部原始工件哈希；脚本不自动决定合入。
 
-JIT另pass使用[官方JIT诊断变量](https://github.com/dotnet/runtime/blob/v10.0.5/docs/design/coreclr/jit/viewing-jit-dumps.md)捕获实际目标runtime的`AppendRbf3`反汇编，保持与计时相同优化JIT设置。主线程审阅saved registers、静态prolog和分支localloc/stack probe；这是该方法的目标JIT栈证据，不能仅按源码stackalloc大小推导峰值，也不代表完整调用链栈峰值。诊断不混入性能计时。本入口目前没有测量结论，候选可能保持延期。
+JIT另pass使用[官方JIT诊断变量](https://github.com/dotnet/runtime/blob/v10.0.5/docs/design/coreclr/jit/viewing-jit-dumps.md)捕获实际目标runtime的`AppendRbf3`反汇编，保持与计时相同优化JIT设置。主线程审阅saved registers、静态prolog和分支localloc/stack probe；这是该方法的目标JIT栈证据，不能仅按源码stackalloc大小推导峰值，也不代表完整调用链栈峰值。诊断不混入性能计时。
+
+2026-10-03两组共14对样本已完成；四个4–8KiB Key0目标各14/14胜出并采用8KiB阈值，小帧/非零Key的噪声和分支栈成本保留限制。结果与实际构建身份见[实施验收](../../../docs/Rbf/rbf3-resource-and-output-acceptance.md)和[证据快照](../../../docs/Rbf/review-evidence/rbf3-resource-output-20261003.json)。后续运行使用新目录与新身份，不覆盖此次原始材料或历史0999851快照。
