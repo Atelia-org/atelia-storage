@@ -27,8 +27,8 @@ RBF（Reversible Binary Framing）是 Atelia 的二进制信封格式，用于�
 | [rbf-tail-recovery-refactoring.md](rbf-tail-recovery-refactoring.md) | Implementation / RBF1 | 旧byte-length格式单个残缺尾帧自愈的实施记录；新profile后续方案见普通打开重构 |
 | [rbf-tail-recovery-review.md](rbf-tail-recovery-review.md) | Review | 三位 reviewer 两轮辩证复核的需求、裁决与证据记录 |
 | [rbf-open-fast-path-refactoring.md](rbf-open-fast-path-refactoring.md) | Plan-Tier | 已采纳、待实施：Head/Tail长度4B units、Fence≥2^26、尾Key单份、结构Open/内容ReadFrame、进程终止下截尾/补Key+Fence；新wire及RBF实施门禁 |
-| [rbf-codec-implementation-study.md](rbf-codec-implementation-study.md) | Research / G1 | writer预处理与reader解码专项；C#原型/W:实测仍为历史byte-length证据，实施建议已同步units；生产接入待实施 |
-| [ZeroThenTinyBitmapRandom基础方案](../Data/xor-escape-key-refactoring.md) | Plan-Tier / Data foundation | 已采纳、待实施：Fence≥2^26、Data窄API、共享选择/XOR核与具体writer fused接点；先同时资格三spans/真实chunks，byte输入/int长度域保留 |
+| [rbf-codec-implementation-study.md](rbf-codec-implementation-study.md) | Research / G1 | writer预处理与reader解码专项；Data生产入口/真实writer已测，wire fixture仍为历史byte-length证据；新RBF接入待实施 |
+| [ZeroThenTinyBitmapRandom基础方案](../Data/xor-escape-key-refactoring.md) | Implementation / Data foundation | 已实施：Fence≥2^26、Data窄API、共享选择/XOR核与具体writer fused接点；三spans/真实chunks同切片资格，byte输入/int长度域保留；结果见§9 |
 | [rbf-derived-notes.md](rbf-derived-notes.md) | Derived | 推导、算例与答疑（允许滞后/可删改） |
 | [rbf-test-vectors.md](rbf-test-vectors.md) | Test | 测试向量 |
 

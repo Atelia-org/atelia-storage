@@ -1,12 +1,12 @@
 ---
 title: "ZeroThenTinyBitmapRandom 实现重构方案"
-status: "Accepted refactoring plan / dialectical review complete / implementation pending"
+status: "Implemented Data foundation / reviewed / qualification recorded below"
 normative: false
 ---
 
 # ZeroThenTinyBitmapRandom 实现重构方案
 
-日期：2026-10-03；方案源码基线 `dc11774`。本轮只撰写、审查并修订方案，生产实现未开始。本方案为 [RBF 普通打开重构](../Rbf/rbf-open-fast-path-refactoring.md)的 G1 提供基础算法；原始成本证据见 [writer/reader 专项§3.2](../Rbf/rbf-codec-implementation-study.md#32-小帧用一个-ulong-作为完整-bitmap)。相邻方案来自同一调查，不能彼此充当独立需求证据。
+日期：2026-10-03；方案源码基线 `dc11774`，Data基础实现提交 `00329fd`。用户随后明确授权实施本切片，现已交付选择/XOR核、三spans入口、具体writer fused成员及测试；实施结果见§9，成本证据归 [writer/reader 专项§3.3](../Rbf/rbf-codec-implementation-study.md#33-data生产入口与真实writer资格)。本方案承接 [RBF 普通打开重构](../Rbf/rbf-open-fast-path-refactoring.md)的 G1 基础部分；RBF新profile接入另按主方案实施。相邻方案来自同一调查，不能彼此充当独立需求证据。
 
 采用 **Data窄入口、内部共享选择核和XOR核**：Append传入至多三个借用spans；Builder在具体writer内对reservation后的全部已写bytes选键并原地XOR。Fence限定为uint值域内的 **F≥2^26（0x04000000）**，EscapeKey保留完整uint32值域。先尝试Key0，失败且待编码区间≤63words时，以一个ulong完整标记候选0..63；较大区间循环抽取系统随机Key并检查。RBF负责body组成、CRC、长度字段、文件输出和恢复。没有公共可重放协议、可逃逸chunk视图或新增lease。
 
@@ -16,7 +16,7 @@ normative: false
 
 | 要求 | 来源 | 当前消费者 / 边界 |
 | --- | --- | --- |
-| 采用ZeroThenTinyBitmapRandom，先形成实施方案并做辩证简化 | 本轮用户决定 | 本文；不授权本轮生产实现 |
+| 采用ZeroThenTinyBitmapRandom，先形成方案并做辩证简化，再实施Data基础 | 用户先接受方案，随后明确授权本轮实施、委派与提交 | 本文§9；授权不扩展到RBF新profile或下游 |
 | 优先评估src/Data，但分层代价高则不强行抽取 | 本轮用户方向 | 只有RBF是已知拟接入消费者，第二种协议尚未找到 |
 | Zero优先，小帧完整ulong bitmap，大帧原随机循环 | 用户及已提交实验 | 现实验PrototypeCodec；生产仍为RBF1 |
 | 任意二进制bytes，长度有限，禁止对齐Fence，raw EscapeKey也不能等于Fence | 已接受wire方案、实验和独立word存在性证明 | RBF新profile；不是加密或滑动byte序列过滤 |
@@ -29,7 +29,7 @@ normative: false
 | 最大RBF FrameBytes约256MiB、Open结构与ReadFrame内容CRC、单尾修复 | 先前用户决定 | 保留在RBF主方案，本基础切片不实施 |
 | .NET10、Windows build/test串行、真实磁盘实验W: | AGENTS及用户 | 不打包、不发布、不改下游 |
 
-实现归属、窄入口及wire单位均已选定；真实writer遍历与借用入口的成本留作实施资格，不能由接口小探针预先宣称满足。
+实现归属、窄入口及wire单位均已选定；真实writer遍历与借用入口已按§6进行独立行为及成本资格，结果见§9。方案阶段接口小探针仅保留为历史证据。
 
 ## 2. 当前源码支持的接点
 
@@ -42,7 +42,7 @@ normative: false
 
 ## 3. 选定的归属与最小公开面
 
-在 `Atelia.Data.Binary` 增加一个 `XorEscape` 静态类型；同一assembly的 `SinkReservableWriter` 增加一个具体成员。依赖方向沿用Rbf→Data，BCL提供SIMD/span/CSPRNG，无新项目、第三方依赖或friend assembly。计划签名如下，最终源码公开前按§6完成两种输入资格：
+在 `Atelia.Data.Binary` 增加一个 `XorEscape` 静态类型；同一assembly的 `SinkReservableWriter` 增加一个具体成员。依赖方向沿用Rbf→Data，BCL提供SIMD/span/CSPRNG，无新项目、第三方依赖或friend assembly。已落地公开签名如下，两种真实输入资格见§9：
 
 ```csharp
 public static class XorEscape {
@@ -159,10 +159,27 @@ Windows串行Release build Data.Tests，匹配 `--no-build` tests，再按接入
 
 已处理的文档/源码矛盾：此前一般Fence设计需要tiny全满时返回64，最新Fence≥2^26契约保证tiny永不全满，删除该扩展；span被readonly借用不等于冻结；值类型若保存接口cursor仍会共享/装箱；RBF旧catch-all不适合新预发布RNG；旧专项visitor/guard与Key0/1措辞需要随本裁决同步更新。RBF新raw U无需低2bits对齐检查，但Data的总byte长度仍须4B对齐；两者不能混为同一数值。本文为基础实现方案，已测策略结果继续留专项，不复制一份测量authority。
 
-## 8. 本轮接口小探针的限度
+## 8. 方案阶段接口小探针的限度
 
 主线程在 `W:/RbfCodecCost/layering-shape-20261003` 建立独立Library/Consumer两个.NET10项目，沿用仓库SDK pin，串行Release build为0警告/错误。跨assembly借用ref-struct generic source与固定三span调用均可编译；1+127+124B切分下F=0/1/63/64/大值的五个scalar构造通过；100000次generic source调用当前线程managed allocation为0。主线程另用独立Python重现相位重置把合法word编码成Fence的反例。
 
 上述五个Fence构造验证的是收窄前的一般Fence候选，原始证据保持不改。最新契约将前四个Fence（0/1/63/64）改为参数拒绝；不能用旧探针冒充这项生产入口校验已实现。RBF既有性能/wire快照也仍用byte HeadLen/TailLen；新4B units的CRC和恢复由后续RBF切片独立验收。
 
-这证明初稿公开泛型来源并非“语言做不到”，删除它依据的是公开契约较宽；不证明最终Data API、实际writer、JIT全部内联、SIMD吞吐或完整策略已实现。源码/日志及测后hash保留在上述W:目录，并内嵌于 [接口小探针证据](../../experiments/RbfCodecCost/results/escape-source-shape-dc11774-20261003.json)。它没有自动测前/测后源码守护，只作标量接口资格，不混入旧性能快照。生产源码及旧实验结果未改，本轮没有运行生产测试或声称包消费验收。
+这证明初稿公开泛型来源并非“语言做不到”，删除它依据的是公开契约较宽；不证明最终Data API、实际writer、JIT全部内联、SIMD吞吐或完整策略已实现。源码/日志及测后hash保留在上述W:目录，并内嵌于 [接口小探针证据](../../experiments/RbfCodecCost/results/escape-source-shape-dc11774-20261003.json)。它没有自动测前/测后源码守护，只作标量接口资格，不混入旧性能快照。该方案阶段没有修改生产源码或运行生产测试，后续实际实施资格另见§9。
+
+## 9. 基础切片实施结果
+
+实现提交 `00329fd` 同时交付两种实际输入，没有新增公共source协议、策略配置、依赖或friend：
+
+- [XorEscape.cs](../../src/Data/Binary/XorEscape.cs)负责公开三spans入口及Zero/tiny/random策略；内部值cursor每pass独立复制。
+- [共享搜索核](../../src/Data/Binary/XorEscape.Search.cs)用BCL `ReadOnlySpan<uint>.Contains`搜索完整word中段，以固定carry衔接跨span/chunk的1–3B边缘；tiny局部ulong标记候选。
+- [共享变换核](../../src/Data/Binary/XorEscape.Transform.cs)统一Copy/InPlace，按LE周期Key保留bytePhase，先验证实际写入prefix的alias/长度/phase，再允许Key0早退。
+- [具体writer成员](../../src/Data/SinkReservableWriter.cs)直接索引owned chunks，完整派生reservationEnd..WrittenEnd；选键成功后原地变换，不Push/Commit/Trace/Reset，不移动长度或暴露buffer。
+
+两个选择入口统一先验证Fence≥2^26及int/4B byte域；返回Key保留完整uint32能力并排除Fence。随机候选/异常注入仅为internal、per-call测试入口，生产没有callback或全局hook。输入冻结、意外变换异常不保证回滚、后续RBF首次footer修改起取消的边界均保持原方案。
+
+独立源码及测试复核通过，新增两个测试类的70个参数化cases与现有测试合计 **Data.Tests 282/282**；匹配Release **Rbf.Tests 504/504**通过。证据涵盖LE scalar裁判、全部三span小帧切分、63/64words、uint Fence/Key边界、随机连续碰禁及故障、真实非首chunk reservation、已Push前缀、capacity Fence与未写sentinel、旧token/Reset/borrow及Pool逐一归还。最终Data验证保留在 `W:/RbfCodecCost/empty-span-select-20261003T032908/validation-skipempty`，RBF及整仓尝试日志在 `W:/RbfCodecCost/data-foundation-validation-20261003-111337`；TRX哈希随正式成本快照记录。
+
+成本资格使用真实借用payload/meta/stack footer及实际writer多chunks，详见专项§3.3。初次冒烟暴露空span固定成本，纯SelectKey与JIT证据定位到空块仍触发计数/扫描helper；最终只令内部SpanSource跳过空块，未加inlining属性或第二选择算法。正式测量按提交源码及测前/测后hash保留结果，不以历史原型快照代替Data生产资格。
+
+本轮已尝试AGENTS要求的整仓Release build：原HEAD即存在 `RbfSegmentStore.cs:141,184` 的两个CS1620（旧OpenExisting调用缺out），本切片未修改这些调用。整仓 `--no-build` test命令返回成功，但上层仍使用既有bin，不能据此宣称当前源码整仓验收；本轮确认的是新构建的Data/RBF闭包。没有包消费/发布、新units wire、生产RBF新writer/Open/recovery或下游适配验收。下一切片按RBF主方案G0/G2落实profile与units codec，并接入§5的真实取消/输出fault边界。

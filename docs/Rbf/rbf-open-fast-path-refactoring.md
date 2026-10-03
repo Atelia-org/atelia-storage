@@ -14,7 +14,7 @@ normative: false
 
 同日追加小帧快速路径：Zero失败且 **EscapePayload≤256B** 时用一个 `ulong` bitmap选择最小可用键，超过阈值仍走上述随机循环。EscapePayload是前一条Fence与尾EscapeKey之间的区间，包含raw HeadLen，长度`L-4`；实际编码body最多252B/63words，64候选保证有空位。CPU实测、跨chunk与边界资格见[专项§3.2](rbf-codec-implementation-study.md#32-小帧用一个-ulong-作为完整-bitmap)。这是writer内部算法选择，不改变wire、reader或恢复规则。
 
-基础实现另见 [ZeroThenTinyBitmapRandom重构方案](../Data/xor-escape-key-refactoring.md)：两轮辩证审查选择Data窄入口、内部共享选键/XOR核；Append至多三个借用spans，Builder对reservation后全部已写bytes一次选键并原地变换，不公开source/view/visitor。基础及真实Builder资格同一个待实施切片，不改变本文件的格式/恢复规则。
+基础实现另见 [ZeroThenTinyBitmapRandom重构方案](../Data/xor-escape-key-refactoring.md)：两轮辩证审查选择Data窄入口、内部共享选键/XOR核；Append至多三个借用spans，Builder对reservation后全部已写bytes一次选键并原地变换，不公开source/view/visitor。Data基础已在 `00329fd` 同时落地两种真实输入并完成行为/成本资格；新RBF Builder接入仍待后续切片，不改变本文件的格式/恢复规则。
 
 2026-10-03 最终长度裁决：用户接受两轮独立审查收敛的 **HeadLen/TailLen以4B为单位、Fence≥2^26**。令物理FrameBytes长度为L bytes，wire字段存 `U=L>>2`，Fence下界是 `0x04000000`（67108864）。Data选键入口同步限定到该Fence范围，EscapeKey仍保留完整uint32值域。RBF候选Fence=0x32464252满足约束；不再附加 `Fence & 3 != 0` 规则。本文§4是新长度编码的方案依据，Data不拥有长度字段。
 
@@ -162,7 +162,7 @@ EOF 不满足闭合尾形态时，先逆扫最近完整 aligned Fence。设其�
 
 普通 Append 已持有完整 spans，先计算coverage CRC和完整plaintext footer，再将payload、TailMeta、footer作为三个借用spans交给Data中的 `XorEscape.SelectKey`，采用ZeroThenTinyBitmapRandom。CRC与筛Key仍是不同loop，不宣称一次memory load完成两者。Key0大帧直接写原spans；非零Key使用有界buffer编码输出，不改用户数据、不复制整帧。专项建议按需取得、每writer重用1MiB输出空间；durable与Pool成本边界见专项。预处理/RNG异常处于实际输出之前，不应被现行包住整个Append调用的catch-all误标为write fault；真正输出/flush异常仍永久fault。
 
-Builder目前已整帧缓冲：BeginAppend的HeadLen reservation持续pending，SinkReservableWriter.FlushCommittedData在首pending处停止，EndAppend提交后逐chunk Push。Data基础方案改用具体 `XorEscapeSinceReservationEnd(headToken,fence)` 成员：在完整plaintext CRC/Trailer之后、raw Key/Fence追加之前，对reservation后全部已写body一次选键并原地XOR，再由原sink Commit/Push。没有外部visitor、可逃逸view或byteCount；内部cursor保持carry/相位，不复制整帧。全部Result/借用/参数拒绝置于首次padding/footer修改前；从该首次准备修改到Commit前的异常取消/Reset，禁止同一Builder重试；实际输出异常永久fault。具体Data方法、取消路径和真实新Builder成本仍未实施/实测。
+Builder目前已整帧缓冲：BeginAppend的HeadLen reservation持续pending，SinkReservableWriter.FlushCommittedData在首pending处停止，EndAppend提交后逐chunk Push。Data基础方案改用具体 `XorEscapeSinceReservationEnd(headToken,fence)` 成员：在完整plaintext CRC/Trailer之后、raw Key/Fence追加之前，对reservation后全部已写body一次选键并原地XOR，再由原sink Commit/Push。没有外部visitor、可逃逸view或byteCount；内部cursor保持carry/相位，不复制整帧。全部Result/借用/参数拒绝置于首次padding/footer修改前；从该首次准备修改到Commit前的异常取消/Reset，禁止同一Builder重试；实际输出异常永久fault。具体Data方法及owned chunks资格已完成；RBF取消路径和真实新Builder端到端成本仍待接入。
 
 | 接点 | 实施边界 |
 | --- | --- |
@@ -285,14 +285,14 @@ PayloadCRC forward/LE、TrailerCRC backward/BE 由生产黄金向量和完整 wi
 | 切片 | 交付 | 退出证据 |
 | --- | --- | --- |
 | G0：RBF 合同 | 确定与历史实验区分的生产profile标识；锁定Head/Tail units、F≥2^26、byte API；结构/内容职责、旧可写拒绝、三动作和报告enum、进程终止模型 | §4长度换算/CRC覆盖与§6重建公式进入规范差异清单；两profile的内容CRC均留ReadFrame，RBF1保完整结构主链；结构坏拒绝；未完成body截尾，完整body补Key/Fence |
-| G1：Data基础与codec资格 | [Data基础方案](../Data/xor-escape-key-refactoring.md)的Zero/tiny/random、F≥2^26、三spans与具体writer fused能力；旧成本原型只作参照；新units codec及原地Builder/Pool/高位Key资格待做 | 基础同时通过真实三spans与pending chunks、独立scalar/成本/ownership资格；Data保持int body域、全uint Key，不承担长度wire；不需额外整帧复制 |
+| G1：Data基础与codec资格 | [Data基础方案§9](../Data/xor-escape-key-refactoring.md#9-基础切片实施结果)的Zero/tiny/random、F≥2^26、三spans与具体writer fused能力已完成；新units codec与RBF Builder/高位Key读入口资格仍待做 | Data基础已通过真实三spans与pending chunks、独立scalar/成本/ownership资格；保持int body域、全uint Key，不承担长度wire，不需额外整帧复制；不能把基础完成写成整个G1/G2完成 |
 | G2：双读与纯新 writer | 同步interface/format/新units向量/容量；两组具体序列化/解析、Append/Builder、FrameInfo/cache/scan/boundary/meta/profile | 独立LE(U)/CRC黄金向量、range先于shift、全uint Key与所有读取入口通过；旧ticket/最大容量/墓碑保留，新user bytes round-trip，入口支持或显式拒绝；G3前不交付新可写Open |
 | G3：结构快开与单尾恢复 | 同 handle、定位/资格、截尾/补闭合后缀、flush/报告；实际生产 I/O 异常与进程 kill | 无 oracle/内容 CRC 资格/墓碑补写；健康读取对 N/L 独立，异常扫描≤M+7；再次恢复完整 |
 | G4：RBF 源码验收 | 主线程独立 review，Release 构建 RBF 依赖和匹配 RBF.Tests | RBF 测试通过；其他项目/下游设计/包交付独立，包交付按既有 smoke 与会话授权 |
 
 G0/G2 遵循 [Decision-Layer 约束](README.md#decision-layer-约束)。尾 Key 保留逆扫不读头的固定决策；本轮未修改规范。用户已授权提交文档与专项实验；方案不自动成为规范，也不扩展为打包或发布授权。
 
-下一实施回合先完成Data基础切片；RBF的wire单位已经确定，G0剩余工作是生产profile标识和规范落实。Data无需等待RBF编码完工，但RBF在新units向量与全部读入口完成前不能启用新writer。旧实验只作对照，不先批量改写来伪造新格式验收。
+Data基础切片已完成，下一实施回合进入RBF的G0/G2：wire单位已经确定，落实生产profile标识、规范与units codec，再按既定取消/输出边界接入Append/Builder。RBF在新units向量与全部读入口完成前不能启用新writer；结构Open/恢复仍由G3单独验收。旧实验只作对照，不先批量改写来伪造新格式验收。
 
 成本 workload：历史 N=1/1000/100000，末帧 coverage=0/4KiB/1MiB/近 M；全零/随机/密集 F1/F2/多禁 Key、meta=0/1/3/65535、跨 span/chunk；测 Append/Builder/完整随机读/FrameInfo/meta、健康 Open 与异常截尾/补尾，记录配置/cache、重复次数、请求/返回 bytes、分配/bitmap/延迟/吞吐。未控制 OS cache 不称冷盘。
 

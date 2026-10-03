@@ -1,6 +1,6 @@
 ---
 title: "RBF 尾 EscapeKey 编码的 writer / reader 实现专项"
-status: "Measured recommendation / production integration pending"
+status: "Measured recommendation / Data foundation implemented / RBF integration pending"
 normative: false
 ---
 
@@ -12,11 +12,11 @@ normative: false
 
 推荐最小实现是：**CRC/footer 完成后，先检测 EscapeKey=0；失败且 EscapePayload≤256B 时使用一个 ulong bitmap，否则以系统随机源抽取候选并完整检测，不建立数组 bitmap；Append 使用借用输入和有界输出缓冲，Builder 在提交前原地编码现有 owned chunks；reader 保留 encoded cache，在 caller/pooled buffer 向量解码，再用现有 CRC。** 2026-10-03 的 ZeroThenRandom 与小帧标量 bitmap 补测见§3.1–3.2；原有测量保留为历史基线。模 uint32 加减法同样可行，当前测量未显示吞吐优势，先保留已验证的 XOR 实现；任意非对齐切片解码不作为格式选择的硬条件。融合解码/CRC 留作实验候选。
 
-基础API及Builder接点由 [Data实现重构方案](../Data/xor-escape-key-refactoring.md)承接：两轮辩证简化选择三个借用spans入口、内部共享核和具体writer一次选键/XOR能力；删公共source/view/visitor及byteCount。下述测量仍是实验结果，Data生产基础和新RBF接入尚未实施。
+基础API及Builder接点由 [Data实现重构方案](../Data/xor-escape-key-refactoring.md)承接：两轮辩证简化选择三个借用spans入口、内部共享核和具体writer一次选键/XOR能力；删公共source/view/visitor及byteCount。Data生产基础已在 `00329fd` 实施，真实输入与成本资格见§3.3；新RBF接入仍待后续实施。
 
 2026-10-03 最终方案采用 **HeadLen/TailLen存4B units、Fence≥2^26**，详细wire合同归[主方案§4](rbf-open-fast-path-refactoring.md#4-单份尾-key-布局与快开算法)。物理FrameBytes长度为L bytes，wire字段存U=L>>2，合法 `7≤U<2^26`；raw头不XOR，尾长度参与body XOR。Data统一Fence下界但仍接收bytes/int域body，EscapeKey完整uint32。tiny只需F≥64，新下界已满足，算法不增加分支。
 
-**下面所有已提交实验原型、快照与测量仍使用byte HeadLen/TailLen。** 旧结果支撑算法和成本建议，不验收新units wire的CRC或恢复；源码hash、数值和实验fixture保持原样。下文实施建议已按units更新，实施须新增明确标识的新向量；不得把旧RBF2实验文件重解释为新生产profile。候选Fence=0x32464252满足新下界，生产入口拒绝测试待基础实施。
+**下面所有已提交实验原型、快照与测量仍使用byte HeadLen/TailLen。** 旧结果支撑算法和成本建议，新增Data资格同样借用明确标识的历史byte-length fixture；均不验收新units wire的CRC或恢复。下文RBF实施建议已按units更新，须新增对应向量；不得把旧RBF2实验文件重解释为新生产profile。候选Fence=0x32464252满足新下界，Data生产入口的Fence边界拒绝已由测试验证。
 
 ## 1. 需求与证据边界
 
@@ -172,6 +172,42 @@ uint key = (uint)BitOperations.TrailingZeroCount(~forbidden);
 
 新资格覆盖448帧（352个阈值内、96个较大帧）、112个独立Python bitwise CRC/wire向量；单字节/3B/7B chunks、footer独自禁0、最小键对照、完整marker-free、两种checked-read CRC/原文、shift别名与232/233B边界均通过。Zero及整个小帧路径用会抛错的随机源证明不抽样；边界外强制高Key证明仍走原循环。runner保留既有4740变换、448个XOR帧、448个加法帧等资格并做测量源码hash前后守护；正式Release build为0警告/错误。生产源码/规范和旧不可变快照未改，本轮无新生产恢复或高Key元信息资格。
 
+### 3.3 Data生产入口与真实writer资格
+
+Data基础实现提交 `00329fd`，正式证据：[data-escape-00329fd-20261003.json](../../experiments/RbfCodecCost/results/data-escape-00329fd-20261003.json)，仓库LF换行快照的SHA256为 `16d71d22398167f5f22e44f4d5971250650f1a9a3fcf3ce43f13bacb66cf0c71`。正式目录 `W:/RbfCodecCost/data-escape-formal-20261003`；开始测量时提交树干净，45个实验及Data源码文件通过测前/测后hash守护。保留两轮quick及局部诊断，不覆盖旧快照。
+
+复用§3.1–3.2的26个tiny、37个random工作量标签，共63个真实输入case、189条Prepare记录；当前meta为 `min(inputLength,3)`，与历史快照不同，不能直接比较旧ns。每例比较旧原chunks、旧同payload/meta缓冲区、Data借用payload/meta/stack footer三个入口，均计算相同完整CRC/footer并计入CSPRNG；每条7轮转样本。旧Prepare对象/footer的128B分配计时，Data入口不为它们建对象，63例均测得0B managed allocation。下表只比较本次同缓冲区Prepare中位，单位ns：
+
+| 输入与分布 | 同缓冲区旧原型 | Data三spans |
+| --- | ---: | ---: |
+| 0B，Zero成功 | 129.0 | 87.1 |
+| 0B，footer tag独自禁0 | 164.2 | 119.8 |
+| 31B，Fence重复 | 202.1 | 175.5 |
+| 232B，禁低Key | 287.9 | 278.4 |
+| 233B，Fence重复，进入random | 338.3 | 336.5 |
+| 1MiB，Fence重复 | 419330 | 421507 |
+| 近最大输入，Fence在末端 | 131218500 | 130861900 |
+
+常规小帧样本范围有重叠，大帧同缓冲区成本接近；不能从单次中位声明所有Data入口更快。无需因通用来源改成公开框架或退回RBF编排：固定三借用spans可用，成本未显示大帧分层惩罚，并删除Prepare对象分配。
+
+实际writer有10个case、40条记录：frozen连续buffer与真实owned chunks各测选择+XOR，另比较两个完整生命周期。frozen每样本先在计时外Reset/refill，仅计一次调用，之后发布并用独立scalar核对实际sink bytes；小帧约100ns的时钟量化及仅7个单次样本限制了微差解释。生命周期则批量轮转，计入Reset、Shared ArrayPool租还、fill、CRC/footer、选择/XOR、Commit/recycle及同步sink消费，验证另行计时外完成。
+
+| workload / 操作 | 连续buffer或旧copy-encode路径 | owned writer或Data路径 |
+| --- | ---: | ---: |
+| 1MiB marker，frozen选择+XOR | 78.6µs | 83.4µs |
+| 近最大输入，frozen选择+XOR | 72.45ms | 71.04ms |
+| 232B dense，完整生命周期 | 5.30µs / 3728B allocated | 3.67µs / 3640B allocated |
+| 1MiB marker，完整生命周期 | 0.496ms / 1688B allocated | 0.540ms / 1600B allocated |
+| 近最大输入，完整生命周期 | 310.70ms / 235365328B allocated | 362.44ms / 235367566B allocated |
+
+生命周期两边的内存拓扑不同：旧路径已知完整source，复制时编码；Data路径先拥有plaintext再原地转换，符合Builder拟接入顺序。差额包含额外内存遍历、Pool和现有writer成本，不能全部归因于generic dispatch，也不能把这组同步sink测量称SSD吞吐。近最大case约4096个chunks带来大量Shared Pool周转，分配仍真实计入；本切片未扩张为Pool/Flush重构。frozen连续路径均0B，owned路径9个case为0B、最大case原始观测平均1160B，不能把全表写成严格零分配。
+
+最大case的独立分配诊断保存在 `W:/RbfCodecCost/writer-max-allocation-20261003T035124`，6份生产源码测前/测后hash相同。首次warmup观测48B，之后7个自然refill样本及7个在计时外强制GC的诊断样本均为0B；未稳定复现正式观测，原因尚未确定，因此保留正式快照的1160B结果，不承诺严格零分配。诊断只抽查每个发布chunk的首/中/尾XOR字节，不能替代正式实验的完整独立正确性检查。
+
+初次quick发现空payload/meta让每pass扫描空块，20B footer完整Prepare为192.2ns。局部纯SelectKey与JIT probe在 `W:/RbfCodecCost/empty-span-select-20261003T032908`复现：tiny单span75.96ns、两个空span后接body140.86ns。仅令内部SpanSource跳过空块后，后者49.65ns、单span50.07ns；所有诊断variant零分配、scalar minimum及source hash通过。没有加inlining属性、第二选择算法或公共协议。探针也删去全部字段随后覆盖的Trailer.Clear，CRC工作量保持一致；优化quick的完整Prepare回落到104.9ns，正式同类119.8ns，不混淆纯选择与Prepare指标。
+
+63个Append输入与10个实际writer输入通过独立scalar/key/XOR oracle；38个Data生成的历史byte-length wire fixture经Python bitwise CRC32C互证。匹配Release Data.Tests282/282、Rbf.Tests504/504及TRX哈希随快照保存，源码/测试与测量方法均有独立复核。**本节完成Data基础资格，不验收4B units格式、新RBF Append/Builder、Open/recovery、真实SSD吞吐或包消费。** 整仓前置编译缺口及上层旧bin测试边界见Data方案§9。
+
 ## 4. Append 输出与 Builder 的更小实现
 
 ### 4.1 Append：借用输入，按需租有界 scratch
@@ -211,7 +247,7 @@ uint key = (uint)BitOperations.TrailingZeroCount(~forbidden);
 
 [现行故障测试](../../tests/Rbf.Tests/Internal/RbfWriterFaultTests.cs) 明确允许 `EndAppend(-1)` 返回失败后同一个 Builder 修正再提交；优化必须保留这个行为。进程在原地编码中终止时还没有 Push，只损失未提交内存，无需新的恢复状态。
 
-这是源码与契约审查结论；**Data具体方法、自动取消路径与新Builder端到端性能尚未实现或实测**。旧Builder的真实64KiB feeds是参照，不能冒充新Builder验收。后续Append也须将预发布RNG/搜索异常与实际输出fault分开，不能沿用包住整个新预处理调用的catch-all来标write fault。
+**Data具体方法已实施，真实owned-chunks行为及成本见§3.3；RBF自动取消路径与新Builder端到端性能仍待接入。** 旧Builder的真实64KiB feeds及Data基础生命周期是参照，不能冒充新Builder验收。后续Append也须将预发布RNG/搜索异常与实际输出fault分开，不能沿用包住整个新预处理调用的catch-all来标write fault。
 
 ## 5. reader：wire cache、owned buffer、批量解码
 
@@ -277,6 +313,6 @@ Fence、尾 EscapeKey、CRC 和 Trailer 均为4B对齐；完整 body 也由paddi
 
 保留CPU正式阶段、修正I/O阶段、补测阶段各自产物与源码hash。后两阶段新增入口参数使Program/runner不同；只比较相应工作核源码，不能写所有历史hash匹配当前全部源码。最初短测的byte-XOR与uint-add不公平、首次I/O的生产metrics在计时内，均不参与上述最终裁决；原始目录保留用于追查。
 
-后续最小实施顺序：先完成Data方案的一个基础切片，同时资格Fence下界、三个借用spans与真实writer多chunks；再按RBF主方案落实新profile与units黄金向量，接入Append/Builder尾布局、取消/重试/fault、按需workspace、caller/pooled解码及所有info/meta/cache入口。复用现有CRC和故障事实，不加codec框架或配置层，也不因长度单位另拆assembly。
+Data基础切片及Fence下界、三个借用spans与真实writer多chunks资格已完成；后续最小实施顺序是按RBF主方案落实新profile与units黄金向量，接入Append/Builder尾布局、取消/重试/fault、按需workspace、caller/pooled解码及所有info/meta/cache入口。复用现有CRC和故障事实，不加codec框架或配置层，也不因长度单位另拆assembly。
 
 实施退出需要：旧reservation/epoch/Result可纠正拒绝保留；首次padding/footer修改后的准备或转换异常零发布且Builder取消，后续新Builder正常；Data fused不callback/Push/泄漏view；Push/flush异常永久fault及池只归还一次；Footer禁Key、任意chunk相位与两CRC；新U范围先于shift、LE(U) CRC、高位Key及units缺Key恢复独立资格；真实生产Append/Builder/读路径W:端到端成本。现有byte process-prefix/单尾恢复实验只作参照，新units恢复另接生产实现后验收。
