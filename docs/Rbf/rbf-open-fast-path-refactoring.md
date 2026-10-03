@@ -12,6 +12,8 @@ normative: false
 
 2026-10-03 更新：专项新增 **ZeroThenRandom**。先检查 EscapeKey=0，失败后用系统随机源抽取全 uint32 候选（排除0/Fence），完整检测通过后采用；无 bitmap 循环版成为实施主候选，固定1与两次随机后 bitmap 版保留为实验对照。185条CPU、20条W: I/O的7样本证据见[专项结果](../../experiments/RbfCodecCost/results/zero-then-random-0e0df09-20261003.json)。随机搜索没有确定的尝试次数上限；31B反例、概率尾及尚未验证的元信息/恢复入口见专项。该更新不改变恢复动作。
 
+同日追加小帧快速路径：Zero失败且 **EscapePayload≤256B** 时用一个 `ulong` bitmap选择最小可用键，超过阈值仍走上述随机循环。EscapePayload是前一条Fence与尾EscapeKey之间的区间，包含raw HeadLen，长度`L-4`；实际编码body最多252B/63words，64候选保证有空位。CPU实测、跨chunk与边界资格见[专项§3.2](rbf-codec-implementation-study.md#32-小帧用一个-ulong-作为完整-bitmap)。这是writer内部算法选择，不改变wire、reader或恢复规则。
+
 用户当前决定：**单个 RBF 文件优先；恢复目标仅进程终止，断电依赖平台；确认真实边界后可截掉未完成帧；Open 负责分帧结构，PayloadCRC 留给 ReadFrame；只考虑补原尾 Key/Fence；保留约 256MiB 单帧上限；逆序读取优先，研究省头 Key。** 独立反审与字节推演支持采用这些简化。
 
 最小方案是 **单份尾 Key、结构快开、未完成 body 截断、完整 body 只补尾 Key/Fence**。恢复只有 `None / Truncated / CompletedTail` 三种动作；`CompletedTail` 仅追加确定的 1–8B 闭合后缀。无需补 coverage、CRC、Trailer、墓碑、nonce、未知 completion 或 writer oracle。
@@ -87,6 +89,8 @@ normative: false
 
 术语采用 **EscapeKey（二进制转义键）**，指每帧用于消除 encoded body 内对齐 Fence 的 uint32 参数。后文 Key/K 与 TailKey 均指此值；TailKey 仅表示尾部存放位置。其语义不绑定 XOR 或模加法，也不要求消除非对齐滑动窗口内的 Fence 字节序列。
 
+**EscapePayload** 是前一条Fence之后、尾EscapeKey之前的内容无关分帧区间：`raw HeadLen + encoded body`，长度`L-4`。其中raw HeadLen不参与XOR；键选择遍历的编码body长度为`L-8`。小帧阈值按EscapePayload长度判定，不按user payload或TailMeta长度判定。
+
 候选 Header / Fence 为 `RBF2`，其 LE u32 值记为 `F=0x32464252`：
 
 ```text
@@ -107,7 +111,7 @@ HeadLen/TailLen 均计 FrameBytes 物理长度 L，不含 Fence。固定开销�
 
 ### 4.1 Key 存在性与前缀证明
 
-每个 plaintext word w 只排除一个 Key：`w XOR Key == F ⇔ Key == w XOR F`。m 个 words 至多排除 m 个 Key，因此 `[0,m]` 必有可用值；这是 bitmap 对照/fallback 的存在性证明，不是所有有效 EscapeKey 的值域限制。当前实施主候选先完整检查 Key0；禁0后，以系统随机源抽取全 uint32 Key，排除0/Fence，再检测完整 body 是否含 `F XOR Key`，遇禁值继续抽取，不建立 bitmap。内容固定、抽样独立均匀时，约256MiB帧每次有效候选失败概率小于1/64，随机尝试次数的期望小于64/63；这些是理论界，无确定次数或耗时上限。实验保留两次有效随机候选扫描失败后 bitmap 的比较版本。Key0 省 XOR；非零随机 Key 不要求最小，wire 可随抽样改变，原文、物理长度和 ticket 不变。
+每个 plaintext word w 只排除一个 Key：`w XOR Key == F ⇔ Key == w XOR F`。m 个 words 至多排除 m 个 Key，因此 `[0,m]` 必有可用值；这是 bitmap 对照/fallback 的存在性证明，不是所有有效 EscapeKey 的值域限制。当前实施主候选先完整检查 Key0；禁0且`L-4≤256`时，body至多63words，用一个ulong标记0..63并取最小未标记值，无随机调用或数组bitmap。较大帧以系统随机源抽取全 uint32 Key，排除0/Fence，再检测完整 body 是否含 `F XOR Key`，遇禁值继续抽取，不建立 bitmap。内容固定、抽样独立均匀时，约256MiB帧每次有效候选失败概率小于1/64，随机尝试次数的期望小于64/63；这些是理论界，无确定次数或耗时上限。实验保留两次有效随机候选扫描失败后 bitmap 的比较版本。Key0 省 XOR；非零随机 Key 不要求最小，wire 可随抽样改变，原文、物理长度和 ticket 不变。
 
 coverage、PayloadCRC 与完整 Trailer 均纳入连续 word 划分，跨 span/chunk 不能重置相位。raw HeadLen 合法对齐，不等于 F；raw TailKey 必须不等于 F；所有 encoded body words 不等于 F。因此正常 writer 任意进程终止前缀中，完整的全局 4B 对齐 Fence 只在真实边界出现。尾 Key 的 F 排除不能只靠 body 检测代替；删除头 Key、放宽非零 Key 值域均不影响此证明。
 
@@ -252,7 +256,7 @@ PayloadCRC forward/LE、TrailerCRC backward/BE 由生产黄金向量和完整 wi
 | 切片 | 交付 | 退出证据 |
 | --- | --- | --- |
 | G0：RBF 合同 | profile 标识、结构/内容职责、旧可写拒绝、三动作和报告 enum、进程终止模型 | 两 profile 的内容 CRC 均留 ReadFrame，RBF1 保完整结构主链；末帧/前驱内容坏不阻止结构 Open；结构坏拒绝；body 未完成截尾，完整 body 补 Key/Fence；现行规范差异明确 |
-| G1：C# codec / 成本原型 | 尾 EscapeKey/六种搜索策略/跨 chunk XOR/preview 相位及 W: 成本专项已形成；ZeroThenRandom无bitmap为主候选；生产 pending visitor、原地 Builder、Pool及高位Key元信息/恢复接入待做 | 黄金向量/模型互证、不需额外整帧复制、读取字节上界与成本表；全域Key marker-free、所有reader/恢复入口及生产失败反例验证后冻结格式 |
+| G1：C# codec / 成本原型 | 尾 EscapeKey/七种搜索策略/跨 chunk XOR/preview 相位及 W: 成本专项已形成；Zero优先、小帧ulong bitmap、较大帧无bitmap随机为主候选；生产 pending visitor、原地 Builder、Pool及高位Key元信息/恢复接入待做 | 黄金向量/模型互证、不需额外整帧复制、读取字节上界与成本表；全域Key marker-free、所有reader/恢复入口及生产失败反例验证后冻结格式 |
 | G2：双读与纯新 writer | 同步 interface/format/向量/容量；Append/Builder、FrameInfo/cache/scan/boundary/meta/profile | 旧 ticket/最大容量/墓碑保留，新 user bytes round-trip，入口支持或显式拒绝；G3 前不交付新可写 Open |
 | G3：结构快开与单尾恢复 | 同 handle、定位/资格、截尾/补闭合后缀、flush/报告；实际生产 I/O 异常与进程 kill | 无 oracle/内容 CRC 资格/墓碑补写；健康读取对 N/L 独立，异常扫描≤M+7；再次恢复完整 |
 | G4：RBF 源码验收 | 主线程独立 review，Release 构建 RBF 依赖和匹配 RBF.Tests | RBF 测试通过；其他项目/下游设计/包交付独立，包交付按既有 smoke 与会话授权 |

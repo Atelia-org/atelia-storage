@@ -70,7 +70,7 @@ internal static class RandomSearchProbe {
         return result;
     }
 
-    private static List<Measurement> MeasureRotated(string workload, int bytes, int chunks,
+    internal static List<Measurement> MeasureRotated(string workload, int bytes, int chunks,
         (string Name, Func<ulong> Action)[] variants, int samples) {
         var counts = new int[variants.Length];
         for (int index = 0; index < variants.Length; index++) {

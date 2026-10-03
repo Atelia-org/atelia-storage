@@ -7,7 +7,7 @@ using Atelia.Data.Hashing;
 
 namespace RbfCodecCost;
 
-public enum KeyStrategy { FullBitmap, SmallBitmap, ZeroFirst, ZeroThenOne, ZeroThenRandom, ZeroThenRandom2Bitmap }
+public enum KeyStrategy { FullBitmap, SmallBitmap, ZeroFirst, ZeroThenOne, ZeroThenRandom, ZeroThenRandom2Bitmap, ZeroThenTinyBitmapRandom }
 
 /// <summary>Preprocessed RBF2 frame. Chunks remain borrowed and must not change before writing.</summary>
 public sealed class PreparedFrame {
@@ -59,7 +59,7 @@ public static class PrototypeCodec {
     public static PreparedFrame Prepare(byte[][] chunks, int metaLength, uint tag, KeyStrategy strategy,
         Func<uint>? randomCandidate = null) {
         ArgumentNullException.ThrowIfNull(chunks);
-        if ((uint)strategy > (uint)KeyStrategy.ZeroThenRandom2Bitmap) {
+        if ((uint)strategy > (uint)KeyStrategy.ZeroThenTinyBitmapRandom) {
             throw new ArgumentOutOfRangeException(nameof(strategy));
         }
         if ((uint)metaLength > ushort.MaxValue) {
@@ -124,7 +124,12 @@ public static class PrototypeCodec {
             }
             else {
                 scanPasses++;
-                if (strategy is KeyStrategy.ZeroThenRandom or KeyStrategy.ZeroThenRandom2Bitmap) {
+                // EscapePayload is the interval after the left Fence and before the raw Key.
+                // Its raw HeadLen occupies 4B, leaving at most 63 encoded words at 256B.
+                if (strategy == KeyStrategy.ZeroThenTinyBitmapRandom && frameLength - 4 <= 256) {
+                    key = SelectTinyBitmap(chunks, footer);
+                }
+                else if (strategy is KeyStrategy.ZeroThenRandom or KeyStrategy.ZeroThenRandom2Bitmap or KeyStrategy.ZeroThenTinyBitmapRandom) {
                     // The raw tail Key must not equal Fence. Zero was already proven forbidden.
                     // A bounded variant limits valid searches, not rejection draws from the RNG.
                     while (true) {
@@ -170,6 +175,42 @@ public static class PrototypeCodec {
         Span<byte> bytes = stackalloc byte[4];
         RandomNumberGenerator.Fill(bytes);
         return BinaryPrimitives.ReadUInt32LittleEndian(bytes);
+    }
+
+    private static uint SelectTinyBitmap(byte[][] chunks, byte[] footer) {
+        // 63 words exclude at most 63 of these 64 candidates. No heap/stack array.
+        ulong forbidden = 0;
+        uint pendingWord = 0;
+        int pendingCount = 0;
+        foreach (byte[] chunk in chunks) TinyBitmapChunk(chunk, ref forbidden, ref pendingWord, ref pendingCount);
+        TinyBitmapChunk(footer, ref forbidden, ref pendingWord, ref pendingCount);
+        if (pendingCount != 0 || forbidden == ulong.MaxValue) {
+            throw new InvalidOperationException("Tiny bitmap requires a complete body of at most 63 words.");
+        }
+        return (uint)BitOperations.TrailingZeroCount(~forbidden);
+    }
+
+    private static void TinyBitmapChunk(ReadOnlySpan<byte> bytes, ref ulong forbidden, ref uint pendingWord, ref int pendingCount) {
+        int offset = 0;
+        ulong bits = forbidden;
+        if (pendingCount != 0) {
+            while (offset < bytes.Length && pendingCount < 4) pendingWord |= (uint)bytes[offset++] << (pendingCount++ * 8);
+            if (pendingCount < 4) return;
+            uint candidate = pendingWord ^ Fence;
+            if (candidate < 64) bits |= 1UL << (int)candidate;
+            pendingWord = 0;
+            pendingCount = 0;
+        }
+        int wordBytes = (bytes.Length - offset) & ~3;
+        foreach (uint hostWord in MemoryMarshal.Cast<byte, uint>(bytes.Slice(offset, wordBytes))) {
+            uint word = BitConverter.IsLittleEndian ? hostWord : BinaryPrimitives.ReverseEndianness(hostWord);
+            uint candidate = word ^ Fence;
+            // C# masks ulong shift counts, so this range check is required.
+            if (candidate < 64) bits |= 1UL << (int)candidate;
+        }
+        forbidden = bits;
+        offset += wordBytes;
+        while (offset < bytes.Length) pendingWord |= (uint)bytes[offset++] << (pendingCount++ * 8);
     }
 
     /// <summary>Optional contiguous-output check. Streaming callers can encode chunks independently

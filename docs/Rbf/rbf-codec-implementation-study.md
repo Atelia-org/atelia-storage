@@ -8,9 +8,9 @@ normative: false
 
 日期：2026-10-02，2026-10-03 补 ZeroThenRandom 专项。初始生产源码基线：`5711c4706509eb3b144299a75f83c09aa75da75f`；随机补测仓库基线：`0e0df096ab7c0afcca20f29ab86c6b996dfde7d0`。本文补充[普通打开重构方案](rbf-open-fast-path-refactoring.md)的 G1，只研究整帧预处理、编码输出与读入解码。实验代码见 [RbfCodecCost](../../experiments/RbfCodecCost/README.md)。生产仍为 RBF1；本文没有分配格式版本、修改规范或实现生产 RBF2。
 
-术语采用用户建议的 **EscapeKey（二进制转义键）**：每帧选择一个 uint32 值，使 encoded body 的每个对齐32-bit word均不等于 Fence。本文后续 Key/K、TailKey 及原实验 `PreparedFrame.Key` 均指 EscapeKey；TailKey 只是其尾部存放位置。该定义不绑定 XOR 或模加法，禁止的是对齐 Fence，不要求消除滑动 byte 窗口里的同一字节序列。
+术语采用用户建议的 **EscapeKey（二进制转义键）**：每帧选择一个 uint32 值，使 encoded body 的每个对齐32-bit word均不等于 Fence。本文后续 Key/K、TailKey 及原实验 `PreparedFrame.Key` 均指 EscapeKey；TailKey 只是其尾部存放位置。**EscapePayload** 指前一条 Fence 之后、尾 EscapeKey 之前的整个区间，即 `raw HeadLen + encoded body`，长度为 `L-4`；这是与业务内容无关的分帧层术语。raw HeadLen 仍不参与 XOR，实际编码 body 为 `[4,L-4)`、长度 `L-8`。该定义不绑定 XOR 或模加法，禁止的是对齐 Fence，不要求消除滑动 byte 窗口里的同一字节序列。
 
-推荐最小实现是：**CRC/footer 完成后，先检测 EscapeKey=0，失败后以系统随机源抽取候选并完整检测，默认不建立 bitmap；Append 使用借用输入和有界输出缓冲，Builder 在提交前原地编码现有 owned chunks；reader 保留 encoded cache，在 caller/pooled buffer 向量解码，再用现有 CRC。** 2026-10-03 的 ZeroThenRandom 补测支持替换原先 ZeroThenOne 搜索建议，见§3.1；原有测量保留为历史基线。模 uint32 加减法同样可行，当前测量未显示吞吐优势，先保留已验证的 XOR 实现；任意非对齐切片解码不作为格式选择的硬条件。融合解码/CRC 留作实验候选。
+推荐最小实现是：**CRC/footer 完成后，先检测 EscapeKey=0；失败且 EscapePayload≤256B 时使用一个 ulong bitmap，否则以系统随机源抽取候选并完整检测，不建立数组 bitmap；Append 使用借用输入和有界输出缓冲，Builder 在提交前原地编码现有 owned chunks；reader 保留 encoded cache，在 caller/pooled buffer 向量解码，再用现有 CRC。** 2026-10-03 的 ZeroThenRandom 与小帧标量 bitmap 补测见§3.1–3.2；原有测量保留为历史基线。模 uint32 加减法同样可行，当前测量未显示吞吐优势，先保留已验证的 XOR 实现；任意非对齐切片解码不作为格式选择的硬条件。融合解码/CRC 留作实验候选。
 
 ## 1. 需求与证据边界
 
@@ -50,6 +50,7 @@ normative: false
 | **ZeroThenOne** | 检测 F；禁0后检测 `F XOR 1`；两者都禁再 FullBitmap | **Key0/1 无 bitmap**，其余完整 bitmap |
 | **ZeroThenRandom** | 检测 F；禁0后抽取随机 Key 并完整检测，撞禁则继续 | **无 bitmap** |
 | ZeroThenRandom2Bitmap | 禁0后最多检测两个有效随机候选，两者都禁才 FullBitmap | 通常无 bitmap；fallback 最多8MiB |
+| **ZeroThenTinyBitmapRandom** | 检测 F；禁0且 EscapePayload≤256B 时完整标记0..63，较大帧继续随机检测 | **一个 ulong，无数组 bitmap** |
 
 定向检测遍历连续 body words，包括完整 footer。跨 chunk 保留至多3B组 word；对齐中段用现有 span `Contains`。检测遇到对应 word 可以提前停止；后续候选重新从 body 起点检查。原有四种确定性策略选择相同最小 Key，wire 相同；随机策略不要求 wire 相同，decoded 原文、两项 CRC 与 marker-free 保证必须相同。ZeroThenOne 最多启动三次禁 Key 扫描，最坏仍为 O(L)，不使用试 Key 循环。
 
@@ -67,7 +68,7 @@ CRC 与筛 Key 使用不同 loop，未宣称一次 memory load 同时完成两�
 | 近256MiB random，Key0，ms | 229.6 | 144.2 | 112.2 | **112.5** |
 | 近256MiB 末端禁0..300，Key301，ms | **143.8** | — | — | 174.6 |
 
-最后一行是保留的反例：定向检测均扫到帧末，ZeroThenOne 比 FullBitmap 慢约21%。原 ZeroThenOne 建议不是所有分布都最快；其价值是常见 Key0/1 不租 bitmap、避免反复更新同一 bitmap bit，且退化有界。§3.1的新比较改用随机候选替代固定1。没有证据支持内容分类器、根据大小自动调策略或外部配置。
+最后一行是保留的反例：定向检测均扫到帧末，ZeroThenOne 比 FullBitmap 慢约21%。原 ZeroThenOne 建议不是所有分布都最快；其价值是常见 Key0/1 不租 bitmap、避免反复更新同一 bitmap bit，且退化有界。§3.1的新比较改用随机候选替代固定1；§3.2另测固定64位标量 bitmap 的小帧分支。不引入内容分类器或外部配置。
 
 2026-10-02 原型 Key0/1 的 Prepare 分配约120B，来自实验 `PreparedFrame` 与 Footer 对象，不是格式要求；新增计数后的分配见§3.1。生产 Append 的小 footer 可使用已有局部/stack buffer，Builder 写进已有 chunks；不要把实验包装对象搬成每帧必需 heap 状态。
 
@@ -104,7 +105,7 @@ while (ContainsAlignedBodyWord(Fence ^ key)) {
 | 近256MiB Fence重复，ms | 254.9 | 257.0 | 117.9 | **117.7** | 117.7 |
 | 近256MiB 末端禁0..300，ms | 204.8 | 213.2 | 237.2 | 140.9 | **140.5** |
 
-无bitmap随机版在末端禁低Key分布省去逐word标记与最大8MiB bitmap，优势明确；纯Fence重复则与固定1接近。它不是普遍更快：31B Fence输入，固定1约121ns、随机约212ns；单次系统uint抽取中位92.37ns、当前线程heap分配为0。近最大distinct-rich且头部显式Fence时，固定1约109.8ms、随机112.7ms，差约2.6%。不根据这些小输入局部差异增加大小或内容heuristic。
+无bitmap随机版在末端禁低Key分布省去逐word标记与最大8MiB bitmap，优势明确；纯Fence重复则与固定1接近。它不是普遍更快：31B Fence输入，固定1约121ns、随机约212ns；单次系统uint抽取中位92.37ns、当前线程heap分配为0。近最大distinct-rich且头部显式Fence时，固定1约109.8ms、随机112.7ms，差约2.6%。§3.2据小帧专项补充固定 scalar bitmap 分支，大帧搜索保持不变。
 
 新Prepare包装对象加两个观测计数后常见heap分配为128B；这是实验对象/footer，不是生产必要分配。观察的所有无bitmap随机帧均未分配bitmap；自然随机观察没有二次有效尝试或fallback，不能证明尾部概率或最坏延迟。用注入候选确定性覆盖4次撞禁后成功，以及两次撞禁走bitmap；计时输入另有 `random-fence-first/last` distinct-rich模式，避免只在重复word输入上检验随机路径。
 
@@ -124,6 +125,45 @@ I/O共20条记录，全部writer变体同工作量；workspace取得与文件创
 本轮把 `StreamCodec.DecodeAndCheck` 的Key上限改成只拒绝Fence。旧 `MetadataProbe` 仍使用确定策略fixture和m上限，**未验收全uint随机Key的独立meta/cache API**；生产接入需统一相关guard。旧FastOpen历史模型/快照仍保留其有界Key条件，不能直接声称已验证全uint随机writer的进程恢复。缺Key代数重建与随机搜索正交；是否取消补Key仍是后续需求决定。本轮实验不改变恢复政策。
 
 所有C#核与runner在正式测量期间通过源码hash前后守护；结束后仅证据派生exporter补充Samples解释，差异列在快照中。实验Release增量构建0警告/错误；首次quick重编译依赖有43条既有XML文档警告、0错误，保留日志。匹配Release RBF.Tests本轮504/504通过，TEMP/TMP在W:，TRX保存在 `W:/RbfCodecCost/random-formal-20261003/rbf-tests`；未更改生产src或宣称solution、包消费、生产RBF2验收。
+
+### 3.2 小帧用一个 ulong 作为完整 bitmap
+
+用户提出：保留Zero优先，失败后按内容无关的EscapePayload长度选择小帧标量bitmap，较大帧继续随机循环。原型新增 `ZeroThenTinyBitmapRandom`，采用包含端点的 `L-4≤256` 阈值；当前布局对应payload+TailMeta经padding补齐后≤232B，不能把它误写为user payload≤256B。
+
+存在性证明直接来自实际编码范围：EscapePayload包含4B raw HeadLen，因此阈值内的encoded body最多252B/63words。每word最多禁止一个Key，用64bits表示候选0..63必有空位。raw Key不等于Fence也自动成立，因为所选键≤63。若把阈值改成encoded body≤256B，则会有64words；仅标记0..63不再有无条件保证，需收紧阈值或利用Zero已失败改用候选1..64。本轮按用户的Fence到EscapeKey区间定义，不增加这项变体。
+
+```csharp
+// Only after the complete Zero check fails and EscapePayloadBytes <= 256.
+ulong forbidden = 0;
+foreach (uint word in AlignedPlaintextBodyWords) {
+    uint candidate = word ^ Fence;
+    if (candidate < 64) forbidden |= 1UL << (int)candidate;
+}
+uint key = (uint)BitOperations.TrailingZeroCount(~forbidden);
+```
+
+这是完整bitmap，不是投机小表；第二遍完成后确定选键，无随机源、fallback或数组清零/索引。范围检查不可省，C#的ulong shift count会取低6bits，否则禁Key65会错误标记Key1。循环仅解释连续二进制words，不按payload/meta/CRC/tag语义分类；CRC/footer必须先完成，所有将编码的words均参与标记。raw HeadLen计入长度阈值，但不扫描、不编码。
+
+热核使用 `MemoryMarshal.Cast<byte,uint>` 遍历完整对齐中段，在局部ulong累积后每chunk写回一次；单word循环没有 `ObserveWord` 调用或bitmap数组访问。跨chunk保留至多3B carry；仍有每chunk helper调用，不声称JIT必把全部状态留在寄存器。首版逐word span切片/通过ref更新bitmap在232B输入反而慢于随机版约8–9%；简化热核后的两次独立run均观察到阈值内非零键路径获益。首版数据留在 `W:/RbfCodecCost/tiny-ulong-20261003`，优化后复测在 `W:/RbfCodecCost/tiny-ulong-local-20261003`；它们不混入正式快照。
+
+正式证据：[tiny-ulong-7667b9c-20261003.json](../../experiments/RbfCodecCost/results/tiny-ulong-7667b9c-20261003.json)，SHA256 `802ea5098f913aeaab4ca42cd3b2f00a651501c51b2e568ab364780de7024cc9`。W:目录 `W:/RbfCodecCost/tiny-ulong-formal-20261003`。26workloads×4策略=104条CPU记录，每条7样本轮转，计时包括完整Prepare、CRC/footer、相同实验对象分配及随机调用；没有本轮磁盘吞吐测量。
+
+正式同组Prepare中位，单位ns；输入指payload+TailMeta合计长度：
+
+| 输入与分布 | ZeroThenRandom | 小帧ulong混合策略 |
+| --- | ---: | ---: |
+| 0B，footer tag独自禁0 | 201.4 | **103.3** |
+| 31B，Fence重复 | 218.1 | **125.0** |
+| 31B，禁低Key | 203.9 | **121.8** |
+| 128B，禁低Key | 234.5 | **171.2** |
+| 232B，Fence重复，EscapePayload=256B | 267.8 | **224.7** |
+| 232B，禁低Key，EscapePayload=256B | 271.0 | **234.7** |
+| 233B，Fence重复，EscapePayload=260B | 288.5 | 288.9 |
+| 4KiB，禁低Key，仍随机 | 1787.7 | 1770.3 |
+
+保留Zero成功时的免XOR收益，不为它建立bitmap。其计时中位有机器波动：232B random组为167.3/183.6ns，七样本范围159.3–198.7/160.9–222.6ns重叠；不能从控制流相同推导零额外周期，也不能声称所有小帧更快。小帧非零键可见获益，额外算法只需要固定ulong和一次长度分支；256B是存在性允许且已测的实施起点，不是跨机器最优阈值或公开配置。大帧沿用原随机循环，不从本轮小范围CPU结果推断其真实I/O变化。
+
+新资格覆盖448帧（352个阈值内、96个较大帧）、112个独立Python bitwise CRC/wire向量；单字节/3B/7B chunks、footer独自禁0、最小键对照、完整marker-free、两种checked-read CRC/原文、shift别名与232/233B边界均通过。Zero及整个小帧路径用会抛错的随机源证明不抽样；边界外强制高Key证明仍走原循环。runner保留既有4740变换、448个XOR帧、448个加法帧等资格并做测量源码hash前后守护；正式Release build为0警告/错误。生产源码/规范和旧不可变快照未改，本轮无新生产恢复或高Key元信息资格。
 
 ## 4. Append 输出与 Builder 的更小实现
 

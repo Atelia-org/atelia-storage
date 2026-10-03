@@ -1,0 +1,3662 @@
+{
+  "Schema": 1,
+  "Study": "Zero-first, scalar ulong bitmap for EscapePayload<=256B, random otherwise",
+  "EvidenceDirectory": "W:\\RbfCodecCost\\tiny-ulong-formal-20261003",
+  "Provenance": {
+    "SourceRevision": "7667b9c1b8c38e83bbc8554c365263da1d83ac60",
+    "WorktreeStatus": [
+      " M experiments/RbfCodecCost/Program.cs",
+      " M experiments/RbfCodecCost/PrototypeCodec.cs",
+      " M experiments/RbfCodecCost/RandomSearchProbe.cs",
+      " M experiments/RbfCodecCost/Run-Probe.ps1",
+      "?? experiments/RbfCodecCost/TinyKeyProbe.cs",
+      "?? experiments/RbfCodecCost/export_tiny_snapshot.py"
+    ],
+    "SDK": "10.0.201",
+    "CPU": [
+      {
+        "Name": "AMD Ryzen 7 1700 Eight-Core Processor          ",
+        "NumberOfCores": 8,
+        "NumberOfLogicalProcessors": 16
+      }
+    ],
+    "OS": [
+      {
+        "Caption": "Microsoft Windows 11 专业版",
+        "Version": "10.0.22000",
+        "TotalVisibleMemorySize": 67032212
+      }
+    ],
+    "Storage": [
+      {
+        "DeviceID": "W:",
+        "DriveType": 3,
+        "FileSystem": "NTFS",
+        "VolumeName": "Write",
+        "Size": 1599764164608,
+        "FreeSpace": 374128140288
+      }
+    ],
+    "Sources": [
+      {
+        "Path": "experiments/RbfCodecCost/Correctness.cs",
+        "SHA256": "49002eef40bdac3218903950b1efcd43fd7f1b28ee42a5bffa1520eedf42743e"
+      },
+      {
+        "Path": "experiments/RbfCodecCost/CpuProbe.cs",
+        "SHA256": "6a671e5d53e0814550f79b34c7fd12425da7464bae5526a0a825e81896106560"
+      },
+      {
+        "Path": "experiments/RbfCodecCost/export_random_snapshot.py",
+        "SHA256": "b20c91ed8669c3acf341d11882d8cf5795bdcd436eb17b91fa161c2214ecc8b5"
+      },
+      {
+        "Path": "experiments/RbfCodecCost/export_snapshot.py",
+        "SHA256": "f57a425d3c4d9a3127a96cf4e26883386e84d6ae091861bb6ed0ee60334f2750"
+      },
+      {
+        "Path": "experiments/RbfCodecCost/export_tiny_snapshot.py",
+        "SHA256": "eb004ee69411ae36c52b94e4cfddd92696a629e2bc8e3d3c311725e10daca3d5"
+      },
+      {
+        "Path": "experiments/RbfCodecCost/FocusedProbe.cs",
+        "SHA256": "a8db36adf2e82d19d903758b6401e6befd2a1bd9c39ea5ee85cd0da61f254820"
+      },
+      {
+        "Path": "experiments/RbfCodecCost/IoProbe.cs",
+        "SHA256": "b88f58795db0bcb27656dc6c22bc8cf65dd7f603f7efde73ed51dcfffb038f78"
+      },
+      {
+        "Path": "experiments/RbfCodecCost/Measurement.cs",
+        "SHA256": "43d645e3a7f811a028dff4671f813d69012af33a63203400455da5c0ac522e84"
+      },
+      {
+        "Path": "experiments/RbfCodecCost/MetadataProbe.cs",
+        "SHA256": "0c8499050c837371804756f0bef07f597b9abbad1350e2f9a3f4bed35d7b57bf"
+      },
+      {
+        "Path": "experiments/RbfCodecCost/Program.cs",
+        "SHA256": "5e9bdeb55b3f9e668e07a4f0ea0dd77ac084055f2975068fc9c260d2ec6a0471"
+      },
+      {
+        "Path": "experiments/RbfCodecCost/PrototypeCodec.cs",
+        "SHA256": "916ac4e4159b8027bc6e9dde57223b29a9bde2720b7cc45140c891446305f248"
+      },
+      {
+        "Path": "experiments/RbfCodecCost/RandomSearchCorrectness.cs",
+        "SHA256": "fb61eb9b18ba8d45238de2351c6f5336572195851bc3259a54132e0896438f2a"
+      },
+      {
+        "Path": "experiments/RbfCodecCost/RandomSearchProbe.cs",
+        "SHA256": "fe49f216c3d3f6a7ad7c7114edbf02999790ff5f33418212a3a2e7c8f4f72e49"
+      },
+      {
+        "Path": "experiments/RbfCodecCost/RbfCodecCost.csproj",
+        "SHA256": "e5d59b2eac130a6c014402c1fee92da96d77f4c3b66d4e775b47829ccfdb4ec1"
+      },
+      {
+        "Path": "experiments/RbfCodecCost/Run-Probe.ps1",
+        "SHA256": "4b69a5142ffd927b7fc75aee943741cfe452367aac9775559c7e397127d58a1f"
+      },
+      {
+        "Path": "experiments/RbfCodecCost/StreamCodec.cs",
+        "SHA256": "1088b83146a29a12b479af428f081f492fb6fdc3bfb67ae5bd4f6d57915067ce"
+      },
+      {
+        "Path": "experiments/RbfCodecCost/TinyKeyProbe.cs",
+        "SHA256": "ffee5901ce3e6ed1f68c56ef14b26eba4498806c94508521507798b0908040df"
+      },
+      {
+        "Path": "experiments/RbfCodecCost/verify_random_vectors.py",
+        "SHA256": "df3120afdd825812856ab0dbb36d441c52673dc72c2aa597d2a76c7943bb4db9"
+      },
+      {
+        "Path": "experiments/RbfCodecCost/verify_vectors.py",
+        "SHA256": "0228a6d40f4b9752e3d57187734501a9851d19ac031ad6f4b3ea332a4fa4571f"
+      },
+      {
+        "Path": "experiments/RbfCodecCost/XorTransform.cs",
+        "SHA256": "0530f0853131175c2664da3f1c4bd1fd12cc8dbe3516619c889750bea453c09a"
+      }
+    ]
+  },
+  "Environment": {
+    "Utc": "2026-10-03T00:13:10.0965322+00:00",
+    "Runtime": ".NET 10.0.5",
+    "OS": "Microsoft Windows 10.0.22000",
+    "Architecture": "X64",
+    "LogicalProcessors": 16,
+    "VectorBytes": 32,
+    "VectorHardware": true,
+    "TieredCompilation": "0",
+    "Output": "W:\\RbfCodecCost\\tiny-ulong-formal-20261003\\data",
+    "Samples": 7,
+    "Quick": false,
+    "CpuOnly": false,
+    "IoOnly": false,
+    "Focused": false,
+    "RandomSearch": false,
+    "TinyKey": true,
+    "FileIO": "Windows buffered RandomAccess, batch FlushToDisk separately timed; OS warm read; RBF1 cache Off"
+  },
+  "Results": {
+    "Schema": 1,
+    "Correctness": {
+      "Frames": 448,
+      "TinyFrames": 352,
+      "LargerFrames": 96,
+      "PythonVectors": 112,
+      "SplitWordOracle": true,
+      "MinimumKeyOracle": true,
+      "TwoCheckedReadModes": true,
+      "InclusiveInterval256Boundary": true,
+      "HighShiftAliasRejected": true,
+      "ZeroAndTinyNoRandomDraw": true
+    },
+    "Cpu": [
+      {
+        "Measurement": {
+          "Workload": "0/zero/chunk-0",
+          "Operation": "FullBitmap",
+          "Bytes": 0,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            126.04141235351562,
+            102.82745361328125,
+            108.01239013671875,
+            101.96609497070312,
+            95.660400390625,
+            111.43951416015625,
+            99.8138427734375
+          ],
+          "MedianNs": 102.82745361328125,
+          "MinNs": 95.660400390625,
+          "MaxNs": 126.04141235351562,
+          "AllocatedBytesPerOperation": 160
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 24,
+          "EncodedBodyBytes": 20,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 4,
+          "ScratchBytes": 4
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "0/zero/chunk-0",
+          "Operation": "ZeroThenOne",
+          "Bytes": 0,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            95.31173706054688,
+            116.97463989257812,
+            88.2537841796875,
+            81.87255859375,
+            81.64749145507812,
+            82.2540283203125,
+            82.57904052734375
+          ],
+          "MedianNs": 82.57904052734375,
+          "MinNs": 81.64749145507812,
+          "MaxNs": 116.97463989257812,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 24,
+          "EncodedBodyBytes": 20,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "0/zero/chunk-0",
+          "Operation": "ZeroThenRandom",
+          "Bytes": 0,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            78.25164794921875,
+            91.95327758789062,
+            84.71298217773438,
+            81.26907348632812,
+            82.7392578125,
+            82.32650756835938,
+            89.22042846679688
+          ],
+          "MedianNs": 82.7392578125,
+          "MinNs": 78.25164794921875,
+          "MaxNs": 91.95327758789062,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 24,
+          "EncodedBodyBytes": 20,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "0/zero/chunk-0",
+          "Operation": "ZeroThenTinyBitmapRandom",
+          "Bytes": 0,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            90.67230224609375,
+            87.74871826171875,
+            87.24441528320312,
+            84.57870483398438,
+            78.74755859375,
+            78.08609008789062,
+            83.074951171875
+          ],
+          "MedianNs": 84.57870483398438,
+          "MinNs": 78.08609008789062,
+          "MaxNs": 90.67230224609375,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 24,
+          "EncodedBodyBytes": 20,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "0/footer-marker/chunk-0",
+          "Operation": "FullBitmap",
+          "Bytes": 0,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            100.60195922851562,
+            100.08926391601562,
+            100.79345703125,
+            104.28924560546875,
+            105.84564208984375,
+            98.97384643554688,
+            98.9532470703125
+          ],
+          "MedianNs": 100.60195922851562,
+          "MinNs": 98.9532470703125,
+          "MaxNs": 105.84564208984375,
+          "AllocatedBytesPerOperation": 160
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 24,
+          "EncodedBodyBytes": 20,
+          "Key": 1,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 4,
+          "ScratchBytes": 4
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "0/footer-marker/chunk-0",
+          "Operation": "ZeroThenOne",
+          "Bytes": 0,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            109.2041015625,
+            111.69052124023438,
+            109.72747802734375,
+            110.58807373046875,
+            110.04257202148438,
+            113.67111206054688,
+            103.73153686523438
+          ],
+          "MedianNs": 110.04257202148438,
+          "MinNs": 103.73153686523438,
+          "MaxNs": 113.67111206054688,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 24,
+          "EncodedBodyBytes": 20,
+          "Key": 1,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "0/footer-marker/chunk-0",
+          "Operation": "ZeroThenRandom",
+          "Bytes": 0,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            200.22811889648438,
+            207.09915161132812,
+            199.0814208984375,
+            206.32247924804688,
+            271.1700439453125,
+            201.37786865234375,
+            193.9483642578125
+          ],
+          "MedianNs": 201.37786865234375,
+          "MinNs": 193.9483642578125,
+          "MaxNs": 271.1700439453125,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 24,
+          "EncodedBodyBytes": 20,
+          "Key": 3379123187,
+          "RandomDraws": 1,
+          "RandomSearches": 1,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "0/footer-marker/chunk-0",
+          "Operation": "ZeroThenTinyBitmapRandom",
+          "Bytes": 0,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            103.34320068359375,
+            105.25665283203125,
+            103.34014892578125,
+            103.49655151367188,
+            105.50994873046875,
+            99.54757690429688,
+            100.27313232421875
+          ],
+          "MedianNs": 103.34320068359375,
+          "MinNs": 99.54757690429688,
+          "MaxNs": 105.50994873046875,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 24,
+          "EncodedBodyBytes": 20,
+          "Key": 1,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "31/zero/chunk-0",
+          "Operation": "FullBitmap",
+          "Bytes": 31,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            130.39932250976562,
+            122.2991943359375,
+            128.63082885742188,
+            126.72576904296875,
+            128.59420776367188,
+            128.65676879882812,
+            127.54974365234375
+          ],
+          "MedianNs": 128.59420776367188,
+          "MinNs": 122.2991943359375,
+          "MaxNs": 130.39932250976562,
+          "AllocatedBytesPerOperation": 160
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 56,
+          "EncodedBodyBytes": 52,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 4,
+          "ScratchBytes": 4
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "31/zero/chunk-0",
+          "Operation": "ZeroThenOne",
+          "Bytes": 31,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            103.31497192382812,
+            107.43179321289062,
+            108.123779296875,
+            107.2906494140625,
+            112.08419799804688,
+            105.84716796875,
+            114.83001708984375
+          ],
+          "MedianNs": 107.43179321289062,
+          "MinNs": 103.31497192382812,
+          "MaxNs": 114.83001708984375,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 56,
+          "EncodedBodyBytes": 52,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "31/zero/chunk-0",
+          "Operation": "ZeroThenRandom",
+          "Bytes": 31,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            108.56552124023438,
+            110.05325317382812,
+            110.98251342773438,
+            108.93478393554688,
+            111.07254028320312,
+            111.78665161132812,
+            108.67233276367188
+          ],
+          "MedianNs": 110.05325317382812,
+          "MinNs": 108.56552124023438,
+          "MaxNs": 111.78665161132812,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 56,
+          "EncodedBodyBytes": 52,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "31/zero/chunk-0",
+          "Operation": "ZeroThenTinyBitmapRandom",
+          "Bytes": 31,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            103.83224487304688,
+            113.5955810546875,
+            108.04061889648438,
+            106.80465698242188,
+            108.07037353515625,
+            108.17184448242188,
+            109.00115966796875
+          ],
+          "MedianNs": 108.07037353515625,
+          "MinNs": 103.83224487304688,
+          "MaxNs": 113.5955810546875,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 56,
+          "EncodedBodyBytes": 52,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "31/random/chunk-0",
+          "Operation": "FullBitmap",
+          "Bytes": 31,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            136.4166259765625,
+            127.34222412109375,
+            132.93838500976562,
+            132.66677856445312,
+            131.28738403320312,
+            131.35757446289062,
+            121.21810913085938
+          ],
+          "MedianNs": 131.35757446289062,
+          "MinNs": 121.21810913085938,
+          "MaxNs": 136.4166259765625,
+          "AllocatedBytesPerOperation": 160
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 56,
+          "EncodedBodyBytes": 52,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 4,
+          "ScratchBytes": 4
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "31/random/chunk-0",
+          "Operation": "ZeroThenOne",
+          "Bytes": 31,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            115.48614501953125,
+            170.84732055664062,
+            110.9893798828125,
+            111.86141967773438,
+            116.8243408203125,
+            108.88442993164062,
+            101.41372680664062
+          ],
+          "MedianNs": 111.86141967773438,
+          "MinNs": 101.41372680664062,
+          "MaxNs": 170.84732055664062,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 56,
+          "EncodedBodyBytes": 52,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "31/random/chunk-0",
+          "Operation": "ZeroThenRandom",
+          "Bytes": 31,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            138.47808837890625,
+            126.8096923828125,
+            107.21817016601562,
+            105.084228515625,
+            114.58358764648438,
+            110.61019897460938,
+            109.46502685546875
+          ],
+          "MedianNs": 110.61019897460938,
+          "MinNs": 105.084228515625,
+          "MaxNs": 138.47808837890625,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 56,
+          "EncodedBodyBytes": 52,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "31/random/chunk-0",
+          "Operation": "ZeroThenTinyBitmapRandom",
+          "Bytes": 31,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            146.02432250976562,
+            112.82806396484375,
+            109.35592651367188,
+            113.38882446289062,
+            108.68072509765625,
+            119.50836181640625,
+            111.62261962890625
+          ],
+          "MedianNs": 112.82806396484375,
+          "MinNs": 108.68072509765625,
+          "MaxNs": 146.02432250976562,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 56,
+          "EncodedBodyBytes": 52,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "31/marker/chunk-0",
+          "Operation": "FullBitmap",
+          "Bytes": 31,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            137.93106079101562,
+            131.4971923828125,
+            133.99658203125,
+            130.2337646484375,
+            127.42462158203125,
+            130.01556396484375,
+            119.98291015625
+          ],
+          "MedianNs": 130.2337646484375,
+          "MinNs": 119.98291015625,
+          "MaxNs": 137.93106079101562,
+          "AllocatedBytesPerOperation": 160
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 56,
+          "EncodedBodyBytes": 52,
+          "Key": 1,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 4,
+          "ScratchBytes": 4
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "31/marker/chunk-0",
+          "Operation": "ZeroThenOne",
+          "Bytes": 31,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            132.59353637695312,
+            130.7342529296875,
+            131.37130737304688,
+            122.93472290039062,
+            122.35107421875,
+            123.76022338867188,
+            122.4273681640625
+          ],
+          "MedianNs": 123.76022338867188,
+          "MinNs": 122.35107421875,
+          "MaxNs": 132.59353637695312,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 56,
+          "EncodedBodyBytes": 52,
+          "Key": 1,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "31/marker/chunk-0",
+          "Operation": "ZeroThenRandom",
+          "Bytes": 31,
+          "Chunks": 1,
+          "IterationsPerSample": 117540,
+          "NanosecondsPerOperation": [
+            220.50706142589758,
+            218.06363791049856,
+            218.5604900459418,
+            211.66666666666666,
+            225.56491407180533,
+            212.2086098349498,
+            207.7488514548239
+          ],
+          "MedianNs": 218.06363791049856,
+          "MinNs": 207.7488514548239,
+          "MaxNs": 225.56491407180533,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 56,
+          "EncodedBodyBytes": 52,
+          "Key": 1963467202,
+          "RandomDraws": 1,
+          "RandomSearches": 1,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "31/marker/chunk-0",
+          "Operation": "ZeroThenTinyBitmapRandom",
+          "Bytes": 31,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            126.23748779296875,
+            124.9847412109375,
+            129.69589233398438,
+            134.19036865234375,
+            124.52774047851562,
+            120.40252685546875,
+            118.29071044921875
+          ],
+          "MedianNs": 124.9847412109375,
+          "MinNs": 118.29071044921875,
+          "MaxNs": 134.19036865234375,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 56,
+          "EncodedBodyBytes": 52,
+          "Key": 1,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "31/dense301/chunk-0",
+          "Operation": "FullBitmap",
+          "Bytes": 31,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            123.199462890625,
+            150.90255737304688,
+            127.57110595703125,
+            120.78781127929688,
+            124.92523193359375,
+            126.67083740234375,
+            128.2562255859375
+          ],
+          "MedianNs": 126.67083740234375,
+          "MinNs": 120.78781127929688,
+          "MaxNs": 150.90255737304688,
+          "AllocatedBytesPerOperation": 160
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 56,
+          "EncodedBodyBytes": 52,
+          "Key": 7,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 4,
+          "ScratchBytes": 4
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "31/dense301/chunk-0",
+          "Operation": "ZeroThenOne",
+          "Bytes": 31,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            154.80575561523438,
+            152.32772827148438,
+            151.58004760742188,
+            145.574951171875,
+            146.83609008789062,
+            146.73538208007812,
+            199.114990234375
+          ],
+          "MedianNs": 151.58004760742188,
+          "MinNs": 145.574951171875,
+          "MaxNs": 199.114990234375,
+          "AllocatedBytesPerOperation": 160
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 56,
+          "EncodedBodyBytes": 52,
+          "Key": 7,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 3,
+          "BitmapBytes": 4,
+          "ScratchBytes": 4
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "31/dense301/chunk-0",
+          "Operation": "ZeroThenRandom",
+          "Bytes": 31,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            199.92446899414062,
+            203.87420654296875,
+            207.43408203125,
+            200.37002563476562,
+            205.5877685546875,
+            200.87509155273438,
+            205.07354736328125
+          ],
+          "MedianNs": 203.87420654296875,
+          "MinNs": 199.92446899414062,
+          "MaxNs": 207.43408203125,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 56,
+          "EncodedBodyBytes": 52,
+          "Key": 2701690179,
+          "RandomDraws": 1,
+          "RandomSearches": 1,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "31/dense301/chunk-0",
+          "Operation": "ZeroThenTinyBitmapRandom",
+          "Bytes": 31,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            113.69094848632812,
+            121.76132202148438,
+            122.09854125976562,
+            124.91226196289062,
+            119.74716186523438,
+            123.51303100585938,
+            120.71151733398438
+          ],
+          "MedianNs": 121.76132202148438,
+          "MinNs": 113.69094848632812,
+          "MaxNs": 124.91226196289062,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 56,
+          "EncodedBodyBytes": 52,
+          "Key": 7,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "128/zero/chunk-0",
+          "Operation": "FullBitmap",
+          "Bytes": 128,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            182.18612670898438,
+            165.0299072265625,
+            164.10064697265625,
+            166.845703125,
+            160.44769287109375,
+            178.58505249023438,
+            174.99465942382812
+          ],
+          "MedianNs": 166.845703125,
+          "MinNs": 160.44769287109375,
+          "MaxNs": 182.18612670898438,
+          "AllocatedBytesPerOperation": 160
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 152,
+          "EncodedBodyBytes": 148,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 8,
+          "ScratchBytes": 8
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "128/zero/chunk-0",
+          "Operation": "ZeroThenOne",
+          "Bytes": 128,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            139.5233154296875,
+            134.4818115234375,
+            128.3050537109375,
+            128.35845947265625,
+            125.604248046875,
+            158.43276977539062,
+            125.14266967773438
+          ],
+          "MedianNs": 128.35845947265625,
+          "MinNs": 125.14266967773438,
+          "MaxNs": 158.43276977539062,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 152,
+          "EncodedBodyBytes": 148,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "128/zero/chunk-0",
+          "Operation": "ZeroThenRandom",
+          "Bytes": 128,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            139.86282348632812,
+            135.528564453125,
+            124.22409057617188,
+            123.5992431640625,
+            127.98004150390625,
+            160.53466796875,
+            138.0950927734375
+          ],
+          "MedianNs": 135.528564453125,
+          "MinNs": 123.5992431640625,
+          "MaxNs": 160.53466796875,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 152,
+          "EncodedBodyBytes": 148,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "128/zero/chunk-0",
+          "Operation": "ZeroThenTinyBitmapRandom",
+          "Bytes": 128,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            137.56561279296875,
+            131.69708251953125,
+            129.0252685546875,
+            122.30606079101562,
+            162.3809814453125,
+            134.12399291992188,
+            126.9317626953125
+          ],
+          "MedianNs": 131.69708251953125,
+          "MinNs": 122.30606079101562,
+          "MaxNs": 162.3809814453125,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 152,
+          "EncodedBodyBytes": 148,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "128/random/chunk-0",
+          "Operation": "FullBitmap",
+          "Bytes": 128,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            179.73480224609375,
+            172.09014892578125,
+            186.72943115234375,
+            175.15487670898438,
+            178.23410034179688,
+            171.76437377929688,
+            169.15359497070312
+          ],
+          "MedianNs": 175.15487670898438,
+          "MinNs": 169.15359497070312,
+          "MaxNs": 186.72943115234375,
+          "AllocatedBytesPerOperation": 160
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 152,
+          "EncodedBodyBytes": 148,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 8,
+          "ScratchBytes": 8
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "128/random/chunk-0",
+          "Operation": "ZeroThenOne",
+          "Bytes": 128,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            129.66384887695312,
+            131.69174194335938,
+            140.35110473632812,
+            135.39886474609375,
+            130.55419921875,
+            133.82339477539062,
+            126.66091918945312
+          ],
+          "MedianNs": 131.69174194335938,
+          "MinNs": 126.66091918945312,
+          "MaxNs": 140.35110473632812,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 152,
+          "EncodedBodyBytes": 148,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "128/random/chunk-0",
+          "Operation": "ZeroThenRandom",
+          "Bytes": 128,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            133.26873779296875,
+            126.57699584960938,
+            124.44610595703125,
+            142.40188598632812,
+            132.71484375,
+            131.58187866210938,
+            132.30438232421875
+          ],
+          "MedianNs": 132.30438232421875,
+          "MinNs": 124.44610595703125,
+          "MaxNs": 142.40188598632812,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 152,
+          "EncodedBodyBytes": 148,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "128/random/chunk-0",
+          "Operation": "ZeroThenTinyBitmapRandom",
+          "Bytes": 128,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            132.63626098632812,
+            127.69241333007812,
+            120.391845703125,
+            138.61236572265625,
+            135.699462890625,
+            138.08517456054688,
+            132.89566040039062
+          ],
+          "MedianNs": 132.89566040039062,
+          "MinNs": 120.391845703125,
+          "MaxNs": 138.61236572265625,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 152,
+          "EncodedBodyBytes": 148,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "128/marker/chunk-0",
+          "Operation": "FullBitmap",
+          "Bytes": 128,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            205.92041015625,
+            200.00152587890625,
+            200.1861572265625,
+            203.06167602539062,
+            200.88653564453125,
+            196.74835205078125,
+            225.21743774414062
+          ],
+          "MedianNs": 200.88653564453125,
+          "MinNs": 196.74835205078125,
+          "MaxNs": 225.21743774414062,
+          "AllocatedBytesPerOperation": 160
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 152,
+          "EncodedBodyBytes": 148,
+          "Key": 1,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 8,
+          "ScratchBytes": 8
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "128/marker/chunk-0",
+          "Operation": "ZeroThenOne",
+          "Bytes": 128,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            143.46542358398438,
+            147.85690307617188,
+            151.58843994140625,
+            141.949462890625,
+            144.49844360351562,
+            148.83880615234375,
+            169.0216064453125
+          ],
+          "MedianNs": 147.85690307617188,
+          "MinNs": 141.949462890625,
+          "MaxNs": 169.0216064453125,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 152,
+          "EncodedBodyBytes": 148,
+          "Key": 1,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "128/marker/chunk-0",
+          "Operation": "ZeroThenRandom",
+          "Bytes": 128,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            244.83871459960938,
+            242.82913208007812,
+            234.42459106445312,
+            236.773681640625,
+            245.71762084960938,
+            243.92776489257812,
+            226.49688720703125
+          ],
+          "MedianNs": 242.82913208007812,
+          "MinNs": 226.49688720703125,
+          "MaxNs": 245.71762084960938,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 152,
+          "EncodedBodyBytes": 148,
+          "Key": 2017354401,
+          "RandomDraws": 1,
+          "RandomSearches": 1,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "128/marker/chunk-0",
+          "Operation": "ZeroThenTinyBitmapRandom",
+          "Bytes": 128,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            171.58279418945312,
+            168.19610595703125,
+            166.83120727539062,
+            163.09356689453125,
+            170.60317993164062,
+            171.05026245117188,
+            164.7613525390625
+          ],
+          "MedianNs": 168.19610595703125,
+          "MinNs": 163.09356689453125,
+          "MaxNs": 171.58279418945312,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 152,
+          "EncodedBodyBytes": 148,
+          "Key": 1,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "128/dense301/chunk-0",
+          "Operation": "FullBitmap",
+          "Bytes": 128,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            208.93707275390625,
+            208.67385864257812,
+            196.136474609375,
+            210.03570556640625,
+            204.51126098632812,
+            199.15695190429688,
+            211.28692626953125
+          ],
+          "MedianNs": 208.67385864257812,
+          "MinNs": 196.136474609375,
+          "MaxNs": 211.28692626953125,
+          "AllocatedBytesPerOperation": 160
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 152,
+          "EncodedBodyBytes": 148,
+          "Key": 32,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 8,
+          "ScratchBytes": 8
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "128/dense301/chunk-0",
+          "Operation": "ZeroThenOne",
+          "Bytes": 128,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            229.30679321289062,
+            229.24346923828125,
+            264.1136169433594,
+            228.65371704101562,
+            223.60076904296875,
+            237.70675659179688,
+            262.7052307128906
+          ],
+          "MedianNs": 229.30679321289062,
+          "MinNs": 223.60076904296875,
+          "MaxNs": 264.1136169433594,
+          "AllocatedBytesPerOperation": 160
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 152,
+          "EncodedBodyBytes": 148,
+          "Key": 32,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 3,
+          "BitmapBytes": 8,
+          "ScratchBytes": 8
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "128/dense301/chunk-0",
+          "Operation": "ZeroThenRandom",
+          "Bytes": 128,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            220.58868408203125,
+            244.03839111328125,
+            234.52606201171875,
+            227.44216918945312,
+            233.27255249023438,
+            241.55654907226562,
+            243.09768676757812
+          ],
+          "MedianNs": 234.52606201171875,
+          "MinNs": 220.58868408203125,
+          "MaxNs": 244.03839111328125,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 152,
+          "EncodedBodyBytes": 148,
+          "Key": 3228424114,
+          "RandomDraws": 1,
+          "RandomSearches": 1,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "128/dense301/chunk-0",
+          "Operation": "ZeroThenTinyBitmapRandom",
+          "Bytes": 128,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            160.8917236328125,
+            183.2183837890625,
+            168.33877563476562,
+            193.37844848632812,
+            171.17919921875,
+            176.66702270507812,
+            168.21746826171875
+          ],
+          "MedianNs": 171.17919921875,
+          "MinNs": 160.8917236328125,
+          "MaxNs": 193.37844848632812,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 152,
+          "EncodedBodyBytes": 148,
+          "Key": 32,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "232/zero/chunk-0",
+          "Operation": "FullBitmap",
+          "Bytes": 232,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            237.36114501953125,
+            234.9609375,
+            232.44247436523438,
+            220.74813842773438,
+            230.44281005859375,
+            230.20248413085938,
+            253.34243774414062
+          ],
+          "MedianNs": 232.44247436523438,
+          "MinNs": 220.74813842773438,
+          "MaxNs": 253.34243774414062,
+          "AllocatedBytesPerOperation": 160
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 256,
+          "EncodedBodyBytes": 252,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 8,
+          "ScratchBytes": 8
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "232/zero/chunk-0",
+          "Operation": "ZeroThenOne",
+          "Bytes": 232,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            175.28762817382812,
+            190.771484375,
+            175.75531005859375,
+            169.0216064453125,
+            171.41799926757812,
+            170.54672241210938,
+            169.09103393554688
+          ],
+          "MedianNs": 171.41799926757812,
+          "MinNs": 169.0216064453125,
+          "MaxNs": 190.771484375,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 256,
+          "EncodedBodyBytes": 252,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "232/zero/chunk-0",
+          "Operation": "ZeroThenRandom",
+          "Bytes": 232,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            172.02987670898438,
+            195.42922973632812,
+            177.64511108398438,
+            172.40066528320312,
+            166.5435791015625,
+            170.233154296875,
+            170.56503295898438
+          ],
+          "MedianNs": 172.02987670898438,
+          "MinNs": 166.5435791015625,
+          "MaxNs": 195.42922973632812,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 256,
+          "EncodedBodyBytes": 252,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "232/zero/chunk-0",
+          "Operation": "ZeroThenTinyBitmapRandom",
+          "Bytes": 232,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            174.83291625976562,
+            182.60879516601562,
+            177.37350463867188,
+            176.57852172851562,
+            165.99044799804688,
+            168.42193603515625,
+            199.82833862304688
+          ],
+          "MedianNs": 176.57852172851562,
+          "MinNs": 165.99044799804688,
+          "MaxNs": 199.82833862304688,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 256,
+          "EncodedBodyBytes": 252,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "232/random/chunk-0",
+          "Operation": "FullBitmap",
+          "Bytes": 232,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            228.15093994140625,
+            249.359130859375,
+            233.11843872070312,
+            226.75704956054688,
+            217.26760864257812,
+            229.40826416015625,
+            220.93582153320312
+          ],
+          "MedianNs": 228.15093994140625,
+          "MinNs": 217.26760864257812,
+          "MaxNs": 249.359130859375,
+          "AllocatedBytesPerOperation": 160
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 256,
+          "EncodedBodyBytes": 252,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 8,
+          "ScratchBytes": 8
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "232/random/chunk-0",
+          "Operation": "ZeroThenOne",
+          "Bytes": 232,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            176.4739990234375,
+            176.153564453125,
+            182.5347900390625,
+            169.85321044921875,
+            163.87863159179688,
+            168.54934692382812,
+            169.27871704101562
+          ],
+          "MedianNs": 169.85321044921875,
+          "MinNs": 163.87863159179688,
+          "MaxNs": 182.5347900390625,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 256,
+          "EncodedBodyBytes": 252,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "232/random/chunk-0",
+          "Operation": "ZeroThenRandom",
+          "Bytes": 232,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            176.41372680664062,
+            171.79641723632812,
+            198.72207641601562,
+            166.43142700195312,
+            167.3095703125,
+            160.06317138671875,
+            159.26589965820312
+          ],
+          "MedianNs": 167.3095703125,
+          "MinNs": 159.26589965820312,
+          "MaxNs": 198.72207641601562,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 256,
+          "EncodedBodyBytes": 252,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "232/random/chunk-0",
+          "Operation": "ZeroThenTinyBitmapRandom",
+          "Bytes": 232,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            185.01815795898438,
+            222.64328002929688,
+            184.69619750976562,
+            174.50790405273438,
+            166.68930053710938,
+            160.90087890625,
+            183.63494873046875
+          ],
+          "MedianNs": 183.63494873046875,
+          "MinNs": 160.90087890625,
+          "MaxNs": 222.64328002929688,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 256,
+          "EncodedBodyBytes": 252,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "232/marker/chunk-0",
+          "Operation": "FullBitmap",
+          "Bytes": 232,
+          "Chunks": 1,
+          "IterationsPerSample": 114047,
+          "NanosecondsPerOperation": [
+            286.8387594588196,
+            279.8854858084825,
+            294.9389286872956,
+            303.1276578954291,
+            285.32534832130614,
+            288.1706664796093,
+            284.5879330451481
+          ],
+          "MedianNs": 286.8387594588196,
+          "MinNs": 279.8854858084825,
+          "MaxNs": 303.1276578954291,
+          "AllocatedBytesPerOperation": 160
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 256,
+          "EncodedBodyBytes": 252,
+          "Key": 1,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 8,
+          "ScratchBytes": 8
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "232/marker/chunk-0",
+          "Operation": "ZeroThenOne",
+          "Bytes": 232,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            192.07534790039062,
+            194.13986206054688,
+            190.03982543945312,
+            182.18536376953125,
+            180.81741333007812,
+            202.34375,
+            174.67269897460938
+          ],
+          "MedianNs": 190.03982543945312,
+          "MinNs": 174.67269897460938,
+          "MaxNs": 202.34375,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 256,
+          "EncodedBodyBytes": 252,
+          "Key": 1,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "232/marker/chunk-0",
+          "Operation": "ZeroThenRandom",
+          "Bytes": 232,
+          "Chunks": 1,
+          "IterationsPerSample": 130915,
+          "NanosecondsPerOperation": [
+            270.37467058778594,
+            338.4493755490204,
+            267.8012450826872,
+            262.10212733453005,
+            260.7592712828935,
+            406.6791429553527,
+            259.5134247412443
+          ],
+          "MedianNs": 267.8012450826872,
+          "MinNs": 259.5134247412443,
+          "MaxNs": 406.6791429553527,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 256,
+          "EncodedBodyBytes": 252,
+          "Key": 1734769986,
+          "RandomDraws": 1,
+          "RandomSearches": 1,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "232/marker/chunk-0",
+          "Operation": "ZeroThenTinyBitmapRandom",
+          "Bytes": 232,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            224.96261596679688,
+            217.60787963867188,
+            224.658203125,
+            226.03302001953125,
+            217.67807006835938,
+            252.73818969726562,
+            223.53439331054688
+          ],
+          "MedianNs": 224.658203125,
+          "MinNs": 217.60787963867188,
+          "MaxNs": 252.73818969726562,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 256,
+          "EncodedBodyBytes": 252,
+          "Key": 1,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "232/dense301/chunk-0",
+          "Operation": "FullBitmap",
+          "Bytes": 232,
+          "Chunks": 1,
+          "IterationsPerSample": 126811,
+          "NanosecondsPerOperation": [
+            317.18541766881424,
+            311.6086143946503,
+            332.67066737112714,
+            346.10167887643814,
+            321.61484413812684,
+            332.8749083281419,
+            340.8828887083928
+          ],
+          "MedianNs": 332.67066737112714,
+          "MinNs": 311.6086143946503,
+          "MaxNs": 346.10167887643814,
+          "AllocatedBytesPerOperation": 160
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 256,
+          "EncodedBodyBytes": 252,
+          "Key": 58,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 8,
+          "ScratchBytes": 8
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "232/dense301/chunk-0",
+          "Operation": "ZeroThenOne",
+          "Bytes": 232,
+          "Chunks": 1,
+          "IterationsPerSample": 118146,
+          "NanosecondsPerOperation": [
+            368.1792020042998,
+            317.73483655815687,
+            327.0453506678178,
+            363.6475208640157,
+            375.9247033331641,
+            303.3712525180709,
+            368.2926209943629
+          ],
+          "MedianNs": 363.6475208640157,
+          "MinNs": 303.3712525180709,
+          "MaxNs": 375.9247033331641,
+          "AllocatedBytesPerOperation": 160
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 256,
+          "EncodedBodyBytes": 252,
+          "Key": 58,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 3,
+          "BitmapBytes": 8,
+          "ScratchBytes": 8
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "232/dense301/chunk-0",
+          "Operation": "ZeroThenRandom",
+          "Bytes": 232,
+          "Chunks": 1,
+          "IterationsPerSample": 129278,
+          "NanosecondsPerOperation": [
+            268.6706168102848,
+            281.8012345488018,
+            299.62948065409427,
+            267.63254382029425,
+            256.57884558857654,
+            288.95248998282773,
+            271.02291186435434
+          ],
+          "MedianNs": 271.02291186435434,
+          "MinNs": 256.57884558857654,
+          "MaxNs": 299.62948065409427,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 256,
+          "EncodedBodyBytes": 252,
+          "Key": 1401957714,
+          "RandomDraws": 1,
+          "RandomSearches": 1,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "232/dense301/chunk-0",
+          "Operation": "ZeroThenTinyBitmapRandom",
+          "Bytes": 232,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            228.2989501953125,
+            251.556396484375,
+            223.97384643554688,
+            249.55978393554688,
+            219.69070434570312,
+            239.30435180664062,
+            234.7381591796875
+          ],
+          "MedianNs": 234.7381591796875,
+          "MinNs": 219.69070434570312,
+          "MaxNs": 251.556396484375,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 256,
+          "EncodedBodyBytes": 252,
+          "Key": 58,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "233/zero/chunk-0",
+          "Operation": "FullBitmap",
+          "Bytes": 233,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            242.29965209960938,
+            238.28353881835938,
+            233.76235961914062,
+            234.94796752929688,
+            226.13372802734375,
+            242.6788330078125,
+            234.41848754882812
+          ],
+          "MedianNs": 234.94796752929688,
+          "MinNs": 226.13372802734375,
+          "MaxNs": 242.6788330078125,
+          "AllocatedBytesPerOperation": 168
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 260,
+          "EncodedBodyBytes": 256,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 12,
+          "ScratchBytes": 12
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "233/zero/chunk-0",
+          "Operation": "ZeroThenOne",
+          "Bytes": 233,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            187.445068359375,
+            179.31060791015625,
+            184.09500122070312,
+            186.2548828125,
+            194.88525390625,
+            186.71798706054688,
+            187.22152709960938
+          ],
+          "MedianNs": 186.71798706054688,
+          "MinNs": 179.31060791015625,
+          "MaxNs": 194.88525390625,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 260,
+          "EncodedBodyBytes": 256,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "233/zero/chunk-0",
+          "Operation": "ZeroThenRandom",
+          "Bytes": 233,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            182.15179443359375,
+            186.71722412109375,
+            183.42971801757812,
+            185.6231689453125,
+            204.05120849609375,
+            188.74664306640625,
+            183.72268676757812
+          ],
+          "MedianNs": 185.6231689453125,
+          "MinNs": 182.15179443359375,
+          "MaxNs": 204.05120849609375,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 260,
+          "EncodedBodyBytes": 256,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "233/zero/chunk-0",
+          "Operation": "ZeroThenTinyBitmapRandom",
+          "Bytes": 233,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            188.67721557617188,
+            183.32138061523438,
+            186.41281127929688,
+            186.95907592773438,
+            207.305908203125,
+            172.84622192382812,
+            179.70123291015625
+          ],
+          "MedianNs": 186.41281127929688,
+          "MinNs": 172.84622192382812,
+          "MaxNs": 207.305908203125,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 260,
+          "EncodedBodyBytes": 256,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "233/random/chunk-0",
+          "Operation": "FullBitmap",
+          "Bytes": 233,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            232.60269165039062,
+            244.76242065429688,
+            271.697998046875,
+            239.4561767578125,
+            227.63824462890625,
+            241.81747436523438,
+            231.6192626953125
+          ],
+          "MedianNs": 239.4561767578125,
+          "MinNs": 227.63824462890625,
+          "MaxNs": 271.697998046875,
+          "AllocatedBytesPerOperation": 168
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 260,
+          "EncodedBodyBytes": 256,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 12,
+          "ScratchBytes": 12
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "233/random/chunk-0",
+          "Operation": "ZeroThenOne",
+          "Bytes": 233,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            180.73806762695312,
+            180.340576171875,
+            194.4915771484375,
+            182.98416137695312,
+            178.89328002929688,
+            185.55831909179688,
+            179.205322265625
+          ],
+          "MedianNs": 180.73806762695312,
+          "MinNs": 178.89328002929688,
+          "MaxNs": 194.4915771484375,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 260,
+          "EncodedBodyBytes": 256,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "233/random/chunk-0",
+          "Operation": "ZeroThenRandom",
+          "Bytes": 233,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            188.07754516601562,
+            186.99798583984375,
+            192.59185791015625,
+            172.20306396484375,
+            176.849365234375,
+            188.29803466796875,
+            187.8143310546875
+          ],
+          "MedianNs": 187.8143310546875,
+          "MinNs": 172.20306396484375,
+          "MaxNs": 192.59185791015625,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 260,
+          "EncodedBodyBytes": 256,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "233/random/chunk-0",
+          "Operation": "ZeroThenTinyBitmapRandom",
+          "Bytes": 233,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            186.85684204101562,
+            198.78921508789062,
+            200.982666015625,
+            195.22781372070312,
+            183.56704711914062,
+            185.23178100585938,
+            171.77810668945312
+          ],
+          "MedianNs": 186.85684204101562,
+          "MinNs": 171.77810668945312,
+          "MaxNs": 200.982666015625,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 260,
+          "EncodedBodyBytes": 256,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "233/marker/chunk-0",
+          "Operation": "FullBitmap",
+          "Bytes": 233,
+          "Chunks": 1,
+          "IterationsPerSample": 106601,
+          "NanosecondsPerOperation": [
+            306.7569722610482,
+            323.975384846296,
+            327.18548606485865,
+            305.1584881942946,
+            321.9960413129333,
+            325.41627189238375,
+            307.7682198103207
+          ],
+          "MedianNs": 321.9960413129333,
+          "MinNs": 305.1584881942946,
+          "MaxNs": 327.18548606485865,
+          "AllocatedBytesPerOperation": 168
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 260,
+          "EncodedBodyBytes": 256,
+          "Key": 1,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 12,
+          "ScratchBytes": 12
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "233/marker/chunk-0",
+          "Operation": "ZeroThenOne",
+          "Bytes": 233,
+          "Chunks": 1,
+          "IterationsPerSample": 131072,
+          "NanosecondsPerOperation": [
+            190.26107788085938,
+            208.82415771484375,
+            200.28152465820312,
+            203.56979370117188,
+            195.37200927734375,
+            201.41448974609375,
+            198.26736450195312
+          ],
+          "MedianNs": 200.28152465820312,
+          "MinNs": 190.26107788085938,
+          "MaxNs": 208.82415771484375,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 260,
+          "EncodedBodyBytes": 256,
+          "Key": 1,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "233/marker/chunk-0",
+          "Operation": "ZeroThenRandom",
+          "Bytes": 233,
+          "Chunks": 1,
+          "IterationsPerSample": 130826,
+          "NanosecondsPerOperation": [
+            293.65645972513107,
+            300.6267867243514,
+            288.31501383517036,
+            295.5230611652118,
+            274.3674804702429,
+            288.4510724167979,
+            276.640728907098
+          ],
+          "MedianNs": 288.4510724167979,
+          "MinNs": 274.3674804702429,
+          "MaxNs": 300.6267867243514,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 260,
+          "EncodedBodyBytes": 256,
+          "Key": 3437173540,
+          "RandomDraws": 1,
+          "RandomSearches": 1,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "233/marker/chunk-0",
+          "Operation": "ZeroThenTinyBitmapRandom",
+          "Bytes": 233,
+          "Chunks": 1,
+          "IterationsPerSample": 124162,
+          "NanosecondsPerOperation": [
+            302.07954124450316,
+            288.19687182873986,
+            302.4798247450911,
+            274.4680336979108,
+            287.1869009841981,
+            302.39525780834714,
+            288.9040124997986
+          ],
+          "MedianNs": 288.9040124997986,
+          "MinNs": 274.4680336979108,
+          "MaxNs": 302.4798247450911,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 260,
+          "EncodedBodyBytes": 256,
+          "Key": 3667563292,
+          "RandomDraws": 1,
+          "RandomSearches": 1,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "233/dense301/chunk-0",
+          "Operation": "FullBitmap",
+          "Bytes": 233,
+          "Chunks": 1,
+          "IterationsPerSample": 112504,
+          "NanosecondsPerOperation": [
+            305.90823437388894,
+            323.7022683637915,
+            343.1664651923487,
+            318.46245466827844,
+            297.27031927753677,
+            357.2032994382422,
+            307.37573775154664
+          ],
+          "MedianNs": 318.46245466827844,
+          "MinNs": 297.27031927753677,
+          "MaxNs": 357.2032994382422,
+          "AllocatedBytesPerOperation": 168
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 260,
+          "EncodedBodyBytes": 256,
+          "Key": 58,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 12,
+          "ScratchBytes": 12
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "233/dense301/chunk-0",
+          "Operation": "ZeroThenOne",
+          "Bytes": 233,
+          "Chunks": 1,
+          "IterationsPerSample": 107061,
+          "NanosecondsPerOperation": [
+            376.96079804971,
+            346.4632312420022,
+            373.17323768692614,
+            342.62429829723243,
+            320.1034924015281,
+            326.0879311794211,
+            359.38110049411085
+          ],
+          "MedianNs": 346.4632312420022,
+          "MinNs": 320.1034924015281,
+          "MaxNs": 376.96079804971,
+          "AllocatedBytesPerOperation": 168
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 260,
+          "EncodedBodyBytes": 256,
+          "Key": 58,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 3,
+          "BitmapBytes": 12,
+          "ScratchBytes": 12
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "233/dense301/chunk-0",
+          "Operation": "ZeroThenRandom",
+          "Bytes": 233,
+          "Chunks": 1,
+          "IterationsPerSample": 118466,
+          "NanosecondsPerOperation": [
+            299.0858136511742,
+            311.1078284064626,
+            314.28342309185757,
+            279.7232961356001,
+            276.9790488410177,
+            280.27535326591595,
+            286.8628973713977
+          ],
+          "MedianNs": 286.8628973713977,
+          "MinNs": 276.9790488410177,
+          "MaxNs": 314.28342309185757,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 260,
+          "EncodedBodyBytes": 256,
+          "Key": 2497601317,
+          "RandomDraws": 1,
+          "RandomSearches": 1,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "233/dense301/chunk-0",
+          "Operation": "ZeroThenTinyBitmapRandom",
+          "Bytes": 233,
+          "Chunks": 1,
+          "IterationsPerSample": 117030,
+          "NanosecondsPerOperation": [
+            299.20533196616253,
+            316.80167478424335,
+            313.2119969238657,
+            315.03289754763733,
+            286.4274117747586,
+            282.04819277108436,
+            283.7383576860634
+          ],
+          "MedianNs": 299.20533196616253,
+          "MinNs": 282.04819277108436,
+          "MaxNs": 316.80167478424335,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 260,
+          "EncodedBodyBytes": 256,
+          "Key": 3195522475,
+          "RandomDraws": 1,
+          "RandomSearches": 1,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "4096/zero/chunk-0",
+          "Operation": "FullBitmap",
+          "Bytes": 4096,
+          "Chunks": 1,
+          "IterationsPerSample": 16141,
+          "NanosecondsPerOperation": [
+            2174.6669970881608,
+            2282.8263428536025,
+            2172.374697974103,
+            2284.1831361130044,
+            2226.8384858435043,
+            2279.995043677591,
+            2097.0076203457033
+          ],
+          "MedianNs": 2226.8384858435043,
+          "MinNs": 2097.0076203457033,
+          "MaxNs": 2284.1831361130044,
+          "AllocatedBytesPerOperation": 288
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 4120,
+          "EncodedBodyBytes": 4116,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 132,
+          "ScratchBytes": 132
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "4096/zero/chunk-0",
+          "Operation": "ZeroThenOne",
+          "Bytes": 4096,
+          "Chunks": 1,
+          "IterationsPerSample": 23601,
+          "NanosecondsPerOperation": [
+            1609.3428244565907,
+            1854.8493707893733,
+            1646.8751324096436,
+            1625.9777128087792,
+            1630.952078301767,
+            1688.3903224439644,
+            1573.9205965848905
+          ],
+          "MedianNs": 1630.952078301767,
+          "MinNs": 1573.9205965848905,
+          "MaxNs": 1854.8493707893733,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 4120,
+          "EncodedBodyBytes": 4116,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "4096/zero/chunk-0",
+          "Operation": "ZeroThenRandom",
+          "Bytes": 4096,
+          "Chunks": 1,
+          "IterationsPerSample": 23982,
+          "NanosecondsPerOperation": [
+            1686.2813776999417,
+            1790.5429071803853,
+            1655.9419564673506,
+            1647.9484613460095,
+            1721.0741389375364,
+            1746.5515803519306,
+            1682.4409974147277
+          ],
+          "MedianNs": 1686.2813776999417,
+          "MinNs": 1647.9484613460095,
+          "MaxNs": 1790.5429071803853,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 4120,
+          "EncodedBodyBytes": 4116,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "4096/zero/chunk-0",
+          "Operation": "ZeroThenTinyBitmapRandom",
+          "Bytes": 4096,
+          "Chunks": 1,
+          "IterationsPerSample": 23294,
+          "NanosecondsPerOperation": [
+            1678.075899373229,
+            1765.57911908646,
+            1689.6582811024298,
+            1628.4322143041127,
+            1635.356744225981,
+            1684.025929423886,
+            1600.6525285481239
+          ],
+          "MedianNs": 1678.075899373229,
+          "MinNs": 1600.6525285481239,
+          "MaxNs": 1765.57911908646,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 4120,
+          "EncodedBodyBytes": 4116,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "4096/random/chunk-0",
+          "Operation": "FullBitmap",
+          "Bytes": 4096,
+          "Chunks": 1,
+          "IterationsPerSample": 18046,
+          "NanosecondsPerOperation": [
+            2513.1718940485425,
+            2296.087775684362,
+            2446.9189848165797,
+            2247.146181979386,
+            2238.1857475340794,
+            2224.6093317078576,
+            2216.3637371162586
+          ],
+          "MedianNs": 2247.146181979386,
+          "MinNs": 2216.3637371162586,
+          "MaxNs": 2513.1718940485425,
+          "AllocatedBytesPerOperation": 288
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 4120,
+          "EncodedBodyBytes": 4116,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 132,
+          "ScratchBytes": 132
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "4096/random/chunk-0",
+          "Operation": "ZeroThenOne",
+          "Bytes": 4096,
+          "Chunks": 1,
+          "IterationsPerSample": 24745,
+          "NanosecondsPerOperation": [
+            1710.3899777732875,
+            1658.5855728429985,
+            1740.9456455849668,
+            1679.3897757122652,
+            1657.7005455647607,
+            1692.479288745201,
+            1682.0731460901193
+          ],
+          "MedianNs": 1682.0731460901193,
+          "MinNs": 1657.7005455647607,
+          "MaxNs": 1740.9456455849668,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 4120,
+          "EncodedBodyBytes": 4116,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "4096/random/chunk-0",
+          "Operation": "ZeroThenRandom",
+          "Bytes": 4096,
+          "Chunks": 1,
+          "IterationsPerSample": 22688,
+          "NanosecondsPerOperation": [
+            1770.5130465444288,
+            1690.0387870239774,
+            1624.2374823695345,
+            1616.550599435825,
+            1641.105430183357,
+            1639.6949929478137,
+            1627.0275035260931
+          ],
+          "MedianNs": 1639.6949929478137,
+          "MinNs": 1616.550599435825,
+          "MaxNs": 1770.5130465444288,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 4120,
+          "EncodedBodyBytes": 4116,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "4096/random/chunk-0",
+          "Operation": "ZeroThenTinyBitmapRandom",
+          "Bytes": 4096,
+          "Chunks": 1,
+          "IterationsPerSample": 16383,
+          "NanosecondsPerOperation": [
+            1722.7186717939328,
+            1769.1021180491973,
+            1569.7857535249955,
+            1712.9036196056888,
+            1598.4557162912774,
+            1564.8782274308735,
+            1622.9872428737106
+          ],
+          "MedianNs": 1622.9872428737106,
+          "MinNs": 1564.8782274308735,
+          "MaxNs": 1769.1021180491973,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 4120,
+          "EncodedBodyBytes": 4116,
+          "Key": 0,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "4096/marker/chunk-0",
+          "Operation": "FullBitmap",
+          "Bytes": 4096,
+          "Chunks": 1,
+          "IterationsPerSample": 10243,
+          "NanosecondsPerOperation": [
+            3529.9131113931467,
+            3547.5544274138438,
+            3624.338572683784,
+            3643.83481401933,
+            3805.2035536463927,
+            3607.8395001464414,
+            3754.6714829639754
+          ],
+          "MedianNs": 3624.338572683784,
+          "MinNs": 3529.9131113931467,
+          "MaxNs": 3805.2035536463927,
+          "AllocatedBytesPerOperation": 288
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 4120,
+          "EncodedBodyBytes": 4116,
+          "Key": 1,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 132,
+          "ScratchBytes": 132
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "4096/marker/chunk-0",
+          "Operation": "ZeroThenOne",
+          "Bytes": 4096,
+          "Chunks": 1,
+          "IterationsPerSample": 22374,
+          "NanosecondsPerOperation": [
+            1715.553767766157,
+            1769.8936265307946,
+            1604.3130419236613,
+            1702.1587556985787,
+            1641.0118887994995,
+            1680.8036113345847,
+            1697.1350674890498
+          ],
+          "MedianNs": 1697.1350674890498,
+          "MinNs": 1604.3130419236613,
+          "MaxNs": 1769.8936265307946,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 4120,
+          "EncodedBodyBytes": 4116,
+          "Key": 1,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "4096/marker/chunk-0",
+          "Operation": "ZeroThenRandom",
+          "Bytes": 4096,
+          "Chunks": 1,
+          "IterationsPerSample": 21457,
+          "NanosecondsPerOperation": [
+            1701.4214475462552,
+            1726.7884606422147,
+            1804.6231998881483,
+            1779.6756303304282,
+            1759.5097171086359,
+            1707.3495828867037,
+            1759.4957356573611
+          ],
+          "MedianNs": 1759.4957356573611,
+          "MinNs": 1701.4214475462552,
+          "MaxNs": 1804.6231998881483,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 4120,
+          "EncodedBodyBytes": 4116,
+          "Key": 3494520205,
+          "RandomDraws": 1,
+          "RandomSearches": 1,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "4096/marker/chunk-0",
+          "Operation": "ZeroThenTinyBitmapRandom",
+          "Bytes": 4096,
+          "Chunks": 1,
+          "IterationsPerSample": 20997,
+          "NanosecondsPerOperation": [
+            1756.7652521788827,
+            1754.926894318236,
+            1838.3530980616279,
+            1799.2284612087442,
+            1698.9236557603467,
+            1770.9006048483116,
+            1809.9061770729152
+          ],
+          "MedianNs": 1770.9006048483116,
+          "MinNs": 1698.9236557603467,
+          "MaxNs": 1838.3530980616279,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 4120,
+          "EncodedBodyBytes": 4116,
+          "Key": 2576343264,
+          "RandomDraws": 1,
+          "RandomSearches": 1,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "4096/dense301/chunk-0",
+          "Operation": "FullBitmap",
+          "Bytes": 4096,
+          "Chunks": 1,
+          "IterationsPerSample": 14388,
+          "NanosecondsPerOperation": [
+            2634.090909090909,
+            2689.894356408118,
+            2719.676118988046,
+            2542.299138170698,
+            2675.0973033083123,
+            2633.7433972755075,
+            2533.9727550736725
+          ],
+          "MedianNs": 2634.090909090909,
+          "MinNs": 2533.9727550736725,
+          "MaxNs": 2719.676118988046,
+          "AllocatedBytesPerOperation": 288
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 4120,
+          "EncodedBodyBytes": 4116,
+          "Key": 301,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 132,
+          "ScratchBytes": 132
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "4096/dense301/chunk-0",
+          "Operation": "ZeroThenOne",
+          "Bytes": 4096,
+          "Chunks": 1,
+          "IterationsPerSample": 15708,
+          "NanosecondsPerOperation": [
+            2599.6562261268145,
+            2708.899923605806,
+            2737.070282658518,
+            2660.930735930736,
+            2806.9646040234275,
+            2579.3481028775145,
+            2595.5054749172396
+          ],
+          "MedianNs": 2660.930735930736,
+          "MinNs": 2579.3481028775145,
+          "MaxNs": 2806.9646040234275,
+          "AllocatedBytesPerOperation": 288
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 4120,
+          "EncodedBodyBytes": 4116,
+          "Key": 301,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 3,
+          "BitmapBytes": 132,
+          "ScratchBytes": 132
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "4096/dense301/chunk-0",
+          "Operation": "ZeroThenRandom",
+          "Bytes": 4096,
+          "Chunks": 1,
+          "IterationsPerSample": 22163,
+          "NanosecondsPerOperation": [
+            1743.4507963723322,
+            1821.1478590443533,
+            1758.886432342192,
+            1829.78838604882,
+            1787.7408293101114,
+            1819.388169471642,
+            1760.0776068221812
+          ],
+          "MedianNs": 1787.7408293101114,
+          "MinNs": 1743.4507963723322,
+          "MaxNs": 1829.78838604882,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 4120,
+          "EncodedBodyBytes": 4116,
+          "Key": 1014742987,
+          "RandomDraws": 1,
+          "RandomSearches": 1,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "4096/dense301/chunk-0",
+          "Operation": "ZeroThenTinyBitmapRandom",
+          "Bytes": 4096,
+          "Chunks": 1,
+          "IterationsPerSample": 22611,
+          "NanosecondsPerOperation": [
+            1770.3020653664146,
+            1881.9203042766794,
+            1795.3120162752643,
+            1716.2310379903586,
+            1800.9154836141702,
+            1764.6543717659547,
+            1726.9028349033656
+          ],
+          "MedianNs": 1770.3020653664146,
+          "MinNs": 1716.2310379903586,
+          "MaxNs": 1881.9203042766794,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 4120,
+          "EncodedBodyBytes": 4116,
+          "Key": 2191800808,
+          "RandomDraws": 1,
+          "RandomSearches": 1,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "31/marker/chunk-3",
+          "Operation": "FullBitmap",
+          "Bytes": 31,
+          "Chunks": 11,
+          "IterationsPerSample": 90350,
+          "NanosecondsPerOperation": [
+            390.2822357498616,
+            403.7033757609297,
+            377.1377974543442,
+            401.05589374654124,
+            380.9352517985611,
+            399.41560597675704,
+            392.76148312119534
+          ],
+          "MedianNs": 392.76148312119534,
+          "MinNs": 377.1377974543442,
+          "MaxNs": 403.7033757609297,
+          "AllocatedBytesPerOperation": 160
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 56,
+          "EncodedBodyBytes": 52,
+          "Key": 1,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 4,
+          "ScratchBytes": 4
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "31/marker/chunk-3",
+          "Operation": "ZeroThenOne",
+          "Bytes": 31,
+          "Chunks": 11,
+          "IterationsPerSample": 86912,
+          "NanosecondsPerOperation": [
+            415.27752209131074,
+            421.9463365243004,
+            418.84549889543445,
+            417.5844532400589,
+            400.42801914580264,
+            426.9134296759941,
+            411.14690721649487
+          ],
+          "MedianNs": 417.5844532400589,
+          "MinNs": 400.42801914580264,
+          "MaxNs": 426.9134296759941,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 56,
+          "EncodedBodyBytes": 52,
+          "Key": 1,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "31/marker/chunk-3",
+          "Operation": "ZeroThenRandom",
+          "Bytes": 31,
+          "Chunks": 11,
+          "IterationsPerSample": 73801,
+          "NanosecondsPerOperation": [
+            524.3872034254279,
+            574.9556239075351,
+            590.4784488015067,
+            526.5077708974134,
+            540.8585249522364,
+            508.87115350740504,
+            484.60047966829717
+          ],
+          "MedianNs": 526.5077708974134,
+          "MinNs": 484.60047966829717,
+          "MaxNs": 590.4784488015067,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 56,
+          "EncodedBodyBytes": 52,
+          "Key": 4165105162,
+          "RandomDraws": 1,
+          "RandomSearches": 1,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "31/marker/chunk-3",
+          "Operation": "ZeroThenTinyBitmapRandom",
+          "Bytes": 31,
+          "Chunks": 11,
+          "IterationsPerSample": 97826,
+          "NanosecondsPerOperation": [
+            409.0701858401652,
+            442.69826017623126,
+            395.45417373704333,
+            386.02620980107537,
+            389.3463905301249,
+            415.2106801872713,
+            385.6663872590109
+          ],
+          "MedianNs": 395.45417373704333,
+          "MinNs": 385.6663872590109,
+          "MaxNs": 442.69826017623126,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 56,
+          "EncodedBodyBytes": 52,
+          "Key": 1,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "31/dense301/chunk-3",
+          "Operation": "FullBitmap",
+          "Bytes": 31,
+          "Chunks": 11,
+          "IterationsPerSample": 96616,
+          "NanosecondsPerOperation": [
+            394.70481079738346,
+            412.384077171483,
+            409.4021694129337,
+            411.5684772708454,
+            414.1063591951644,
+            414.79258093897494,
+            411.39976815434295
+          ],
+          "MedianNs": 411.5684772708454,
+          "MinNs": 394.70481079738346,
+          "MaxNs": 414.79258093897494,
+          "AllocatedBytesPerOperation": 160
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 56,
+          "EncodedBodyBytes": 52,
+          "Key": 7,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 4,
+          "ScratchBytes": 4
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "31/dense301/chunk-3",
+          "Operation": "ZeroThenOne",
+          "Bytes": 31,
+          "Chunks": 11,
+          "IterationsPerSample": 88032,
+          "NanosecondsPerOperation": [
+            432.8846328607779,
+            467.5254452926209,
+            507.38254271174117,
+            480.4525627044711,
+            472.7008360596147,
+            446.28544165757904,
+            480.52071973827697
+          ],
+          "MedianNs": 472.7008360596147,
+          "MinNs": 432.8846328607779,
+          "MaxNs": 507.38254271174117,
+          "AllocatedBytesPerOperation": 160
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 56,
+          "EncodedBodyBytes": 52,
+          "Key": 7,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 3,
+          "BitmapBytes": 4,
+          "ScratchBytes": 4
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "31/dense301/chunk-3",
+          "Operation": "ZeroThenRandom",
+          "Bytes": 31,
+          "Chunks": 11,
+          "IterationsPerSample": 74183,
+          "NanosecondsPerOperation": [
+            538.6651928339377,
+            635.2938004664142,
+            520.9144952347573,
+            617.351684348166,
+            513.86166641953,
+            501.3507137753933,
+            535.5081352870603
+          ],
+          "MedianNs": 535.5081352870603,
+          "MinNs": 501.3507137753933,
+          "MaxNs": 635.2938004664142,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 56,
+          "EncodedBodyBytes": 52,
+          "Key": 1451103550,
+          "RandomDraws": 1,
+          "RandomSearches": 1,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "31/dense301/chunk-3",
+          "Operation": "ZeroThenTinyBitmapRandom",
+          "Bytes": 31,
+          "Chunks": 11,
+          "IterationsPerSample": 97203,
+          "NanosecondsPerOperation": [
+            388.2524201927924,
+            405.19325535220105,
+            393.15556104235463,
+            411.26096931164676,
+            403.20463360184357,
+            390.6309476044978,
+            402.1213337036923
+          ],
+          "MedianNs": 402.1213337036923,
+          "MinNs": 388.2524201927924,
+          "MaxNs": 411.26096931164676,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 56,
+          "EncodedBodyBytes": 52,
+          "Key": 7,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "232/marker/chunk-3",
+          "Operation": "FullBitmap",
+          "Bytes": 232,
+          "Chunks": 78,
+          "IterationsPerSample": 16833,
+          "NanosecondsPerOperation": [
+            2336.9512267569653,
+            2327.321333095705,
+            2280.3243628586706,
+            2430.962989366126,
+            2326.1034871977663,
+            2245.48802946593,
+            2239.832471930137
+          ],
+          "MedianNs": 2326.1034871977663,
+          "MinNs": 2239.832471930137,
+          "MaxNs": 2430.962989366126,
+          "AllocatedBytesPerOperation": 160
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 256,
+          "EncodedBodyBytes": 252,
+          "Key": 1,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 8,
+          "ScratchBytes": 8
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "232/marker/chunk-3",
+          "Operation": "ZeroThenOne",
+          "Bytes": 232,
+          "Chunks": 78,
+          "IterationsPerSample": 17362,
+          "NanosecondsPerOperation": [
+            2478.0324847367815,
+            2280.624352033176,
+            2342.5642207118995,
+            2353.830203893561,
+            2276.471604653842,
+            2372.1921437622395,
+            2332.8879161386935
+          ],
+          "MedianNs": 2342.5642207118995,
+          "MinNs": 2276.471604653842,
+          "MaxNs": 2478.0324847367815,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 256,
+          "EncodedBodyBytes": 252,
+          "Key": 1,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "232/marker/chunk-3",
+          "Operation": "ZeroThenRandom",
+          "Bytes": 232,
+          "Chunks": 78,
+          "IterationsPerSample": 16207,
+          "NanosecondsPerOperation": [
+            2833.0165977663974,
+            2452.057752822854,
+            2547.245017584994,
+            2430.2153390510275,
+            2499.8642561855986,
+            2428.8579009070154,
+            2473.727401739989
+          ],
+          "MedianNs": 2473.727401739989,
+          "MinNs": 2428.8579009070154,
+          "MaxNs": 2833.0165977663974,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 256,
+          "EncodedBodyBytes": 252,
+          "Key": 2550622086,
+          "RandomDraws": 1,
+          "RandomSearches": 1,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "232/marker/chunk-3",
+          "Operation": "ZeroThenTinyBitmapRandom",
+          "Bytes": 232,
+          "Chunks": 78,
+          "IterationsPerSample": 18823,
+          "NanosecondsPerOperation": [
+            2050.98018381767,
+            1997.7421239972375,
+            2137.4913669446955,
+            2123.6147266641874,
+            2066.3815544812196,
+            2075.0464856824096,
+            2116.9048504489188
+          ],
+          "MedianNs": 2075.0464856824096,
+          "MinNs": 1997.7421239972375,
+          "MaxNs": 2137.4913669446955,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 256,
+          "EncodedBodyBytes": 252,
+          "Key": 1,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "232/dense301/chunk-3",
+          "Operation": "FullBitmap",
+          "Bytes": 232,
+          "Chunks": 78,
+          "IterationsPerSample": 16488,
+          "NanosecondsPerOperation": [
+            2348.2532751091703,
+            2286.244541484716,
+            2324.727074235808,
+            2317.473313925279,
+            2317.4369238233867,
+            2312.4272197962155,
+            2299.4177583697233
+          ],
+          "MedianNs": 2317.4369238233867,
+          "MinNs": 2286.244541484716,
+          "MaxNs": 2348.2532751091703,
+          "AllocatedBytesPerOperation": 160
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 256,
+          "EncodedBodyBytes": 252,
+          "Key": 58,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 1,
+          "BitmapBytes": 8,
+          "ScratchBytes": 8
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "232/dense301/chunk-3",
+          "Operation": "ZeroThenOne",
+          "Bytes": 232,
+          "Chunks": 78,
+          "IterationsPerSample": 17225,
+          "NanosecondsPerOperation": [
+            2417.811320754717,
+            2293.300435413643,
+            2416.6153846153848,
+            2404.801161103048,
+            2392.911465892598,
+            2275.326560232221,
+            2272.087082728592
+          ],
+          "MedianNs": 2392.911465892598,
+          "MinNs": 2272.087082728592,
+          "MaxNs": 2417.811320754717,
+          "AllocatedBytesPerOperation": 160
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 256,
+          "EncodedBodyBytes": 252,
+          "Key": 58,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 3,
+          "BitmapBytes": 8,
+          "ScratchBytes": 8
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "232/dense301/chunk-3",
+          "Operation": "ZeroThenRandom",
+          "Bytes": 232,
+          "Chunks": 78,
+          "IterationsPerSample": 15647,
+          "NanosecondsPerOperation": [
+            2424.963251741548,
+            2782.316098932703,
+            2438.748641912188,
+            2505.48987026267,
+            2561.743465200997,
+            2424.1835495622163,
+            2392.854860356618
+          ],
+          "MedianNs": 2438.748641912188,
+          "MinNs": 2392.854860356618,
+          "MaxNs": 2782.316098932703,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 256,
+          "EncodedBodyBytes": 252,
+          "Key": 1277439488,
+          "RandomDraws": 1,
+          "RandomSearches": 1,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      },
+      {
+        "Measurement": {
+          "Workload": "232/dense301/chunk-3",
+          "Operation": "ZeroThenTinyBitmapRandom",
+          "Bytes": 232,
+          "Chunks": 78,
+          "IterationsPerSample": 19057,
+          "NanosecondsPerOperation": [
+            1978.5328225848768,
+            2080.133284357454,
+            1971.847615049588,
+            2122.1388466180406,
+            2145.1015374927847,
+            2066.4427769323606,
+            2048.5858214829195
+          ],
+          "MedianNs": 2066.4427769323606,
+          "MinNs": 1971.847615049588,
+          "MaxNs": 2145.1015374927847,
+          "AllocatedBytesPerOperation": 128
+        },
+        "Observation": {
+          "Scope": "One separate untimed preparation",
+          "EscapePayloadBytes": 256,
+          "EncodedBodyBytes": 252,
+          "Key": 58,
+          "RandomDraws": 0,
+          "RandomSearches": 0,
+          "BodyWordScanPasses": 2,
+          "BitmapBytes": 0,
+          "ScratchBytes": 0
+        }
+      }
+    ],
+    "Method": "Seven rotated samples, tiering disabled; full Prepare including CRC/footer, common allocations and real RNG. CPU-only: no storage throughput claim. EscapePayload includes raw HeadLen but excludes both Fence and raw EscapeKey. Small branch only after Zero fails and FrameLength-4<=256."
+  },
+  "LegacyCorrectness": {
+    "TransformCases": 4740,
+    "Frames": 448,
+    "CorruptionRejections": 1760,
+    "AdditionFrames": 448,
+    "PythonVectors": 76,
+    "ParameterRejections": 9,
+    "AdditionPartialWordAmbiguity": true
+  },
+  "PythonVerification": {
+    "xor_vectors": 76,
+    "addition_vectors": 76,
+    "crc_oracle": "Python table-based CRC32C, plaintext coverage forward and trailer backward"
+  },
+  "TinyPythonVerification": {
+    "random_xor_vectors": 112,
+    "keys_above_old_m_bound": 18,
+    "crc_oracle": "Independent Python bitwise CRC32C, forward coverage and reverse-byte trailer"
+  },
+  "Artifacts": [
+    {
+      "Path": "W:\\RbfCodecCost\\tiny-ulong-formal-20261003\\build.log",
+      "SHA256": "2bee3cd81f8dad29a7bf6edf4e0451b9efc3db65b64c62b5ae33e9bcb88d32d5"
+    },
+    {
+      "Path": "W:\\RbfCodecCost\\tiny-ulong-formal-20261003\\run.log",
+      "SHA256": "a885528962ee04c53b6bd26d83e3bccae1b3c389f07270cc96931e6eb383197d"
+    },
+    {
+      "Path": "W:\\RbfCodecCost\\tiny-ulong-formal-20261003\\provenance.json",
+      "SHA256": "a8978bc715f116a883ef1ee65e322fd1cb577f119160e40e65e85d371da928fa"
+    },
+    {
+      "Path": "W:\\RbfCodecCost\\tiny-ulong-formal-20261003\\python.log",
+      "SHA256": "8fc1bb8f13585b0adcc210b684c74b44ad74b020e834ce666423e050a3674211"
+    },
+    {
+      "Path": "W:\\RbfCodecCost\\tiny-ulong-formal-20261003\\python-random.log",
+      "SHA256": "632b3136e88e5bda84f7fd105c2f94ad84377633067f4ea7da2945c3b029b9b6"
+    },
+    {
+      "Path": "W:\\RbfCodecCost\\tiny-ulong-formal-20261003\\data\\summary.json",
+      "SHA256": "a3c6f961a344145fa2b31d251ea9ccb4e2eb25e40c2d5b77e369c73568abaf20"
+    },
+    {
+      "Path": "W:\\RbfCodecCost\\tiny-ulong-formal-20261003\\data\\tiny-key.json",
+      "SHA256": "40aeae7af9ccc389ee112158ce681a3c455540dd1d2f36eb323bd84e29787a0b"
+    },
+    {
+      "Path": "W:\\RbfCodecCost\\tiny-ulong-formal-20261003\\data\\correctness.json",
+      "SHA256": "fa1914f42ecefa11f5c0a72efe1587818b56fefc239f4438ae8a6b624436185d"
+    },
+    {
+      "Path": "W:\\RbfCodecCost\\tiny-ulong-formal-20261003\\data\\vectors.json",
+      "SHA256": "2594a9199ebba1918bb3a012382493f217178ecbebcf20ac3935055a1a85d7f6"
+    },
+    {
+      "Path": "W:\\RbfCodecCost\\tiny-ulong-formal-20261003\\data\\random-vectors.json",
+      "SHA256": "c17ce6995284387abe51d6fa2f7331078229ba9315179c41b0a3a7dd8b7fe44a"
+    },
+    {
+      "Path": "W:\\RbfCodecCost\\tiny-ulong-formal-20261003\\data\\python-verification.json",
+      "SHA256": "915df446ef1168eb4fa5751018a4d92aa94df998ca9960e3bab35ac31431a7a1"
+    },
+    {
+      "Path": "W:\\RbfCodecCost\\tiny-ulong-formal-20261003\\data\\python-random-verification.json",
+      "SHA256": "14dea5bf8455d1c256b10e3cbdbd199710598f689006d24254b70f356cbf153f"
+    }
+  ],
+  "Acceptance": "104 CPU rows, seven sample rotations, source hash guard, independent wire and CRC. No storage throughput measurement, production integration or recovery acceptance."
+}

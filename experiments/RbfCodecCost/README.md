@@ -13,13 +13,15 @@
 ./experiments/RbfCodecCost/Run-Probe.ps1 -OutputDirectory W:/RbfCodecCost/my-focused-run -Focused
 # 独立ZeroThenRandom / 两次有效随机候选后bitmap比较
 ./experiments/RbfCodecCost/Run-Probe.ps1 -OutputDirectory W:/RbfCodecCost/my-random-run -RandomSearch
+# Zero失败后，EscapePayload≤256B使用一个ulong；独立CPU专项
+./experiments/RbfCodecCost/Run-Probe.ps1 -OutputDirectory W:/RbfCodecCost/my-tiny-run -TinyKey
 ```
 
 输出必须是W:新/空目录。runner先Release build、禁用tiered compilation、运行C#、Python独立wire互证、记录CPU/SDK/NTFS卷及源码hash；日志在根，数据在 `data/`。失败文件保留；没有递归清理。普通完整run测CPU+I/O+meta；`-Focused`另跑7样本轮转读核和一个真实约256MiB最大帧。
 
 | 文件 | 作用 |
 | --- | --- |
-| PrototypeCodec.cs | 四Key策略、plaintext CRC/footer、完整body禁Key、跨chunk carry、可选连续Serialize |
+| PrototypeCodec.cs | 七Key策略、plaintext CRC/footer、完整body禁Key、跨chunk carry、可选连续Serialize |
 | XorTransform.cs | 相位正确的Vector/ulong XOR、融合coverage CRC；独立uint加减对照 |
 | StreamCodec.cs | 借用输入、有界输出、Key0 direct-write、小帧合写；本地完整checked-read |
 | CpuProbe.cs / Measurement.cs | 34 workloads、15ops、5样本，校准与allocation计量；连续reader核不消耗chunk列表 |
@@ -27,6 +29,7 @@
 | MetadataProbe.cs | 使用真实生产reader/cache读20B footer与meta；重复读取后尾/meta encoded bytes未改 |
 | FocusedProbe.cs | 同plaintext与copy工作的轮转读核；Key301、meta65535、最大FrameBytes真实W:round-trip |
 | RandomSearchProbe.cs / RandomSearchCorrectness.cs | 系统CSPRNG搜索、无bitmap/两次有效随机候选后fallback，7轮转样本和强制失败反例 |
+| TinyKeyProbe.cs / export_tiny_snapshot.py | 256B分帧区间内一个ulong标记、跨chunk/边界/shift别名反例；7轮转CPU证据与快照导出 |
 | verify_random_vectors.py / export_random_snapshot.py | 独立bitwise CRC32C显式Key wire裁判；原始hash守护后的新不可变快照导出 |
 | Correctness.cs / verify_vectors.py | guards/alias/phase/carry/CRC失败；四策略wire一致及Python独立语言裁判 |
 | WRITER-NOTES.md / READER-NOTES.md | agent局部源审查与原型契约；最终裁决以专项文档为准 |
@@ -46,3 +49,11 @@ python -B experiments/RbfCodecCost/export_random_snapshot.py W:/RbfCodecCost/my-
 ```
 
 exporter拒绝覆盖已有快照，核对185/20行、7样本和全部测量源码hash；其自身允许运行后仅证据派生说明变化，并明确记录。使用 `-RandomSearch -Quick` 可缩短为小/中帧与8MiB I/O冒烟，不做最大帧，也不满足正式导出的185/20门槛。
+
+小帧标量bitmap正式证据：[tiny-ulong-7667b9c-20261003.json](results/tiny-ulong-7667b9c-20261003.json)。`-TinyKey`仅运行CPU专项（固定7轮转样本），不测磁盘吞吐；104行/26workloads/4策略，新增448帧与112个Python独立wire向量。EscapePayload包含raw HeadLen，阈值按`FrameLength-4≤256`判定，实际编码body最多252B/63words。Zero成功仍直接返回；失败后一个ulong完整标记0..63、取最小可用值，超过阈值仍系统随机。标量及carry属于固定局部状态，ScratchBytes/BitmapBytes均不计数组分配；所有策略共同的PreparedFrame/Footer分配仍计时。
+
+```powershell
+python -B experiments/RbfCodecCost/export_tiny_snapshot.py W:/RbfCodecCost/my-tiny-run experiments/RbfCodecCost/results/my-new-tiny-snapshot.json
+```
+
+该exporter拒绝覆盖并核对104行、7样本、448帧和全部测量源码hash；正式目录`W:/RbfCodecCost/tiny-ulong-formal-20261003`。阈值内非零键收益及Zero路径波动见专项§3.2，不声称256B是跨平台最优阈值。
