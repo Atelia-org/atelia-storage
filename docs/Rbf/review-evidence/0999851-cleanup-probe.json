@@ -1,0 +1,101 @@
+{
+  "TargetCommit": "0999851207978fe947ecabccb1093e5774d007df",
+  "ReviewHead": "dabfa21c6663fa21f343761bea2f15ad07686fba",
+  "SourceManifestMatchesFormalSnapshot": true,
+  "SourceManifestEntries": 88,
+  "Role": "Baseline counterexample evidence; the archived source asserts duplicates in 0999851, not the intended regression contract after repair.",
+  "RawDirectory": "W:\\RbfFastOpen\\rbf3-findings-dialectic-20261003\\DataResetProbe",
+  "Build": {
+    "Configuration": "Release",
+    "ExitCode": 0,
+    "Warnings": 0,
+    "Errors": 0
+  },
+  "RunExitCode": 0,
+  "BinaryReferences": {
+    "Atelia.Data.dll": {
+      "Sha256": "a6d294714109da60872ae44111a75b2ee47d99516a32ea69f3907dcc82dc5b60",
+      "FormalManifestMatch": true
+    },
+    "Atelia.Primitives.dll": {
+      "Sha256": "21500985e0f5268ecd9cf99017e7164ba8f39194773e0935f34df8b13b79bed8",
+      "FormalManifestMatch": true
+    }
+  },
+  "Artifacts": {
+    "Program.cs": {
+      "Bytes": 3244,
+      "Sha256": "9d68d0f34400114024606fbe74aa20717859a5952fd57250e15dd2207d5817b6"
+    },
+    "DataResetProbe.csproj": {
+      "Bytes": 609,
+      "Sha256": "02e774f30ac0544e142601b37b1dbb92a6216f11cf287a4d5c284451b7eb9951"
+    },
+    "global.json": {
+      "Bytes": 105,
+      "Sha256": "8ede13416e0155ae327d8816fce07b9ba21cb4e2c1e0b17ae2f052fb89cccbd4"
+    },
+    "build.log": {
+      "Bytes": 365,
+      "Sha256": "82a673f5cc84e53b76c73673e5147d8e6979972b4a87de7de8d26db02f3afd9a"
+    },
+    "results.json": {
+      "Bytes": 1238,
+      "Sha256": "6d6c8c06402b885330868687fe30d8780999d17e3c88559f7c4bde8d50e8d30f"
+    }
+  },
+  "ArchivedSource": "0999851-cleanup-probe.cs",
+  "ProbeProject": "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup>\n    <OutputType>Exe</OutputType>\n    <TargetFramework>net10.0</TargetFramework>\n    <ImplicitUsings>enable</ImplicitUsings>\n    <Nullable>enable</Nullable>\n  </PropertyGroup>\n  <ItemGroup>\n    <Reference Include=\"Atelia.Data\">\n      <HintPath>E:/repos/Atelia-org/atelia-storage/src/Data/bin/Release/net10.0/Atelia.Data.dll</HintPath>\n    </Reference>\n    <Reference Include=\"Atelia.Primitives\">\n      <HintPath>E:/repos/Atelia-org/atelia-storage/src/Primitives/bin/Release/net10.0/Atelia.Primitives.dll</HintPath>\n    </Reference>\n  </ItemGroup>\n</Project>\n",
+  "Observed": {
+    "TargetCommit": "0999851207978fe947ecabccb1093e5774d007df",
+    "Runtime": ".NET 10.0.5",
+    "TieredCompilation": "0",
+    "Temp": "W:\\RbfFastOpen\\rbf3-findings-dialectic-20261003\\DataResetProbe\\temp\\",
+    "Rows": [
+      {
+        "Case": "reset-return-failure-then-dispose",
+        "RentCount": 2,
+        "PushCalls": 0,
+        "PushedBytes": 0,
+        "InjectedException": "InjectedAfterAcceptException",
+        "ReturnIds": [
+          1,
+          2,
+          1,
+          2
+        ],
+        "DuplicateReturns": 2,
+        "Scope": "Public Data writer with a custom pool that records acceptance before one injected Return exception; not actual SharedArrayPool or actual OOM. Caller only disposes after failure."
+      },
+      {
+        "Case": "commit-recycle-return-failure-then-dispose",
+        "RentCount": 2,
+        "PushCalls": 2,
+        "PushedBytes": 8196,
+        "InjectedException": "InjectedAfterAcceptException",
+        "ReturnIds": [
+          1,
+          2,
+          2
+        ],
+        "DuplicateReturns": 1,
+        "Scope": "Public Data writer with a custom pool that records acceptance before one injected Return exception; not actual SharedArrayPool or actual OOM. Caller only disposes after failure."
+      }
+    ]
+  },
+  "RuntimeSource": {
+    "Url": "https://github.com/dotnet/runtime/blob/v10.0.5/src/libraries/System.Private.CoreLib/src/System/Buffers/SharedArrayPool.cs",
+    "RelevantLines": [
+      124,
+      146,
+      149,
+      259
+    ],
+    "Claim": "Shared Return may allocate and can store the array in TLS before partition allocation; production OOM reachability is source-supported, not experimentally exhausted memory."
+  },
+  "Limits": [
+    "Only public Data writer with custom pool injection was executed; no real SharedArrayPool OOM.",
+    "The sink counts synchronous Push; no RBF writer, physical file output, crash, or payload CRC qualification in this probe.",
+    "No production sources were modified; no complete Data/RBF suite or downstream run."
+  ]
+}

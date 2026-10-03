@@ -344,6 +344,8 @@ Key预扫/bitmap、XOR/解码与历史W:成本保留专项；生产Append/Builde
 
 实施后的[代码设计审阅](rbf3-code-design-review-0999851.md)另行记录继承的入口状态缺口、公开串行合同、新诊断回归及具体枚举器改进；反例证据独立保留，建议修复尚未实施，不改写下述验收快照。
 
+后续修复范围及验收由[审阅 finding 处理方案](rbf3-review-findings-disposition.md)指导：该方案已辩证收窄入口承诺并补入归还资格的小修复，尚未应用到生产源码。
+
 ### 11.1 证据身份
 
 - 0999851对应源码树最终Release RBF闭包build成功（该日志0warnings/0errors），匹配 `--no-build` Rbf.Tests **670/670**通过、无跳过。运行发生在源码提交前的对应工作树，提交未改代码；日志/TRX：`W:/RbfFastOpen/rbf3-validation-1791001216923/{build-final.log,test-final.log,final.trx}`，TRX SHA256=`1f35acc487a9fcca6b14e89fd86bc5bc881c477378dcc3b7de1f0592a52f406c`。

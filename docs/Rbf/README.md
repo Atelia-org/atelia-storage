@@ -28,6 +28,7 @@ RBF（Reversible Binary Framing）是 Atelia 的二进制信封格式，用于�
 | [rbf-tail-recovery-review.md](rbf-tail-recovery-review.md) | Review | 三位 reviewer 两轮辩证复核的需求、裁决与证据记录 |
 | [rbf-open-fast-path-refactoring.md](rbf-open-fast-path-refactoring.md) | Implementation / RBF3 | 0999851源码、670/670测试及独立复核的正式W:证据见§11；健康/异常Open、实际接入成本与边界，不重标旧byte实验 |
 | [rbf3-code-design-review-0999851.md](rbf3-code-design-review-0999851.md) | Review / post-implementation | 四个独立工作包及W:反例探针；入口状态、默认FrameInfo、串行合同与分配优化建议，待后续修复 |
+| [rbf3-review-findings-disposition.md](rbf3-review-findings-disposition.md) | Implementation plan / finding disposition | 三方辩证裁决后的窄修复切片：晚发布Builder、default guard、归还尝试至多一次、具体遍历与说明修正；生产修改尚未实施 |
 | [rbf-codec-implementation-study.md](rbf-codec-implementation-study.md) | Research / implementation notes | writer预处理与reader解码专项保留历史byte测量；Data与RBF3接入已实施，新生产证据归实施记录§11 |
 | [ZeroThenTinyBitmapRandom基础方案](../Data/xor-escape-key-refactoring.md) | Implementation / Data foundation | 已实施：Fence≥2^26、Data窄API、共享选择/XOR核与具体writer fused接点；三spans/真实chunks同切片资格，byte输入/int长度域保留；结果见§9 |
 | [rbf-derived-notes.md](rbf-derived-notes.md) | Derived | 推导、算例与答疑（允许滞后/可删改） |
