@@ -58,6 +58,9 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
 
     #region Read Methods（成员方法）
 
+    private RandomAccessReader RequireReader() =>
+        Reader ?? throw new InvalidOperationException("Frame info is not initialized.");
+
     /// <summary>读取 TailMeta 到调用方提供的 buffer（L2 信任，不校验 PayloadCrc）。</summary>
     /// <param name="buffer">调用方提供的 buffer，长度 MUST &gt;= TailMetaLength。</param>
     /// <returns>成功时返回 RbfTailMeta（TailMeta 指向 buffer 子区间），失败时返回错误。</returns>
@@ -67,7 +70,8 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
     /// 生命周期：返回的 TailMeta 直接引用 buffer，调用方 MUST 确保 buffer 有效。
     /// </remarks>
     public AteliaResult<RbfTailMeta> ReadTailMeta(Span<byte> buffer) {
-        var candidateError = Reader?.ValidateTicket(Ticket);
+        RandomAccessReader reader = RequireReader();
+        var candidateError = reader.ValidateTicket(Ticket);
         if (candidateError != null) { return candidateError; }
         int tailMetaLen = TailMetaLength;
 
@@ -90,7 +94,7 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
 
         // 4. 读取 TailMeta 数据
         var tailMetaBuffer = buffer[..tailMetaLen];
-        int tailMetaBytesRead = Reader!.Read(tailMetaBuffer, tailMetaOffset);
+        int tailMetaBytesRead = reader.Read(tailMetaBuffer, tailMetaOffset);
 
         // 5. I/O 级校验：short read
         if (tailMetaBytesRead < tailMetaLen) {
@@ -100,7 +104,7 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
             );
         }
 
-        if (Reader.Profile == RbfProfile.Rbf3) { XorEscape.InPlace(tailMetaBuffer, EscapeKey, PayloadLength & 3); }
+        if (reader.Profile == RbfProfile.Rbf3) { XorEscape.InPlace(tailMetaBuffer, EscapeKey, PayloadLength & 3); }
 
         // 6. 构造并返回 RbfTailMeta
         return new RbfTailMeta(Ticket, Tag, tailMetaBuffer, IsTombstone);
@@ -114,7 +118,8 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
     /// 生命周期：成功时调用方拥有 buffer 所有权，MUST 调用 Dispose。
     /// </remarks>
     public AteliaResult<RbfPooledTailMeta> ReadPooledTailMeta() {
-        var candidateError = Reader?.ValidateTicket(Ticket);
+        RandomAccessReader reader = RequireReader();
+        var candidateError = reader.ValidateTicket(Ticket);
         if (candidateError != null) { return candidateError; }
         int tailMetaLen = TailMetaLength;
 
@@ -122,7 +127,7 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
         if (tailMetaLen == 0) { return new RbfPooledTailMeta(Ticket, Tag, IsTombstone); }
 
         // 2. 从 ArrayPool 租 buffer（只租 TailMetaLength 大小）
-        Reader!.BufferRentObserver?.Invoke(tailMetaLen);
+        reader.BufferRentObserver?.Invoke(tailMetaLen);
         byte[] rentedBuffer = ArrayPool<byte>.Shared.Rent(tailMetaLen);
 
         try {
@@ -131,7 +136,7 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
 
             // 4. 读取 TailMeta 数据（限定 Span 长度）
             var tailMetaBuffer = rentedBuffer.AsSpan(0, tailMetaLen);
-            int tailMetaBytesRead = Reader!.Read(tailMetaBuffer, tailMetaOffset);
+            int tailMetaBytesRead = reader.Read(tailMetaBuffer, tailMetaOffset);
 
             // 5. I/O 级校验：short read
             if (tailMetaBytesRead < tailMetaLen) {
@@ -142,7 +147,7 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
                 );
             }
 
-            if (Reader.Profile == RbfProfile.Rbf3) { XorEscape.InPlace(tailMetaBuffer, EscapeKey, PayloadLength & 3); }
+            if (reader.Profile == RbfProfile.Rbf3) { XorEscape.InPlace(tailMetaBuffer, EscapeKey, PayloadLength & 3); }
 
             // 6. 成功：构造 RbfPooledTailMeta
             return new RbfPooledTailMeta(rentedBuffer, Ticket, Tag, tailMetaLen, IsTombstone);
@@ -158,19 +163,21 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
     /// <param name="buffer">调用方提供的 buffer，长度 MUST &gt;= Ticket.Length。</param>
     /// <returns>成功时返回 RbfFrame（Payload 指向 buffer 子区间），失败时返回错误。</returns>
     /// <remarks>
-    /// 委托到 <see cref="RbfReadImpl.ReadFrame"/>，执行完整 framing + CRC 校验。
+    /// 复用构造时完成的 Trailer 资格；本次读取仍验证 PayloadCRC（覆盖 Payload、TailMeta 与 Padding）。
     /// </remarks>
     public AteliaResult<RbfFrame> ReadFrame(Span<byte> buffer) {
-        return RbfReadImpl.ReadFrame(Reader, in this, buffer);
+        RandomAccessReader reader = RequireReader();
+        return RbfReadImpl.ReadFrame(reader, in this, buffer);
     }
 
     /// <summary>读取完整帧（自动租用 buffer）。</summary>
     /// <returns>成功时返回 RbfPooledFrame，失败时返回错误（buffer 已自动归还）。</returns>
     /// <remarks>
-    /// 委托到 <see cref="RbfReadImpl.ReadPooledFrame"/>，执行完整 framing + CRC 校验。
+    /// 复用构造时完成的 Trailer 资格；本次读取仍验证 PayloadCRC（覆盖 Payload、TailMeta 与 Padding）。
     /// </remarks>
     public AteliaResult<RbfPooledFrame> ReadPooledFrame() {
-        return RbfReadImpl.ReadPooledFrame(Reader, in this);
+        RandomAccessReader reader = RequireReader();
+        return RbfReadImpl.ReadPooledFrame(reader, in this);
     }
 
     #endregion

@@ -12,6 +12,17 @@ public sealed class Rbf3ReaderTests : IDisposable {
 
     public void Dispose() => File.Delete(_path);
 
+    [Fact]
+    public void DefaultFrameInfo_ReadMethodsThrowInitializationError() {
+        RbfFrameInfo info = default;
+        const string message = "Frame info is not initialized.";
+
+        Assert.Equal(message, Assert.Throws<InvalidOperationException>(() => info.ReadTailMeta(Array.Empty<byte>())).Message);
+        Assert.Equal(message, Assert.Throws<InvalidOperationException>(() => info.ReadPooledTailMeta()).Message);
+        Assert.Equal(message, Assert.Throws<InvalidOperationException>(() => info.ReadFrame(Array.Empty<byte>())).Message);
+        Assert.Equal(message, Assert.Throws<InvalidOperationException>(() => info.ReadPooledFrame()).Message);
+    }
+
     [Theory]
     [InlineData(RbfCacheMode.Off)]
     [InlineData(RbfCacheMode.Slots2)]
