@@ -2,6 +2,8 @@
 
 支撑 [实施专项文档](../../docs/Rbf/rbf-codec-implementation-study.md)与[普通打开重构方案](../../docs/Rbf/rbf-open-fast-path-refactoring.md)。只含实验，生产仍为 RBF1。比较有界 Key 搜索、XOR / uint32加减法、普通解码与融合CRC，使用生产CRC和cache；RBF1真实API作参照。
 
+证据边界（2026-10-03）：已提交原型及快照仍把HeadLen/TailLen存为byte长度；最新重构方案已采纳4B units与Fence≥2^26。旧代码/数值/hash保持原样，不直接重解释旧实验RBF2文件。后续新units的wire、LE(U) TrailerCRC及缺Key恢复须新增独立向量与结果；Data基础入口见[实现方案](../../docs/Data/xor-escape-key-refactoring.md)。
+
 固定 .NET10.0.201、Python3标准库、PowerShell7。从仓库根串行执行：
 
 ```powershell
@@ -36,7 +38,7 @@
 
 固定汇总：[codec-cost-5711c47-20261002.json](results/codec-cost-5711c47-20261002.json)。原始W:目录、sourcehash及阶段差异在汇总中；旧阶段不替换或声称全部hash匹配当前入口。源码hash针对运行时工作树原始字节；Git依 `.gitattributes` 转换换行的重新checkout可能改变字节hash，不能据此推断逻辑变化。最初byte-XOR短测和不对等metrics I/O被排除，CPU工作核保持，修正I/O与补测分别记录。
 
-CPU的Split/连续destination是计时外fixture；Prepare的Footer/PreparedFrame与bitmap是实验heap分配，不等于生产必要分配。输出workspace在计时前获得，尚未计Pool获取/归还。wire cache复用不等于已实现生产RBF2 API；Builder pending visitor/原地guard仍只是源码支持的设计。加法未测完整writer/非对齐preview真实I/O。所有读取标为OS warm，不证明物理cold SSD、断电、生产恢复、包消费或solution通过。
+CPU的Split/连续destination是计时外fixture；Prepare的Footer/PreparedFrame与bitmap是实验heap分配，不等于生产必要分配。输出workspace在计时前获得，尚未计Pool获取/归还。wire cache复用不等于已实现生产RBF2 API；Builder真实接点以Data方案的具体writer fused方法为准，旧visitor/专用guard候选已删除。加法未测完整writer/非对齐preview真实I/O。所有读取标为OS warm，不证明物理cold SSD、断电、生产恢复、包消费或solution通过。
 
 ZeroThenRandom 新证据：[zero-then-random-0e0df09-20261003.json](results/zero-then-random-0e0df09-20261003.json)，正式run在 `W:/RbfCodecCost/random-formal-20261003`。185 CPU/20 I/O记录，均7样本轮转；0成功无RNG，失败后 `RandomNumberGenerator.Fill` 抽全uint32并拒绝0/Fence。无bitmap版一直完整检测到成功，比较版最多两次有效随机候选扫描后fallback；rejection draws不受这个扫描预算约束。
 

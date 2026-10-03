@@ -10,6 +10,8 @@ normative: false
 
 日期：2026-10-01。状态：RBF 本体已实施；下游接线按用户后续授权暂缓。公开行为已同步到 [接口契约](rbf-interface.md)。本次按 `dialectical-simplification` 完成三位独立 reviewer、两轮交叉质询与主线程源码裁决；[裁决与证据记录](rbf-tail-recovery-review.md)保留需求来源、反例和撤回项。
 
+2026-10-03 范围标注：本文记录已实施的 **RBF1 byte-length格式与墓碑恢复**，正文作为旧实现依据保留。后续新profile采用HeadLen/TailLen的4B units、Fence≥2^26、结构Open和截尾/补原Key+Fence，实施请以[普通打开快路径重构方案](rbf-open-fast-path-refactoring.md)及[Data基础方案](../Data/xor-escape-key-refactoring.md)为准。新方案尚未实施，本记录不作units恢复验收。
+
 依据当前 working tree，而非仅 HEAD `bf7d68ab3f3fbad18b87549dbf6ce2aae499c24a`。其中已有未提交的 Audit、固定 EOF candidate、读取计量、写入注入和 `RbfPrefixInspector`，均按当前源码核对。用户已明确无兼容性包袱、允许 API breaking；尽可能保持 wire format。
 
 ## 1. 最小模型

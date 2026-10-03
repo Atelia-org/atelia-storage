@@ -14,7 +14,9 @@ normative: false
 
 基础API及Builder接点由 [Data实现重构方案](../Data/xor-escape-key-refactoring.md)承接：两轮辩证简化选择三个借用spans入口、内部共享核和具体writer一次选键/XOR能力；删公共source/view/visitor及byteCount。下述测量仍是实验结果，Data生产基础和新RBF接入尚未实施。
 
-审查后的用户澄清进一步认可Fence≥64：Data据此删除Fence=0和tiny raw Fence占位/Key64特例，EscapeKey仍支持完整uint32。RBF现有候选Fence满足约束；下述固定Fence实验及其不可变快照无需改写，生产入口拒绝测试仍待基础实施。
+2026-10-03 最终方案采用 **HeadLen/TailLen存4B units、Fence≥2^26**，详细wire合同归[主方案§4](rbf-open-fast-path-refactoring.md#4-单份尾-key-布局与快开算法)。物理FrameBytes长度为L bytes，wire字段存U=L>>2，合法 `7≤U<2^26`；raw头不XOR，尾长度参与body XOR。Data统一Fence下界但仍接收bytes/int域body，EscapeKey完整uint32。tiny只需F≥64，新下界已满足，算法不增加分支。
+
+**下面所有已提交实验原型、快照与测量仍使用byte HeadLen/TailLen。** 旧结果支撑算法和成本建议，不验收新units wire的CRC或恢复；源码hash、数值和实验fixture保持原样。下文实施建议已按units更新，实施须新增明确标识的新向量；不得把旧RBF2实验文件重解释为新生产profile。候选Fence=0x32464252满足新下界，生产入口拒绝测试待基础实施。
 
 ## 1. 需求与证据边界
 
@@ -24,6 +26,7 @@ normative: false
 | 真实读写使用 W: 数据 SSD | 用户指定；所有专项数据、日志与实际大帧在 W: |
 | uint32 模加法作为候选 | 用户线索；验证存在性、wire、核函数与切片限制，不预先排除 |
 | 任意 binary、约 256MiB 上限、完整读 CRC、逆序元信息不读头/payload | 已接受的 RBF 设计及现行代码；保留 |
+| Head/Tail长度4B units、Fence≥2^26、public长度仍用bytes | 用户接受两轮独立比较结论；原始实验为byte字段，新合同进入后续生产资格 |
 | Open 结构 / ReadFrame 内容职责；单尾截断或补原 Key/Fence；进程终止 | 先前用户决定；本专项不改变恢复模型 |
 | reservation/epoch、取消、pooled lifetime、write/flush fault | 现行接口、源码与测试；优化不能绕过 |
 | 下游、离线救援、冷热 Open、异常扫描性能、断电及包发布 | 本专项之外；不以本轮结果声称完成 |
@@ -32,7 +35,7 @@ normative: false
 
 ## 2. 整帧依赖存在，但不需要再复制整帧
 
-候选 FrameBytes 仍为 `HeadLen4 + encoded body + TailKey4`，后接 Fence4；body 包括 payload、meta、padding、PayloadCRC 和 Trailer16。每个 plaintext word w 排除 `Key=w XOR F`，m 个 words 在 `[0,m]` 至少留下一个 Key；这是 bitmap 的充分候选范围，不是 wire-format 必需的 Key 上限。随机搜索允许完整 uint32 值域，但 raw TailKey 必须不等于 Fence。
+实施布局为 `HeadLenUnits4 + encoded body + TailKey4`，后接Fence4；body包括payload、meta、padding、PayloadCRC和Trailer16，Trailer末word明文是TailLenUnits=U。`m=U-2=(L-8)/4`，旧24B固定开销增至28B、M=2^28-4 bytes不变。每个plaintext word w排除 `Key=w XOR F`，m个words在 `[0,m]` 至少留下一个Key；在RBF域m<F，该区间也避开raw F。这是bitmap的充分候选范围，不是wire-format必需的Key上限。随机搜索仍允许完整uint32，raw TailKey必须不等于Fence；Data更大的int body域不能沿用RBF的8MiB bitmap界。
 
 因此第一次发布之前必须知道完整 coverage、CRC 和 footer。只看 payload、不看最后 footer 就选 Key 不成立，例如合法业务 tag 本身也能排除候选。逐个递增 Key 试扫会在低 Key 禁词位于帧末尾时变成二次工作量；2026-10-02 的方案以固定候选加 bitmap 限制它，2026-10-03 的新方案改用与固定输入独立的随机候选。
 
@@ -126,7 +129,7 @@ I/O共20条记录，全部writer变体同工作量；workspace取得与文件创
 
 正确性新增848帧、2512次损坏拒绝、153个独立Python **bitwise** CRC/wire裁判；153个fixture本次均Key>旧m上限。跨chunk/非滑动Fence、footer独自禁0、拒绝rawKey=Fence、跳过0、全uint高Key、两CRC、原文与唯一缺Key公式均核对。真实W:最大帧 `L=268435452`、Key=3819218019、meta65535，0 bitmap，两种完整读以及 `encodedTailLen XOR HeadLen` 重建通过；主线程另核对实际Header/HeadLen/rawKey/Fence、独立bitwise TrailerCRC，文件SHA256为 `df15abfc41679344174aab913864818a32f50e195b3e6d5d99a5bf69d42ebf62`。单次大帧不排名延迟。
 
-本轮把 `StreamCodec.DecodeAndCheck` 的Key上限改成只拒绝Fence。旧 `MetadataProbe` 仍使用确定策略fixture和m上限，**未验收全uint随机Key的独立meta/cache API**；生产接入需统一相关guard。旧FastOpen历史模型/快照仍保留其有界Key条件，不能直接声称已验证全uint随机writer的进程恢复。缺Key代数重建与随机搜索正交；是否取消补Key仍是后续需求决定。本轮实验不改变恢复政策。
+本轮把 `StreamCodec.DecodeAndCheck` 的Key上限改成只拒绝Fence。旧 `MetadataProbe` 仍使用确定策略fixture和m上限，**未验收全uint随机Key的独立meta/cache API**；生产接入需统一相关guard。旧FastOpen历史模型/快照仍保留其有界Key条件，不能直接声称已验证全uint随机writer的进程恢复。缺Key代数重建与随机搜索正交；既定主方案保留补原Key/Fence，本轮历史实验不改变恢复政策。
 
 所有C#核与runner在正式测量期间通过源码hash前后守护；结束后仅证据派生exporter补充Samples解释，差异列在快照中。实验Release增量构建0警告/错误；首次quick重编译依赖有43条既有XML文档警告、0错误，保留日志。匹配Release RBF.Tests本轮504/504通过，TEMP/TMP在W:，TRX保存在 `W:/RbfCodecCost/random-formal-20261003/rbf-tests`；未更改生产src或宣称solution、包消费、生产RBF2验收。
 
@@ -173,7 +176,7 @@ uint key = (uint)BitOperations.TrailingZeroCount(~forbidden);
 
 ### 4.1 Append：借用输入，按需租有界 scratch
 
-先完成全部参数/offset 校验、CRC/footer 与 Key；随后按顺序输出 raw HeadLen、encoded body、raw Key/Fence。Key0 大帧可直接写原 spans，不需要编码 scratch。小帧合并头尾减少调用；非零 Key 大帧使用每 writer 按需取得、重复利用的有界输出空间。
+先完成全部参数/byte长度/offset校验，得到U=L>>2；plaintext footer写TailLenUnits=U并按实际LE(U)封TrailerCRC，再选Key。随后按顺序输出raw HeadLenUnits=U、encoded body、raw Key/Fence。Key0大帧可直接写原spans，不需要编码scratch。小帧合并头尾减少调用；非零Key大帧使用每writer按需取得、重复利用的有界输出空间。
 
 本机建议先采用 **1MiB 非零 Key 输出 workspace**，不按帧 new，不让 Key0 大帧支付这个空间。依据是同一1MiB marker、64帧/64MiB batch、5次轮转样本：
 
@@ -195,9 +198,9 @@ uint key = (uint)BitOperations.TrailingZeroCount(~forbidden);
 推荐顺序：
 
 1. 检查 epoch、长度/meta、唯一且有效的 HeadLen reservation、无未 Advance 借用、`PushedLength==0`；所有可预见 Result 拒绝都在这里结束。
-2. 补明文padding，计算coverage CRC，将完整plaintext CRC/Trailer追加并Advance到pending chunks，暂不写raw Key/Fence。
+2. 补明文padding，计算coverage CRC，Trailer写TailLenUnits=U后按LE(U)字节封TrailerCRC，将完整plaintext CRC/Trailer追加并Advance到pending chunks，暂不写raw Key/Fence。
 3. 调用具体 `XorEscapeSinceReservationEnd(headToken,fence)`：内部选择Key，遍历reservation后全部已写body `[4,L-4)`并保持累计相位原地XOR；raw HeadLen在范围之前，TailKey/Fence尚未追加。
-4. HeadLen 继续 pending 时追加 raw Key/Fence 并 Advance，再回填 HeadLen、调用原 `Commit(HeadLen)` 同步 Push；正常返回后推进 TailOffset，原 chunk 在 Push 返回后才回收。追加闭合字段的准备异常仍按未发布异常取消当前 Builder。
+4. HeadLen reservation继续pending时追加raw Key/Fence并Advance，再回填raw HeadLenUnits=U、调用原 `Commit(HeadLen)` 同步Push；正常返回后推进byte TailOffset，原chunk在Push返回后才回收。追加闭合字段的准备异常仍按未发布异常取消当前Builder。
 
 经Data方案两轮反审，最窄接点改为具体writer内完成选键和变换的一个成员，删除公开SpanAction/visitor及显式byteCount。按上述合法顺序，reservation末尾到当前written-end就是完整body；不要复用含raw Fence的旧WriteTail后再调用它。Data先验证唯一有效pending token、无未Advance借用和派生后缀的int/4B域；整个操作不Push、不Commit、不推进Length/PushedLength，不公开池数组或chunk视图。内部来源用具体值cursor，当前GetActiveChunks的IEnumerable接口路径不能作为无分配证据。
 
@@ -214,7 +217,9 @@ uint key = (uint)BitOperations.TrailingZeroCount(~forbidden);
 
 保持 [ReverseReadCache](../../src/Rbf/ReadCache/ReverseReadCache.cs) 的 encoded wire pages。只有复制/读取到 caller 或 pooled buffer 后才解码；否则同页不同 Key 和重复读取会破坏 cache。
 
-完整读的最小顺序：检查 ticket/目标长度、读完并先拒绝 short read；取 raw TailKey，局部解码并验证 Trailer；按合法布局解码 coverage 与存储 CRC，调用现有 forward PayloadCRC；两项 CRC 成功后才返回 frame。HeadLen/TailKey保持 raw，普通读仍不检查 ticket 外 Fence。pooled Result失败/异常各归还一次，成功转移原租用 buffer，不加新 lease。
+完整读的最小顺序：检查byte ticket/目标长度、读完并先拒绝short read；取raw TailKey并拒绝Key==F，局部解码并按原plaintext wire字节验证TrailerCRC，验TailLenUnits范围后换算L，再与ticket/HeadLenUnits核对；按合法布局解码coverage与存储CRC，调用现有forward PayloadCRC；两项CRC成功后才返回frame。encoded TailLen可占全uint32，不能先mask/套用26bit上界；合法U无需低2bits对齐检查，必须先range再shift。HeadLenUnits/TailKey保持raw，普通读仍不检查ticket外Fence。pooled Result失败/异常各归还一次，成功转移原租用buffer，不加新lease。
+
+TrailerCRC覆盖实际LE(U)，不得先将Trailer末字段原位改为L再校验。profile专属解析在wire边界向byte布局归一化，FrameInfo、meta位置与Data API继续使用bytes；旧byte TrailerCodewordHelper不能无区别地复用于新units字段。缺Key恢复的唯一公式是 `K*=LE_u32(encoded TailLenUnits) XOR U`，不是XOR L；具体完整body资格由主方案§6定义。
 
 XOR 相位始终是相对 body 起点 frame+4 的累计 byte offset。完整 coverage 是0，meta 是 PayloadLength，padding 是 payload+meta，Footer 是 inputLength。Key0 原地解码为空操作。使用 `Vector` 批量变换，尾段 ulong/4/2/1；不重置每个 span/chunk 的相位。
 
@@ -239,7 +244,7 @@ FrameInfo 固定20B、reverse尾块24B。非对齐 TailMeta直接读原区间并
 
 ## 6. uint32 模加法：可行，暂不替换 XOR
 
-用户的数值环解释成立：`E(w)=w+K mod 2^32`，每个 word排除 `K=F-w mod 2^32`；m+1存在性、bitmap充分候选范围和marker-free前缀证明保持。完整 body 缺 Key 时唯一值改为 `encodedTailLen-L mod 2^32`。CRC仍计算 plaintext。两种方案相同固定开销和整帧依赖。
+用户的数值环解释成立：`E(w)=w+K mod 2^32`，每个word排除 `K=F-w mod 2^32`；m+1存在性、bitmap充分候选范围和marker-free前缀证明保持。若用于新units布局，完整body缺Key时唯一值为 `encodedTailLenUnits-U mod 2^32`；旧byte实验对应的是encodedTailLen-L。CRC仍计算实际plaintext wire。两种方案相同固定开销和整帧依赖。
 
 必须逐32-bit lane运算，不能用一次ulong加重复Key；低word的carry会串到高word。向量加减吞吐与XOR接近，前表没有显示稳定优势；数学解释更自然不等于读写管线更少。
 
@@ -272,6 +277,6 @@ Fence、尾 EscapeKey、CRC 和 Trailer 均为4B对齐；完整 body 也由paddi
 
 保留CPU正式阶段、修正I/O阶段、补测阶段各自产物与源码hash。后两阶段新增入口参数使Program/runner不同；只比较相应工作核源码，不能写所有历史hash匹配当前全部源码。最初短测的byte-XOR与uint-add不公平、首次I/O的生产metrics在计时内，均不参与上述最终裁决；原始目录保留用于追查。
 
-后续最小实施顺序：先完成Data方案的一个基础切片，同时资格三个借用spans与真实writer多chunks；再按RBF主方案接入Append/Builder尾布局、取消/重试/fault、按需workspace、caller/pooled解码及所有info/meta/cache入口。复用现有CRC和故障事实，不加codec框架或配置层。
+后续最小实施顺序：先完成Data方案的一个基础切片，同时资格Fence下界、三个借用spans与真实writer多chunks；再按RBF主方案落实新profile与units黄金向量，接入Append/Builder尾布局、取消/重试/fault、按需workspace、caller/pooled解码及所有info/meta/cache入口。复用现有CRC和故障事实，不加codec框架或配置层，也不因长度单位另拆assembly。
 
-实施退出需要：旧reservation/epoch/Result可纠正拒绝保留；首次padding/footer修改后的准备或转换异常零发布且Builder取消，后续新Builder正常；Data fused不callback/Push/泄漏view；Push/flush异常永久fault及池只归还一次；Footer禁Key、任意chunk相位与两CRC；真实生产Append/Builder/读路径W:端到端成本。现有process-prefix/单尾恢复实验另接生产实现后验收。
+实施退出需要：旧reservation/epoch/Result可纠正拒绝保留；首次padding/footer修改后的准备或转换异常零发布且Builder取消，后续新Builder正常；Data fused不callback/Push/泄漏view；Push/flush异常永久fault及池只归还一次；Footer禁Key、任意chunk相位与两CRC；新U范围先于shift、LE(U) CRC、高位Key及units缺Key恢复独立资格；真实生产Append/Builder/读路径W:端到端成本。现有byte process-prefix/单尾恢复实验只作参照，新units恢复另接生产实现后验收。

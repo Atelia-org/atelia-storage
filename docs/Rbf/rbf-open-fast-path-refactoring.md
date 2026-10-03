@@ -1,6 +1,6 @@
 ---
 title: "RBF 普通打开快路径重构方案"
-status: "Proposed refactoring plan / implementation pending"
+status: "Accepted refactoring plan / implementation pending"
 normative: false
 ---
 
@@ -16,7 +16,9 @@ normative: false
 
 基础实现另见 [ZeroThenTinyBitmapRandom重构方案](../Data/xor-escape-key-refactoring.md)：两轮辩证审查选择Data窄入口、内部共享选键/XOR核；Append至多三个借用spans，Builder对reservation后全部已写bytes一次选键并原地变换，不公开source/view/visitor。基础及真实Builder资格同一个待实施切片，不改变本文件的格式/恢复规则。
 
-后续需求澄清将Data选键入口的Fence限定为uint范围64..uint.MaxValue，EscapeKey仍保留完整uint32值域。RBF的候选Fence=0x32464252满足约束；tiny无需raw Fence占位或Key64补位，该收窄不改变RBF wire/恢复策略。
+2026-10-03 最终长度裁决：用户接受两轮独立审查收敛的 **HeadLen/TailLen以4B为单位、Fence≥2^26**。令物理FrameBytes长度为L bytes，wire字段存 `U=L>>2`，Fence下界是 `0x04000000`（67108864）。Data选键入口同步限定到该Fence范围，EscapeKey仍保留完整uint32值域。RBF候选Fence=0x32464252满足约束；不再附加 `Fence & 3 != 0` 规则。本文§4是新长度编码的方案依据，Data不拥有长度字段。
+
+此前实验profile的HeadLen/TailLen均存byte长度。已有快照、黄金向量和性能结果原样保留，**不作为新units wire的CRC、恢复或生产格式验收**；实施阶段须新增明确标识的向量和证据。
 
 用户当前决定：**单个 RBF 文件优先；恢复目标仅进程终止，断电依赖平台；确认真实边界后可截掉未完成帧；Open 负责分帧结构，PayloadCRC 留给 ReadFrame；只考虑补原尾 Key/Fence；保留约 256MiB 单帧上限；逆序读取优先，研究省头 Key。** 独立反审与字节推演支持采用这些简化。
 
@@ -93,31 +95,45 @@ normative: false
 
 术语采用 **EscapeKey（二进制转义键）**，指每帧用于消除 encoded body 内对齐 Fence 的 uint32 参数。后文 Key/K 与 TailKey 均指此值；TailKey 仅表示尾部存放位置。其语义不绑定 XOR 或模加法，也不要求消除非对齐滑动窗口内的 Fence 字节序列。
 
-**EscapePayload** 是前一条Fence之后、尾EscapeKey之前的内容无关分帧区间：`raw HeadLen + encoded body`，长度`L-4`。其中raw HeadLen不参与XOR；键选择遍历的编码body长度为`L-8`。小帧阈值按EscapePayload长度判定，不按user payload或TailMeta长度判定。
+**EscapePayload** 是前一条Fence之后、尾EscapeKey之前的内容无关分帧区间：`raw HeadLenUnits + encoded body`，长度`L-4` bytes。其中raw HeadLenUnits不参与XOR；键选择遍历的编码body长度为`L-8` bytes。小帧阈值按EscapePayload长度判定，不按user payload或TailMeta长度判定。
 
 候选 Header / Fence 为 `RBF2`，其 LE u32 值记为 `F=0x32464252`：
 
 ```text
 FrameBytes =
-    raw HeadLen       4B
+    raw HeadLenUnits  4B LE，值为 U
     XOR_Key(
         Payload + TailMeta + zero Padding
         + PayloadCRC  4B
-        + TrailerCodeword 16B
+        + TrailerCodeword 16B（末word是TailLenUnits，明文值为U）
     )
     raw TailKey       4B
 后接 Fence            4B
 ```
 
-CRC 先按 plaintext 计算，再对连续 body 编码。PayloadCRC 正向计算、LE 存储；TrailerCRC 对 `descriptor LE || tag LE || TailLen LE` 的字节反向计算、BE 存储；word XOR 按 LE 解释。遍历方向与存储端序独立验证。
+CRC先按plaintext计算，再对连续body编码。PayloadCRC正向计算、LE存储；TrailerCRC对 `descriptor LE || tag LE || TailLenUnits LE` 的原始wire字节反向计算、BE存储；word XOR按LE解释。TrailerCRC覆盖的是LE(U)，不是LE(L)。读端先解码并验证这份Trailer，再向内部布局转换为byte长度，禁止先把TailLen字段改写成L再验CRC。遍历方向与存储端序独立验证。
 
-HeadLen/TailLen 均计 FrameBytes 物理长度 L，不含 Fence。固定开销旧 24B → 新 28B，PayloadOffset 仍为 4，body words 数 `m=(L-8)/4`。约 256MiB 最大物理长度保持，`M=2^28-4`；相同 M 下 payload+TailMeta 容量减少 4B，旧 decoder 保留旧完整容量。TailMeta 65535B 与业务 tag 值域保持。SizedPtr 仍是 offset+length。
+HeadLen/TailLen仍描述同一FrameBytes、不含Fence，但新profile的两个uint32 LE字段都存 **U个4B units**，以下称HeadLenUnits/TailLenUnits。字段各占4B，数值本身无需是4的倍数。固定开销旧24B→新28B，PayloadOffset仍为4，body words数 `m=U-2=(L-8)/4`。
+
+| 量 | 新profile契约 |
+| --- | --- |
+| 物理FrameBytes长度L | `28≤L≤M` bytes，4B对齐；`M=SizedPtr.MaxLength=2^28-4=268435452` bytes |
+| wire长度U | `U=L>>2`；`7≤U<2^26`，最大67108863；HeadLenUnits明文，TailLenUnits参与body XOR |
+| wire→内部长度 | **先验证U的完整uint32值在上述范围内，再计算L=U<<2**；不能mask高bits或先shift后验证 |
+| Fence F | uint范围 `2^26..uint.MaxValue`；候选 `0x32464252`，最终生产profile标识按G0确定 |
+| API与位置 | ticket/SizedPtr.Length、offset、span长度、TailMetaLength、PayloadLength及所有读取范围继续以bytes表示 |
+
+仅在新profile的序列化/解析边界换算，不新增公开units类型、长度模式enum或第二份持久长度。相同M下payload+TailMeta容量减少4B，旧decoder保留旧完整容量。TailMeta 65535B与业务tag值域保持；不修改SizedPtr公共byte语义或额外收窄合法frame起点。
+
+此选择来自word分帧本身：所有合法wire长度形成连续值域，读端range检查后的转换自然得到4B对齐长度；`U<F`统一排除了raw长度成为Fence的可能。byte单位并不会自动提供非对齐分帧能力，后者还需改变Fence扫描网格、word编码与票据约束。两方案合法编码数量相同，不声称units增强CRC保护、节省空间或已有实测速度优势。
 
 ### 4.1 Key 存在性与前缀证明
 
 每个 plaintext word w 只排除一个 Key：`w XOR Key == F ⇔ Key == w XOR F`。m 个 words 至多排除 m 个 Key，因此 `[0,m]` 必有可用值；这是 bitmap 对照/fallback 的存在性证明，不是所有有效 EscapeKey 的值域限制。当前实施主候选先完整检查 Key0；禁0且`L-4≤256`时，body至多63words，用一个ulong标记0..63并取最小未标记值，无随机调用或数组bitmap。较大帧以系统随机源抽取全 uint32 Key，排除0/Fence，再检测完整 body 是否含 `F XOR Key`，遇禁值继续抽取，不建立 bitmap。内容固定、抽样独立均匀时，约256MiB帧每次有效候选失败概率小于1/64，随机尝试次数的期望小于64/63；这些是理论界，无确定次数或耗时上限。实验保留两次有效随机候选扫描失败后 bitmap 的比较版本。Key0 省 XOR；非零随机 Key 不要求最小，wire 可随抽样改变，原文、物理长度和 ticket 不变。
 
-coverage、PayloadCRC 与完整 Trailer 均纳入连续 word 划分，跨 span/chunk 不能重置相位。raw HeadLen 合法对齐，不等于 F；raw TailKey 必须不等于 F；所有 encoded body words 不等于 F。因此正常 writer 任意进程终止前缀中，完整的全局 4B 对齐 Fence 只在真实边界出现。尾 Key 的 F 排除不能只靠 body 检测代替；删除头 Key、放宽非零 Key 值域均不影响此证明。
+coverage、PayloadCRC与完整Trailer均纳入连续word划分，跨span/chunk不能重置相位。raw HeadLenUnits满足 `U<2^26≤F`，不等于F；raw TailKey必须不等于F；所有encoded body words不等于F。物理长度L=4U保证边界始终位于全局4B网格。因此正常writer任意进程终止前缀中，完整的全局4B对齐Fence只在真实边界出现。尾Key的F排除不能只靠body检测代替；F的下界也不能删除全uint32随机路径的Key!=F检查。
+
+在RBF容量域，`m≤2^26-3<F`，故完整bitmap对照的 `[0,m]` 候选天然避开raw F，最大8MiB。这为未来FullBitmap实现保留简化空间，不把它加入默认策略。Data仍支持更大的int长度body，不能把这个候选分离或8MiB界推广到全部Data输入。
 
 这是正常 writer 与顺序写出前缀的保证。进程终止后 OS/文件系统仍运行；不另建断电、sector 撕裂或设备乱序协议。任意位损坏或手工镜像可能破坏 marker-free invariant；局部 Open 不是任意镜像认证。Open 不遍历 body 重证这个 writer invariant，也不以 PayloadCRC 代替成员证明。
 
@@ -126,13 +142,13 @@ coverage、PayloadCRC 与完整 Trailer 均纳入连续 word 划分，跨 span/c
 Header-only 是正常空文件。非空文件若 EOF 对齐且完整尾 Fence 存在：
 
 1. 固定读尾部 `encoded Trailer16 + TailKey4 + Fence4`，检查已读 Trailer words 不等于 F，解码并验 TrailerCRC。
-2. 验 L、Key不等于F、descriptor/reserved/meta/padding 长度及 offset 范围，定位帧起点。
-3. 读该起点的 HeadLen 和紧邻左 Fence，验证长度一致与真实边界。
+2. 对解码后的TailLenUnits验 `7≤U<2^26`，再换算L；验Key不等于F、descriptor/reserved/meta/padding长度及offset范围，定位帧起点。encoded TailLen word是全uint32，不能在XOR前套用U上界。
+3. 读该起点的HeadLenUnits和紧邻左Fence；验证raw U合法且与尾U一致，验证真实边界。
 4. 仅检查最多 3B padding 为零，不读 payload、TailMeta 或 PayloadCRC 作内容校验。
 
 一个合并左 Fence/HeadLen 的直接读取实现，包含 Header4，总请求最多 `4+24+8+3=39B`，非空无 padding 时 3 次读，有 padding 时最多 4 次。**这是模型逻辑请求/返回字节上界，不是生产 syscall、cache 页、设备 I/O 或延迟结论。** 元信息合法并不代表内容合法。
 
-逆向 `ReadFrameInfo` 固定读取 Trailer16+TailKey4；普通 ScanReverse 仍需验证沿途 Fence，可合读 24B，均无需头字段或 payload。前向扫描已由 HeadLen 知 L，跳到尾块读 Key/Trailer；省头 Key 只删除了一份副本。
+逆向 `ReadFrameInfo` 固定读取Trailer16+TailKey4；普通ScanReverse仍需验证沿途Fence，可合读24B，均无需头字段或payload。前向扫描先验HeadLenUnits，再换算L跳到尾块读Key/Trailer。FrameInfo等内部布局继续存byte长度；省头Key只删除了一份副本。
 
 ### 4.3 异常尾定位
 
@@ -141,6 +157,8 @@ EOF 不满足闭合尾形态时，先逆扫最近完整 aligned Fence。设其�
 异常定位仍可能读约 256MiB；这是保留最大帧上限的成本。找到 B 后不再为资格读取全部 payload 或计算 PayloadCRC，直接前驱也只做固定结构检查。
 
 ## 5. 实现接点与写出边界
+
+新writer由byte布局先得到合法L，再计算U。完整plaintext Trailer必须先写TailLenUnits=U并封TrailerCRC，随后才能选Key/XOR。raw HeadLenUnits也写U，保持在编码范围之外。旧RBF1的TrailerCodewordHelper仍解释byte TailLen；新profile不能把单位不同的原始值直接送入旧布局计算。实现用两组具体wire序列化/解析接点，在profile边界向byte布局归一化，不让units流入通用buffer或Data核。
 
 普通 Append 已持有完整 spans，先计算coverage CRC和完整plaintext footer，再将payload、TailMeta、footer作为三个借用spans交给Data中的 `XorEscape.SelectKey`，采用ZeroThenTinyBitmapRandom。CRC与筛Key仍是不同loop，不宣称一次memory load完成两者。Key0大帧直接写原spans；非零Key使用有界buffer编码输出，不改用户数据、不复制整帧。专项建议按需取得、每writer重用1MiB输出空间；durable与Pool成本边界见专项。预处理/RNG异常处于实际输出之前，不应被现行包住整个Append调用的catch-all误标为write fault；真正输出/flush异常仍永久fault。
 
@@ -168,31 +186,34 @@ Builder目前已整帧缓冲：BeginAppend的HeadLen reservation持续pending，
 
 ### 6.1 分类与唯一 Key 重建
 
-必须先按 §4.3 建立真实 B，必要时验证直接前驱结构。不能从 EOF 猜 footer 并以局部 CRC 成功倒推成员身份。令从 B 起的 suffix 长度为 R、HeadLen 声明为 L；body 末端是 `L-4`，尾 Key 占 `[L-4,L)`。
+必须先按§4.3建立真实B，必要时验证直接前驱结构。不能从EOF猜footer并以局部CRC成功倒推成员身份。B/R及下面的范围均以bytes计；完整HeadLenUnits先验 `7≤U<2^26`，再得到物理长度L=U<<2。body末端是 `L-4`，尾Key占 `[L-4,L)`。
 
 ```text
 无 suffix / 健康闭合尾                        → None
-合法 partial HeadLen 1–3B                    → 截到 B
-HeadLen 合法且 4 <= R < L-4                  → 截到 B
+任意 partial HeadLenUnits 1–3B               → 截到 B
+HeadLenUnits 合法且 4 <= R < L-4             → 截到 B
 L-4 <= R <= L+3，已有结构检查通过             → 仅补缺失 TailKey/Fence
 非法长度 / 已呈现结构矛盾 / 超出单尾           → 拒绝，不改
 ```
 
-body 未完成时无需猜 Key、解码 partial Trailer、求未知字段或重算 payload。真正未知的结构随该帧丢弃。本方案将用户“其余问题截断”理解为其他未完成结构截断，并保留现行“已呈现结构损坏拒绝”；不将其扩大为吞掉已完整坏结构。
+在真实B及合法frame起点已确认后，任意1–3B HeadLenUnits前缀都存在合法U补全，直接截断，无需旧byte长度的低2bits检查或completion搜索。证明：n个LE前缀bytes的low值小于s=2^(8n)≤2^24；low≥7时取low，否则取low+s，两者均落在 `[7,2^26-1]`。这里只证明可丢弃残头，不猜原长度，也不接受非法的完整4B字段。这个简化依赖当前固定最大容量，后续若再加长度限制必须重审。
 
-body 已到 `L-4` 时，encoded TailLen 的 4B 已在 `[L-8,L-4)`。由于 plaintext TailLen 必须等于 HeadLen：
+body未完成时无需猜Key、解码partial Trailer、求未知字段或重算payload。真正未知的结构随该帧丢弃。本方案将用户“其余问题截断”理解为其他未完成结构截断，并保留现行“已呈现结构损坏拒绝”；不将其扩大为吞掉已完整坏结构。
+
+body已到 `L-4` 时，encoded TailLenUnits的4B已在 `[L-8,L-4)`。由于plaintext TailLenUnits必须等于HeadLenUnits=U：
 
 ```text
-K* = LE_u32(encoded TailLen) XOR L
+K* = LE_u32(encoded TailLenUnits) XOR U
+   = LE_u32(encoded TailLenUnits) XOR (L >> 2)
 ```
 
-这是唯一确定值，不是尝试 Key，也不是未知 completion 求解。检查已读 encoded Trailer words 不等于 F，解码完整 Trailer，检查 TrailerCRC、descriptor/reserved、长度/meta/padding 约束、Key不等于F，以及最多 3B 已有 padding。已有 0–4B 尾 Key 必须等于 `LE(K*)` 前缀；已有 Fence 必须等于原 Fence 前缀。通过后只追加 `LE(K*) || Fence` 的缺失后缀，最多 8B，不重写 footer/CRC/已有字节。完整 Key 时同样核对其值，不容许更换 Key。随机选择过程无需保留，重建公式适用于全 uint32；旧恢复模型仍使用 `[0,m]` 限制，生产接入须扩展高位 Key 的资格/前缀反例，不能冒称本轮完成恢复验收。
+这是唯一确定值，不是尝试Key，也不是未知completion求解；**不能XOR物理byte长度L**。encoded TailLenUnits本身可占全uint32，禁止在解码前限制高bits。检查已读encoded Trailer words不等于F，解码完整Trailer并按LE(U)验证原TrailerCRC、descriptor/reserved、长度/meta/padding约束、Key不等于F，以及最多3B已有padding。已有0–4B尾Key必须等于 `LE(K*)` 前缀；已有Fence必须等于原Fence前缀。通过后只追加 `LE(K*) || Fence` 的缺失后缀，最多8B，不重写footer/CRC/已有字节。完整Key时同样核对其值，不容许更换Key。随机选择过程无需保留，重建公式适用于全uint32；旧byte-length恢复模型仍使用 `[0,m]` 限制，生产接入须新增units、高位Key的资格/前缀反例，不能冒称本轮完成恢复验收。
 
 | 现有阶段 | 动作前检查 | 结果 |
 | --- | --- | --- |
 | Header 0–3B / 未知 Header | 不属于末帧 | 拒绝，不初始化 |
-| HeadLen 1–3B | 有合法对齐、值域内 completion | 截到 B；矛盾拒绝 |
-| HeadLen 完整，body 未完整 | 合法 L，物理字节未到 L-4；B 是真实起点 | 截到 B，不认证未知 Trailer 或内容 |
+| HeadLenUnits 1–3B | B是真实起点且地址合法；固定容量下任意前缀都有合法U补全 | 直接截到B；无需低2bits检查/completion搜索 |
+| HeadLenUnits完整，body未完整 | 先验合法U再换算L，物理字节未到L-4；B是真实起点 | 截到B，不认证未知Trailer或内容 |
 | body 完整，尾 Key 0–3B | K* 唯一重建，完整 TrailerCRC/结构/padding、已有 Key 前缀 | 保原 payload/meta/tag/ticket，补剩余 Key 和 Fence |
 | 完整 FrameBytes，Fence 0–3B | 尾 Key/TrailerCRC/结构/padding、已有 Fence 前缀 | 保原记录，只补 Fence |
 | 已完整结构字段矛盾 / TrailerCRC、Key、padding、Fence 错 | 属于已呈现结构损坏 | 拒绝，不能回退到更早好帧 |
@@ -208,7 +229,7 @@ K* = LE_u32(encoded TailLen) XOR L
 
 成功修改沿用现有一次 durable flush，再做最终结构尾验证，随后建立 reader/cache。同 handle；SetLength/write/flush 异常关闭并使打开失败，不换动作，不复用旧 cache；只读输入需要动作时拒绝且 bytes 不变。不追加断电恢复协议。
 
-再次终止状态只有 SetLength 前/后，或闭合后缀每个 byte prefix。Key 重建始终基于同一 HeadLen/encoded TailLen，重复恢复保留同一帧；无需撤回/改写 CRC 或中间 flush 协议。
+再次终止状态只有SetLength前/后，或闭合后缀每个byte prefix。Key重建始终基于同一HeadLenUnits/encoded TailLenUnits，重复恢复保留同一帧；无需撤回/改写CRC或中间flush协议。
 
 建议新 profile 统一报告 CompletedTail；实施时将新枚举值追加到公共 enum，保留既有 CompletedFence/CompletedTombstone 的名称与数值，不将“补 Key”虚称为只补 Fence。OriginalLength/FinalLength/AffectedFrameOffset/FrameTicket 继续表达原物理结果。现有闭合墓碑读取、IsTombstone/showTombstone 和 Builder 取消语义保留；仅不再由恢复创建墓碑。
 
@@ -222,11 +243,15 @@ Header 是唯一 profile 分派依据，不能用 EOF、试解码或 payload mag
 | OpenReadOnlyExisting | 原布局完整结构主链 O(N)，不 eager 校验 PayloadCRC；旧 ticket/user bytes/容量保留，残尾拒绝 | 固定结构快开；需截断/补 Key/Fence 时拒绝 |
 | OpenExisting | 修改前明确拒绝旧可写打开 | 结构快开、单尾截断/补闭合后缀，后续只写新帧 |
 
-一个内部 profile 和两组具体布局即可。转码每帧 +4B 会改变 ticket 及后继 offset，因此不提供常规离线转码；保留旧字节直接保留旧 ticket。mixed 与下游适配另案。
+Header一次分派、两组具体wire布局即可：RBF1的HeadLen/TailLen仍是bytes，新profile是4B units；不要把旧文件的字段原位重解释为U。历史实验曾用RBF2候选标识加byte字段，这些实验文件不能作为新units生产文件或兼容承诺，G0须明确区分。是否另拆assembly是独立交付选择，本次长度裁决不要求新项目、通用codec插件或公开长度模式。
+
+转码每帧+4B会改变ticket及后继offset，因此不提供常规离线转码；保留旧字节直接保留旧ticket。mixed与下游适配另案。
 
 仍有成本：写前线性预扫/bitmap、必要 XOR、读解码、每帧 +4B；健康 Open 固定结构读取，异常定位仍可扫描约 256MiB。[专项](rbf-codec-implementation-study.md)已有 C# 预处理/解码、W: Append/完整读/FrameInfo/meta 和真实最大帧证据；新 Builder 接点、Pool 生命周期、生产新 profile 及冷热 Open 仍待实施。模型字节上界不替代这些成本证据。
 
 ## 8. 当前实证与历史证据
+
+本节所有已有RBF2候选模型、成本原型与wire快照都使用 **byte HeadLen/TailLen**，包括高位Key和缺Key代数验证。它们支持算法、成本与结构/内容分工的论证；units格式的TrailerCRC、所有切断点及再次恢复仍须用新codec/独立向量验收。不得直接重标旧hash、覆盖快照或把候选名称相同当作wire相同。
 
 从仓库根运行：
 
@@ -259,19 +284,24 @@ PayloadCRC forward/LE、TrailerCRC backward/BE 由生产黄金向量和完整 wi
 
 | 切片 | 交付 | 退出证据 |
 | --- | --- | --- |
-| G0：RBF 合同 | profile 标识、结构/内容职责、旧可写拒绝、三动作和报告 enum、进程终止模型 | 两 profile 的内容 CRC 均留 ReadFrame，RBF1 保完整结构主链；末帧/前驱内容坏不阻止结构 Open；结构坏拒绝；body 未完成截尾，完整 body 补 Key/Fence；现行规范差异明确 |
-| G1：C# codec / 成本原型与Data基础 | 尾EscapeKey/七种实验策略/跨chunk XOR/preview相位及W:成本专项已形成；[Data基础方案](../Data/xor-escape-key-refactoring.md)选定Zero/tiny/random、三spans入口和具体writer fused能力，待实施；原地Builder/Pool及高位Key元信息/恢复接入待做 | 基础同时通过真实三spans与pending chunks、独立wire/成本/ownership资格；不需额外整帧复制；全域Key marker-free、所有reader/恢复入口及生产失败反例验证后冻结格式 |
-| G2：双读与纯新 writer | 同步 interface/format/向量/容量；Append/Builder、FrameInfo/cache/scan/boundary/meta/profile | 旧 ticket/最大容量/墓碑保留，新 user bytes round-trip，入口支持或显式拒绝；G3 前不交付新可写 Open |
+| G0：RBF 合同 | 确定与历史实验区分的生产profile标识；锁定Head/Tail units、F≥2^26、byte API；结构/内容职责、旧可写拒绝、三动作和报告enum、进程终止模型 | §4长度换算/CRC覆盖与§6重建公式进入规范差异清单；两profile的内容CRC均留ReadFrame，RBF1保完整结构主链；结构坏拒绝；未完成body截尾，完整body补Key/Fence |
+| G1：Data基础与codec资格 | [Data基础方案](../Data/xor-escape-key-refactoring.md)的Zero/tiny/random、F≥2^26、三spans与具体writer fused能力；旧成本原型只作参照；新units codec及原地Builder/Pool/高位Key资格待做 | 基础同时通过真实三spans与pending chunks、独立scalar/成本/ownership资格；Data保持int body域、全uint Key，不承担长度wire；不需额外整帧复制 |
+| G2：双读与纯新 writer | 同步interface/format/新units向量/容量；两组具体序列化/解析、Append/Builder、FrameInfo/cache/scan/boundary/meta/profile | 独立LE(U)/CRC黄金向量、range先于shift、全uint Key与所有读取入口通过；旧ticket/最大容量/墓碑保留，新user bytes round-trip，入口支持或显式拒绝；G3前不交付新可写Open |
 | G3：结构快开与单尾恢复 | 同 handle、定位/资格、截尾/补闭合后缀、flush/报告；实际生产 I/O 异常与进程 kill | 无 oracle/内容 CRC 资格/墓碑补写；健康读取对 N/L 独立，异常扫描≤M+7；再次恢复完整 |
 | G4：RBF 源码验收 | 主线程独立 review，Release 构建 RBF 依赖和匹配 RBF.Tests | RBF 测试通过；其他项目/下游设计/包交付独立，包交付按既有 smoke 与会话授权 |
 
 G0/G2 遵循 [Decision-Layer 约束](README.md#decision-layer-约束)。尾 Key 保留逆扫不读头的固定决策；本轮未修改规范。用户已授权提交文档与专项实验；方案不自动成为规范，也不扩展为打包或发布授权。
+
+下一实施回合先完成Data基础切片；RBF的wire单位已经确定，G0剩余工作是生产profile标识和规范落实。Data无需等待RBF编码完工，但RBF在新units向量与全部读入口完成前不能启用新writer。旧实验只作对照，不先批量改写来伪造新格式验收。
 
 成本 workload：历史 N=1/1000/100000，末帧 coverage=0/4KiB/1MiB/近 M；全零/随机/密集 F1/F2/多禁 Key、meta=0/1/3/65535、跨 span/chunk；测 Append/Builder/完整随机读/FrameInfo/meta、健康 Open 与异常截尾/补尾，记录配置/cache、重复次数、请求/返回 bytes、分配/bitmap/延迟/吞吐。未控制 OS cache 不称冷盘。
 
 正确性门禁：
 
 - 旧容量、ticket、业务 tag/墓碑及两 CRC 方向；新 +4B、单 TailKey、marker-free 正常 writer、MaxLength/MaxOffset。
+- U=7及U=2^26-1对应L=28及M；0..6、2^26及uint.MaxValue拒绝；`U=0x40000007`不能因unchecked左移别名为28而通过。raw U低2bits不作对齐限制。
+- LE(U)作为TrailerCRC输入，encoded TailLen先XOR后验范围；高位Key及缺Key的 `encodedTailLenUnits XOR U` 独立向量。完整非法U拒绝，真实B后的任意1–3B残头截断；新profile不复用旧byte partial-head guard。
+- Data的Fence边界2^26-1/2^26在空输入和真实来源上验证；随机Key==F仍拒绝，Copy/InPlace允许全uint Key。8MiB FullBitmap界仅在RBF域引用，默认策略不增加数组bitmap。
 - 所有正常 writer 前缀与旧嵌套/平行假尾；不能从 EOF 猜缺 Key 帧起点；独立裁判不只由同一 writer/reader 互验。
 - 未完成 body 截到唯一 B；完整 body 的 Key 0–3B / Fence 0–3B 仅补原后缀；结构矛盾先拒绝，首坏候选不 fallback。
 - 正常/修尾/前驱内容坏：Open 不验证 PayloadCRC，不吞帧、不回退；完整 ReadFrame/ReadPooledFrame（含 info 快路径）始终拒绝内容坏。
@@ -289,6 +319,7 @@ G0/G2 遵循 [Decision-Layer 约束](README.md#decision-layer-约束)。尾 Key 
 | Open 结构与 ReadFrame 内容正交 | 本轮用户目标；技术推演可行，替代末帧/前驱/残尾 PayloadCRC 资格 |
 | 仅考虑补原 Key/Fence，其他未完成结构截断 | 本轮用户方向；真实 B + 完整 Trailer 可确定原 Key，无需 payload CRC |
 | 保持约 256MiB 上限；逆读优先，研究移除头 Key | 用户明确；尾 Key 单份是本方案据存在性/前缀证明选择的机制，保留尾部导向决策 |
+| HeadLen/TailLen以4B units存储，Fence≥2^26 | 用户接受两轮独立比较的收敛结论；统一raw长度与Fence分离，API/物理范围仍以bytes计 |
 | 进程终止、单 RBF 文件、下游另案 | 先前用户决定持续有效 |
 | 任意 binary、frame 原子性、内容坏不能返回有效数据、已呈现结构坏拒绝、现有墓碑读取 | 现行源码/规范/测试；内容拒绝移到 ReadFrame，不自动删除其他语义 |
 | 旧读/ticket 保留 | 既有方案与 SizedPtr 持久凭据；文件级兼容保留 |
@@ -296,6 +327,7 @@ G0/G2 遵循 [Decision-Layer 约束](README.md#decision-layer-约束)。尾 Key 
 | 裁决 | 最小机制 / 触发 |
 | --- | --- |
 | simplify | 单 TailKey，固定开销 28B；Open 固定结构读取；三动作及最多 8B 闭合补写 |
+| simplify | units连续长度域与F≥2^26合并raw HeadLen排Fence规则；删除新profile partial-head低2bits检查/completion搜索；只在wire边界转换 |
 | delete | 头 Key、打开时 PayloadCRC/coverage 遍历、partial Trailer 解码/CRC 方程与可见内容矛盾分类 |
 | delete | 恢复墓碑/补零/nonce/tag 合成、CRC/footer 改写、外部 oracle、未知 completion |
 | keep | marker-free writer、两项 CRC 各归其责、完整 TrailerCRC 与 Key 前缀检查、真实 B/直接前驱结构、失败关闭与 DurableFlush |

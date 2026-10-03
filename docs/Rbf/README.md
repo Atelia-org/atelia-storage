@@ -24,15 +24,17 @@ RBF（Reversible Binary Framing）是 Atelia 的二进制信封格式，用于�
 | [rbf-format.md](rbf-format.md) | Layer 0 (RBF) | 二进制线格式规范（wire format） |
 | [rbf-type-bone.md](rbf-type-bone.md) | Plan-Tier (指导编码) | 核心类型骨架（非规范性实现指南） |
 | [rbf-recovery.md](rbf-recovery.md) | Design Memo | 离线救援/分析用 Recovery Scan 设计备忘 |
-| [rbf-tail-recovery-refactoring.md](rbf-tail-recovery-refactoring.md) | Implementation | 单个残缺尾帧默认自愈的实施设计与验收记录；下游适配暂缓 |
+| [rbf-tail-recovery-refactoring.md](rbf-tail-recovery-refactoring.md) | Implementation / RBF1 | 旧byte-length格式单个残缺尾帧自愈的实施记录；新profile后续方案见普通打开重构 |
 | [rbf-tail-recovery-review.md](rbf-tail-recovery-review.md) | Review | 三位 reviewer 两轮辩证复核的需求、裁决与证据记录 |
-| [rbf-open-fast-path-refactoring.md](rbf-open-fast-path-refactoring.md) | Plan-Tier | 普通打开快路径重构方案（非规范性、实施未开始）；尾 Key 单份、结构 Open/内容 ReadFrame、进程终止下截尾/补 Key+Fence，与 RBF 实施门禁 |
-| [rbf-codec-implementation-study.md](rbf-codec-implementation-study.md) | Research / G1 | writer 预处理与 reader 解码专项；C# 原型、W: 实测、XOR/模加法比较、Builder 原地编码建议，生产接入待实施 |
-| [ZeroThenTinyBitmapRandom基础方案](../Data/xor-escape-key-refactoring.md) | Plan-Tier / Data foundation | 两轮辩证审查后的Data窄API、共享选择/XOR核与具体writer fused接点；先同时资格三spans/真实chunks，生产实施未开始 |
+| [rbf-open-fast-path-refactoring.md](rbf-open-fast-path-refactoring.md) | Plan-Tier | 已采纳、待实施：Head/Tail长度4B units、Fence≥2^26、尾Key单份、结构Open/内容ReadFrame、进程终止下截尾/补Key+Fence；新wire及RBF实施门禁 |
+| [rbf-codec-implementation-study.md](rbf-codec-implementation-study.md) | Research / G1 | writer预处理与reader解码专项；C#原型/W:实测仍为历史byte-length证据，实施建议已同步units；生产接入待实施 |
+| [ZeroThenTinyBitmapRandom基础方案](../Data/xor-escape-key-refactoring.md) | Plan-Tier / Data foundation | 已采纳、待实施：Fence≥2^26、Data窄API、共享选择/XOR核与具体writer fused接点；先同时资格三spans/真实chunks，byte输入/int长度域保留 |
 | [rbf-derived-notes.md](rbf-derived-notes.md) | Derived | 推导、算例与答疑（允许滞后/可删改） |
 | [rbf-test-vectors.md](rbf-test-vectors.md) | Test | 测试向量 |
 
 ## Decision-Layer 约束
+
+现行规范和生产代码仍为RBF1 byte-length格式；上述已采纳方案定义后续新profile，实施时按主方案G0/G2同步规范与向量。历史实验使用的RBF2候选名称不代表新units生产格式已经落地。
 
 `rbf-decisions.md` 中的条款为 **AI 不可主动修改（MVP 固定）**：AI MUST NOT 修改任何 Decision 条款的语义
 受 Decision-Layer 约束的文档：`rbf-interface.md`、`rbf-format.md`
