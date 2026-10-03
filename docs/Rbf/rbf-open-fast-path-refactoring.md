@@ -342,6 +342,8 @@ Key预扫/bitmap、XOR/解码与历史W:成本保留专项；生产Append/Builde
 
 2026-10-03源码提交 `0999851207978fe947ecabccb1093e5774d007df` 已同步RBF1/RBF3[接口](rbf-interface.md)、[格式](rbf-format.md)、[独立RBF3参考](rbf-test-vectors.md#8-rbf3独立向量与生产资格)、guide与导航。Header/Fence固定RBF3，Data基础00329fd的历史资格保留；以下记录主线程实际运行的新生产结果，源码/测试身份/正式证据独立复核已通过。
 
+实施后的[代码设计审阅](rbf3-code-design-review-0999851.md)另行记录继承的入口状态缺口、公开串行合同、新诊断回归及具体枚举器改进；反例证据独立保留，建议修复尚未实施，不改写下述验收快照。
+
 ### 11.1 证据身份
 
 - 0999851对应源码树最终Release RBF闭包build成功（该日志0warnings/0errors），匹配 `--no-build` Rbf.Tests **670/670**通过、无跳过。运行发生在源码提交前的对应工作树，提交未改代码；日志/TRX：`W:/RbfFastOpen/rbf3-validation-1791001216923/{build-final.log,test-final.log,final.trx}`，TRX SHA256=`1f35acc487a9fcca6b14e89fd86bc5bc881c477378dcc3b7de1f0592a52f406c`。

@@ -1,0 +1,112 @@
+{
+  "TargetCommit": "0999851207978fe947ecabccb1093e5774d007df",
+  "ReviewHead": "2f46408",
+  "BinaryHashesMatchFormalSourceCommit": true,
+  "BinaryHashes": {
+    "Atelia.Rbf.dll": "f4e013d5dc3c018f50d8094cf7d4a98e46a811e3c0c8d959c23d2fc2bbf7ab3e",
+    "Atelia.Data.dll": "a6d294714109da60872ae44111a75b2ee47d99516a32ea69f3907dcc82dc5b60",
+    "Atelia.Primitives.dll": "21500985e0f5268ecd9cf99017e7164ba8f39194773e0935f34df8b13b79bed8"
+  },
+  "RawDirectory": "W:\\RbfFastOpen\\rbf3-review-0999851-20261003",
+  "Artifacts": {
+    "Program.cs": {
+      "Bytes": 6850,
+      "Sha256": "6cc398bee038ac7a5205c93a434b2a46eb09914e0486c4028349cdd7fbc68afe"
+    },
+    "ReviewProbe.csproj": {
+      "Bytes": 832,
+      "Sha256": "19ca8da14d1606cf5034c635baa7b4b90411e0ed8cb3ea67bb7d8060d8908c35"
+    },
+    "global.json": {
+      "Bytes": 105,
+      "Sha256": "8ede13416e0155ae327d8816fce07b9ba21cb4e2c1e0b17ae2f052fb89cccbd4"
+    },
+    "build.log": {
+      "Bytes": 678,
+      "Sha256": "d54cad7e751970dbebe55a80e7567a7afaf42805f795c4446b341b98451abbee"
+    },
+    "run.log": {
+      "Bytes": 2672,
+      "Sha256": "3743a54d7c2bcfb6c6a6598493d1f30199666cb3af2dbcdc76afb30eb150ea63"
+    },
+    "review-results.json": {
+      "Bytes": 2671,
+      "Sha256": "f399e8054eed6531b7e5c53e1223e1c4d6385e827f75d33047f65ee5d7a2a6a3"
+    }
+  },
+  "Observed": {
+    "TargetCommit": "0999851207978fe947ecabccb1093e5774d007df",
+    "RbfBinaryProductVersion": "1.0.0+0999851207978fe947ecabccb1093e5774d007df",
+    "Runtime": ".NET 10.0.5",
+    "Scope": "Review counterexample probes against prebuilt production binary; no repository source changes; deterministic test injection, not real memory exhaustion.",
+    "Rows": [
+      {
+        "Case": "default-info-caller-meta",
+        "IsSuccess": true,
+        "TicketOffset": 0,
+        "TicketLength": 0
+      },
+      {
+        "Case": "default-info-pooled-meta",
+        "IsSuccess": true,
+        "TicketOffset": 0,
+        "TicketLength": 0
+      },
+      {
+        "Case": "default-info-full-read",
+        "Exception": "NullReferenceException: Object reference not set to an instance of an object."
+      },
+      {
+        "Case": "default-info-pooled-full-read",
+        "Exception": "NullReferenceException: Object reference not set to an instance of an object."
+      },
+      {
+        "Case": "append-meta-rejection",
+        "IsFailure": true,
+        "RecoveryHint": null,
+        "TailOffset": 4
+      },
+      {
+        "Case": "begin-rent-failure",
+        "FirstException": "OutOfMemoryException: Injected first Rent failure",
+        "FileState": "Building",
+        "TailOffset": 4,
+        "AppendAgainException": "InvalidOperationException: Cannot call Append while a builder is active. Dispose the builder first.",
+        "BeginAgainException": "InvalidOperationException: A builder is already active. Dispose it before calling BeginAppend again.",
+        "Attempts": 1,
+        "Faulted": false
+      },
+      {
+        "Case": "begin-failure-physical-image",
+        "Bytes": 4,
+        "Hex": "52424633"
+      },
+      {
+        "Case": "commit-before-push-failure",
+        "CommitException": "InjectedBeforePushException: Exception of type 'InjectedBeforePushException' was thrown.",
+        "AppendAgainException": "InvalidOperationException: The RBF writer has failed. Dispose the file and reopen it before further operations.",
+        "TailOffset": 4,
+        "Faulted": true,
+        "Scope": "Test replaces private writer and injects Data DebugLog failure before Push; production RBF does not expose this callback. Production boxing-OOM route is a separate source inference."
+      },
+      {
+        "Case": "commit-failure-physical-image",
+        "Bytes": 4,
+        "Hex": "52424633"
+      },
+      {
+        "Case": "queue-enumeration-allocation",
+        "Repetitions": 10000,
+        "ConcreteAllocatedBytes": 0,
+        "InterfaceAllocatedBytes": 400000,
+        "Scope": "Exact public SlidingQueue implementation; not a complete Builder benchmark or simulated actual OOM."
+      }
+    ]
+  },
+  "Limits": [
+    "Deterministic test injection; no real OOM",
+    "No repository production changes",
+    "Queue allocation probe is not an end-to-end Builder measurement",
+    "No new complete RBF suite or downstream run"
+  ]
+}
