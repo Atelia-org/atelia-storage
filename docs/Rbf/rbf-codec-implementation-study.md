@@ -12,6 +12,8 @@ normative: false
 
 推荐最小实现是：**CRC/footer 完成后，先检测 EscapeKey=0；失败且 EscapePayload≤256B 时使用一个 ulong bitmap，否则以系统随机源抽取候选并完整检测，不建立数组 bitmap；Append 使用借用输入和有界输出缓冲，Builder 在提交前原地编码现有 owned chunks；reader 保留 encoded cache，在 caller/pooled buffer 向量解码，再用现有 CRC。** 2026-10-03 的 ZeroThenRandom 与小帧标量 bitmap 补测见§3.1–3.2；原有测量保留为历史基线。模 uint32 加减法同样可行，当前测量未显示吞吐优势，先保留已验证的 XOR 实现；任意非对齐切片解码不作为格式选择的硬条件。融合解码/CRC 留作实验候选。
 
+基础API及Builder接点由 [Data实现重构方案](../Data/xor-escape-key-refactoring.md)承接：两轮辩证简化选择三个借用spans入口、内部共享核和具体writer一次选键/XOR能力；删公共source/view/visitor及byteCount。下述测量仍是实验结果，Data生产基础和新RBF接入尚未实施。
+
 ## 1. 需求与证据边界
 
 | 要求 | 来源及本专项处理 |
@@ -191,20 +193,20 @@ uint key = (uint)BitOperations.TrailingZeroCount(~forbidden);
 推荐顺序：
 
 1. 检查 epoch、长度/meta、唯一且有效的 HeadLen reservation、无未 Advance 借用、`PushedLength==0`；所有可预见 Result 拒绝都在这里结束。
-2. 补明文 padding，计算 coverage CRC，将完整 plaintext CRC/Trailer 追加并 Advance 到 pending chunks，暂不写 raw Key/Fence；选择 Key。
-3. 同步遍历精确 body `[4,L-4)`，累计相位原地 XOR；排除 raw HeadLen、TailKey、Fence。
+2. 补明文padding，计算coverage CRC，将完整plaintext CRC/Trailer追加并Advance到pending chunks，暂不写raw Key/Fence。
+3. 调用具体 `XorEscapeSinceReservationEnd(headToken,fence)`：内部选择Key，遍历reservation后全部已写body `[4,L-4)`并保持累计相位原地XOR；raw HeadLen在范围之前，TailKey/Fence尚未追加。
 4. HeadLen 继续 pending 时追加 raw Key/Fence 并 Advance，再回填 HeadLen、调用原 `Commit(HeadLen)` 同步 Push；正常返回后推进 TailOffset，原 chunk 在 Push 返回后才回收。追加闭合字段的准备异常仍按未发布异常取消当前 Builder。
 
-最窄 Data 接点是在具体 `SinkReservableWriter` 上对 reservation 末尾之后的**指定 byteCount**同步访问 pending spans。可使用标准 `SpanAction<byte,TArg>` 与每 writer context；只读扫描回调不修改字节，最终转换回调原地修改。接口不公开 ArrayPool 数组、chunk 列表或通用 codec。byteCount 前置校验，访问不 Push、不推进游标；累计状态不能依赖按值传递 struct 的修改回传。
+经Data方案两轮反审，最窄接点改为具体writer内完成选键和变换的一个成员，删除公开SpanAction/visitor及显式byteCount。按上述合法顺序，reservation末尾到当前written-end就是完整body；不要复用含raw Fence的旧WriteTail后再调用它。Data先验证唯一有效pending token、无未Advance借用和派生后缀的int/4B域；整个操作不Push、不Commit、不推进Length/PushedLength，不公开池数组或chunk视图。内部来源用具体值cursor，当前GetActiveChunks的IEnumerable接口路径不能作为无分配证据。
 
 [reservation 契约](../../src/Data/IReservableBufferWriter.cs) 只保持未 Commit reservation 的借用。此时唯一 pending 是 HeadLen，用户 payload reservation 已结束；旧普通 buffer 已 Advance。这使原地编码合法，但需要守住两条失败边界：
 
-- callback 不能重入 GetSpan/GetMemory/Advance/Reserve/Commit/TryGetReservedSpan/Reset/Dispose 或再进 visitor。Commit 可提前发布未编码后缀，Reset/Dispose 可归还正在访问的数组。需要一次同步访问 guard，finally 解除。
+- fused方法没有用户callback、Trace、Push/Commit或可逃逸view，同步单线程内没有合法重入点；无需新增visitor专用guard、lease/generation或锁。存量借用仍遵守现有生命周期。
 - 从首次追加 padding/footer 起，任何准备或转换异常、尚未发布时，取消并 Reset 当前 Builder 后抛出，允许新 Builder；**不能保留当前 Builder 重试，也无需逆变换回滚**。已追加的 footer 会被重试误计入 payload，一部分已 XOR 的 chunks 再次 XOR 会变回 plaintext。输出开始后的异常仍永久 fault，取消不能解除。
 
 [现行故障测试](../../tests/Rbf.Tests/Internal/RbfWriterFaultTests.cs) 明确允许 `EndAppend(-1)` 返回失败后同一个 Builder 修正再提交；优化必须保留这个行为。进程在原地编码中终止时还没有 Push，只损失未提交内存，无需新的恢复状态。
 
-这是源码与契约审查结论；**生产 pending visitor、重入 guard、自动取消路径与新 Builder 端到端性能尚未实现或实测**。旧 Builder 的真实64KiB feeds 是参照，不能冒充新 Builder 验收。
+这是源码与契约审查结论；**Data具体方法、自动取消路径与新Builder端到端性能尚未实现或实测**。旧Builder的真实64KiB feeds是参照，不能冒充新Builder验收。后续Append也须将预发布RNG/搜索异常与实际输出fault分开，不能沿用包住整个新预处理调用的catch-all来标write fault。
 
 ## 5. reader：wire cache、owned buffer、批量解码
 
@@ -268,6 +270,6 @@ Fence、尾 EscapeKey、CRC 和 Trailer 均为4B对齐；完整 body 也由paddi
 
 保留CPU正式阶段、修正I/O阶段、补测阶段各自产物与源码hash。后两阶段新增入口参数使Program/runner不同；只比较相应工作核源码，不能写所有历史hash匹配当前全部源码。最初短测的byte-XOR与uint-add不公平、首次I/O的生产metrics在计时内，均不参与上述最终裁决；原始目录保留用于追查。
 
-后续最小实施顺序：先落生产pending visitor/guard和Builder原地转换，完成取消/重试/fault反例；再接入Append尾布局、按需workspace、caller/pooled解码和所有info/meta/cache入口。复用现有CRC和故障事实，不加codec框架或配置层。
+后续最小实施顺序：先完成Data方案的一个基础切片，同时资格三个借用spans与真实writer多chunks；再按RBF主方案接入Append/Builder尾布局、取消/重试/fault、按需workspace、caller/pooled解码及所有info/meta/cache入口。复用现有CRC和故障事实，不加codec框架或配置层。
 
-实施退出需要：旧reservation/epoch/Result可纠正拒绝保留；转换中异常零发布且Builder取消，后续新Builder正常；visitor重入动作前拒绝；Push/flush异常永久fault及池只归还一次；Footer禁Key、任意chunk相位与两CRC；真实生产Append/Builder/读路径W:端到端成本。现有process-prefix/单尾恢复实验另接生产实现后验收。
+实施退出需要：旧reservation/epoch/Result可纠正拒绝保留；首次padding/footer修改后的准备或转换异常零发布且Builder取消，后续新Builder正常；Data fused不callback/Push/泄漏view；Push/flush异常永久fault及池只归还一次；Footer禁Key、任意chunk相位与两CRC；真实生产Append/Builder/读路径W:端到端成本。现有process-prefix/单尾恢复实验另接生产实现后验收。

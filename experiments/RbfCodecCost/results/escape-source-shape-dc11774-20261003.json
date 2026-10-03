@@ -1,0 +1,61 @@
+{
+  "Schema": 1,
+  "Study": "Two-assembly ref-struct versus fixed three-span source shape and generic Fence tiny proof",
+  "SourceRevision": "dc11774",
+  "EvidenceDirectory": "W:\\RbfCodecCost\\layering-shape-20261003",
+  "SDKPin": {
+    "sdk": {
+      "version": "10.0.201",
+      "rollForward": "disable",
+      "allowPrerelease": false
+    }
+  },
+  "Result": {
+    "Cases": 5,
+    "AllocationBytes": 0,
+    "Iterations": 100000,
+    "Checksum": 0,
+    "Scope": "Cross-assembly ref-struct source syntax and zero managed allocation; scalar shape probe, not production performance or full strategy qualification"
+  },
+  "BuildResult": "Release, zero warnings and errors",
+  "MeasurementBoundary": "Scalar API shape only, not the full ZeroThenTinyBitmapRandom strategy, production Data integration, whole-writer allocation or performance ranking. Hashes were captured after the run, not an automatic before/after source guard. Public source was subsequently rejected for wider contract obligations, not language infeasibility.",
+  "Sources": [
+    {
+      "Path": "W:\\RbfCodecCost\\layering-shape-20261003\\global.json",
+      "SHA256": "8ede13416e0155ae327d8816fce07b9ba21cb4e2c1e0b17ae2f052fb89cccbd4",
+      "Text": "{\n  \"sdk\": {\n    \"version\": \"10.0.201\",\n    \"rollForward\": \"disable\",\n    \"allowPrerelease\": false\n  }\n}\n"
+    },
+    {
+      "Path": "W:\\RbfCodecCost\\layering-shape-20261003\\Library\\Library.csproj",
+      "SHA256": "e1a91ad3b17614202de10e44136c7dbcc5e9cf97d5dea39cdae0418edeb2e8b9",
+      "Text": "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>\n</Project>\n"
+    },
+    {
+      "Path": "W:\\RbfCodecCost\\layering-shape-20261003\\Library\\Shape.cs",
+      "SHA256": "c8cd3bff314238ec1529d0f3023af4c9ffcaba0b8218ffb74447697a2b559d8f",
+      "Text": "using System.Numerics;\nnamespace Shape;\n\npublic interface ISource {\n    int ByteLength { get; }\n    void Rewind();\n    bool TryGetNext(out ReadOnlySpan<byte> bytes);\n}\n\npublic static class Kernel {\n    public static uint Tiny<TSource>(TSource source, uint fence)\n        where TSource : struct, ISource, allows ref struct {\n        if (source.ByteLength < 0 || source.ByteLength > 252 || (source.ByteLength & 3) != 0) throw new ArgumentException();\n        var scan = new Scan(fence);\n        source.Rewind();\n        while (source.TryGetNext(out ReadOnlySpan<byte> bytes)) scan.Append(bytes);\n        if (scan.Bytes != source.ByteLength || scan.Pending != 0) throw new ArgumentException();\n        return scan.Key;\n    }\n\n    public static uint Tiny(ReadOnlySpan<byte> first, ReadOnlySpan<byte> second, ReadOnlySpan<byte> third, uint fence) {\n        var scan = new Scan(fence);\n        scan.Append(first); scan.Append(second); scan.Append(third);\n        if (scan.Bytes > 252 || scan.Pending != 0) throw new ArgumentException();\n        return scan.Key;\n    }\n\n    private struct Scan(uint fence) {\n        private readonly uint _fence = fence;\n        private ulong _bits = fence < 64 ? 1UL << (int)fence : 0;\n        private uint _word;\n        public int Pending, Bytes;\n        public uint Key => (uint)BitOperations.TrailingZeroCount(~_bits);\n        public void Append(ReadOnlySpan<byte> bytes) {\n            Bytes += bytes.Length;\n            foreach (byte b in bytes) {\n                _word |= (uint)b << (Pending++ * 8);\n                if (Pending != 4) continue;\n                uint candidate = _word ^ _fence;\n                if (candidate < 64) _bits |= 1UL << (int)candidate;\n                _word = 0; Pending = 0;\n            }\n        }\n    }\n}\n"
+    },
+    {
+      "Path": "W:\\RbfCodecCost\\layering-shape-20261003\\Consumer\\Consumer.csproj",
+      "SHA256": "0ae7ec72fe56fd2415ac4e6bab08ace56ed0f0c2ecca6514e40283cf30da4cf6",
+      "Text": "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>\n  <ItemGroup><ProjectReference Include=\"../Library/Library.csproj\" /></ItemGroup>\n</Project>\n"
+    },
+    {
+      "Path": "W:\\RbfCodecCost\\layering-shape-20261003\\Consumer\\Program.cs",
+      "SHA256": "74522732036255c37373c88ebfcebb61114ece0d096bd5fec6ec0cb80a365529",
+      "Text": "using System.Buffers.Binary;\nusing System.Text.Json;\nusing Shape;\n\nSpan<byte> body = stackalloc byte[252];\nuint[] fences = [0u, 1u, 63u, 64u, 0x32464252u];\nint cases = 0;\nforeach (uint fence in fences) {\n    int n = 0;\n    for (uint key = 0; key < 64 && n < 63; key++) {\n        if (key == fence) continue;\n        BinaryPrimitives.WriteUInt32LittleEndian(body[(n++ * 4)..], key ^ fence);\n    }\n    var source = new ThreeSpans(body[..1], body[1..128], body[128..]);\n    uint keyGeneric = Kernel.Tiny(source, fence);\n    uint keyDirect = Kernel.Tiny(body[..1], body[1..128], body[128..], fence);\n    if (keyGeneric != keyDirect || keyGeneric == fence) throw new Exception(\"Shape mismatch\");\n    for (int offset = 0; offset < body.Length; offset += 4)\n        if ((BinaryPrimitives.ReadUInt32LittleEndian(body[offset..]) ^ keyGeneric) == fence) throw new Exception(\"Forbidden key\");\n    if (fence < 64 && keyGeneric != 64) throw new Exception(\"Expected implicit Key64\");\n    cases++;\n}\nvar borrowed = new ThreeSpans(body[..1], body[1..128], body[128..]);\nfor (int i = 0; i < 100; i++) _ = Kernel.Tiny(borrowed, 0x32464252u);\nlong before = GC.GetAllocatedBytesForCurrentThread();\nuint sink = 0;\nfor (int i = 0; i < 100000; i++) sink ^= Kernel.Tiny(borrowed, 0x32464252u);\nlong allocated = GC.GetAllocatedBytesForCurrentThread() - before;\nif (allocated != 0) throw new Exception(\"Unexpected boxing/allocation\");\nConsole.WriteLine(JsonSerializer.Serialize(new { Cases = cases, AllocationBytes = allocated, Iterations = 100000, Checksum = sink,\n    Scope = \"Cross-assembly ref-struct source syntax and zero managed allocation; scalar shape probe, not production performance or full strategy qualification\" }));\n\nref struct ThreeSpans(ReadOnlySpan<byte> a, ReadOnlySpan<byte> b, ReadOnlySpan<byte> c) : ISource {\n    private readonly ReadOnlySpan<byte> _a = a, _b = b, _c = c;\n    private int _index;\n    public readonly int ByteLength => _a.Length + _b.Length + _c.Length;\n    public void Rewind() => _index = 0;\n    public bool TryGetNext(out ReadOnlySpan<byte> bytes) {\n        switch (_index++) { case 0: bytes = _a; return true; case 1: bytes = _b; return true; case 2: bytes = _c; return true; default: bytes = default; return false; }\n    }\n}\n"
+    }
+  ],
+  "Logs": [
+    {
+      "Path": "W:\\RbfCodecCost\\layering-shape-20261003\\build.log",
+      "SHA256": "e9eb7991a90098e5f72d682b7fc3338067d077202e4d5e91c925fe6751ee9b4d",
+      "Text": "  正在确定要还原的项目…\n  已还原 W:\\RbfCodecCost\\layering-shape-20261003\\Consumer\\Consumer.csproj (用时 148 毫秒)。\n  已还原 W:\\RbfCodecCost\\layering-shape-20261003\\Library\\Library.csproj (用时 132 毫秒)。\n  Library -> W:\\RbfCodecCost\\layering-shape-20261003\\Library\\bin\\Release\\net10.0\\Library.dll\n  Consumer -> W:\\RbfCodecCost\\layering-shape-20261003\\Consumer\\bin\\Release\\net10.0\\Consumer.dll\n\n已成功生成。\n    0 个警告\n    0 个错误\n\n已用时间 00:00:06.20\n"
+    },
+    {
+      "Path": "W:\\RbfCodecCost\\layering-shape-20261003\\run.log",
+      "SHA256": "544692189c43c55b5a26dc072b5f3ab46ff874ec64f8223be1c152578bcc7bf4",
+      "Text": "{\"Cases\":5,\"AllocationBytes\":0,\"Iterations\":100000,\"Checksum\":0,\"Scope\":\"Cross-assembly ref-struct source syntax and zero managed allocation; scalar shape probe, not production performance or full strategy qualification\"}\n"
+    }
+  ]
+}

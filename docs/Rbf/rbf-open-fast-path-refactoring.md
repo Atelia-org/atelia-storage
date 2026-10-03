@@ -14,6 +14,8 @@ normative: false
 
 同日追加小帧快速路径：Zero失败且 **EscapePayload≤256B** 时用一个 `ulong` bitmap选择最小可用键，超过阈值仍走上述随机循环。EscapePayload是前一条Fence与尾EscapeKey之间的区间，包含raw HeadLen，长度`L-4`；实际编码body最多252B/63words，64候选保证有空位。CPU实测、跨chunk与边界资格见[专项§3.2](rbf-codec-implementation-study.md#32-小帧用一个-ulong-作为完整-bitmap)。这是writer内部算法选择，不改变wire、reader或恢复规则。
 
+基础实现另见 [ZeroThenTinyBitmapRandom重构方案](../Data/xor-escape-key-refactoring.md)：两轮辩证审查选择Data窄入口、内部共享选键/XOR核；Append至多三个借用spans，Builder对reservation后全部已写bytes一次选键并原地变换，不公开source/view/visitor。基础及真实Builder资格同一个待实施切片，不改变本文件的格式/恢复规则。
+
 用户当前决定：**单个 RBF 文件优先；恢复目标仅进程终止，断电依赖平台；确认真实边界后可截掉未完成帧；Open 负责分帧结构，PayloadCRC 留给 ReadFrame；只考虑补原尾 Key/Fence；保留约 256MiB 单帧上限；逆序读取优先，研究省头 Key。** 独立反审与字节推演支持采用这些简化。
 
 最小方案是 **单份尾 Key、结构快开、未完成 body 截断、完整 body 只补尾 Key/Fence**。恢复只有 `None / Truncated / CompletedTail` 三种动作；`CompletedTail` 仅追加确定的 1–8B 闭合后缀。无需补 coverage、CRC、Trailer、墓碑、nonce、未知 completion 或 writer oracle。
@@ -83,7 +85,7 @@ normative: false
 | byte/word escaping | 可以设计 | 变长编码与 ticket/reservation 映射 |
 | 32-bit body XOR，禁止内部对齐 Fence | 有 Key 存在性与前缀证明 | 新 profile、线性预扫/变换、单份尾 Key 增加 4B |
 
-只禁止嵌套假尾必需的内部边界，无需逐个检测内嵌合法帧或试 Key 重扫。
+只禁止嵌套假尾必需的内部边界，无需逐个检测内嵌合法帧；键搜索采用上述Zero/小帧标量bitmap/随机检测，不逐个递增键试扫。
 
 ## 4. 单份尾 Key 布局与快开算法
 
@@ -138,15 +140,15 @@ EOF 不满足闭合尾形态时，先逆扫最近完整 aligned Fence。设其�
 
 ## 5. 实现接点与写出边界
 
-普通 Append 已持有完整 spans，先计算 coverage CRC 和完整 plaintext footer，再定向检查 Key0/1，必要时 bitmap 选 Key。CRC 与筛 Key 仍是不同 loop，不宣称一次 memory load 完成两者。Key0 大帧直接写原 spans；非零 Key 使用有界 buffer 编码输出，不改用户数据、不复制整帧。专项建议按需取得、每 writer 重用 1MiB 输出空间；durable 与 Pool 成本边界见专项。
+普通 Append 已持有完整 spans，先计算coverage CRC和完整plaintext footer，再将payload、TailMeta、footer作为三个借用spans交给Data中的 `XorEscape.SelectKey`，采用ZeroThenTinyBitmapRandom。CRC与筛Key仍是不同loop，不宣称一次memory load完成两者。Key0大帧直接写原spans；非零Key使用有界buffer编码输出，不改用户数据、不复制整帧。专项建议按需取得、每writer重用1MiB输出空间；durable与Pool成本边界见专项。预处理/RNG异常处于实际输出之前，不应被现行包住整个Append调用的catch-all误标为write fault；真正输出/flush异常仍永久fault。
 
-Builder 目前已整帧缓冲：BeginAppend 的 HeadLen reservation 持续 pending，SinkReservableWriter.FlushCommittedData 在首 pending 处停止，EndAppend 提交后逐 chunk Push。字节存在不等于 API 已可遍历：GetActiveChunks 是 private。专项源码审查支持最窄的同步 pending span visitor：CRC/footer/Key 完成后原地 XOR owned body chunks，再由原 sink Commit/Push，删除 Builder 专用 encoding sink 与额外输出 scratch。visitor 要限定范围、保持累计相位、禁止重入；所有 Result 拒绝置于修改前，预发布转换异常取消/Reset，发布异常永久 fault。生产 visitor/guard 和新 Builder 成本尚未实现或实测。
+Builder目前已整帧缓冲：BeginAppend的HeadLen reservation持续pending，SinkReservableWriter.FlushCommittedData在首pending处停止，EndAppend提交后逐chunk Push。Data基础方案改用具体 `XorEscapeSinceReservationEnd(headToken,fence)` 成员：在完整plaintext CRC/Trailer之后、raw Key/Fence追加之前，对reservation后全部已写body一次选键并原地XOR，再由原sink Commit/Push。没有外部visitor、可逃逸view或byteCount；内部cursor保持carry/相位，不复制整帧。全部Result/借用/参数拒绝置于首次padding/footer修改前；从该首次准备修改到Commit前的异常取消/Reset，禁止同一Builder重试；实际输出异常永久fault。具体Data方法、取消路径和真实新Builder成本仍未实施/实测。
 
 | 接点 | 实施边界 |
 | --- | --- |
 | 工厂 / Open | Header 一次分派；结构资格、修改、最终 reader/cache 同 owned handle |
 | Append / Builder | 完整 CRC/footer 后选 Key；尾块含 Trailer/Key/Fence；前置 Result 失败不写，输出/flush 异常永久 fault |
-| Builder pending bytes | 唯一有效 HeadLen、无未 Advance 借用、PushedLength=0；原地编码精确 body，禁 visitor 重入；预发布异常取消当前 Builder，禁止双重编码重试 |
+| Builder pending bytes | 唯一有效HeadLen、无未Advance借用、PushedLength=0；完整plaintext footer后fused选键/XOR，rawKey/Fence后置；无callback/Push的Data操作不新增visitor guard；首次padding/footer修改起的预发布异常取消当前Builder |
 | wire cache | 保留 encoded bytes，只在调用方 buffer 解码，不修改共享 cache |
 | FrameInfo / Reverse | 保存内部 TailKey、offset/相位；尾块解析，无头 Key，也不增加公共 ticket 版本 |
 | ReadFrame / pooled / info 快路径 | 原 user bytes；两项 CRC 必验，禁止因 Open 结构成功跳过内容校验 |
@@ -256,7 +258,7 @@ PayloadCRC forward/LE、TrailerCRC backward/BE 由生产黄金向量和完整 wi
 | 切片 | 交付 | 退出证据 |
 | --- | --- | --- |
 | G0：RBF 合同 | profile 标识、结构/内容职责、旧可写拒绝、三动作和报告 enum、进程终止模型 | 两 profile 的内容 CRC 均留 ReadFrame，RBF1 保完整结构主链；末帧/前驱内容坏不阻止结构 Open；结构坏拒绝；body 未完成截尾，完整 body 补 Key/Fence；现行规范差异明确 |
-| G1：C# codec / 成本原型 | 尾 EscapeKey/七种搜索策略/跨 chunk XOR/preview 相位及 W: 成本专项已形成；Zero优先、小帧ulong bitmap、较大帧无bitmap随机为主候选；生产 pending visitor、原地 Builder、Pool及高位Key元信息/恢复接入待做 | 黄金向量/模型互证、不需额外整帧复制、读取字节上界与成本表；全域Key marker-free、所有reader/恢复入口及生产失败反例验证后冻结格式 |
+| G1：C# codec / 成本原型与Data基础 | 尾EscapeKey/七种实验策略/跨chunk XOR/preview相位及W:成本专项已形成；[Data基础方案](../Data/xor-escape-key-refactoring.md)选定Zero/tiny/random、三spans入口和具体writer fused能力，待实施；原地Builder/Pool及高位Key元信息/恢复接入待做 | 基础同时通过真实三spans与pending chunks、独立wire/成本/ownership资格；不需额外整帧复制；全域Key marker-free、所有reader/恢复入口及生产失败反例验证后冻结格式 |
 | G2：双读与纯新 writer | 同步 interface/format/向量/容量；Append/Builder、FrameInfo/cache/scan/boundary/meta/profile | 旧 ticket/最大容量/墓碑保留，新 user bytes round-trip，入口支持或显式拒绝；G3 前不交付新可写 Open |
 | G3：结构快开与单尾恢复 | 同 handle、定位/资格、截尾/补闭合后缀、flush/报告；实际生产 I/O 异常与进程 kill | 无 oracle/内容 CRC 资格/墓碑补写；健康读取对 N/L 独立，异常扫描≤M+7；再次恢复完整 |
 | G4：RBF 源码验收 | 主线程独立 review，Release 构建 RBF 依赖和匹配 RBF.Tests | RBF 测试通过；其他项目/下游设计/包交付独立，包交付按既有 smoke 与会话授权 |
