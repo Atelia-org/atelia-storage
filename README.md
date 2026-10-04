@@ -5,7 +5,7 @@ Atelia 的 .NET 10 存储基础库，使用 MIT 许可证。五个库保留原�
 ## RBF1 维护系列
 
 本分支 `RBF1` 从 Galatea / SessionJournal 已消费的 `5288bd55` 基线维护，写入与读取仍为 RBF1，EventJournal/SegmentStore 使用 v2 目录协议。包名和 namespace 保留；独立版本系列为 `0.2.0-rbf1-preview.*`，不会跟随 main 的 RBF3 行为。
-本次发布候选为五包同版 `0.2.0-rbf1-preview.1`；公开状态以 nuget.org 及交付记录为准。消费者只需直接引用入口包：
+已公开发布五包同版 `0.2.0-rbf1-preview.1`，两平台 CI、公开签名包与独立消费证据见[交付记录](docs/rbf1-preview-delivery-20261004.md)。消费者只需直接引用入口包：
 
 ```xml
 <PackageReference Include="Atelia.EventJournal" Version="0.2.0-rbf1-preview.1" />
