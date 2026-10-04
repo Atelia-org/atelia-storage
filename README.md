@@ -99,6 +99,8 @@ Pack 临时固定 CLI 语言为 en-US，并启用 `StorageDeterministicPack`：�
 
 ## 文档与 Agent 入口
 
+新一代中性帧存储与根发布见 [FrameStore / VersionStore 分阶段设计](docs/FrameStore-VersionStore/README.md)。目前是方向已确认的阶段草案，两个新项目尚未创建；现有 RbfSegmentStore / EventJournal 继续属于维护和修复范围。
+
 已发布 `0.1.2-preview.1` 提供不可变 `CreateTag` / `ResolveTag`，见 [tag 合同](docs/EventJournal/immutable-tags-design.md)、[已发布源码使用指南](https://github.com/Atelia-org/atelia-storage/blob/Atelia.EventJournal-v0.1.2-preview.1/src/EventJournal/README.md#不可变-tag)和[本次公开交付记录](docs/selective-preview-delivery.md)。旧 `EventJournal 0.1.1-preview.2` 没有该 API；首次写入 tag 后旧版本 reader 会拒绝打开。此前的五包同版本地开发包验收保留在[历史交付记录](docs/EventJournal/immutable-tags-delivery.md)。
 
 - 从 [AGENTS.md](AGENTS.md) 和以上库指南进入；[RBF 规范](docs/Rbf/) 与 [EventJournal 设计](docs/EventJournal/) 给出格式与语义约定。需要对应已发布源码时，使用上表中的固定包标签。
