@@ -16,7 +16,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\RbfSegmentStore\RbfSegmentStore.csproj" />
-    <ProjectReference Include="..\..\src\Rbf\Rbf.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,11 +1,15 @@
 # EventJournal 离线 toolkit
 
+main 保留本工具及其测试作为 **RBF1 旧栈的冻结参考**，维护与旧栈公开交付归 `RBF1` 分支。经 EventJournal/RbfSegmentStore 取得的 Rbf/Data/Primitives 固定为 `[0.2.0-rbf1-preview.1]`，不使用 main RBF3 底座；它不是 FrameStore/VersionStore 的维护工具。
+
+本轮引用拆分为 **Implementing，实施中，待验收**，实际构建、测试与 assets 见[过渡方案](../../docs/rbf1-reference-transition.md)。先按[根入口](../../README.md#构建与主线包验证)串行 Release build/test，再运行工具；main 包验证只覆盖三个底层包，不把本工具打包或发布。
+
 非打包工具，仅接受停写 journal 或稳定副本。扫描事实文件、全部 event/Parent/physical sequence/payload codec、ref-op-log、所有 ref move/CAS/targets/tag，以及目录库存和索引；不会调用日常 EventJournal/RefMoveStore 打开入口。
 
 ```bash
-dotnet run --project tools/EventJournal.Toolkit -c Release -- audit /path/to/journal
-dotnet run --project tools/EventJournal.Toolkit -c Release -- audit /path/to/journal --report /outside/new-report.json
-dotnet run --project tools/EventJournal.Toolkit -c Release -- rebuild-indexes /path/to/journal --output /outside/new-candidate
+dotnet run --project tools/EventJournal.Toolkit -c Release --no-build -- audit /path/to/journal
+dotnet run --project tools/EventJournal.Toolkit -c Release --no-build -- audit /path/to/journal --report /outside/new-report.json
+dotnet run --project tools/EventJournal.Toolkit -c Release --no-build -- rebuild-indexes /path/to/journal --output /outside/new-candidate
 ```
 
 `--report` 和 `--output` 均为 source 外尚不存在的路径，父目录必须存在，不支持 symlink/reparse 路径。源只读；重建仅生成 `candidate/` 下 locator/catalog，不安装、不修改业务事实。拒绝坏事实和多义发布边界；根格式未知/缺失不能重建。
@@ -17,11 +21,11 @@ dotnet run --project tools/EventJournal.Toolkit -c Release -- rebuild-indexes /p
 ## v1 → v2 独立副本升级
 
 ```bash
-dotnet run --project tools/EventJournal.Toolkit -c Release -- upgrade-v1tov2 /old/journal --profile legacy-bb7c4fb --check-only
-dotnet run --project tools/EventJournal.Toolkit -c Release -- upgrade-v1tov2 /old/journal --profile legacy-bb7c4fb --output /outside/new-upgrade-bundle
+dotnet run --project tools/EventJournal.Toolkit -c Release --no-build -- upgrade-v1tov2 /old/journal --profile legacy-bb7c4fb --check-only
+dotnet run --project tools/EventJournal.Toolkit -c Release --no-build -- upgrade-v1tov2 /old/journal --profile legacy-bb7c4fb --output /outside/new-upgrade-bundle
 ```
 
-`v1/v2`指journal整体布局，不是EventFrame header版本。唯一profile固定为`bb7c4fb3eb6477783c70ee61bc62b832be195d07`对应writer的旧布局；它是调用方的来源声明，不是从磁盘鉴定出的commit。升级实现面向Linux/Windows，Linux验证与[Windows平台门](../../docs/EventJournal/windows-platform-delivery.md)均已通过，详见[设计](../../docs/EventJournal/legacy-upgrade-design.md)与[交付记录](../../docs/EventJournal/legacy-upgrade-delivery.md)。
+`v1/v2`指journal整体布局，不是EventFrame header版本，也不是 RBF1 → RBF3 转写。唯一profile固定为`bb7c4fb3eb6477783c70ee61bc62b832be195d07`对应writer的旧布局；它是调用方的来源声明，不是从磁盘鉴定出的commit。原升级实现的 Linux 验证与[Windows平台门](../../docs/EventJournal/windows-platform-delivery.md)均已通过，详见[设计](../../docs/EventJournal/legacy-upgrade-design.md)与[交付记录](../../docs/EventJournal/legacy-upgrade-delivery.md)；历史结果保留原身份，不作为本轮引用拆分结果。
 
 输入必须停写或为稳定副本。命令逐字节复制全部RBF事实至`<output>/journal/`，生成v2 locator、EOF catalog和format，再执行完整audit与日常只读核对，最后发布`<output>/manifest.json`。原EventAddress、RefId、Parent、reflog、tags及orphan保留；源不修改，旧`cache/forward-plans/v1/`记录后不复制。目标必须尚不存在，拒绝源内输出、symlink/reparse、特殊文件、未知库存及任何混合v2 metadata。
 

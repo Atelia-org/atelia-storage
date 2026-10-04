@@ -4,9 +4,9 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <!-- Package mode relocates SDK output, so keep excluding source-mode outputs from default globs. -->
-    <DefaultItemExcludes Condition="'$(StoragePackageMode)' == 'true'">$(DefaultItemExcludes);obj/**;bin/**</DefaultItemExcludes>
   </PropertyGroup>
+
+  <Import Project="..\..\eng\Rbf1Reference.props" />
 
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo"><_Parameter1>Atelia.EventJournal.Validation</_Parameter1></AssemblyAttribute>
@@ -18,18 +18,8 @@
     </AssemblyAttribute>
   </ItemGroup>
 
-  <ItemGroup Condition="'$(StoragePackageMode)' != 'true'">
-    <ProjectReference Include="..\Data\Data.csproj" />
-    <ProjectReference Include="..\Primitives\Primitives.csproj" />
-    <ProjectReference Include="..\Rbf\Rbf.csproj" />
+  <ItemGroup>
     <ProjectReference Include="..\RbfSegmentStore\RbfSegmentStore.csproj" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(StoragePackageMode)' == 'true'">
-    <PackageReference Include="Atelia.Data" Version="$(StorageDependencyVersionData)" />
-    <PackageReference Include="Atelia.Primitives" Version="$(StorageDependencyVersionPrimitives)" />
-    <PackageReference Include="Atelia.Rbf" Version="$(StorageDependencyVersionRbf)" />
-    <PackageReference Include="Atelia.RbfSegmentStore" Version="$(StorageDependencyVersionRbfSegmentStore)" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,12 @@
+<Project>
+  <!-- The reference stack keeps its RBF1 dependencies separate from mainline RBF3 sources. -->
+  <PropertyGroup>
+    <_Rbf1ReferenceLibrary>true</_Rbf1ReferenceLibrary>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Atelia.Primitives" Version="[0.2.0-rbf1-preview.1]" />
+    <PackageReference Include="Atelia.Data" Version="[0.2.0-rbf1-preview.1]" />
+    <PackageReference Include="Atelia.Rbf" Version="[0.2.0-rbf1-preview.1]" />
+  </ItemGroup>
+</Project>

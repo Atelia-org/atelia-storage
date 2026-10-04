@@ -1,10 +1,12 @@
 # FrameStore / VersionStore 分阶段设计入口
 
-日期：2026-10-03；2026-10-04 更新 S1。状态：**S1 Accepted；S2–S6 Draft，两个新项目尚未创建**。
+日期：2026-10-03；2026-10-04 更新 S1 与旧栈参考边界。状态：**S1 Accepted；S2–S6 Draft，两个新项目尚未创建；参考依赖拆分 Implementing，待验收**。
 初始设计源码观察基线：`main @ 70d1009e78a73342a0c0fdc8ffed7731dec58173`；S1 本轮核对基线为 `f6f1eb38557863ba5ea1634844a90f0cbe5774cf`。本文档集供逐阶段细化、审阅和实施。
 
 目标：**以 RBF3 的帧原子性为基础，让中层构建新状态，再通过统一的根发布使状态生效。**
 恢复依据是完整事实帧及其有效发布记录。RBF 处理物理尾部；中层负责状态构建和依赖闭包；VersionStore 负责发布及 ref/branch/tag。
+
+main 当前演进主线为 RBF3 / FrameStore / VersionStore。旧 EventJournal/RbfSegmentStore、toolkit 及测试保留为冻结参考，底层精确 PackageReference `[0.2.0-rbf1-preview.1]`；维护和公开交付归 RBF1 分支。依赖隔离、solution 共存与本轮仅三包交付的实施及证据见[过渡方案](../rbf1-reference-transition.md)。本轮不删除旧目录、不创建新项目，也不改变 main 的 RBF1 只读兼容。
 
 ## 当前最小模型
 
@@ -19,7 +21,7 @@ RefId/revision/attempt 共用一个 RecordToken 表示；普通 head/tag 查询�
 - 本目录遵循 [规范约定](../spec-conventions.md)：`decision` 记录会话已确认方向；S1 的 `spec` 与签名已成为实施合同，S2–S6 仍是候选要求；未审定阶段的建议、算例、API 名称不自动冻结。
 - 阶段状态使用 `Draft → Ready → Implementing → Accepted`。Ready 前定稿字段/API/算法及验收映射；可以对范围明确的必要子合同单独审定，未支持能力不得借整体标签宣称成立。
 - S1 的实施合同提交为 `c940ed6`，实现提交为 `8ab98bf`；RBF 818/818、Data 288/288 和 W: public 源码消费已验收，实际工作树和二进制身份见[阶段验收记录](01-rbf-sized-append-acceptance.md)。本片不宣称新增包消费、性能或进程实杀通过，也不宣称下游已接入。
-- 旧库维护独立于这条演进链。其当前编译与合同不一致问题见 [原调查](../Rbf/rbf3-adaptation-baseline-investigation.md)；该调查基于 `e6ad4d2`，不冒充本次基线的新测试结果。
+- 旧库维护归 RBF1 分支，main 仅保留冻结参考，不要求它们适配新栈。[原调查](../Rbf/rbf3-adaptation-baseline-investigation.md)基于 `e6ad4d2`，记录旧源码跟随新底座时的断点，不冒充本轮冻结依赖后的测试结果。
 
 ## 阶段顺序
 
@@ -69,7 +71,7 @@ S4 使用显式完整控制回放作为正确性基线；S5 先完成命名，�
 | `src/VersionStore/VersionStore.csproj` | `Atelia.VersionStore`，生产库 | S4 |
 | `tests/VersionStore.Tests/VersionStore.Tests.csproj` | `Atelia.VersionStore.Tests`，非 pack 测试 | S4 |
 
-项目创建时使用仓库的 .NET 10 SDK、命名与测试依赖约定。新增生产包注册及 pack 顺序仍由 `eng/Pack.ps1` 唯一维护；源码阶段先明确候选包尚未交付的状态。S6 完成包入口后才能声明包消费可用。
+项目创建时使用仓库的 .NET 10 SDK、命名与测试依赖约定。新增生产包注册及 pack 顺序仍由 `eng/Pack.ps1` 唯一维护；当前主线仅注册 Primitives/Data/Rbf，旧参考库 IsPackable=false。后续新项目不得借旧库包名交付，源码阶段先明确候选包尚未交付的状态。S6 完成对应包入口后才能声明新库包消费可用。
 
 本目录不固定后续实施的 Git 提交、包版本或公开发布；这些取决于实际实施会话的授权及验收结果。
 

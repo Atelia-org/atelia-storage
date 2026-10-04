@@ -1,10 +1,14 @@
-# EventJournal 使用指南
+# EventJournal 冻结参考指南
 
 `Atelia.EventJournal` 是建立在 `RbfSegmentStore` / `Rbf` 之上的 append-only 事件日志基础设施。它把每个事件保存为不可变 `EventFrame`，并通过 `EventFrameHeader.Parent` 形成一条可验证的 parent chain；在此之上，当前实现已经包含 branch/ref、reflog、反向/正向遍历，以及用于高效正序 replay 的 ForwardPlan 派生缓存。
 
-本文描述 main 的 **v2 未发布 breaking 候选**，不是 nuget.org 已发布 `Atelia.EventJournal 0.1.2-preview.1` 的指南。已发布包的旧格式行为以根 README 的固定版本链接为准；v2 不直接打开旧目录，没有自动迁移。
+main 保留本目录及测试作为 **RBF1 旧栈的冻结参考代码**，不再将 EventJournal 作为主线新能力的承载库。旧栈维护及公开发版归 `RBF1` 分支；main 的 RBF3 / FrameStore / VersionStore 新栈见[分阶段设计](../../docs/FrameStore-VersionStore/README.md)。
 
-当前入口为 [有界日常 I/O 方案](../../docs/EventJournal/bounded-online-io-design.md)、[冻结合同](../../docs/EventJournal/bounded-online-io-contracts.md)和[候选交付记录](../../docs/EventJournal/bounded-online-io-delivery.md)。
+本轮参考代码精确引用 Rbf/Data/Primitives `[0.2.0-rbf1-preview.1]`，不引用 main 底层源码，不新增运行时适配。依赖拆分状态为 **Implementing，实施中，待验收**；实际构建、测试与 assets 资格见[过渡方案](../../docs/rbf1-reference-transition.md)。
+
+以下内容描述保留的 v2 journal 布局与 API，v2 不是 RBF 格式编号。具体已发布包行为以[根 README 的固定来源](../../README.md#已公开的-rbf1-包与历史事实)为准；它不代表 main RBF3 包或新栈消费者资格。v2 不直接打开旧目录，没有自动迁移。
+
+参考模型与原有交付证据保留在[有界日常 I/O 方案](../../docs/EventJournal/bounded-online-io-design.md)、[冻结合同](../../docs/EventJournal/bounded-online-io-contracts.md)和[历史候选交付记录](../../docs/EventJournal/bounded-online-io-delivery.md)，不把这些记录重标为本轮引用拆分结果。
 
 ## 文件布局
 
@@ -257,7 +261,7 @@ using var journal = EventJournal.OpenOrCreate(path, options);
 
 ## 当前边界与注意事项
 
-T00–T06 源码实现已通过当前 Linux 验证；性能/进程中断、Windows 和隔离包消费的交付状态见[候选交付记录](../../docs/EventJournal/bounded-online-io-delivery.md)。源码实现不等于已发布包、消费者升级或真实实例迁移。
+T00–T06 的原 Linux 源码验证，以及性能/进程中断、Windows 和隔离包消费状态，均按[历史候选交付记录](../../docs/EventJournal/bounded-online-io-delivery.md)的来源和范围解释。它们不证明本轮依赖拆分已通过，也不等于当前包消费、消费者升级或真实实例迁移。
 
 - EventFrame append-only；没有 event deletion / compaction / repack 语义。
 - 所有日常打开均严格、不修尾；全库审计显式使用离线 toolkit。
@@ -269,3 +273,14 @@ T00–T06 源码实现已通过当前 Linux 验证；性能/进程中断、Windo
   single-driver、非线程安全模型。不要在该 instance 生命周期内用另一个 `EventJournal` instance
   live move/archive 同一 ref，并期待前者自动 refresh 或提供跨 instance CAS。需要外部 move/archive
   时，先 dispose owning driver，完成 ref 操作后再 reopen。
+
+## 构建与参考测试
+
+完整新旧两组构建与测试按[根入口](../../README.md#构建与主线包验证)串行执行。只验证本参考库时，使用匹配的 Release 构建：
+
+```powershell
+dotnet build tests/EventJournal.Tests/EventJournal.Tests.csproj -c Release
+dotnet test tests/EventJournal.Tests/EventJournal.Tests.csproj -c Release --no-build
+```
+
+本目录 `IsPackable=false`；main 的 Pack/Test-Package 只交付三个新栈底层包，不交付 EventJournal。旧栈包消费及维护按 RBF1 分支和固定来源进行，不能从本参考测试推定 main 新栈或公开包资格。

@@ -1,7 +1,10 @@
-# RbfSegmentStore 使用指南
+# RbfSegmentStore 冻结参考指南
 
-本文面向后续 LLM Coding Agent 会话，说明如何在上层模块中使用 `Atelia.RbfSegmentStore`。
-本文描述 main 的 **v2 未发布 breaking 候选**；已发布 `Atelia.RbfSegmentStore 0.1.2-preview.1` 的格式/恢复行为以根 README 的固定版本链接为准。v2 拒绝无 locator 的旧目录，没有自动迁移。当前合同见[冻结附件](../../docs/EventJournal/bounded-online-io-contracts.md)，交付状态见[候选记录](../../docs/EventJournal/bounded-online-io-delivery.md)；[原始设计基线](../../docs/EventJournal/rbf-segment-store-design.md)保留为历史背景。
+main 保留 `Atelia.RbfSegmentStore` 及其测试作为 **RBF1 旧栈的冻结参考代码**。旧栈维护和公开发版归 `RBF1` 分支；main 新能力使用[FrameStore / VersionStore](../../docs/FrameStore-VersionStore/README.md)，不依赖本库。
+
+本轮参考代码精确引用 Rbf/Data/Primitives `[0.2.0-rbf1-preview.1]`，不引用 main 底层源码，不新增 RBF3 运行时适配。依赖拆分状态为 **Implementing，实施中，待验收**，实际构建、测试及 assets 资格见[过渡方案](../../docs/rbf1-reference-transition.md)。
+
+以下描述保留的 v2 segment 布局与 API；v2 是目录布局版本，不是 RBF 格式编号。具体已发布包行为以[根 README 的固定来源](../../README.md#已公开的-rbf1-包与历史事实)为准。v2 拒绝无 locator 的旧目录，没有自动迁移。原合同见[冻结附件](../../docs/EventJournal/bounded-online-io-contracts.md)，历史资格见[候选记录](../../docs/EventJournal/bounded-online-io-delivery.md)；[原始设计基线](../../docs/EventJournal/rbf-segment-store-design.md)保留为背景，不成为 main 新栈权威。
 
 ## 定位
 
@@ -191,16 +194,17 @@ Dispose 标记关闭并尝试释放所有 owned handles；释放异常汇总报�
 
 ## 常见任务
 
-运行本层测试：
+完整新旧两组构建与测试按[根入口](../../README.md#构建与主线包验证)串行执行。只验证本参考层时，先构建匹配的 Release 测试项目：
 
-```bash
-dotnet test tests/RbfSegmentStore.Tests/RbfSegmentStore.Tests.csproj
+```powershell
+dotnet build tests/RbfSegmentStore.Tests/RbfSegmentStore.Tests.csproj -c Release
+dotnet test tests/RbfSegmentStore.Tests/RbfSegmentStore.Tests.csproj -c Release --no-build
 ```
 
 只构建本层：
 
 ```bash
-dotnet build src/RbfSegmentStore/RbfSegmentStore.csproj
+dotnet build src/RbfSegmentStore/RbfSegmentStore.csproj -c Release
 ```
 
 格式化本层：
@@ -210,7 +214,9 @@ dotnet format src/RbfSegmentStore/RbfSegmentStore.csproj --no-restore
 dotnet format tests/RbfSegmentStore.Tests/RbfSegmentStore.Tests.csproj --no-restore
 ```
 
-## 继续实现上层时的建议
+本目录 `IsPackable=false`；main Pack/Test-Package 仅交付三个新栈底层包。旧栈维护及包交付在 RBF1 分支进行，本参考测试不为 main 新栈或公开包消费出具资格。
+
+## 参考实现的职责边界
 
 - 在 EventJournal 层定义 `FrameAddress` / `EventAddress`，不要把它们下沉到 `RbfSegmentStore`。
 - 在 EventJournal 层决定 frame tag 和 payload schema。

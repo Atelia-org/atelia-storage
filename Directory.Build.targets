@@ -3,7 +3,8 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <PropertyGroup Condition="'$(_StorageLibrary)' == 'true'">
-    <IsPackable>true</IsPackable>
+    <!-- Reference-only RBF1 libraries import their marker before this later SDK import. -->
+    <IsPackable Condition="'$(_Rbf1ReferenceLibrary)' != 'true'">true</IsPackable>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>

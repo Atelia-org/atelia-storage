@@ -15,31 +15,19 @@ string revision = manifest.GetProperty("sourceRevision").GetString()!;
 string version = manifest.GetProperty("version").GetString()!;
 Require(version == args[3], "Manifest version differs from requested version.");
 int schemaVersion = manifest.GetProperty("schemaVersion").GetInt32();
-Require(schemaVersion is 1 or 2, "Unsupported manifest schema version.");
+Require(schemaVersion == 1, "Main requires the three-package schema 1 manifest; historical selective delivery belongs to the RBF1 branch.");
 string repository = manifest.GetProperty("repositoryUrl").GetString()!;
 string sourcePrefix = repository.Replace("https://github.com/", "https://raw.githubusercontent.com/", StringComparison.Ordinal) + "/" + revision + "/";
-var expected = manifest.GetProperty("packages").EnumerateArray().Select(p => p.GetProperty("id").GetString()!).ToHashSet(StringComparer.OrdinalIgnoreCase);
-string[] storageIds = ["Atelia.Primitives", "Atelia.Data", "Atelia.Rbf", "Atelia.RbfSegmentStore", "Atelia.EventJournal"];
-string candidateId = schemaVersion == 1 ? "Atelia.EventJournal" : expected.Single();
-Require(schemaVersion == 1
-    ? manifest.GetProperty("packages").GetArrayLength() == storageIds.Length && expected.SetEquals(storageIds)
-    : manifest.GetProperty("packages").GetArrayLength() == 1 && (candidateId is "Atelia.EventJournal" or "Atelia.RbfSegmentStore"),
+var expected = manifest.GetProperty("packages").EnumerateArray().Select(p => p.GetProperty("id").GetString()!).ToHashSet(StringComparer.Ordinal);
+string[] storageIds = ["Atelia.Primitives", "Atelia.Data", "Atelia.Rbf"];
+Require(manifest.GetProperty("packages").GetArrayLength() == storageIds.Length && expected.SetEquals(storageIds),
     "Unexpected candidate package set.");
-JsonElement[] oldPackages = schemaVersion == 2 ? manifest.GetProperty("dependencies").EnumerateArray().ToArray() : [];
-var oldIds = oldPackages.Select(p => p.GetProperty("id").GetString()!).ToHashSet(StringComparer.OrdinalIgnoreCase);
-string[] expectedOldIds = candidateId == "Atelia.EventJournal"
-    ? ["Atelia.Primitives", "Atelia.Data", "Atelia.Rbf", "Atelia.RbfSegmentStore"]
-    : ["Atelia.Primitives", "Atelia.Data", "Atelia.Rbf"];
-Require(schemaVersion == 1 || (oldPackages.Length == expectedOldIds.Length && oldIds.SetEquals(expectedOldIds)), "Unexpected frozen dependency set.");
-var expectedVersions = schemaVersion == 1
-    ? storageIds.ToDictionary(id => id, _ => version, StringComparer.OrdinalIgnoreCase)
-    : oldPackages.ToDictionary(p => p.GetProperty("id").GetString()!, p => p.GetProperty("version").GetString()!, StringComparer.OrdinalIgnoreCase);
-expectedVersions[candidateId] = version;
+var expectedVersions = storageIds.ToDictionary(id => id, _ => version, StringComparer.OrdinalIgnoreCase);
 int checkedSourceDocuments = 0;
 foreach (var package in manifest.GetProperty("packages").EnumerateArray()) {
     string id = package.GetProperty("id").GetString()!;
     using var archive = OpenVerifiedArchive(package, "file", "sha256", "nupkg", version);
-    if (schemaVersion == 2) { Require(archive.GetEntry(".signature.p7s") is null, $"{id}: candidate package is already signed."); }
+    Require(archive.GetEntry(".signature.p7s") is null, $"{id}: candidate package is already signed.");
     using var symbols = OpenVerifiedArchive(package, "symbolsFile", "symbolsSha256", "snupkg", version);
     using var nuspecStream = archive.Entries.Single(e => e.FullName.EndsWith(".nuspec", StringComparison.Ordinal)).Open();
     var metadata = XDocument.Load(nuspecStream).Root!.Elements().Single(e => e.Name.LocalName == "metadata");
@@ -61,15 +49,19 @@ foreach (var package in manifest.GetProperty("packages").EnumerateArray()) {
     }
     var internalDependencies = metadata.Descendants().Where(e => e.Name.LocalName == "dependency")
         .Where(e => storageIds.Contains((string)e.Attribute("id")!, StringComparer.OrdinalIgnoreCase)).ToArray();
-    if (schemaVersion == 2) {
-        Require(internalDependencies.Length == expectedOldIds.Length, $"{id}: unexpected storage dependency count.");
-        Require(internalDependencies.Select(e => (string)e.Attribute("id")!).ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(oldIds), $"{id}: storage dependency IDs differ from manifest.");
-    }
+    string[] expectedDependencies = id == "Atelia.Rbf" ? ["Atelia.Primitives", "Atelia.Data"] : [];
+    Require(internalDependencies.Length == expectedDependencies.Length &&
+        internalDependencies.Select(e => (string)e.Attribute("id")!).ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(expectedDependencies),
+        $"{id}: unexpected storage dependency graph.");
+    Require(!metadata.Descendants().Where(e => e.Name.LocalName == "dependency")
+        .Any(e => ((string)e.Attribute("id")!).StartsWith("Atelia.", StringComparison.OrdinalIgnoreCase) &&
+            !storageIds.Contains((string)e.Attribute("id")!, StringComparer.OrdinalIgnoreCase)),
+        $"{id}: dependency on a package outside the main core set.");
     foreach (var dependency in internalDependencies) {
         string dependencyId = (string)dependency.Attribute("id")!;
         string dependencyVersion = (string)dependency.Attribute("version")!;
         string requiredVersion = expectedVersions[dependencyId];
-        Require(dependencyVersion == requiredVersion || dependencyVersion == $"[{requiredVersion}, )" || dependencyVersion == $"[{requiredVersion},)" || (schemaVersion == 1 && dependencyVersion == $"[{requiredVersion}]"), $"{id}: unexpected storage dependency {dependencyId} {dependencyVersion}.");
+        Require(dependencyVersion == requiredVersion || dependencyVersion == $"[{requiredVersion}, )" || dependencyVersion == $"[{requiredVersion},)" || dependencyVersion == $"[{requiredVersion}]", $"{id}: unexpected storage dependency {dependencyId} {dependencyVersion}.");
     }
     var pdbEntry = symbols.GetEntry($"lib/net10.0/{id}.pdb") ?? throw new InvalidDataException($"{id}: portable PDB missing.");
     using var pdbBytes = new MemoryStream();
@@ -109,31 +101,15 @@ foreach (var package in manifest.GetProperty("packages").EnumerateArray()) {
     checkedSourceDocuments += packageDocuments;
     Console.WriteLine($"Verified {id}/{version}: package assets, provenance, portable PDB and {packageDocuments} local source checksums.");
 }
-foreach (var package in oldPackages) {
-    string id = package.GetProperty("id").GetString()!;
-    string oldVersion = package.GetProperty("version").GetString()!;
-    string oldRevision = package.GetProperty("sourceRevision").GetString()!;
-    Require(!string.IsNullOrWhiteSpace(oldRevision), $"{id}: missing historical source revision.");
-    using var archive = OpenVerifiedArchive(package, "file", "sha256", "nupkg", oldVersion);
-    Require(archive.GetEntry(".signature.p7s") is { Length: > 0 }, $"{id}: historical package has no repository signature.");
-    using var nuspecStream = archive.Entries.Single(e => e.FullName.EndsWith(".nuspec", StringComparison.Ordinal)).Open();
-    var metadata = XDocument.Load(nuspecStream).Root!.Elements().Single(e => e.Name.LocalName == "metadata");
-    string Value(string name) => metadata.Elements().Single(e => e.Name.LocalName == name).Value;
-    Require(Value("id") == id && Value("version") == oldVersion, $"{id}: historical nuspec identity mismatch.");
-    var origin = metadata.Elements().Single(e => e.Name.LocalName == "repository");
-    Require((string?)origin.Attribute("commit") == oldRevision && (string?)origin.Attribute("url") == repository && (string?)origin.Attribute("type") == "git", $"{id}: historical repository metadata mismatch.");
-    Require(archive.GetEntry($"lib/net10.0/{id}.dll") is { Length: > 0 }, $"{id}: historical package assembly missing.");
-    Console.WriteLine($"Verified signed historical {id}/{oldVersion}: hash, identity and repository revision {oldRevision}.");
-}
 using var assetsJson = JsonDocument.Parse(File.ReadAllText(args[2]));
 var libraries = assetsJson.RootElement.GetProperty("libraries").EnumerateObject().ToArray();
 Require(libraries.All(p => p.Value.GetProperty("type").GetString() == "package"), "Consumer assets contain a project reference.");
 var actual = libraries.Where(p => p.Name.StartsWith("Atelia.", StringComparison.OrdinalIgnoreCase)).Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
 Require(actual.SetEquals(expectedVersions.Select(p => p.Key + "/" + p.Value)), "Actual restored storage package versions differ from manifest.");
-if (schemaVersion == 2) {
+{
     var packageFolders = assetsJson.RootElement.GetProperty("packageFolders").EnumerateObject().Select(p => p.Name).ToArray();
     Require(packageFolders.Length == 1, "Expected one isolated NuGet package folder.");
-    foreach (var package in manifest.GetProperty("packages").EnumerateArray().Concat(oldPackages)) {
+    foreach (var package in manifest.GetProperty("packages").EnumerateArray()) {
         string id = package.GetProperty("id").GetString()!;
         string packageVersion = expectedVersions[id];
         string filename = package.GetProperty("file").GetString()!;
@@ -146,7 +122,7 @@ if (schemaVersion == 2) {
     Require(frameworks.Length == 1, "Expected a single smoke target framework.");
     var direct = frameworks[0].Value.GetProperty("dependencies").EnumerateObject()
         .Where(p => p.Name.StartsWith("Atelia.", StringComparison.OrdinalIgnoreCase)).Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-    Require(direct.SetEquals([candidateId]), $"Smoke must directly reference only {candidateId}.");
+    Require(direct.SetEquals(["Atelia.Rbf"]), "Smoke must directly reference only Atelia.Rbf.");
 }
 Console.WriteLine($"Package metadata and isolated dependency graph passed; {checkedSourceDocuments} local source documents checked. Remote Source Link download is not tested.");
 

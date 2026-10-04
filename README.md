@@ -1,109 +1,70 @@
 # atelia-storage
 
-Atelia 的 .NET 10 存储基础库，使用 MIT 许可证。五个库保留原有 namespace 与包名。
+Atelia 的 .NET 10 存储基础库，使用 MIT 许可证。main 面向 **RBF3 / FrameStore / VersionStore 新栈**：当前底座为 `Atelia.Primitives`、`Atelia.Data`、`Atelia.Rbf`，FrameStore / VersionStore 尚未创建。
 
-当前 main 包含 **EventJournal/SegmentStore v2 未公开发布的 breaking 候选**：布局包含 `journal.format`、`active.segment` 与 `catalog.snapshot`，日常打开严格且有界，不自动修尾，旧目录需要另行迁移。当前候选见 [EventJournal 指南](src/EventJournal/README.md)、[SegmentStore 指南](src/RbfSegmentStore/README.md)、[离线 toolkit](tools/EventJournal.Toolkit/README.md)和[交付记录](docs/EventJournal/bounded-online-io-delivery.md)。
+现有 EventJournal、RbfSegmentStore、toolkit 及其测试保留原路径，作为 **RBF1 旧栈的冻结参考代码**。旧栈维护和公开交付归 `RBF1` 分支；main 不为它们适配新的底层 API。本轮依赖和交付入口拆分状态为 **Implementing，实施中，待验收**，方案与实际证据统一见 [RBF1 参考代码过渡方案](docs/rbf1-reference-transition.md)。
 
-当前 main 的 RBF 新建文件采用 **RBF3**（4B 长度单位、单尾 EscapeKey）；RBF1 保留只读及原 ticket 兼容。格式与恢复合同见 [RBF 规范](docs/Rbf/rbf-format.md)，实施资格见 [普通打开重构记录](docs/Rbf/rbf-open-fast-path-refactoring.md)。RbfSegmentStore / EventJournal 的适配属于后续阶段。
-
-下表仍是 nuget.org 已发布包事实，包链接固定到已发布源码；不能用 main 指南替代旧包行为。历史公开包曾按同一版本交付；新包可以按项目独立发版：
-
-| NuGet 包 | 本次公开组合 | 作用与入口 |
+| 当前边界 | 底层与交付方式 | 入口 |
 | --- | --- | --- |
-| `Atelia.Primitives` | `0.1.1-preview.2` | [结果与错误类型](https://github.com/Atelia-org/atelia-storage/blob/v0.1.1-preview.2/docs/Primitives/AteliaResult/README.md) |
-| `Atelia.Data` | `0.1.1-preview.2` | [二进制数据结构与缓冲区](https://github.com/Atelia-org/atelia-storage/tree/v0.1.1-preview.2/docs/Data/) |
-| `Atelia.Rbf` | `0.1.1-preview.2` | [Reversible Binary Framing](https://github.com/Atelia-org/atelia-storage/blob/v0.1.1-preview.2/docs/Rbf/rbf-interface.md) |
-| `Atelia.RbfSegmentStore` | `0.1.2-preview.1` | [分段存储、writer lease 与恢复约定](https://github.com/Atelia-org/atelia-storage/blob/Atelia.RbfSegmentStore-v0.1.2-preview.1/src/RbfSegmentStore/README.md) |
-| `Atelia.EventJournal` | `0.1.2-preview.1` | [事件、tag、branch/ref 与只读打开](https://github.com/Atelia-org/atelia-storage/blob/Atelia.EventJournal-v0.1.2-preview.1/src/EventJournal/README.md) |
+| main 底座及后续新栈 | main 源码；新建文件只写 RBF3，保留 RBF1 只读和旧 ticket 兼容；本轮 pack 仅 Primitives → Data → Rbf | [RBF 接口](docs/Rbf/rbf-interface.md)、[格式](docs/Rbf/rbf-format.md)、[新栈分阶段设计](docs/FrameStore-VersionStore/README.md) |
+| main 旧栈参考代码 | Rbf/Data/Primitives 精确 PackageReference `[0.2.0-rbf1-preview.1]`；两个旧库 `IsPackable=false`，不引用 main 底层源码 | [EventJournal](src/EventJournal/README.md)、[SegmentStore](src/RbfSegmentStore/README.md)、[toolkit](tools/EventJournal.Toolkit/README.md) |
+| RBF1 维护线 | 旧栈维护与公开发版按该分支及具体包来源；不把 main 的 RBF3 行为写回旧合同 | [过渡方案与公开包来源](docs/rbf1-reference-transition.md) |
 
-五个包通过 nuget.org 公开分发。消费应用使用明确版本的 `PackageReference`，正常还原不需要克隆或构建本仓；只引用 `Atelia.EventJournal` 即可获得其余四个传递依赖。下面的入口版本会还原上表所示的混合版本闭包，存储包版本独立于 DurableGraph 等消费库版本。
+当前 solution 同时保留两组源码和测试；依赖图在项目及消费进程边界隔离。这不表示一个消费程序能够同时装载两个同名 `Atelia.Rbf` 实现，也不提供运行时桥接或格式迁移。
+
+## 已公开的 RBF1 包与历史事实
+
+以下五包属于已公开的 **RBF1 系列**，来源 commit 为 `3e9554e2ea70f769607e80b3fc11a85506050533`；它们不是当前 main RBF3 源码的包交付资格。包指南固定到该来源，不能用 main 指南替代。
+
+| NuGet 包 | RBF1 公开版本 | 固定来源入口 |
+| --- | --- | --- |
+| `Atelia.Primitives` | `0.2.0-rbf1-preview.1` | [结果与错误类型](https://github.com/Atelia-org/atelia-storage/blob/3e9554e2ea70f769607e80b3fc11a85506050533/docs/Primitives/AteliaResult/README.md) |
+| `Atelia.Data` | `0.2.0-rbf1-preview.1` | [二进制数据结构与缓冲区](https://github.com/Atelia-org/atelia-storage/tree/3e9554e2ea70f769607e80b3fc11a85506050533/docs/Data/) |
+| `Atelia.Rbf` | `0.2.0-rbf1-preview.1` | [RBF1 接口](https://github.com/Atelia-org/atelia-storage/blob/3e9554e2ea70f769607e80b3fc11a85506050533/docs/Rbf/rbf-interface.md) |
+| `Atelia.RbfSegmentStore` | `0.2.0-rbf1-preview.1` | [旧栈 segment 指南](https://github.com/Atelia-org/atelia-storage/blob/3e9554e2ea70f769607e80b3fc11a85506050533/src/RbfSegmentStore/README.md) |
+| `Atelia.EventJournal` | `0.2.0-rbf1-preview.1` | [旧栈 journal 指南](https://github.com/Atelia-org/atelia-storage/blob/3e9554e2ea70f769607e80b3fc11a85506050533/src/EventJournal/README.md) |
+
+旧消费者使用明确版本的 PackageReference，存储包版本独立于 DurableGraph 等消费库版本。例如，以下引用消费 RBF1 系列，不消费 main 新栈：
 
 ```xml
-<PackageReference Include="Atelia.EventJournal" Version="0.1.2-preview.1" />
+<PackageReference Include="Atelia.EventJournal" Version="[0.2.0-rbf1-preview.1]" />
 ```
 
-下面的 public API 示例来自可执行的 [EventJournalSmoke](https://github.com/Atelia-org/atelia-storage/blob/Atelia.EventJournal-v0.1.2-preview.1/examples/EventJournalSmoke/Program.cs)。`Unwrap()` 用于已知应成功的示例；生产调用可检查结果的错误信息。`EventFrame.Payload` 是借用的 span，必须在 frame Dispose 前使用。
+main 保留的 v2 journal/segment 布局包含 `journal.format`、`active.segment`、`catalog.snapshot`；这里 v2 指旧栈目录布局，不能据此推定使用 RBF3。它们日常打开严格且不自动修尾，旧目录升级合同见对应参考指南和 [toolkit](tools/EventJournal.Toolkit/README.md)。
 
-```csharp
-using Atelia.EventJournal;
+此前 `0.1.2-preview.1` 的不可变 `CreateTag` / `ResolveTag` 公开交付及混合版本闭包见 [selective 历史交付记录](docs/selective-preview-delivery.md)和[已发布指南](https://github.com/Atelia-org/atelia-storage/blob/Atelia.EventJournal-v0.1.2-preview.1/src/EventJournal/README.md#不可变-tag)。更早五包同版候选见 [tag 历史验收](docs/EventJournal/immutable-tags-delivery.md)。历史格式、源码/包、平台与迁移结论保留各自身份，不重标为本轮结果。
 
-EventAddress child;
-using (var journal = EventJournal.CreateNew(path)) {
-    EventAddress root = journal.AppendEventFrame(null, "root"u8).Unwrap();
-    child = journal.AppendEventFrame(root, "child"u8).Unwrap();
-    journal.CreateTag("saved", child).Unwrap();
-    using EventFrame frame = journal.ReadEvent(child).Unwrap();
-    Console.WriteLine(System.Text.Encoding.UTF8.GetString(frame.Payload));
-}
-using (var journal = EventJournal.OpenReadOnlyExisting(path)) {
-    using EventFrame frame = journal.ReadEvent(journal.ResolveTag("saved").Unwrap()).Unwrap();
-    Console.WriteLine(System.Text.Encoding.UTF8.GetString(frame.Payload));
-}
-```
+## 构建与主线包验证
 
-`CreateNew` 用于新目录；上述已发布版本的可写打开默认尾部恢复行为、只读校验、单 writer 和 lease/Dispose 规则见对应已发布源码指南；当前 main 的 v2 已移除自动修尾。只读打开损坏尾部会报告错误，不能用可写打开替代只读检查。
+需要 Git、精确的 .NET SDK **10.0.201**、PowerShell 7；`global.json` 禁用 SDK roll-forward。CI 从同一文件安装 SDK，不需要原 atelia 仓或其两个 Analyzer 项目。Windows/Linux 使用相同入口，.NET 操作串行执行。Windows 极限偏移测试使用稀疏文件，TEMP 所在文件系统需要支持稀疏文件。
 
-## 构建与包验证
-
-需要 Git、精确的 .NET SDK **10.0.201**、PowerShell 7；`global.json` 禁用 SDK roll-forward，以免相同源码和包版本随编译器漂移。CI 从同一文件安装 SDK。不需要原 atelia 仓或其两个 Analyzer 项目。Windows/Linux 使用相同命令，.NET 操作串行执行：
-
-Windows 的极限偏移测试使用稀疏文件，TEMP 所在文件系统需要支持稀疏文件，无须为测试准备约 1 TiB 空闲空间。
+本轮入口按过渡方案调整为三包；以下命令不声明已经执行通过：
 
 ```powershell
 dotnet build Atelia.Storage.slnx -c Release
+./eng/Test-Rbf1ReferenceAssets.ps1
 dotnet test Atelia.Storage.slnx -c Release --no-build
 # 先提交源码；从干净 HEAD 打包。不同内容必须使用新版本。
 $version = "0.2.0-dev.$([DateTime]::UtcNow.ToString('yyyyMMddHHmmss'))"
 ./eng/Pack.ps1 -Version $version -OutputDirectory ./artifacts/feed
-./eng/Test-Package.ps1 -Version $version -FeedDirectory ./artifacts/feed -WorkDirectory "../storage-package-smoke-$version" -AdditionalSegmentSmoke
+./eng/Test-Package.ps1 -Version $version -FeedDirectory ./artifacts/feed -WorkDirectory "../storage-package-smoke-$version"
 ```
 
-上面的命令保留五包同版候选验证；示例版本不是公开发布版本决定。main 的 v2 EventJournal 依赖本次新增 RBF API，须使用五包候选闭包，不能沿用下面旧依赖的 selective 命令。包消费、Windows 和真实迁移证据分别记录，不以源码测试代替。
+solution build/test 同时覆盖 main 底座和冻结旧栈参考项目；旧栈底层从 nuget.org 还原精确 RBF1 包，固定依赖由 [eng/Rbf1Reference.props](eng/Rbf1Reference.props) 维护。assets 检查入口核对旧栈实际底层包版本及来源 commit；main 底座及其测试仍使用源码项目，其依赖图也需复核。不能以 solution 共存推定依赖隔离已成立。
 
-下面两个 selective 示例保留已发布版本的交付方式，仅用于对应旧源码标签（`Atelia.RbfSegmentStore-v0.1.2-preview.1` / `Atelia.EventJournal-v0.1.2-preview.1`），不用于当前 main。单独制作 `RbfSegmentStore` 候选时，在干净的已提交源码树执行；三个底层依赖明确选用已发布包：
+`eng/Pack.ps1` 是主线生产包清单和 pack 顺序的唯一入口，本阶段仅输出三个底层包及对应 symbols/manifest。Pack 要求干净已提交树、明确 Version/OutputDirectory 和正确 origin；相同版本只能复用来源与 hash 匹配的产物，不覆盖 feed 中已有内容。默认 All 指当前三包；旧栈 selective 发布和额外 segment smoke 不属于 main 入口，历史命令从 RBF1 分支及交付记录查阅。
 
-```powershell
-$version = "0.1.2-dev.$([DateTime]::UtcNow.ToString('yyyyMMddHHmmss'))"
-$dependencies = @{
-    'Atelia.Primitives' = '0.1.1-preview.2'
-    'Atelia.Data' = '0.1.1-preview.2'
-    'Atelia.Rbf' = '0.1.1-preview.2'
-}
-./eng/Pack.ps1 -Project RbfSegmentStore -Version $version -DependencyVersions $dependencies -OutputDirectory ./artifacts/feed
-./eng/Test-Package.ps1 -Project RbfSegmentStore -Version $version -FeedDirectory ./artifacts/feed -WorkDirectory "../storage-segment-smoke-$version"
-```
+`eng/Test-Package.ps1` 在尚不存在的仓外目录建立独立 NuGet cache/config 与 MSBuild 边界，纯 RbfPackageSmoke 直接 PackageReference Rbf，检查三包闭包与 public API。包 manifest、静态 Source Link 和本地源码 checksum 检查保留；源码测试不替代包消费，远端 Source Link、真实应用旧数据兼容和公开发布各自需要证据。验证 workspace 保留日志、assets 与 manifest。
 
-`EventJournal` 的 tag 实现依赖 `RbfSegmentStore.ConfirmDurable`；旧版 `RbfSegmentStore 0.1.1-preview.2` 没有这个 API。下面用已发布的 `0.1.2-preview.1` 构建单独的 `EventJournal` 开发候选，使用与上例不同的输出目录：
+候选容器规范化和确定性构建规则由 `eng/Pack.ps1` 维护；应区分候选 hash 与 nuget.org 签名后的公开包 hash。同平台重打包比较完整 nupkg/snupkg，不能只比较 DLL。本轮只准备本地三包候选及隔离消费，不执行公开发布；发布资格和参数仍需按具体提交另行验收。
 
-```powershell
-$version = "0.1.2-dev.$([DateTime]::UtcNow.ToString('yyyyMMddHHmmss'))"
-$dependencies = @{
-    'Atelia.Primitives' = '0.1.1-preview.2'
-    'Atelia.Data' = '0.1.1-preview.2'
-    'Atelia.Rbf' = '0.1.1-preview.2'
-    'Atelia.RbfSegmentStore' = '0.1.2-preview.1'
-}
-./eng/Pack.ps1 -Project EventJournal -Version $version -DependencyVersions $dependencies -OutputDirectory ./artifacts/eventjournal-feed
-./eng/Test-Package.ps1 -Project EventJournal -Version $version -FeedDirectory ./artifacts/eventjournal-feed -WorkDirectory "../storage-eventjournal-smoke-$version"
-```
-
-`Pack.ps1` 是五个生产包清单和打包算法的唯一入口，要求 origin 指向 `https://github.com/Atelia-org/atelia-storage.git`，拒绝未提交的源码。它在源码仓选择并核对 SDK；相对输出路径仍按调用者的 PowerShell 当前目录解析。五包同版模式输出五个 nupkg、五个 snupkg 与 `manifest.<版本>.json`；单包模式输出一个新 nupkg/snupkg、所需的三个或四个 nuget.org 已签名依赖包与 `manifest.Atelia.<项目>.<版本>.json`。两种 manifest 均记录新包 commit、SDK 版本和 SHA256，单包 manifest 另记录旧依赖各自的原来源和公开包哈希。相同版本只允许复用匹配来源且所有 hash 相符的既有产物，不覆盖内容。
-
-.NET 10 的 NuGet 容器包含随构建变化的时间和 OPC 标识。Pack 在发布前的 staging 内固定 entry 排序/时间、OPC 路径与关系 Id，采用不压缩 ZIP，明确移除 nuspec 的 repository branch 并按依赖 id 排序；生成的包元数据和 API XML 统一为 UTF-8 LF，文档内容与 XML 语义保留，二进制 payload 不经重写。已有签名的包被拒绝。
-
-Pack 临时固定 CLI 语言为 en-US，并启用 `StorageDeterministicPack`：编译前仅将 SDK 的 GlobalUsings、AssemblyInfo 与 TargetFramework 属性这三个 `obj` 生成文件统一为 UTF-8 LF 和固定生成注释，不修改运行时源码。普通 build/test 不启用此步骤。同平台复验同一 commit/版本时应比较对应 nupkg/snupkg 的 SHA256，不能只比较 DLL。此前公开版本的 Windows 与 Linux 候选整包哈希实测不同；应分别记录上传前候选与 nuget.org 签名后公开包的哈希，不把本机重打包当作公开发布字节。
-
-`Test-Package.ps1` 要求一个尚不存在的仓外目录，建立独立 NuGet 配置、缓存和 MSBuild 配置边界。每个 smoke 仅直接引用其目标包，验证公开 API。当前 `EventJournal` smoke 覆盖 branch/ref/tag、fork/rewind、event/ref rotation、body/Parent 及 strict writable/read-only reopen；`RbfSegmentStore` smoke 覆盖三段轮转、ConfirmDurable、checked read、boundary scan 与 strict reopen。All 模式的 `-AdditionalSegmentSmoke` 在同一隔离 workspace 增跑直接 SegmentStore 消费，并核对四包 assets 闭包；非 All 模式拒绝该参数。验证器核对实际依赖版本、包资产、新包来源 commit 与 PDB Source Link 的本地源码 checksum；单包模式对旧包校验公开签名字节、身份及其各自来源。它不证明远端 Source Link 已可下载，也不替代消费应用的跨版本旧数据验证。验证目录保留日志材料、assets 与包 manifest，便于复查。
-
-修改消费库与存储库时，消费仓使用显式 `UseStorageSources=true`、`StorageSourceRoot=<绝对路径>` 联调；默认仍走其固定包版本。源码模式用于 build/test，消费仓产包先由本仓生成新版本 S，再按包模式生成消费库版本 G。
+消费仓日常使用自己的固定 PackageReference；显式源码联调选项不得让旧栈自动跟随 main 底层源码。排障时先核对实际 assets、包 manifest 和来源 commit，再阅读对应源码。
 
 ## 文档与 Agent 入口
 
-新一代中性帧存储与根发布见 [FrameStore / VersionStore 分阶段设计](docs/FrameStore-VersionStore/README.md)。其中 [S1 公共尺寸计算与提前 ticket](docs/FrameStore-VersionStore/01-rbf-sized-append.md)已完成实现并验收为 Accepted，提供尺寸/预算试算、分立长度 Begin + out ticket 和已打开格式投影；RBF 818/818 与 W: public 源码消费等证据见[阶段验收记录](docs/FrameStore-VersionStore/01-rbf-sized-append-acceptance.md)。后续阶段仍为 Draft，两个新项目尚未创建；已发布包事实仍以上表固定版本为准，现有 RbfSegmentStore / EventJournal 继续属于维护和修复范围。
+新栈主入口为 [FrameStore / VersionStore 分阶段设计](docs/FrameStore-VersionStore/README.md)。[S1 公共尺寸计算与提前 ticket](docs/FrameStore-VersionStore/01-rbf-sized-append.md)已 Accepted，源码资格见[阶段验收记录](docs/FrameStore-VersionStore/01-rbf-sized-append-acceptance.md)；S2–S6 仍为 Draft。S1 历史测试与本轮依赖拆分结果分开记录，不以 Accepted 推定新项目或包已交付。
 
-已发布 `0.1.2-preview.1` 提供不可变 `CreateTag` / `ResolveTag`，见 [tag 合同](docs/EventJournal/immutable-tags-design.md)、[已发布源码使用指南](https://github.com/Atelia-org/atelia-storage/blob/Atelia.EventJournal-v0.1.2-preview.1/src/EventJournal/README.md#不可变-tag)和[本次公开交付记录](docs/selective-preview-delivery.md)。旧 `EventJournal 0.1.1-preview.2` 没有该 API；首次写入 tag 后旧版本 reader 会拒绝打开。此前的五包同版本地开发包验收保留在[历史交付记录](docs/EventJournal/immutable-tags-delivery.md)。
-
-- 从 [AGENTS.md](AGENTS.md) 和以上库指南进入；[RBF 规范](docs/Rbf/) 与 [EventJournal 设计](docs/EventJournal/) 给出格式与语义约定。需要对应已发布源码时，使用上表中的固定包标签。
-- 来源与历史提取范围见 [extraction-origin](https://github.com/Atelia-org/atelia-storage/blob/v0.1.1-preview.2/docs/extraction-origin.md)。历史讨论保留原始语境，不代表当前活动入口。
-- 排查某个包时核对该包的版本与来源 commit，再打开对应源码；消费仓目前的单一 `StoragePackageVersion` / `StorageSourceRevision` 只描述旧同版组合，采用本次混合组合前需要逐包固定。Source Link 提供定位与调试信息，包引用不会自动把本仓 AGENTS.md 或指南注入 Agent 上下文。
-- CI 复用上述构建/验证入口；公开发布采用手动 workflow 与 nuget.org Trusted Publishing，须先配置仓权限及包所有权。选择性发布每次仅推送所选的一个新包；发布后用 `eng/Verify-Published.ps1` 从公开源复查签名包和独立消费闭包。仓库内不保存 token。
+- 协作约束见 [AGENTS.md](AGENTS.md)；本轮新旧依赖边界、状态与验收见 [过渡方案](docs/rbf1-reference-transition.md)。
+- 旧栈参考指南与 [EventJournal 历史设计](docs/EventJournal/)提供模型和事实背景，不是 main 新栈的规范权威。具体公开包以固定来源为准。
+- 来源与原始提取范围见 [extraction-origin](docs/extraction-origin.md)。历史讨论保留原始语境，不自动成为当前活动入口。
+- CI 与主线三包交付入口同步；`eng/Verify-Published.ps1` 按三包公开闭包核验，不能把本地候选消费当作公开源验证。仓库内不保存 token，网络发布须有明确会话授权。

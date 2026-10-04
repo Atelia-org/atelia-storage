@@ -3,22 +3,16 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: New immutable package version, for example 0.1.1-preview.1
+        description: New immutable core package version, for example 0.3.0-rbf3-preview.1
         required: true
         type: string
       project:
-        description: Publish all five packages or one selected project
+        description: Publish the Primitives/Data/Rbf core package set
         required: true
         type: choice
-        default: EventJournal
+        default: All
         options:
-          - EventJournal
-          - RbfSegmentStore
           - All
-      dependency_versions:
-        description: JSON of selected project's published dependency versions; only for single-package mode
-        required: false
-        type: string
 permissions:
   contents: read
   id-token: write
@@ -30,15 +24,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Require selected package tag
-        if: inputs.project != 'All'
+      - name: Require immutable core release tag
         shell: pwsh
         env:
           STORAGE_VERSION: ${{ inputs.version }}
-          STORAGE_PROJECT: ${{ inputs.project }}
         run: |
-          $expected = "refs/tags/Atelia.${env:STORAGE_PROJECT}-v${env:STORAGE_VERSION}"
-          if ($env:GITHUB_REF -cne $expected) { throw "Dispatch selective publication from $expected." }
+          $expected = "refs/tags/v${env:STORAGE_VERSION}"
+          if ($env:GITHUB_REF -cne $expected) { throw "Dispatch core publication from $expected." }
           $tagCommit = (& git rev-parse --verify "$expected^{commit}" | Out-String).Trim()
           $headCommit = (& git rev-parse --verify HEAD | Out-String).Trim()
           if ($LASTEXITCODE -ne 0 -or $tagCommit -cne $headCommit) { throw 'Selected tag does not point at checked-out HEAD.' }
@@ -50,20 +42,16 @@ jobs:
         env:
           STORAGE_VERSION: ${{ inputs.version }}
           STORAGE_PROJECT: ${{ inputs.project }}
-          STORAGE_DEPENDENCY_VERSIONS: ${{ inputs.dependency_versions }}
         run: |
+          if ($env:STORAGE_PROJECT -cne 'All') { throw 'Main publishes only the three-package All set.' }
           dotnet build Atelia.Storage.slnx -c Release
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./eng/Test-Rbf1ReferenceAssets.ps1
           dotnet test Atelia.Storage.slnx -c Release --no-build
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          if ($env:STORAGE_PROJECT -ne 'All') {
-            $dependencies = $env:STORAGE_DEPENDENCY_VERSIONS | ConvertFrom-Json -AsHashtable
-            ./eng/Pack.ps1 -Project $env:STORAGE_PROJECT -Version $env:STORAGE_VERSION -DependencyVersions $dependencies -OutputDirectory ./artifacts/feed
-            ./eng/Test-Package.ps1 -Project $env:STORAGE_PROJECT -Version $env:STORAGE_VERSION -FeedDirectory ./artifacts/feed -WorkDirectory (Join-Path '${{ runner.temp }}' 'storage-package-smoke')
-          } else {
-            ./eng/Pack.ps1 -Version $env:STORAGE_VERSION -OutputDirectory ./artifacts/feed
-            ./eng/Test-Package.ps1 -Version $env:STORAGE_VERSION -FeedDirectory ./artifacts/feed -WorkDirectory (Join-Path '${{ runner.temp }}' 'storage-package-smoke')
-          }
+          ./eng/Test-Package.EntryPoint.Tests.ps1 -EvidenceDirectory (Join-Path '${{ runner.temp }}' 'storage-entry-tests')
+          ./eng/Pack.ps1 -Version $env:STORAGE_VERSION -OutputDirectory ./artifacts/feed
+          ./eng/Test-Package.ps1 -Version $env:STORAGE_VERSION -FeedDirectory ./artifacts/feed -WorkDirectory (Join-Path '${{ runner.temp }}' 'storage-package-smoke')
       # Configure this repository/workflow/environment as a nuget.org trusted publisher first.
       - uses: NuGet/login@v1
         id: login
@@ -76,15 +64,17 @@ jobs:
           STORAGE_PROJECT: ${{ inputs.project }}
           NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
         run: |
-          $manifestName = if ($env:STORAGE_PROJECT -ne 'All') { "manifest.Atelia.${env:STORAGE_PROJECT}.${env:STORAGE_VERSION}.json" } else { "manifest.$env:STORAGE_VERSION.json" }
+          if ($env:STORAGE_PROJECT -cne 'All') { throw 'Main publishes only the three-package All set.' }
+          $manifestName = "manifest.$env:STORAGE_VERSION.json"
           $manifest = Get-Content (Join-Path './artifacts/feed' $manifestName) -Raw | ConvertFrom-Json
           $revision = (& git rev-parse HEAD | Out-String).Trim()
-          if ($LASTEXITCODE -ne 0 -or $manifest.sourceRevision -cne $revision -or $manifest.version -cne $env:STORAGE_VERSION) { throw 'Manifest does not match the selected release.' }
-          $expectedIds = @(if ($env:STORAGE_PROJECT -eq 'All') { 'Atelia.Primitives'; 'Atelia.Data'; 'Atelia.Rbf'; 'Atelia.RbfSegmentStore'; 'Atelia.EventJournal' } else { "Atelia.$env:STORAGE_PROJECT" })
+          if ($LASTEXITCODE -ne 0 -or $manifest.schemaVersion -ne 1 -or $manifest.sourceRevision -cne $revision -or $manifest.version -cne $env:STORAGE_VERSION) { throw 'Manifest does not match the selected release.' }
+          $expectedIds = @('Atelia.Primitives', 'Atelia.Data', 'Atelia.Rbf')
           if (@($manifest.packages).Count -ne $expectedIds.Count) { throw 'Unexpected release package count.' }
           for ($index = 0; $index -lt $expectedIds.Count; $index++) {
             $package = $manifest.packages[$index]
             if ($package.id -cne $expectedIds[$index]) { throw "Unexpected release package: $($package.id)" }
+            if ($package.file -cne "$($package.id).$env:STORAGE_VERSION.nupkg" -or $package.symbolsFile -cne "$($package.id).$env:STORAGE_VERSION.snupkg") { throw 'Unexpected release artifact filename.' }
             $path = Join-Path './artifacts/feed' $package.file
             if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ine $package.sha256) { throw "Candidate package changed: $($package.id)" }
             $symbols = Join-Path './artifacts/feed' $package.symbolsFile
@@ -92,8 +82,7 @@ jobs:
             dotnet nuget push $path --source https://api.nuget.org/v3/index.json --api-key $env:NUGET_API_KEY
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
-      - name: Verify selected public package and consumer
-        if: inputs.project != 'All'
+      - name: Verify all three public packages and Rbf consumer
         shell: pwsh
         env:
           STORAGE_VERSION: ${{ inputs.version }}
