@@ -1,6 +1,6 @@
 # FrameStore / VersionStore 分阶段设计入口
 
-日期：2026-10-03；2026-10-04 更新 S1 与旧栈参考边界。状态：**S1 Accepted；S2–S6 Draft，两个新项目尚未创建；参考依赖拆分 Implementing，待验收**。
+日期：2026-10-03；2026-10-04 更新 S1 与旧栈参考边界。状态：**S1 Accepted；S2–S6 Draft，两个新项目尚未创建；参考依赖拆分 Accepted**。
 初始设计源码观察基线：`main @ 70d1009e78a73342a0c0fdc8ffed7731dec58173`；S1 本轮核对基线为 `f6f1eb38557863ba5ea1634844a90f0cbe5774cf`。本文档集供逐阶段细化、审阅和实施。
 
 目标：**以 RBF3 的帧原子性为基础，让中层构建新状态，再通过统一的根发布使状态生效。**
@@ -21,6 +21,7 @@ RefId/revision/attempt 共用一个 RecordToken 表示；普通 head/tag 查询�
 - 本目录遵循 [规范约定](../spec-conventions.md)：`decision` 记录会话已确认方向；S1 的 `spec` 与签名已成为实施合同，S2–S6 仍是候选要求；未审定阶段的建议、算例、API 名称不自动冻结。
 - 阶段状态使用 `Draft → Ready → Implementing → Accepted`。Ready 前定稿字段/API/算法及验收映射；可以对范围明确的必要子合同单独审定，未支持能力不得借整体标签宣称成立。
 - S1 的实施合同提交为 `c940ed6`，实现提交为 `8ab98bf`；RBF 818/818、Data 288/288 和 W: public 源码消费已验收，实际工作树和二进制身份见[阶段验收记录](01-rbf-sized-append-acceptance.md)。本片不宣称新增包消费、性能或进程实杀通过，也不宣称下游已接入。
+- 后续参考依赖拆分轮次已取得 RBF3 三包候选的 W: 隔离 PackageReference 消费资格；候选版本、实现提交和 76 个源码 checksum 见[过渡验收记录](../rbf1-reference-transition.md#6-验收记录)。它不重标 S1 的历史工件，也不代表公开发布或 FrameStore/VersionStore 已交付。
 - 旧库维护归 RBF1 分支，main 仅保留冻结参考，不要求它们适配新栈。[原调查](../Rbf/rbf3-adaptation-baseline-investigation.md)基于 `e6ad4d2`，记录旧源码跟随新底座时的断点，不冒充本轮冻结依赖后的测试结果。
 
 ## 阶段顺序

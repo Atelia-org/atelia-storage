@@ -2,7 +2,7 @@
 
 main 保留本工具及其测试作为 **RBF1 旧栈的冻结参考**，维护与旧栈公开交付归 `RBF1` 分支。经 EventJournal/RbfSegmentStore 取得的 Rbf/Data/Primitives 固定为 `[0.2.0-rbf1-preview.1]`，不使用 main RBF3 底座；它不是 FrameStore/VersionStore 的维护工具。
 
-本轮引用拆分为 **Implementing，实施中，待验收**，实际构建、测试与 assets 见[过渡方案](../../docs/rbf1-reference-transition.md)。先按[根入口](../../README.md#构建与主线包验证)串行 Release build/test，再运行工具；main 包验证只覆盖三个底层包，不把本工具打包或发布。
+本轮引用拆分已 **Accepted**，实际构建、测试与 assets 见[过渡方案](../../docs/rbf1-reference-transition.md)。先按[根入口](../../README.md#构建与主线包验证)串行 Release build/test，再运行工具；main 包验证只覆盖三个底层包，不把本工具打包或发布。
 
 非打包工具，仅接受停写 journal 或稳定副本。扫描事实文件、全部 event/Parent/physical sequence/payload codec、ref-op-log、所有 ref move/CAS/targets/tag，以及目录库存和索引；不会调用日常 EventJournal/RefMoveStore 打开入口。
 

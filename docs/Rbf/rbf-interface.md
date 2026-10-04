@@ -17,7 +17,9 @@ produce_by:
 
 pooled读取的唯一失败释放及RBF3 total≤8KiB打包输出后续修复已完成，696/696与W:阈值对照的实际源码/构建身份见[读取资源与输出验收](rbf3-resource-and-output-acceptance.md)。格式、读取资格与恢复合同保持。
 
-2026-10-04 公共尺寸/预算试算、Format 及已知尺寸 Builder 已实施并验收为 Accepted，实现提交 `8ab98bf`。本文同步 public 形态和调用语义；新增尺寸与声明合同以 [S1](../FrameStore-VersionStore/01-rbf-sized-append.md) 的现有条款为准，不另建一份规范权威。RBF 818/818 与 W: public 源码消费的实际身份见[阶段验收记录](../FrameStore-VersionStore/01-rbf-sized-append-acceptance.md)；新增 API 尚未取得包消费或发布资格。
+2026-10-04 公共尺寸/预算试算、Format 及已知尺寸 Builder 已实施并验收为 Accepted，实现提交 `8ab98bf`。本文同步 public 形态和调用语义；新增尺寸与声明合同以 [S1](../FrameStore-VersionStore/01-rbf-sized-append.md) 的现有条款为准，不另建一份规范权威。RBF 818/818 与 W: public 源码消费的实际身份见[阶段验收记录](../FrameStore-VersionStore/01-rbf-sized-append-acceptance.md)；该历史轮次未取得新增 API 的包消费或发布资格。
+
+后续 `4db3b8f` 的三包候选已通过 W: 隔离 PackageReference 消费，覆盖尺寸/预算、提前 ticket、双文件互引与读回/冷重开；包来源、版本及 76 个本地源码 checksum 见[RBF1 参考代码过渡验收](../rbf1-reference-transition.md#6-验收记录)。此为本地候选资格，未公开发布，不改变上述历史轮次的身份。
 
 ## 1. 概述
 

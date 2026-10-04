@@ -4,7 +4,7 @@
 
 main 保留本目录及测试作为 **RBF1 旧栈的冻结参考代码**，不再将 EventJournal 作为主线新能力的承载库。旧栈维护及公开发版归 `RBF1` 分支；main 的 RBF3 / FrameStore / VersionStore 新栈见[分阶段设计](../../docs/FrameStore-VersionStore/README.md)。
 
-本轮参考代码精确引用 Rbf/Data/Primitives `[0.2.0-rbf1-preview.1]`，不引用 main 底层源码，不新增运行时适配。依赖拆分状态为 **Implementing，实施中，待验收**；实际构建、测试与 assets 资格见[过渡方案](../../docs/rbf1-reference-transition.md)。
+本轮参考代码精确引用 Rbf/Data/Primitives `[0.2.0-rbf1-preview.1]`，不引用 main 底层源码，不新增运行时适配。依赖拆分已 **Accepted**；实际构建、测试与 assets 资格见[过渡方案](../../docs/rbf1-reference-transition.md)。
 
 以下内容描述保留的 v2 journal 布局与 API，v2 不是 RBF 格式编号。具体已发布包行为以[根 README 的固定来源](../../README.md#已公开的-rbf1-包与历史事实)为准；它不代表 main RBF3 包或新栈消费者资格。v2 不直接打开旧目录，没有自动迁移。
 

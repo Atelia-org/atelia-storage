@@ -2,7 +2,7 @@
 
 Atelia 的 .NET 10 存储基础库，使用 MIT 许可证。main 面向 **RBF3 / FrameStore / VersionStore 新栈**：当前底座为 `Atelia.Primitives`、`Atelia.Data`、`Atelia.Rbf`，FrameStore / VersionStore 尚未创建。
 
-现有 EventJournal、RbfSegmentStore、toolkit 及其测试保留原路径，作为 **RBF1 旧栈的冻结参考代码**。旧栈维护和公开交付归 `RBF1` 分支；main 不为它们适配新的底层 API。本轮依赖和交付入口拆分状态为 **Implementing，实施中，待验收**，方案与实际证据统一见 [RBF1 参考代码过渡方案](docs/rbf1-reference-transition.md)。
+现有 EventJournal、RbfSegmentStore、toolkit 及其测试保留原路径，作为 **RBF1 旧栈的冻结参考代码**。旧栈维护和公开交付归 `RBF1` 分支；main 不为它们适配新的底层 API。本轮依赖和交付入口拆分已 **Accepted**，方案与实际证据统一见 [RBF1 参考代码过渡方案](docs/rbf1-reference-transition.md)。
 
 | 当前边界 | 底层与交付方式 | 入口 |
 | --- | --- | --- |
@@ -38,14 +38,14 @@ main 保留的 v2 journal/segment 布局包含 `journal.format`、`active.segmen
 
 需要 Git、精确的 .NET SDK **10.0.201**、PowerShell 7；`global.json` 禁用 SDK roll-forward。CI 从同一文件安装 SDK，不需要原 atelia 仓或其两个 Analyzer 项目。Windows/Linux 使用相同入口，.NET 操作串行执行。Windows 极限偏移测试使用稀疏文件，TEMP 所在文件系统需要支持稀疏文件。
 
-本轮入口按过渡方案调整为三包；以下命令不声明已经执行通过：
+主线入口如下。本轮 Windows Release 完整测试 1525/1525 与 W: 三包隔离消费已通过；实际构建及候选身份见[过渡验收记录](docs/rbf1-reference-transition.md#6-验收记录)。
 
 ```powershell
 dotnet build Atelia.Storage.slnx -c Release
 ./eng/Test-Rbf1ReferenceAssets.ps1
 dotnet test Atelia.Storage.slnx -c Release --no-build
 # 先提交源码；从干净 HEAD 打包。不同内容必须使用新版本。
-$version = "0.2.0-dev.$([DateTime]::UtcNow.ToString('yyyyMMddHHmmss'))"
+$version = "0.3.0-rbf3-dev.$([DateTime]::UtcNow.ToString('yyyyMMddHHmmss'))"
 ./eng/Pack.ps1 -Version $version -OutputDirectory ./artifacts/feed
 ./eng/Test-Package.ps1 -Version $version -FeedDirectory ./artifacts/feed -WorkDirectory "../storage-package-smoke-$version"
 ```

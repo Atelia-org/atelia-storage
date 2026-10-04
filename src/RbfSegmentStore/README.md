@@ -2,7 +2,7 @@
 
 main 保留 `Atelia.RbfSegmentStore` 及其测试作为 **RBF1 旧栈的冻结参考代码**。旧栈维护和公开发版归 `RBF1` 分支；main 新能力使用[FrameStore / VersionStore](../../docs/FrameStore-VersionStore/README.md)，不依赖本库。
 
-本轮参考代码精确引用 Rbf/Data/Primitives `[0.2.0-rbf1-preview.1]`，不引用 main 底层源码，不新增 RBF3 运行时适配。依赖拆分状态为 **Implementing，实施中，待验收**，实际构建、测试及 assets 资格见[过渡方案](../../docs/rbf1-reference-transition.md)。
+本轮参考代码精确引用 Rbf/Data/Primitives `[0.2.0-rbf1-preview.1]`，不引用 main 底层源码，不新增 RBF3 运行时适配。依赖拆分已 **Accepted**，实际构建、测试及 assets 资格见[过渡方案](../../docs/rbf1-reference-transition.md)。
 
 以下描述保留的 v2 segment 布局与 API；v2 是目录布局版本，不是 RBF 格式编号。具体已发布包行为以[根 README 的固定来源](../../README.md#已公开的-rbf1-包与历史事实)为准。v2 拒绝无 locator 的旧目录，没有自动迁移。原合同见[冻结附件](../../docs/EventJournal/bounded-online-io-contracts.md)，历史资格见[候选记录](../../docs/EventJournal/bounded-online-io-delivery.md)；[原始设计基线](../../docs/EventJournal/rbf-segment-store-design.md)保留为背景，不成为 main 新栈权威。
 

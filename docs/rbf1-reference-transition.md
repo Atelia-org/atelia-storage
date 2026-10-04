@@ -1,6 +1,6 @@
 # RBF1 参考代码与主线新栈的过渡方案
 
-日期：2026-10-04。状态：**Implementing**。实施前基线：`9eb27968b6538a5176e49263e2a8f0c6fe5201d3`。
+日期：2026-10-04。状态：**Accepted**。实施前基线：`9eb27968b6538a5176e49263e2a8f0c6fe5201d3`；实现提交：`4db3b8f8e1b95503c9b7ead82c3f3a961af74e10`。
 
 本方案落实本次用户确认的方向：主线投入 `{RBF3, FrameStore, VersionStore}`；现有 `RbfSegmentStore` / `EventJournal` 冻结旧底层依赖，保留为可构建、可测试的参考代码。旧栈的维护与公开交付归 `RBF1` 分支。
 
@@ -61,7 +61,7 @@ flowchart LR
 
 ## 6. 验收记录
 
-本轮源码及引用验证已通过，三包候选验证待执行，状态仍为 Implementing。
+本轮源码、引用隔离及三包候选消费已通过，主线程据实际工件验收为 Accepted。资格分别保留以下构建与包来源。
 
 - Windows、SDK `10.0.201` / host `10.0.5`；Release solution build：0 errors，41 个既有 XML 注释 warnings。
 - 同配置完整 solution `--no-build`：1525/1525，0 failed、0 skipped。Primitives 75、Data 288、RBF 818、SegmentStore 48、EventJournal 174、toolkit 122。
@@ -70,5 +70,25 @@ flowchart LR
 - 三个冻结 RBF1 包已执行 `dotnet nuget verify --all`，签名验证通过；实际 nuspec 版本/来源均吻合。公开包 SHA256：Primitives `84213f5a08135ac4155b5325b6024c80ddf14ad95f75f2826da6c62dd4f54bac`；Data `3388c785de06403322212edfb256ef2dab2fe27eda3fc7849b5e111302eb237b`；Rbf `da52d3ba35ccaf7b0c90ae79ee13acedf92b98ef0a99bec27124ce62251a9358`。
 - 实际 MSBuild 属性投影：旧两库 IsPackable=false，主线 Rbf=true。独立审阅无剩余 finding。
 - 三包入口 mock 验证通过：默认/显式 All、十项旧参数拒绝、不可变候选复用、七项异常 assets、五项异常 manifest、失败后的环境恢复；这些检查未执行真实包消费。
+- 干净实现提交 `4db3b8f8e1b95503c9b7ead82c3f3a961af74e10` 实际执行 Pack，候选版本为 `0.3.0-rbf3-dev.20261004052053`；schema 1 manifest 恰好包含 Primitives、Data、Rbf 三包，SDK 为 `10.0.201`，没有旧栈包。
+- 实际执行 `eng/Test-Package.ps1`，在 `W:/AteliaStorageCorePackageSmoke-0.3.0-rbf3-dev.20261004052053` 创建独立 MSBuild 边界、NuGet config/cache。纯 Rbf PackageReference 的三包闭包、尺寸/逆向预算、提前 ticket、分立 TailMeta、双文件互引、完整读回、冷只读重开及健康可写重开均通过。
+- 三包 nuspec、程序集/符号、依赖图、候选 hash、静态 Source Link 与本地源码 checksum 检查通过：Primitives 7、Data 21、Rbf 48，共 76 个源码文档。
 
-本地日志、TRX、构建快照和旧包身份在忽略目录 `artifacts/rbf1-reference-transition/`。这些本地工件不是 Git 交付物；可复现命令及结论由本文保存。待干净提交的实际 pack 与隔离消费通过后补齐来源、版本和 workspace，再改为 Accepted。
+本轮三包候选身份如下；这些是未签名本地 nupkg 的 SHA256，不是公开源签名包 hash。
+
+| 包 | SHA256 |
+| --- | --- |
+| Atelia.Primitives | `35b11228b1badbf33af97f1c10870486cdea80e2095773f3f139d6f67ce7cbf9` |
+| Atelia.Data | `62e59a602d7dd7bdcd4e289a4c1a8693969ba8df3e426298ba5683af38bf412b` |
+| Atelia.Rbf | `a2efca7feae6e83b74a9f3b65430d0c2bb4873eb4f4a66e37d4deaea1584df0a` |
+
+实际包验收命令（须 checkout 上述实现提交的干净树；同版本只复用完全匹配的工件）：
+
+```powershell
+./eng/Pack.ps1 -Version 0.3.0-rbf3-dev.20261004052053 -OutputDirectory ./artifacts/rbf1-reference-transition/feed
+./eng/Test-Package.ps1 -Version 0.3.0-rbf3-dev.20261004052053 -FeedDirectory ./artifacts/rbf1-reference-transition/feed -WorkDirectory W:/AteliaStorageCorePackageSmoke-0.3.0-rbf3-dev.20261004052053
+```
+
+Test-Package 要求 workspace 尚不存在；复验时换一个新的仓外目录。本地日志、TRX、构建快照、旧包身份、候选包及 manifest 在忽略目录 `artifacts/rbf1-reference-transition/`，隔离消费日志、assets、文件及 `verified-packages.json` 留在上述 W: workspace。这些工件不是 Git 交付物；本文件保存可复现入口和来源。后续仅文档验收提交不改变本轮 212 个构建输入或候选身份。
+
+本轮没有 push、公开发布或执行 Verify-Published，也未重新取得 Linux、远端 Source Link 下载、进程终止、性能及真实应用旧数据迁移资格。既有 RBF1 包的公开来源和签名验证不扩展为新候选的公开交付资格。

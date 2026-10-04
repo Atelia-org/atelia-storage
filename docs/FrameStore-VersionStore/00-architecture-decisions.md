@@ -1,6 +1,6 @@
 # S0：总体边界与决策
 
-日期：2026-10-03；2026-10-04 补充 S1 分立长度与 RBF1 参考边界。状态：**会话方向已确认；建议项仍可迭代；参考依赖拆分 Implementing，待验收**。
+日期：2026-10-03；2026-10-04 补充 S1 分立长度与 RBF1 参考边界。状态：**会话方向已确认；建议项仍可迭代；参考依赖拆分 Accepted**。
 本文件记录本次用户已表达的决策。规范写法依 [规范约定](../spec-conventions.md)。API/wire 的具体选择由后续阶段细化。
 
 ## term `FrameStore` 中性的 Frame 存储库
@@ -108,7 +108,7 @@ IO/发布尝试后结果可能 Unknown；完整记录可在重开后存在。新
 
 旧栈维护首先选定 RBF1 分支中受支持的具体源码/包基线，再修复该基线的问题；main 仅保留冻结参考及独立回归。不把新栈自动恢复、批次或版本协议写回旧库，也不通过 `out _` 或其他运行时适配把旧 strict 打开改成 RBF3 恢复打开。
 
-本轮按[过渡方案](../rbf1-reference-transition.md)冻结底层三个公开包，状态为 Implementing、待验收。Release solution build 成功后运行完整 solution `--no-build`，同时核对每组实际 assets 来源；不能删除旧项目或跳过测试制造全绿。main 三包 pack/纯 Rbf 包消费独立取得资格；旧库继续保留但 IsPackable=false。本轮不切换消费应用、不迁移磁盘数据。
+本轮按[过渡方案](../rbf1-reference-transition.md)冻结底层三个公开包，已 Accepted。Release solution build、完整 solution `--no-build` 1525/1525、每组实际 assets 及 W: 三包候选消费均已核对，来源见[验收记录](../rbf1-reference-transition.md#6-验收记录)；没有删除旧项目或跳过测试。旧库继续保留但 IsPackable=false。本轮不切换消费应用、不迁移磁盘数据。
 
 ## 当前已证实与未证实
 
@@ -116,7 +116,7 @@ IO/发布尝试后结果可能 Unknown；完整记录可在重开后存在。新
 | --- | --- |
 | RBF3 create/open/recovery 及串行、资源异常边界 | 当前 [接口规范](../Rbf/rbf-interface.md)和 [70d1009 随附验收](../Rbf/rbf3-review-repairs-acceptance.md)；本次未重跑 |
 | 精确尺寸公共 API、提前 ticket Builder、格式投影 | [S1](01-rbf-sized-append.md) 已 Accepted；实现 `8ab98bf`、RBF 818/818 与 W: public 源码消费等身份见[阶段验收](01-rbf-sized-append-acceptance.md) |
-| main 参考依赖拆分及三包交付入口 | [过渡方案](../rbf1-reference-transition.md) Implementing；实际 solution、assets、候选包与隔离消费结果待本轮记录，不借 S1 历史结果宣称通过 |
+| main 参考依赖拆分及三包交付入口 | [过渡验收](../rbf1-reference-transition.md#6-验收记录) Accepted；1525/1525、七个旧栈 assets 图及 `4db3b8f` 的 W: 三包候选消费通过，不重标 S1 历史结果 |
 | 新 FrameStore / VersionStore 与其测试项目 | 尚未创建 |
 | 新根发布模型 | 本次需求与候选设计，尚无实现证据 |
 | DurableGraph 当前接口及接入 | 2026-10-04 已定位兄弟仓；生产代码仍使用未知尺寸 Begin/End，无新 API 接入证据，不以历史 tag 文档代替实证 |
