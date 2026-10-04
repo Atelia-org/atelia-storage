@@ -38,17 +38,11 @@ internal static class RbfAppendImpl {
         RbfEscapeKeySelector? selectKey = null,
         bool isTombstone = false
     ) {
-        if (tailMeta.Length > FrameLayout.MaxTailMetaLength) {
-            return new RbfArgumentError("TailMeta exceeds its 16-bit length range.",
-                RecoveryHint: "Reduce TailMeta to at most 65535 bytes.");
-        }
-        if ((long)payload.Length + tailMeta.Length > RbfLayout.GetMaxPayloadAndMetaLength(RbfProfile.Rbf3)) {
-            return new RbfArgumentError("Payload + TailMeta exceeds the RBF3 frame capacity.",
-                RecoveryHint: "Reduce the payload or split it across multiple frames.");
-        }
+        var layoutResult = FrameLayout.TryCreate(RbfProfile.Rbf3, payload.Length, tailMeta.Length);
+        if (layoutResult.IsFailure) { return layoutResult.Error!; }
         var startError = RbfFrameWriteCore.ValidateFrameStartOffset(fileOffset);
         if (startError is not null) { return startError; }
-        var layout = new FrameLayout(RbfProfile.Rbf3, payload.Length, tailMeta.Length);
+        FrameLayout layout = layoutResult.Value;
         SizedPtr ticket = SizedPtr.Create(fileOffset, layout.FrameLength);
 
         // This whole preparation stage precedes the first output operation. Input stays borrowed.
@@ -252,22 +246,9 @@ internal static class RbfAppendImpl {
     ) {
         // === 前置校验（写入前检查，失败不产生 I/O）===
 
-        // 1. TailMeta 长度检查
-        if (tailMeta.Length > FrameLayout.MaxTailMetaLength) {
-            return new RbfArgumentError(
-                $"TailMeta length {tailMeta.Length} exceeds maximum {FrameLayout.MaxTailMetaLength}.",
-                RecoveryHint: "Split the metadata or reduce its size."
-            );
-        }
-
-        // 2. Payload + TailMeta 总长度检查（使用 long 避免 int 溢出）
-        long payloadAndMetaLength = (long)payload.Length + tailMeta.Length;
-        if (payloadAndMetaLength > FrameLayout.MaxPayloadAndMetaLength) {
-            return new RbfArgumentError(
-                $"Payload+TailMeta length {payloadAndMetaLength} exceeds maximum {FrameLayout.MaxPayloadAndMetaLength}.",
-                RecoveryHint: "Split the payload into multiple frames or compress the data."
-            );
-        }
+        // 1-2. 与公开尺寸计算及 RBF3 Append 共用长度校验，保留 RBF1 原容量。
+        var layoutResult = FrameLayout.TryCreate(RbfProfile.Rbf1, payload.Length, tailMeta.Length);
+        if (layoutResult.IsFailure) { return layoutResult.Error!; }
 
         // 3. fileOffset 4B 对齐检查
         if ((fileOffset & RbfLayout.AlignmentMask) != 0) {
@@ -278,7 +259,7 @@ internal static class RbfAppendImpl {
         }
 
         // 4. 检查 frameStart 是否仍可生成 SizedPtr（Tail Fence 不计入 ticket 范围）
-        FrameLayout layout = new FrameLayout(payload.Length, tailMeta.Length);
+        FrameLayout layout = layoutResult.Value;
         var frameStartError = RbfFrameWriteCore.ValidateFrameStartOffset(fileOffset);
         if (frameStartError is not null) { return frameStartError; }
         AteliaResult<SizedPtr> success = SizedPtr.Create(fileOffset, layout.FrameLength); // 隐式类型转换

@@ -7,9 +7,11 @@ namespace Atelia.Rbf.Internal.Tests;
 
 public sealed class Rbf3WriterFaultTests {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void BeginRentFailure_DoesNotPublishEpochAndClosedBuilderCannotAffectNextBuilder(bool commitOldBuilder) {
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void BeginRentFailure_DoesNotPublishEpochAndClosedBuilderCannotAffectNextBuilder(bool commitOldBuilder, bool sized) {
         var pool = new BuilderPool();
         using var fixture = new Rbf3WriterFixture(builderPool: pool);
         var original = fixture.File.Append(11, new byte[] { 1 }, ReadOnlySpan<byte>.Empty).Unwrap();
@@ -33,7 +35,7 @@ public sealed class Rbf3WriterFaultTests {
             BeforeSetLength = _ => outputCalls++
         };
 
-        var actual = Assert.Throws<OutOfMemoryException>(() => fixture.File.BeginAppend());
+        var actual = Assert.Throws<OutOfMemoryException>(() => Begin(fixture.File, 1, sized, out _));
 
         Assert.Same(failure, actual);
         Assert.Equal(2, pool.RentCalls);
@@ -53,7 +55,7 @@ public sealed class Rbf3WriterFaultTests {
             Rbf3WriterOracle.KnownKey(uint.MaxValue)).Unwrap();
         Assert.Equal(2, pool.RentCalls);
         Assert.Equal(1, fixture.Pool.RentCalls);
-        using var next = fixture.File.BeginAppend();
+        using var next = Begin(fixture.File, 1, sized, out var earlyTicket);
         Assert.Equal(3, pool.RentCalls);
         var nextWriter = next.PayloadAndMeta;
         nextWriter.ReserveSpan(1, out int nextToken).Fill(7);
@@ -69,14 +71,17 @@ public sealed class Rbf3WriterFaultTests {
         Assert.Equal(nextLength, nextWriter.Length);
         nextWriter.Commit(nextToken);
         var nextTicket = next.EndAppend(15).Unwrap();
+        if (sized) { Assert.Equal(earlyTicket, nextTicket); }
         Rbf3WriterOracle.AssertWire(fixture.ReadFrame(nextTicket), new byte[] { 7 }, Array.Empty<byte>(), 15);
     }
 
-    [Fact]
-    public void BuilderDisposeReturnFailure_PropagatesWithoutOutputAndFileDisposeDoesNotReturnLeaseAgain() {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void BuilderDisposeReturnFailure_PropagatesWithoutOutputAndFileDisposeDoesNotReturnLeaseAgain(bool sized) {
         var pool = new BuilderPool();
         using var fixture = new Rbf3WriterFixture(builderPool: pool);
-        var builder = fixture.File.BeginAppend();
+        var builder = Begin(fixture.File, 3, sized, out _);
         Rbf3WriterOracle.WriteBuilder(builder, new byte[] { 1, 2, 3 });
         long tail = fixture.File.TailOffset;
         byte[] before = fixture.ReadBytes();
@@ -109,15 +114,17 @@ public sealed class Rbf3WriterFaultTests {
         Assert.Equal(1, pool.ReturnCalls);
     }
 
-    [Fact]
-    public void FinalCommitReturnFailure_AfterCompleteOutputPermanentlyFaultsSharedReader() {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FinalCommitReturnFailure_AfterCompleteOutputPermanentlyFaultsSharedReader(bool sized) {
         var pool = new BuilderPool();
         using var fixture = new Rbf3WriterFixture(builderPool: pool);
         var original = fixture.File.Append(11, new byte[] { 1 }, ReadOnlySpan<byte>.Empty).Unwrap();
         var info = fixture.File.ReadFrameInfo(original).Unwrap();
         var forward = fixture.File.ScanForward().GetEnumerator();
         long tail = fixture.File.TailOffset;
-        var builder = fixture.File.BeginAppend();
+        var builder = Begin(fixture.File, 1, sized, out var earlyTicket);
         Rbf3WriterOracle.WriteBuilder(builder, new byte[] { 7 });
         var failure = new OutOfMemoryException("Simulated accepted Builder return failure after output.");
         pool.NextReturnFailure = failure;
@@ -135,6 +142,7 @@ public sealed class Rbf3WriterFaultTests {
         Assert.Equal(tail, fixture.File.TailOffset);
         // A complete one-byte frame and its Fence reached the real file before Return threw.
         var writtenTicket = SizedPtr.Create(tail, 32);
+        if (sized) { Assert.Equal(earlyTicket, writtenTicket); }
         Rbf3WriterOracle.AssertWire(fixture.ReadFrame(writtenTicket), new byte[] { 7 }, Array.Empty<byte>(), 12);
         Assert.Equal(1, pool.ReturnCalls);
         Assert.Equal(0, pool.OutstandingRentals);
@@ -153,6 +161,10 @@ public sealed class Rbf3WriterFaultTests {
         fixture.File.Dispose();
         Assert.True(fixture.Handle.IsClosed);
         Assert.Equal(1, pool.ReturnCalls);
+        using var reopened = RbfFile.OpenExisting(fixture.Path, out var recovery, RbfCacheMode.Off);
+        Assert.Equal(RbfTailRecoveryAction.None, recovery.Action);
+        using var recovered = reopened.ReadPooledFrame(writtenTicket).Unwrap();
+        Assert.Equal(new byte[] { 7 }, recovered.PayloadAndMeta.ToArray());
     }
 
     [Fact]
@@ -208,14 +220,19 @@ public sealed class Rbf3WriterFaultTests {
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(3)]
-    [InlineData(301)]
-    [InlineData(8195)]
-    public void SimulatedSelectionFailureAfterFooter_CancelsBuilderAndAllowsNewEpoch(int payloadLength) {
+    [InlineData(0, false)]
+    [InlineData(1, false)]
+    [InlineData(3, false)]
+    [InlineData(301, false)]
+    [InlineData(8195, false)]
+    [InlineData(0, true)]
+    [InlineData(1, true)]
+    [InlineData(3, true)]
+    [InlineData(301, true)]
+    [InlineData(8195, true)]
+    public void SimulatedSelectionFailureAfterFooter_CancelsBuilderAndAllowsNewEpoch(int payloadLength, bool sized) {
         using var fixture = new Rbf3WriterFixture();
-        var builder = fixture.File.BeginAppend();
+        var builder = Begin(fixture.File, payloadLength, sized, out _);
         var writer = builder.PayloadAndMeta;
         byte[] payload = Rbf3WriterOracle.Pattern(payloadLength);
         Rbf3WriterOracle.WriteBuilder(builder, payload);
@@ -268,11 +285,13 @@ public sealed class Rbf3WriterFaultTests {
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void UnadvancedBorrowGuard_PrecedesPaddingAndKeepsSameBuilderRetryable(bool borrowMemory) {
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void UnadvancedBorrowGuard_PrecedesPaddingAndKeepsSameBuilderRetryable(bool borrowMemory, bool sized) {
         using var fixture = new Rbf3WriterFixture();
-        using var builder = fixture.File.BeginAppend();
+        using var builder = Begin(fixture.File, 1, sized, out _);
         var writer = builder.PayloadAndMeta;
         Rbf3WriterOracle.WriteBuilder(builder, new byte[] { 1 });
         long length = writer.Length;
@@ -342,6 +361,11 @@ public sealed class Rbf3WriterFaultTests {
         Assert.Throws<InvalidOperationException>(() => fixture.File.BeginAppend());
         Assert.Throws<InvalidOperationException>(() => fixture.File.DurableFlush());
         Assert.Equal(before, fixture.ReadBytes());
+    }
+
+    private static RbfFrameBuilder Begin(IRbfFile file, int payloadLength, bool sized, out SizedPtr ticket) {
+        ticket = default;
+        return sized ? file.BeginAppend(payloadLength, 0, out ticket) : file.BeginAppend();
     }
 
     private sealed class BuilderPool : ArrayPool<byte> {

@@ -42,9 +42,17 @@ public readonly struct RbfFrameBuilder : IDisposable {
         }
     }
 
+    /// <summary>提交帧，使用已知尺寸 Begin 声明的 TailMeta 长度；未知尺寸模式使用 0。</summary>
+    /// <param name="tag">帧标签。</param>
+    /// <returns>成功时返回位置凭据；可纠正的参数或状态拒绝返回 Failure，系统异常传播。</returns>
+    public AteliaResult<SizedPtr> EndAppend(uint tag) {
+        var owner = _owner ?? throw new InvalidOperationException("Builder is not initialized.");
+        return owner.CommitFromBuilder(_epoch, tag, tailMetaLength: null);
+    }
+
     /// <summary>提交帧。回填 header/CRC，返回帧位置和长度。</summary>
     /// <param name="tag">帧标签。</param>
-    /// <param name="tailMetaLength">TailMeta 长度（位于 Payload 末尾的元数据长度，默认 0）。</param>
+    /// <param name="tailMetaLength">TailMeta 长度；已知尺寸模式必须与 Begin 声明相同。</param>
     /// <returns>
     /// 成功时返回写入的帧位置和长度（SizedPtr）；
     /// 失败时返回 <see cref="RbfStateError"/>（状态违规）或 <see cref="RbfArgumentError"/>（参数违规）。
@@ -52,8 +60,9 @@ public readonly struct RbfFrameBuilder : IDisposable {
     /// <remarks>
     /// B 变体：提交逻辑由 File 执行，Builder 仅转发到 owner.CommitFromBuilder。
     /// 方案 D：状态/参数违规返回 Failure，I/O 异常保持抛出。
+    /// 已知尺寸模式的短写或 TailMeta 声明冲突在 finalize 修改前拒绝，保留同一 Builder 供纠正。
     /// </remarks>
-    public AteliaResult<SizedPtr> EndAppend(uint tag, int tailMetaLength = 0) {
+    public AteliaResult<SizedPtr> EndAppend(uint tag, int tailMetaLength) {
         var owner = _owner ?? throw new InvalidOperationException("Builder is not initialized.");
         return owner.CommitFromBuilder(_epoch, tag, tailMetaLength);
     }

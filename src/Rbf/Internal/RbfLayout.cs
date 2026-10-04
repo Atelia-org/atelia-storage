@@ -78,6 +78,51 @@ internal readonly struct FrameLayout {
     private readonly int _tailMetaLength;
     private readonly int _paddingLength;
 
+    /// <summary>校验调用方长度并计算布局；写入和公开尺寸计算共用此入口。</summary>
+    internal static AteliaResult<FrameLayout> TryCreate(RbfProfile profile, int payloadLength, int tailMetaLength) {
+        if (profile is not RbfProfile.Rbf1 and not RbfProfile.Rbf3) {
+            return new RbfArgumentError("Unknown RBF profile.");
+        }
+        if (payloadLength < 0) {
+            return new RbfArgumentError("Payload length must be non-negative.",
+                RecoveryHint: "Supply the final stored payload byte length.");
+        }
+        if (tailMetaLength < 0 || tailMetaLength > MaxTailMetaLength) {
+            return new RbfArgumentError($"tailMetaLength {tailMetaLength} must be between 0 and MaxTailMetaLength ({MaxTailMetaLength}).",
+                RecoveryHint: "Reduce TailMeta to at most 65535 bytes and supply a non-negative length.");
+        }
+
+        long payloadAndMetaLength = (long)payloadLength + tailMetaLength;
+        int maxPayloadAndMetaLength = RbfLayout.GetMaxPayloadAndMetaLength(profile);
+        long alignedLength = (payloadAndMetaLength + RbfLayout.AlignmentMask) & ~(long)RbfLayout.AlignmentMask;
+        long frameLength = RbfLayout.GetFixedOverhead(profile) + alignedLength;
+        if (payloadAndMetaLength > maxPayloadAndMetaLength || frameLength > MaxFrameLength) {
+            return new RbfArgumentError($"Payload + TailMeta exceeds the {profile} frame capacity of {maxPayloadAndMetaLength} bytes.",
+                RecoveryHint: "Reduce the payload or split it across multiple frames.");
+        }
+
+        return new FrameLayout(profile, payloadLength, tailMetaLength);
+    }
+
+    /// <summary>以相同布局规则反算含尾 Fence 的追加预算。</summary>
+    internal static bool TryGetMaxPayloadLengthForAppendBudget(RbfProfile profile, long byteBudget, int tailMetaLength, out int payloadLength) {
+        ArgumentOutOfRangeException.ThrowIfNegative(byteBudget);
+        if (tailMetaLength < 0 || tailMetaLength > MaxTailMetaLength) {
+            throw new ArgumentOutOfRangeException(nameof(tailMetaLength), tailMetaLength,
+                $"TailMeta length must be between 0 and {MaxTailMetaLength}.");
+        }
+
+        payloadLength = 0;
+        FrameLayout minimum = TryCreate(profile, 0, tailMetaLength).Unwrap();
+        if (byteBudget < (long)minimum.FrameLength + RbfLayout.FenceSize) { return false; }
+
+        // First cap the frame budget in wide arithmetic, then round the body down to its alignment.
+        long frameBudget = Math.Min(byteBudget - RbfLayout.FenceSize, MaxFrameLength);
+        long bodyBudget = (frameBudget - RbfLayout.GetFixedOverhead(profile)) & ~(long)RbfLayout.AlignmentMask;
+        payloadLength = (int)(bodyBudget - tailMetaLength);
+        return true;
+    }
+
     internal FrameLayout(int payloadLength, int tailMetaLength = 0) : this(RbfProfile.Rbf1, payloadLength, tailMetaLength) { }
 
     internal FrameLayout(RbfProfile profile, int payloadLength, int tailMetaLength = 0) {

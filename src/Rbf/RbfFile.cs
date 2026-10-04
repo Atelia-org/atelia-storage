@@ -4,17 +4,46 @@ using Microsoft.Win32.SafeHandles;
 
 namespace Atelia.Rbf;
 
-/// <summary>RBF 文件静态工厂类。</summary>
+/// <summary>RBF 文件工厂与新写入尺寸计算。</summary>
 public static class RbfFile {
     /// <summary>
-    /// 单帧中 Payload 与 TailMeta 的最大合计长度（不含 HeadLen、Padding、PayloadCrc、TrailerCodeword 与尾部 Fence）。
+    /// 单个新 RBF3 帧中 Payload 与 TailMeta 的最大合计长度（不含 HeadLen、Padding、PayloadCrc、TrailerCodeword、TailKey 与尾部 Fence）。
     /// </summary>
     /// <remarks>
-    /// 该上限由 <see cref="SizedPtr.MaxLength"/> 减去 RBF 帧固定开销推导而来，
+    /// 该上限由 <see cref="SizedPtr.MaxLength"/> 减去 RBF3 帧固定开销推导而来，
     /// 是 <see cref="IRbfFile.Append"/> 与 <see cref="RbfFrameBuilder.EndAppend(uint, int)"/> 的公开容量契约。
     /// </remarks>
     public const int MaxPayloadAndMetaLength = FrameLayout.MaxPayloadAndMetaLength - sizeof(uint);
     public const int MaxTailMetaLength = FrameLayout.MaxTailMetaLength;
+
+    /// <summary>计算新 RBF3 帧的精确物理尺寸，不进行 I/O 或预留文件位置。</summary>
+    /// <param name="payloadLength">最终 stored payload 字节长度。</param>
+    /// <param name="tailMetaLength">最终 TailMeta 字节长度。</param>
+    /// <returns>
+    /// 成功时返回不含尾 Fence 的帧长度与包含尾 Fence 的追加占用；
+    /// 负长度、TailMeta 超限或合计超限时返回错误码 <c>Rbf.ArgumentError</c>。
+    /// </returns>
+    /// <remarks>只计算新 writer 使用的 RBF3 布局，不用于重算历史 RBF1 帧。</remarks>
+    public static AteliaResult<RbfWriteSize> MeasureWriteSize(int payloadLength, int tailMetaLength = 0) {
+        var layoutResult = FrameLayout.TryCreate(RbfProfile.Rbf3, payloadLength, tailMetaLength);
+        if (layoutResult.IsFailure) { return layoutResult.Error!; }
+        FrameLayout layout = layoutResult.Value;
+        return new RbfWriteSize(layout.FrameLength, layout.FrameLength + RbfLayout.FenceSize);
+    }
+
+    /// <summary>在固定 TailMeta 长度下，计算追加预算可容纳的最大合法 payload 长度。</summary>
+    /// <param name="byteBudget">本次追加的字节预算，包含尾 Fence，不含已有 Header 或前缀。</param>
+    /// <param name="tailMetaLength">最终 TailMeta 字节长度。</param>
+    /// <param name="payloadLength">成功时为最大 payload 长度；预算不足时为 0。</param>
+    /// <returns>能容纳 payload 为 0 的帧时为 true，否则为 false；成功结果允许为 0。</returns>
+    /// <exception cref="ArgumentOutOfRangeException">预算为负，或 TailMeta 长度不在合法范围内。</exception>
+    /// <remarks>
+    /// 只计算新 RBF3 写入，并受单帧容量上限约束。
+    /// 预算不是 ticket 长度；不能从任意 ticket 的长度推断真实 payload 长度。
+    /// </remarks>
+    public static bool TryGetMaxPayloadLengthForAppendBudget(long byteBudget, int tailMetaLength, out int payloadLength) {
+        return FrameLayout.TryGetMaxPayloadLengthForAppendBudget(RbfProfile.Rbf3, byteBudget, tailMetaLength, out payloadLength);
+    }
 
     /// <summary>创建新的 RBF 文件（FailIfExists）。</summary>
     /// <param name="path">文件路径。</param>

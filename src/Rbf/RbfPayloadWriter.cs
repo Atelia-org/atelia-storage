@@ -8,6 +8,9 @@ namespace Atelia.Rbf;
 /// <remarks>
 /// 该类型为 readonly struct，每次调用都会校验 epoch 与 File 状态，
 /// 避免旧 writer 被长期持有并在错误时机写入。
+/// 已知尺寸模式的 Advance/ReserveSpan 在消费前检查声明的合计额度；超限 Advance 保留当前借用供纠正。
+/// GetSpan/GetMemory 不按剩余额度裁剪容量；借用后实际消费仍由 Advance 检查。
+/// Length 保留底层累计长度的投影（包括内部 HeadLen），不能直接作为调用方已用或剩余额度。
 /// </remarks>
 public readonly struct RbfPayloadWriter : IReservableBufferWriter {
     private readonly RbfFileImpl? _owner;
@@ -18,16 +21,15 @@ public readonly struct RbfPayloadWriter : IReservableBufferWriter {
         _epoch = epoch;
     }
 
-    private SinkReservableWriter GetWriter() {
-        var owner = _owner ?? throw new InvalidOperationException("Writer is not initialized.");
-        return owner.GetPayloadWriter(_epoch);
-    }
+    private RbfFileImpl GetOwner() => _owner ?? throw new InvalidOperationException("Writer is not initialized.");
+
+    private SinkReservableWriter GetWriter() => GetOwner().GetPayloadWriter(_epoch);
 
     /// <inheritdoc/>
     public long Length => GetWriter().Length;
 
     /// <inheritdoc/>
-    public void Advance(int count) => GetWriter().Advance(count);
+    public void Advance(int count) => GetOwner().AdvancePayload(_epoch, count);
 
     public Memory<byte> GetMemory(int sizeHint = 0) => GetWriter().GetMemory(sizeHint);
 
@@ -35,7 +37,7 @@ public readonly struct RbfPayloadWriter : IReservableBufferWriter {
 
     /// <inheritdoc/>
     public Span<byte> ReserveSpan(int count, out int reservationToken, string? tag = null) =>
-        GetWriter().ReserveSpan(count, out reservationToken, tag);
+        GetOwner().ReservePayloadSpan(_epoch, count, out reservationToken, tag);
 
     /// <inheritdoc/>
     public void Commit(int reservationToken) => GetWriter().Commit(reservationToken);

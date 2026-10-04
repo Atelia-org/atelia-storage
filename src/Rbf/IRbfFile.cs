@@ -11,6 +11,9 @@ namespace Atelia.Rbf;
 /// 已物化的帧数据和值属性仍可使用；普通文件对象不提供任意截断。
 /// </remarks>
 public interface IRbfFile : IDisposable {
+    /// <summary>获取由文件 Header 确定的不可变格式。</summary>
+    RbfFormat Format { get; }
+
     /// <summary>获取当前文件逻辑长度（也是下一个写入 Offset）。</summary>
     long TailOffset { get; }
 
@@ -30,6 +33,19 @@ public interface IRbfFile : IDisposable {
     /// 同一 File 及派生对象的共享状态访问由调用方串行；open Builder 时拒绝再次 Append/BeginAppend，门面读取与扫描按活跃 Builder 规则拒绝。
     /// </remarks>
     RbfFrameBuilder BeginAppend();
+
+    /// <summary>按已知 payload 和 TailMeta 长度开始构建，并取得本次追加的提前位置凭据。</summary>
+    /// <param name="payloadLength">最终 stored payload 的字节长度。</param>
+    /// <param name="tailMetaLength">位于 payload 之后的 TailMeta 字节长度。</param>
+    /// <param name="ticket">正常返回时绑定本次追加位置及尺寸的凭据，不证明帧已完成或耐久。</param>
+    /// <remarks>
+    /// 两部分共用 PayloadAndMeta 写入器；EndAppend(tag) 使用此处声明的 TailMeta 长度。
+    /// 必须写入恰好声明的总字节数。Builder 活跃期间 TailOffset 不推进，其他追加被拒绝。
+    /// 健康取消不输出，地址可能被以后追加复用；提前凭据没有追加尝试身份。
+    /// 初始化失败不签发有效 Builder 或提前凭据，不保证后续资源操作成功。
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">声明长度为负、TailMeta 超长或合计超过新写容量。</exception>
+    RbfFrameBuilder BeginAppend(int payloadLength, int tailMetaLength, out SizedPtr ticket);
 
     /// <summary>随机读（从 ArrayPool 借缓存）。</summary>
     /// <remarks>

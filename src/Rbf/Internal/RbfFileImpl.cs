@@ -46,6 +46,7 @@ internal sealed class RbfFileImpl : IRbfFile {
     private readonly SinkReservableWriter _builderWriter;
     private int _builderHeadLenReservationToken;
     private long _builderFrameStart;
+    private FrameLayout? _builderDeclaredLayout;
 
     private enum BuilderCloseReason {
         None,
@@ -87,6 +88,13 @@ internal sealed class RbfFileImpl : IRbfFile {
         _builderSink = new RandomAccessByteSink(_handle, tailOffset, _markWriteFaulted);
         _builderWriter = new SinkReservableWriter(_builderSink, builderPool);
     }
+
+    /// <inheritdoc />
+    public RbfFormat Format => _profile switch {
+        RbfProfile.Rbf1 => RbfFormat.Rbf1,
+        RbfProfile.Rbf3 => RbfFormat.Rbf3,
+        _ => throw new ArgumentOutOfRangeException(nameof(_profile), _profile, "Unknown RBF profile.")
+    };
 
     /// <inheritdoc />
     public long TailOffset => _tailOffset;
@@ -141,12 +149,35 @@ internal sealed class RbfFileImpl : IRbfFile {
     }
 
     /// <inheritdoc />
-    public RbfFrameBuilder BeginAppend() {
+    public RbfFrameBuilder BeginAppend() => BeginAppendCore(payloadLength: null, tailMetaLength: 0, out _);
+
+    /// <inheritdoc />
+    public RbfFrameBuilder BeginAppend(int payloadLength, int tailMetaLength, out SizedPtr ticket) =>
+        BeginAppendCore(payloadLength, tailMetaLength, out ticket);
+
+    private RbfFrameBuilder BeginAppendCore(int? payloadLength, int tailMetaLength, out SizedPtr ticket) {
+        ticket = default;
         if (_disposed) { throw new ObjectDisposedException(nameof(RbfFileImpl)); }
         EnsureWritable();
         if (_fileState != FileState.Idle) { throw new InvalidOperationException("A builder is already active. Dispose it before calling BeginAppend again."); }
 
+        FrameLayout? declaredLayout = null;
+        if (payloadLength.HasValue) {
+            var layoutResult = FrameLayout.TryCreate(_profile, payloadLength.Value, tailMetaLength);
+            if (layoutResult.IsFailure) {
+                string parameterName = payloadLength.Value < 0
+                    ? nameof(payloadLength)
+                    : tailMetaLength < 0 || tailMetaLength > FrameLayout.MaxTailMetaLength
+                        ? nameof(tailMetaLength)
+                        : nameof(payloadLength);
+                throw new ArgumentOutOfRangeException(parameterName, layoutResult.Error!.Message);
+            }
+            declaredLayout = layoutResult.Value;
+        }
+
         long tailOffset = _tailOffset;
+
+        if (tailOffset < 0) { throw new InvalidOperationException($"TailOffset ({tailOffset}) must be nonnegative."); }
 
         // 检查 TailOffset 4B 对齐
         if ((tailOffset & 0x3) != 0) { throw new InvalidOperationException($"TailOffset ({tailOffset}) is not 4-byte aligned."); }
@@ -154,6 +185,9 @@ internal sealed class RbfFileImpl : IRbfFile {
         // 检查 MaxFileOffset：BeginAppend 只要求“帧起点”本身仍可被 SizedPtr 表示。
         if (tailOffset > SizedPtr.MaxOffset) { throw new InvalidOperationException($"TailOffset ({tailOffset}) exceeds MaxFileOffset ({SizedPtr.MaxOffset})."); }
 
+        SizedPtr earlyTicket = declaredLayout.HasValue
+            ? SizedPtr.Create(tailOffset, declaredLayout.Value.FrameLength)
+            : default;
         InvalidateCacheFrom(tailOffset);
 
         // 初始化成功后才发布新 Builder；失败仍保持 Idle，不遮蔽原异常。
@@ -163,10 +197,12 @@ internal sealed class RbfFileImpl : IRbfFile {
 
         _builderFrameStart = tailOffset;
         _builderHeadLenReservationToken = headLenReservationToken;
+        _builderDeclaredLayout = declaredLayout;
         _builderEpoch++;
         _builderLastClose = BuilderCloseReason.None;
         _fileState = FileState.Building;
 
+        ticket = earlyTicket;
         return new RbfFrameBuilder(
             owner: this,
             epoch: _builderEpoch
@@ -186,8 +222,32 @@ internal sealed class RbfFileImpl : IRbfFile {
         return _builderWriter;
     }
 
+    internal void AdvancePayload(uint epoch, int count) {
+        SinkReservableWriter writer = GetPayloadWriter(epoch);
+        ValidateDeclaredWriteCount(writer, count, allowZero: true);
+        writer.Advance(count);
+    }
+
+    internal Span<byte> ReservePayloadSpan(uint epoch, int count, out int reservationToken, string? tag) {
+        SinkReservableWriter writer = GetPayloadWriter(epoch);
+        ValidateDeclaredWriteCount(writer, count, allowZero: false);
+        return writer.ReserveSpan(count, out reservationToken, tag);
+    }
+
+    private void ValidateDeclaredWriteCount(SinkReservableWriter writer, int count, bool allowZero) {
+        if (!_builderDeclaredLayout.HasValue) { return; }
+        if (count < 0 || (!allowZero && count == 0)) {
+            throw new ArgumentOutOfRangeException(nameof(count), "Count must be nonnegative for Advance and positive for a reservation.");
+        }
+
+        long remaining = _builderDeclaredLayout.Value.PayloadAndMetaLength - (writer.Length - FrameLayout.HeadLenSize);
+        if (count > remaining) {
+            throw new ArgumentOutOfRangeException(nameof(count), $"Count ({count}) exceeds the remaining declared payload and meta length ({remaining}).");
+        }
+    }
+
     /// <summary>由 Builder 调用：提交帧（状态机 + 写入逻辑收敛到 File）。</summary>
-    internal AteliaResult<SizedPtr> CommitFromBuilder(uint epoch, uint tag, int tailMetaLength, Action? beforeEscape = null) {
+    internal AteliaResult<SizedPtr> CommitFromBuilder(uint epoch, uint tag, int? tailMetaLength, Action? beforeEscape = null) {
         // 1. 生命周期检查（方案 D：状态违规返回 Failure）
         if (_disposed) {
             return new RbfStateError(
@@ -221,6 +281,15 @@ internal sealed class RbfFileImpl : IRbfFile {
             );
         }
 
+        // Resolve the mode only after owner lifecycle, epoch and active-builder guards.
+        int effectiveTailMetaLength = tailMetaLength ?? _builderDeclaredLayout?.TailMetaLength ?? 0;
+        if (_builderDeclaredLayout.HasValue && effectiveTailMetaLength != _builderDeclaredLayout.Value.TailMetaLength) {
+            return new RbfArgumentError(
+                $"tailMetaLength ({effectiveTailMetaLength}) must match the BeginAppend declaration ({_builderDeclaredLayout.Value.TailMetaLength}).",
+                RecoveryHint: "Use EndAppend(tag) or pass the declared TailMeta length."
+            );
+        }
+
         // 2. 前置条件：只剩 HeadLen reservation（_builderWriter.PendingReservationCount == 1）
         if (_builderWriter.PendingReservationCount != 1) {
             return new RbfStateError(
@@ -232,6 +301,13 @@ internal sealed class RbfFileImpl : IRbfFile {
         // 3. 获取 payloadAndMetaLength（WrittenLength - HeadLenSize，因为 HeadLen 仍为 pending）
         long payloadAndMetaLength = _builderWriter.Length - FrameLayout.HeadLenSize;
 
+        if (_builderDeclaredLayout.HasValue && payloadAndMetaLength != _builderDeclaredLayout.Value.PayloadAndMetaLength) {
+            return new RbfArgumentError(
+                $"Payload + TailMeta length ({payloadAndMetaLength}) must match the BeginAppend declaration ({_builderDeclaredLayout.Value.PayloadAndMetaLength}).",
+                RecoveryHint: "Write exactly the declared payload and TailMeta byte count before EndAppend."
+            );
+        }
+
         // 3a. 资源上限校验 (Decision 7.F) - 方案 D：返回 Failure
         int maxPayloadAndMetaLength = RbfLayout.GetMaxPayloadAndMetaLength(_profile);
         if (payloadAndMetaLength > maxPayloadAndMetaLength) {
@@ -242,25 +318,22 @@ internal sealed class RbfFileImpl : IRbfFile {
         }
 
         // 验证 tailMetaLength 约束 - 方案 D：参数违规返回 Failure
-        if (tailMetaLength < 0) {
+        if (effectiveTailMetaLength < 0) {
             return new RbfArgumentError(
-                $"tailMetaLength ({tailMetaLength}) must be non-negative."
+                $"tailMetaLength ({effectiveTailMetaLength}) must be non-negative."
             );
         }
-        if (tailMetaLength > payloadAndMetaLength) {
+        if (effectiveTailMetaLength > payloadAndMetaLength) {
             return new RbfArgumentError(
-                $"tailMetaLength ({tailMetaLength}) exceeds payloadAndMetaLength ({payloadAndMetaLength})."
-            );
-        }
-        if (tailMetaLength > FrameLayout.MaxTailMetaLength) {
-            return new RbfArgumentError(
-                $"tailMetaLength ({tailMetaLength}) exceeds MaxTailMetaLength ({FrameLayout.MaxTailMetaLength})."
+                $"tailMetaLength ({effectiveTailMetaLength}) exceeds payloadAndMetaLength ({payloadAndMetaLength})."
             );
         }
 
         // 4. 计算 FrameLayout
-        int payloadLength = (int)payloadAndMetaLength - tailMetaLength;
-        var layout = new FrameLayout(_profile, payloadLength, tailMetaLength);
+        int payloadLength = (int)payloadAndMetaLength - effectiveTailMetaLength;
+        var layoutResult = FrameLayout.TryCreate(_profile, payloadLength, effectiveTailMetaLength);
+        if (layoutResult.IsFailure) { return layoutResult.Error!; }
+        var layout = layoutResult.Value;
 
         // 4a. frameStart 校验（方案 A + D：统一委托给 RbfFrameWriteCore）
         var frameStartError = RbfFrameWriteCore.ValidateFrameStartOffset(_builderFrameStart);

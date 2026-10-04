@@ -179,7 +179,8 @@ public sealed class Rbf3SmallAppendOutputTests : IDisposable {
     }
 
     private static byte[] CreatePayload(int totalLength, bool marker) {
-        byte[] payload = new byte[totalLength - 32 - 3];
+        Assert.True(RbfFile.TryGetMaxPayloadLengthForAppendBudget(totalLength, 3, out int payloadLength));
+        byte[] payload = new byte[payloadLength];
         if (marker) { BinaryPrimitives.WriteUInt32LittleEndian(payload, Rbf3WriterOracle.Fence); }
         return payload;
     }

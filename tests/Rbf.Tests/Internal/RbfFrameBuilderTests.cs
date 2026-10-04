@@ -101,34 +101,43 @@ public class RbfFrameBuilderTests : IDisposable {
     }
 
     /// <summary>TailOffset 恰好等于 SizedPtr.MaxOffset 时，仍可写入最后一帧；Fence 位于 ticket 之外。</summary>
-    [Fact]
-    public void BeginAppend_TailOffsetAtMaxOffset_EndAppendEmpty_Succeeds() {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void BeginAppend_TailOffsetAtMaxOffset_EndAppendEmpty_Succeeds(bool sized) {
         // Arrange
         var path = GetTempFilePath();
         using var file = SparseRbfTestFile.CreateNew(path, SizedPtr.MaxOffset);
 
         // Act
-        using var builder = file.BeginAppend();
+        SizedPtr earlyTicket = default;
+        using var builder = sized ? file.BeginAppend(0, 0, out earlyTicket) : file.BeginAppend();
         var result = builder.EndAppend(0x1234);
 
         // Assert
         Assert.True(result.IsSuccess, $"EndAppend failed: {result.Error}");
         var ptr = result.Value;
+        if (sized) { Assert.Equal(earlyTicket, ptr); }
         Assert.Equal(SizedPtr.MaxOffset, ptr.Offset);
         Assert.Equal(new FrameLayout(RbfProfile.Rbf3, 0).FrameLength, ptr.Length);
         Assert.Equal(SizedPtr.MaxOffset + ptr.Length + RbfLayout.FenceSize, file.TailOffset);
     }
 
     /// <summary>TailOffset 超出 SizedPtr.MaxOffset 时，BeginAppend 应拒绝，因为连帧起点都无法表示。</summary>
-    [Fact]
-    public void BeginAppend_TailOffsetExceedsMaxOffset_Throws() {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void BeginAppend_TailOffsetExceedsMaxOffset_Throws(bool sized) {
         // Arrange
         var path = GetTempFilePath();
         long tailOffset = SizedPtr.MaxOffset + RbfLayout.Alignment;
         using var file = SparseRbfTestFile.CreateNew(path, tailOffset);
 
         // Act
-        var ex = Assert.Throws<InvalidOperationException>(() => file.BeginAppend());
+        var ex = Assert.Throws<InvalidOperationException>(() => {
+            if (sized) { file.BeginAppend(0, 0, out _); }
+            else { file.BeginAppend(); }
+        });
 
         // Assert
         Assert.Contains("exceeds MaxFileOffset", ex.Message);
