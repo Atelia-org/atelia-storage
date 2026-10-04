@@ -1,13 +1,13 @@
 # S1：RBF 精确尺寸、已知尺寸追加与格式资格
 
-日期：2026-10-04。状态：**Ready，实施合同已定稿；新增 API 尚未实施**。
+日期：2026-10-04。状态：**Accepted，实施合同已落地；单文件源码资格已独立验收**。
 前置规范：[S0](00-architecture-decisions.md)及现有 [RBF 接口](../Rbf/rbf-interface.md)、[格式](../Rbf/rbf-format.md)。本阶段不依赖 FrameStore 或 VersionStore。
-源码核对基线：`f6f1eb38557863ba5ea1634844a90f0cbe5774cf`；新增签名是后续实施目标，不代表该基线已提供。
+定稿时源码核对基线：`f6f1eb38557863ba5ea1634844a90f0cbe5774cf`；实施合同提交：`c940ed63921f6fa2a942bbf131957d3d7f101626`。运行时实现、测试与源码提交身份由[阶段验收记录](01-rbf-sized-append-acceptance.md)闭合，不能把合同提交当作实现资格。
 
 ## 本阶段目标与已确认选择
 
 增加两组单文件能力：下游无需了解 wire-format 即可试算新写尺寸；内容写入前取得绑定本次追加位置的 SizedPtr，支持不同 RBF 文件的帧互相引用。
-当前 `IRbfFile.BeginAppend()` 不接受尺寸，ticket 由 EndAppend 返回；一个文件只允许一个活跃 Builder。新增入口继承已有初始化、最终 Commit、取消和资源异常边界。
+既有无参数 `IRbfFile.BeginAppend()` 保留未知尺寸写入用途，ticket 由 EndAppend 返回；新增重载在 Begin 时声明尺寸并签发 out ticket。两者共用每文件唯一的活跃 Builder，继承已有初始化、最终 Commit、取消和资源异常边界。
 
 用户已确认新 `out ticket` API 分别接收 `payloadLength`、`tailMetaLength`（TailMeta 的 meta 长度），与尺寸计算入口一致。
 Begin 固定两部分的逻辑长度，正常完成只需 `EndAppend(tag)`，无需调用方先求和、再保留 meta 长度到 End。
@@ -132,7 +132,7 @@ default Builder 的 End 仍抛 InvalidOperationException；stale、重复 End、
 每文件 MUST 保持一个活跃 Builder，只锁定当前帧；不为后续帧写空洞或绕过物理顺序。不同文件可分别打开一个 SizedAppend，组合完成、耐久和发布资格属于上层。
 调用方须先确定最终 stored 尺寸，包括地址字段及压缩/编码结果。互引验收使用固定宽度地址；本阶段不提供变长地址或压缩长度的固定点求解器。
 
-## 调用示例（待实施 API）
+## 调用示例（已实现接口）
 
 ```csharp
 var size = RbfFile.MeasureWriteSize(payloadLength, metaLength).Unwrap();
@@ -148,12 +148,12 @@ var completed = builder.EndAppend(tag).Unwrap();
 
 ## 当前使用证据与范围
 
-本轮核对发现以下尺寸用例；这里提出迁移入口，不把下游修复纳入 S1。
+本轮核对发现以下尺寸用例；本阶段只接入 RBF 内的普通测试 fixture，不把下游修复或既有实验重写纳入 S1。
 
 | 使用位置 | 暴露的需求 | 本阶段处理 |
 | --- | --- | --- |
 | [EventJournal.Refs](../../src/EventJournal/EventJournal.Refs.cs) 的 catalog 容量预检与固定尺寸限制 | 下游复制开销，仍有 RBF1 的旧计算 | 提供正向 Measure；旧库适配独立处理 |
-| [Rbf3SmallAppendOutputTests](../../tests/Rbf.Tests/Internal/Rbf3SmallAppendOutputTests.cs) 的目标 total length fixture | 从追加预算求最大 payload | 提供逆向预算入口；保留独立 wire golden 预期 |
+| [Rbf3SmallAppendOutputTests](../../tests/Rbf.Tests/Internal/Rbf3SmallAppendOutputTests.cs) 的目标 total length fixture | 从追加预算求最大 payload | fixture 已接入公共逆向预算入口；保留独立 wire golden 预期，包含在 818/818 验收中 |
 | [ThresholdProbe](../../experiments/RbfFastOpen/Rbf3ProductionProbe/ThresholdProbe.cs) 的尺寸构造 | 实验也依赖固定开销和内部 layout | 新实验可用公共入口；既有实验及证据不在本轮重写 |
 
 当前 DurableGraph 生产代码仍使用未知尺寸 Begin/End 路径，尚无新接口接入证据；用户明确提出的跨文件互引需求以 S1 独立 public 验收建立资格。
@@ -192,5 +192,5 @@ RBF 独立 public 消费例子须能执行尺寸计算和双文件互引；源�
 | S1-Q4 | 初始化完成后发布；初始资源准备不等于全帧预分配；finalize/最终 Commit 边界沿用现有实现 |
 | S1-Q5 | RbfFormat 1/3、不可变属性、显式内部映射；早拒 factory 延后 |
 
-本次 Ready 表示合同和验收映射定稿；尚无新增 API 的 build/test、终止实验或包消费结果。
-出口要求单文件已知尺寸追加、公共尺寸计算、格式信息及所有 ticket/lifecycle 行为已实现并独立验收，不存在 FrameStore 反向依赖。实际测试和 commit 身份写入阶段验收记录后，才能标 Accepted。
+合同已从 Ready 经 Implementing 闭合为 Accepted。实现提交为 `8ab98bf58a8a575e2418aba6be12097951ed8d1d`，RBF 818/818、Data 288/288 和 W: public 源码 smoke 通过；实际工作树、二进制、日志和独立审阅身份见[阶段验收记录](01-rbf-sized-append-acceptance.md)。本片不新增包消费、性能或进程实杀资格。
+单文件已知尺寸追加、公共尺寸计算、格式信息及 ticket/lifecycle 行为已实现并独立验收，不存在 FrameStore 反向依赖。S2–S6 仍按各自 Draft 合同推进；旧下游适配及全 solution 资格单列。

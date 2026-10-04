@@ -17,7 +17,7 @@ produce_by:
 
 pooled读取的唯一失败释放及RBF3 total≤8KiB打包输出后续修复已完成，696/696与W:阈值对照的实际源码/构建身份见[读取资源与输出验收](rbf3-resource-and-output-acceptance.md)。格式、读取资格与恢复合同保持。
 
-后续公共尺寸试算及 `BeginAppend(payloadLength, tailMetaLength, out ticket)` 扩展已在 [S1 实施方案](../FrameStore-VersionStore/01-rbf-sized-append.md)定稿，状态 Ready、尚未实施。本文以下仍记录当前已实现的接口；实施验收时再同步新签名和行为。
+2026-10-04 公共尺寸/预算试算、Format 及已知尺寸 Builder 已实施并验收为 Accepted，实现提交 `8ab98bf`。本文同步 public 形态和调用语义；新增尺寸与声明合同以 [S1](../FrameStore-VersionStore/01-rbf-sized-append.md) 的现有条款为准，不另建一份规范权威。RBF 818/818 与 W: public 源码消费的实际身份见[阶段验收记录](../FrameStore-VersionStore/01-rbf-sized-append-acceptance.md)；新增 API 尚未取得包消费或发布资格。
 
 ## 1. 概述
 
@@ -93,6 +93,9 @@ public interface IRbfFile : IDisposable {
     /// <summary>获取当前文件逻辑长度（也是下一个写入 Offset）。</summary>
     long TailOffset { get; }
 
+    /// <summary>获取 Header 分派得到的不可变格式；访问不另读文件。</summary>
+    RbfFormat Format { get; }
+
     /// <summary>追加完整帧（payload 已就绪）。</summary>
     /// <remarks>
     /// 失败场景（返回 AteliaResult.IsFailure）：
@@ -109,6 +112,18 @@ public interface IRbfFile : IDisposable {
     /// 注意：存在 open Builder 时，不应允许并发 Append/BeginAppend。
     /// </remarks>
     RbfFrameBuilder BeginAppend();
+
+    /// <summary>声明 stored payload/meta 长度，创建 Builder 并取得本次追加的提前 ticket。</summary>
+    /// <param name="payloadLength">最终 stored payload 的字节长度。</param>
+    /// <param name="tailMetaLength">最终 TailMeta 的字节长度。</param>
+    /// <param name="ticket">Begin 成功时绑定的起点与帧长度；不代表读取、耐久或发布资格。</param>
+    /// <remarks>
+    /// 两部分共用 PayloadAndMeta writer，顺序写 payload 后再写 meta。
+    /// 正常完成调用 EndAppend(tag)，自动采用声明的 meta 长度；成功 ticket 与提前值相等。
+    /// 初始化完成后才发布 Builder；不预分配整帧。健康取消不输出、不推进 tail，地址可以复用。
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">声明长度不合法。</exception>
+    RbfFrameBuilder BeginAppend(int payloadLength, int tailMetaLength, out SizedPtr ticket);
 
     /// <summary>读取指定位置的帧到提供的 buffer 中（zero-copy）。</summary>
     /// <param name="ticket">帧位置凭据。</param>
@@ -177,7 +192,32 @@ public interface IRbfFile : IDisposable {
 
 }
 
+/// <summary>新写 RBF3 的纯尺寸计算结果；不是执行或完成凭据。</summary>
+public readonly struct RbfWriteSize {
+    /// <summary>SizedPtr 的帧长度，不含尾 Fence。</summary>
+    public int FrameLength { get; }
+    /// <summary>成功追加推进 TailOffset 的字节数，含尾 Fence。</summary>
+    public int AppendLength { get; }
+}
+
+/// <summary>已打开文件的格式身份；不作为 writer profile 配置。</summary>
+public enum RbfFormat { Rbf1 = 1, Rbf3 = 3 }
+
 public static class RbfFile {
+    /// <summary>无 I/O 地计算最终 stored payload/meta 对应的新写 RBF3 尺寸。</summary>
+    /// <remarks>非法长度或超容量返回 RbfArgumentError；计算不预留位置。</remarks>
+    public static AteliaResult<RbfWriteSize> MeasureWriteSize(
+        int payloadLength, int tailMetaLength = 0);
+
+    /// <summary>求指定追加预算及 meta 长度下的最大合法 payload 长度。</summary>
+    /// <param name="byteBudget">本次物理追加预算，包含尾 Fence，不含已有 Header/前缀。</param>
+    /// <param name="tailMetaLength">固定的 TailMeta 字节长度。</param>
+    /// <param name="payloadLength">成功时的最大 payload；普通预算不足时为 0。</param>
+    /// <returns>预算连空 payload 与指定 meta 的帧也放不下时为 false；true 时允许 payload 为 0。</returns>
+    /// <exception cref="ArgumentOutOfRangeException">负预算或非法 meta 长度。</exception>
+    public static bool TryGetMaxPayloadLengthForAppendBudget(
+        long byteBudget, int tailMetaLength, out int payloadLength);
+
     public static IRbfFile CreateNew(string path);       // FailIfExists，只创建 RBF3
     public static IRbfFile OpenExisting(string path, out RbfTailRecoveryReport recovery,
         RbfCacheMode cacheMode = RbfCacheMode.Slots16);    // RBF3 结构打开与单尾恢复；RBF1 可写拒绝
@@ -185,6 +225,8 @@ public static class RbfFile {
         RbfCacheMode cacheMode = RbfCacheMode.Slots16);    // 验证，不修改
 }
 ```
+
+尺寸、预算、格式投影和已知尺寸入口分别消费 S1 的 `[A-RBF-MEASURE-WRITE-SIZE]`、`[A-RBF-APPEND-BUDGET]`、`[A-RBF-EXPOSE-OPENED-FORMAT]`、`[A-RBF-EARLY-TICKET]` 合同。预算查询不能从 ticket 逆解真实 payload 长度；RBF1 读取仍按其原容量解释。纯地址预测可用 Measure、可信起点与 SizedPtr.Create 组合，Begin 成功才绑定现有活跃 Builder，不增加预约状态或纯预测专用 helper。
 
 *@[S-RBF-DECISION-READFRAME-RESULTPATTERN]，随机读取 API Result-Pattern（返回 `AteliaResult<RbfFrame>`）。*
 
@@ -215,7 +257,7 @@ public static class RbfFile {
 ### spec [S-RBF-TAILOFFSET-UPDATE] TailOffset更新规则
 `TailOffset` MUST 只在以下时刻推进：
 - `Append()` 成功返回后；
-- `BeginAppend()` 返回的 `RbfFrameBuilder.EndAppend()` 成功返回后。
+- 任一 `BeginAppend` 重载返回的 `RbfFrameBuilder.EndAppend` 成功返回后。
 
 在 open Builder 的生命周期内（`EndAppend/Dispose` 之前），`TailOffset` MUST NOT 提前更新。
 
@@ -305,12 +347,18 @@ public readonly struct RbfFrameBuilder : IDisposable {
     /// </remarks>
         public RbfPayloadWriter PayloadAndMeta { get; }
 
-    /// <summary>提交帧。回填 header/CRC，返回帧位置和长度。</summary>
+    /// <summary>提交帧，自动采用当前 Builder 模式的 TailMeta 长度。</summary>
     /// <returns>成功返回帧位置与长度；失败返回错误。</returns>
     /// <remarks>
+    /// 已知尺寸模式采用 Begin 声明的 meta；未知尺寸模式采用 0。
     /// Result-Pattern：可预见的参数/状态错误返回 <see cref="AteliaResult{T}"/> 失败；I/O 异常仍抛出。
     /// </remarks>
-    public AteliaResult<SizedPtr> EndAppend(uint tag, int tailMetaLength = 0);
+    public AteliaResult<SizedPtr> EndAppend(uint tag);
+
+    /// <summary>显式指定 TailMeta 长度并提交帧。</summary>
+    /// <param name="tailMetaLength">未知尺寸模式确定尾部分界；已知模式只接受与 Begin 声明相同的值。</param>
+    /// <remarks>与一参数 End 共用 owner/epoch；显式 meta 不再带 optional 默认值。</remarks>
+    public AteliaResult<SizedPtr> EndAppend(uint tag, int tailMetaLength);
 
     /// <summary>释放构建器。若未 EndAppend，自动执行 Auto-Abort。</summary>
     /// <remarks>
@@ -325,6 +373,8 @@ public readonly struct RbfFrameBuilder : IDisposable {
 `RbfPayloadWriter` 是一个 readonly struct，内部携带 epoch 信息并在每次调用时做鉴权。
 这可避免旧 writer 被长期持有后在错误时机写入。
 
+已知尺寸模式的调用方预算由 Advance 和 ReserveSpan 在修改底层 writer 前检查，reservation 回填/Commit 不重复计数。GetSpan/GetMemory 保留容量保证，不截短到剩余预算；超限 Advance 拒绝后可改为合法 count 或 Advance(0)。内部 HeadLen、padding/footer 不计入调用方预算，Length 的既有投影语义保持。完整声明和纠正重试规则见 S1 的 `[S-RBF-DECLARED-LENGTH]`，这里不另定义限额合同。
+
 **注意**：若上层将其上转为 `IReservableBufferWriter`，会产生装箱；如无必要，建议使用 `var` 保持值类型形态。
 
 **关键语义**：
@@ -333,11 +383,13 @@ public readonly struct RbfFrameBuilder : IDisposable {
 `RbfFrameBuilder.EndAppend` MUST 返回 `AteliaResult<SizedPtr>`，使用 Result-Pattern 表达可预见的操作拒绝。
 
 **返回失败的场景**（前置校验，不产生 I/O）：
-- `tailMetaLength < 0` 或 `tailMetaLength > payloadAndMetaLength`
+- `tailMetaLength < 0`、`tailMetaLength > payloadAndMetaLength` 或 `tailMetaLength > MaxTailMetaLength`
 - `payloadAndMetaLength > MaxPayloadAndMetaLength`
 - 存在未提交 reservation（除 HeadLen 外）
 - builder 状态不允许（重复提交、已 Dispose）
 - 帧起点 `TailOffset > SizedPtr.MaxOffset`；末帧末端可超过该偏移上界
+
+已知尺寸模式还在 finalize 修改之前检查精确总量和显式 meta 声明一致；短写或 meta 冲突返回 RbfArgumentError，保留同一活跃 Builder 以便纠正。两种 End 先校验生命周期/epoch，旧 Builder 不能消费新 Builder 的声明；声明长度及未 Advance 借用等具体规则见 S1，不以 padding 后 ticket 相同代替精确长度检查。
 
 **抛出异常的场景**（系统级故障）：
 - 磁盘满、权限不足、设备 I/O 错误等底层异常
@@ -357,10 +409,12 @@ public readonly struct RbfFrameBuilder : IDisposable {
 
 此机制防止上层异常导致 Writer 死锁，同时在可能时优化为零 I/O。取消不发布帧，也不解除既有 fault。
 
+已知尺寸入口签发的提前 ticket 也不例外：取消后数值地址可以被后续追加复用，旧 ticket 不能证明原尝试完成。跨文件引用的完成和发布资格由上层处理；不向 SizedPtr 增加尝试身份。详见 S1 的 `[R-RBF-SIZED-LIFECYCLE]`。
+
 
 ### spec [S-RBF-BUILDER-SINGLE-OPEN] 单Builder约束
 同一 `IRbfFile` 实例同时最多允许 1 个 open `RbfFrameBuilder`。
-在前一个 Builder 完成（EndAppend 或 Dispose）前调用 `BeginAppend()` MUST 抛出 `InvalidOperationException`。
+在前一个 Builder 完成（EndAppend 或 Dispose）前调用任一 `BeginAppend` 重载 MUST 抛出 `InvalidOperationException`；两者共用同一活跃 Builder 和 owner/epoch 路径。
 
 ### spec [S-RBF-READ-DISALLOW-WHILE-BUILDER-ACTIVE] Builder活跃时禁止读取与扫描
 当存在 open Builder（`BeginAppend()` 与 `EndAppend/Dispose` 之间）时，以下 `IRbfFile` 门面入口拒绝读取：

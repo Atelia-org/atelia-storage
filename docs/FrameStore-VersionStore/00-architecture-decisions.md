@@ -112,7 +112,7 @@ IO/发布尝试后结果可能 Unknown；完整记录可在重开后存在。新
 | 事项 | 证据状态 |
 | --- | --- |
 | RBF3 create/open/recovery 及串行、资源异常边界 | 当前 [接口规范](../Rbf/rbf-interface.md)和 [70d1009 随附验收](../Rbf/rbf3-review-repairs-acceptance.md)；本次未重跑 |
-| 精确尺寸公共 API、提前 ticket Builder | [S1](01-rbf-sized-append.md) 已 Ready，分立长度合同定稿；当前未提供，后续需实施 |
+| 精确尺寸公共 API、提前 ticket Builder、格式投影 | [S1](01-rbf-sized-append.md) 已 Accepted；实现 `8ab98bf`、RBF 818/818 与 W: public 源码消费等身份见[阶段验收](01-rbf-sized-append-acceptance.md) |
 | 新 FrameStore / VersionStore 与其测试项目 | 尚未创建 |
 | 新根发布模型 | 本次需求与候选设计，尚无实现证据 |
 | DurableGraph 当前接口及接入 | 2026-10-04 已定位兄弟仓；生产代码仍使用未知尺寸 Begin/End，无新 API 接入证据，不以历史 tag 文档代替实证 |
@@ -120,4 +120,4 @@ IO/发布尝试后结果可能 Unknown；完整记录可在重开后存在。新
 ## S0 出口
 
 会话已确认新项目、旧库维护边界、RBF 恢复方向、中性地址及根最后发布。
-S1 的单文件尺寸和 ticket 合同、类型及签名已定稿，下一步实施和独立验收。S2–S6 的具体 wire、类名、方法签名及性能预算仍按各阶段阻断项细化。
+S1 的单文件尺寸和 ticket 合同已实施并独立验收为 Accepted。S2–S6 仍是 Draft，具体 wire、类名、方法签名及性能预算按各阶段阻断项细化；本片不代表新库或下游适配已完成。

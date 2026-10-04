@@ -1,6 +1,6 @@
 # FrameStore / VersionStore 分阶段设计入口
 
-日期：2026-10-03；2026-10-04 更新 S1。状态：**S1 Ready，S2–S6 Draft；尚未创建新项目或实施本方案的新增运行时 API**。
+日期：2026-10-03；2026-10-04 更新 S1。状态：**S1 Accepted；S2–S6 Draft，两个新项目尚未创建**。
 初始设计源码观察基线：`main @ 70d1009e78a73342a0c0fdc8ffed7731dec58173`；S1 本轮核对基线为 `f6f1eb38557863ba5ea1634844a90f0cbe5774cf`。本文档集供逐阶段细化、审阅和实施。
 
 目标：**以 RBF3 的帧原子性为基础，让中层构建新状态，再通过统一的根发布使状态生效。**
@@ -18,7 +18,7 @@ RefId/revision/attempt 共用一个 RecordToken 表示；普通 head/tag 查询�
 - 先读仓库根 [README](../../README.md)，再读 [S0 总体决策](00-architecture-decisions.md)。
 - 本目录遵循 [规范约定](../spec-conventions.md)：`decision` 记录会话已确认方向；S1 的 `spec` 与签名已成为实施合同，S2–S6 仍是候选要求；未审定阶段的建议、算例、API 名称不自动冻结。
 - 阶段状态使用 `Draft → Ready → Implementing → Accepted`。Ready 前定稿字段/API/算法及验收映射；可以对范围明确的必要子合同单独审定，未支持能力不得借整体标签宣称成立。
-- S1 Ready 表示设计定稿，不表示新增 API 已存在。测试、进程中断验证、包消费及消费者接入均是后续工作，不在这里宣称通过。
+- S1 的实施合同提交为 `c940ed6`，实现提交为 `8ab98bf`；RBF 818/818、Data 288/288 和 W: public 源码消费已验收，实际工作树和二进制身份见[阶段验收记录](01-rbf-sized-append-acceptance.md)。本片不宣称新增包消费、性能或进程实杀通过，也不宣称下游已接入。
 - 旧库维护独立于这条演进链。其当前编译与合同不一致问题见 [原调查](../Rbf/rbf3-adaptation-baseline-investigation.md)；该调查基于 `e6ad4d2`，不冒充本次基线的新测试结果。
 
 ## 阶段顺序
@@ -38,7 +38,7 @@ flowchart LR
 | 阶段文档 | 本阶段形成的合同 | 主要实施范围 | 出口 |
 | --- | --- | --- | --- |
 | [S0 总体边界与决策](00-architecture-decisions.md) | 项目边界、事实归属、恢复模型、兼容政策 | 文档决策 | 后续阶段无需反向依赖消费者语义 |
-| [S1 RBF 已知尺寸追加（Ready）](01-rbf-sized-append.md) | 正向/预算尺寸试算、分立长度 Begin + out ticket、格式信息、Builder 生命周期 | `src/Rbf`、`tests/Rbf.Tests` | 单文件能力可独立使用和验证 |
+| [S1 RBF 已知尺寸追加（Accepted）](01-rbf-sized-append.md) | 正向/预算尺寸试算、分立长度 Begin + out ticket、格式信息、Builder 生命周期 | `src/Rbf`、`tests/Rbf.Tests`、RBF public 源码 smoke | [单文件独立验收](01-rbf-sized-append-acceptance.md)已闭合 |
 | [S2 FrameStore 核心](02-framestore-core.md) | FrameAddress、文件布局、segment 生命周期、读写入口 | 新建 FrameStore 与其测试项目 | 多段 Frame 存储可独立使用、恢复及重开 |
 | [S3 批次与耐久确认](03-framestore-batches-and-durability.md) | 跨段地址规划、循环引用、完成与同步屏障 | FrameStore 与其测试项目 | 消费者无需管理 segment flush，最终跨段能力保留 |
 | [S4 VersionStore 根发布](04-versionstore-publication.md) | data/control 归属、Prepare/Commit、token CAS 与精确查询 | 新建 VersionStore 与其测试项目 | 单记录根发布、Unknown/Confirmed 和重开可独立验收 |
@@ -80,4 +80,4 @@ S4 使用显式完整控制回放作为正确性基线；S5 先完成命名，�
 
 阶段需要新的下层能力时，在相应前序文档提出变更并重新验收，再继续下游；不在下游复制长度公式或增加隐含协议。导航索引可以链接全部阶段，规范输入保持单向。
 
-下一步按 S1-A/B/C 实施并独立验收：公共尺寸计算、分立长度的提前 ticket 入口，以及双文件互引和生命周期证据。后续阶段继续沿依赖链关闭各自阻断项。
+S1-A/B/C 已实施并独立验收：公共尺寸计算、分立长度的提前 ticket 入口，以及双文件互引和生命周期证据已闭合。后续阶段继续沿依赖链关闭各自阻断项，不把本片源码资格扩展为新库、包或下游资格。

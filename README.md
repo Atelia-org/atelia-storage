@@ -99,7 +99,7 @@ Pack 临时固定 CLI 语言为 en-US，并启用 `StorageDeterministicPack`：�
 
 ## 文档与 Agent 入口
 
-新一代中性帧存储与根发布见 [FrameStore / VersionStore 分阶段设计](docs/FrameStore-VersionStore/README.md)。其中 [S1 公共尺寸计算与提前 ticket](docs/FrameStore-VersionStore/01-rbf-sized-append.md)已定稿为 Ready，新增 API 尚未实施；后续阶段仍为草案，两个新项目尚未创建。现有 RbfSegmentStore / EventJournal 继续属于维护和修复范围。
+新一代中性帧存储与根发布见 [FrameStore / VersionStore 分阶段设计](docs/FrameStore-VersionStore/README.md)。其中 [S1 公共尺寸计算与提前 ticket](docs/FrameStore-VersionStore/01-rbf-sized-append.md)已完成实现并验收为 Accepted，提供尺寸/预算试算、分立长度 Begin + out ticket 和已打开格式投影；RBF 818/818 与 W: public 源码消费等证据见[阶段验收记录](docs/FrameStore-VersionStore/01-rbf-sized-append-acceptance.md)。后续阶段仍为 Draft，两个新项目尚未创建；已发布包事实仍以上表固定版本为准，现有 RbfSegmentStore / EventJournal 继续属于维护和修复范围。
 
 已发布 `0.1.2-preview.1` 提供不可变 `CreateTag` / `ResolveTag`，见 [tag 合同](docs/EventJournal/immutable-tags-design.md)、[已发布源码使用指南](https://github.com/Atelia-org/atelia-storage/blob/Atelia.EventJournal-v0.1.2-preview.1/src/EventJournal/README.md#不可变-tag)和[本次公开交付记录](docs/selective-preview-delivery.md)。旧 `EventJournal 0.1.1-preview.2` 没有该 API；首次写入 tag 后旧版本 reader 会拒绝打开。此前的五包同版本地开发包验收保留在[历史交付记录](docs/EventJournal/immutable-tags-delivery.md)。
 
