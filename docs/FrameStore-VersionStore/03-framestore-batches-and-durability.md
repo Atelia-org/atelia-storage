@@ -10,7 +10,7 @@
 
 ## term `Frame-Batch` 排他顺序构建集合
 
-候选代码名 FrameBatch：只持 lengths、地址及完成前缀，最多一个活跃 plan；不要求复制全部 payload。
+候选代码名 FrameBatch：只持每帧分立的 stored payloadLength/tailMetaLength、派生地址及完成前缀，最多一个活跃 plan；不要求复制全部 payload。
 同段、自引用和跨段计划都在最终范围内。首个纵向片可以明确只支持单段并在输出前拒绝越界，不将它当成最终跨段交付。
 
 ## 候选合同
@@ -18,6 +18,7 @@
 ### spec [A-FS-BATCH-PLAN] 批次先规划全部地址
 
 调用方 MUST 提供每帧最终 stored payload/meta 尺寸；FrameStore 通过 S1 精确尺寸和 S2 唯一轮转规则计算所有地址。
+规划描述符 MUST 保留两个长度，MeasureWriteSize 和实际 BeginAppend(payloadLength, tailMetaLength, out ticket) 使用同一对输入；不能只持合计长度或 padding 后的 FrameLength。正常 EndAppend(tag) 消费已声明的 meta 长度。
 签发计划前完成算术/容量/编号和计划预算预检。其他 append 不得抢占位置；尚未创建段的地址只是 provisional，不写空洞、不产生完成资格。
 采用同一布局/轮转算法的纯规划与实际追加，不在 batch 层复制 RBF 字节公式。压缩/编码的最终长度由消费者先确定。
 

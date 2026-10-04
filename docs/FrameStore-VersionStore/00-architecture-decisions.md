@@ -1,6 +1,6 @@
 # S0：总体边界与决策
 
-日期：2026-10-03。状态：**会话方向已确认；建议项仍可迭代**。
+日期：2026-10-03；2026-10-04 补充 S1 分立长度决策。状态：**会话方向已确认；建议项仍可迭代**。
 本文件记录本次用户已表达的决策。规范写法依 [规范约定](../spec-conventions.md)。API/wire 的具体选择由后续阶段细化。
 
 ## term `FrameStore` 中性的 Frame 存储库
@@ -48,6 +48,12 @@ RBF1 MUST 保留底层可读兼容；新写入 MUST 使用纯 RBF3 新文件。�
 ### decision [S-STAGES-FLOW-FORWARD] 阶段依赖单向
 
 后续阶段 MUST 消费前序阶段已明确的合同；前序层的运行时正确性不得依赖后序层存在。下游发现下层缺口时，修改下层合同并复验受影响阶段，不在下游复制实现知识。
+
+### decision [S-RBF-SIZED-APPEND-SPLIT-LENGTHS] 已知尺寸追加分别声明 payload 和 meta 长度
+
+2026-10-04 用户确认：新 RBF `out ticket` 入口 MUST 接收分立的 payloadLength、tailMetaLength，与 MeasureWriteSize 的输入一致。
+Begin 固定两部分逻辑长度，正常 EndAppend(tag) 使用声明的 meta 长度；保持现有紧密存储和一个 PayloadAndMeta writer。本决策不要求分别对齐或改变 wire-format。
+具体签名、可纠正拒绝和取消后的 ticket 资格见已定稿的 [S1](01-rbf-sized-append.md)。S2/S3 规划和执行均保留这两个输入，不只保留求和结果。
 
 ## 推荐职责与依赖（候选）
 
@@ -106,12 +112,12 @@ IO/发布尝试后结果可能 Unknown；完整记录可在重开后存在。新
 | 事项 | 证据状态 |
 | --- | --- |
 | RBF3 create/open/recovery 及串行、资源异常边界 | 当前 [接口规范](../Rbf/rbf-interface.md)和 [70d1009 随附验收](../Rbf/rbf3-review-repairs-acceptance.md)；本次未重跑 |
-| 精确尺寸公共 API、提前 ticket Builder | 当前未提供，后续需新增 |
+| 精确尺寸公共 API、提前 ticket Builder | [S1](01-rbf-sized-append.md) 已 Ready，分立长度合同定稿；当前未提供，后续需实施 |
 | 新 FrameStore / VersionStore 与其测试项目 | 尚未创建 |
 | 新根发布模型 | 本次需求与候选设计，尚无实现证据 |
-| DurableGraph 当前接口及接入 | 当前环境未定位项目，不以历史 tag 文档代替实证 |
+| DurableGraph 当前接口及接入 | 2026-10-04 已定位兄弟仓；生产代码仍使用未知尺寸 Begin/End，无新 API 接入证据，不以历史 tag 文档代替实证 |
 
 ## S0 出口
 
 会话已确认新项目、旧库维护边界、RBF 恢复方向、中性地址及根最后发布。
-后续细化首先闭合单文件尺寸和 ticket 合同。具体 wire、类名、方法签名及性能数字还没有冻结。
+S1 的单文件尺寸和 ticket 合同、类型及签名已定稿，下一步实施和独立验收。S2–S6 的具体 wire、类名、方法签名及性能预算仍按各阶段阻断项细化。

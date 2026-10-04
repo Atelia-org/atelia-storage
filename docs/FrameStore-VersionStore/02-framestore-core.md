@@ -39,6 +39,9 @@ RBF ticket checked read 证明 CRC，不独自证明主链成员；正常签发�
 
 只提供 owned append/read/Builder，不公开可绕过本层 bookkeeping 的裸 `IRbfFile`。独立消费者可使用全部 data tag；本层不认识上层控制记录。
 
+已知尺寸入口按 S1 保留 payloadLength、tailMetaLength 两个声明：先调用 MeasureWriteSize 取得容量，再通过 BeginAppend(payloadLength, tailMetaLength, out ticket) 取得当前帧的绑定地址。
+正常完成调用 EndAppend(tag)，使用 Begin 的 meta 声明；显式 meta 参数只能核对一致，不能改变划分。FrameStore 的 owned API 签名仍由 S2 审定，不在本层退化为仅保存合计长度。
+
 ## 候选合同
 
 ### spec [F-FS-OWN-FORMAT] 新库有独立格式身份

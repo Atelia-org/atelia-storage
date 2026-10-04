@@ -1,7 +1,7 @@
 # FrameStore / VersionStore 分阶段设计入口
 
-日期：2026-10-03。状态：**方向已确认；经过三轮辩证审阅的候选设计，尚未创建项目或实施运行时代码**。
-源码观察基线：`main @ 70d1009e78a73342a0c0fdc8ffed7731dec58173`。本文档集供后续逐阶段细化、审阅和实施。
+日期：2026-10-03；2026-10-04 更新 S1。状态：**S1 Ready，S2–S6 Draft；尚未创建新项目或实施本方案的新增运行时 API**。
+初始设计源码观察基线：`main @ 70d1009e78a73342a0c0fdc8ffed7731dec58173`；S1 本轮核对基线为 `f6f1eb38557863ba5ea1634844a90f0cbe5774cf`。本文档集供逐阶段细化、审阅和实施。
 
 目标：**以 RBF3 的帧原子性为基础，让中层构建新状态，再通过统一的根发布使状态生效。**
 恢复依据是完整事实帧及其有效发布记录。RBF 处理物理尾部；中层负责状态构建和依赖闭包；VersionStore 负责发布及 ref/branch/tag。
@@ -11,14 +11,14 @@
 FrameStore 每实例一个追加流，提供精确地址、跨段顺序 plan 和同步 ConfirmDurable。VersionStore 借入 data FrameStore，拥有私有 control FrameStore；不建通用多流平台，不向调用方签发耐久 receipt。
 Prepare 在业务输出前给调用方精确记录 token；Commit 确认最新 data 完成前缀，再追加/确认单条控制记录、安装内部投影。应用收到 Confirmed 后再安装自己的状态。
 RefId/revision/attempt 共用一个 RecordToken 表示；普通 head/tag 查询给事实地址，实际内容由 FrameStore.ReadFrame 一次完整读取。首次 Open/Inspect 允许显式完整控制回放；snapshot 的规模资格单独取得。
-裁决、具体失败轨迹、保留的不同意见和延迟触发条件见 [本轮设计审阅](reviews/2026-10-03-dialectical-review.md)。这些技术默认仍是 Draft，不冒充新增用户决策。
+初始裁决、具体失败轨迹、保留的不同意见和延迟触发条件见 [2026-10-03 设计审阅](reviews/2026-10-03-dialectical-review.md)。S1 的后续分立长度选择已获用户确认并写入 [S0](00-architecture-decisions.md)；其余阶段的技术默认仍是 Draft。
 
 ## 阅读与状态规则
 
 - 先读仓库根 [README](../../README.md)，再读 [S0 总体决策](00-architecture-decisions.md)。
-- 本目录遵循 [规范约定](../spec-conventions.md)：`decision` 记录会话已确认方向；S1–S6 的 `spec` 是阶段候选要求，待该阶段审定后才成为实施合同；建议、算例、API 名称不自动冻结。
+- 本目录遵循 [规范约定](../spec-conventions.md)：`decision` 记录会话已确认方向；S1 的 `spec` 与签名已成为实施合同，S2–S6 仍是候选要求；未审定阶段的建议、算例、API 名称不自动冻结。
 - 阶段状态使用 `Draft → Ready → Implementing → Accepted`。Ready 前定稿字段/API/算法及验收映射；可以对范围明确的必要子合同单独审定，未支持能力不得借整体标签宣称成立。
-- 本次完成的是 Draft 文档。测试、进程中断验证、包消费及消费者接入均是后续工作，不在这里宣称通过。
+- S1 Ready 表示设计定稿，不表示新增 API 已存在。测试、进程中断验证、包消费及消费者接入均是后续工作，不在这里宣称通过。
 - 旧库维护独立于这条演进链。其当前编译与合同不一致问题见 [原调查](../Rbf/rbf3-adaptation-baseline-investigation.md)；该调查基于 `e6ad4d2`，不冒充本次基线的新测试结果。
 
 ## 阶段顺序
@@ -38,7 +38,7 @@ flowchart LR
 | 阶段文档 | 本阶段形成的合同 | 主要实施范围 | 出口 |
 | --- | --- | --- | --- |
 | [S0 总体边界与决策](00-architecture-decisions.md) | 项目边界、事实归属、恢复模型、兼容政策 | 文档决策 | 后续阶段无需反向依赖消费者语义 |
-| [S1 RBF 已知尺寸追加](01-rbf-sized-append.md) | 精确尺寸、提前 ticket、格式信息、Builder 生命周期 | `src/Rbf`、`tests/Rbf.Tests` | 单文件能力可独立使用和验证 |
+| [S1 RBF 已知尺寸追加（Ready）](01-rbf-sized-append.md) | 正向/预算尺寸试算、分立长度 Begin + out ticket、格式信息、Builder 生命周期 | `src/Rbf`、`tests/Rbf.Tests` | 单文件能力可独立使用和验证 |
 | [S2 FrameStore 核心](02-framestore-core.md) | FrameAddress、文件布局、segment 生命周期、读写入口 | 新建 FrameStore 与其测试项目 | 多段 Frame 存储可独立使用、恢复及重开 |
 | [S3 批次与耐久确认](03-framestore-batches-and-durability.md) | 跨段地址规划、循环引用、完成与同步屏障 | FrameStore 与其测试项目 | 消费者无需管理 segment flush，最终跨段能力保留 |
 | [S4 VersionStore 根发布](04-versionstore-publication.md) | data/control 归属、Prepare/Commit、token CAS 与精确查询 | 新建 VersionStore 与其测试项目 | 单记录根发布、Unknown/Confirmed 和重开可独立验收 |
@@ -80,4 +80,4 @@ S4 使用显式完整控制回放作为正确性基线；S5 先完成命名，�
 
 阶段需要新的下层能力时，在相应前序文档提出变更并重新验收，再继续下游；不在下游复制长度公式或增加隐含协议。导航索引可以链接全部阶段，规范输入保持单向。
 
-目前最高优先级是细化 S1：精确尺寸 API 与提前 ticket 的生命周期。后续阶段已给出候选边界和具体阻断项，便于沿依赖链继续讨论。
+下一步按 S1-A/B/C 实施并独立验收：公共尺寸计算、分立长度的提前 ticket 入口，以及双文件互引和生命周期证据。后续阶段继续沿依赖链关闭各自阻断项。

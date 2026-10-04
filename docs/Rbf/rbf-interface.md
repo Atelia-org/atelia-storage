@@ -17,6 +17,8 @@ produce_by:
 
 pooled读取的唯一失败释放及RBF3 total≤8KiB打包输出后续修复已完成，696/696与W:阈值对照的实际源码/构建身份见[读取资源与输出验收](rbf3-resource-and-output-acceptance.md)。格式、读取资格与恢复合同保持。
 
+后续公共尺寸试算及 `BeginAppend(payloadLength, tailMetaLength, out ticket)` 扩展已在 [S1 实施方案](../FrameStore-VersionStore/01-rbf-sized-append.md)定稿，状态 Ready、尚未实施。本文以下仍记录当前已实现的接口；实施验收时再同步新签名和行为。
+
 ## 1. 概述
 
 RBF 是"二进制信封"：只关心如何安全封装 payload，不解释 payload 语义。
