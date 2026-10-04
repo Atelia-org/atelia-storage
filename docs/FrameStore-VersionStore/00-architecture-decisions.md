@@ -1,15 +1,15 @@
 # S0：总体边界与决策
 
-日期：2026-10-03；2026-10-04 补充 S1 分立长度与 RBF1 参考边界。状态：**会话方向已确认；建议项仍可迭代；参考依赖拆分 Accepted**。
+日期：2026-10-03；2026-10-04 补充持久分配器、提交对象与发布顺序的职责边界。状态：**会话方向已确认；S2–S6 技术候选仍为 Draft；参考依赖拆分 Accepted**。
 本文件记录本次用户已表达的决策。规范写法依 [规范约定](../spec-conventions.md)。API/wire 的具体选择由后续阶段细化。
 
 ## term `FrameStore` 中性的 Frame 存储库
 
-新项目 `Atelia.FrameStore` 管理带中性地址的不可变 binary frames，承接文件组织、追加、读取、批次地址规划及同步耐久确认。每个实例管理一个追加流；不同实例复用同一合同。
+新项目 `Atelia.FrameStore` 管理带不透明地址的不可变 binary frames，对外提供持久分配、随机读取、批量地址预约及同步耐久确认。文件选择、物理相邻关系和写入调度属于内部实现；普通分配合同不提供业务上的全局顺序。
 
 ## term `VersionStore` 根发布与命名版本控制库
 
-新项目 `Atelia.VersionStore` 在 FrameStore 上发布状态根，提供 ref、branch、tag 与发布历史。状态的构建、解释与业务合法性属于消费者。
+新项目 `Atelia.VersionStore` 管理中性的不可变提交对象，并通过 ref、branch、tag 发布和命名提交。提交祖先关系与 ref 发布历史分别表达；状态的构建、解释与业务合法性属于消费者。
 
 ## term `Frame-Address` 中性帧地址
 
@@ -17,7 +17,11 @@ FrameStore 坐标系中定位一个 frame 的地址，候选代码名为 `FrameA
 
 ## term `Publication` 发布
 
-消费者构建的状态根经完整发布记录成为某个发布对象的可见版本。物理 frame 已存在、写入已耐久及状态已发布分别具有自己的资格。
+一次完整发布记录使某个 ref 指向提交，或使名称绑定到提交。提交对象已经存在、其依赖已耐久及它被某个对象发布分别具有自己的资格。
+
+## term `Commit-Object` 不可变提交对象
+
+包含中性 StateRoot 地址和逻辑 parent 引用的不可变对象，由 VersionStore 编码，保存在 data FrameStore 中。CommitAddress 是该帧地址的窄类型，不是 ref revision 或发布尝试身份；具体合同由 S4 形成。
 
 ## 已确认决策
 
@@ -35,12 +39,26 @@ MUST 新建 FrameStore、VersionStore 两个生产项目及分别配套的单元
 
 ### decision [S-ROOT-PUBLISHED-LAST] 状态根最后发布
 
-协议顺序 MUST 为：规划新帧地址 → 完成状态构建 → 确认全部新增依赖耐久 → 追加根发布记录 → 确认发布记录耐久 → 安装内存状态。
+协议 MUST 先完成状态帧及提交对象，再确认全部新增依赖耐久，随后追加单条发布记录、确认其耐久，最后安装内存状态。发布旧提交可以复用其既有帧。
 消费者 MUST 保证依赖闭包由此前已耐久帧和本次完成、确认耐久的新增帧组成。通用库不得声称可从任意 opaque payload 自动证明该闭包。
 
-### decision [S-NEUTRAL-FRAME-TARGETS] 根目标使用中性地址
+### decision [S-NEUTRAL-FRAME-TARGETS] 根目标使用中性地址（DEPRECATED）
 
-VersionStore MUST 以 @`Frame-Address` 表达目标；不得要求 EventFrame tag、EventFrameHeader、Parent、graph schema 或应用 codec。VersionStore 不调用消费者业务回调来定义持久事实是否已发布。
+本条的“直接发布状态根”范围由 `[S-NEUTRAL-STATE-ROOTS]` 与 `[S-VS-COMMITS-SEPARATE-REFS]` 替代。保留锚点用于追溯早期草案。
+
+### decision [S-NEUTRAL-STATE-ROOTS] 状态根保持中性
+
+提交对象 MUST 用 @`Frame-Address` 引用 StateRoot，不要求 EventFrame tag、EventFrameHeader、应用 Parent、graph schema 或业务 codec。VersionStore 自己定义的提交 parent 不解释应用状态。VersionStore 不调用消费者业务回调来定义发布事实。
+
+### decision [S-FS-OPAQUE-ALLOCATION] 分配与读取不依赖物理布局
+
+2026-10-04 用户确认本轮分析与修订方向：FrameStore MUST 对普通调用方隐藏文件选择及物理地址关系；业务引用 MUST 通过地址表达，不得用地址大小、相邻关系或分配先后推断业务关系。
+不透明分配不自动承诺任意完成次序、并发 Builder、free/GC 或帧搬迁。首版内部可以继续单 active 文件、串行 RBF 追加；这些是实现与准入限制。
+
+### decision [S-VS-COMMITS-SEPARATE-REFS] 提交关系与发布历史分离
+
+VersionStore MUST 区分不可变提交、应用状态根及 ref revision。branch/tag 以提交为目标；提交通过逻辑地址引用 parent，不依赖帧物理排列。
+一次 ref 更新、tag 创建或名称绑定 MUST 有完整持久发布事实；tag 查询无序不免除其创建协议。具体控制日志能力、单 parent 首版及 codec 仍由后续阶段审定。
 
 ### decision [S-LEGACY-READ-ONLY] 主线旧格式只读且无转写
 
@@ -75,24 +93,30 @@ flowchart TD
 | 事实或资格 | 唯一负责层 | 其他层的使用方式 |
 | --- | --- | --- |
 | RBF profile、padding、长度、CRC、尾部恢复 | RBF | 调用公共 API，消费恢复结果 |
-| store 身份、segment 定位、FrameAddress、完成前缀 | FrameStore | 用地址及生命周期合同访问 |
+| store 身份、文件定位、FrameAddress、完成资格 | FrameStore | 用不透明地址及生命周期合同访问 |
+| 有序帧日志的位置、真实主链与扫描边界 | FrameStore 项目内的窄日志能力 | 调用方显式选用日志合同，普通分配不继承顺序 |
 | 本 owner 的全部完成输出已耐久 | FrameStore | 同步 barrier 返回后才尝试发布，不能推导业务闭包 |
 | 某根是否构成合法状态、全部引用是否已覆盖 | 消费者中层 | 构建完成后选择根并准备发布 |
-| 根发布、ref 身份与版本、branch/tag 绑定 | VersionStore | 消费者查询或变更当前版本 |
+| 提交 codec、parent 关系与提交读取 | VersionStore | 消费者取得 StateRoot，祖先遍历与 ref 历史分开 |
+| 发布顺序、ref 身份与 revision、branch/tag 绑定 | VersionStore | 消费者查询或发布提交，不比较物理地址 |
 | locator、snapshot、查询索引、缓存 | 其所属存储层 | 从事实重建，不能制造新的业务发布 |
 | 完整历史/图语义健康 | 显式 audit / 消费者 validator | 不由普通 Open 成功代替 |
 
-### 本轮审阅选择的最小模型（候选，非新增用户决策）
+### 当前技术候选：分配器与窄日志能力
 
-FrameStore 保持单流。VersionStore **借入一个 data FrameStore，拥有一个私有 control FrameStore**；根地址只在 data 上下文解释，发布记录定位只在 control 上下文解释。二者使用同一个 FrameAddress 类型，不增加通用多流平台或第三个生产项目。
+FrameStore 首版后端继续单 active 文件并封存历史文件；普通 API 是无业务顺序的分配器。S2 同时形成窄的 `FrameLog` 候选：显式提供追加顺序、真实主链回放与受证扫描边界，和分配器共用底层实现，但不允许可绕过日志的写入口。不增加第三个生产项目或通用多流调度平台。
 
-根的全部新增依赖属于借入的 data owner。发布 Commit 内同步确认其全部完成前缀，然后追加、确认控制记录；不向调用方传递可复用 `DurabilityReceipt`。消费者继续保证 opaque 引用闭包。
+VersionStore **借入一个 data FrameStore，拥有一个私有 control FrameLog**。状态根、提交及其 parent 地址在 data 上下文解释；发布 token 在 control 上下文解释。两者隔离并持久绑定身份。FrameLog 的类名、factory 与格式门仍为候选，不将随机分配器的任意枚举冒充控制日志。
+
+提交候选首版包含 StateRoot 和可空的单 parent；branch 可以发布既有提交，tag 固定绑定提交。全部新增依赖属于借入的 data owner。PreparedPublication.Commit 内同步确认它的全部完成输出，然后追加、确认控制记录；不向调用方传递可复用 `DurabilityReceipt`。消费者继续保证 opaque 状态闭包。
 
 稳定 ref、CAS revision 和发布尝试共用一种控制记录 token 的表示。Prepare 在业务输出前把 token 交给调用方；实际发布是一条控制记录。名称核心先完成，复杂索引与完整工具产品不作为第一次根发布的前置。
 
-控制流分离解决任意 data suffix 干扰控制回放的问题，**不等于已取得有界打开资格**。第一片允许完整控制回放；snapshot 的规模合同另行审定。采用双上下文是本轮技术候选，不把单帧原子性扩大成两个 store 的原子事务。
+控制流分离解决大量 data 分配干扰控制回放的问题，**不等于已取得有界打开资格**。第一片允许完整控制回放；snapshot 的规模合同另行审定。采用双上下文不把单帧原子性扩大成两个 owner 的原子事务。
 
-VersionStore 内部 ref/name 投影安装与消费者安装应用状态分别负责。发布耐久后前者失败仍保留 Confirmed 并停用库实例；Publish 返回后应用安装失败，由应用停用旧状态并重新加载已发布根，不撤销发布、不要求业务 callback。
+VersionStore 内部 ref/name 投影安装与消费者安装应用状态分别负责。发布耐久后前者失败仍保留 Confirmed 并停用库实例；应用安装失败时，从已发布提交取得状态根重新加载，不撤销发布、不要求业务 callback。
+
+2026-10-03 审阅中的“每实例单流、ref 直接指向 root”是历史候选；本轮按上述边界修订，不能将旧审阅结论作为当前全部合同已经复核的证据。
 
 ## 故障模型与建议范围
 
@@ -123,5 +147,5 @@ IO/发布尝试后结果可能 Unknown；完整记录可在重开后存在。新
 
 ## S0 出口
 
-会话已确认新项目、旧库维护边界、RBF 恢复方向、中性地址及根最后发布。
+会话已确认新项目、旧库维护边界、RBF 恢复方向、不透明分配、中性状态根、提交与发布历史分离及最后发布。
 S1 的单文件尺寸和 ticket 合同已实施并独立验收为 Accepted。S2–S6 仍是 Draft，具体 wire、类名、方法签名及性能预算按各阶段阻断项细化；本片不代表新库或下游适配已完成。
