@@ -1,7 +1,7 @@
 # RbfSegmentStore 使用指南
 
 本文面向后续 LLM Coding Agent 会话，说明如何在上层模块中使用 `Atelia.RbfSegmentStore`。
-本文描述 main 的 **v2 未发布 breaking 候选**；已发布 `Atelia.RbfSegmentStore 0.1.2-preview.1` 的格式/恢复行为以根 README 的固定版本链接为准。v2 拒绝无 locator 的旧目录，没有自动迁移。当前合同见[冻结附件](../../docs/EventJournal/bounded-online-io-contracts.md)，交付状态见[候选记录](../../docs/EventJournal/bounded-online-io-delivery.md)；[原始设计基线](../../docs/EventJournal/rbf-segment-store-design.md)保留为历史背景。
+本文描述 `RBF1` 维护系列的 **SegmentStore v2**，候选包版本 `0.2.0-rbf1-preview.1`；帧格式仍为 RBF1。历史 `Atelia.RbfSegmentStore 0.1.2-preview.1` 的目录/恢复行为以根 README 的固定版本链接为准。v2 拒绝无 locator 的旧目录，没有自动迁移。当前合同见[冻结附件](../../docs/EventJournal/bounded-online-io-contracts.md)，既有验收见[记录](../../docs/EventJournal/bounded-online-io-delivery.md)；[原始设计基线](../../docs/EventJournal/rbf-segment-store-design.md)保留为历史背景。
 
 ## 定位
 

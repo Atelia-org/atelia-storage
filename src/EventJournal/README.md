@@ -2,7 +2,7 @@
 
 `Atelia.EventJournal` 是建立在 `RbfSegmentStore` / `Rbf` 之上的 append-only 事件日志基础设施。它把每个事件保存为不可变 `EventFrame`，并通过 `EventFrameHeader.Parent` 形成一条可验证的 parent chain；在此之上，当前实现已经包含 branch/ref、reflog、反向/正向遍历，以及用于高效正序 replay 的 ForwardPlan 派生缓存。
 
-本文描述 main 的 **v2 未发布 breaking 候选**，不是 nuget.org 已发布 `Atelia.EventJournal 0.1.2-preview.1` 的指南。已发布包的旧格式行为以根 README 的固定版本链接为准；v2 不直接打开旧目录，没有自动迁移。
+本文描述 `RBF1` 维护系列的 **EventJournal v2**，候选包版本 `0.2.0-rbf1-preview.1`；帧格式仍为 RBF1。历史 `Atelia.EventJournal 0.1.2-preview.1` 的旧目录行为以根 README 的固定版本链接为准；v2 不直接打开旧目录，没有自动迁移。当前本机 Galatea 已使用相同 v2 协议的 dev 包，替换为本系列无需再次迁移。
 
 当前入口为 [有界日常 I/O 方案](../../docs/EventJournal/bounded-online-io-design.md)、[冻结合同](../../docs/EventJournal/bounded-online-io-contracts.md)和[候选交付记录](../../docs/EventJournal/bounded-online-io-delivery.md)。
 

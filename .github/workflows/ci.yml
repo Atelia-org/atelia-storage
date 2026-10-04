@@ -26,4 +26,4 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $version = '0.1.1-ci.${{ github.run_id }}.${{ github.run_attempt }}'
           ./eng/Pack.ps1 -Version $version -OutputDirectory ./artifacts/feed
-          ./eng/Test-Package.ps1 -Version $version -FeedDirectory ./artifacts/feed -WorkDirectory (Join-Path '${{ runner.temp }}' 'storage-package-smoke')
+          ./eng/Test-Package.ps1 -Version $version -FeedDirectory ./artifacts/feed -WorkDirectory (Join-Path '${{ runner.temp }}' 'storage-package-smoke') -AdditionalSegmentSmoke

@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('EventJournal', 'RbfSegmentStore')][string]$Project = 'EventJournal',
+    [ValidateSet('All', 'EventJournal', 'RbfSegmentStore')][string]$Project = 'EventJournal',
     [Parameter(Mandatory)][string]$Version,
     [Parameter(Mandatory)][string]$FeedDirectory,
     [Parameter(Mandatory)][string]$WorkDirectory
@@ -13,71 +13,92 @@ if (Test-Path -LiteralPath $work) { throw 'WorkDirectory must be new.' }
 if ($work.StartsWith($repo + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
     throw 'WorkDirectory must be outside the source repository.'
 }
-$packageId = "Atelia.$Project"
-$manifestPath = Join-Path $feed "manifest.$packageId.$Version.json"
-$manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-if ($manifest.schemaVersion -ne 2 -or $manifest.version -cne $Version -or @($manifest.packages).Count -ne 1 -or
-    $manifest.packages[0].id -cne $packageId) { throw "Expected one selective $packageId candidate." }
-$candidate = $manifest.packages[0]
-$candidatePath = Join-Path $feed $candidate.file
-$candidateHash = (Get-FileHash -LiteralPath $candidatePath -Algorithm SHA256).Hash.ToLowerInvariant()
-if ($candidateHash -cne $candidate.sha256) { throw 'Frozen candidate changed before public verification.' }
+$all = $Project -ceq 'All'
+$packageId = if ($all) { 'Atelia.EventJournal' } else { "Atelia.$Project" }
+$manifestName = if ($all) { "manifest.$Version.json" } else { "manifest.$packageId.$Version.json" }
+$manifest = Get-Content -LiteralPath (Join-Path $feed $manifestName) -Raw | ConvertFrom-Json
+$candidates = @($manifest.packages)
+if ($manifest.version -cne $Version) { throw 'Candidate version differs from input.' }
+if ($all) {
+    # Pack.ps1 owns the production list; consume its frozen manifest.
+    if ($manifest.schemaVersion -ne 1 -or $candidates.Count -eq 0 -or
+        @($candidates | Where-Object id -CEQ $packageId).Count -ne 1 -or
+        @($candidates.id | Sort-Object -Unique).Count -ne $candidates.Count) { throw 'Invalid complete package-set manifest.' }
+} elseif ($manifest.schemaVersion -ne 2 -or $candidates.Count -ne 1 -or $candidates[0].id -cne $packageId) {
+    throw "Expected one selective $packageId candidate."
+}
 [void][IO.Directory]::CreateDirectory($work)
-$publicPath = Join-Path $work "$packageId.$Version.nupkg"
-$normalizedVersion = $Version.ToLowerInvariant()
-$normalizedId = $packageId.ToLowerInvariant()
-$url = "https://api.nuget.org/v3-flatcontainer/$normalizedId/$normalizedVersion/$normalizedId.$normalizedVersion.nupkg"
-$downloaded = $false
-for ($attempt = 1; $attempt -le 60; $attempt++) {
-    try {
-        Invoke-WebRequest -Uri $url -OutFile $publicPath -TimeoutSec 30 | Out-Null
-        $downloaded = $true
-        break
-    }
-    catch {
-        if ($attempt -eq 60) { throw "Published package was not downloadable after 15 minutes: $url" }
-        if (Test-Path -LiteralPath $publicPath) { Remove-Item -LiteralPath $publicPath }
-        Start-Sleep -Seconds 15
-    }
-}
-if (!$downloaded) { throw 'Published package download failed.' }
-$publicHash = (Get-FileHash -LiteralPath $publicPath -Algorithm SHA256).Hash.ToLowerInvariant()
-$candidateArchive = [IO.Compression.ZipFile]::OpenRead($candidatePath)
-$publicArchive = [IO.Compression.ZipFile]::OpenRead($publicPath)
-try {
-    if (!$publicArchive.GetEntry('.signature.p7s')) { throw 'The downloaded public package is not repository signed.' }
-    $specEntry = $publicArchive.GetEntry("$packageId.nuspec")
-    if (!$specEntry) { throw "Published package has no $packageId nuspec." }
-    $reader = [IO.StreamReader]::new($specEntry.Open())
-    try { [xml]$spec = $reader.ReadToEnd() } finally { $reader.Dispose() }
-    $metadata = $spec.SelectSingleNode('/*[local-name()="package"]/*[local-name()="metadata"]')
-    if ($metadata.SelectSingleNode('*[local-name()="id"]').InnerText -cne $packageId -or
-        $metadata.SelectSingleNode('*[local-name()="version"]').InnerText -cne $Version) { throw 'Published package identity differs from candidate.' }
-    $repository = $metadata.SelectSingleNode('*[local-name()="repository"]')
-    if (!$repository -or $repository.GetAttribute('commit') -cne $manifest.sourceRevision -or
-        $repository.GetAttribute('url') -cne $manifest.repositoryUrl) { throw 'Published package source differs from candidate.' }
-    foreach ($name in @("$packageId.nuspec", 'LICENSE', 'README.md', "lib/net10.0/$packageId.dll", "lib/net10.0/$packageId.xml")) {
-        $before = $candidateArchive.GetEntry($name)
-        $after = $publicArchive.GetEntry($name)
-        if (!$before -or !$after) { throw "Missing package asset: $name" }
-        $beforeStream = $before.Open()
-        $afterStream = $after.Open()
+$verified = @()
+foreach ($candidate in $candidates) {
+    $packageId = [string]$candidate.id
+    if ($packageId -cnotmatch '^Atelia\.[A-Za-z][A-Za-z0-9.]*$' -or
+        $candidate.file -cne "$packageId.$Version.nupkg") { throw 'Invalid candidate filename or identity.' }
+    $candidatePath = Join-Path $feed $candidate.file
+    $candidateHash = (Get-FileHash -LiteralPath $candidatePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($candidateHash -cne $candidate.sha256) { throw 'Frozen candidate changed before public verification.' }
+    $publicPath = Join-Path $work "$packageId.$Version.nupkg"
+    $normalizedVersion = $Version.ToLowerInvariant()
+    $normalizedId = $packageId.ToLowerInvariant()
+    $url = "https://api.nuget.org/v3-flatcontainer/$normalizedId/$normalizedVersion/$normalizedId.$normalizedVersion.nupkg"
+    $downloaded = $false
+    for ($attempt = 1; $attempt -le 60; $attempt++) {
         try {
-            $beforeHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($beforeStream))
-            $afterHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($afterStream))
-            if ($beforeHash -cne $afterHash) { throw "Published package asset differs from candidate: $name" }
+            Invoke-WebRequest -Uri $url -OutFile $publicPath -TimeoutSec 30 | Out-Null
+            $downloaded = $true
+            break
         }
-        finally { $beforeStream.Dispose(); $afterStream.Dispose() }
+        catch {
+            if ($attempt -eq 60) { throw "Published package was not downloadable after 15 minutes: $url" }
+            if (Test-Path -LiteralPath $publicPath) { Remove-Item -LiteralPath $publicPath }
+            Start-Sleep -Seconds 15
+        }
+    }
+    if (!$downloaded) { throw 'Published package download failed.' }
+    $publicHash = (Get-FileHash -LiteralPath $publicPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    & dotnet nuget verify $publicPath --all
+    if ($LASTEXITCODE -ne 0) { throw "Public signature verification failed: $packageId" }
+    $candidateArchive = [IO.Compression.ZipFile]::OpenRead($candidatePath)
+    $publicArchive = [IO.Compression.ZipFile]::OpenRead($publicPath)
+    try {
+        if (!$publicArchive.GetEntry('.signature.p7s')) { throw 'The downloaded public package is not repository signed.' }
+        $specEntry = $publicArchive.GetEntry("$packageId.nuspec")
+        if (!$specEntry) { throw "Published package has no $packageId nuspec." }
+        $reader = [IO.StreamReader]::new($specEntry.Open())
+        try { [xml]$spec = $reader.ReadToEnd() } finally { $reader.Dispose() }
+        $metadata = $spec.SelectSingleNode('/*[local-name()="package"]/*[local-name()="metadata"]')
+        if ($metadata.SelectSingleNode('*[local-name()="id"]').InnerText -cne $packageId -or
+            $metadata.SelectSingleNode('*[local-name()="version"]').InnerText -cne $Version) { throw 'Published package identity differs from candidate.' }
+        $repository = $metadata.SelectSingleNode('*[local-name()="repository"]')
+        if (!$repository -or $repository.GetAttribute('commit') -cne $manifest.sourceRevision -or
+            $repository.GetAttribute('url') -cne $manifest.repositoryUrl) { throw 'Published package source differs from candidate.' }
+        foreach ($name in @("$packageId.nuspec", 'LICENSE', 'README.md', "lib/net10.0/$packageId.dll", "lib/net10.0/$packageId.xml")) {
+            $before = $candidateArchive.GetEntry($name)
+            $after = $publicArchive.GetEntry($name)
+            if (!$before -or !$after) { throw "Missing package asset: $name" }
+            $beforeStream = $before.Open()
+            $afterStream = $after.Open()
+            try {
+                $beforeHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($beforeStream))
+                $afterHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($afterStream))
+                if ($beforeHash -cne $afterHash) { throw "Published package asset differs from candidate: $name" }
+            }
+            finally { $beforeStream.Dispose(); $afterStream.Dispose() }
+        }
+    }
+    finally { $candidateArchive.Dispose(); $publicArchive.Dispose() }
+    $verified += [ordered]@{
+        id = $packageId; version = $Version; sourceRevision = $manifest.sourceRevision
+        candidateSha256 = $candidateHash; publishedSha256 = $publicHash; publicUrl = $url
     }
 }
-finally { $candidateArchive.Dispose(); $publicArchive.Dispose() }
+$packageId = if ($all) { 'Atelia.EventJournal' } else { "Atelia.$Project" }
 
 # This consumer has no local feed or inherited MSBuild settings. It proves the public closure.
 foreach ($file in @('Directory.Build.props', 'Directory.Build.targets', 'Directory.Packages.props')) {
     '<Project />' | Set-Content -LiteralPath (Join-Path $work $file) -Encoding utf8NoBOM
 }
 Copy-Item -LiteralPath (Join-Path $repo 'global.json') -Destination $work
-$smokeProject = "${Project}Smoke"
+$smokeProject = if ($all) { 'EventJournalSmoke' } else { $Project + 'Smoke' }
 Copy-Item -LiteralPath (Join-Path $repo "examples/$smokeProject") -Destination $work -Recurse
 @'
 <?xml version="1.0" encoding="utf-8"?>
@@ -103,13 +124,16 @@ finally {
 }
 $assetsPath = Join-Path $work "$smokeProject/obj/project.assets.json"
 $assets = Get-Content -LiteralPath $assetsPath -Raw | ConvertFrom-Json -AsHashtable
-$expected = @("$packageId/$Version")
+$expected = @($candidates | ForEach-Object { "$($_.id)/$Version" })
 foreach ($dependency in $manifest.dependencies) { $expected += "$($dependency.id)/$($dependency.version)" }
 $actual = @($assets.libraries.Keys | Where-Object { $_ -like 'Atelia.*/*' } | Sort-Object)
 if (($actual -join '|') -cne (($expected | Sort-Object) -join '|')) { throw "Public package closure differs: $($actual -join ', ')" }
-$cachedPath = Join-Path (Join-Path $work 'packages') "$normalizedId/$normalizedVersion/$normalizedId.$normalizedVersion.nupkg"
-if ((Get-FileHash -LiteralPath $cachedPath -Algorithm SHA256).Hash.ToLowerInvariant() -cne $publicHash) {
-    throw "Restored $packageId bytes differ from downloaded public package."
+foreach ($package in $verified) {
+    $id = $package.id.ToLowerInvariant(); $ver = $Version.ToLowerInvariant()
+    $cachedPath = Join-Path (Join-Path $work 'packages') "$id/$ver/$id.$ver.nupkg"
+    if ((Get-FileHash -LiteralPath $cachedPath -Algorithm SHA256).Hash.ToLowerInvariant() -cne $package.publishedSha256) {
+        throw "Restored package bytes differ: $($package.id)"
+    }
 }
 foreach ($dependency in $manifest.dependencies) {
     $id = ([string]$dependency.id).ToLowerInvariant()
@@ -119,9 +143,10 @@ foreach ($dependency in $manifest.dependencies) {
         throw "Restored dependency bytes differ from frozen public package: $($dependency.id)"
     }
 }
+$selected = @($verified | Where-Object id -CEQ $packageId)[0]
 [ordered]@{
     id = $packageId; version = $Version; sourceRevision = $manifest.sourceRevision
-    candidateSha256 = $candidateHash; publishedSha256 = $publicHash; publicUrl = $url
-    resolvedPackages = $actual
-} | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $work 'published-check.json') -Encoding utf8NoBOM
+    candidateSha256 = $selected.candidateSha256; publishedSha256 = $selected.publishedSha256; publicUrl = $selected.publicUrl
+    project = $Project; packages = $verified; resolvedPackages = $actual
+} | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $work 'published-check.json') -Encoding utf8NoBOM
 Write-Host "Public $packageId/$Version verified from nuget.org: $publicHash"
