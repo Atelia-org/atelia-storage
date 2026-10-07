@@ -1,128 +1,126 @@
-# S5：ref / branch / tag、两种历史与可选 checkpoint
+# S5：ref 历史、不可变 tag 与 branch 名称
 
-状态：**Draft；2026-10-04 将名称目标改为提交，并区分祖先遍历与 ref 发布历史**。
-前置：[S0](00-architecture-decisions.md)、[S2](02-framestore-core.md)、[S3](03-framestore-batches-and-durability.md)、[S4](04-versionstore-publication.md)。扩展同一个控制事实协议，不新增根权威。
+状态：**Draft；2026-10-07 采用完整 RootMap、真实 ref 历史枚举、单文件 tag 桶和 create-only branch 绑定；API、路径及 codec 尚未实施/冻结**。
+前置：[S0](00-architecture-decisions.md)、[S2](02-framestore-core.md)、[S3](03-framestore-batches-and-durability.md)、[S4](04-versionstore-publication.md)。扩展 S4 的完整根快照与局部发布协议，不增加全局事实日志。
 
-## 本阶段目标
+## 目标与最小公开操作
 
-核心为 branch name → RefId → CommitAddress、不可变 tag → CommitAddress、current 查询、提交祖先及 ref 发布历史。沿用 S4 data 分配器/control FrameLog、RecordToken、Prepare/Commit 和同步 data barrier。
-默认完整 control 回放；一份 snapshot 可作为后续独立增强。提交数、累计 ref 状态和长期启动 SLA 必须分别计成本，不能仅因拆开控制流就声明有界。
-项目仍是 VersionStore 与其测试；旧 EventJournal 提供经验，不成为业务类型、目录或代码依赖。
+每个 ref 的当前/历史值以及 tag 的内容都为应用解释的完整 `{key => FrameAddress}`。ref 有独立稳定 RefId；branch 只绑定名称到已经正式发布的 ref；tag 冻结创建时的字典，而不是跟踪 ref。两类名称空间独立。
 
-## term `Branch` 命名可变 ref
-
-名称绑定到稳定 RefId，调用方解析后保持 exact RefId/revision，不在每次变更时按名字重新找对象。head 为可空 CommitAddress；unborn/null 的范围沿用 S4。
-
-## term `Tag` 命名不可变提交绑定
-
-一次建立后不改变的 name → CommitAddress；tag 的事实 token 来自其创建记录，不是提交身份。建议与 Branch 使用独立名称空间，同名 Tag 再创建拒绝，不支持 unborn tag。
-查询不需要 tag 演进链；创建仍需依赖耐久、单记录名称绑定和未知结果查询。不同名称之间通常无业务上的先后要求，首版可共用控制日志的全序实现。
-
-## 核心操作与扩展边界
-
-| 范围 | 操作/效果 | 持久单元 |
+| 候选操作 | 效果 | 首版持久单元 |
 | --- | --- | --- |
-| 核心 | CreateBranch：创建新 ref 并绑定名字，指向既有提交或 unborn | 一条创建记录 |
-| 核心 | OpenBranch/ListBranches、ReadHead | 已接受事实的内存投影 |
-| 核心 | Publish：expected revision CAS，可选择合法旧提交 | S4 ref 更新记录；不创建 commit |
-| 核心 | CreateTag/ResolveTag | 一条不可变提交绑定 / 事实地址查询 |
-| 核心 | ReadRefHistory | 按同一 RefId 的前一 revision 流式/分页查询 |
-| 核心 | ReadAncestors | 按 CommitInfo.ParentCommit 随机读取，不写控制记录 |
-| 便利 | Fork：选择提交，再 CreateBranch | 同一创建记录；不改提交 parent |
-| 可选扩展 | Archive：closed + 解除名字绑定 | 若支持，必须一条控制记录 |
+| ReadRefHistory(refId, budget) | 从固定上界向前枚举 checked 快照 | 真实 ref RBF3 文件链，无另写索引 |
+| CreateTag(name, roots) / ResolveTag(name) | 创建/读取不可变完整字典 | 目标桶的一条完整 tag record |
+| CreateBranch(name, refId) / ResolveBranch(name) | 建立/解析不可变名称绑定 | 一个 create-only 绑定记录文件 |
+| ListBranches | 枚举正式 branch 名称与 RefId | 正式名称文件集合 |
+| Fork / rewind 便利流程 | 旧字典新建 ref / 追加回原 ref | 调用 S4 的基础操作 |
 
-ReadHistory 的早期模糊名称由 ReadRefHistory 取代；具体签名仍为候选。明确 fork provenance 成为历史可审事实时，才在创建记录增加来源字段；不默认保存用户时间戳/reason 或复用 Event.Parent。
-Archive/name reuse 的首版需求尚未由用户决定；不阻塞核心验收。rename/tag delete、多 parent merge、children 索引、通用 fast-forward 后置到真实消费者要求，不把它们全部列成 Ready 问卷。
+首版不提供 branch rename/unbind/delete/archive/name reuse、tag 修改/删除、差分或 state-checkpoint。fork 不是跨文件事务；通用应用谱系与 ReadAncestors 不在 VersionStore 中定义。
 
-## 候选合同
+## ref 历史与反事实分支
 
-### spec [S-VS-NAMES-ATOMIC] 命名变更仍单记录生效
+### spec [A-VS-REF-HISTORY-CHECKED] 历史枚举返回真实且自有的快照
 
-CreateBranch MUST 将 ref 创建与名称绑定作为一个记录生效；CreateTag 同样通过 S4 目标提交校验、准备/屏障/单记录 flush 协议。提交已经存在或耐久不代表名称已经建立。
-若支持 Archive，关闭确切 RefId 和解除名字 MUST 同记录；不拆 allocation/Init/Bind 或 Close/Archive。
-旧 reader 对未知控制 kind/version 拒绝，不跳过不支持的业务效果。checkpoint 等准备不改变本次名称状态。普通 ResolveTag 返回的是当前投影查询，不要求逐次扫描控制日志。
+ReadRefHistory MUST 先 checked-read 本 ref 的实际末 Snapshot，取得固定完整上界 revision，再按真实 RBF 逆向链枚举各条 Snapshot；每条执行完整 CRC、kind/version、身份与 RootMap codec 检查。它包含重复同值快照和 rewind，不用地址大小、应用 parent 或独立 previous 字段推算成员。
+枚举 MUST 使用 `showTombstone: true`，只跳过该版本明确规定的库 meta/header；未知 kind/version、tombstone、损坏或 RBF `TerminationError` 必须显式传播，不能静默跳过或当正常历史结束。必须区分遇到合法初始化边界、达到调用方预算、取消/释放与错误；有限预算不宣称全历史审计成功。
+返回的 RootMap MUST 是自有完整值，枚举结束或释放后仍可拿来 fork/tag/rewind；不得暴露受 enumerator/pool 生命周期约束的 Span、RbfFrame 或字典。RefRevision 绑定真实位置，首版不提供任意裸 revision 的随机历史读取。
+首版同 owner 有活跃历史枚举器时 MUST 拒绝 mutation，枚举器结束/Dispose 后解除；序列/枚举器须有明确 owner/epoch 和资源归还。固定上界及该排斥保证历史不会被本次查询中插入的新发布改变，跨实例并发读取/写入资格不作首版承诺。
 
-### spec [S-VS-STABLE-REFS] 名称与稳定 ref 身份分离
+（Informative）Gym 选择任意旧快照 `R`：fork 调用 `CreateRef(R.Roots)` 得到新 RefId，再可选绑定 branch，旧 ref 不变；rewind 调用 `PublishRef(oldRefId, R.Roots)` 追加新 revision，保留原历史。data 根帧被共享，不复制其图。应用可在其状态帧内保留 tick、RNG、父状态、分支来源或推演规则。
 
-对象变更 MUST 使用 exact RefId/revision；指向同一提交的不同 ref、同名重建不复用旧创建 token。同一 ref 从 C1→C2→C1 时，最后 revision 仍不同于第一次指向 C1。
-若支持 Archive/reuse，旧 handle 不变成新对象、历史仍可按旧身份查询。closed/missing、CAS 不匹配、重复 tag、非法名字在发布输出前拒绝。
-旧提交的 fork/tag/rewind 走 data barrier，无需复制状态或提交帧；其来源与状态闭包资格沿用 S4，不由名称选择自动补齐。
+## 不可变 tag 与固定分桶
 
-### spec [A-VS-FACT-QUERY-THEN-READ] 地址选择与内容接受（DEPRECATED）
+### spec [S-VS-TAG-ROOTS-IMMUTABLE] tag 一次冻结完整根字典
 
-早期直接返回 root 的合同由 `[A-VS-QUERY-COMMIT-ADDRESS]` 替代；更早的 `[A-VS-SELECTED-CHECKED]` 同样保持 DEPRECATED。
+每个 tag MUST 保存 `TagName + 完整 RootMap` 的一条 RBF3 record，使用 S4 的私有拷贝、输入/容量 guard、data ConfirmDurable、Append 与 DurableFlush 协议。tag 从某 ref/历史快照创建时复制当时字典，不持有可变 ref 间接绑定。同名再创建 MUST 在输出前拒绝，即使字典同值。
+TagName 的比较采用明确稳定的名称政策；默认候选为 Ordinal。路由 MUST 使用固定、跨进程复现的字符串 hash 与固定桶规则，不使用进程随机化的 string.GetHashCode。记录保留完整原名；hash 相同但名称不同不是同名，MUST 按完整名字比较。
+首版每桶一个 RBF3 文件、不轮转；库 meta/header 及桶身份必须 checked。首次只在私有文件写完整 header，flush/close 后 create-only 公开空桶，再按 S4 普通 CreateTag 的 Append/flush 协议发布首条 tag。空桶初始化只是 metadata 准备，不提前设置本次 tag Confirmed；首条 tag 不随桶 rename 一起生效。空桶 rename 异常但尚未尝试 tag Append 时，本次 tag 为 NotAttempted，VersionStore 停用并重开检查桶状态；已正式发布的合法空桶保留。不得发布半个有效桶，桶为空不同于格式缺失或损坏。下一条记录的起点超过 SizedPtr.MaxOffset 时明确拒绝/维护，不隐式新建分段；合法末记录可越过起点上界，与 S4 同一容量规则。
+查找与重名检查需扫描目标桶，或按需建立可重建的内存 name→实际记录位置表；建表需真实链 checked-read 与正常结束，不能将错误当未找到。ResolveTag 返回选定记录的 checked、自有 RootMap；缓存不能提供永久 CRC 健康保证。发现目标桶的未知记录/损坏/冲突名须报错。磁盘索引不属于首版。
 
-### spec [A-VS-QUERY-COMMIT-ADDRESS] 查询提交地址后分别接受内容
+## branch 只命名既有 ref
 
-ReadHead/OpenBranch/ResolveTag MUST 返回已接受控制事实中的 revision/CommitAddress，明确不证明当前提交 bytes 健康或应用状态合法。
-调用方先通过 ReadCommit 获得已 checked-read 的 CommitInfo，再按 StateRoot 调用 data FrameStore.ReadFrame 完整读取并解码。两次读取针对两个不同对象；不在名称查询中预读大状态根，也不 eager 读取所有无关 tag 目标。
-坏必要提交或状态根报错，不改 head、不回退旧提交。若提供合并便利接口，应交付已经取得的 CommitInfo/frame，避免为同一个对象重复读取。没有“缓存资格永久健康”的隐含保证。
+### spec [S-VS-REF-ID-STABLE] 名称与稳定 ref 身份分离
 
-### spec [S-VS-HISTORIES-SEPARATE] 提交祖先与 ref 发布历史分别遍历
+branch 名称 MUST 绑定已正式发布的 stable RefId，不把名称本身当作快照 revision。解析后的更新使用 exact RefId；多个 branch 可命名同一 ref，不为此复制 ref/data。RefId 不因 RootMap 同值而合并，也不随 fork 复用源 ref 身份。
+首版创建后名称绑定不再改变；不存在同名删除再建的身份重用。空 RootMap ref 有效，missing ref 不被隐式创建；损坏 ref 不被当 missing。绑定目标 ref 缺失/身份不符时报错，不按名称选择其他对象。
 
-ReadAncestors MUST 沿 data 中的 ParentCommit 遍历，每步执行 S4 的提交读取与字段检查；不扫描 data 寻找物理前驱，不把 ref previous token 当作 parent。null parent 正常结束，缺必要帧、坏 CRC/codec/context 报错。
-ReadRefHistory MUST 从已接受的该 ref revision 沿控制记录 previous token 遍历，核对完整 CRC、token 与 RefId；它包含 rewind 和重复指向同一提交的发布。
-两种遍历都应提供显式页/深度预算。检测到自环或冲突链报错，不能按正常结束返回；分页操作的完整无环审计资格须单列，不宣称一次有界查询验证全部历史。
-从 parent 找全部 children 需要扫描提交集合或派生反向索引；物理后继和较大地址不能代替 children。首版不提供完整 children 查询，也不建立全部 commit 索引。
+### spec [S-VS-BRANCH-BIND-ATOMIC] branch 名称绑定由一个正式文件生效
 
-（Informative）提交 C2 的 parent 为 C1，而 branch 发布历史可以是 C1→C2→C1。最后一次发布复用 C1；它既不创建新提交，也不修改 C1 的 parent。
+CreateBranch MUST 先验证名字、目标已发布 ref 与重名准入，将 version/kind、完整原名和 RefId 编码到私有记录文件，flush/close 后同文件系统 no-overwrite rename 到正式路径；正式安装成功才设置 Confirmed。失败/不确定结果使用 S4 PublicationOutcome 与停用/重开规则，不在私有 flush 后宣称名称已建立。
+名称到路径的安全编码/hash 路由在 Ready 定稿；任何 hash 冲突必须完整名字核对且不能误覆盖另一名称。非法路径字符、保留名、大小写差异不得被 OS 路径语义悄悄转换成错误名称绑定。该 create-only 单记录遵守 S4 的 owner 模式/生命周期准入，但无需再次遍历/flush data 图，也不因无关 data Builder 尚未完成而拒绝：它只引用已经存在的 ref，不发布新的 RootMap；自己的绑定记录仍必须 flush/close 并正式发布。
+`CreateRef(roots)` 与 `CreateBranch(name, refId)` 是两个独立步骤，MUST NOT 宣称跨文件原子。绑定失败可留下有效且由 S4 ListRefs 可发现的 unbound ref；不追加 allocation 操作日志，不回滚或删除已发布 ref。便利 CreateBranchFromRoots/Fork 若提供，必须保留这一结果语义。
+
+## 查询、启动与成本
+
+### spec [A-VS-ROOTS-QUERY-THEN-READ] 查询根字典后由应用接受内容
+
+ReadRef/ResolveTag MUST 返回 checked 发布记录里的 RootMap，ReadRef 同时返回实际 revision；名称解析返回 stable RefId。发布记录健康不证明引用帧或业务图健康。应用按这些地址调用 data FrameStore.ReadFrame 完整读取和解码；缺/坏必要数据报错，不改 RootMap、回退 ref 或重绑定 tag。
 
 ### spec [A-VS-QUERY-COSTS-EXPLICIT] 首版成本明确且无隐藏索引
 
-替代草案 `[A-VS-BOUNDED-OPEN]`（DEPRECATED）：核心不承诺未经资格的有界 Open。
-默认 Open MUST 完整扫描 control FrameLog 主链并 checked-read 每条控制事实，成本 O(控制记录数及其 bytes)，不扫描 data payload 或全部提交。
-内存保留所有已创建 ref 的当前状态/最后 token，以及 names/tags；若开启 Archive，也保留 closed 状态，成本 O(累计 refs + names + tags)，不随 data commit 数自动建立另一份全表。
-ReadRefHistory 成本 O(请求发布历史长度)，ReadAncestors 成本 O(请求祖先长度) 加相应帧 bytes；ReadHead 不遍历完整 reflog。Inspect 仍依 S4 显式完整控制回放，不由局部祖先、ref 历史或 catalog 查无记录证明 Absent。
+Open MUST NOT 默认回放全部 ref 历史或扫描 data 图，也不因此宣称全库 O(1)。目录/格式门、名称及文件枚举的实际成本须报告；惰性打开只把检查延后到目标访问，不把未检查对象说成健康。
+当前 ReadRef 成本为 header 与完整末 Snapshot bytes，不随本 ref 历史帧数增长；ReadRefHistory 为 O(请求快照数 + 对应 bytes)，预算未覆盖的历史不计作已验证。tag 首次查找/重名检查的扫描为 O(目标桶记录数 + bytes)，建表的内存为 O(该桶名称数)，后续定位仍需选中记录读取。不承诺分桶即可 O(1) 查询或长期无限容量。
+ListRefs/ListBranches 成本与正式文件/名称数相关，不要求加载这些 ref 的全部历史；资源、文件句柄缓存及枚举生命期单列。首版无 control 全量投影、全部尝试账本、磁盘 catalog/checkpoint 或隐式第二套索引。
 
-## 可选增强：一份 snapshot，精确边界，不建多套磁盘索引
+## 工程 codec 与后续扩展
 
-本增强不作为首次命名核心的前置；达到实际 Open/heap 目标后，可以单独 Ready/Implementing/Accepted。先选全部-ref snapshot，不同时实现 live-only head/history 页面索引和独立 toolkit。
+| 单元 | 最小字段 | Ready 选择 |
+| --- | --- | --- |
+| tag 桶 header | version/kind、VersionStoreId、桶身份 | tag、初始化边界、桶数量/hash 与文件路径 |
+| tag record | version/kind、完整 TagName、S4 RootMap | 名称政策/限额及 codec 复用 |
+| branch 绑定文件 | version/kind、完整 BranchName、RefId | RBF3 单记录或其他小型 checked 编码、路径碰撞与发现验证 |
+| history 结果 | RefId、RefRevision、自有 RootMap | 枚举签名、预算/结束/错误与 Dispose |
 
-## term `Catalog-Snapshot` 已接受控制前缀的投影
+未来 ref 分段/轮转、tag 分片、差分与可重建索引均为独立后续片，需实际容量/工作集证据及自己的定位/恢复合同；不预建 segment manifest 或 checkpoint 缓存。业务 Parent/RNG/operationId 可放在应用已引用对象中，不扩展中立字典 codec。外部工具 exactly-once、跨 ref 事务和自动 merge 均无框架保证。
 
-保存当前 ref/name/tag 表、head CommitAddress/revision/closed 状态及精确 durable control 边界。边界使用 S2 FrameLog 的 context 绑定 cursor，不拿私有 RBF 句柄自行算位置，也不将 data 地址用作控制边界。
-它是生产 replay/fold 的派生结果；其自身 CRC/格式、context、anchor 与 suffix 被验证，但正常 Open 不重新重算整个 prefix 来证明 snapshot 每个表项。完整事实审计是独立资格。
+## 实施片、Ready 工程定稿与验收
 
-### spec [S-VS-FACTS-AUTHORITATIVE] snapshot 不制造发布事实
-
-已采用的 snapshot MUST 绑定精确控制边界，加载后从受证边界回放实际 suffix；不能遗漏 snapshot 后完整记录、补造坏事实或改成旧提交。
-snapshot CRC/context/anchor 坏时明确失败/维护，不静默全量 fallback。调用方可以**显式选 FullReplay**，只读事实从 genesis 重建内存投影，成本无有界承诺；这不改坏 snapshot，也不容忍坏控制事实。
-Inspect 的历史负面查询仍显式全控制回放；snapshot 没有某个旧 token 不证明它不存在。快照不使普通 Open 等同全历史审计或提交图审计。
-
-### spec [S-VS-CHECKPOINT-BEFORE] checkpoint 在发布首写前
-
-需要 checkpoint 时 MUST 在 S4 control Builder 打开前，确认操作前控制事实 durable → 生成精确 boundary/投影 → temp 写入/flush/close → 原子发布 snapshot → 再建立本次 PreparedPublication。
-先完成确定输入/CAS/整条记录容量与内存准备；checkpoint 输出/安装异常使 composite 停止，本次 publication NotAttempted。
-发布 durable 后不追加必需 checkpoint 改变操作结果；snapshot 后已完整的发布 suffix 仍按事实生效。data 中已存在的未发布提交不改变 snapshot。
-
-### spec [A-VS-INDEXED-OPEN-BUDGET] 增强资格须明确 control suffix 与表成本
-
-宣称 indexed/bounded Open 前 MUST 定稿最大 control suffix 条数和 bytes、单记录最大长度、snapshot 表大小/内存及工作集假设。
-控制只有私有 VersionStore writer，Prepare 预检可在下条记录使 suffix 超预算前 checkpoint；data 可以增长而不改变这个控制预算。
-框架写入/轮转 metadata、snapshot anchor 完整读的成本单列；单记录尺寸由 codec 上限和 S1 Measure 得到，不复制旧 248/252 或 RBF3 开销。
-合法旧 snapshot + 超预算 suffix 按明确维护/显式 FullReplay 处理；缺 snapshot 的 indexed 模式不隐式全量回放。表随累计对象增长，预算合同不能写成所有库固定 O(1)。
-
-## 故障与独立验收
-
-核心覆盖 CreateBranch/Tag 不完整被截掉则整项未生效、CompletedTail 合法则整项成立、Unknown 精确查询、同提交 ABA、旧提交选择、名称/角色混用及内容加载失败不回退。
-分开验证提交祖先和 ref 发布历史：fork 不复制提交、rewind 不改变 parent、多个 ref/tag 共享提交、无序 data 引用及缺/坏 parent；不以创建时间或物理排序作为预期值。
-可选 Archive 验证 closed/unbind 原子和同名新身份；未实现时明确 API 不支持，不填造 pending archive 状态。
-
-snapshot 增强另外覆盖 temp/replace/边界/投影安装中断、坏/缺 snapshot、明确 FullReplay、旧事实坏 CRC、suffix 预算和大量未发布 data/commit 不影响控制 IO。
-首版可交付库内验证/重放及测试工具；独立 audit/rebuild CLI、candidate 发布框架按实际运维需求另立工作包。旧 toolkit 不添加新库格式解释。
-
-## 实施片与 Ready 项
-
-1. S5-A（核心）：名称政策与单记录 Branch/Tag codec，沿用 S4 Prepare/Commit，目标统一为 CommitAddress。
-2. S5-B（核心）：current/ReadRefHistory/ReadAncestors public 查询与分页预算、旧提交及一次完整内容读取的例子。
-3. S5-C（独立增强）：有规模证据后实现一份全部-ref snapshot、FrameLog 边界/checkpoint 与 indexed 预算。
-4. S5-D（条件扩展）：Archive/provenance 或独立运维工具，只有范围明确时实施和验收。
+1. S5-A：逆向 history checked 枚举、固定上界、预算/错误/排斥 mutation、返回值所有权；形成冷重开选择旧快照的 public 例子。
+2. S5-B：tag 名称/hash 分桶、唯一性和 data-first 单记录创建/查询；无持久索引。
+3. S5-C：create-only branch 绑定、解析/列举、unbound ref 发现；fork/tag/rewind 便利流程与两步失败结果。
+4. S5-D：LLM tool-loop 多根状态与 Gym 旧快照反事实消费轨迹、进程终止 failpoint 及独立 public 验收；真实文件实验使用 W:。
 
 | Ready 项 | 需定稿 |
 | --- | --- |
-| S5-Q1 | 核心名称字符/长度/case/namespace 与 codec；推荐默认并标明产品语义 |
-| S5-Q2 | 单记录命名、两种历史的分页/深度/生命周期及错误签名 |
-| S5-Q3 | 若启动增强：实际表规模、control suffix/bytes、FrameLog cursor 和 checkpoint codec |
-| S5-Q4 | 若启动 Archive/provenance：确切产品语义和旧身份查询 |
+| S5-Q1 | 名称比较/编码/字符/限额、独立命名空间、bucket hash/数量/路径；同名拒绝 |
+| S5-Q2 | history 结果/预算/错误/终止、owner/epoch/Dispose 与 mutation guard；不扩成随机 ReadRevision |
+| S5-Q3 | header-only 空桶初始化/恢复与首 tag 正常追加、codec、扫描或惰性内存索引及 selected record checked-read |
+| S5-Q4 | branch 绑定文件 codec、temp/flush/close/no-overwrite rename、碰撞、ListBranches/ListRefs 与便利流程结果 |
 
-核心出口是 ref/branch/tag、提交祖先与发布历史正确性；snapshot/归档/独立工具分别报告支持范围。未取得增强资格时，不把完整回放库声明为长期有界打开，也不把它与消费者升级/包/children 索引交付混为一项。
+验收覆盖历史返回字典在枚举释放后仍可发布/创建 tag、R0→R1→R0 仍保留三个 revision、预算结束与损坏区分、tombstone/unknown/CRC/TerminationError 不跳过、枚举期间 mutation 拒绝及释放后恢复、空字典与 missing、hash 碰撞/同名同值拒绝、tag 不随 ref 更新、多个 branch 同 ref、fork 不改源/不复制 data、创建 ref 成功但绑定失败留下可发现 ref、应用数据读取坏时不回退。故障证据沿用 S4；首版 Accepted 不要求分段、差分、checkpoint、业务谱系或精确历史尝试追踪。
+
+## 废弃合同导航
+
+以下只保留历史锚点，不是首版能力；旧完整草案可从 Git 历史追溯。
+
+### spec [S-VS-NAMES-ATOMIC] 命名变更仍单记录生效（DEPRECATED）
+
+DEPRECATED；创建 ref 与命名不再是同一事实，替代为 `[S-VS-BRANCH-BIND-ATOMIC]` 与 `[S-VS-TAG-ROOTS-IMMUTABLE]`。
+
+### spec [S-VS-STABLE-REFS] 名称与稳定 ref 身份分离（DEPRECATED）
+
+DEPRECATED；移除 Commit token/CAS/Archive 范围，稳定身份由 `[S-VS-REF-ID-STABLE]` 定义。
+
+### spec [A-VS-FACT-QUERY-THEN-READ] 地址选择与内容接受（DEPRECATED）
+
+DEPRECATED；原提交地址查询亦已退出首版，现由 `[A-VS-ROOTS-QUERY-THEN-READ]` 定义。
+
+### spec [A-VS-QUERY-COMMIT-ADDRESS] 查询提交地址后分别接受内容（DEPRECATED）
+
+DEPRECATED；无独立 Commit 对象，替代为 `[A-VS-ROOTS-QUERY-THEN-READ]`。
+
+### spec [S-VS-HISTORIES-SEPARATE] 提交祖先与 ref 发布历史分别遍历（DEPRECATED）
+
+DEPRECATED；业务祖先归应用，ref 历史改由 `[A-VS-REF-HISTORY-CHECKED]` 枚举真实局部链。
+
+### spec [S-VS-FACTS-AUTHORITATIVE] snapshot 不制造发布事实（DEPRECATED）
+
+DEPRECATED；catalog snapshot 退出首版，发布事实读取由 S4 `[R-VS-LOCAL-COMPLETE]` 定义。
+
+### spec [S-VS-CHECKPOINT-BEFORE] checkpoint 在发布首写前（DEPRECATED）
+
+DEPRECATED；无 checkpoint/Prepared 协议，直接使用 S4 `[S-VS-ROOTS-BARRIER]`。
+
+### spec [A-VS-INDEXED-OPEN-BUDGET] 增强资格须明确 control suffix 与表成本（DEPRECATED）
+
+DEPRECATED；无 control suffix/indexed Open 模式，首版实际成本由 `[A-VS-QUERY-COSTS-EXPLICIT]` 定义。

@@ -1,176 +1,149 @@
-# S4：VersionStore 提交对象、发布凭据与故障结果
+# S4：VersionStore 完整根字典与单文件 ref 发布
 
-状态：**Draft；2026-10-04 分离提交对象和 ref 发布，采用私有 FrameLog；codec/API 尚未冻结**。
-前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-batches-and-durability.md)。先形成无需名称的提交与 ref 核心。
+状态：**Draft；2026-10-07 按两个下游场景收缩为完整 RootMap 快照、每 ref 一个 RBF3 文件；API、codec 与目录协议尚未实施/冻结**。
+前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-batches-and-durability.md)。名称与历史见 [S5](05-versionstore-names-and-indexes.md)。
 
-## 本阶段目标与存储归属
+## 目标、归属与范围
 
-创建 `src/VersionStore/VersionStore.csproj`、`tests/VersionStore.Tests/VersionStore.Tests.csproj`，采用 `Atelia.VersionStore` 身份，直接引用 FrameStore，不引用旧库/业务库。
-VersionStore **借入一个 data FrameStore，拥有一个私有 control FrameLog**。状态帧与不可变提交对象使用 data 的无业务顺序分配合同；发布记录使用 S2 显式日志合同。控制记录不混入 data，FrameStore 不解释 VersionStore codec。
+创建 `src/VersionStore/VersionStore.csproj`、`tests/VersionStore.Tests/VersionStore.Tests.csproj`，采用 `Atelia.VersionStore` 身份。借入一个 data FrameStore，拥有独立的 RBF3 发布目录及其资源；直接使用主线 FrameStore/Rbf，不引用冻结旧栈或业务库。
+发布目录格式门持久绑定格式版本、VersionStoreId、DataStoreId。Open 在任何发布文件恢复/写入前核对借入 data 的身份与访问模式；发布位置不解释为 data FrameAddress，data 地址也不解释为 ref revision。
+单 owner/driver 串行操作，包括借入 data 的相关操作；发布目录须排斥另一 writer。VersionStore Dispose 释放私有文件、枚举器和锁，不 Dispose 借入 data。data 在使用期间必须存活；首版可写 VersionStore 借入可写 data owner，这是模式准入，不表示每个 mutation 都调用 data 屏障。资源、只读模式配对、借用与 fault 的具体公开接口在 Ready 时定稿。
 
-VersionStore 格式门持久绑定 data StoreId，并核对不同的 control StoreId/用途/版本。两者不得是同一存储。Open 先核对借入 store 的身份/访问模式，再打开控制 writer；错误 data context 不触发控制修尾。
-StateRoot/CommitAddress 只解释于 data；发布位置只解释于 control。即使数字相同也不能互用；裸地址不能反推调用方原始来源，调用方仍需提供同 data 上下文的完成来源。
-VersionStore Dispose 释放全部私有资源，不 Dispose 借入 data。data 必须在使用期间存活；写发布需要可写 data owner。双方及派生对象由同一个 driver 串行使用，不提供跨实例 CAS。
+首版不创建独立 Commit 对象，不保存 Parent，不采用全局 FrameLog、Prepared handle、nonce 账本、默认 CAS 或精确 InspectPublication。不提供跨 ref 原子事务；业务谱系、随机数状态、tool-loop 阶段、operationId 和外部副作用协议由应用保存和解释。
 
-## term `Commit-Address` 不可变提交的地址
+## term `Root-Map` 应用命名的根地址字典
 
-候选 CommitAddress 为 data FrameAddress 的窄 wrapper；其持久坐标继承 S2 上下文，不包含 control token、branch 名称或分配序号。它不自动证明提交已耐久或已经被发布，也不是内容 hash。
+`RootMap = string => FrameAddress` 的完整值快照。多个根在同一发布帧内一起改变；地址指向同一个绑定的 data FrameStore。key 及其含义属于应用，VersionStore 不识别 State、树或图。
 
-## 提交对象与三个不同身份
+### spec [S-VS-ROOTS-OPAQUE] 完整根字典由应用解释
 
-候选首版提交 codec 仅包含 kind/version、StateRoot 和可空单 ParentCommit。VersionStore 编解码该小帧；StateRoot 的 payload/meta 始终由应用解释。具体 tag/codec 标识、长度与 wire 在 S4-A 审定。
+RootMap MUST 使用唯一的 Ordinal key，不做隐式大小写折叠或 Unicode 归一化。空字典合法，且不同于 missing ref/tag。发布 MUST 先私有复制输入并编码为完整快照，避免调用方后续修改输入改变本次请求或返回值。
+库校验字典、key 和地址的格式/容量，并核对 VersionStore/data 格式门的身份及实例生命周期。FrameAddress 继承 S2 的局部地址合同：裸地址不携带原始 StoreId，库不能识别来自另一 store 的恰巧合法坐标。应用 MUST 保证所有引用属于该 data，所需新增依赖已完成，闭包不含 provisional/canceled 地址。数字地址本身不能证明完成来源；库 MUST NOT 把合法坐标或 data barrier 当成整个业务图已成立的证明。读取物理完整 orphan 后采用它，仍需由应用重新建立闭包资格。
+读取返回自有 RootMap 值；不持有 RBF pooled frame、Span 或枚举器临时缓冲。地址背后的内容由应用按 FrameStore.ReadFrame 完整读取与解释，VersionStore 不预读/遍历业务图。
 
-| 身份 | 所在上下文 | 含义 |
+## term `Ref-Revision` 已接受快照的位置身份
+
+RefId 是正式 ref 文件的稳定唯一身份，与 branch name 分离。RefRevision 是 opaque 值，绑定 VersionStoreId、RefId 和该文件中实际完整快照位置及长度；不可与 data 地址互换。
+revision 只从完成发布或实际 checked-read 的当前/历史快照取得，不在输出前签发。不同完整物理快照即使 RootMap 同值也具有不同 revision。它不是某次未完成调用的尝试 token；首版不提供凭裸位置随机 ReadRevision，也不以字典相同证明某次调用成功 flush。未来分段扩展仍保持其 opaque 边界。
+
+## 单文件存储与最小 codec
+
+### spec [S-VS-REF-FILE-SINGLE] 每个 ref 保存一个完整快照序列
+
+每个 ref MUST 使用按唯一 RefId 命名的一个 RBF3 文件。首版不分段、轮转、差分或建立派生 checkpoint；每次更新追加一条完整 RootMap Snapshot。当前值只需校验文件 header 并完整 CRC 读取紧贴 EOF 的末 Snapshot，不扫描全部历史。
+选尾 MUST 使用真实 RBF 逆向主链和 `showTombstone: true`，检查末帧紧贴实际尾部，不能将过滤结果或随机 ticket 当成末快照成员证明。未知 kind/version、tombstone、非 Snapshot 尾帧、完整坏 CRC/codec 皆报错，不向前寻找旧快照替代。header 与首次 Snapshot 的位置/绑定在工程定稿时明确。
+单帧容量与下一帧起点硬界继承 RBF/SizedPtr；下一帧起点超过 SizedPtr.MaxOffset 时明确拒绝追加或要求维护，MUST NOT 隐式回绕、复用完整历史位置或自行拆成多帧发布。MaxOffset 只限制帧起点，最后一个合法帧的末端与尾 Fence 可以越过它，不额外要求文件总长度落在该起点上界内。容量预检使用 RBF 公共 Measure/追加预算 API，并分别检查追加起点；预算 API 不自行验证文件起点，不能把 MaxOffset - TailOffset 当作硬性追加字节预算。
+
+候选编码只保留必要字段：
+
+| 单元 | 必要内容 | 工程定稿 |
 | --- | --- | --- |
-| StateRoot: FrameAddress | data | 应用状态入口；状态帧之间可以循环引用 |
-| CommitAddress | data | 不可变提交，引用 StateRoot 与 parent |
-| RefRevision: RecordToken | control | 某次 ref 发布事实；不是 CommitAddress |
+| 根格式门 | version、VersionStoreId、DataStoreId | create-only 文件编码、模式、独占 owner 锁 |
+| ref 首帧 meta/header | kind/version、ref 与 store 的身份绑定 | tag、字段、初始化边界及首次 Snapshot 定位 |
+| Snapshot | kind/version、entry count、每项 key 与 FrameAddress | UTF-8/长度编码、端序、条目顺序、地址编码 |
 
-### spec [S-VS-COMMIT-IMMUTABLE] 提交创建不改变 ref
+计数、key bytes、总记录尺寸必须有界，解码先检查剩余容量和重复 key，再分配；未知字段版本明确拒绝。上下文由格式门/header 绑定，不要求在每个地址内重复 StoreId。具体上限采用工程默认并写入接口/格式合同，不将“少量根约 64B”写成固定记录尺寸保证。
 
-CreateCommit MUST 将一个已完成 StateRoot 与可选 parent 编码为一个不可变 data frame；成功返回完成提交的地址，不额外调用耐久屏障、不更新 ref/name，也不追加控制事实。底层必要轮转仍按 S2 执行，不能把完成返回值当作耐久确认。
-发布已有提交不重写其对象。相同 StateRoot、不同 parent 或多次创建可以得到不同提交；首版不承诺去重、内容寻址或状态相同即提交相同。
-提交及状态的新增依赖由后面的同步 data barrier 一并确认。提交输出失败遵守 data 的 owned fault；data 已 fault 时 VersionStore 同样停用，但不虚称 control 已输出失败。完整 orphan 可保留，未知输出不得被当作成功签发的提交或自动重试。
+## 最小 API 与发布步骤
 
-### spec [S-VS-PARENT-LOGICAL] 提交祖先使用逻辑引用
-
-首版候选 ParentCommit MUST 为同 data 上下文中已有完整提交的地址或 null；CreateCommit 不接受未完成预约作为 parent，也不以 offset/文件编号/地址大小判断祖先。
-正常创建只引用此前已完成且不再改写的提交，因此形成无环单 parent 关系；多个孩子共享 parent 可以分叉。应用状态帧的循环引用不扩大成提交 parent 的循环。
-ReadCommit MUST 完整 CRC 读取并校验提交 codec、StateRoot/parent 地址字段，再返回小型 CommitInfo；不读取整个应用图，也不将任意合法 bytes 宣称为真实创建来源。
-正常创建的来源约束、重开后提交资格与是否检查 parent 链须在 S4-Q6 定稿。外部伪造/改写及已知 parent 环不能用正常 writer 的无环证明掩盖；显式审计应报告错误。
-
-（Informative）同一个提交可被多个 branch/tag 复用。提交 parent 描述状态谱系，ref previous token 描述该对象的发布历史，两者没有一一对应关系。
-
-## term `Record-Token` 控制事实身份
-
-候选表示 `RecordToken = (ControlStoreId, FrameAddress, Nonce)`；Nonce 为每次 Prepare 新生成的非零 128-bit 随机值，取消后也不沿用。它是概率身份见证，不声称数学绝对无碰撞。
-完整 append-only 控制记录的位置不再复用；Nonce 区分同起点被取消/截断后的不同尝试。不同完整位置的同 nonce 不成为同 token，不需要全历史 nonce 去重集合。
-wire 内固定 control context 可由格式门绑定，避免每个字段重复存 StoreId；本条记录地址从实际主链位置取得，不必重复写进自己的 payload。
-
-三个语义角色共用此表示，可保留窄的代码 wrapper 防误用，不另造三个分配器/时钟：
-
-| 角色 | 表示 | 解决的问题 |
+| 候选操作 | 输入 | 成功结果 |
 | --- | --- | --- |
-| RefId | 创建记录 token | 稳定对象与名称分离 |
-| RefRevision | 当前发布记录 token | C1→C2→C1 仍不等于旧 revision |
-| 发布尝试身份 | Prepare 给出的本条 token | Unknown 查询及地址重用 |
+| CreateRef | 完整初始 RootMap；空字典可用 | 新 RefId 与初始快照/revision |
+| ReadRef | 已发布 RefId | 自有 RootMap 与实际末 revision |
+| PublishRef | RefId、完整新/旧 RootMap | 已确认新快照/revision |
+| ListRefs | 本 VersionStore | 已发布 RefId，可发现未绑定 branch 的 ref |
 
-## term `Prepared-Publication` 已准备但尚未输出的发布
-
-一个 owner/epoch 绑定的 handle，含 token、不可变请求、调用证据及一个 control 已知尺寸 Builder。
-Prepare 完成后调用方已经取得 token，Commit 才尝试发布输出；异常对象分配不是获得身份的唯一渠道。最多一个活跃 handle，它不是持久 pending 日志或已经成立的 ref。
-PreparedPublication.Commit() 是发布调用，与 CreateCommit/CommitInfo 中的不可变提交对象不同；签名定稿时需消除命名混淆。
-
-## term `Publication-Outcome` 调用方证据
-
-`NotAttempted / Unknown / Confirmed`：未尝试本次控制记录、可能已有完整记录但未确认发布 flush、发布 flush 已返回。
-Confirmed 单调；查询 Present 描述当前控制事实，不倒推过去调用已经收到 Confirmed。CreateCommit 的完成结果不是 PublicationOutcome。
-
-## 最小操作和控制记录
-
-| 操作 | 输入/效果 |
-| --- | --- |
-| CreateCommit / ReadCommit | 构造不可变 data 提交 / 读取 CommitInfo，不改变 ref |
-| PrepareCreateRef | 已完成初始 commit 或 unborn，准备单条创建记录 |
-| PreparePublish | RefId、expected revision、已完成新/旧 commit，准备单条 ref 更新 |
-| Prepared.Commit / Dispose | 尝试发布 / 取消未输出准备 |
-| ReadHead | 返回 ref、revision、nullable CommitAddress；仅查询已接受发布事实 |
-| InspectPublication | 用已持 token/请求见证确认精确事实，不只比较 head |
-
-候选控制字段：version/kind、本条 nonce、创建以外的 ref token、前一 ref token、new CommitAddress。**expected revision 就是前一 ref token**，不重复保存 old commit、StateRoot、commit parent 或另一个物理前驱位置。
-前一 ref token 供 ref 发布历史定位，**不是 commit parent，也不是直接物理前驱**；不能用它单独证明主链位置。时间戳/reason/source provenance 非核心必需。
-创建 RefId 从本条 token 派生，不先写 allocation/Init。unborn 有合法创建 revision，null commit 不等于 missing/default ref；首版发布接口不提供将既有 head 清空的隐含操作。
-
-## 候选发布合同
-
-### spec [S-VS-PUBLICATION-ORDER] 控制顺序来自显式日志
-
-VersionStore MUST 用 control FrameLog 的真实追加顺序接受控制事实，不从 data 地址或提交创建次序推算当前 head。首版所有发布由单 driver 串行进入同一私有日志；它是 per-ref CAS 与名称唯一性的实现方式，不要求数据帧存在同样的全序。
-commit parent 链不能替代控制日志发现或名称恢复；若未来改用不可变 catalog 根发布，必须另行定义最后有效控制根的持久选择协议，不复用本版回放资格。
+具体 Result/异常和 PublicationOutcome 载体属于 Ready 工程定稿，不增加输出前 Prepared handle。正常 PublishRef 无 expected revision；串行 driver 自行管理应用工作流。今后若有实际冲突检测需要，可独立增加 revision CAS，不能用 RootMap 内容相等替代 revision。
 
 ### spec [S-VS-SINGLE-RECORD] 一次 ref 变更由一个 frame 生效
 
-一次 ref 创建/更新 MUST 由一条完整控制记录表达。CreateCommit、Prepare、checkpoint、data flush 不改变当前 head。
-Unknown kind/version、坏控制 CRC、非法 token/版本链不是 incomplete append；不得忽略、补造或回退更早 head。控制记录全由私有 owner 写入。
+一次 ref 创建/更新 MUST 由一条完整 Snapshot 表达全部根值，不分成多个根的独立更新。data 构建/确认、私有初始化或纯容量试算均不改变已发布 ref。新 ref 另有正式命名的发现边界，遵循下面的创建协议。
 
-### spec [A-VS-PREPARE-TOKEN] 输出前交付精确 token
+### spec [S-VS-ROOTS-BARRIER] 根发布前同步确认数据
 
-Prepare MUST 先检查 ref/expected/commit、名称等确定输入、codec 长度/容量及可预测内存准备；按需完成操作前 checkpoint、控制轮转，最后建立 sized Builder 并返回 handle。
-目标来源限成功 CreateCommit、已接受旧发布中的提交，或显式重新确认/重建闭包的完整 orphan。候选 Prepare 对目标执行 ReadCommit，确认当前完整内容和 codec；unborn 创建不读取目标。该读取不验证应用状态图，也不独自证明原始创建来源。
-确定的 owner/CAS/未完成 data plan/Builder 拒绝先于目标读取；无活跃 data 构建时才准备发布。重开后如何恢复可接受目标来源属于 S4-Q6；guard 不声称从裸数字证明来源或解析 opaque 闭包。
-签发 handle 之前的分配失败须清理已建立 Builder；清理异常不承诺继续使用。控制 metadata 输出异常让相关 owner/composite 停止，本次 publication 仍 NotAttempted。
-准备控制 payload 在内存中编码完成，尚不 EndAppend。活跃 handle 排斥其他 VersionStore 操作，特别是读取/扫描/checkpoint/轮转控制文件；token/outcome 等纯值可访问。借入 data 的独立构建按下面的 Commit guard 处理。
-调用方若需要进程终止后的精确追踪，须在 Commit 前保存 token/请求；库不另写 pending 账本。
+PublishRef 及 S5 CreateTag MUST 先完成确定输入、目标/名称准入、私有拷贝与编码、记录/文件容量和“data 无未归还 Builder”的 guard，再同步调用 `data.ConfirmDurable()`，然后向发布 RBF 追加完整记录并 `DurableFlush()`，最后安装内存状态/正常返回。确定拒绝不追加、不调用 data barrier，也不因 guard fault。
+库不接受“以前已 flush”标志代替本次 barrier；旧 RootMap、历史 rewind、fork 初始快照和 tag 同样走屏障，无需复制 data。调用过程中不执行应用 callback，不允许同 driver 的其他应用操作交错。data flush 失败不得进入本次发布输出；发生异常按所涉 owner/fault 合同停用 VersionStore，不虚称未输出的另一个 owner 同样故障。
+CreateRef MUST 先完成相同的输入/编码/容量及无 data Builder guard，调用 `data.ConfirmDurable()`，再在私有临时文件中完成 header 与初始 Snapshot、flush/close，最后以同文件系统 no-overwrite rename 发布唯一正式 RefId 文件。私有文件未公开时不是已创建 ref；正式路径成功安装才是发现边界。清理不补造 ref，不另写 allocation/Init/Bind 账本。目录/锁/生成唯一 RefId 的具体算法在 Ready 定稿。
 
-### spec [A-VS-TOKEN-CAS] CAS 与 handle guard 在 IO 前
+## term `Publication-Outcome` 本次调用的证据
 
-替代草案 `[A-VS-REVISION-CAS]`（DEPRECATED）。CAS MUST 比较当前 RefRevision token，不比较提交地址或 StateRoot。
-错误 owner/epoch、default/已终结/重复 Commit、CAS 不匹配及未完成 data plan/Builder 的 guard 必须先于 data barrier。拒绝不追加、不修改 ref、不因为 guard 而 fault。
-一个 handle 至多一次 Commit 尝试；终结状态不能被第二次调用改写，旧 Confirmed 证据尤其不能被覆盖。Prepare 后其他 data 分配是独立操作；Commit 必须重验其最新完成状态。
-
-### spec [S-VS-COMMIT-BARRIER] Commit 同步确认最新依赖再发布
-
-替代草案 `[S-VS-DEPENDENCIES-FIRST]`（DEPRECATED）：不接收 receipt，以本次同步调用建立顺序。
-Commit MUST 执行 data ConfirmDurable → control EndAppend → control ConfirmDurable → 内部 ref 投影安装。
-屏障覆盖目标提交及 Prepare 后所有已完成 data 输出；失败不得进入 control EndAppend。control Builder 与 data 是不同 owner，不妨碍这次串行确认。
-EndAppend 成功先结束 Building，才可确认 control。过程中不调用业务 callback，也不允许另一项应用操作交错。旧提交走同一屏障，不要求重写数据。
-消费者保证合法状态闭包已构建完成；VersionStore 负责自己提交格式的结构与 parent 来源合同。全部必要新增状态/提交依赖属于 data owner，引用多个独立 data stores 的事务不在此版本范围。
+`NotAttempted / Unknown / Confirmed` 分别表示尚未尝试改变公开发布事实、公开事实可能已生效但无法确认、所需发布 flush 与发现边界均成功返回。它是调用证据；重开读到快照不能倒推过去调用是否成功返回或曾得到 Confirmed。
 
 ### spec [R-VS-PUBLICATION-UNKNOWN] 输出异常保留实际证据
 
-进入 control 最终追加尝试后的异常 MUST 保守保留 Unknown，停用 VersionStore；control FrameLog 是否 fault 遵守其自身输出/资源边界，不能虚称 data 也发生输出失败。
-确定的 pre-I/O Result 拒绝仍 NotAttempted；进入 EndAppend 后无法从异常证明未输出时不降为确定失败。释放不重试、不回滚。
-control flush 返回后必须先设置 Confirmed，再安装内部投影/释放/返回；后续异常仍 Confirmed，composite 停止并重开。
+更新/创建 tag 进入公开文件最终 Append 尝试后的异常 MUST 保守保留 Unknown，除非实际证据能证明 pre-I/O 拒绝；MUST 停用 VersionStore、释放私有资源并重开读取实际状态，不盲目重试、不回滚。
+CreateRef 与 S5 CreateBranch 在私有文件阶段失败仍未尝试公开事实；尝试正式 rename 后无法证明结果时为 Unknown。私有 flush 成功不能提前设置 Confirmed。tag 桶的 header-only 初始化（包括空桶 rename）只准备 metadata；即使其结果不确定，尚未尝试 tag Append 时本次 tag 仍为 NotAttempted，停用后重开裁决桶状态。更新/tag 在发布文件 DurableFlush 返回后、创建 ref/branch 在 flush/close 与正式 rename 成功后，必须先记录 Confirmed，再进行可能失败的内存安装/清理/正常返回；后续异常不得降级该证据。
+精确调用证据的载体/异常获取方式在 S4-Q4 定稿；不承诺崩溃后查询某个旧尝试的 Present/Absent。Unknown 后相同 RootMap 也不能证明该次调用曾 flush；应用以重开取得的实际状态续行，并自行处理外部 tool 操作身份和重试规则。
 
-### spec [R-VS-REPLAY-COMPLETE] 重开只解释完整控制事实
+### spec [R-VS-LOCAL-COMPLETE] 重开接受局部完整发布事实
 
-可写重开接受 data FrameStore/control FrameLog 各自的 RBF 恢复，再按真实 control 主链 checked-read 并验证 codec、ref identity 和 expected 链，形成投影。
-CompletedTail 完整合法控制记录恢复其效果；Truncated 后无此记录则旧发布继续有效。完整坏控制记录不回退，不用消费者 validator 定义事实是否存在。
-CommitAddress 字段校验 data context/地址格式；控制回放不 eager 读取全部提交、parent 链或状态图。发现坏必要提交/状态根时读取报错，不改已发布 head。只读不隐式修尾。
+可写重开先执行所属 RBF3 的结构恢复，再完整 CRC 读取并验证所需 header、实际末 Snapshot 或 S5 选中的 tag/name 记录。完整合法新 Snapshot 作为当前值；真正未完成残尾截掉后使用剩余末 Snapshot。正式新 ref 若已无初始 Snapshot，不得补成空字典。
+完整坏 frame/未知版本/错误身份/非法 codec MUST 报错，不能当残尾、missing 或回退旧值。只读模式不隐式修尾。被引用 data 缺失/损坏在应用实际读取时报错，不据此改写已发布 RootMap。
+Open 不默认扫描所有 ref 历史或 data 图；按需打开/校验目标文件，不将成功 Open 宣称为全库审计或全部根图健康证明。所有必要错误传播显式；资源/I/O fault 不被吞成缺对象。
 
-### spec [A-VS-INSPECT-MAIN-CHAIN] 精确查询来自真实主链
+## 生命周期与故障验收
 
-替代草案 `[A-VS-EXACT-INSPECTION]`（DEPRECATED）。首版 Inspect MUST 显式回放完整 control 主链，按实际 ticket 长度、完整 CRC 和控制因果验证，不依赖 snapshot/current head 的负面结果。
-
-- 完整健康回放正常结束，唯一 token/请求匹配：Present，即使 head 后来移动或归档。
-- 同样正常结束，无匹配：Absent。P 截断后 Q 同起点但不同长度，以 Q 的实际主链位置判断，不能把旧 ticket 读取失败当证据。
-- context 不符、缺必要控制文件、framing/CRC/字段/因果错、冲突见证或 I/O：错误/Unverifiable，不能报告 Absent。
-
-随机 checked ticket 不单独证明主链成员。未来若优化查询，必须另取受证边界/成员资格；首版诚实 O(全部控制记录) IO、临时当前 ref 投影，不建全部 nonce 索引、不自动 retry。Present 不替代目标提交或状态图的健康检查。
-
-## 故障矩阵与两个内存安装责任
-
-| 位置 | 本次发布证据 | owner/恢复 |
+| 位置 | 证据/状态 | 必要行为 |
 | --- | --- | --- |
-| CreateCommit 输出失败 | 尚未进入发布；无本次 publication token | data 按自身边界 fault；data fault 时停用 VersionStore，完整 orphan 的采用另行确认 |
-| 确定 guard / 重复 Commit | 未开始新尝试；旧 handle 证据不变 | 无发布输出，无额外 data flush |
-| Prepare 的目标读取失败 | NotAttempted，尚未签发 handle | 内容/来源错误不得回退；I/O 按所涉 owner 合同处理 |
-| Prepare 的 metadata/初始化失败 | NotAttempted | 相关 owner/composite 按输出/清理范围停止 |
-| Commit data flush 失败 | NotAttempted | data fault；VersionStore 停止，control 只做取消释放 |
-| control EndAppend/flush 异常 | Unknown，除非证明 pre-I/O 拒绝 | control 自身 fault 规则；重开查询完整事实 |
-| control flush 返回，ref 投影安装/释放失败 | Confirmed | VersionStore 停止，重开恢复新版本 |
-| Publish 返回后应用安装失败 | 已 Confirmed | 应用停止旧 materialized state，从已发布提交加载 StateRoot |
+| 参数、owner、Builder、编码/容量确定拒绝 | NotAttempted | 无发布写入/额外 barrier，健康实例可继续 |
+| data ConfirmDurable 异常 | NotAttempted | data 按自身 fault，VersionStore 停止，无本次发布追加 |
+| 已公开文件 Append/flush 异常 | Unknown，除可证明 pre-I/O 拒绝 | 停止；重开 checked-read，不自动 retry/rollback |
+| 私有 ref/branch 初始化或其 flush/close 异常 | NotAttempted | 尚未尝试本次业务事实；停止并按私有资源范围清理 |
+| tag 桶 header-only 初始化、flush/close 或空桶 rename 异常，尚未尝试 tag Append | NotAttempted（本次 tag） | 停止；重开检查桶 metadata，不删除已正式发布的合法空桶 |
+| ref/branch 业务对象的正式 rename 结果不确定 | Unknown | 检查正式路径；不因私有 flush 声称 Confirmed |
+| 发布确认后内存安装/释放异常 | Confirmed | 停止、重开恢复；不撤销发布事实 |
+| 正常返回后应用安装失败 | 已 Confirmed | 应用放弃旧 materialized state，从实际 RootMap 加载 |
 
-库内步骤为 `Validated → Prepared → DependenciesDurable → PublicationAttempted → PublicationDurable → RefProjectionInstalled`。
-**应用安装**在收到 Confirmed 后由中层完成；库不会自动观测/回滚应用失败，也不因此声称健康 data owner 已 fault。应用安装不是另一条发布事实或 Commit callback。
+## 实施片、Ready 工程定稿与出口
 
-## 实施片、预算与出口
-
-1. S4-A：创建项目；定稿 CommitAddress/提交 codec、parent 来源、双 context 格式绑定、RecordToken/control codec 及 unborn。
-2. S4-B：CreateCommit/ReadCommit、Prepare/Commit/取消、同步 barrier、内部投影与单记录完整回放，形成单文件 unnamed ref 纵向例子。
-3. S4-C：Inspect、handle/owner/epoch、地址异长度重用、Confirmed/OOM/资源失败与冷重开。
-4. S4-D：两种 opaque 状态根、提交分叉与 ref rewind、进程中断资格；完成控制日志多文件组合后才声明整个阶段 Accepted。
-
-初始 Open/Inspect 明确 O(全部控制历史)，不扫描 data payload；内存基线 O(ref 数) 加当前 frame/请求缓冲，不建立全部 commit 索引。ReadCommit 定点读取小提交帧；完整祖先链及状态图成本另列。
-测试用真实 FrameStore/FrameLog public API；覆盖同根不同提交、同提交多次发布、ABA、旧提交、data barrier 前 guard、data/control 独立 fault、cancel 复用、CompletedTail/Truncated、读取限制与两种内存安装失败。
+1. S4-A：项目、RootMap/RefId/RefRevision/结果值、格式门/header/codec 与 owned 生命周期。
+2. S4-B：私有初始化及正式创建、ReadRef、PublishRef、ListRefs、data-first 屏障；先做一个 unnamed ref 的 public 纵向例子。
+3. S4-C：末帧成员检查、CRC/未知版本、容量 guard、NotAttempted/Unknown/Confirmed、两种内存安装失败与冷重开。
+4. S4-D：进程终止 failpoint、多根同时更新、空字典、同值新 revision、循环数据闭包与旧快照重新发布。真实文件实验使用 W:。
 
 | Ready 项 | 需定稿 |
 | --- | --- |
-| S4-Q1 | token/wrapper/local wire、nonce 生成及概率唯一性说明 |
-| S4-Q2 | 提交与控制 codec/tag、Create/unborn/previous 的精确字段和地址检查 |
-| S4-Q3 | data/control factory/用途/模式、Dispose 和 composite fault |
-| S4-Q4 | Prepare/Commit 句柄生命周期、提交创建结果、确定拒绝和保守 Unknown 边界 |
-| S4-Q5 | Inspect 返回/异常、完整回放预算与 token 保存示例 |
-| S4-Q6 | parent/目标来源、冷重开后的资格恢复、orphan 采用及校验成本边界 |
+| S4-Q1 | RootMap/RefId/RefRevision 公开类型、比较与上下文；ListRefs 范围 |
+| S4-Q2 | 格式门/header/Snapshot tag 与 codec、字符串/条目/总尺寸限额、地址验证 |
+| S4-Q3 | 目录、唯一文件命名、私有初始化/发现边界、独占锁、只读/可写/Dispose/fault |
+| S4-Q4 | 结果与异常证据载体、确定拒绝及 Append/flush/rename 不确定边界 |
+| S4-Q5 | checked 末读取实现、资源预算、错误分类、无 Builder guard 对接及 public 消费轨迹 |
+| S4-Q6 | 新/旧/orphan 地址的应用闭包责任示例与冷重开资格；不增加图遍历来源证明 |
 
-出口是独立的不可变提交与根发布核心。初始全量控制回放不是最终启动规模资格；数据与控制分离也不替代实际平台/包/消费者验收。
+验收覆盖错误 DataStoreId 在写入/恢复前拒绝、空/重复/超限 key、多根原子更新、旧/新帧混合、Builder 未完成/取消地址的应用合同、末帧/tombstone/TerminationError、完整坏 CRC 不回退、create-only 冲突、正式创建前后进程终止、合法末帧末端越过 MaxOffset / 下一次追加确定拒绝，以及借用 data 不被 Dispose。裸地址原始来源错误是应用合同向量，不宣称能由数值格式检查自动检测。源码与包/平台 qualification 分开，阶段仍 Draft。
+
+## 废弃合同导航
+
+以下只保留历史锚点，不是首版能力；旧完整草案可从 Git 历史追溯。
+
+### spec [S-VS-COMMIT-IMMUTABLE] 提交创建不改变 ref（DEPRECATED）
+
+DEPRECATED；独立 Commit 对象退出首版，替代为 `[S-VS-ROOTS-OPAQUE]` 与 `[S-VS-SINGLE-RECORD]`。
+
+### spec [S-VS-PARENT-LOGICAL] 提交祖先使用逻辑引用（DEPRECATED）
+
+DEPRECATED；业务谱系归应用，替代为 `[S-VS-ROOTS-OPAQUE]`。
+
+### spec [S-VS-PUBLICATION-ORDER] 控制顺序来自显式日志（DEPRECATED）
+
+DEPRECATED；无全局控制日志，替代为 `[S-VS-REF-FILE-SINGLE]`。
+
+### spec [A-VS-PREPARE-TOKEN] 输出前交付精确 token（DEPRECATED）
+
+DEPRECATED；无输出前尝试 token/Prepared handle，替代为 `[S-VS-ROOTS-BARRIER]` 和 Publication-Outcome。
+
+### spec [A-VS-TOKEN-CAS] CAS 与 handle guard 在 IO 前（DEPRECATED）
+
+DEPRECATED；首版无默认 CAS/Prepared handle，确定 guard 改由 `[S-VS-ROOTS-BARRIER]` 定义。
+
+### spec [S-VS-COMMIT-BARRIER] Commit 同步确认最新依赖再发布（DEPRECATED）
+
+DEPRECATED；Commit/control 双层协议改由 `[S-VS-ROOTS-BARRIER]` 直接发布完整根字典。
+
+### spec [R-VS-REPLAY-COMPLETE] 重开只解释完整控制事实（DEPRECATED）
+
+DEPRECATED；全局回放改为 `[R-VS-LOCAL-COMPLETE]` 的局部 checked 读取。
+
+### spec [A-VS-INSPECT-MAIN-CHAIN] 精确查询来自真实主链（DEPRECATED）
+
+DEPRECATED；精确历史尝试查询退出首版，按 `[R-VS-PUBLICATION-UNKNOWN]` 重开读取实际状态。

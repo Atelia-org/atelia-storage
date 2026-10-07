@@ -1,25 +1,39 @@
 # S6：消费者验证、公共包与交付
 
-状态：**Draft；2026-10-04 同步提交/日志边界；新库实施、包发布和消费者切换均未执行**。
+状态：**Draft；2026-10-07 同步完整字典、单文件 ref 与两类下游评估；新库实施、包发布和消费者切换均未执行**。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-batches-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。
 本阶段验证前序合同的组合，不作为前序层运行正确性的反向依赖。
-依赖 S5 的命名核心；可选 snapshot/Archive 等只按声明的支持范围验收，不阻塞明确不包含它们的核心候选。
+依赖 S5 的历史选点与命名核心；首版不纳入 ref 分段/轮转、差分/checkpoint、名称修改或精确发布尝试查询。
+FrameLog 是[独立可选扩展](extensions/framelog-candidate.md)，不属于 S2/S3 核心验收，也不是 S4/S5 的前置。下文只验证单文件 ref、分桶 tag 和独立 branch 绑定的实际协议。
 
 ## 本阶段目标
 
-证明两个新库承载不透明 Frame 分配、不可变提交及统一发布；完成独立源码、进程中断、包消费和交付证据。
+证明两个新库承载不透明 Frame 分配、完整根地址字典发布、历史选点与命名；完成独立源码、进程中断、包消费和交付证据。
 DurableGraph 是需求来源；S0 已记录兄弟仓的定位观察，实际接入仍须刷新当前源码/API/数据合同并按明确范围实施。定位及历史 tag 文档不替代接入证据。
 
 ## 候选验收模型
 
 | 模型 | 构建内容 | 用来证明 |
 | --- | --- | --- |
-| 简单 immutable 状态根 | 两类自定义 binary records、StateRoot 及独立提交对象 | 不依赖 EventFrameHeader/应用 Parent；提交 parent 与状态编码分开 |
-| 循环引用图根 | A↔B/self-reference，跨文件依赖、StateRoot 及提交 | 不透明提前地址、batch 与全集耐久确认；应用循环不成为提交环 |
+| 简单多根状态 | 两类自定义 binary records 与一个 RootMap | 不依赖 EventFrameHeader/应用 Parent；一次完整发布全部根 |
+| 循环引用图 | A↔B/self-reference，跨文件依赖与多个根地址 | 已知尺寸租借的提前地址、交错完成与全集耐久确认；应用循环由 opaque 数据表达 |
 
-两个模型用同一套 public API 写入 data、CreateCommit、Prepare/Commit 发布到私有 control FrameLog、创建 branch/tag、选择旧提交、关闭并冷重开。Fork 复用合法旧提交创建分支，不复制提交、不改 parent；Archive/snapshot 仅在候选明确支持时加入。
-覆盖同 StateRoot 的不同提交、同提交的多次发布及共享 tag；分别读取 ReadAncestors 与 ReadRefHistory，验证 rewind 不改提交关系。不同批次描述符次序构建相同逻辑图时，只按返回地址取回，不依靠文件选择或大小排序。
+两个模型用同一套 public API 写 data、CreateRef/PublishRef/ReadRef，枚举旧快照、创建 branch/tag，关闭并冷重开。fork 使用枚举所得的自有 RootMap 创建新 ref，再绑定名称；第二步失败允许留下未命名 ref，不虚称跨文件原子事务。没有 CreateCommit / PreparedPublication 步骤。
+覆盖相同字典的重复发布、新旧 revision 分离与多个 tag；ReadRefHistory 固定完成上界，枚举结束后旧字典仍可使用。rewind 追加旧字典，保留全部既有完整记录。不同 Builder 申请/完成次序构建相同逻辑图时，只按返回地址取回，不依靠文件选择或大小排序。FrameBatch 尚未纳入首版核心，不以该优化缺失判定基本互引失败。
 这些是仓内可独立运行的最小消费者，不是 DurableGraph 已接入的证据。
+
+## 两类需求的最小消费者
+
+[2026-10-07 评估](reviews/2026-10-07-downstream-fit.md)依据兄弟仓源码与设计故事，没有运行新库或端到端实验。以下向量进入实施验收；应用特有部分不变成 VersionStore codec。
+
+| 场景 | 仓内最小流程 | 能证明与不能证明 |
+| --- | --- | --- |
+| LLM tool-loop | RootMap 同时保存 runtime/history/tasks/context；发布 Prepared/Started 后模拟外发，发布结果后重开 | 冻结请求和执行阶段可恢复；Started 无结果进入应用 uncertain 路径，不证明任意外部调用 exactly-once |
+| 异步任务合并 | A/B 结果交由单 driver，依据最新 operationId/generation 串行合并，再发布字典 | 过期回包不覆盖新状态；不宣称 VersionStore 提供通用 CAS 或多线程 writer |
+| Gym 历史与扇出 | 枚举非末快照，释放枚举器后创建两个 ref，绑定不同 branch 并分别推进 | 历史选点与盘上数据共享；可变对象隔离由应用加载层负责 |
+| rewind/tag | 从旧快照追加新 revision，再保存 tag，推进 branch 后冷重开 | 旧完整历史保留、重复字典不合并 revision、tag 字典固定；不把 ref 发布序列当跨分支因果谱系 |
+
+确定性模拟另由应用检验完整 world、runtime/cursor、RNG 坐标或内部状态、规则与 Agent 工作区。存储只保证原样保存/选择；轨迹 root 可表达 action/reward/fork origin。外部 tool 的幂等、receipt/query 或显式重复策略也由应用/backend 验收。
 
 ## 候选合同
 
@@ -30,14 +44,17 @@ DurableGraph 是需求来源；S0 已记录兄弟仓的定位观察，实际接�
 
 ### spec [R-INTEGRATION-CRASH-EVIDENCE] 进程中断验证真实组合
 
-资格 MUST 覆盖地址预约、批次各帧、提交创建、data barrier、Prepare 的控制 metadata/轮转、发布输出、control flush、库内投影及应用状态安装窗口。
+资格 MUST 覆盖提前地址签发、交错构建各帧、必需首帧 header 初始化/校验与 active 发布、归档 flush/close/rename、多个 active 恢复、data barrier、ref 私有初始化与正式发布、ref 快照追加/flush、tag 桶初始化/追加、branch 私有写入与名称发布、库内投影及应用状态安装窗口。补成功 EndAppend 自动归还、数量 config 超限拒绝与配额计数；未来 batch/多线程优化另行取得资格。不测试首版不存在的 ref 轮转或 Commit/control 日志。
 使用子进程中断/真实磁盘镜像验证冷重开，并保留源 commit、SDK、平台、阶段和预期/实际结果；单元 fault injection 不能冒充进程中断实证。
-恢复结果只能来自完整记录及其资格；Unknown/异长度地址复用通过实际 control 主链确认 token，不用旧 ticket 读取失败或最新 head 证明 Absent。
-补重复 Commit 先于 data IO 拒绝、data/control context 混用与独立 fault、Prepare 后新增 data 被 Commit barrier 覆盖，以及应用安装失败不撤销 Confirmed。提交创建中断与发布中断分开裁决；完整未发布提交不自行改变任何 head/tag。
+恢复结果只能来自完整 checked 快照和正式发布的文件/名字。已有 ref 更新中断后只能得到完整旧字典或完整新字典，不混搭 Key；CreateRef 中断后则为未创建或已正式发布的完整初始 ref，不补造空字典。完整坏快照不回退。Unknown 重开读取实际状态，不承诺精确尝试的 Present/Absent，也不从同值字典倒推旧调用曾确认成功。
+补 guard 先于 data IO 拒绝、data / VersionStore 身份混用与 fault 范围、发布屏障覆盖最新完成 data，以及应用安装失败不撤销 Confirmed。数据帧写出中断与根发布中断分开裁决；完整未发布数据不自行改变任何 ref/tag。新文件私有 flush 后、正式 no-overwrite rename 前不算对象成立；rename 后调用未返回可能留下已成立对象。
+首次 tag 桶的 header-only 初始化覆盖 flush/close/空桶 rename 故障及进程中断；尚未尝试 tag Append 时本次 tag 保持 NotAttempted，重开允许合法空桶但不存在该 tag，不清理已正式发布的合法桶。CreateBranch 单独验证只确认绑定文件、不调用 data 屏障，无关 data Builder 未结束不阻断纯命名；fork 中 CreateRef 仍遵循完整 RootMap 屏障。
+容量边界分别验证单帧尺寸与起始 offset：ref / tag 桶最后合法记录的末端和尾 Fence 可以越过 SizedPtr.MaxOffset，随后追加在输出和额外 data barrier 前确定拒绝；不拿末端越界当作既有记录损坏。FrameStore 同样遵守起点规则，成功追加后按软阈值停止分配并归档。裸 FrameAddress 的原始 store 来源由应用保证，错误 data owner 的格式门绑定则必须在恢复/写入前由库拒绝，二者不能合并成自动来源检测能力。
+历史枚举向量 MUST 覆盖固定上界、活动期 mutation 拒绝、释放后自有字典继续使用、重复相同字典的不同 revision、损坏与 TerminationError。普通当前值读取不自动审计全部历史；显式历史遇到坏记录必须报告错误。
 
 ### spec [S-DELIVERY-PACK-OWNER] 包入口有单一负责人
 
-新增生产包清单及 pack 顺序 MUST 只在 `eng/Pack.ps1` 注册。当前 main 仅 Primitives/Data/Rbf，后续加入 FrameStore/VersionStore；FrameLog 属于 FrameStore 包，不另造生产包。不得重新将冻结参考 EventJournal/RbfSegmentStore 加入 main pack。
+新增生产包清单及 pack 顺序 MUST 只在 `eng/Pack.ps1` 注册。当前 main 仅 Primitives/Data/Rbf，后续加入 FrameStore/VersionStore；若接纳 FrameLog，其候选落点为 FrameStore 包，不另造生产包。不得重新将冻结参考 EventJournal/RbfSegmentStore 加入 main pack。
 同时适配 package-mode 依赖、smoke、metadata/assets/Source Link 校验与 CI。按 main 实际 All/manifest 入口审查扩展，不沿用历史五包/selective 选择假设，也不能只增加项目名字就声称完成。
 旧栈维护与公开发布使用 RBF1 分支；main 参考项目的固定包回归与新栈源码/包资格分别报告。
 
@@ -67,7 +84,7 @@ DurableGraph 是需求来源；S0 已记录兄弟仓的定位观察，实际接�
 
 ## 实施片
 
-1. S6-A：完善从 V1 起已有的 public API 消费者与跨冷进程 golden 资格，验证两种状态模型、提交/发布分离及 data/FrameLog 生命周期。
+1. S6-A：完善从 V1 起已有的 public API 消费者与跨冷进程 golden 资格，验证多根/循环图模型、data / 发布目录生命周期、历史选点和两类下游的最小流程。
 2. S6-B：串行构建/测试、集成进程中断和 Windows/Linux 平台证据；旧基线问题明确分开处理。
 3. S6-C：扩展唯一 pack 清单及选择算法、候选 manifest、隔离 smoke、CI。
 4. S6-D：按授权提交/打包，完成隔离候选包消费，形成可审查交付记录。
