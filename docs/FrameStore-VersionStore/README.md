@@ -1,6 +1,6 @@
 # FrameStore / VersionStore 分阶段设计入口
 
-日期：2026-10-03；2026-10-05 确认 FrameStore header、归还、config 与核心/扩展分离；2026-10-07 更新完整字典和单文件 ref。状态：**S1 Accepted；S2–S6 Draft，FrameLog 为独立候选且不是首版依赖，两个新项目尚未创建；参考依赖拆分 Accepted**。
+日期：2026-10-03；2026-10-05 确认 FrameStore header、归还、config 与核心/扩展分离；2026-10-07 更新完整字典、单文件 ref 及活跃构建期间的已完成输出资格。状态：**S1 Accepted；S2–S6 Draft，FrameLog 为独立候选且不是首版依赖，两个新项目尚未创建；参考依赖拆分 Accepted**。
 初始设计源码观察基线：`main @ 70d1009e78a73342a0c0fdc8ffed7731dec58173`；S1 验收记录的核对基线为 `f6f1eb38557863ba5ea1634844a90f0cbe5774cf`；前轮设计阅读基线为 `4175a46`，本轮租借/目录修订核对 `50e8e28`。本文档集供逐阶段细化、审阅和实施，不把文档修订视为新实现或验收。
 
 目标：**以 RBF3 的帧原子性为基础，让中层构建新状态，再发布完整根地址字典使状态生效。**
@@ -13,11 +13,13 @@ main 当前演进主线为 RBF3 / FrameStore / VersionStore。旧 EventJournal/R
 FrameStore 普通合同是不透明地址分配与随机读取，不提供业务全局顺序。保留 RBF 三种追加方式；每个 Builder 独占一个文件，owner 可以嵌套租借多个文件、交错构建并乱序完成，首版调用仍串行。三种追加统一在成功完成后按 TailOffset 大于软阈值触发轮转。
 文件分配优先选择 active 中当前可分配的数值最低 FileId；忙文件和已停止分配文件跳过，没有候选才新建。不因已知帧尺寸提前试配，也不引入轮询或负载均衡。
 私有 creating 槽位完成必需首帧 meta/header 后发布到 active；header 至少提供版本解释，字段/codec 由 Coding Agent 定稿。active 目录表达可写集合，flush/close 后移入固定 1024 编号分桶的 archive 并只读，不维护 active manifest 或全历史分段表。屏障确认全部必要 active 输出。
+2026-10-07 用户确认：**ConfirmDurable 确认调用时已经完成的全部必要输出；未完成 Builder 保持原状，不因此次确认而获得完成或耐久资格。** leased 文件中的旧完成输出也必须覆盖，Builder 后续完成重新登记为未确认；flush 失败停用整个 owner 及其他 Builder/Writer。
+**Builder 活跃期间，允许随机读取已经完成的文件前缀；正在构建的新帧仍不可读。** RBF 指定 ticket 随机入口的 Building 范围检查包含帧后 Fence；普通读取仍校验内容、生命周期和共享 fault，不扩大扫描相关入口或并发合同。正式核心要求见 S2。
 成功 EndAppend 自动归还文件和数量配额，不等后续 Dispose。config 文件提供可调整的未归还 Builder 上限，超限立即拒绝，不引入精确总内存账本；config 格式/默认/生效、编号恢复和归档维护的确切协议仍须工程定稿。
 循环引用可以直接通过多个已知尺寸 Builder 的提前地址形成，不以完整 FrameBatch/BeginNext 为首版前置。FrameStore core 与交错构建/耐久确认可以独立定稿、实施和验收。
 [FrameLog](extensions/framelog-candidate.md) 已从 S2 迁为独立可选扩展候选；术语、顺序/cursor 合同、工程问题与验收要求均在该文档。去留与实施范围尚未确认，不阻断核心出口。
 2026-10-07 VersionStore 收缩为完整 `RootMap = string => FrameAddress` 快照：每个 ref 一个 RBF3 文件，每次更新追加完整字典；tag 保存命名不可变字典，按固定名称哈希分桶；branch 为 name → 稳定 RefId 的 create-only 绑定。首版不分段/轮转 ref，不引入差分、checkpoint、独立 Commit/Parent 或全局 FrameLog。
-VersionStore 借入一个 data FrameStore，拥有自己的 RBF3 发布目录。CreateRef / PublishRef / CreateTag 先完成应用数据，再同步 data ConfirmDurable，随后追加/确认字典发布记录并安装内存投影；应用收到成功确认后按字典加载状态。CreateBranch 只命名既有 ref、确认自己的绑定记录，不重新发布 RootMap 或调用 data 屏障。新建文件和名称还需完成正式目录发布。所有 Key 的业务语义由应用解释，不消费中间帧的构建顺序。
+VersionStore 借入一个 data FrameStore，拥有自己的 RBF3 发布目录。CreateRef / PublishRef / CreateTag 先完成本根所需的新增依赖，再同步 data ConfirmDurable，随后追加/确认字典发布记录并安装内存投影；无关 Builder 未归还不阻断独立闭包的发布。应用收到成功确认后按字典加载状态。CreateBranch 只命名既有 ref、确认自己的绑定记录，不重新发布 RootMap 或调用 data 屏障。新建文件和名称还需完成正式目录发布。所有 Key 的业务语义由应用解释，不消费中间帧的构建顺序。
 当前值完整读取最后快照；历史从固定完成上界逆序枚举，返回结束枚举后仍可使用的自有字典。fork 复制旧字典到新 ref，rewind 追加旧字典成为新 revision，tag 冻结所选字典。RefRevision 来自完整发布/实际历史枚举，不是输出前尝试 token。跨重开书签可用 tag。
 输出异常停止实例并重开读取实际状态；完整快照损坏报错，不回退旧值。首版不提供通用 CAS 或精确 Unknown 尝试查询。数据闭包、工具 operationId、模拟器 RNG 和应用谱系由应用负责；[两类下游评估](reviews/2026-10-07-downstream-fit.md)未发现必须扩大核心的需求。
 
@@ -76,7 +78,8 @@ S4 当前值只读所访问 ref 的末快照，S5 回溯才枚举历史。tag �
 
 S4/S5 首版不依赖日志扩展；S2/S3 与它的工程定稿和验收继续独立。
 
-2026-10-07 的整组一致性复核与修正见[复核记录](reviews/2026-10-07-consistency-review.md)。本轮只修订合同边界、权威归属与验收向量，S2–S6 仍为 Draft，不构成实现或平台资格。
+2026-10-07 的整组一致性复核与修正见[复核记录](reviews/2026-10-07-consistency-review.md)。该复核轮次只修订合同边界、权威归属与验收向量，S2–S6 仍为 Draft，不构成实现或平台资格。
+其后用户接受解除两项过宽 guard；[活跃构建期间已完成输出的改进记录](reviews/2026-10-07-completed-output-improvements.md)区分本轮 RBF 底座代码验收与 FrameStore/VersionStore 合同修订，不把底座通过视为新项目已实现。
 
 ## 最小纵向实施顺序
 
@@ -84,7 +87,7 @@ S4/S5 首版不依赖日志扩展；S2/S3 与它的工程定稿和验收继续�
 | --- | --- | --- |
 | V0 | S1 尺寸/格式/early ticket，双 RBF 文件互引读回 | 单文件能力，不声称新库已实现 |
 | V1 | S2 owned 三种追加/嵌套租借与核心 barrier + S4 CreateRef/PublishRef/ReadRef；冷重开 | 单文件 ref，完整 RootMap；S3 验证交错构建组合，不引入分段或全局日志 |
-| V2 | S3 双文件 A↔B、self-reference 与乱序完成后同时发布多个根，取消/reuse/Unknown | 无需 Commit 或完整 planner；发布前全部归还，旧/新字典不能混搭 |
+| V2 | S3 双文件 A↔B、self-reference 与乱序完成后同时发布多个根，取消/reuse/Unknown | 无需 Commit 或完整 planner；本根所需依赖完成并确认，无关 Builder 可继续构建，旧/新字典不能混搭 |
 | V3 | S2 creating/active/archive、软轮转/编号恢复 + S3 多 active barrier 组合验收与进程中断 | 完成后才声明完整多文件生命周期和恢复资格；日志扩展另行验收 |
 | V4 | S5 ReadRefHistory 的旧快照选点、fork/rewind、branch/tag | 分段/轮转、差分/缓存、随机 revision 读与名称修改后置 |
 | V5 | S6 平台、公共包、真实消费者边界 | 包 smoke/消费者接入仍各自出证据 |

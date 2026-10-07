@@ -1,6 +1,6 @@
 # S3：FrameStore 交错构建、循环引用与同步耐久屏障
 
-状态：**Draft；2026-10-04 采用独占文件租借与交错完成；2026-10-05 确认成功 EndAppend 自动归还、数量上限 config 与超限立即拒绝；完整 batch planner 仍为待定优化**。
+状态：**Draft；2026-10-04 采用独占文件租借与交错完成；2026-10-05 确认自动归还、数量上限 config；2026-10-07 取消全部归还的屏障前置；项目尚未创建，完整 batch planner 仍为待定优化**。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)。本层不解释根发布或 payload 引用。
 
 ## 本阶段目标
@@ -49,13 +49,13 @@
 
 ### spec [A-FS-DURABLE-PREFIX] 同步确认完成前缀（DEPRECATED）
 
-由 [S2](02-framestore-core.md) 的 `[A-FS-DURABLE-OWNER]` 替代；该稳定条款原文已归入核心阶段，语义不变，本阶段不另建耐久权威。全部完成输出的集合不要求对外存在一个可排序的地址前缀。更早的 `[A-FS-DURABLE-SET]`、`[S-FS-RECEIPT-SCOPE]` 也保持 DEPRECATED。
+曾由归入 S2 的 `[A-FS-DURABLE-OWNER]` 替代；2026-10-07 后统一消费 S2 的 `[A-FS-DURABLE-COMPLETED-OUTPUTS]`，不再要求全部 Builder 归还。本阶段不另建耐久权威，全部完成输出的集合不要求对外存在一个可排序的地址前缀。更早的 `[A-FS-DURABLE-SET]`、`[S-FS-RECEIPT-SCOPE]` 也保持 DEPRECATED。
 
 ## 构建与耐久是不同资格
 
-（Informative / Derived）本节及后面的故障算例消费 S2 的 `[A-FS-DURABLE-OWNER]`、租借/fault 合同与 S0 的根字典发布原则，不增加第二套屏障规则。
+（Informative / Derived）本节及后面的故障算例消费 S2 的 `[A-FS-DURABLE-COMPLETED-OUTPUTS]`、completed-prefix 随机读取、租借/fault 合同与 S0 的根字典发布原则，不增加第二套屏障规则。
 
-每个 Builder 按 `Leased → Building → Completed/Abandoned` 结束并归还，输出异常按 owner Faulted 处理。只有全部租借归还后，ConfirmDurable 才可取得 owner 耐久资格。
+每个 Builder 按 `Leased → Building → Completed/Abandoned` 结束并归还，输出异常按 owner Faulted 处理。ConfirmDurable 确认调用时全部必要完成输出，未归还 Builder 保持原状；既不阻断旧完整输出的确认，也不因此成为 Completed/Durable。
 不保存一个可合并的 Durable batch 对象。后续新增帧不撤销此前已确认帧的 bytes，也不自动确认新增输出；内存中 dirty 文件/位置登记仅用于实现，磁盘 active 集合以目录为准，不写第二套状态账本。
 
 独立用户可以显式调用 ConfirmDurable。上层若发布引用本 owner 数据的完整根字典，必须在自己的实际输出前调用最新屏障；没有公共 receipt 可供它延迟消费。只命名一个既有已发布对象的操作不重新发布数据引用，本层不要求它额外调用 data 屏障。
@@ -64,12 +64,16 @@
 
 ## 循环引用与故障算例
 
-串行申请已知尺寸 A、B 得到 a/b；A 编码 b、B 编码 a，可以先完成 B、再完成 A。Root 在其后构建或另行租借，编码 a/b。发布包含这些数据引用的根字典前仍须归还全部 Builder 并确认 owner 的全部完成输出；a/b/r 不表达业务顺序或文件相邻关系。
+串行申请已知尺寸 A、B 得到 a/b；A 编码 b、B 编码 a，可以先完成 B、再完成 A。Root 在其后构建或另行租借，编码 a/b。发布包含这些数据引用的根字典前，应用必须保证 A、B 及 Root 的实际新增依赖全部完成，再确认 owner 的全部必要完成输出；无关的 C 仍 Building 不阻断此次确认或发布。a/b/r 不表达业务顺序或文件相邻关系。
 两者同时未完成时必须分别租借文件，因此互引天然覆盖跨文件；self-reference 只需单个已知尺寸 Builder。无需纯 planner、尚未创建文件的地址或消费者自行管理 offset。
 已归档文件已经确认输出，其余 active 都须由屏障确认；只确认 Root 所在文件是不合格实现。
 
-若 A 完成后 B 中断，A 只是完整 orphan；后续追加可能重用 b，旧构建状态不可直接采用。FrameStore 不知道哪个根已经对外发布。
+独立 A 的依赖全部完成而 B 仍构建时，可以确认并发布 A。B 所租文件中若有较早完成、尚未确认且被 A 引用的 D，屏障必须连 D 一起确认，不能跳过 leased 文件。B 的内存内容、epoch 和租借不变，B 后续完成仍需新的确认。构建 B 期间也可按地址串行读取同文件历史帧 D，结果不由 active 分配位置决定。
+若 A 真正引用尚未完成的 B，即使 ConfirmDurable 对现有完整输出成功，也不能发布该闭包；应用必须先完成 B。屏障没有业务图解析，不能从成功返回倒推出引用目标已完成。B 取消后 C 复用 b，也不能使旧 A↔B 状态获得原始来源资格。
+
+在 A↔B 互引且尚未合法发布根的轨迹中，A 完成后 B 中断，A 只是完整 orphan；后续追加可能重用 b，旧构建状态不可直接采用。独立 A 若已经完成数据确认及根发布，无关 B 的中断或取消不能撤销 A 的发布。FrameStore 不知道哪个根已经对外发布。
 若 ConfirmDurable 抛错，没有成功耐久返回，owning FrameStore 停止；完整 bytes 在重开后可存在，不等于此前调用被确认成功。
+同一 owner 其他文件上的 Builder/Writer 也随共享 fault 停止，不能继续完成 B；资源清理由 owned Dispose 处理。
 
 ## 预算、实施片与验收
 
@@ -78,11 +82,12 @@
 
 1. S3-A：用 S2 public 追加入口形成 self-reference、双文件 A↔B 和乱序完成的最小消费者。
 2. S3-B：验证嵌套申请、取消/reuse、文件复用和最大帧跨软阈值；资源预算遵循 S2。
-3. S3-C：验证 S2 全 owner barrier 在交错构建、多 active 首次再确认、旧/新帧混合及每个 flush/资源异常中的消费资格。
+3. S3-C：验证 S2 全 owner 完成输出 barrier 在 Builder 未归还、多 active/leased 首次再确认、后续新完成输出重新登记、旧/新帧混合及每个 flush/资源异常中的消费资格。
 4. S3-D：public API 循环引用和进程中断资格；记录 IO、内存及真实预算。
 
-覆盖跨文件 A↔B、单帧 self-reference、A 完成/B 缺失、取消地址重用、guard 拒绝、多个 active 首次再确认、跨文件 flush 中断及旧 root 采用。
-FrameStore 单测不依赖发布库。没有公开 receipt 的伪造/过期测试；改测 owned 写入不可绕过、未归还 Builder 不能通过屏障、成功返回前全部必要文件确认。
+覆盖跨文件 A↔B、单帧 self-reference、互引 A 完成/B 缺失、独立 A 已发布后无关 B 中断/取消不干扰 A、取消地址重用、生命周期/fault guard 拒绝、多个 active 首次再确认、跨文件 flush 中断及旧 root 采用。
+FrameStore 单测不依赖发布库。没有公开 receipt 的伪造/过期测试；改测 owned 写入不可绕过、未归还 Builder 不阻断已完成输出的屏障且不获得资格、leased 文件旧 dirty 输出必须确认、后续新帧重新 dirty、成功返回前全部必要文件确认，以及 flush 失败停用所有 Builder。
+同文件历史随机读取成功，未完成 ticket 和帧后 Fence 跨边界先拒绝；不通过第二个句柄或缓存逃过 owned fault。扫描等入口仍受原 guard，不据此声称并发读写资格。
 
 ## Ready 阻断项与出口
 
@@ -90,7 +95,7 @@ FrameStore 单测不依赖发布库。没有公开 receipt 的伪造/过期测�
 | --- | --- |
 | S3-Q1 | 嵌套互引的 public 消费轨迹、数量 config/计数与实际资源成本；大规模 batch 是否有真实需求 |
 | S3-Q2 | 成功自动归还已确认；值拷贝/重复操作、可纠正拒绝、取消/reuse、归档维护与资源异常资格 |
-| S3-Q3 | 消费 S2 ConfirmDurable 的交错/多 active/重开轨迹与失败向量；核心登记、guard/错误统一由 S2-Q4 定稿 |
+| S3-Q3 | 消费 S2 ConfirmDurable 的交错/多 active/leased/重开轨迹、后续新完成输出与失败向量；核心登记/错误统一由 S2-Q4 定稿 |
 | S3-Q4 | 旧/orphan 帧来源、新旧闭包使用示例和地址重用资格 |
 
 最终出口是预算内交错构建、跨文件互引与全 owner 同步耐久可独立验收。完整 FrameBatch 优化没有定稿/实现不阻塞本出口；消费者管理业务闭包，不管理各文件 flush 顺序。多线程执行另有独立合同与证据。

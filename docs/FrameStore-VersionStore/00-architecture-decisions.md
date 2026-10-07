@@ -1,6 +1,6 @@
 # S0：总体边界与决策
 
-日期：2026-10-03；2026-10-04–05 确认 FrameStore 文件租借、目录与资源合同；2026-10-07 采用完整根地址字典、单文件 ref 和独立命名。状态：**会话方向已确认；S2–S6 wire/API 与剩余工程选择仍为 Draft；FrameLog 为独立可选扩展，VersionStore 首版不依赖它；参考依赖拆分 Accepted**。
+日期：2026-10-03；2026-10-04–05 确认 FrameStore 文件租借、目录与资源合同；2026-10-07 采用完整根地址字典、单文件 ref 和独立命名，并允许活跃 Builder 期间确认及随机读取已完成输出。状态：**会话方向已确认；S2–S6 wire/API 与剩余工程选择仍为 Draft；FrameLog 为独立可选扩展，VersionStore 首版不依赖它；参考依赖拆分 Accepted**。
 本文件记录本次用户已表达的决策。规范写法依 [规范约定](../spec-conventions.md)。API/wire 的具体选择由后续阶段细化。
 
 ## term `FrameStore` 中性的 Frame 存储库
@@ -43,7 +43,7 @@ MUST 新建 FrameStore、VersionStore 两个生产项目及分别配套的单元
 
 ### decision [S-ROOT-PUBLISHED-LAST] 状态根最后发布
 
-保存或替换 RootMap 的协议 MUST 先完成应用数据帧，再确认全部新增依赖耐久，随后追加单条完整字典记录、确认其耐久，最后安装内存状态。发布旧字典可以复用其既有数据帧。新 ref 的发现还须完成其目录发布步骤，不能把私有文件 flush 视为已经对外建立对象。仅把 branch 名称绑定到既有 ref 不重新发布 RootMap，只确认绑定记录及其正式目录发布。
+保存或替换 RootMap 的协议 MUST 先完成该 RootMap 所需的新增应用数据帧，再确认全部新增依赖耐久，随后追加单条完整字典记录、确认其耐久，最后安装内存状态。发布旧字典可以复用其既有数据帧。新 ref 的发现还须完成其目录发布步骤，不能把私有文件 flush 视为已经对外建立对象。仅把 branch 名称绑定到既有 ref 不重新发布 RootMap，只确认绑定记录及其正式目录发布。
 消费者 MUST 保证依赖闭包由此前已耐久帧和本次完成、确认耐久的新增帧组成。通用库不得声称可从任意 opaque payload 自动证明该闭包。
 
 ### decision [S-NEUTRAL-FRAME-TARGETS] 根目标使用中性地址（DEPRECATED）
@@ -73,6 +73,11 @@ VersionStore MUST NOT 依赖具体应用构建 State 中间帧的申请顺序、
 
 FrameStore MUST 以单文件独占租借支持多个尚未完成的 Builder；每个 RBF 文件仍最多一个活跃 Builder。再次申请时使用其他可分配文件，不能隐式结束已有 Builder。活跃 Builder 可以交错填充，并按不同于申请次序的顺序完成。
 文件选择、租借、归还与维护 MUST 串行；首版公共合同仍只承诺调用方串行使用。实现保留每个 Builder 的文件与构建资源独立，使将来不同 Builder 各由一个线程使用成为可单独验收的扩展；本轮不宣称已提供并行、屏障竞争或并发 fault 资格。
+
+### decision [S-FS-COMPLETED-OUTPUT-INDEPENDENT] 活跃构建不阻断已完成输出的使用
+
+2026-10-07 用户确认：ConfirmDurable MUST 确认调用时已经完成的全部必要输出；未完成 Builder 保持原状，不因此获得完成或耐久资格。MUST NOT 仅因无关 Builder 尚未归还而拒绝已满足依赖闭包要求的 RootMap 发布；应用仍负责本次根所需的新增依赖全部完成，VersionStore 仍按数据先确认、根后发布执行。
+Builder 活跃期间 MUST 允许随机读取该文件已完成前缀内的历史帧；正在构建的新帧仍不可读。文件独占租借约束新增帧的构建资格，不对此前完整帧施加额外读取禁令。随机读取消费 RBF 的 completed-prefix 合同，生命周期、共享 fault、完整内容校验及串行调用保持不变；本轮不扩大扫描、扫描边界或物理后继查询资格。
 
 ### decision [S-FS-LOWEST-ACTIVE-FIRST] 优先租借可分配的最低编号文件
 
@@ -155,7 +160,7 @@ flowchart TD
 | RBF profile、padding、长度、CRC、尾部恢复 | RBF | 调用公共 API，消费恢复结果 |
 | store 身份、文件定位、FrameAddress、完成资格 | FrameStore | 用不透明地址及生命周期合同访问 |
 | 有序帧日志的位置、真实主链与扫描边界（候选） | FrameStore 可选扩展 | 按独立扩展接纳和验收；不属于 S2 核心出口 |
-| 本 owner 的全部完成输出已耐久 | FrameStore | 同步 barrier 返回后才尝试发布，不能推导业务闭包 |
+| 调用时本 owner 的全部必要完成输出已耐久 | FrameStore | 同步 barrier 返回后才尝试发布；活跃 Builder 不被确认，不能推导业务闭包 |
 | 某根是否构成合法状态、全部引用是否已覆盖 | 消费者中层 | 构建完成后选择根并准备发布 |
 | RootMap codec、ref 当前值与发布历史、branch/tag 绑定 | VersionStore | 查询完整快照，发布多个根，不比较 data 地址大小 |
 | 应用因果链、fork origin、工具进度和模拟器完整状态 | 消费者中层 | 放入 opaque 数据帧，不把 ref 历史当作业务谱系 |
@@ -172,7 +177,7 @@ VersionStore 借入一个 data FrameStore，拥有独立的 RBF3 发布目录；
 
 RefId 是稳定对象身份；RefRevision 只表示已完成快照的位置，不提前签发，不用作 Unknown 尝试 token。历史枚举期间首版禁止 owner mutation。跨重开的应用书签可使用 tag，无需先提供随机 revision 读取或持久扫描 cursor。
 
-CreateRef / PublishRef / CreateTag 在发布 RootMap 前同步调用 data ConfirmDurable，不向调用方传递可复用 `DurabilityReceipt`；CreateBranch 不新增 data 屏障。tag 桶查找与重名检查首版可扫描目标桶或使用按需内存投影，不保证 O(1)；字典、桶和文件容量按实际 codec 与公共尺寸 API 计算，“约 64B”只是少根短键场景估算。
+CreateRef / PublishRef / CreateTag 在发布 RootMap 前同步调用 data ConfirmDurable，不向调用方传递可复用 `DurabilityReceipt`；无关 Builder 未完成不阻断该屏障或发布，所需依赖仍须由应用保证完成。CreateBranch 不新增 data 屏障。tag 桶查找与重名检查首版可扫描目标桶或使用按需内存投影，不保证 O(1)；字典、桶和文件容量按实际 codec 与公共尺寸 API 计算，“约 64B”只是少根短键场景估算。
 
 VersionStore 内部投影安装与消费者安装应用状态分别负责。发布已确认后前者失败仍保留 Confirmed 并停用库实例；应用安装失败时，从实际已发布字典重新加载，不撤销发布、不要求业务 callback。外部工具 exactly-once 和模拟确定性不是存储层保证。
 
@@ -207,5 +212,5 @@ IO/发布尝试后结果可能 Unknown；完整记录可在重开后存在。首
 
 ## S0 出口
 
-会话已确认新项目、旧库维护边界、RBF 恢复方向、不透明分配、三种追加方式、嵌套文件租借、统一软轮转、目录生命周期、首帧 meta/header、成功 EndAppend 自动归还、数量上限配置文件、core/日志候选分离，以及完整根字典最后发布、单文件 ref 与历史选点。header/config、codec/路径/API 和恢复细节仍须工程定稿；FrameLog 的独立去留不阻断新栈首版。
+会话已确认新项目、旧库维护边界、RBF 恢复方向、不透明分配、三种追加方式、嵌套文件租借、统一软轮转、目录生命周期、首帧 meta/header、成功 EndAppend 自动归还、数量上限配置文件、core/日志候选分离，以及完整根字典最后发布、单文件 ref 与历史选点。活跃 Builder 不再阻断对已完成输出的确认、随机读取或独立闭包的根发布。header/config、codec/路径/API 和恢复细节仍须工程定稿；FrameLog 的独立去留不阻断新栈首版。
 S1 的单文件尺寸和 ticket 合同已实施并独立验收为 Accepted。S2–S6 仍是 Draft，具体 wire、类名、方法签名及性能预算按各阶段阻断项细化；本片不代表新库或下游适配已完成。

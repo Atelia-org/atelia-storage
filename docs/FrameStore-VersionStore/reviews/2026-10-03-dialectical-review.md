@@ -1,5 +1,7 @@
 # 2026-10-03：FrameStore / VersionStore 辩证审阅与裁决
 
+> 后续合同变更说明（2026-10-07）：活跃 Builder 不再阻断已完成输出的确认或同文件随机读取；RootMap 所需依赖已完成时可独立发布。本文件正文仍描述其审阅时点的候选，不能据此恢复全局无 Builder guard。当前合同与本轮证据见[改进记录](2026-10-07-completed-output-improvements.md)。
+
 > 历史范围说明（2026-10-07 更新）：本文件保留 2026-10-03 审阅过程与当时的候选，不重写其历史结论。后续会话已将普通 FrameStore 改为不透明分配抽象，并把 FrameLog 分离为可选扩展；VersionStore 进一步采用完整 RootMap、单文件 ref 和独立命名，不再保留本文的 Commit/Parent/Prepared 控制模型。当前合同入口为[目录 README](../README.md)。本记录不构成新模型已完成独立审阅或实施验收的证据。
 
 状态：**设计审阅完成、候选文档已修订；无运行时实施或资格测试**。

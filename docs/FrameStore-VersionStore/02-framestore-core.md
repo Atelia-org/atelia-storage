@@ -1,6 +1,6 @@
 # S2：FrameStore 核心、地址与文件生命周期
 
-状态：**Draft；2026-10-05 确认首帧 header、成功 EndAppend 自动归还、通过 config 文件限制未归还 Builder 数量，并收窄为独立核心合同；wire/API/header codec/config 与恢复细节待工程定稿**。
+状态：**Draft；2026-10-05 确认首帧 header、自动归还与 config 数量上限；2026-10-07 允许活跃 Builder 期间确认和随机读取已完成输出；wire/API/header codec/config 与恢复细节待工程定稿，项目尚未创建**。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)。本阶段独立于发布和命名层。
 
 ## 本阶段目标
@@ -20,7 +20,8 @@
 | 轮转 | 三种追加均在成功完成后按 TailOffset 事后检查；大于阈值才停止新追加 |
 | 磁盘生命周期 | 私有 creating → active → 按编号分桶的 archive；不维护 active manifest/status |
 | 归档桶 | 固定 1024 个编号一个桶；精确路径字符串与格式版本待定 |
-| 耐久 | 没有未归还 Builder 时确认全部必要 active 输出；archive 的资格来自移动前 flush |
+| 耐久 | 确认调用时全部必要已完成 active 输出，包括 leased 文件；未完成 Builder 不获得资格，archive 资格来自移动前 flush |
+| 活跃构建期间随机读取 | 同文件已完成前缀可以读；未完成新帧不可读，扫描相关入口仍遵循 RBF guard |
 | 首帧 meta/header | 必须采用并至少承载版本解释；字段/codec/tag/校验顺序由 Coding Agent 定稿 |
 | 成功 EndAppend | 正常成功返回前自动归还租借和配额，无需再 Dispose；归档维护入口待定 |
 | Builder 数量准入 | config 文件提供可调整上限；超限立即拒绝；不增加精确总内存账本 |
@@ -87,7 +88,7 @@ FrameStore MUST 在 BeginAppend 成功前租借一个可分配文件，直到正
 
 ### spec [S-FS-END-AUTO-RETURN] 成功提交自动结束租借
 
-EndAppend MUST 在正常成功返回前自动结束相应 Builder 的租借，释放未归还 Builder 配额并登记完成输出；调用方无需再调用 Dispose 才能申请新的 Builder 或进行 ConfirmDurable。
+EndAppend MUST 在正常成功返回前自动结束相应 Builder 的租借，释放未归还 Builder 配额并登记新的未确认完成输出；调用方无需再调用 Dispose 才能申请新的 Builder。ConfirmDurable 本身不要求租借已归还，遵循 `[A-FS-DURABLE-COMPLETED-OUTPUTS]`。
 可纠正短写、meta 冲突、未提交 reservation 等拒绝不归还文件、不释放配额；健康 Dispose/取消归还。成功后 Dispose、Builder 的值副本与旧 Writer 不得二次计数或影响新的租借。
 成功完成后超过软阈值的文件必须立即停止新分配，自动归还不意味着重新变为可租借。物理归档维护的调用入口及异常报告仍在 S2-Q4 定稿；归还和正常成功返回不代替 durable flush。
 
@@ -110,7 +111,12 @@ FrameStore MUST 从 config 文件取得可调整的未归还 Builder 上限。�
 
 文件选择、创建、租借、归还、归档及耐久屏障 MUST 串行执行；首版 FrameStore 及派生对象由调用方串行使用。多个尚未结束的 Builder 不等于同一时刻并行调用。
 Builder 的文件、epoch 和构建资源 MUST 独立绑定；未来不同 Builder 各由一个线程使用是单独扩展，不在首版声明并发安全。EndAppend 自动归还时，设计应区分文件内提交与 owner 登记，避免把整个编码/CRC/EscapeKey/写出过程绑定到一个全局当前 Builder。
-首版随机读取只因目标文件存在活跃 Builder 而受 RBF 限制；其他空闲/归档文件可以串行读取。不额外禁止整个 owner 的读取，不通过第二个同文件句柄绕过 FileShare.None 或 RBF guard。
+
+### spec [S-FS-RANDOM-READ-COMPLETED-PREFIX] 活跃构建期间可随机读取已完成前缀
+
+FrameStore 的指定地址随机读取 MUST 消费 RBF `[S-RBF-RANDOM-READ-COMPLETED-PREFIX]`，允许在目标文件 Builder 活跃时串行读取此前已完成帧，不另设文件或整个 owner 的 Building 读取禁令。同文件通过现有 owned reader 读取，不开第二个同文件句柄绕过 FileShare.None。
+Building 期间，请求必须连同帧后 Fence 完整落在当前已完成前缀内；未完成 Builder 的提前地址和跨越边界的范围先于实际读取拒绝。该范围检查不替代真实帧解析、完整内容校验或地址来源责任，裸数值范围不证明主链成员或原始 store。精确范围与错误分类由 RBF 公共合同定义，本层不复制布局常量；本条不扩大 Idle 随机读取的既有合同。
+owner 生命周期、共享 fault、串行调用和读结果所有权 MUST 保持；缓存命中也不能绕过这些检查。新申请的扫描、扫描边界和物理后继查询入口仍遵循各自 RBF Building guard；此前已取得的 sequence/枚举器继续按其捕获的完成上界及既有串行、生命周期/fault 合同使用，本轮不增加禁令。具体边界消费 RBF `[S-RBF-SCAN-IDLE-ONLY]`。
 
 ## 候选合同
 
@@ -165,7 +171,7 @@ creating 不接受用户帧、不签发地址。0–3B 的未完成 RBF Header �
 
 ### spec [S-FS-ARCHIVE-AFTER-FLUSH] 先确认内容再归档
 
-归档 MUST 在没有活跃租借时按停止分配 → DurableFlush 返回 → 关闭 writer → 同文件系统、不覆盖的 rename 到计算出的 archive 路径执行。桶目录可以提前创建，空桶本身不表示某文件已完成归档。
+归档 MUST 在目标文件没有活跃租借时按停止分配 → DurableFlush 返回 → 关闭 writer → 同文件系统、不覆盖的 rename 到计算出的 archive 路径执行。其他文件仍有活跃 Builder 不阻断该文件归档。桶目录可以提前创建，空桶本身不表示某文件已完成归档。
 写句柄采用现有 RBF FileShare.None，先关闭再移动，不为轮转擅自改变 RBF 共享规则。active/archive/creating 必须处于同一文件系统；不接受跨卷复制删除作为本协议的 rename。
 进程终止、OS/FS 仍运行是本轮故障模型；具体 Windows/Linux 原子 rename 入口仍需 S2-Q3 的实现与实证，不以方法名 File.Move 当作平台资格，也不宣称断电目录项耐久。
 
@@ -188,20 +194,25 @@ header 不替代 create-only store 格式门，不解决裸 FrameAddress 的原�
 
 owned append、最终 Builder 提交、flush、轮转和 metadata 输出 MUST 共享 fault；确定参数/state guard 不 fault，RBF preparation/Commit 边界按 S1。
 输出异常后停止实例，缓存命中也不绕过 guard；取消资源异常不承诺可继续用。Dispose 尝试释放全部 owned resources，并定稿异常汇总规则。
-成功 EndAppend 自动归还已确认；归档/资源释放失败不撤销此前已完成帧，维护入口及维护异常如何映射到返回结果仍在 S2-Q4 定稿。耐久确认范围由下面的 `[A-FS-DURABLE-OWNER]` 唯一定义，Open 与完成资格不替代该屏障。
+成功 EndAppend 自动归还已确认；归档/资源释放失败不撤销此前已完成帧，维护入口及维护异常如何映射到返回结果仍在 S2-Q4 定稿。耐久确认范围由下面的 `[A-FS-DURABLE-COMPLETED-OUTPUTS]` 唯一定义，Open 与完成资格不替代该屏障。
 
-### spec [A-FS-DURABLE-OWNER] 同步确认 owner 的全部完成输出
+### spec [A-FS-DURABLE-OWNER] 同步确认 owner 的全部完成输出（DEPRECATED）
 
-ConfirmDurable MUST 在没有未归还 Builder 时，同步确认本 owner 所有已完成、尚未确认的输出；成功返回是本调用栈的耐久证据。如将来纳入独立 batch plan，未完成 plan 同样不得越过该屏障，精确 guard 在新合同中定义。
-archive 文件在移动前已 flush；所有必要 active 文件的完成输出都必须确认，不能只确认一个当前文件。每个重开的 active 即使 Action=None 也纳入首次确认。这个证明利用目录归档协议，不要求调用方认识文件或比较地址。
-flush 失败按 owned fault 停止实例；不允许裸 RBF writer 或外部文件导入绕过登记。未来多个数据 owner 的闭包不在此屏障范围内。
-范围可包含不相关完整 orphan，无须选择每帧集合。先前 flush 后又追加的 frame，必须由新的屏障确认；上层不接受调用方的“以前 flush 过”标志替代实际同步确认。
-首版不提供 DurabilityReceipt、集合合并/复用/过期协议。多个 active 已是当前设计范围，必要输出必须全部覆盖；只 flush 根所在文件不满足本条。
+DEPRECATED；原条款以全部 Builder 归还作为屏障前置。2026-10-07 改为确认调用时的已完成输出，未完成 Builder 不阻断屏障且不获得资格，由 `[A-FS-DURABLE-COMPLETED-OUTPUTS]` 替代。
+
+### spec [A-FS-DURABLE-COMPLETED-OUTPUTS] 同步确认调用时的全部必要完成输出
+
+ConfirmDurable MUST 同步确认调用时本 owner 所有已完成、尚未确认的必要输出；成功返回是本调用栈对这些输出的耐久证据。MUST NOT 仅因仍有未归还 Builder 而拒绝；未完成 Builder 保持构建内容、声明、epoch、租借与配额，不被隐式提交、取消或赋予完成/耐久资格。首版所有调用串行，屏障执行期间不允许 EndAppend 或其他调用交错，因而本次完成边界不变化。
+archive 文件在移动前已 flush；所有必要 active 文件的完成输出都必须确认，包括仍 leased 的文件中此前已完成的输出，不能跳过 leased 文件或只确认一个当前文件。每个重开的 active 即使 Action=None 也纳入首次确认。这个证明利用目录归档协议，不要求调用方认识文件或比较地址。
+leased 文件成功 flush 可清除其此次已完成输出的未确认登记；该 Builder 后续成功 EndAppend MUST 重新登记新完成输出为未确认。后续输出必须由新的屏障确认，不能把文件或租借“以前 flush 过”解释为未来帧的耐久证据。健康取消也不让该次提前地址获得资格；位置可能复用，地址来源责任不因屏障改变。
+任一 flush 失败 MUST 按 `[S-FS-OWNED-FAULT]` 停止整个 FrameStore owner；其他文件上的 Builder、旧 Writer 及缓存命中也必须在访问 owned 状态前拒绝，受控 Dispose 仍负责资源清理。不能只 fault 单个 RBF 后让其余 Builder 继续。失败不撤销已有完整 bytes，也不产生成功耐久返回。
+不允许裸 RBF writer 或外部文件导入绕过登记。范围可包含不相关完整 orphan，无须选择每帧集合；它不解析业务依赖闭包，也不覆盖未来多个 data owner。
+首版不提供 DurabilityReceipt、集合合并/复用/过期协议。多个 active 已是当前设计范围，必要输出必须全部覆盖；只 flush 根所在文件不满足本条。未来独立 batch plan 或并发屏障须另建合同，不保留当前已取消的全局无 Builder guard。
 
 ## 单帧资格与实施片
 
 已知尺寸为 `Opened → Building(address known) → Completed`；未知尺寸只在正常完成时取得地址。Builder 完成/取消与文件归还的边界由 owned wrapper 明确，值拷贝、旧 epoch、重复 End/Dispose 不得二次归还或改变别人的租借。
-ConfirmDurable 消费本阶段 `[A-FS-DURABLE-OWNER]` 的核心合同，不解析业务依赖闭包；交错构建与循环引用的消费资格在后续阶段独立验证。
+ConfirmDurable 消费本阶段 `[A-FS-DURABLE-COMPLETED-OUTPUTS]` 的核心合同，不解析业务依赖闭包；交错构建与循环引用的消费资格在后续阶段独立验证。
 批量计划不作为基本交错构建的前置；业务发布不在本阶段建立。
 
 1. S2-A：创建项目/solution；定稿不透明 FrameAddress、StoreId/格式门、路径、必需首帧 header codec、数量上限 config、模式/错误。
@@ -211,6 +222,8 @@ ConfirmDurable 消费本阶段 `[A-FS-DURABLE-OWNER]` 的核心合同，不解�
 
 至少验证两种无 EventHeader 记录、三种追加、嵌套租借与乱序完成、取消后文件复用、旧地址跨归档稳定、FrameAddress 的 context 限制、archive RBF1 拒绝、创建/flush/close/rename 各窗口、多个 active 独立恢复及完整内容损坏。
 覆盖阈值以下/等于/超过、最大帧超阈值仍成功、可纠正失败不归还、成功后不等 Dispose 即可重新申请/确认、重复 Dispose 不二次释放、不覆盖归档目标、1024 边界与 slot=0、编号耗尽/空桶、仅根文件 flush 不充分；首帧 header 覆盖初始化中断、缺失/损坏、未知版本、字段绑定和用户扫描规则。
+屏障覆盖 A 完成/B 仍 Building 时成功确认 A、B 租借文件内更早 dirty 帧也被确认、B 内容及租借不变、B 后续完成须重新确认、B 健康取消不获得资格、reopened active Action=None 首次确认，以及任一文件 flush 失败后所有 owned Builder/Writer 停用。
+随机读取覆盖目标文件 Building 时成功读取旧完整帧、提前地址及包含帧后 Fence 的跨边界范围在 I/O 前拒绝、CRC/解析/Dispose/fault 仍传播、同一历史读取不受租借分配结果影响。扫描/扫描边界/物理后继保留原 guard，不以随机读取放宽宣称并发或扫描已开放。
 数量配置覆盖达到上限立即拒绝且不输出、初始化失败不占额度、短写拒绝仍占额度、成功 EndAppend/健康取消释放一次，以及有效/缺失/非法 config 与其生效策略；不以数量上限测试冒充总内存预算证据。
 文件选择覆盖乱序目录枚举、最低编号忙时选下一空闲文件、健康取消/归还后重新优先低编号、尚未移档但已停止分配的低编号排除，以及仅当全部候选不可分配时新建。覆盖低号仍 active / 高号先 archive 后的重开编号恢复，以及最高归档桶为空时仍取得两个集合的实际最大编号。失去缓存句柄不改变选择结果，坏文件不被静默跳过。
 最小消费者只按地址取回并解释引用；不同申请/完成次序构建相同逻辑图时，业务结果不依赖文件选择或枚举次序。
@@ -224,7 +237,7 @@ ConfirmDurable 消费本阶段 `[A-FS-DURABLE-OWNER]` 的核心合同，不解�
 | S2-Q1 | FrameAddress 持久 codec、StoreId/格式门编码与版本；上下文实际保证 |
 | S2-Q2 | 精确路径字符串、软阈值默认/变更、递增编号恢复/空桶/缺号/耗尽及目录规模成本 |
 | S2-Q3 | store 独占入口、creating 残留裁决、同文件系统不覆盖 rename 的两平台入口与中断实证 |
-| S2-Q4 | 成功提交自动归还已确认；Builder/Writer/读结果及 inventory/audit 签名、ConfirmDurable 的全 active/重开登记与 guard/错误、归档维护入口、fault/Dispose |
+| S2-Q4 | 成功提交自动归还已确认；Builder/Writer/读结果及 inventory/audit 签名、全 active/leased/重开完成输出登记与后续重新 dirty、completed-prefix 随机读取、归档维护入口、跨文件共享 fault/Dispose |
 | S2-Q5 | 最低编号选择已确认；空闲句柄关闭/reader pool 与实际资源成本，不做精确总资源配额 |
 | S2-Q6 | 首帧 header 必需已确认；最小字段/codec、识别/tag、CRC/修尾顺序、初始化边界与用户扫描规则，交由 Coding Agent 定稿 |
 | S2-Q7 | 数量上限与立即拒绝已确认；config 文件位置/格式/默认/缺失或非法值/生效策略、计数及短期 Append 租借准入 |

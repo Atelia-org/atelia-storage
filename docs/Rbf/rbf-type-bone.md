@@ -175,7 +175,7 @@ depends: "@[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME](rbf-interface.md)"
 - 写入方法转发到 `RbfWriteImpl` 并更新内部状态
 - 读取方法转发到 `RbfReadImpl`，并使用与 File 共享的 reader/cache 状态
 - 同一 File 及其派生对象对共享状态或 I/O 的访问由调用方串行；Dispose 与枚举 MoveNext 也包括在内，不要求固定 OS 线程
-- 门面在 Builder 活跃期间拒绝读取与扫描；此前取得的 FrameInfo 可串行读取历史帧
+- Builder 活跃期间，门面指定 ticket 的随机读取允许访问已完成文件前缀；未完成帧不可读，新的扫描/边界入口仍拒绝。此前取得的 FrameInfo 可串行读取历史帧；权威合同见 `[S-RBF-RANDOM-READ-COMPLETED-PREFIX]` / `[S-RBF-SCAN-IDLE-ONLY]`
 
 **工厂方法**：
 - `RbfFile.CreateNew(string path)` — 创建纯RBF3（FailIfExists）

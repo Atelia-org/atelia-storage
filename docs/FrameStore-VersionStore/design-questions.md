@@ -1,13 +1,14 @@
 # 下一轮工程定稿：FrameStore 与根字典发布
 
-日期：2026-10-04；2026-10-05 更新核心/扩展分离；2026-10-07 收缩 VersionStore。状态：**Informative / Derived；问题汇总，不是新增实施阶段或规范输入**。
-输入为本轮会话和 S0–S6 的 Draft 合同。本轮仅修订文档；S1 与 RBF1 参考隔离的已有 Accepted 资格保留原身份，不构成新模型已实施的证据。
+日期：2026-10-04；2026-10-05 更新核心/扩展分离；2026-10-07 收缩 VersionStore 并取消已完成输出的两项过宽 guard。状态：**Informative / Derived；问题汇总，不是新增实施阶段或规范输入**。
+输入为本轮会话和 S0–S6 的 Draft 合同。FrameStore/VersionStore 本轮仅修订文档，项目尚未创建；RBF 底座的活跃构建随机读取改进单独记录验收。S1 与 RBF1 参考隔离的已有 Accepted 资格保留原身份，不构成新模型已实施的证据。
 
 ## 已形成的方向
 
 FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务底层恢复。[FrameLog](extensions/framelog-candidate.md) 已独立为可选扩展候选，需求和去留仍待审定。VersionStore 使用完整 RootMap、每 ref 单个 RBF3 文件、分桶不可变 tag 和独立 branch 绑定，不依赖应用中间帧构建顺序或日志候选。
 2026-10-04 已确认：三种 RBF 追加能力、单文件独占租借、多 Builder 可嵌套和交错完成、租借/归还串行、优先选择可分配的最低 active FileId、事后软轮转、active 目录与固定 1024 编号分桶归档，以及覆盖全部必要 active 输出的同步 owner barrier。首版不承诺多线程执行。
 2026-10-05 追加确认：采用首帧 meta/header，内容交由 Coding Agent 研究决定；成功 EndAppend 自动归还文件；只设可配置的未归还 Builder 数量上限、超限立即拒绝，并通过 config 文件提供设置。
+2026-10-07 追加确认：ConfirmDurable 确认调用时全部必要完成输出，未归还 Builder 不阻断屏障、不获得完成/耐久资格；本根依赖已完成时可独立发布。Builder 活跃期间同文件已完成前缀可随机读取，新帧仍不可读。串行、完整内容校验、生命周期与共享 fault 保持，扫描相关 guard 不变。
 旧单 active locator、全 owner 活跃期读取禁令和 BeginNext 必选方案已被替代；FrameBatch 是待需求验证的大规模优化。2026-10-07 按用户要求延期 ref 分段/轮转；Commit/Parent、全控制日志回放、Prepared token 和 checkpoint 不再是首版前置。历史逆序枚举仍是核心功能，返回释放枚举器后可继续使用的自有字典。
 
 ## 本轮已关闭的方向问题
@@ -32,6 +33,8 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 | 当前值是否必须 replay / checkpoint | 完整读取末快照即可；无差分和派生缓存前置 |
 | Gym 历史选点是否要求 parent / 随机 revision 读 | 固定上界逆序枚举完整自有字典，够用；跨重开书签用 tag |
 | tool-loop 是否需要存储精确尝试 token / CAS | 单 driver + 应用 phase/operationId/generation；首版重开读实际状态 |
+| 无关 Builder 是否阻断根发布 | 不阻断；应用保证本根新增依赖完成，data 先确认全部必要完成输出，根后发布 |
+| 活跃 Builder 是否阻断旧帧随机读取 | 不阻断已完成前缀内的指定地址读取；未完成/跨边界先拒绝，扫描相关资格未放宽 |
 
 以上各项统一见 [S0](00-architecture-decisions.md)、[S2](02-framestore-core.md) 与 [S3](03-framestore-batches-and-durability.md)。本表只导航，不建立第二套规范。
 
@@ -49,14 +52,14 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 
 **涉及阶段：** [S2](02-framestore-core.md) 的 S2-Q4/Q5/Q7；[S3](03-framestore-batches-and-durability.md) 的 S3-Q1/Q2。
 
-**已确认：** 多个活跃 Builder 各占一个 RBF 文件，支持嵌套、交错填充与不同申请次序的完成；其他文件可以串行读取，目标文件仍遵守 RBF Building 限制。可分配文件中优先最低 FileId，忙/停止分配项跳过；无需 BeginNext 或提前规划尚未创建文件的位置。
+**已确认：** 多个活跃 Builder 各占一个 RBF 文件，支持嵌套、交错填充与不同申请次序的完成；同文件历史帧可在已完成前缀内串行随机读取，不因文件分配结果改变业务读取资格。未完成提前地址及包含帧后 Fence 的跨边界范围先于 I/O 拒绝；扫描/扫描边界/物理后继仍受各自 RBF Building guard。可分配文件中优先最低 FileId，忙/停止分配项跳过；无需 BeginNext 或提前规划尚未创建文件的位置。
 
 **剩余难点：** 当前 RBF Builder 保留整帧缓冲，多个 Builder 的内存成本相加，同时占用文件句柄。大量提前地址不能假定低成本；取消后的文件复用、空闲文件选择和 reader 缓存也是资源策略，不是持久状态账本。
 
 **已关闭的准入选择：** 未归还 Builder 数量上限由 config 文件提供，超限立即拒绝，不引入精确总内存或总句柄配额账本。成功 EndAppend 自动归还并释放配额，不等 Dispose。
 **剩余工程定稿：** config 的位置/格式/默认/缺失或非法值/生效规则、一次性 Append 的短期准入、空闲句柄关闭策略和 owned Writer 类型。最低编号选择已定，不再讨论轮询/均衡。将来按 Builder 并行执行时，租借/归还、fault 与 barrier 的同步如何单独取得资格；本轮不提前实现这些并发机制。数量限制不等于总内存硬保证。
 
-**收敛标准：** A、B 同时取得地址、先完成 B 后完成 A、再构建 Root 和统一确认的 public 轨迹；覆盖超预算、取消/reuse 与跨文件读取限制。若真实规模需要 planner，再形成独立扩展，不把它重新塞回首版核心前置。
+**收敛标准：** A、B 同时取得地址、先完成 B 后完成 A、再构建 Root 和统一确认的 public 轨迹；另覆盖 A 已完成而无关 B 仍 Building 时确认并发布 A，同文件历史随机读取与新帧拒绝、超预算、取消/reuse。若真实规模需要 planner，再形成独立扩展，不把它重新塞回首版核心前置。
 
 ### D5：必需首帧 meta/header 的最小内容与校验如何定稿？
 
@@ -87,15 +90,15 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 **难点：** RBF EndAppend 已经成功，后续 flush/关闭/rename 仍可能失败。帧完成不能被撤销，也不能把归档失败伪装成安全可重试的未输出拒绝。Builder 值拷贝和旧 Writer 同样不能二次归还已被复用的文件。
 
 **已确认：** EndAppend 正常成功返回前自动归还并释放数量配额，后续 Dispose 不二次归还；可纠正拒绝仍持有原租借。超阈值文件立即停止新分配，归还不把它重新加入可分配集合。
-**剩余工程定稿：** 立即归档还是把物理维护放到后续受控入口、wrapper/错误签名、取消资源异常、共享 fault、Dispose 汇总和旧 epoch guard。屏障需要确认的 active 登记与归档前 flush 证据如何衔接。自动归还的决定不单独决定维护时机。
+**剩余工程定稿：** 立即归档还是把物理维护放到后续受控入口、wrapper/错误签名、取消资源异常、共享 fault、Dispose 汇总和旧 epoch guard。屏障需要确认的 active/leased 文件登记与归档前 flush 证据如何衔接；leased 文件旧输出成功确认后，Builder 后续 EndAppend 必须重新登记新输出为未确认。自动归还的决定不单独决定维护时机。
 
-**收敛标准：** 用一条完成后归档失败轨迹证明调用方不会误判帧撤销、自动重复追加或丢失完整事实；全部未归还 Builder 对屏障的阻断明确，旧 wrapper 不影响新租借。
+**收敛标准：** 用一条完成后归档失败轨迹证明调用方不会误判帧撤销、自动重复追加或丢失完整事实；屏障覆盖全部必要完成输出且保留未完成 Builder，任一 flush 失败停用所有 owned Builder/Writer，旧 wrapper 不影响新租借。
 
 ### D3：根地址与自有历史快照的最小合同如何定稿？
 
 **涉及阶段：** S2-Q1/Q4、S3-Q4；[S4](04-versionstore-publication.md) 的字典 codec / 身份 / 单文件创建；[S5](05-versionstore-names-and-indexes.md) 的历史生命周期。
 
-**已确认：** 字典按值保存，地址解释于一个绑定的 data FrameStore。发布时应用保证全部必要对象已经完成，不能采用取消/未完成 ticket；data ConfirmDurable 不解析业务图。旧 ref/tag 快照可以复用数据地址，不需要重新创建 Commit 或提交 parent。
+**已确认：** 字典按值保存，地址解释于一个绑定的 data FrameStore。发布时应用保证全部必要对象已经完成，不能采用取消/未完成 ticket；data ConfirmDurable 不解析业务图，无关 Builder 未归还不阻断发布。屏障确认 leased 文件旧输出，不赋予其正在构建的新帧资格。旧 ref/tag 快照可以复用数据地址，不需要重新创建 Commit 或提交 parent。
 
 **工程定稿：** RootMap / RefId / RefRevision 的 public 值类型、Key 编码/长度和地址 wire；VersionStore 格式门与 data StoreId 绑定；ref 私有初始化到唯一正式文件的发现边界。每条记录容量用 RBF 公共尺寸 API，不承诺“总是 64B”。
 
@@ -137,7 +140,7 @@ FrameLog 去留在独立扩展中继续讨论，已不再是 VersionStore 首版
 | S5-Q1、Q3–Q4 | 名称/hash/路径碰撞、tag 桶与 branch create-only 绑定 |
 | S5-Q2 | 历史固定上界、owned 字典、枚举终止/预算/Dispose 与 mutation guard |
 
-这些仍须在 Ready 前形成可操作协议，但属于可由 Coding Agent 负责提出并复核的工程定稿。无需把每个默认值或集合类型都升级为新的需求讨论；本轮授权完成设计文档修订，未开始新项目实施，不宣告已冻结 codec/config 或取得平台资格。
+这些仍须在 Ready 前形成可操作协议，但属于可由 Coding Agent 负责提出并复核的工程定稿。无需把每个默认值或集合类型都升级为新的需求讨论；FrameStore/VersionStore 仍未开始新项目实施，不宣告已冻结 codec/config 或取得平台资格。RBF 底座改进的源码/测试资格单独报告。
 
 核心工程定稿围绕 D5 的必需 header、D2 的 config、D6 的目录/编号和 D7 的维护错误展开。D3/D4 是随后字典/发布阶段的局部工程问题，不反向要求分配器理解应用 codec；不再等待 Commit 或全局日志协议。
-结论写回所属阶段，按单向依赖复核；已确认方向不重复作为开放问题，本汇总不建立第二套规范。S2–S6 仍为 Draft，本次没有新项目、实现或恢复实证。
+结论写回所属阶段，按单向依赖复核；已确认方向不重复作为开放问题，本汇总不建立第二套规范。S2–S6 仍为 Draft，本次没有新项目或联合方案的恢复实证。

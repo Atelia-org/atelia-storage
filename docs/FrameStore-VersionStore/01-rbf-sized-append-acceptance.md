@@ -1,5 +1,7 @@
 # S1 单文件尺寸与提前 ticket 验收记录
 
+> 后续合同变更说明（2026-10-07）：本文保留 `8ab98bf` 的原始验收证据；当时的门面 Building 读取规则已由 RBF `[S-RBF-RANDOM-READ-COMPLETED-PREFIX]` 放宽为允许指定 ticket 读取已完成前缀。新改进资格另见[本轮记录](reviews/2026-10-07-completed-output-improvements.md)，不重标本文测试为新合同验收。
+
 日期：2026-10-04。状态：**Accepted，单文件源码资格已实现并独立验收**。
 实施合同与新增条款的唯一入口为 [S1](01-rbf-sized-append.md)；本记录只映射交付物和证据，不新增合同。
 

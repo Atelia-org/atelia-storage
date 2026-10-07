@@ -1,5 +1,7 @@
 # 2026-10-07：FrameStore / VersionStore 整组一致性复核
 
+> 后续合同变更说明（同日）：本记录保留前轮一致性修订的原始过程和检查数字。其后用户接受取消全局无 Builder 的屏障/发布前置，并允许 Building 期间随机读取同文件已完成前缀；旧 `[A-FS-DURABLE-OWNER]` 与 `[S-VS-ROOTS-BARRIER]` 已废弃。当前替代条款与本轮验收见[改进记录](2026-10-07-completed-output-improvements.md)，下文不构成该新语义的实现证据。
+
 状态：**Informative / 文档审阅与修正；S1 Accepted、S2–S6 Draft；未创建新项目，未运行 build/test 或平台实验**。
 三个只读 subagent 分别审阅 FrameStore 核心、VersionStore 发布/历史/命名及阶段间契约；主线程核对当前 RBF 公共合同与源码，统一修订后独立复核。本文记录问题与裁决，正式要求仍在各阶段，不建立另一套规范。
 

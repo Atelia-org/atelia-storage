@@ -35,7 +35,7 @@ cursor 内部可包含文件编号及 RbfScanBoundary，调用方不拆解或自
 
 ## 与核心能力的复用边界
 
-日志的 ConfirmDurable 候选复用 S2 的 `[A-FS-DURABLE-OWNER]`；追加次序不代替成功 flush 返回。owned handles、fault、Dispose、首帧 header、creating/active/archive 协议和公共 RBF 能力尽量复用核心实现，不复制 layout/CRC/EscapeKey 或另建耐久权威。
+日志的 ConfirmDurable 候选复用 S2 的 `[A-FS-DURABLE-COMPLETED-OUTPUTS]`；活跃日志 Builder 不阻断旧完成输出的确认，也不因此成为完成/耐久记录。随机读取消费 S2 的 completed-prefix 合同；本轮不放宽日志扫描及 cursor 构建期间 guard。追加次序不代替成功 flush 返回。owned handles、fault、Dispose、首帧 header、creating/active/archive 协议和公共 RBF 能力尽量复用核心实现，不复制 layout/CRC/EscapeKey 或另建耐久权威。
 扩展需单独建立有序文件选择与轮转/恢复规则。普通 FrameStore 的最低可分配 FileId 规则不承担这项保证；若复用后端，需要证明日志 facade 无法调用普通分配入口破坏顺序。
 日志如何展示或过滤首帧 meta/header、保留用户 tag 范围、形成用户帧起始边界，在本扩展定稿；不作为 S2 的日志验收要求回填核心。
 

@@ -89,7 +89,7 @@ RbfFrame 通过 `bool IsTombstone` 属性暴露此状态。
 /// <remarks>
 /// 职责：资源管理（Dispose）、状态维护（TailOffset）、调用转发。
 /// 串行约束：同一 File 及其派生对象访问共享 reader/cache、构建状态或执行 I/O 的操作，由调用方串行；包括 Dispose 与枚举器 MoveNext。不要求固定 OS 线程；独立只读实例可并行。
-/// 门面在 Builder 活跃期间拒绝读取与扫描；此前取得的 RbfFrameInfo 可串行读取历史帧。已物化数据及纯元信息值属性按原生命周期使用。
+/// Builder 活跃期间允许指定 ticket 的随机读取访问已完成文件前缀；未完成帧不可读，新的扫描入口仍拒绝。此前取得的 RbfFrameInfo 可串行读取历史帧。
 /// </remarks>
 public interface IRbfFile : IDisposable {
     /// <summary>获取当前文件逻辑长度（也是下一个写入 Offset）。</summary>
@@ -267,7 +267,13 @@ public static class RbfFile {
 `IRbfFile.DurableFlush()` MUST 尝试将“已提交写入”的数据持久化到物理介质。
 
 - 若发生不可恢复的 I/O 错误，允许抛出异常（具体异常类型由实现选择）。
-- 本方法不对“未提交的 Builder 写入”做任何可观察承诺。
+- 本方法不为未提交的 Builder 写入提供完成或耐久资格。
+
+### spec [S-RBF-FLUSH-PRESERVES-BUILDER] 成功flush保持活跃Builder
+
+`DurableFlush()` MUST 允许在 Builder 活跃期间调用，确认此前已提交的输出。成功返回时 MUST 保持 Builder 的构建状态、缓冲内容、声明、epoch、尚未 Advance 的借用及未提交 reservation；MUST NOT 隐式完成、取消或输出当前 Builder。Builder 后续正常提交的新输出需要另一次耐久确认，不能继承先前 flush 的资格。
+
+flush 失败继续遵循 `[S-RBF-WRITER-FAULT-STOPS-INSTANCE]`，不承诺故障后 Builder 可继续使用。
 
 ### spec [S-RBF-OPEN-RECOVERS-SINGLE-INCOMPLETE-TAIL] 普通打开与单尾帧恢复
 
@@ -317,7 +323,7 @@ public readonly record struct RbfTailRecoveryReport(
 
 同一 `IRbfFile` 及其派生对象凡是访问共享 reader/cache、构建状态或执行 I/O 的操作，MUST 由调用方串行，包括 `Dispose()` 与扫描枚举器的 `MoveNext()`。本合同不要求固定 OS 线程；独立只读实例 MAY 并行使用。已物化的帧数据与 `RbfFrameInfo` 等纯元信息值属性不增加访问限制，仍按各自生命周期使用。
 
-该串行合同不改变门面在 open Builder 期间拒绝读取/扫描的规则；此前取得的 `RbfFrameInfo` 可串行读取历史帧，仍遵守 reader 生命周期与共享 fault。枚举器遵守其既有入口及推进规则，不因本合同增加 Building 拒绝条件。
+Builder 活跃期间的指定 ticket 随机读取遵循 `[S-RBF-RANDOM-READ-COMPLETED-PREFIX]`，扫描入口遵循 `[S-RBF-SCAN-IDLE-ONLY]`。此前取得的 `RbfFrameInfo` 可串行读取历史帧，仍遵守 reader 生命周期与共享 fault。枚举器遵守其既有入口及推进规则，不因本合同增加 Building 拒绝条件。
 
 ### spec [S-RBF-PREPARATION-FAILURE-BOUNDARY] 预发布准备失败边界
 
@@ -418,12 +424,27 @@ public readonly struct RbfFrameBuilder : IDisposable {
 同一 `IRbfFile` 实例同时最多允许 1 个 open `RbfFrameBuilder`。
 在前一个 Builder 完成（EndAppend 或 Dispose）前调用任一 `BeginAppend` 重载 MUST 抛出 `InvalidOperationException`；两者共用同一活跃 Builder 和 owner/epoch 路径。
 
-### spec [S-RBF-READ-DISALLOW-WHILE-BUILDER-ACTIVE] Builder活跃时禁止读取与扫描
-当存在 open Builder（`BeginAppend()` 与 `EndAppend/Dispose` 之间）时，以下 `IRbfFile` 门面入口拒绝读取：
-- `ReadFrame` / `ReadPooledFrame` / `ReadFrameInfo` / `ReadTailMeta` / `ReadPooledTailMeta` MUST 抛出 `InvalidOperationException`。
-- `ScanReverse` MUST 抛出 `InvalidOperationException`。
+### spec [S-RBF-READ-DISALLOW-WHILE-BUILDER-ACTIVE] Builder活跃时禁止读取与扫描（DEPRECATED）
 
-已取得的 `RbfFrameInfo` 绑定 Reader，其历史帧读取不受此门面 Building 检查约束，仍须遵守 Reader 的 Dispose 与共享 fault 拒绝。
+DEPRECATED；2026-10-07 用户确认放宽历史随机读取，由 `[S-RBF-RANDOM-READ-COMPLETED-PREFIX]` 和 `[S-RBF-SCAN-IDLE-ONLY]` 替代。保留此锚点用于历史追溯，不再以活跃 Builder 为由拒绝全部随机读取。
+
+### spec [S-RBF-RANDOM-READ-COMPLETED-PREFIX] Builder活跃时随机读取已完成前缀
+
+**Builder 活跃期间，允许随机读取已经完成的文件前缀；正在构建的新帧仍不可读。**
+
+当存在 open Builder 时，`ReadFrame` / `ReadPooledFrame` / `ReadFrameInfo` / `ReadTailMeta` / `ReadPooledTailMeta` MUST 接受位于已完成文件前缀内的 ticket 并执行各自原有校验，MUST NOT 仅因 Builder 活跃而拒绝历史读取。
+
+门面 MUST 先检查 Dispose 与共享 write fault，再在实际读取或租用结果 buffer 前检查 ticket 的前缀范围：起点不早于首帧位置，且 FrameBytes 连同其后的完整 Fence 不越过当前 `TailOffset`；等价上界为 `GetPhysicalOffsetImmediatelyAfter(ticket) <= TailOffset`。不满足此范围条件 MUST 抛出 `InvalidOperationException`，MUST NOT 完成、取消或推进该 Builder。范围检查不证明 ticket 的真实主链成员身份或业务来源；长度、结构与 CRC 仍由相应读取入口按既有合同校验。
+
+已知尺寸 Begin 签发的提前 ticket 只表达位置与尺寸，MUST NOT 因此获得读取资格。Builder 取消不推进前缀，正常 EndAppend 后才推进；确定读取拒绝不产生 write fault。Idle 状态的读取参数与错误规则保持原合同，不增加本条款的 Building 范围拒绝。
+
+已取得的 `RbfFrameInfo` 绑定 Reader，其历史读取仍可串行进行，遵守 Reader 的 Dispose 与共享 fault 拒绝。所有上述操作继续遵循 `[S-RBF-SERIALIZED-INSTANCE-ACCESS]`；本条款不提供读写并发资格。
+
+### spec [S-RBF-SCAN-IDLE-ONLY] 新扫描与边界入口要求Idle
+
+存在 open Builder 时，`ScanReverse`、两个 `ScanForward` 重载、`GetScanBoundaryAfter` 和 `ReadFrameInfoImmediatelyAfter` MUST 在读取前抛出 `InvalidOperationException`。本轮只放宽指定 ticket 的随机读取，不改变这些入口的 Building guard，也不新增已取得扫描枚举器的推进限制。
+
+`GetPhysicalOffsetImmediatelyAfter` 是不执行 I/O 的纯位置计算，保持原合同，不受此扫描 guard 限制。
 
 ### spec [S-RBF-FRAMEINFO-DEFAULT-READS] default FrameInfo拒绝读取
 

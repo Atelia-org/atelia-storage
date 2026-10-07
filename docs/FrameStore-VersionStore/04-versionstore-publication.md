@@ -1,6 +1,6 @@
 # S4：VersionStore 完整根字典与单文件 ref 发布
 
-状态：**Draft；2026-10-07 按两个下游场景收缩为完整 RootMap 快照、每 ref 一个 RBF3 文件；API、codec 与目录协议尚未实施/冻结**。
+状态：**Draft；2026-10-07 采用完整 RootMap、每 ref 一个 RBF3 文件，取消无关 data Builder 的发布阻断；API、codec 与目录协议尚未实施/冻结，项目尚未创建**。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-batches-and-durability.md)。名称与历史见 [S5](05-versionstore-names-and-indexes.md)。
 
 ## 目标、归属与范围
@@ -59,11 +59,16 @@ revision 只从完成发布或实际 checked-read 的当前/历史快照取得�
 
 一次 ref 创建/更新 MUST 由一条完整 Snapshot 表达全部根值，不分成多个根的独立更新。data 构建/确认、私有初始化或纯容量试算均不改变已发布 ref。新 ref 另有正式命名的发现边界，遵循下面的创建协议。
 
-### spec [S-VS-ROOTS-BARRIER] 根发布前同步确认数据
+### spec [S-VS-ROOTS-BARRIER] 根发布前同步确认数据（DEPRECATED）
 
-PublishRef 及 S5 CreateTag MUST 先完成确定输入、目标/名称准入、私有拷贝与编码、记录/文件容量和“data 无未归还 Builder”的 guard，再同步调用 `data.ConfirmDurable()`，然后向发布 RBF 追加完整记录并 `DurableFlush()`，最后安装内存状态/正常返回。确定拒绝不追加、不调用 data barrier，也不因 guard fault。
+DEPRECATED；原条款包含“data 无未归还 Builder”的全局准入。2026-10-07 改为应用保证本根所需新增依赖已完成，再确认全部必要完成输出；无关 Builder 不阻断发布。由 `[S-VS-ROOTS-AFTER-DATA-CONFIRM]` 替代，数据先确认、根后发布的顺序不变。
+
+### spec [S-VS-ROOTS-AFTER-DATA-CONFIRM] 根发布在必要完成数据确认之后
+
+PublishRef 及 S5 CreateTag MUST 先完成确定输入、目标/名称及 owner 生命周期准入、私有拷贝与编码、记录/文件容量检查，再同步调用 `data.ConfirmDurable()`，然后向发布 RBF 追加完整记录并 `DurableFlush()`，最后安装内存状态/正常返回。MUST NOT 仅因 data 有未归还 Builder 而拒绝；未完成 Builder 不获完成或耐久资格。确定拒绝不追加、不调用 data barrier，也不因 guard fault。
+data 屏障消费 S2 `[A-FS-DURABLE-COMPLETED-OUTPUTS]`，覆盖 leased 文件内旧完成输出。应用仍 MUST 保证本次 RootMap 所需新增依赖全部已完成、属于绑定 data 且闭包不含 provisional/canceled 地址；屏障成功不证明该闭包，库不通过遍历业务图实现此前全局 guard 的替代物。无关 B 仍 Building 时，已完成的独立 A 可以发布；A 真正依赖未完成 B 时不能发布。
 库不接受“以前已 flush”标志代替本次 barrier；旧 RootMap、历史 rewind、fork 初始快照和 tag 同样走屏障，无需复制 data。调用过程中不执行应用 callback，不允许同 driver 的其他应用操作交错。data flush 失败不得进入本次发布输出；发生异常按所涉 owner/fault 合同停用 VersionStore，不虚称未输出的另一个 owner 同样故障。
-CreateRef MUST 先完成相同的输入/编码/容量及无 data Builder guard，调用 `data.ConfirmDurable()`，再在私有临时文件中完成 header 与初始 Snapshot、flush/close，最后以同文件系统 no-overwrite rename 发布唯一正式 RefId 文件。私有文件未公开时不是已创建 ref；正式路径成功安装才是发现边界。清理不补造 ref，不另写 allocation/Init/Bind 账本。目录/锁/生成唯一 RefId 的具体算法在 Ready 定稿。
+CreateRef MUST 先完成相同的输入/编码/容量及 owner 准入，调用 `data.ConfirmDurable()`，再在私有临时文件中完成 header 与初始 Snapshot、flush/close，最后以同文件系统 no-overwrite rename 发布唯一正式 RefId 文件；同样不要求无关 data Builder 归还。私有文件未公开时不是已创建 ref；正式路径成功安装才是发现边界。清理不补造 ref，不另写 allocation/Init/Bind 账本。目录/锁/生成唯一 RefId 的具体算法在 Ready 定稿。
 
 ## term `Publication-Outcome` 本次调用的证据
 
@@ -85,7 +90,7 @@ Open 不默认扫描所有 ref 历史或 data 图；按需打开/校验目标文
 
 | 位置 | 证据/状态 | 必要行为 |
 | --- | --- | --- |
-| 参数、owner、Builder、编码/容量确定拒绝 | NotAttempted | 无发布写入/额外 barrier，健康实例可继续 |
+| 参数、owner 生命周期、历史枚举 mutation guard、编码/容量确定拒绝 | NotAttempted | 无发布写入/额外 barrier，健康实例可继续；无关 data Builder 不构成拒绝 |
 | data ConfirmDurable 异常 | NotAttempted | data 按自身 fault，VersionStore 停止，无本次发布追加 |
 | 已公开文件 Append/flush 异常 | Unknown，除可证明 pre-I/O 拒绝 | 停止；重开 checked-read，不自动 retry/rollback |
 | 私有 ref/branch 初始化或其 flush/close 异常 | NotAttempted | 尚未尝试本次业务事实；停止并按私有资源范围清理 |
@@ -107,10 +112,11 @@ Open 不默认扫描所有 ref 历史或 data 图；按需打开/校验目标文
 | S4-Q2 | 格式门/header/Snapshot tag 与 codec、字符串/条目/总尺寸限额、地址验证 |
 | S4-Q3 | 目录、唯一文件命名、私有初始化/发现边界、独占锁、只读/可写/Dispose/fault |
 | S4-Q4 | 结果与异常证据载体、确定拒绝及 Append/flush/rename 不确定边界 |
-| S4-Q5 | checked 末读取实现、资源预算、错误分类、无 Builder guard 对接及 public 消费轨迹 |
+| S4-Q5 | checked 末读取实现、资源预算、错误分类、已完成输出屏障对接及有无关活跃 Builder 的 public 发布轨迹 |
 | S4-Q6 | 新/旧/orphan 地址的应用闭包责任示例与冷重开资格；不增加图遍历来源证明 |
 
 验收覆盖错误 DataStoreId 在写入/恢复前拒绝、空/重复/超限 key、多根原子更新、旧/新帧混合、Builder 未完成/取消地址的应用合同、末帧/tombstone/TerminationError、完整坏 CRC 不回退、create-only 冲突、正式创建前后进程终止、合法末帧末端越过 MaxOffset / 下一次追加确定拒绝，以及借用 data 不被 Dispose。裸地址原始来源错误是应用合同向量，不宣称能由数值格式检查自动检测。源码与包/平台 qualification 分开，阶段仍 Draft。
+CreateRef/PublishRef/CreateTag 各覆盖 A 依赖全部完成而无关 B 仍 Building 时成功发布、B 所租文件中的旧 dirty 依赖在根写出前被确认、B 后续完成必须重新确认，以及任一 data flush 失败后不尝试根输出并停用 data 的全部 Builder/Writer。根真正依赖未完成 B 的负例属于应用闭包责任，不能把“库自动识别并拒绝任意未完成图”写成单测承诺。
 
 ## 废弃合同导航
 
@@ -130,15 +136,15 @@ DEPRECATED；无全局控制日志，替代为 `[S-VS-REF-FILE-SINGLE]`。
 
 ### spec [A-VS-PREPARE-TOKEN] 输出前交付精确 token（DEPRECATED）
 
-DEPRECATED；无输出前尝试 token/Prepared handle，替代为 `[S-VS-ROOTS-BARRIER]` 和 Publication-Outcome。
+DEPRECATED；无输出前尝试 token/Prepared handle，替代为 `[S-VS-ROOTS-AFTER-DATA-CONFIRM]` 和 Publication-Outcome。
 
 ### spec [A-VS-TOKEN-CAS] CAS 与 handle guard 在 IO 前（DEPRECATED）
 
-DEPRECATED；首版无默认 CAS/Prepared handle，确定 guard 改由 `[S-VS-ROOTS-BARRIER]` 定义。
+DEPRECATED；首版无默认 CAS/Prepared handle，确定 guard 改由 `[S-VS-ROOTS-AFTER-DATA-CONFIRM]` 定义。
 
 ### spec [S-VS-COMMIT-BARRIER] Commit 同步确认最新依赖再发布（DEPRECATED）
 
-DEPRECATED；Commit/control 双层协议改由 `[S-VS-ROOTS-BARRIER]` 直接发布完整根字典。
+DEPRECATED；Commit/control 双层协议改由 `[S-VS-ROOTS-AFTER-DATA-CONFIRM]` 直接发布完整根字典。
 
 ### spec [R-VS-REPLAY-COMPLETE] 重开只解释完整控制事实（DEPRECATED）
 

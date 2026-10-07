@@ -110,6 +110,19 @@ internal sealed class RbfFileImpl : IRbfFile {
         if (_fileState != FileState.Idle) { throw new InvalidOperationException("Cannot read while a builder is active. Dispose the builder first."); }
     }
 
+    private void EnsureRandomReadAllowed(SizedPtr ticket) {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _reader.EnsureUsable();
+        // TailOffset remains the completed prefix while the Builder buffers its next frame.
+        // Include the terminal Fence: a ticket ending at TailOffset is not yet a complete frame.
+        // Idle retains its existing ticket/error semantics in RbfReadImpl.
+        if (_fileState == FileState.Building &&
+            (ticket.Offset < RbfLayout.FirstFrameOffset || ticket.Offset > _tailOffset ||
+             (long)ticket.Length + RbfLayout.FenceSize > _tailOffset - ticket.Offset)) {
+            throw new InvalidOperationException("The ticket and its terminal Fence must lie within the completed file prefix while a builder is active.");
+        }
+    }
+
     private void InvalidateCacheFrom(long fileOffset) {
         _reader.InvalidateFrom(fileOffset);
     }
@@ -411,13 +424,13 @@ internal sealed class RbfFileImpl : IRbfFile {
 
     /// <inheritdoc />
     public AteliaResult<RbfPooledFrame> ReadPooledFrame(SizedPtr ptr) {
-        EnsureIdleForRead();
+        EnsureRandomReadAllowed(ptr);
         return RbfReadImpl.ReadPooledFrame(_reader, ptr);
     }
 
     /// <inheritdoc />
     public AteliaResult<RbfFrame> ReadFrame(SizedPtr ptr, Span<byte> buffer) {
-        EnsureIdleForRead();
+        EnsureRandomReadAllowed(ptr);
         return RbfReadImpl.ReadFrame(_reader, ptr, buffer);
     }
 
@@ -492,19 +505,19 @@ internal sealed class RbfFileImpl : IRbfFile {
 
     /// <inheritdoc />
     public AteliaResult<RbfFrameInfo> ReadFrameInfo(SizedPtr ticket) {
-        EnsureIdleForRead();
+        EnsureRandomReadAllowed(ticket);
         return RbfReadImpl.ReadFrameInfo(_reader, ticket);
     }
 
     /// <inheritdoc />
     public AteliaResult<RbfTailMeta> ReadTailMeta(SizedPtr ticket, Span<byte> buffer) {
-        EnsureIdleForRead();
+        EnsureRandomReadAllowed(ticket);
         return RbfReadImpl.ReadTailMeta(_reader, ticket, buffer);
     }
 
     /// <inheritdoc />
     public AteliaResult<RbfPooledTailMeta> ReadPooledTailMeta(SizedPtr ticket) {
-        EnsureIdleForRead();
+        EnsureRandomReadAllowed(ticket);
         return RbfReadImpl.ReadPooledTailMeta(_reader, ticket);
     }
 
