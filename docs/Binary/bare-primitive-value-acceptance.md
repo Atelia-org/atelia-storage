@@ -1,6 +1,6 @@
 # Bare Primitive Value 实施验收
 
-日期：2026-10-08。状态：**源码 Accepted；本地包消费验证待完成**。合同权威为 [BPV1 规范](bare-primitive-value.md)，使用入口为 [Atelia.Binary](../../src/Binary/README.md)。本记录不授予 FrameStore/VersionStore、Tagged、下游迁移或公开 NuGet 发布资格。
+日期：2026-10-08。状态：**Accepted，源码与本地候选 public PackageReference 消费均通过**。合同权威为 [BPV1 规范](bare-primitive-value.md)，使用入口为 [Atelia.Binary](../../src/Binary/README.md)。本记录不授予 FrameStore/VersionStore、Tagged、下游迁移或公开 NuGet 发布资格。
 
 ## 实施范围与具体选择
 
@@ -51,9 +51,18 @@ golden 为手写独立 bytes；Brotli decoder fixtures 来自 Google Brotli Pyth
 | 独立 artifacts 下 build/test Binary.Tests，`-p:CheckForOverflowUnderflow=true` | 生产与测试均按 checked 编译；**183/183**，见 checked-build.log / checked-tests.log / checked-test-results |
 | `eng/Test-Package.EntryPoint.Tests.ps1` | parser、双 consumer、22 类坏 assets（含空集合/交叉依赖）、7 类坏 manifest、旧参数拒绝、不可变复用和失败环境恢复通过；所有 git/dotnet 为 mock，不替代真实消费 |
 | 静态核验 | 18 条款唯一且都有向量映射；尺寸算术、空白、`git diff --check` 通过；现有 FS/VS 15 份文件 hash 与任务开始一致 |
-| 本地四包与隔离消费 | 待在本次源码提交的干净 checkout 执行 Pack 与 Test-Package，再更新本记录 |
+| 本地四包与隔离消费 | **通过**：候选 `0.3.0-bpv1-dev.20261008043210`，来源 `1afcb65ad523d6f824e62bb66cb8aa17fbe323ee`；Rbf 三包与 Binary 单包各自独立 public API smoke、四包 metadata、88 份本地源码 checksum；见 package-smoke.log 与 package-smoke/logs |
 
 首轮真实测试发现四个测试层失败：两处造数据在 checked 下缺少显式 wrap；nullable scalar 验证误走受控字符串入口；InlineData 属性元数据不能保留孤立 surrogate。修复测试后重建并完整重跑，未据此改变正确的生产异常或字符串合同。独立只读 reviewer 从实际生产代码与测试复核，未发现剩余生产合同违例；主线程另复核共享契约、代码、日志与包边界。
+
+## 本地候选身份
+
+源码提交：`1afcb65ad523d6f824e62bb66cb8aa17fbe323ee`；本记录最终状态由后续文档提交补齐，未改变已验收的生产或测试代码。干净 detached checkout 保留在 [W: source](W:/atelia-binary-implementation-20261008/source/)，避免提交或清理当前工作区已有的 FS/VS 文档修改。候选版本：`0.3.0-bpv1-dev.20261008043210`，feed 与 manifest 保留在 [W: feed](W:/atelia-binary-implementation-20261008/feed/)。
+
+- Binary nupkg SHA256：`1e11e6c79ac775fea267a1f57513fd03728732ffa75fe6b334c705608bb29494`。
+- Binary snupkg SHA256：`b4f4a5ffb84c55c3db6a2bcf8564430d651ec1459f525f9029535dc2df5680fc`。
+- 四包完整身份、hash 与来源以 `manifest.0.3.0-bpv1-dev.20261008043210.json` 为准；`package-smoke/verified-packages.json` 保留验收使用的原 manifest。
+- 两个 consumer 的 assets、私有 cache、日志和 Rbf 真实读写文件均保留在 [package-smoke](W:/atelia-binary-implementation-20261008/package-smoke/)。Binary 合成记录的完整预算和实际输出均为 129B；这不是性能实验或 FS/VS wire 格式资格。
 
 ## 包交付与边界
 

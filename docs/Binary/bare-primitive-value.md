@@ -1,6 +1,6 @@
 # Bare Primitive Value 编解码规范
 
-日期：2026-10-08；同日纳入独立可空性与显式受控压缩。状态：**Implemented，源码验收通过；本地包消费验证与证据单列**。
+日期：2026-10-08；同日纳入独立可空性与显式受控压缩。状态：**Accepted，BPV1 实现、源码及本地候选包消费验收通过；性能与下游接入仍独立**。
 本文遵循[规范约定](../spec-conventions.md)。下文 spec 是本次实施采用的可测试合同；源码与包资格见[实施验收](bare-primitive-value-acceptance.md)。另见 [Tagged Value 意向](tagged-value-intent.md)，它不构成本方案的前置要求。
 
 ## 目标与需求来源
