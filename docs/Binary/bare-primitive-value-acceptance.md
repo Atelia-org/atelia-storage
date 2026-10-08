@@ -83,5 +83,12 @@ Tagged、Zlib、Guid/decimal/时间、全 nullable helper、下游实际迁移�
 | 公开 API 与包基线比较 | 从首轮候选 DLL 和当前 DLL 独立反射比较，六个 exported 类型的 **83 项**公开类型/成员/参数及默认值/enum 常量描述完全相同；既有 24 个 XML member IDs 也相同 |
 | 未知 control | 对 03..FF 的每个值分别测试只有 control、截短 C/U 和貌似合法包装，均在解析长度前拒绝且保留外 cursor |
 | 依赖与已有工作 | 七组冻结旧栈实际 assets 仍为精确 RBF1 package；主线 Rbf 仍为项目依赖，Binary 无 package/project 依赖；FS/VS 15 份文档 hash 与本轮开始一致 |
+| 本地四包与隔离消费 | 候选 `0.3.0-bpv1-dev.20261008055055` **通过**：Rbf 三包和 Binary 单包闭包分别经纯 public PackageReference smoke 验证；四包 metadata、symbols/PDB、静态 Source Link 和 **90** 份本地 source checksum 通过，其中 Binary 为 14 份 |
 
-原始日志、TRX、API 比较及 hash 核验保存在 [W: 增量验收目录](W:/atelia-binary-compression-extension-prep-20261008-054125/)。上文首轮候选身份保留原意；本次候选包消费结果由后续验收记录补齐。
+源码提交：`aea7e8aa68e3b2b7c9d394784dbd8210a098146e`。原始日志、TRX、API 比较及 hash 核验保存在 [W: 增量验收目录](W:/atelia-binary-compression-extension-prep-20261008-054125/)。上文首轮候选身份保留原意；本次干净 detached [source](W:/atelia-binary-compression-extension-prep-20261008-054125/source/)、[feed 与 manifest](W:/atelia-binary-compression-extension-prep-20261008-054125/feed/)、[隔离 cache、assets 与日志](W:/atelia-binary-compression-extension-prep-20261008-054125/package-smoke/) 分开保留。
+
+- Binary nupkg SHA256：`b2af9da0c6660fd64a156de68c65cdd6d8432df8a571e4ba57ac5899a1d270df`。
+- Binary snupkg SHA256：`8638a7cffb20309f3f50918b7f7c93bc80c61bec1571182b62e48a56a2591d9a`。
+- 四包完整身份以 `manifest.0.3.0-bpv1-dev.20261008055055.json` 为准；后续仅补齐本记录的文档提交不改变候选来源。
+
+本次没有公开发布、远端 Source Link 下载或性能测试；也没有将 .NET 11 预览 API 调查当作 GA 实现资格。
