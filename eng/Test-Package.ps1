@@ -65,23 +65,24 @@ function Assert-ConsumerAssets([string]$smokeProject, [string]$directId, [string
         throw "$smokeProject consumer assets contain a non-package reference."
     }
     $expected = @($closureIds | ForEach-Object { "$_/$Version" })
-    $actual = @($libraries | ForEach-Object { $_.Name } | Where-Object { $_.StartsWith('Atelia.', [StringComparison]::OrdinalIgnoreCase) })
+    if ($directId -ceq 'Atelia.Binary') { $expected += 'K4os.Compression.LZ4/1.3.8' }
+    $actual = @($libraries | ForEach-Object { $_.Name })
     if ($actual.Count -ne $expected.Count -or @($actual | Where-Object { $expected -cnotcontains $_ }).Count -ne 0) {
         throw "$smokeProject restored package closure differs from the expected All subset."
     }
     $target = $assets.targets.PSObject.Properties['net10.0'].Value
     if ($null -eq $target) { throw "$smokeProject consumer assets lack net10.0 target." }
-    $targetIds = @($target.PSObject.Properties | ForEach-Object { $_.Name } | Where-Object { $_.StartsWith('Atelia.', [StringComparison]::OrdinalIgnoreCase) })
+    $targetIds = @($target.PSObject.Properties | ForEach-Object { $_.Name })
     if ($targetIds.Count -ne $expected.Count -or @($targetIds | Where-Object { $expected -cnotcontains $_ }).Count -ne 0) {
         throw "$smokeProject target closure differs from the expected All subset."
     }
     $frameworks = @($assets.project.frameworks.PSObject.Properties)
     if ($frameworks.Count -ne 1) { throw "$smokeProject smoke must have one target framework." }
-    $direct = @($frameworks[0].Value.dependencies.PSObject.Properties | ForEach-Object { $_.Name } | Where-Object { $_.StartsWith('Atelia.', [StringComparison]::OrdinalIgnoreCase) })
+    $direct = @($frameworks[0].Value.dependencies.PSObject.Properties | ForEach-Object { $_.Name })
     if ($direct.Count -ne 1 -or $direct[0] -cne $directId) {
         throw "$smokeProject smoke must PackageReference only $directId."
     }
-    "Verified $directId direct reference and $($closureIds.Count)-package assets against the schema 1 All subset." |
+    "Verified $directId direct reference and $($expected.Count)-package assets ($($closureIds.Count) Atelia) against the approved closure." |
         Set-Content -LiteralPath (Join-Path $logs $logName) -Encoding utf8NoBOM
 }
 $previousPackages = $env:NUGET_PACKAGES

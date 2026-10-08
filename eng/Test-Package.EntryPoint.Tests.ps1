@@ -69,6 +69,7 @@ function dotnet {
         $failure = if ($project -eq $global:StoragePackageEntryMock.FailureConsumer) { $global:StoragePackageEntryMock.AssetsFailure } else { '' }
         $libraries = [ordered]@{}
         foreach ($id in $closureIds) { $libraries["$id/$version"] = @{ type = 'package' } }
+        if ($project -eq 'BinaryPackageSmoke') { $libraries['K4os.Compression.LZ4/1.3.8'] = @{ type = 'package' } }
         switch ($failure) {
             'version' { $libraries.Remove("$directId/$version"); $libraries["$directId/0.0.0"] = @{ type = 'package' } }
             'extra' { $libraries["Atelia.EventJournal/$version"] = @{ type = 'package' } }
@@ -76,14 +77,19 @@ function dotnet {
             'missing' { $libraries.Remove("$directId/$version") }
             'libraries-empty' { $libraries.Clear() }
             'cross' { $crossId = if ($project -eq 'RbfPackageSmoke') { 'Atelia.Binary' } else { 'Atelia.Rbf' }; $libraries["$crossId/$version"] = @{ type = 'package' } }
+            'external-extra' { $libraries['Unapproved.Codec/1.0.0'] = @{ type = 'package' } }
+            'external-version' { $libraries.Remove('K4os.Compression.LZ4/1.3.8'); $libraries['K4os.Compression.LZ4/1.3.7'] = @{ type = 'package' } }
+            'external-missing' { $libraries.Remove('K4os.Compression.LZ4/1.3.8') }
         }
         $target = [ordered]@{}
         foreach ($key in $libraries.Keys) { $target[$key] = $libraries[$key] }
         if ($failure -eq 'target') { $target.Remove("$directId/$version") }
         if ($failure -eq 'target-empty') { $target.Clear() }
+        if ($failure -eq 'external-target') { $target.Remove('K4os.Compression.LZ4/1.3.8') }
         if ($failure -eq 'direct') { $directId = 'Atelia.Data' }
         $targets = if ($failure -eq 'framework') { @{} } else { @{ 'net10.0' = $target } }
         $dependencies = if ($failure -eq 'direct-empty') { @{} } else { @{ $directId = @{ target = 'Package'; version = "[$version, )" } } }
+        if ($failure -eq 'external-direct') { $dependencies['K4os.Compression.LZ4'] = @{ target = 'Package'; version = '[1.3.8]' } }
         $assets = [ordered]@{
             libraries = $libraries; targets = $targets
             project = @{ frameworks = @{ 'net10.0' = @{ dependencies = $dependencies } } }
@@ -162,7 +168,9 @@ try {
     Assert ($global:StoragePackageEntryMock.Calls.Count -eq 1 -and $global:StoragePackageEntryMock.Calls[0].arguments[0] -eq '--version') 'Immutable core reuse unexpectedly attempted restore/pack.'
     foreach ($consumer in @('RbfPackageSmoke', 'BinaryPackageSmoke')) {
         $global:StoragePackageEntryMock.FailureConsumer = $consumer
-        foreach ($failure in @('version', 'extra', 'project', 'missing', 'target', 'direct', 'framework', 'cross', 'libraries-empty', 'target-empty', 'direct-empty')) {
+        $failures = @('version', 'extra', 'project', 'missing', 'target', 'direct', 'framework', 'cross', 'libraries-empty', 'target-empty', 'direct-empty', 'external-extra', 'external-direct')
+        if ($consumer -eq 'BinaryPackageSmoke') { $failures += @('external-version', 'external-missing', 'external-target') }
+        foreach ($failure in $failures) {
             $global:StoragePackageEntryMock.AssetsFailure = $failure
             $global:StoragePackageEntryMock.Calls.Clear()
             $message = ''
@@ -183,6 +191,11 @@ try {
                 'target-empty' { Assert ($badAssets.targets['net10.0'].Count -eq 0) "$consumer target-empty fixture did not clear its target." }
                 'direct' { Assert ($badAssets.project.frameworks['net10.0'].dependencies.Contains('Atelia.Data')) "$consumer direct fixture did not replace its direct reference." }
                 'direct-empty' { Assert ($badAssets.project.frameworks['net10.0'].dependencies.Count -eq 0) "$consumer direct-empty fixture did not clear its dependencies." }
+                'external-extra' { Assert ($badAssets.libraries.Contains('Unapproved.Codec/1.0.0')) "$consumer external-extra fixture did not add its foreign package." }
+                'external-version' { Assert ($badAssets.libraries.Contains('K4os.Compression.LZ4/1.3.7')) "$consumer external-version fixture did not change codec version." }
+                'external-missing' { Assert (!$badAssets.libraries.Contains('K4os.Compression.LZ4/1.3.8')) "$consumer external-missing fixture did not remove codec." }
+                'external-target' { Assert (!$badAssets.targets['net10.0'].Contains('K4os.Compression.LZ4/1.3.8')) "$consumer external-target fixture did not remove codec target." }
+                'external-direct' { Assert ($badAssets.project.frameworks['net10.0'].dependencies.Contains('K4os.Compression.LZ4')) "$consumer external-direct fixture did not add a direct codec reference." }
                 'framework' { Assert (!$badAssets.targets.Contains('net10.0')) "$consumer framework fixture did not remove net10.0." }
                 'cross' {
                     $crossId = if ($consumer -eq 'RbfPackageSmoke') { 'Atelia.Binary' } else { 'Atelia.Rbf' }

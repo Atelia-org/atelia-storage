@@ -75,7 +75,31 @@ Require(repeated.WrittenCount == checked(bytesPlan.EncodedLength * 2) &&
     repeated.WrittenSpan[..(int)bytesPlan.EncodedLength].SequenceEqual(repeated.WrittenSpan[(int)bytesPlan.EncodedLength..]),
     "Repeated writes of one prepared value must use the same frozen encoding.");
 
-Console.WriteLine($"Binary public package smoke passed: 12B address, keyed roots, exact {budget}B record budget, controlled Brotli/raw/null, owned snapshots and complete readback.");
+byte[] lz4Source = Enumerable.Repeat((byte)0x7B, 16384).ToArray();
+var lz4Plan = BareValueEncoding.PrepareControlledBytes(lz4Source, ValueCompression.Lz4Block);
+var lz4TextPlan = BareValueEncoding.PrepareControlledString(text, ValueCompression.Lz4Block);
+Array.Fill(lz4Source, (byte)0);
+var mixed = new ArrayBufferWriter<byte>();
+var mixedWriter = new BareValueWriter(mixed);
+mixedWriter.WritePreparedValue(textPlan); // Existing Brotli followed by the new method.
+int lz4Offset = mixed.WrittenCount;
+mixedWriter.WritePreparedValue(lz4Plan);
+mixedWriter.WritePreparedValue(lz4TextPlan);
+Require(mixed.WrittenSpan[lz4Offset] == 3 && mixed.WrittenCount ==
+    textPlan.EncodedLength + lz4Plan.EncodedLength + lz4TextPlan.EncodedLength, "LZ4 block plan/control/budget mismatch.");
+var mixedReader = new BareValueReader(mixed.WrittenSpan);
+Require(mixedReader.ReadControlledString(65536, 65536) == text, "Mixed Brotli readback failed.");
+byte[] lz4Owned = mixedReader.ReadControlledBytes(65536, 65536)!;
+Require(lz4Owned.Length == 16384 && lz4Owned.All(value => value == 0x7B), "LZ4 owned snapshot changed.");
+Require(mixedReader.ReadControlledString(65536, 65536) == text, "LZ4 string readback failed.");
+mixedReader.EnsureFullyConsumed();
+var invalidLz4Reader = new BareValueReader(Convert.FromHexString("030C212F20AA00000750AAAAAAAAAA"));
+bool rejectedInvalidOffset = false;
+try { invalidLz4Reader.ReadControlledBytes(); }
+catch (InvalidDataException) { rejectedInvalidOffset = true; }
+Require(rejectedInvalidOffset && invalidLz4Reader.ConsumedCount == 0, "Invalid LZ4 offset must fail without advancing.");
+
+Console.WriteLine($"Binary public package smoke passed: 12B address, keyed roots, exact {budget}B base record, controlled Brotli/LZ4 block/raw/null, owned snapshots and complete readback.");
 
 static void WriteAddress(BareValueWriter writer, Address address) {
     writer.WriteUInt32LE(address.FileId);

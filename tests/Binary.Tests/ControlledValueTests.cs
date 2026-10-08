@@ -126,7 +126,7 @@ public class ControlledValueTests {
     [InlineData(false)]
     [InlineData(true)]
     public void InputRangesLimitsAndUnknownControls_AreInvalidDataAndAtomic(bool bytes) {
-        for (int control = 3; control <= byte.MaxValue; control++) {
+        for (int control = 4; control <= byte.MaxValue; control++) {
             // Future controls stay invalid even when they resemble a compressed envelope.
             // They are rejected before parsing a truncated or seemingly valid C/U header.
             ControlledTestHelpers.AssertFailure<InvalidDataException>([(byte)control], bytes);

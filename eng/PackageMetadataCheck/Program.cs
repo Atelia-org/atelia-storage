@@ -49,8 +49,12 @@ foreach (var package in manifest.GetProperty("packages").EnumerateArray()) {
     }
     var internalDependencies = metadata.Descendants().Where(e => e.Name.LocalName == "dependency")
         .Where(e => storageIds.Contains((string)e.Attribute("id")!, StringComparer.OrdinalIgnoreCase)).ToArray();
-    Require(id != "Atelia.Binary" || !metadata.Descendants().Any(e => e.Name.LocalName == "dependency"),
-        "Atelia.Binary must depend only on the BCL, with no NuGet package dependencies.");
+    var externalDependencies = metadata.Descendants().Where(e => e.Name.LocalName == "dependency")
+        .Where(e => !((string)e.Attribute("id")!).StartsWith("Atelia.", StringComparison.OrdinalIgnoreCase)).ToArray();
+    Require(id == "Atelia.Binary"
+        ? externalDependencies.Length == 1 && (string?)externalDependencies[0].Attribute("id") == "K4os.Compression.LZ4"
+            && (string?)externalDependencies[0].Attribute("version") == "[1.3.8]"
+        : externalDependencies.Length == 0, $"{id}: unexpected external dependency graph.");
     string[] expectedDependencies = id == "Atelia.Rbf" ? ["Atelia.Primitives", "Atelia.Data"] : [];
     Require(internalDependencies.Length == expectedDependencies.Length &&
         internalDependencies.Select(e => (string)e.Attribute("id")!).ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(expectedDependencies),
@@ -113,11 +117,13 @@ void CheckConsumer(string assetsPath, string directId, string[] closureIds) {
     var libraries = assets.GetProperty("libraries").EnumerateObject().ToArray();
     Require(libraries.All(p => p.Value.GetProperty("type").GetString() == "package"), $"{directId}: consumer assets contain a project reference.");
     var closure = closureIds.Select(id => id + "/" + expectedVersions[id]).ToHashSet(StringComparer.OrdinalIgnoreCase);
-    var actual = libraries.Where(p => p.Name.StartsWith("Atelia.", StringComparison.OrdinalIgnoreCase)).Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-    Require(actual.SetEquals(closure), $"{directId}: actual restored storage package versions differ from the expected manifest subset.");
+    var fullClosure = new HashSet<string>(closure, StringComparer.OrdinalIgnoreCase);
+    if (directId == "Atelia.Binary") { fullClosure.Add("K4os.Compression.LZ4/1.3.8"); }
+    Require(libraries.Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(fullClosure),
+        $"{directId}: restored full dependency graph differs from the approved closure.");
     var target = assets.GetProperty("targets").GetProperty("net10.0");
-    var targetIds = target.EnumerateObject().Where(p => p.Name.StartsWith("Atelia.", StringComparison.OrdinalIgnoreCase)).Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-    Require(targetIds.SetEquals(closure), $"{directId}: target closure differs from the expected manifest subset.");
+    Require(target.EnumerateObject().Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(fullClosure),
+        $"{directId}: full target dependency graph differs from the approved closure.");
     var packageFolders = assetsJson.RootElement.GetProperty("packageFolders").EnumerateObject().Select(p => p.Name).ToArray();
     Require(packageFolders.Length == 1, $"{directId}: expected one isolated NuGet package folder.");
     foreach (var package in manifest.GetProperty("packages").EnumerateArray().Where(p => closureIds.Contains(p.GetProperty("id").GetString()!, StringComparer.Ordinal))) {
@@ -132,9 +138,9 @@ void CheckConsumer(string assetsPath, string directId, string[] closureIds) {
     var frameworks = assetsJson.RootElement.GetProperty("project").GetProperty("frameworks").EnumerateObject().ToArray();
     Require(frameworks.Length == 1 && frameworks[0].Name == "net10.0", $"{directId}: expected a single net10.0 smoke target framework.");
     var direct = frameworks[0].Value.GetProperty("dependencies").EnumerateObject()
-        .Where(p => p.Name.StartsWith("Atelia.", StringComparison.OrdinalIgnoreCase)).Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        .Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
     Require(direct.SetEquals([directId]), $"{directId}: smoke must directly reference only {directId}.");
-    Console.WriteLine($"Verified {directId} public PackageReference: {closureIds.Length}-package isolated closure and frozen cache bytes.");
+    Console.WriteLine($"Verified {directId} public PackageReference: {fullClosure.Count}-package isolated closure ({closureIds.Length} Atelia) and frozen Atelia cache bytes.");
 }
 
 ZipArchive OpenVerifiedArchive(JsonElement package, string fileKey, string hashKey, string extension, string packageVersion) {

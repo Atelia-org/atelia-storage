@@ -127,15 +127,17 @@ finally {
 function Assert-PublicConsumer([string]$smokeProject, [string]$directId, [string[]]$closureIds) {
     $assets = Get-Content -LiteralPath (Join-Path $work "$smokeProject/obj/project.assets.json") -Raw | ConvertFrom-Json -AsHashtable
     if (@($assets.libraries.Values | Where-Object { $_.type -cne 'package' }).Count) { throw "$smokeProject public consumer contains a non-package reference." }
-    $expected = @($closureIds | ForEach-Object { "$_/$Version" } | Sort-Object)
-    $actual = @($assets.libraries.Keys | Where-Object { $_ -like 'Atelia.*/*' } | Sort-Object)
+    $expected = @($closureIds | ForEach-Object { "$_/$Version" })
+    if ($directId -ceq 'Atelia.Binary') { $expected += 'K4os.Compression.LZ4/1.3.8' }
+    $expected = @($expected | Sort-Object)
+    $actual = @($assets.libraries.Keys | Sort-Object)
     if (($actual -join '|') -cne ($expected -join '|')) { throw "$smokeProject public package closure differs: $($actual -join ', ')" }
     if (!$assets.targets.Contains('net10.0')) { throw "$smokeProject public assets lack net10.0 target." }
-    $targetIds = @($assets.targets['net10.0'].Keys | Where-Object { $_ -like 'Atelia.*/*' } | Sort-Object)
+    $targetIds = @($assets.targets['net10.0'].Keys | Sort-Object)
     if (($targetIds -join '|') -cne ($expected -join '|')) { throw "$smokeProject public target closure differs." }
     $frameworks = @($assets.project.frameworks.Keys)
     if ($frameworks.Count -ne 1 -or $frameworks[0] -cne 'net10.0') { throw "$smokeProject public smoke must have one net10.0 target framework." }
-    $direct = @($assets.project.frameworks['net10.0'].dependencies.Keys | Where-Object { $_ -like 'Atelia.*' })
+    $direct = @($assets.project.frameworks['net10.0'].dependencies.Keys)
     if ($direct.Count -ne 1 -or $direct[0] -cne $directId) { throw "$smokeProject public smoke must directly reference only $directId." }
     return $actual
 }

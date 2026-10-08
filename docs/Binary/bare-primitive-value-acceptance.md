@@ -1,6 +1,6 @@
 # Bare Primitive Value 实施验收
 
-日期：2026-10-08。状态：**Accepted，源码与本地候选 public PackageReference 消费均通过**。合同权威为 [BPV1 规范](bare-primitive-value.md)，使用入口为 [Atelia.Binary](../../src/Binary/README.md)。本记录不授予 FrameStore/VersionStore、Tagged、下游迁移或公开 NuGet 发布资格。
+日期：2026-10-08。状态：**Accepted，源码与本地候选 public PackageReference 消费均通过**。合同权威为 [BPV1 规范](bare-primitive-value.md)，使用入口为 [Atelia.Binary](../../src/Binary/README.md)。各段保留对应候选和依赖身份，当前 LZ4 增量见末节；本记录不授予 FrameStore/VersionStore、Tagged、下游迁移或公开 NuGet 发布资格。
 
 ## 实施范围与具体选择
 
@@ -92,3 +92,24 @@ Tagged、Zlib、Guid/decimal/时间、全 nullable helper、下游实际迁移�
 - 四包完整身份以 `manifest.0.3.0-bpv1-dev.20261008055055.json` 为准；后续仅补齐本记录的文档提交不改变候选来源。
 
 本次没有公开发布、远端 Source Link 下载或性能测试；也没有将 .NET 11 预览 API 调查当作 GA 实现资格。
+
+## LZ4 block 的增量验收
+
+同日用户明确授权 Binary 采用轻量 NuGet codec。新增 `ValueCompression.Lz4Block=2` 与 wire control=03，仅标准独立 LZ4 block，继续使用既有 C/U 包装和 Prepare/plan/Write/Read 签名。None/Brotli 与默认行为保持；现有 83 项 public API 描述未变，只增加一个 enum 成员，仍为六个 exported 类型。当前未知 control 为 04..FF，未实现的 .NET 11 方法继续保留 TODO。
+
+依赖为精确 K4os.Compression.LZ4 `[1.3.8]`，NuGet 下载包 206853B，实际 net6.0 DLL 70656B，无该目标的传递依赖/native/RID 资产；生产 net10 assets 实际选择该 DLL。仅依赖基础 block 包，不增加 Streams、Pickler、xxHash 或公开依赖类型。Rbf 仍为原三包闭包，Binary consumer 仅直接 PackageReference Binary，完整闭包改为 Binary + K4os.Compression.LZ4/1.3.8。
+
+结构预检按标准扫描 token/长度/offset、跳过 literal 内容，证明完整 C 与 U，拒绝 offset=0、外部 dictionary 引用和非法末尾规则，再分配 U 并调用完整 Decode。K4os safe decoder 会容忍零 offset，不能单凭其成功接受它。FAST 的受限输出 -1 回退经过上游 1.3.8 的 x32/x64 源码核对与实际完整容量对比测试；先检查 encoder 的完整 U 上限 0x7E000000，再物化，避免把不支持的输入混作尺寸不足。无异常吞掉 policy；没有增加第二份 payload 复制或自写 match 复制器。
+
+独立手写 golden 覆盖 UTF-8/UTF-16、empty、实际冗余 header、literal 扩展、overlap match；负例覆盖截短、尾随/块拼接、U±1、零/越界 offset、长度和末尾约束、非法 typed 内层与失败 cursor。另验证混合 None/Brotli/Lz4Block、owned 快照/重复写、1MiB 原文回退、完整码字收益及 HC/MAX 编码可读。首轮一条 UTF-16 golden 误写 header=04，按原有 2B payload 合同修为 02；无需修改正确的生产字符串逻辑。
+
+| 增量验证 | 结果与证据 |
+| --- | --- |
+| Release solution build/tests | 最终增量 build 0 warning / 0 error；**1756/1756**，Binary **214/214**（增量 31）；首次 build 的 41 条既有非 Binary XML warning 保留原意 |
+| 独立 checked build/test | 生产 Binary 与测试同时启用 checked，0 warning / 0 error、**214/214**；供应方包保持原发行 DLL，并非重新 checked 编译供应方源码 |
+| 包入口 mock | parser、双 consumer、原坏 assets/manifest/环境恢复负例通过；新增未知外部依赖、直接绕过 Binary 引用 codec、codec 缺失/版本不符/target 缺失共七组 assets 负例；无真实 dotnet 消费资格含义 |
+| 依赖与边界复核 | RBF1 七组 assets 固定值仍通过，Binary 实际净新增一个无传递依赖的 package，FS/VS 15 份文档 hash 保持；规范 18 个 clause ID 保持 |
+
+原始日志、TRX、下载包和上游源码核对、反射比较、依赖与文档 hash 保存在 [W: LZ4 验收目录](W:/atelia-binary-lz4-20261008-055841/)。当前源码段由包含本段的提交固定；本轮本地候选包身份及真实隔离消费结果由后续记录补齐。以前的纯 BCL/single-package 资格只描述其原候选，不替代 LZ4 版本的资格。
+
+没有进行本项目吞吐/CPU benchmark 或接近 2GiB 的极限分配试验，不能据此承诺速度倍数、恒定内存或极限内存资格。块缺少内容 checksum；合法等长内容损坏仍由外层保护。Windows x64 的本轮实测不替代其他平台/架构、远端 Source Link 下载或公开发布证据。

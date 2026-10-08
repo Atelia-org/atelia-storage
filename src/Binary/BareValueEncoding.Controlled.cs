@@ -6,7 +6,7 @@ public static partial class BareValueEncoding {
     /// <summary>Prepares an owned nullable string snapshot and an exact output budget.</summary>
     /// <param name="value">The string, or null.</param>
     /// <param name="compression">The single compression method to try; None is the default.</param>
-    /// <exception cref="ArgumentOutOfRangeException">The method is unknown, or the complete inner value exceeds int.MaxValue.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">The method is unknown, or the complete inner value exceeds int.MaxValue or the chosen codec's preparation limit.</exception>
     public static ControlledValueEncodingPlan PrepareControlledString(
         string? value, ValueCompression compression = ValueCompression.None) {
         ControlledValueStorage storage = ControlledValueCodecs.GetStorage(compression);
@@ -14,6 +14,7 @@ public static partial class BareValueEncoding {
 
         StringEncodingPlan plainPlan = PrepareString(value);
         int decodedByteCount = GetOwnedLength(plainPlan.EncodedLength, nameof(value));
+        ControlledValueCodecs.ValidatePreparationLength(storage, decodedByteCount, nameof(value));
         var sink = new FixedPreparationBuffer(decodedByteCount);
         new BareValueWriter(sink).WriteString(plainPlan);
         return PrepareControlledBody(sink.TakeCompletedBody(), storage);
@@ -22,11 +23,12 @@ public static partial class BareValueEncoding {
     /// <summary>Snapshots non-null bytes, including their ordinary Bare length prefix, before trying compression.</summary>
     /// <param name="value">The non-null bytes; an empty span denotes an empty value rather than null.</param>
     /// <param name="compression">The single compression method to try; None is the default.</param>
-    /// <exception cref="ArgumentOutOfRangeException">The method is unknown, or the complete inner value exceeds int.MaxValue.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">The method is unknown, or the complete inner value exceeds int.MaxValue or the chosen codec's preparation limit.</exception>
     public static ControlledValueEncodingPlan PrepareControlledBytes(
         ReadOnlySpan<byte> value, ValueCompression compression = ValueCompression.None) {
         ControlledValueStorage storage = ControlledValueCodecs.GetStorage(compression);
         int decodedByteCount = GetOwnedLength(MeasureBytes(value.Length), nameof(value));
+        ControlledValueCodecs.ValidatePreparationLength(storage, decodedByteCount, nameof(value));
         var sink = new FixedPreparationBuffer(decodedByteCount);
         new BareValueWriter(sink).WriteBytes(value);
         return PrepareControlledBody(sink.TakeCompletedBody(), storage);

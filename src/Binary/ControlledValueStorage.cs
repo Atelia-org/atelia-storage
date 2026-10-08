@@ -5,5 +5,6 @@ namespace Atelia.Binary;
 internal enum ControlledValueStorage : byte {
     Null = 0,
     Raw = 1,
-    Brotli = 2
+    Brotli = 2,
+    Lz4Block = 3
 }

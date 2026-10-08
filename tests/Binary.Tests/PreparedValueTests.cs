@@ -8,6 +8,7 @@ public class PreparedValueTests {
     [Theory]
     [InlineData(ValueCompression.None)]
     [InlineData(ValueCompression.Brotli)]
+    [InlineData(ValueCompression.Lz4Block)]
     public void NullNeverCompressesAndHasExactBudget(ValueCompression compression) {
         ControlledValueEncodingPlan plan = BareValueEncoding.PrepareControlledString(null, compression);
         Assert.Same(ControlledValueEncodingPlan.Null, plan);
@@ -17,9 +18,9 @@ public class PreparedValueTests {
 
     [Fact]
     public void UnknownCompressionRejectsEvenNullInput() {
-        Assert.Throws<ArgumentOutOfRangeException>(() => BareValueEncoding.PrepareControlledString(null, (ValueCompression)2));
+        Assert.Throws<ArgumentOutOfRangeException>(() => BareValueEncoding.PrepareControlledString(null, (ValueCompression)3));
         Assert.Throws<ArgumentOutOfRangeException>(() => BareValueEncoding.PrepareControlledString("A", (ValueCompression)(-1)));
-        Assert.Throws<ArgumentOutOfRangeException>(() => BareValueEncoding.PrepareControlledBytes([], (ValueCompression)2));
+        Assert.Throws<ArgumentOutOfRangeException>(() => BareValueEncoding.PrepareControlledBytes([], (ValueCompression)3));
     }
 
     [Theory]

@@ -7,11 +7,11 @@ namespace Atelia.Binary;
 // TODO (.NET 11 GA): add BCL ZstandardEncoder/Decoder and DeflateEncoder/Decoder here after
 // qualifying independent fixtures. Deflate means raw RFC 1951; an optional ZLib method means
 // RFC 1950 and needs a distinct wire control. Preserve existing public enum values/control bytes.
-// Each compressed method is a self-contained single stream, with no external dictionary/prefix.
+// Each compressed method is a self-contained single stream/block, with no external dictionary/prefix.
 // Verify each instance API's final status and actual counts; do not mechanically copy Brotli's
 // state handling or use Stream.Position/static TryDecompress as a single-stream boundary proof.
 // Bound Zstandard's decoder window separately from stored/decoded body limits before shipping.
-internal static class ControlledValueCodecs {
+internal static partial class ControlledValueCodecs {
     // Initial tuning choices; neither value changes the standard Brotli decoding contract.
     private const int BrotliQuality = 3;
     private const int BrotliWindow = 22;
@@ -19,6 +19,7 @@ internal static class ControlledValueCodecs {
     internal static ControlledValueStorage GetStorage(ValueCompression compression) => compression switch {
         ValueCompression.None => ControlledValueStorage.Raw,
         ValueCompression.Brotli => ControlledValueStorage.Brotli,
+        ValueCompression.Lz4Block => ControlledValueStorage.Lz4Block,
         _ => throw new ArgumentOutOfRangeException(nameof(compression), compression, "Unknown compression method.")
     };
 
@@ -27,12 +28,13 @@ internal static class ControlledValueCodecs {
         (byte)ControlledValueStorage.Null => ControlledValueStorage.Null,
         (byte)ControlledValueStorage.Raw => ControlledValueStorage.Raw,
         (byte)ControlledValueStorage.Brotli => ControlledValueStorage.Brotli,
+        (byte)ControlledValueStorage.Lz4Block => ControlledValueStorage.Lz4Block,
         _ => throw new InvalidDataException("Unknown controlled value method.")
     };
 
     internal static bool IsCompressed(ControlledValueStorage storage) => storage switch {
         ControlledValueStorage.Null or ControlledValueStorage.Raw => false,
-        ControlledValueStorage.Brotli => true,
+        ControlledValueStorage.Brotli or ControlledValueStorage.Lz4Block => true,
         _ => throw new InvalidOperationException("Unknown internal controlled value storage method.")
     };
 
@@ -48,6 +50,7 @@ internal static class ControlledValueCodecs {
     internal static int Compress(ControlledValueStorage storage, ReadOnlySpan<byte> source, Span<byte> candidate)
         => storage switch {
             ControlledValueStorage.Brotli => CompressBrotli(source, candidate),
+            ControlledValueStorage.Lz4Block => CompressLz4Block(source, candidate),
             _ => throw new InvalidOperationException("The storage method has no encoder.")
         };
 
@@ -56,6 +59,7 @@ internal static class ControlledValueCodecs {
     internal static byte[] Decompress(ControlledValueStorage storage, ReadOnlySpan<byte> input, int decodedByteCount)
         => storage switch {
             ControlledValueStorage.Brotli => DecompressBrotli(input, decodedByteCount),
+            ControlledValueStorage.Lz4Block => DecompressLz4Block(input, decodedByteCount),
             _ => throw new InvalidDataException("The storage method has no decoder.")
         };
 
