@@ -8,7 +8,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 if ($PSBoundParameters.ContainsKey('AdditionalSegmentSmoke')) {
-    throw [ArgumentException]::new('Main delivers only Primitives/Data/Rbf. AdditionalSegmentSmoke is maintained on the RBF1 branch.', 'AdditionalSegmentSmoke')
+    throw [ArgumentException]::new('Main delivers only Primitives/Data/Rbf/Binary. AdditionalSegmentSmoke is maintained on the RBF1 branch.', 'AdditionalSegmentSmoke')
 }
 $repo = Split-Path $PSScriptRoot -Parent
 $feed = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($FeedDirectory)
@@ -19,9 +19,9 @@ if ($work -eq $repo -or $work.StartsWith($repo + [IO.Path]::DirectorySeparatorCh
 }
 $manifestPath = Join-Path $feed "manifest.$Version.json"
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-$ids = @('Atelia.Primitives', 'Atelia.Data', 'Atelia.Rbf')
+$ids = @('Atelia.Primitives', 'Atelia.Data', 'Atelia.Rbf', 'Atelia.Binary')
 if ($manifest.schemaVersion -ne 1 -or $manifest.version -cne $Version -or @($manifest.packages).Count -ne $ids.Count) {
-    throw 'All manifest must describe the requested three-package schema 1 candidate.'
+    throw 'All manifest must describe the requested four-package schema 1 candidate.'
 }
 foreach ($id in $ids) {
     $records = @($manifest.packages | Where-Object id -CEQ $id)
@@ -39,8 +39,9 @@ foreach ($file in @('Directory.Build.props', 'Directory.Build.targets', 'Directo
     '<Project />' | Set-Content -LiteralPath (Join-Path $work $file) -Encoding utf8NoBOM
 }
 Copy-Item -LiteralPath (Join-Path $repo 'global.json') -Destination $work
-$smokeProject = 'RbfPackageSmoke'
-Copy-Item -LiteralPath (Join-Path $repo "examples/$smokeProject") -Destination $work -Recurse
+foreach ($smokeProject in @('RbfPackageSmoke', 'BinaryPackageSmoke')) {
+    Copy-Item -LiteralPath (Join-Path $repo "examples/$smokeProject") -Destination $work -Recurse
+}
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'PackageMetadataCheck') -Destination $work -Recurse
 $escapedFeed = [Security.SecurityElement]::Escape($feed)
 @"
@@ -57,31 +58,31 @@ function Invoke-LoggedDotnet([string[]]$Arguments, [string]$LogName) {
     & dotnet @Arguments 2>&1 | Tee-Object -FilePath (Join-Path $logs $LogName) | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "dotnet failed; see $logs/$LogName" }
 }
-function Assert-RbfConsumerAssets {
+function Assert-ConsumerAssets([string]$smokeProject, [string]$directId, [string[]]$closureIds, [string]$logName) {
     $assets = Get-Content -LiteralPath (Join-Path $work "$smokeProject/obj/project.assets.json") -Raw | ConvertFrom-Json
     $libraries = @($assets.libraries.PSObject.Properties)
     if (@($libraries | Where-Object { $_.Value.type -cne 'package' }).Count -ne 0) {
-        throw 'Rbf consumer assets contain a non-package reference.'
+        throw "$smokeProject consumer assets contain a non-package reference."
     }
-    $expected = @($ids | ForEach-Object { "$_/$Version" })
-    $actual = @($libraries.Name | Where-Object { $_.StartsWith('Atelia.', [StringComparison]::OrdinalIgnoreCase) })
+    $expected = @($closureIds | ForEach-Object { "$_/$Version" })
+    $actual = @($libraries | ForEach-Object { $_.Name } | Where-Object { $_.StartsWith('Atelia.', [StringComparison]::OrdinalIgnoreCase) })
     if ($actual.Count -ne $expected.Count -or @($actual | Where-Object { $expected -cnotcontains $_ }).Count -ne 0) {
-        throw 'Rbf restored three-package closure differs from All manifest.'
+        throw "$smokeProject restored package closure differs from the expected All subset."
     }
     $target = $assets.targets.PSObject.Properties['net10.0'].Value
-    if ($null -eq $target) { throw 'Rbf consumer assets lack net10.0 target.' }
-    $targetIds = @($target.PSObject.Properties.Name | Where-Object { $_.StartsWith('Atelia.', [StringComparison]::OrdinalIgnoreCase) })
+    if ($null -eq $target) { throw "$smokeProject consumer assets lack net10.0 target." }
+    $targetIds = @($target.PSObject.Properties | ForEach-Object { $_.Name } | Where-Object { $_.StartsWith('Atelia.', [StringComparison]::OrdinalIgnoreCase) })
     if ($targetIds.Count -ne $expected.Count -or @($targetIds | Where-Object { $expected -cnotcontains $_ }).Count -ne 0) {
-        throw 'Rbf target closure differs from All manifest.'
+        throw "$smokeProject target closure differs from the expected All subset."
     }
     $frameworks = @($assets.project.frameworks.PSObject.Properties)
-    if ($frameworks.Count -ne 1) { throw 'Rbf smoke must have one target framework.' }
-    $direct = @($frameworks[0].Value.dependencies.PSObject.Properties.Name | Where-Object { $_.StartsWith('Atelia.', [StringComparison]::OrdinalIgnoreCase) })
-    if ($direct.Count -ne 1 -or $direct[0] -cne 'Atelia.Rbf') {
-        throw 'Rbf smoke must PackageReference only Atelia.Rbf.'
+    if ($frameworks.Count -ne 1) { throw "$smokeProject smoke must have one target framework." }
+    $direct = @($frameworks[0].Value.dependencies.PSObject.Properties | ForEach-Object { $_.Name } | Where-Object { $_.StartsWith('Atelia.', [StringComparison]::OrdinalIgnoreCase) })
+    if ($direct.Count -ne 1 -or $direct[0] -cne $directId) {
+        throw "$smokeProject smoke must PackageReference only $directId."
     }
-    'Verified Rbf direct reference and three-package assets against the schema 1 All manifest.' |
-        Set-Content -LiteralPath (Join-Path $logs 'rbf-assets.log') -Encoding utf8NoBOM
+    "Verified $directId direct reference and $($closureIds.Count)-package assets against the schema 1 All subset." |
+        Set-Content -LiteralPath (Join-Path $logs $logName) -Encoding utf8NoBOM
 }
 $previousPackages = $env:NUGET_PACKAGES
 $previousHttpCache = $env:NUGET_HTTP_CACHE_PATH
@@ -90,11 +91,14 @@ try {
     $env:NUGET_HTTP_CACHE_PATH = Join-Path $work 'http-cache'
     Push-Location $work
     try {
-        Invoke-LoggedDotnet @('restore', "$smokeProject/$smokeProject.csproj", '--configfile', 'NuGet.Config', "-p:StoragePackageVersion=$Version") 'primary-restore.log'
-        Assert-RbfConsumerAssets
-        Invoke-LoggedDotnet @('run', '--project', "$smokeProject/$smokeProject.csproj", '-c', 'Release', '--no-restore', "-p:StoragePackageVersion=$Version", '--', (Join-Path $work 'rbf-files')) 'primary-smoke.log'
+        Invoke-LoggedDotnet @('restore', 'RbfPackageSmoke/RbfPackageSmoke.csproj', '--configfile', 'NuGet.Config', "-p:StoragePackageVersion=$Version") 'primary-restore.log'
+        Assert-ConsumerAssets 'RbfPackageSmoke' 'Atelia.Rbf' @('Atelia.Primitives', 'Atelia.Data', 'Atelia.Rbf') 'rbf-assets.log'
+        Invoke-LoggedDotnet @('run', '--project', 'RbfPackageSmoke/RbfPackageSmoke.csproj', '-c', 'Release', '--no-restore', "-p:StoragePackageVersion=$Version", '--', (Join-Path $work 'rbf-files')) 'primary-smoke.log'
+        Invoke-LoggedDotnet @('restore', 'BinaryPackageSmoke/BinaryPackageSmoke.csproj', '--configfile', 'NuGet.Config', "-p:StoragePackageVersion=$Version") 'binary-restore.log'
+        Assert-ConsumerAssets 'BinaryPackageSmoke' 'Atelia.Binary' @('Atelia.Binary') 'binary-assets.log'
+        Invoke-LoggedDotnet @('run', '--project', 'BinaryPackageSmoke/BinaryPackageSmoke.csproj', '-c', 'Release', '--no-restore', "-p:StoragePackageVersion=$Version") 'binary-smoke.log'
         Invoke-LoggedDotnet @('restore', 'PackageMetadataCheck/PackageMetadataCheck.csproj', '--configfile', 'NuGet.Config') 'metadata-restore.log'
-        Invoke-LoggedDotnet @('run', '--project', 'PackageMetadataCheck/PackageMetadataCheck.csproj', '-c', 'Release', '--no-restore', '--', $manifestPath, $repo, (Join-Path $work "$smokeProject/obj/project.assets.json"), $Version) 'metadata-check.log'
+        Invoke-LoggedDotnet @('run', '--project', 'PackageMetadataCheck/PackageMetadataCheck.csproj', '-c', 'Release', '--no-restore', '--', $manifestPath, $repo, (Join-Path $work 'RbfPackageSmoke/obj/project.assets.json'), (Join-Path $work 'BinaryPackageSmoke/obj/project.assets.json'), $Version) 'metadata-check.log'
     }
     finally { Pop-Location }
     Copy-Item -LiteralPath $manifestPath -Destination (Join-Path $work 'verified-packages.json')

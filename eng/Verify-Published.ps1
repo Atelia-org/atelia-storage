@@ -15,9 +15,9 @@ if ($work -eq $repo -or $work.StartsWith($repo + [IO.Path]::DirectorySeparatorCh
 }
 $manifestPath = Join-Path $feed "manifest.$Version.json"
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-$ids = @('Atelia.Primitives', 'Atelia.Data', 'Atelia.Rbf')
+$ids = @('Atelia.Primitives', 'Atelia.Data', 'Atelia.Rbf', 'Atelia.Binary')
 if ($manifest.schemaVersion -ne 1 -or $manifest.version -cne $Version -or @($manifest.packages).Count -ne $ids.Count) {
-    throw 'Expected the requested three-package schema 1 candidate.'
+    throw 'Expected the requested four-package schema 1 candidate.'
 }
 $verified = @()
 # Validate every frozen candidate before making directories or downloading public packages.
@@ -90,13 +90,14 @@ foreach ($id in $ids) {
         candidateSha256 = $candidate.sha256; publishedSha256 = $publicHash; publicUrl = $url
     }
 }
-# This consumer has no local feed or inherited MSBuild settings. It proves the public closure.
+# These separate consumers have no local feed or inherited MSBuild settings. Each proves its own public closure.
 foreach ($file in @('Directory.Build.props', 'Directory.Build.targets', 'Directory.Packages.props')) {
     '<Project />' | Set-Content -LiteralPath (Join-Path $work $file) -Encoding utf8NoBOM
 }
 Copy-Item -LiteralPath (Join-Path $repo 'global.json') -Destination $work
-$smokeProject = 'RbfPackageSmoke'
-Copy-Item -LiteralPath (Join-Path $repo "examples/$smokeProject") -Destination $work -Recurse
+foreach ($smokeProject in @('RbfPackageSmoke', 'BinaryPackageSmoke')) {
+    Copy-Item -LiteralPath (Join-Path $repo "examples/$smokeProject") -Destination $work -Recurse
+}
 @'
 <?xml version="1.0" encoding="utf-8"?>
 <configuration><packageSources><clear /><add key="nuget.org" value="https://api.nuget.org/v3/index.json" /></packageSources><fallbackPackageFolders><clear /></fallbackPackageFolders></configuration>
@@ -108,10 +109,14 @@ try {
     $env:NUGET_HTTP_CACHE_PATH = Join-Path $work 'http-cache'
     Push-Location $work
     try {
-        & dotnet restore "$smokeProject/$smokeProject.csproj" --configfile NuGet.Config "-p:StoragePackageVersion=$Version"
+        & dotnet restore 'RbfPackageSmoke/RbfPackageSmoke.csproj' --configfile NuGet.Config "-p:StoragePackageVersion=$Version"
         if ($LASTEXITCODE -ne 0) { throw 'Public NuGet restore failed.' }
-        & dotnet run --project "$smokeProject/$smokeProject.csproj" -c Release --no-restore "-p:StoragePackageVersion=$Version" -- (Join-Path $work 'rbf-files')
+        & dotnet run --project 'RbfPackageSmoke/RbfPackageSmoke.csproj' -c Release --no-restore "-p:StoragePackageVersion=$Version" -- (Join-Path $work 'rbf-files')
         if ($LASTEXITCODE -ne 0) { throw 'Public Rbf package smoke failed.' }
+        & dotnet restore 'BinaryPackageSmoke/BinaryPackageSmoke.csproj' --configfile NuGet.Config "-p:StoragePackageVersion=$Version"
+        if ($LASTEXITCODE -ne 0) { throw 'Public Binary NuGet restore failed.' }
+        & dotnet run --project 'BinaryPackageSmoke/BinaryPackageSmoke.csproj' -c Release --no-restore "-p:StoragePackageVersion=$Version"
+        if ($LASTEXITCODE -ne 0) { throw 'Public Binary package smoke failed.' }
     }
     finally { Pop-Location }
 }
@@ -119,15 +124,23 @@ finally {
     $env:NUGET_PACKAGES = $previousPackages
     $env:NUGET_HTTP_CACHE_PATH = $previousHttpCache
 }
-$assets = Get-Content -LiteralPath (Join-Path $work "$smokeProject/obj/project.assets.json") -Raw | ConvertFrom-Json -AsHashtable
-if (@($assets.libraries.Values | Where-Object { $_.type -cne 'package' }).Count) { throw 'Public consumer contains a non-package reference.' }
-$expected = @($ids | ForEach-Object { "$_/$Version" })
-$actual = @($assets.libraries.Keys | Where-Object { $_ -like 'Atelia.*/*' } | Sort-Object)
-if (($actual -join '|') -cne (($expected | Sort-Object) -join '|')) { throw "Public package closure differs: $($actual -join ', ')" }
-$frameworks = @($assets.project.frameworks.Values)
-if ($frameworks.Count -ne 1) { throw 'Public Rbf smoke must have one target framework.' }
-$direct = @($frameworks[0].dependencies.Keys | Where-Object { $_ -like 'Atelia.*' })
-if ($direct.Count -ne 1 -or $direct[0] -cne 'Atelia.Rbf') { throw 'Public smoke must directly reference only Atelia.Rbf.' }
+function Assert-PublicConsumer([string]$smokeProject, [string]$directId, [string[]]$closureIds) {
+    $assets = Get-Content -LiteralPath (Join-Path $work "$smokeProject/obj/project.assets.json") -Raw | ConvertFrom-Json -AsHashtable
+    if (@($assets.libraries.Values | Where-Object { $_.type -cne 'package' }).Count) { throw "$smokeProject public consumer contains a non-package reference." }
+    $expected = @($closureIds | ForEach-Object { "$_/$Version" } | Sort-Object)
+    $actual = @($assets.libraries.Keys | Where-Object { $_ -like 'Atelia.*/*' } | Sort-Object)
+    if (($actual -join '|') -cne ($expected -join '|')) { throw "$smokeProject public package closure differs: $($actual -join ', ')" }
+    if (!$assets.targets.Contains('net10.0')) { throw "$smokeProject public assets lack net10.0 target." }
+    $targetIds = @($assets.targets['net10.0'].Keys | Where-Object { $_ -like 'Atelia.*/*' } | Sort-Object)
+    if (($targetIds -join '|') -cne ($expected -join '|')) { throw "$smokeProject public target closure differs." }
+    $frameworks = @($assets.project.frameworks.Keys)
+    if ($frameworks.Count -ne 1 -or $frameworks[0] -cne 'net10.0') { throw "$smokeProject public smoke must have one net10.0 target framework." }
+    $direct = @($assets.project.frameworks['net10.0'].dependencies.Keys | Where-Object { $_ -like 'Atelia.*' })
+    if ($direct.Count -ne 1 -or $direct[0] -cne $directId) { throw "$smokeProject public smoke must directly reference only $directId." }
+    return $actual
+}
+$rbfResolved = @(Assert-PublicConsumer 'RbfPackageSmoke' 'Atelia.Rbf' @('Atelia.Primitives', 'Atelia.Data', 'Atelia.Rbf'))
+$binaryResolved = @(Assert-PublicConsumer 'BinaryPackageSmoke' 'Atelia.Binary' @('Atelia.Binary'))
 foreach ($package in $verified) {
     $id = ([string]$package.id).ToLowerInvariant()
     $packageVersion = $Version.ToLowerInvariant()
@@ -138,6 +151,10 @@ foreach ($package in $verified) {
 }
 [ordered]@{
     schemaVersion = 1; version = $Version; sourceRevision = $manifest.sourceRevision
-    packages = $verified; resolvedPackages = $actual
+    packages = $verified
+    consumers = @(
+        [ordered]@{ directReference = 'Atelia.Rbf'; resolvedPackages = $rbfResolved },
+        [ordered]@{ directReference = 'Atelia.Binary'; resolvedPackages = $binaryResolved }
+    )
 } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $work 'published-check.json') -Encoding utf8NoBOM
-Write-Host "Public Primitives/Data/Rbf $Version verified from nuget.org."
+Write-Host "Public Primitives/Data/Rbf/Binary $Version verified from nuget.org through separate Rbf and Binary consumers."

@@ -17,7 +17,7 @@ $feed = Join-Path $evidence 'synthetic-feed'
 New-Item -ItemType Directory -Path $feed | Out-Null
 $version = '0.2.0-dev.mock'
 $revision = '1111111111111111111111111111111111111111'
-$ids = @('Atelia.Primitives', 'Atelia.Data', 'Atelia.Rbf')
+$ids = @('Atelia.Primitives', 'Atelia.Data', 'Atelia.Rbf', 'Atelia.Binary')
 $manifest = [ordered]@{
     schemaVersion = 1; version = $version; sourceRevision = $revision
     repositoryUrl = 'https://github.com/Atelia-org/atelia-storage'
@@ -38,7 +38,7 @@ $manifest = [ordered]@{
 $manifestPath = Join-Path $feed "manifest.$version.json"
 $manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $manifestPath -Encoding utf8NoBOM
 $global:StoragePackageEntryMock = @{
-    Calls = [Collections.Generic.List[object]]::new(); GitCalls = 0; AssetsFailure = ''; FailSmoke = $false
+    Calls = [Collections.Generic.List[object]]::new(); GitCalls = 0; AssetsFailure = ''; FailureConsumer = 'RbfPackageSmoke'; FailSmoke = ''
     Revision = $revision; Version = $version; Ids = $ids; SdkVersion = $manifest.sdkVersion
 }
 $originalPackages = $env:NUGET_PACKAGES
@@ -61,30 +61,37 @@ function dotnet {
     })
     $global:LASTEXITCODE = 0
     if ($arguments[0] -eq '--version') { return $global:StoragePackageEntryMock.SdkVersion }
-    if ($arguments[0] -eq 'restore' -and $arguments[1] -eq 'RbfPackageSmoke/RbfPackageSmoke.csproj') {
+    if ($arguments[0] -eq 'restore' -and $arguments[1] -in @('RbfPackageSmoke/RbfPackageSmoke.csproj', 'BinaryPackageSmoke/BinaryPackageSmoke.csproj')) {
         $version = $global:StoragePackageEntryMock.Version
-        $project = 'RbfPackageSmoke'
+        $project = $arguments[1].Split('/')[0]
+        $directId = if ($project -eq 'RbfPackageSmoke') { 'Atelia.Rbf' } else { 'Atelia.Binary' }
+        $closureIds = @(if ($project -eq 'RbfPackageSmoke') { 'Atelia.Primitives'; 'Atelia.Data'; 'Atelia.Rbf' } else { 'Atelia.Binary' })
+        $failure = if ($project -eq $global:StoragePackageEntryMock.FailureConsumer) { $global:StoragePackageEntryMock.AssetsFailure } else { '' }
         $libraries = [ordered]@{}
-        foreach ($id in $global:StoragePackageEntryMock.Ids) { $libraries["$id/$version"] = @{ type = 'package' } }
-        switch ($global:StoragePackageEntryMock.AssetsFailure) {
-            'version' { $libraries.Remove("Atelia.Rbf/$version"); $libraries['Atelia.Rbf/0.0.0'] = @{ type = 'package' } }
+        foreach ($id in $closureIds) { $libraries["$id/$version"] = @{ type = 'package' } }
+        switch ($failure) {
+            'version' { $libraries.Remove("$directId/$version"); $libraries["$directId/0.0.0"] = @{ type = 'package' } }
             'extra' { $libraries["Atelia.EventJournal/$version"] = @{ type = 'package' } }
-            'project' { $libraries["Atelia.Rbf/$version"] = @{ type = 'project' } }
-            'missing' { $libraries.Remove("Atelia.Data/$version") }
+            'project' { $libraries["$directId/$version"] = @{ type = 'project' } }
+            'missing' { $libraries.Remove("$directId/$version") }
+            'libraries-empty' { $libraries.Clear() }
+            'cross' { $crossId = if ($project -eq 'RbfPackageSmoke') { 'Atelia.Binary' } else { 'Atelia.Rbf' }; $libraries["$crossId/$version"] = @{ type = 'package' } }
         }
         $target = [ordered]@{}
         foreach ($key in $libraries.Keys) { $target[$key] = $libraries[$key] }
-        if ($global:StoragePackageEntryMock.AssetsFailure -eq 'target') { $target.Remove("Atelia.Rbf/$version") }
-        $directId = if ($global:StoragePackageEntryMock.AssetsFailure -eq 'direct') { 'Atelia.Data' } else { 'Atelia.Rbf' }
-        $targets = if ($global:StoragePackageEntryMock.AssetsFailure -eq 'framework') { @{} } else { @{ 'net10.0' = $target } }
+        if ($failure -eq 'target') { $target.Remove("$directId/$version") }
+        if ($failure -eq 'target-empty') { $target.Clear() }
+        if ($failure -eq 'direct') { $directId = 'Atelia.Data' }
+        $targets = if ($failure -eq 'framework') { @{} } else { @{ 'net10.0' = $target } }
+        $dependencies = if ($failure -eq 'direct-empty') { @{} } else { @{ $directId = @{ target = 'Package'; version = "[$version, )" } } }
         $assets = [ordered]@{
             libraries = $libraries; targets = $targets
-            project = @{ frameworks = @{ 'net10.0' = @{ dependencies = @{ $directId = @{ target = 'Package'; version = "[$version, )" } } } } }
+            project = @{ frameworks = @{ 'net10.0' = @{ dependencies = $dependencies } } }
         }
         New-Item -ItemType Directory -Path (Join-Path $project 'obj') -Force | Out-Null
         $assets | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $project 'obj/project.assets.json') -Encoding utf8NoBOM
     }
-    if ($arguments[0] -eq 'run' -and $arguments -contains 'RbfPackageSmoke/RbfPackageSmoke.csproj' -and $global:StoragePackageEntryMock.FailSmoke) {
+    if ($arguments[0] -eq 'run' -and $global:StoragePackageEntryMock.FailSmoke -and $arguments -contains "$($global:StoragePackageEntryMock.FailSmoke)/$($global:StoragePackageEntryMock.FailSmoke).csproj") {
         $global:LASTEXITCODE = 1
     }
     "MOCK ONLY: dotnet $($arguments -join ' ')"
@@ -97,7 +104,7 @@ function Run-Case([string]$Name, [bool]$ExplicitAll) {
     $work = Join-Path $evidence $Name
     if ($ExplicitAll) { & $entry -Project All -Version $version -FeedDirectory $feed -WorkDirectory $work }
     else { & $entry -Version $version -FeedDirectory $feed -WorkDirectory $work }
-    Assert ($global:StoragePackageEntryMock.Calls.Count -eq 4) "$Name command count changed."
+    Assert ($global:StoragePackageEntryMock.Calls.Count -eq 6) "$Name command count changed."
     foreach ($call in $global:StoragePackageEntryMock.Calls) {
         Assert ($call.location -eq $work) "$Name ran outside isolated workspace."
         Assert ($call.packages -eq (Join-Path $work 'packages')) "$Name used a shared package cache."
@@ -105,15 +112,19 @@ function Run-Case([string]$Name, [bool]$ExplicitAll) {
         if ($call.arguments[0] -eq 'restore') {
             Assert ($call.arguments -contains '--configfile' -and $call.arguments -contains 'NuGet.Config') "$Name restore missed explicit config."
         }
-        if ($call.arguments -contains 'RbfPackageSmoke/RbfPackageSmoke.csproj') {
+        if ($call.arguments -contains 'RbfPackageSmoke/RbfPackageSmoke.csproj' -or $call.arguments -contains 'BinaryPackageSmoke/BinaryPackageSmoke.csproj') {
             Assert ($call.arguments -contains "-p:StoragePackageVersion=$version") "$Name lost candidate version."
         }
     }
     $metadata = @($global:StoragePackageEntryMock.Calls | Where-Object { $_.arguments[0] -eq 'run' -and $_.arguments -contains 'PackageMetadataCheck/PackageMetadataCheck.csproj' })
     Assert ($metadata.Count -eq 1 -and $metadata[0].arguments -contains $manifestPath) "$Name missed original All metadata verification."
-    Assert (@((Get-Content (Join-Path $work 'verified-packages.json') -Raw | ConvertFrom-Json).packages).Count -eq 3) "$Name evidence did not retain three packages."
+    foreach ($project in @('RbfPackageSmoke', 'BinaryPackageSmoke')) {
+        Assert ($metadata[0].arguments -contains (Join-Path $work "$project/obj/project.assets.json")) "$Name missed $project metadata assets verification."
+    }
+    Assert (@((Get-Content (Join-Path $work 'verified-packages.json') -Raw | ConvertFrom-Json).packages).Count -eq 4) "$Name evidence did not retain four packages."
     Assert (!(Test-Path (Join-Path $work 'EventJournalSmoke')) -and !(Test-Path (Join-Path $work 'RbfSegmentStoreSmoke'))) "$Name copied a legacy consumer."
     Assert (Test-Path (Join-Path $work 'logs/rbf-assets.log')) "$Name failed to retain assets check."
+    Assert (Test-Path (Join-Path $work 'logs/binary-assets.log')) "$Name failed to retain Binary assets check."
     Assert-RestoredEnvironment $Name
 }
 function Assert-ParameterRejection([string]$Name, [scriptblock]$Invoke, [string]$UnexpectedDirectory) {
@@ -145,27 +156,51 @@ try {
         $path = Join-Path $evidence ('reject-dependencies-' + [Guid]::NewGuid().ToString('N'))
         Assert-ParameterRejection 'dependencies' { & $pack -Version $version -OutputDirectory $path -DependencyVersions $dependencies } $path
     }
-    # Pack's pre-existing immutable schema 1 reuse path must bind all three IDs/hashes, without packing.
+    # Pack's immutable schema 1 reuse path must bind all four IDs/hashes, without packing.
     $global:StoragePackageEntryMock.Calls.Clear()
     & $pack -Project All -Version $version -OutputDirectory $feed | Out-Host
     Assert ($global:StoragePackageEntryMock.Calls.Count -eq 1 -and $global:StoragePackageEntryMock.Calls[0].arguments[0] -eq '--version') 'Immutable core reuse unexpectedly attempted restore/pack.'
-    foreach ($failure in @('version', 'extra', 'project', 'missing', 'target', 'direct', 'framework')) {
-        $global:StoragePackageEntryMock.AssetsFailure = $failure
-        $global:StoragePackageEntryMock.Calls.Clear()
-        $message = ''
-        try { & $entry -Version $version -FeedDirectory $feed -WorkDirectory (Join-Path $evidence "bad-assets-$failure") }
-        catch { $message = $_.Exception.Message }
-        Assert ($message -like '*Rbf*') "$failure assets did not fail the closure guard."
-        Assert ($global:StoragePackageEntryMock.Calls.Count -eq 1) "$failure assets ran smoke after failed guard."
-        Assert-RestoredEnvironment $failure
+    foreach ($consumer in @('RbfPackageSmoke', 'BinaryPackageSmoke')) {
+        $global:StoragePackageEntryMock.FailureConsumer = $consumer
+        foreach ($failure in @('version', 'extra', 'project', 'missing', 'target', 'direct', 'framework', 'cross', 'libraries-empty', 'target-empty', 'direct-empty')) {
+            $global:StoragePackageEntryMock.AssetsFailure = $failure
+            $global:StoragePackageEntryMock.Calls.Clear()
+            $message = ''
+            try { & $entry -Version $version -FeedDirectory $feed -WorkDirectory (Join-Path $evidence "bad-assets-$consumer-$failure") }
+            catch { $message = $_.Exception.Message }
+            Assert ($message -like "*$consumer*") "$consumer/$failure assets did not fail the closure guard with consumer context."
+            $expectedCalls = if ($consumer -eq 'RbfPackageSmoke') { 1 } else { 3 }
+            Assert ($global:StoragePackageEntryMock.Calls.Count -eq $expectedCalls) "$consumer/$failure assets ran smoke after failed guard."
+            $badAssets = Get-Content -LiteralPath (Join-Path $evidence "bad-assets-$consumer-$failure/$consumer/obj/project.assets.json") -Raw | ConvertFrom-Json -AsHashtable
+            $directId = if ($consumer -eq 'RbfPackageSmoke') { 'Atelia.Rbf' } else { 'Atelia.Binary' }
+            switch ($failure) {
+                'version' { Assert (!$badAssets.libraries.Contains("$directId/$version") -and $badAssets.libraries.Contains("$directId/0.0.0")) "$consumer version fixture did not alter the direct package." }
+                'extra' { Assert ($badAssets.libraries.Contains("Atelia.EventJournal/$version")) "$consumer extra fixture did not add the foreign package." }
+                'project' { Assert ($badAssets.libraries["$directId/$version"].type -ceq 'project') "$consumer project fixture did not alter the direct package type." }
+                'missing' { Assert (!$badAssets.libraries.Contains("$directId/$version")) "$consumer missing fixture did not remove its direct package." }
+                'libraries-empty' { Assert ($badAssets.libraries.Count -eq 0) "$consumer libraries-empty fixture did not clear its libraries." }
+                'target' { Assert (!$badAssets.targets['net10.0'].Contains("$directId/$version")) "$consumer target fixture did not remove its direct package target." }
+                'target-empty' { Assert ($badAssets.targets['net10.0'].Count -eq 0) "$consumer target-empty fixture did not clear its target." }
+                'direct' { Assert ($badAssets.project.frameworks['net10.0'].dependencies.Contains('Atelia.Data')) "$consumer direct fixture did not replace its direct reference." }
+                'direct-empty' { Assert ($badAssets.project.frameworks['net10.0'].dependencies.Count -eq 0) "$consumer direct-empty fixture did not clear its dependencies." }
+                'framework' { Assert (!$badAssets.targets.Contains('net10.0')) "$consumer framework fixture did not remove net10.0." }
+                'cross' {
+                    $crossId = if ($consumer -eq 'RbfPackageSmoke') { 'Atelia.Binary' } else { 'Atelia.Rbf' }
+                    Assert ($badAssets.libraries.Contains("$crossId/$version")) "$consumer cross fixture did not add the other consumer package."
+                }
+            }
+            Assert-RestoredEnvironment $failure
+        }
     }
     $global:StoragePackageEntryMock.AssetsFailure = ''
-    foreach ($failure in @('version', 'filename', 'missing', 'extra', 'schema')) {
+    foreach ($failure in @('version', 'filename', 'missing', 'binary-filename', 'binary-missing', 'extra', 'schema')) {
         $broken = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
         switch ($failure) {
             'version' { $broken.version = '0.0.0' }
             'filename' { ($broken.packages | Where-Object id -CEQ 'Atelia.Rbf').file = 'Atelia.Rbf.0.0.0.nupkg' }
             'missing' { $broken.packages = @($broken.packages | Where-Object id -CNE 'Atelia.Rbf') }
+            'binary-filename' { ($broken.packages | Where-Object id -CEQ 'Atelia.Binary').file = 'Atelia.Binary.0.0.0.nupkg' }
+            'binary-missing' { $broken.packages = @($broken.packages | Where-Object id -CNE 'Atelia.Binary') }
             'extra' { $broken.packages += [pscustomobject]@{ id = 'Atelia.EventJournal'; file = 'extra.nupkg' } }
             'schema' { $broken.schemaVersion = 2 }
         }
@@ -180,13 +215,16 @@ try {
         Assert-RestoredEnvironment $failure
         $manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $manifestPath -Encoding utf8NoBOM
     }
-    $global:StoragePackageEntryMock.FailSmoke = $true
-    $global:StoragePackageEntryMock.Calls.Clear()
-    $message = ''
-    try { & $entry -Version $version -FeedDirectory $feed -WorkDirectory (Join-Path $evidence 'failed-smoke') } catch { $message = $_.Exception.Message }
-    Assert ($message -like '*dotnet failed*' -and $global:StoragePackageEntryMock.Calls.Count -eq 2) 'Failed smoke did not stop metadata execution.'
-    Assert-RestoredEnvironment 'failed-smoke'
-    'Passed: parser, default/explicit three-package All, ten legacy parameter rejections, immutable three-package reuse, seven malformed assets, five malformed manifests, smoke failure environment restoration. All git/dotnet commands mocked; no package consumption proven.' |
+    foreach ($consumer in @('RbfPackageSmoke', 'BinaryPackageSmoke')) {
+        $global:StoragePackageEntryMock.FailSmoke = $consumer
+        $global:StoragePackageEntryMock.Calls.Clear()
+        $message = ''
+        try { & $entry -Version $version -FeedDirectory $feed -WorkDirectory (Join-Path $evidence "failed-smoke-$consumer") } catch { $message = $_.Exception.Message }
+        $expectedCalls = if ($consumer -eq 'RbfPackageSmoke') { 2 } else { 4 }
+        Assert ($message -like '*dotnet failed*' -and $global:StoragePackageEntryMock.Calls.Count -eq $expectedCalls) 'Failed smoke did not stop metadata execution.'
+        Assert-RestoredEnvironment 'failed-smoke'
+    }
+    'Passed: parser, default/explicit four-package All, ten legacy parameter rejections, immutable four-package reuse, twenty-two malformed consumer assets including empty collections and cross-dependencies, seven malformed manifests, both smoke failure environment restorations. All git/dotnet commands mocked; no package consumption proven.' |
         Set-Content -LiteralPath (Join-Path $evidence 'result.txt') -Encoding utf8NoBOM
     Write-Host "MOCK entrypoint tests passed. Evidence: $evidence"
 }
