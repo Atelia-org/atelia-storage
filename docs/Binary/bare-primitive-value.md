@@ -13,6 +13,7 @@
 | 用户此前动议 | 跨库统一基础 codec；VarInt、自适应 UTF-8/UTF-16；内部草稿可重做，不承担旧草稿兼容 | 定义公共基元，不加旧格式 adapter |
 | 用户本轮确认 | 可空性独立；控制字节仅描述解压方法、不描述编码参数；压缩态后依次编码压缩后长度与解压后长度；完整编码收益不足保存原文 | 新增显式受控 string/bytes；普通 Bare API 保持；按完整码字严格较小选择压缩 |
 | 用户授权的工程选择 | 算法优先参考旧 EventJournal，其余问题择优 | 首片 Brotli；Zlib 待严格完成/消费资格后再加入；不因空码位多而预分配未实现方法 |
+| 用户确认的增量接入路线 | 先稳定 Prepare/plan/Write/Read API；.NET 11 正式发布后升级并接入 BCL zstd、DEFLATE | 当前实施公共包装与显式算法分派，记录后续 TODO；尚未实现的方法不成为有效 enum/control |
 | 上轮讨论的设计建议，非已发布合同 | writer 输出默认紧凑表示；reader 可接受明确、无损、有界的其他表示 | 本文提出单一宽容 reader，不加严格/宽松模式矩阵 |
 | 已确认的 FrameStore 合同 | FrameAddress 固定 12B：uint32 LE FileId + uint64 LE Packed；提前地址稳定 | 消费层组合固定 LE 基元；不引入 varint 地址 |
 | 当前代码证据 | DurableGraph 有纯 BCL reader/writer、VarInt、字符串；StateJournal 另有实现且错误/字符串规则不同 | 复用算法经验与独立 golden，不整份照搬领域 writer |
@@ -124,6 +125,7 @@ SJ/DG 旧 `0=null，present=rawHeader+1` 是不同 schema 的既有经验，不�
 | `02` | Brotli | `VarUInt32(C)`、`VarUInt32(U)`、恰好 C bytes 的压缩流 |
 
 C MUST 是压缩后 body 字节数；U MUST 是解压后的完整内层 Bare codeword 字节数，包括 string header 或 bytes 长度前缀，而非仅用户 payload。压缩输入是该完整 codeword，不另定义 UTF-8-only 或压缩专用字符串编码。C/U 复用 `[F-BPV-VARINT-BOUNDED]`，writer 最短、reader 接受有界冗余表示。
+所有已支持的压缩方法 MUST 共用 control/C/U/body 包装；control 唯一确定自足解压格式。当前已支持的压缩方法只有 Brotli。Null/Raw 不携带压缩态的 C/U；内部长度与 Write 必须按存储方法分类，不能将“有 C/U”等同于固定 control=02。
 受控 null 是 `00`，原文 empty string/bytes 是 `01 00`；普通不可空 empty 仍为 `00`。两个完整内层类型至少需要 1B header，故压缩态 U=0 MUST 在解压/分配前拒绝；C=0 也不能形成完整 Brotli 流，明确拒绝。`03..FF` 尚未分配，reader MUST 拒绝，不当 Raw、不跳过或尝试其他 codec。
 首片不提供独立公共 ByteBlock、泛型 value dispatcher、codec registry 或新的 AST；内部共享 envelope 解码不要求新增这些概念。
 
@@ -132,6 +134,7 @@ C MUST 是压缩后 body 字节数；U MUST 是解压后的完整内层 Bare cod
 control=02 MUST 表示 RFC 7932 的标准、自足 Brotli 流。合法标准 window 与格式自带静态 dictionary 属流格式，不限制为 writer 初始 window；不使用外部 dictionary、跨字段压缩上下文或 large-window 扩展。quality、level、writer window 选择不写入 control 或新增元数据，不以此区分解码方法。
 首片 writer 的 ValueCompression 只有 None/Brotli，分别不尝试压缩或只尝试 Brotli；其 enum 数值不是 wire control。None 是默认，以免普通可空工作流隐含压缩 CPU。Brotli 内部初值可参考 EJ 的 quality=3、window=22，属于 Informative 调优起点；未来改变编码参数不改变方法 ID，不承诺跨实现版本产生相同压缩 bytes。
 EJ 实际支持 Brotli/Zlib；ZstdFrame 只是未实现保留。Zlib、Zstd、Gzip 等本轮 defer，不先分配有效 control。加入方法前须明确自足格式、完成与实际消费检查、独立 malformed/golden，以及接入收益；不能只凭旧 enum 或空位多宣称新格式支持。
+算法集合允许增量扩展，PrepareControlledString/Bytes、ControlledValueEncodingPlan.EncodedLength、WritePreparedValue 与 ReadControlledString/Bytes 的现有签名及资源/错误合同保持。ValueCompression 的 None=0、Brotli=1 与默认 None 保持；它描述 writer 请求，未来增加成员须显式映射到独立 wire control。运行时升级不自动改用新算法，reader 根据盘上方法分派。新 reader 继续识别既有方法；旧 reader 对新增 control 仍按未知方法拒绝，这不是旧 reader 的前向格式支持。
 
 ### spec [A-BPV-COMPRESSION-PREPARED] 按完整尺寸选择并冻结输出
 
@@ -150,9 +153,9 @@ PrepareControlledBytes 在准备期间消费借入 span；成功返回后不得�
 
 ### spec [A-BPV-CONTROLLED-READ-BOUNDED] 完整验证后提交 cursor
 
-ReadControlledString/ReadControlledBytes MUST 在 reader 副本上完成外层解析、解压、内层 Read 和所有必要分配，仅最终成功才提交外层 cursor。ReadControlledBytes 在 Raw/Brotli 两条路径都返回自有 byte[]（null 为 null），不混合 borrowed 与 owned；普通 ReadBytes 仍借入源。ReadControlledString 返回普通自有 string。
+ReadControlledString/ReadControlledBytes MUST 在 reader 副本上完成外层解析、解压、内层 Read 和所有必要分配，仅最终成功才提交外层 cursor。ReadControlledBytes 在所有已支持的存储方法上都返回自有 byte[]（null 为 null），不混合 borrowed 与 owned；普通 ReadBytes 仍借入源。ReadControlledString 返回普通自有 string。
 maxStoredByteCount 约束 storedBody（压缩态 C，Raw 态实际内层 codeword）；maxDecodedByteCount 约束完整内层 codeword U；均不包含外 control/C/U 前缀。先校验非负调用参数，再校验声明 int 范围、limit、剩余输入，最后分配/解码。Raw 也须先窥读内层 header，按实际 header 消费数+payload 算出 U 并检查两个 limit，不得先 ReadString 分配再拒绝；冗余 header 字节计入实际 U，不以默认 Measure 替代。limit=0 可读 null，但不容纳需要 1B 内层 header 的 empty。
-Brotli MUST 使用 instance decoder 验证 Done、总 bytesConsumed=C、总 bytesWritten=U，随后内层 Bare reader 解析指定值并 EnsureFullyConsumed。U 已满而 decoder 尚未 Done 时用 1B scratch 驱动剩余完成步骤，产生任何额外 byte 即拒绝；不分配 U+1 大数组、不把 destination 满或输出长度相符当成功。decoder 资源必须在成功/异常时释放。拒绝 C 中的尾随 garbage、串联流、内部截断以及声明 U 过小/过大。
+所有已支持的压缩方法 MUST 验证单个自足流完整结束、实际总消费=C、实际总输出=U，随后内层 Bare reader 解析指定值并 EnsureFullyConsumed。Brotli 使用 instance decoder 的 Done/bytesConsumed/bytesWritten；其他方法须用其对应公开机制证明同一合同，不能仅因 API 形态相似照搬状态处理。U 已满而 decoder 尚未完成时用 1B scratch 驱动剩余完成步骤，产生任何额外 byte 即拒绝；不分配 U+1 大数组、不把 destination 满或输出长度相符当成功。decoder 资源必须在成功/异常时释放。拒绝 C 中的尾随 garbage、串联流、内部截断以及声明 U 过小/过大。C/U 两限额约束 body 长度，不代表 codec 的全部工作内存；新增方法的 window/工作内存边界另行明确。
 外层缺 control/header/C body 是 EndOfStreamException；未知 control、范围/limit 错误、非法压缩流、U 不匹配及解压后内层截短/非法文本/多余字节是 InvalidDataException。内层错误不能被 Raw 回退或读旧值掩盖；OOM 与其他非格式异常保持原异常，外 cursor 仍不变。Raw 身体截短继续按普通 Bare 的 EndOfStreamException 分类。
 
 ## API 与资源合同
@@ -302,6 +305,20 @@ public static class BareValueEncoding {
 
 源码资格按仓库 Release build 后匹配 --no-build tests 串行取得；package 资格单列。真实 I/O 若需要使用 W: SSD，但此 codec 首先是内存测试。下文草案阶段的隔离 BCL 机制探针只证明其机制；本次实现与验收证据以[实施验收](bare-primitive-value-acceptance.md)为准，不能将探针标为新 codec 实现通过。
 本次已确认上述 public 名称与签名、独立 Binary 程序集、默认/异常合同和 golden，实施不再临时改变首片整型布局、控制格式或字符串选择。性能预算先记录编码总 bytes、Measure/Prepare/Write/Read 各自 CPU 与 allocation，分别记录 Raw 与 Brotli、准备期间峰值和计划保留量；没有测量时不宣称自有格式比 CBOR 更快。
+
+## 增量压缩方法接入（TODO：.NET 11 GA）
+
+本次已实施扩展准备：内部 ControlledValueStorage 定义当前 wire 方法；ControlledValueCodecs 集中 writer 请求映射、未知 control 拒绝、压缩包装尺寸和算法分派。Prepare 继续拥有完整内层物化、候选预算、最终收益选择与快照；reader 继续拥有公共限额、typed 内层验证与 cursor 提交。Brotli 自己拥有状态机和资源释放，没有公开 codec registry、callback 或租借合同。
+
+当前目标仍是 net10.0，有效方法仍为 None/Brotli 与 00/01/02。后续施工 TODO：
+
+1. .NET 11 正式发布后同步 global.json、主线目标框架、测试、两个隔离 consumer，以及 eng 中显式 net10.0 的包 assets/metadata 检查；保持冻结 RBF1 PackageReference 边界。用实际 GA 的 ref/source 与包消费证明资格，不把 SDK 升级当成目标框架升级。
+2. 先增加 ValueCompression.Zstandard 和 Deflate，并显式映射各自的新 control；对应接入 BCL ZstandardEncoder/Decoder 与 DeflateEncoder/Decoder。Deflate 固定为 RFC 1951 裸 DEFLATE；若另加 RFC 1950 的 ZLib，使用单独成员/control，不猜包装。候选名称已确定，尚不分配数字或声明实际支持。
+3. 各方法仅支持一个自足流；不引入外部字典、prefix 或跨字段上下文。control 不编码 quality/level，writer 参数继续内部调优；默认仍为 None，只尝试显式指定的一种方法。
+4. 从 GA 实例 API 核对真正完成、实际输入/输出计数、无进展与资源/异常处理；Zstandard 明确 decoder window 上限并与 writer/方法支持范围相容。按 Binary 合同分类底层格式错误，保留 allocation/系统异常。
+5. 用独立 fixtures 覆盖截断、尾随垃圾、串联流（含 skippable frame）、C/U 错配、窗口边界、限额、内层错误与失败 cursor；重跑源码和纯 PackageReference 消费。性能另比较完整 Bare codeword 的总 bytes、Prepare/Read CPU、allocation 与峰值，不以平台内置支持推定最优算法。
+
+官方机制依据（调查于 2026-10-08）：[.NET 11 Preview 3 并入 System.IO.Compression](https://github.com/dotnet/core/blob/main/release-notes/11.0/preview/preview3/libraries.md)、[Preview 4 Span APIs](https://github.com/dotnet/core/blob/main/release-notes/11.0/preview/preview4/libraries.md#span-based-deflate-zlib-and-gzip-encoderdecoder-apis)、[RC1 ref](https://github.com/dotnet/runtime/blob/v11.0.0-rc.1.26425.128/src/libraries/System.IO.Compression/ref/System.IO.Compression.cs)。这些是后续实施依据，不是本次 net11 codec 验收；下文早期 .NET 10 Stream 探针保留历史身份。
 
 ## 证据与外部依据（Informative）
 

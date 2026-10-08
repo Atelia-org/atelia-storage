@@ -37,4 +37,8 @@ controlledReader.EnsureFullyConsumed();
 
 Prepare 冻结自有快照，仅当完整压缩编码严格更小时采用 Brotli；重复写计划不重新压缩。受控 bytes 的 null 使用 `ControlledValueEncodingPlan.Null`，empty span 表示非 null 空值。`ReadControlledBytes` 在 Raw/Brotli 两条路径都返回自有数组。reader 在分配前检查 C/U 限额，并要求一个完整 Brotli 流、精确消费与输出以及内层完全消费。
 
-Prepare 会物化完整值并可能同时保留原文和压缩候选缓冲；分块输出不代表准备过程是流式或恒定内存。Tagged、Zlib、全套 nullable 标量和业务库迁移属于后续工作。
+Prepare 会物化完整值并可能同时保留原文和压缩候选缓冲；分块输出不代表准备过程是流式或恒定内存。
+
+压缩包装与算法实现已在内部拆开：所有已支持的压缩方法共享 C/U、精确尺寸和 typed 内层校验，算法自己的状态机由 ControlledValueCodecs 显式分派。公开 Prepare/plan/Write/Read 签名与默认 None 保持稳定，当前仍仅支持 None/Brotli。
+
+TODO（.NET 11 GA）：升级主线目标框架后用 BCL 接入 Zstandard 与 RFC 1951 裸 Deflate；RFC 1950 的 ZLib 包装如需支持，使用独立方法编号。新增成员/control 须与严格单流、限额/窗口和独立 fixture 验收一起落地，详见[后续接入步骤](../../docs/Binary/bare-primitive-value.md#增量压缩方法接入todo-net-11-ga)。源码 XML doc 和 ControlledValueCodecs 注释也保留这些 TODO。Tagged、全套 nullable 标量和业务库迁移仍为独立后续工作。

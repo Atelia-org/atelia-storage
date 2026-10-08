@@ -1,6 +1,3 @@
-using System.Buffers;
-using System.IO.Compression;
-
 namespace Atelia.Binary;
 
 public ref partial struct BareValueReader {
@@ -29,7 +26,7 @@ public ref partial struct BareValueReader {
         return result;
     }
 
-    /// <summary>Reads nullable controlled bytes into owned storage in both Raw and Brotli forms.</summary>
+    /// <summary>Reads nullable controlled bytes into owned storage for every supported storage method.</summary>
     /// <param name="maxStoredByteCount">Maximum stored body bytes; Raw includes the actual inner header.</param>
     /// <param name="maxDecodedByteCount">Maximum complete inner Bare codeword bytes, including its header.</param>
     /// <returns>An owned array, or null.</returns>
@@ -62,15 +59,15 @@ public ref partial struct BareValueReader {
 
     private ReadOnlySpan<byte> ReadControlledBody(bool isString, int maxStoredByteCount,
         int maxDecodedByteCount, out bool isNull, out bool compressed) {
-        byte control = ReadByte();
-        isNull = control == 0;
-        compressed = control == 2;
-        switch (control) {
-            case 0:
+        ControlledValueStorage storage = ControlledValueCodecs.ReadStorage(ReadByte());
+        isNull = storage == ControlledValueStorage.Null;
+        compressed = ControlledValueCodecs.IsCompressed(storage);
+        switch (storage) {
+            case ControlledValueStorage.Null:
                 return default;
-            case 1:
+            case ControlledValueStorage.Raw:
                 return ReadControlledRawBody(isString, maxStoredByteCount, maxDecodedByteCount);
-            case 2:
+            default: // Only a recognized compressed method reaches the common C/U envelope.
                 uint storedCount = ReadVarUInt32();
                 uint decodedCount = ReadVarUInt32();
                 if (storedCount == 0 || decodedCount == 0 || storedCount > int.MaxValue
@@ -79,9 +76,7 @@ public ref partial struct BareValueReader {
                     throw new InvalidDataException("The controlled value lengths exceed their permitted range.");
                 }
                 ReadOnlySpan<byte> input = ReadRawBytes((int)storedCount);
-                return DecodeControlledBrotli(input, (int)decodedCount);
-            default:
-                throw new InvalidDataException("Unknown controlled value method.");
+                return ControlledValueCodecs.Decompress(storage, input, (int)decodedCount);
         }
     }
 
@@ -96,38 +91,5 @@ public ref partial struct BareValueReader {
         }
         _ = ReadRawBytes((int)payloadCount);
         return _source.Slice(start, checked((int)actualInnerLength));
-    }
-
-    private static byte[] DecodeControlledBrotli(ReadOnlySpan<byte> input, int decodedByteCount) {
-        byte[] output = new byte[decodedByteCount];
-        var decoder = new BrotliDecoder();
-        try {
-            int consumed = 0;
-            int written = 0;
-            Span<byte> scratch = stackalloc byte[1];
-            while (true) {
-                bool checkingOverflow = written == output.Length;
-                Span<byte> destination = checkingOverflow ? scratch : output.AsSpan(written);
-                OperationStatus status = decoder.Decompress(input.Slice(consumed), destination,
-                    out int readNow, out int wroteNow);
-                consumed = checked(consumed + readNow);
-                if (checkingOverflow && wroteNow != 0) {
-                    throw new InvalidDataException("The Brotli value exceeds its declared decoded length.");
-                }
-                written = checked(written + wroteNow);
-                if (status == OperationStatus.Done) {
-                    if (consumed != input.Length || written != output.Length) {
-                        throw new InvalidDataException("The Brotli value did not exactly consume and produce its declared lengths.");
-                    }
-                    return output;
-                }
-                if (status != OperationStatus.DestinationTooSmall || (readNow == 0 && wroteNow == 0)) {
-                    throw new InvalidDataException("The Brotli value is invalid or truncated.");
-                }
-            }
-        }
-        finally {
-            decoder.Dispose();
-        }
     }
 }

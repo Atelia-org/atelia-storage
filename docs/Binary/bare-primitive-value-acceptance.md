@@ -69,3 +69,19 @@ golden 为手写独立 bytes；Brotli decoder fixtures 来自 Google Brotli Pyth
 生产清单仍仅由 `eng/Pack.ps1` 定义，All 顺序为 Primitives → Data → Rbf → Binary。两个隔离应用分别只 PackageReference Rbf 或 Binary，保持三包和单包闭包；metadata 检查四包 nuspec、hash、XML、symbols/PDB、静态 Source Link 与本地 source checksums。Binary 包明确无 NuGet 依赖。CI 继续调用相同统一入口；公开验证脚本与 workflow 已同步四包，但本次不进行远端发布。
 
 Tagged、Zlib、Guid/decimal/时间、全 nullable helper、下游实际迁移、远端 Source Link 下载、跨 runtime 压缩字节一致与性能比较未取得资格。Prepare 保留完整 owned body 和可能的候选缓冲；未来性能评估需分别记录 Measure/Prepare/Write/Read 的 CPU、allocation、准备峰值与计划保留量，不以分块 writer 宣称恒定内存。
+
+## .NET 11 接入准备的增量验收
+
+同日新增内部 ControlledValueStorage 与 ControlledValueCodecs：统一受控包装的分类、精确长度和显式分派，将 Brotli 状态机从公共 Prepare/read 流程移入算法实现。当前仍为 net10.0、None/Brotli 与 control 00/01/02；公共签名、enum 值、默认 None、owned plan、完整收益选择、双限额和失败 cursor 合同保持。未引入 codec registry、外部依赖或未实现的方法编号。
+
+后续 .NET 11 GA 的 Zstandard、RFC 1951 裸 Deflate，以及可选的独立 RFC 1950 ZLib 接入步骤，保存在 [规范 TODO](bare-primitive-value.md#增量压缩方法接入todo-net-11-ga)、[ValueCompression XML doc](../../src/Binary/ValueCompression.cs) 和 [ControlledValueCodecs 注释](../../src/Binary/ControlledValueCodecs.cs)。本节不授予这些未来 codec 实现资格。
+
+| 增量验证 | 结果与证据 |
+| --- | --- |
+| Release solution build / `--no-build` tests | 0 error，41 条既有非 Binary XML warning；**1725/1725**，其中 Binary **183/183** |
+| 独立 checked build/test | 生产 Binary 与测试同时启用 checked；0 warning / 0 error，**183/183** |
+| 公开 API 与包基线比较 | 从首轮候选 DLL 和当前 DLL 独立反射比较，六个 exported 类型的 **83 项**公开类型/成员/参数及默认值/enum 常量描述完全相同；既有 24 个 XML member IDs 也相同 |
+| 未知 control | 对 03..FF 的每个值分别测试只有 control、截短 C/U 和貌似合法包装，均在解析长度前拒绝且保留外 cursor |
+| 依赖与已有工作 | 七组冻结旧栈实际 assets 仍为精确 RBF1 package；主线 Rbf 仍为项目依赖，Binary 无 package/project 依赖；FS/VS 15 份文档 hash 与本轮开始一致 |
+
+原始日志、TRX、API 比较及 hash 核验保存在 [W: 增量验收目录](W:/atelia-binary-compression-extension-prep-20261008-054125/)。上文首轮候选身份保留原意；本次候选包消费结果由后续验收记录补齐。
