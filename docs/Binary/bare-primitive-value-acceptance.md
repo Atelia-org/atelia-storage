@@ -109,7 +109,13 @@ Tagged、Zlib、Guid/decimal/时间、全 nullable helper、下游实际迁移�
 | 独立 checked build/test | 生产 Binary 与测试同时启用 checked，0 warning / 0 error、**214/214**；供应方包保持原发行 DLL，并非重新 checked 编译供应方源码 |
 | 包入口 mock | parser、双 consumer、原坏 assets/manifest/环境恢复负例通过；新增未知外部依赖、直接绕过 Binary 引用 codec、codec 缺失/版本不符/target 缺失共七组 assets 负例；无真实 dotnet 消费资格含义 |
 | 依赖与边界复核 | RBF1 七组 assets 固定值仍通过，Binary 实际净新增一个无传递依赖的 package，FS/VS 15 份文档 hash 保持；规范 18 个 clause ID 保持 |
+| 本地候选与真实隔离消费 | `0.3.0-bpv1-dev.20261008061952` **通过**：Rbf 三包闭包、Binary + K4os 两包闭包；Binary consumer 没有直接引用 codec，实际完成 Brotli/LZ4 block 混合读写、owned 快照和非法 offset 的 cursor 验证；四包 metadata/symbols/PDB/静态 Source Link、**91** 份本地 source checksum 通过（Binary15） |
 
-原始日志、TRX、下载包和上游源码核对、反射比较、依赖与文档 hash 保存在 [W: LZ4 验收目录](W:/atelia-binary-lz4-20261008-055841/)。当前源码段由包含本段的提交固定；本轮本地候选包身份及真实隔离消费结果由后续记录补齐。以前的纯 BCL/single-package 资格只描述其原候选，不替代 LZ4 版本的资格。
+原始日志、TRX、下载包和上游源码核对、反射比较、依赖与文档 hash 保存在 [W: LZ4 验收目录](W:/atelia-binary-lz4-20261008-055841/)。源码提交为 `6d4cb3059d951192413bee462195bd8c15b168f2`；干净 detached [source](W:/atelia-binary-lz4-20261008-055841/source/)、[feed 与 manifest](W:/atelia-binary-lz4-20261008-055841/feed/)、[隔离 cache/assets/logs](W:/atelia-binary-lz4-20261008-055841/package-smoke/) 分开保留。以前的纯 BCL/single-package 资格只描述其原候选，不替代 LZ4 版本的资格。
+
+- Binary nupkg SHA256：`b31fc3d133ed12ce1f510b3e33bd4cf386f19fbcaee2fad80216f6c8af0f6432`。
+- Binary snupkg SHA256：`abba67301533a6c4c867c98976a8b5a288d7f5502152f27113f150179b578a68`。
+- 本轮消费 cache 内的 K4os nupkg 与检查过的 NuGet 原包逐字节 hash 相同：`3a64f72703b8aa99190cbed7aa216a642cb1c928fae2cf6dfa65dc3754fe2320`。
+- 四包完整身份以 `manifest.0.3.0-bpv1-dev.20261008061952.json` 为准；后续文档提交不改变候选源码身份。
 
 没有进行本项目吞吐/CPU benchmark 或接近 2GiB 的极限分配试验，不能据此承诺速度倍数、恒定内存或极限内存资格。块缺少内容 checksum；合法等长内容损坏仍由外层保护。Windows x64 的本轮实测不替代其他平台/架构、远端 Source Link 下载或公开发布证据。
