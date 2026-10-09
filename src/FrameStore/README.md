@@ -31,4 +31,6 @@ using (var store = Store.OpenReadOnly(rootPath)) {
 
 扫描要求零活跃 Builder。回调中可以 ReadFrame，不能 Append、BeginAppend、ConfirmDurable 或递归扫描；这些拒绝不会停用 owner。visitor 异常直接传播，CancellationToken 取消抛 OperationCanceledException；已交付的前缀不等于扫描成功。回调可以 Dispose owner，但整次扫描随之拒绝成功返回。FrameInfo 不持有 reader，FrameFileAudit 的 header 副本可跨 owner 生命周期保留。
 
+后续范围与自动迭代进度见[FrameStore 收尾计划](../../docs/FrameStore-VersionStore/02-framestore-completion-plan.md)。
+
 本片实现与测试证据见[同步物理检查](../../docs/FrameStore-VersionStore/02-framestore-inspection-implementation.md)，此前证据见[公开持久化闭环](../../docs/FrameStore-VersionStore/02-framestore-persistence-implementation.md)及[首个源码切片](../../docs/FrameStore-VersionStore/02-framestore-core-implementation.md)。真实进程中断、资源/规模和完整 S2 审核仍待后续。源码、平台测试与包消费资格分别判断。

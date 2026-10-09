@@ -1,5 +1,7 @@
 # FrameStore / VersionStore 分阶段设计入口
 
+FrameStore 后续实施调度见[收尾计划与自动队列入口](02-framestore-completion-plan.md)：预计 3 轮主线及 1 轮修复余量，聚焦源码与系统验收，不自动扩展到包交付或 VersionStore。
+
 日期：2026-10-03；2026-10-05 确认 FrameStore header、归还、config 与核心/扩展分离；2026-10-07 更新完整字典、单文件 ref、已完成输出资格及命名 fork 的目录共同发布；2026-10-08 确认 FrameAddress 固定 12B 编码；2026-10-09 分离批量规划器设想、收敛 MVP 组合，增加 ForkOrigin 完整历史与全分叉设计，定稿资源、header、owned 租借/维护/读取及同步历史 visitor。状态：**S1 Accepted；S2–S6 Draft；FrameStore 已实施公开持久化闭环，Inventory/Audit 已实施，VersionStore 尚未创建；参考依赖拆分 Accepted**。
 初始设计源码观察基线：`main @ 70d1009e78a73342a0c0fdc8ffed7731dec58173`；S1 验收记录的核对基线为 `f6f1eb38557863ba5ea1634844a90f0cbe5774cf`；前轮设计阅读基线为 `4175a46`，本轮租借/目录修订核对 `50e8e28`。本文档集供逐阶段细化、审阅和实施，不把文档修订视为新实现或验收。
 
