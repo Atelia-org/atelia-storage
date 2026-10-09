@@ -174,7 +174,8 @@ flowchart TD
 | RootMap codec、ref 当前值与发布历史、ref 创建来源、branch/tag 绑定 | VersionStore | 用 ForkOrigin 接续发布前缀并发现分叉，不比较 data 地址大小 |
 | 应用因果链、实验解释、工具进度和模拟器完整状态 | 消费者中层 | 放入 opaque 数据帧，不把发布编辑历史当作业务谱系 |
 | FrameStore 目录生命周期；上层 snapshot、查询索引与缓存 | 其所属存储层 | 目录按本层协议解释；派生投影不能制造新的业务发布 |
-| 完整历史/图语义健康 | 显式 audit / 消费者 validator | 不由普通 Open 成功代替 |
+| 实际正式数据文件的 framing/内容完整 | FrameStore Inventory / Audit | Inventory 不校验用户 PayloadCRC，Audit 完整 CRC；均不证明未知整文件丢失或业务闭包健康 |
+| 发布历史/应用图语义健康 | VersionStore checked 历史 / 消费者 validator | 不由普通 Open 或物理 CRC audit 成功代替 |
 
 ### 当前模型：单文件 ref 与完整字典发布
 
@@ -221,5 +222,5 @@ IO/发布尝试后结果可能 Unknown；完整记录可在重开后存在。首
 
 ## S0 出口
 
-会话已确认新项目、旧库维护边界、RBF 恢复方向、不透明分配、三种追加方式、嵌套文件租借、统一软轮转、目录生命周期、首帧 meta/header、成功 EndAppend 自动归还、数量上限配置文件，以及完整根字典最后发布、单文件 ref、历史选点与命名 fork 的目录共同发布。活跃 Builder 不再阻断对已完成输出的确认、随机读取或独立闭包的根发布。资源基线、文件 header 及 owned 租借/归档维护已由 S2 定稿；格式门完整 codec、路径/读扫描 API 和平台资格仍须工程定稿或实施验证。
+会话已确认新项目、旧库维护边界、RBF 恢复方向、不透明分配、三种追加方式、嵌套文件租借、统一软轮转、目录生命周期、首帧 meta/header、成功 EndAppend 自动归还、数量上限配置文件，以及完整根字典最后发布、单文件 ref、历史选点与命名 fork 的目录共同发布。活跃 Builder 不再阻断对已完成输出的确认、随机读取或独立闭包的根发布。资源基线、文件 header、owned 租借/归档维护和读结果/同步 Inventory/Audit 已由 S2 定稿；格式门完整 codec、路径/编号/锁及平台资格仍须工程定稿或实施验证。
 S1 的单文件尺寸和 ticket 合同已实施并独立验收为 Accepted。S2–S6 仍是 Draft，具体 wire、类名、方法签名及性能预算按各阶段阻断项细化；本片不代表新库或下游适配已完成。

@@ -1,6 +1,6 @@
 # S2：FrameStore 核心、地址与文件生命周期
 
-状态：**Draft；2026-10-05 确认首帧 header、自动归还与 config 数量上限；2026-10-07 允许活跃 Builder 期间确认和随机读取已完成输出；2026-10-08 确认地址固定 12B codec；2026-10-09 定稿资源基线、文件 header 及 owned 租借/归档维护；其余读/扫描 API、格式门、目录及平台资格待工程定稿或实施验证，项目尚未创建**。
+状态：**Draft；2026-10-05 确认首帧 header、自动归还与 config 数量上限；2026-10-07 允许活跃 Builder 期间确认和随机读取已完成输出；2026-10-08 确认地址固定 12B codec；2026-10-09 定稿资源基线、文件 header、owned 租借/归档维护及读结果/同步 inventory/audit；格式门、目录及平台资格待工程定稿或实施验证，项目尚未创建**。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)。本阶段独立于发布和命名层。
 
 ## 本阶段目标
@@ -23,6 +23,7 @@
 | 地址编码 | 固定 12B，完整 uint FileId 与 SizedPtr；基础地址无预留或内容见证字段 |
 | 耐久 | 确认调用时全部必要已完成 active 输出，包括 leased 文件；未完成 Builder 不获得资格，archive 资格来自移动前 flush |
 | 活跃构建期间随机读取 | 同文件已完成前缀可以读；未完成新帧不可读，扫描相关入口仍遵循 RBF guard |
+| 读结果与物理检查 | ReadFrame 返回自有完整帧；Inventory/Audit 为同步 visitor，扫描期间禁止同 owner mutation，随机读仍合法；结构发现与完整内容校验分别报告 |
 | 首帧 meta/header | 固定 24B payload：格式版本 1、16B StoreId、uint FileId；按首物理帧位置识别，不占用用户 tag 范围 |
 | 成功 EndAppend | 正常成功返回前仅登记完成/停止资格并自动归还；归档统一在后续合法写准入、ConfirmDurable 和可写 Open 中处理 |
 | Builder 数量准入 | 可选 config 的 MaxOutstandingBuilders，默认 32；只计已签发且未结束的 Builder，超限立即拒绝；同步 Append 最多另占一个短期租借 |
@@ -67,12 +68,52 @@ RBF ticket checked read 证明 CRC，不独自证明主链成员；正常签发�
 | Create/Open/OpenReadOnly | 格式门、目录发现、owned handles、恢复 | 选择 store/mode；不把 Open 当全库 audit |
 | Append/两种 BeginAppend | 文件租借、提前地址、RBF 完成及 fault | tag、stored payload/meta 编码 |
 | ReadFrame | 寻址、完整 CRC、buffer 生命周期 | 解码及业务合法性 |
-| Preview/显式 inventory 或 audit | 明确信任级别、实际帧发现与错误 | 不以枚举顺序推断业务关系 |
+| Inventory / Audit | 结构发现 / 完整 CRC 检查、同步 visitor 与资源清理 | 不以枚举顺序推断业务关系；业务 codec/依赖由消费者验证 |
 | ConfirmDurable | 同步确认 owner 的全部完成输出 | opaque 引用闭包及业务生效 |
 
-普通分配器不承诺 ScanForward/ScanReverse 的全局语义，也不提供“地址之后”的业务范围。显式 inventory/audit 可扫描真实文件发现帧，但其枚举次序不构成发布顺序；精确 API 与成本另在 S2-Q4 定稿。
+普通分配器不承诺 ScanForward/ScanReverse 的全局语义，也不提供“地址之后”的业务范围。Inventory/Audit 扫描实际正式文件，其文件枚举次序不构成发布顺序；签名、信任与成本由下两条定义。
 
-只提供 owned 分配/read/Builder，不公开可绕过本层 bookkeeping 的裸 `IRbfFile`。本层不认识上层控制记录或提交 codec。首帧识别、完整用户 tag 范围与扫描分类遵循 `[F-FS-META-FIRST]`；inventory/audit 的具体返回类型仍在 S2-Q4 定稿。
+只提供 owned 分配/read/Builder，不公开可绕过本层 bookkeeping 的裸 `IRbfFile`。本层不认识上层控制记录或提交 codec。首帧识别、完整用户 tag 范围与扫描分类遵循 `[F-FS-META-FIRST]`。
+
+### spec [A-FS-READ-OWNED] 随机读取返回独立拥有的完整帧
+
+首版完整读取入口如下；这是待实施合同，不是已存在的 API：
+
+```csharp
+AteliaResult<FrameRead> ReadFrame(FrameAddress address);
+```
+
+FrameRead MUST 为 sealed class，提供只读 Address、Tag、PayloadAndMeta（ReadOnlySpan<byte>）、TailMetaLength、IsTombstone 和幂等 Dispose；构造入口不公开。它私有持有一个 RbfPooledFrame，消费其完整 CRC 与 buffer 所有权，不复制 payload、不暴露 SizedPtr、IRbfFile、Reader 或后续 I/O 方法。失败 Result 不签发结果，清理正常时 RBF 错误原样传播；本层非法地址/缺失文件按所属层分类，不把权限、I/O、格式或 CRC 错误当成不存在。
+调用顺序 MUST 为 owner disposed/shared fault → 地址/定位资格 → 取得 reader → RBF 完整读取 → 必要临时 reader 关闭 → 移交 FrameRead。已有 owned active 直接复用先前 Open/Create 已取得的身份/header 资格，不为随机读再起首帧扫描；未拥有的文件临时只读打开后先做身份/header 检查。Building 时继续消费 `[S-FS-RANDOM-READ-COMPLETED-PREFIX]`，不为读结果追加扫描或全 owner Idle 前置。仅数值地址与 CRC 成功仍不证明主链成员或原始来源。
+包装分配、读取或临时关闭失败时，MUST 释放尚未移交的底层帧；清理遵循 `[S-FS-OWNED-FAULT]`，不让关闭异常遮蔽主异常。成功结果不持有 reader/owner，后续归档、owner fault/Dispose 不撤销已移交的 bytes；调用方负责逐个 Dispose，不由 owner 回收它们。结果 Dispose 只终结自身 buffer 所有权一次，所有引用别名共享此状态；之后 PayloadAndMeta getter 抛 ObjectDisposedException，已取得的 span 不能再用，纯元信息值仍可保存。
+首版不提供 caller-buffer/Span 读取、Reader-bound FrameInfo、TailMeta-only Preview 或独立结果 Lease。出现实际分配成本或大 payload 预筛选需求后再设计相应窄入口，不为不存在的新栈消费者增加尺寸查询和多套结果类型。
+
+### spec [A-FS-INVENTORY-AUDIT] 物理检查使用同步 visitor
+
+首版入口和结果形态如下；不返回 sequence、公开枚举器或持久 cursor：
+
+```csharp
+AteliaResult<long> Inventory(Action<FrameInfo> visitor, CancellationToken cancellationToken = default);
+AteliaResult<long> Audit(Action<FrameFileAudit> visitor, CancellationToken cancellationToken = default);
+```
+
+| 返回给 visitor 的类型 | 最小字段与资格 |
+| --- | --- |
+| FrameInfo：readonly struct，内部构造 | Address、Tag、PayloadLength、TailMetaLength、IsTombstone；纯值快照，无 Reader/read 方法。来源是本次实际主链扫描，已具备 framing/TrailerCRC 资格，不承诺用户 PayloadCRC |
+| FrameFileAudit：readonly struct，内部构造 | uint FileId、ReadOnlyMemory<byte> HeaderPayload、long UserFrameCount；HeaderPayload 是已完整校验的 24B decoded header 的独立副本，无 header FrameAddress。仅在该文件全部实际帧完整 CRC、正常 EOF 及必要关闭成功后回调 |
+
+Inventory MUST 遍历全部实际正式 active/archive 文件，各文件沿公共 `ScanForward(showTombstone: true)` 的真实主链推进；首帧按 `[F-FS-META-FIRST]` 完整检查身份/header，只省略这个 checked 首 ticket。之后的用户帧包含 tag=0 和墓碑，不按 tag 或业务 codec 过滤；不校验其 PayloadCRC。Audit 复用同一内部文件/主链遍历，额外对每个用户帧执行完整读取并及时释放临时帧，按文件报告 header 与用户帧数；header 不计入用户帧数。两入口不审计应用 schema、引用闭包或业务发布，不把结构 inventory 的正常结束称作内容健康。
+
+**准入与重入。** 两入口 MUST 先检查 owner disposed/shared fault、非 null visitor、无正在运行的物理检查及 OutstandingBuilders=0，再做目录枚举或文件读取。零 Builder 是全库逐文件 Scan 的 Idle 条件；这不改变 RBF 既有 sequence 在后来 Building 下仍可推进的合同。首版无并发调用和外部改写，扫描不另建跨进程 snapshot 协议。
+通过准入后只设置 owner 的一个 ScanActive 位，整次同步调用期间拒绝 Append、两种 BeginAppend、ConfirmDurable 和递归 Inventory/Audit；拒绝 MUST 先于维护、租借、创建、flush/close/rename，且不 fault。它防止回调中的 DrainStopped 关闭当前扫描 reader，无需 pin、迁移 reader 或改变 RBF 共享规则。visitor 可串行 ReadFrame，保留纯值 metadata 或独立读结果；active 复用 owned 句柄，archive 随机读仍按操作另开/关只读句柄。此窄 guard 不收紧其他调用期间的 completed-prefix 随机读和 Building 下 ConfirmDurable。
+
+**资源与终止。** raw RBF sequence/枚举器只留在方法栈内，不把 ref struct 放入 class 或逃逸到延迟结果。当前临时扫描句柄保持到该文件结束，并登记在 owner 可清理的单一槽位；不积累历史 reader。正常文件结束、错误清理及 owner Dispose 都 MUST 在调用 public Dispose 前先取出并清空临时槽位，关闭抛错也不重试。owner Dispose 仍是合法受控清理，先失效 owner，再逐项尝试临时及其他 owned 资源；扫描 finally 只清理尚未取出的临时句柄，不重复 Dispose。每次 visitor 返回后、继续 I/O 前及最终成功返回前 MUST 重检 owner disposed/shared fault 与 cancellationToken；回调在最后一项 Dispose owner 或取消 token 也不能获得全库成功。
+目录迭代、文件打开/header 检查、每次 MoveNext/完整读及回调之间检查 cancellationToken；取消抛 OperationCanceledException，清理仍继续。不承诺打断正在执行的一次同步 I/O/CRC 或限制其耗时、单帧 buffer 与 RSS。每个 raw MoveNext=false MUST 检查 TerminationError，非 null 原样返回失败而非空/正常 EOF。文件定位、目录枚举、header/帧错误、I/O、取消或 visitor 异常均不得返回成功；不会跳过坏文件、找后继帧或自动修复 archive。
+正常成功 Result 的 long MUST 为完整访问/校验的用户帧总数，checked 累加，且只有全部正式目录枚举、全部文件 EOF、必要关闭及最终 guard 均通过后才能返回。visitor 已接收的前缀或单文件报告不等于全库完成。无正常早停 bool、partial-success 或 Complete/Stopped 枚举；需要取消时使用 token，visitor 自身异常直接传播。普通读/扫描错误 Result、纯读异常、visitor 异常及取消不自行 fault 健康 writer；actual owned 关闭/释放失败按 `[S-FS-OWNED-FAULT]` 停用 owner 并汇总，主异常优先。所有退出路径的 finally MUST 清除 ScanActive，即使清理抛错。
+
+**覆盖与成本。** 文件发现、规范路径/重复编号及创建残留资格消费本阶段目录协议，不在读 API 建立第二份 manifest。成本含实际目录项、全部文件 header 与 framing；Audit 再含全部用户 payload bytes，单次只保留当前文件 reader 和当前完整帧，visitor 自行累积结果的成本另计。无持久应有集合且允许编号缺口时，只能报告实际发现/定位中已观察的缺失；无法凭剩余目录证明一个已整体消失、没有已知引用的历史文件曾存在。全库完成只覆盖本次实际正式集合，不等于所有历史依赖健康或“所有曾发布文件未丢失”。正常分页、暂停/恢复 cursor、硬 I/O/内存预算及持续写入期间的全库扫描，等真实消费者要求这些能力后再设计。
+
+本合同复用当前 [RBF pooled 结果](../../src/Rbf/RbfPooledFrame.cs)、[栈内正向扫描](../../src/Rbf/RbfForwardEnumerator.cs)及[扫描信任级别测试](../../tests/Rbf.Tests/Internal/RbfScanForwardTests.cs)；这些是底座源码/测试证据，不是 FrameStore 实施验收。
 
 三种追加能力已确认，下面仅为签名候选，不是已存在的 public API：
 
@@ -189,7 +230,7 @@ Create/Open 不自动补写缺失 config；32 是便于小规模交错构建的�
 
 FrameStore 的指定地址随机读取 MUST 消费 RBF `[S-RBF-RANDOM-READ-COMPLETED-PREFIX]`，允许在目标文件 Builder 活跃时串行读取此前已完成帧，不另设文件或整个 owner 的 Building 读取禁令。同文件通过现有 owned reader 读取，不开第二个同文件句柄绕过 FileShare.None。
 Building 期间，请求必须连同帧后 Fence 完整落在当前已完成前缀内；未完成 Builder 的提前地址和跨越边界的范围先于实际读取拒绝。该范围检查不替代真实帧解析、完整内容校验或地址来源责任，裸数值范围不证明主链成员或原始 store。精确范围与错误分类由 RBF 公共合同定义，本层不复制布局常量；本条不扩大 Idle 随机读取的既有合同。
-owner 生命周期、共享 fault、串行调用和读结果所有权 MUST 保持；缓存命中也不能绕过这些检查。新申请的扫描、扫描边界和物理后继查询入口仍遵循各自 RBF Building guard；此前已取得的 sequence/枚举器继续按其捕获的完成上界及既有串行、生命周期/fault 合同使用，本轮不增加禁令。具体边界消费 RBF `[S-RBF-SCAN-IDLE-ONLY]`。
+owner 生命周期、共享 fault、串行调用和读结果所有权 MUST 保持；缓存命中也不能绕过这些检查。底层新扫描、扫描边界和物理后继查询仍遵循 RBF Building guard；其此前已取得的 sequence/枚举器继续按捕获的完成上界及既有串行、生命周期/fault 合同使用，不修改 `[S-RBF-SCAN-IDLE-ONLY]`。FrameStore 不外泄这些 sequence，自有 Inventory/Audit 的同步回调资格由 `[A-FS-INVENTORY-AUDIT]` 定义。
 
 ## 候选合同
 
@@ -211,7 +252,7 @@ Create 为 create-only；Open 不创建缺失 store。格式未知、metadata CR
 可写打开 MUST 枚举 active 的规范文件，按 `[F-FS-META-FIRST]` 先检查完整初始化的长度下界，再让 RBF 分别处理每个文件的单尾恢复并校验首帧；报告按 FileId 关联供诊断，Action 不驱动业务回滚或发布。所有需恢复的 active 文件成功打开并完成本层初始化检查后，才能向外签发新 Builder。
 Open 不重复读取整个尾 payload 取得结构资格；业务 metadata 作事实前仍 checked-read。archive 历史只读严格访问，残尾不被自动改写。恢复后的 TailOffset 大于当前阈值时，文件不可再租借，按归档协议处理。
 所有 active 恢复/header 检查及目录准入通过后，可写 Open MUST 执行 `[S-FS-ARCHIVE-AFTER-FLUSH]` 的统一归档维护，再签发 owner；任何维护或清理失败都不签发可用实例。具体目录裁决仍按 S2-Q2/Q3 定稿。
-正常 Open 核对格式门、私有创建槽位、active 集合及编号恢复所需目录信息；历史缺段/坏内容按需读取或完整 inventory/audit 时报告。枚举目录名不等于审计历史帧，不宣称已验证全部历史文件。只读只验证，不恢复、不移档、不清理创建残留。
+正常 Open 核对格式门、私有创建槽位、active 集合及编号恢复所需目录信息；按需读取报告已知地址的缺失/坏内容，Inventory/Audit 覆盖实际发现的正式集合及其中已观察的错误，不声称发现不可观测的整文件丢失。枚举目录名不等于审计历史帧，不宣称已验证全部历史文件。只读只验证，不恢复、不移档、不清理创建残留。
 
 ### spec [S-FS-SOFT-THRESHOLD] 完成后大于阈值才停止追加
 
@@ -297,7 +338,7 @@ header 保持标准 RBF3 帧，RBF 不感知其业务类型。初始化完整的
 
 公共 RBF 工厂先结构恢复，再返回可用于内容读取的对象；带合法残尾的 active 不能先用 OpenReadOnlyExisting 检验 header。因此上述顺序不承诺任何 header 拒绝前都没有物理修尾：长度足够但版本/身份/CRC 错的 active，可能先发生其用户尾结构恢复，再被拒绝。不会据此签发 owner、补造首帧或回退旧身份，不增加 raw parser、prefix-open API 或回滚恢复动作。只读/归档用 `OpenReadOnlyExisting(path, Off)` 后执行同一首帧检查；残尾由只读 RBF 拒绝，不恢复、不清理。
 
-**用户范围与展示。** header 仅在上述首物理位置具有系统意义；普通 Append/EndAppend MUST 继续接受整个 uint tag 值域，包括 0。普通追加和用户 inventory 不签发 header 的 FrameAddress；inventory/preview 只省略已校验首 ticket，不能按 tag 过滤后续用户帧。audit MUST 校验并以文件元信息报告 header，不能把坏 header 当空用户集合。原生 RBF 扫描照常包含这份标准帧，不改变底座过滤规则，不增加 showHeader 开关。ReadFrame 保持中性随机读取合同，不增加针对自行编码 header 地址的特殊拒绝；数值 codec 与 CRC 成功仍不赋予用户来源或发布资格。具体 inventory/audit 类型仍归 S2-Q4。
+**用户范围与展示。** header 仅在上述首物理位置具有系统意义；普通 Append/EndAppend MUST 继续接受整个 uint tag 值域，包括 0。普通追加和用户 Inventory 不签发 header 的 FrameAddress；Inventory 只省略已校验首 ticket，不能按 tag 过滤后续用户帧。Audit MUST 校验并以 FrameFileAudit 的文件元信息报告 header，不能把坏 header 当空用户集合。原生 RBF 扫描照常包含这份标准帧，不改变底座过滤规则，不增加 showHeader 开关。ReadFrame 保持中性随机读取合同，不增加针对自行编码 header 地址的特殊拒绝；数值 codec 与 CRC 成功仍不赋予用户来源或发布资格。
 
 本条的公共调用顺序依据当前 [RBF 工厂](../../src/Rbf/RbfFile.cs)、[首位置扫描](../../src/Rbf/RbfForwardEnumerator.cs)及[结构恢复](../../src/Rbf/Internal/RbfTailRecovery.cs)；不是 FrameStore 已实施的证明。
 
@@ -330,7 +371,7 @@ ConfirmDurable 消费本阶段 `[A-FS-DURABLE-COMPLETED-OUTPUTS]` 的核心合�
 业务发布不在本阶段建立。
 
 1. S2-A：创建项目/solution；实现不透明 FrameAddress 与固定 12B codec，定稿公开入口/文本/错误和内部布局，以及格式门完整 codec、路径与模式；实施本阶段已定的 StoreId/header codec 和数量上限 config。
-2. S2-B：实施已定 FrameBuilder/FramePayloadWriter、一次性共享 Lease、borrow 前检、无分配的完成/归还登记与保守共享 fault；三种追加、交错完成、随机读、基础确认与 Dispose 清理可独立验证。
+2. S2-B：实施已定 FrameBuilder/FramePayloadWriter、一次性共享 Lease、borrow 前检、无分配的完成/归还登记与保守共享 fault，以及 FrameRead、同步 Inventory/Audit；三种追加、交错完成、随机读、物理检查、基础确认与 Dispose 清理可独立验证。
 3. S2-C：实施统一 DrainStopped 及确认/写准入/Open 入口，结合编号恢复、creating/active/archive 中断状态与多个 active 的独立恢复取得资格。
 4. S2-D：进程中断/资源失败、只读、错误格式、规模和 public 指南资格。
 
@@ -341,7 +382,9 @@ header 独立 bytes 向量固定 version=1、StoreId 为 hex 01 至 10、FileId=
 屏障覆盖 A 完成/B 仍 Building 时成功确认 A、B 租借文件内更早 dirty 帧也被确认、B 内容及租借不变、B 后续完成须重新确认、B 健康取消不获得资格、reopened active Action=None 首次确认，以及任一文件 flush 失败后所有 owned Builder/Writer 停用。
 维护向量覆盖 End 成功/配额释放后没有 flush/close/rename，下一合法写准入先维护、满额或非法 Begin 不维护，以及 Confirm/Open 排空、读/取消/Dispose 不移档。让 A 成功越过阈值，下一 Begin 或 Confirm 的 flush/close/rename 各自失败：A 仍是完整事实、本次无新 Builder/成功确认，其他活跃 Builder/Writer 全部拒绝；关闭已尝试对象不重复 Dispose，重开按真实位置裁决。覆盖 M 个 Builder 加一次 Append 的 M + 1 停止项窗口、持续 Append 不调用 Confirm 时仍及时归档、同一次 Confirm 不重复 flush 已归档项。
 租借向量覆盖 Builder/Writer 副本、成功/取消后同文件复用、旧 End/Dispose/Writer 不触及新租借和内层 epoch 回绕不恢复 outer 资格。借用镜像覆盖 Span/Memory、成功 Advance(0)、失败 Advance 保持、borrow 期间 reservation Commit/TryGetReservedSpan、End 可纠正前检及 Confirm 保持该位。分别验证 Result 拒绝保留、委派 finalize/Commit 未知异常终结并 shared fault，尤其完整输出后回收失败而 TailOffset 尚未推进的窗口；不以一次异常等于零输出。
-Dispose 向量覆盖取消资源异常不重租、全部 owned 文件逐一尝试、单原异常/多 Aggregate、汇总分配失败仍继续清理且保留首异常、Open 主异常不被清理遮蔽、二次 Dispose no-op、不重抛旧 fault，以及清理不 flush/归档。普通读结果/inventory/audit 的具体签名与扫描 mutation guard 仍归 S2-Q4，不能据此宣称其已全部定稿。
+Dispose 向量覆盖取消资源异常不重租、全部 owned 文件逐一尝试、单原异常/多 Aggregate、汇总分配失败仍继续清理且保留首异常、Open 主异常不被清理遮蔽、二次 Dispose no-op、不重抛旧 fault，以及清理不 flush/归档。
+读/检查向量覆盖 FrameRead 在 reader 关闭、归档、owner fault/Dispose 后仍可用、别名只释放一次、结果 Dispose 后 span 不再使用；包装 OOM/读失败/关闭失败均释放未移交的 pooled 帧。Inventory 的 payload 损坏可保留结构资格而 Audit 必须失败，TrailerCRC/Framing 错误不能变成 EOF，坏/墓碑 header 拒绝且后续 tag=0/墓碑用户帧保留；Audit 的 24B header 副本与元信息跨回调/owner Dispose 仍可保留。
+同步 visitor 覆盖 live Builder/递归扫描准入先于 I/O 拒绝、回调 Append/Begin/Confirm 先于 DrainStopped 拒绝且不 fault、随机 Read 合法、callback/OCE 后 guard 释放，以及最后一项 Dispose owner 后不得正常成功。操作临时句柄由 owner/栈清理一次，callback 主异常不被关闭失败遮蔽；后文件坏/目录枚举失败/取消保留前缀回调但不产生全库成功。正常文件含完整 orphan，零用户帧成功计数为 0；真实集合全 CRC 资格不变成业务依赖闭包或未知历史文件存在性证明。
 随机读取覆盖目标文件 Building 时成功读取旧完整帧、提前地址及包含帧后 Fence 的跨边界范围在 I/O 前拒绝、CRC/解析/Dispose/fault 仍传播、同一历史读取不受租借分配结果影响。扫描/扫描边界/物理后继保留原 guard，不以随机读取放宽宣称并发或扫描已开放。
 数量配置覆盖 M=1/32、满额 Begin 先于租借/创建/输出拒绝、初始化失败不占额度、短写拒绝仍占额度、成功 EndAppend/健康取消释放一次，以及有效/缺失/空 object/非法/重复或未知属性/读取错误、实例固定和下次打开生效；只读忽略写入配置。覆盖满额时合法 Append 仍成功、无关 Builder/ConfirmDurable 不受影响，以及 M=1 时先取得 A 地址、Append B 指向 A、再回填完成 A 的 public 轨迹；不以数量上限测试冒充总内存预算证据。
 资源基线覆盖所有工厂显式 Off、active idle 句柄保留与 archive 随机读结束后的关闭/自有结果、扫描提前结束和错误时释放、Open 中途失败清理、旧高上限留下的 active 数大于当前 M 仍完整检查并首次再确认。记录大 sizeHint、重复大 Append 后 scratch/池回收及实际句柄成本；不把配置降低等同于总资源立即缩减，也不宣称没有归档维护的 active 集合受 M 限制。
@@ -357,7 +400,7 @@ Dispose 向量覆盖取消资源异常不重租、全部 owned 文件逐一尝�
 | S2-Q1 | 固定 12B FrameAddress codec 的公开入口、文本/错误与目标平台验证、内部 struct 布局；格式门完整 codec/发布协议与上下文保证，复用已定版本 1 及 StoreId 的 16B canonical 编码 |
 | S2-Q2 | 精确路径字符串、软阈值默认/变更、递增编号恢复/空桶/缺号/耗尽及目录规模成本 |
 | S2-Q3 | store 独占入口、creating 残留裁决、同文件系统不覆盖 rename 的两平台入口与中断实证 |
-| S2-Q4 | Builder/Writer 共享一次性 Lease、borrow 前检、完成归还、dirty/后续重新登记、DrainStopped 入口、保守共享 fault 和 Dispose 汇总已定；实施对应拒绝/维护/资源失败向量。仍需定稿读结果及 inventory/audit 签名、扫描生命周期/mutation guard，并验证 completed-prefix 随机读取 |
+| S2-Q4 | Builder/Writer/Lease、borrow、完成/dirty、维护/fault/Dispose，以及 FrameRead、纯值 FrameInfo、FrameFileAudit、同步 Inventory/Audit 准入/重入/取消/终止合同已定；实施对应拒绝/资源清理/信任级别与 completed-prefix 随机读取向量，不再作为待定 API 设计 |
 | S2-Q5 | 保留可写 active 句柄、显式 Off、只读按操作开关且无 reader pool 的基线已定；验证身份/读结果/扫描资源归属、Open 失败清理、历史峰值与实际资源成本，不做精确总资源配额 |
 | S2-Q6 | 24B header/单一格式版本/身份绑定、首位置识别、长度前检及 RBF 恢复后 checked-read、初始化与用户 tag/扫描合同已定；实施上述 bytes、拒绝、重复打开和用户残尾验收，不再作为待定设计 |
 | S2-Q7 | 可选 framestore.config.json/默认 32/严格校验/实例固定、Builder-only 计数与 Append 的额外短租借已定；验证先拒绝、失败不占额、释放一次、满额 Append 和配置/生效向量 |
