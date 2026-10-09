@@ -89,11 +89,11 @@ FrameStore MUST 在成功完成帧后按文件 TailOffset 检查轮转，只有�
 ### decision [S-FS-DIRECTORY-LIFECYCLE] 目录表达可写与归档状态
 
 可写文件集合 MUST 由 active 目录中的规范文件表达；成功归档文件进入按编号固定分桶的 archive 目录，后续只读。无需另存 active manifest/status 或全历史分段表。
-新文件在私有创建槽位完成初始化后才发布到 active、签发地址；归档必须先停止分配、flush、关闭 writer，再同文件系统 rename，禁止覆盖既有目标。保留 create-only 格式门与整个 store 的独占可写 owner；正式路径由 S2 定义；初次空 store 与正式门直接 create-only 建立见 `[R-FS-STORE-CREATE]`，根准入、门成立前独占、平台入口及私有数据残留/中断裁决继续在 S2 定稿或验证。
+新文件在私有创建槽位完成初始化后才发布到 active、签发地址；归档必须先停止分配、flush、关闭 writer，再同文件系统 rename，禁止覆盖既有目标。保留 create-only 格式门与整个 store 的独占可写 owner；正式路径由 S2 定义；初次空 store 与正式门直接 create-only 建立见 `[R-FS-STORE-CREATE]`，整个 owner 的锁/门前 bootstrap 消费 S2 `[S-FS-OWNER-LOCK]`；实际根准入、平台入口及私有数据残留/中断裁决继续在 S2 定稿或验证。
 首版采用固定 1024 编号一个归档桶的布局方向，S2 定义计算关系；桶大小不作为可随实例更改的设置。
 2026-10-09 编号工程选择见 S2 `[S-FS-DIRECTORY-STATES]`：完整流式正式名称发现恢复 active/archive 实际最大 FileId，只保留内存 max 和已有 active 台账；耗尽只拒绝需新文件的请求。无持久计数器或全历史 ID 表，成本含历史文件名枚举；这不构成 archive 内容、性能或平台资格。
 同日正式路径工程选择见 S2 `[F-FS-BUCKETED-PATHS]`：active/archive 共用完整 FileId 文件名，固定宽小写 ASCII hex 与桶范围，逐层检查全部直接项，不以宽容解析或文件筛选认领别名。路径 codec 不成为另一份身份/编号权威；实际组件、类型/no-follow、独占及 rename 仍需平台准入资格。
-同日格式门记录工程选择见 S2 `[F-FS-OWN-FORMAT]`：普通固定记录直接消费现有 Data CRC codeword；所有打开模式只读完整校验，不从数据 header 补造身份。RBF3 约束用于数据文件，门/config 作为控制文件独立解释；初次建立按 S2 `[R-FS-STORE-CREATE]` 先齐必要空布局再直接写正式门，正常返回要求 flush/close/owner 交付成功；完整门可存在于失败调用后，不证明旧调用确认。首数据文件延至实际追加；根准入/独占及实施平台证据仍未闭合。
+同日格式门记录工程选择见 S2 `[F-FS-OWN-FORMAT]`：普通固定记录直接消费现有 Data CRC codeword；所有打开模式只读完整校验，不从数据 header 补造身份。RBF3 约束用于数据文件，门/config 作为控制文件独立解释；初次建立按 S2 `[R-FS-STORE-CREATE]` 先齐必要空布局再直接写正式门，正常返回要求 flush/close/owner 交付成功；完整门可存在于失败调用后，不证明旧调用确认。首数据文件延至实际追加；owner 锁/控制设施及门前 bootstrap 见 S2 `[S-FS-OWNER-LOCK]`；实际根准入及实施平台证据仍未闭合。
 
 ### decision [F-FS-HEADER-FIRST] 首帧承载 FrameStore 文件元信息
 
@@ -229,5 +229,5 @@ IO/发布尝试后结果可能 Unknown；完整记录可在重开后存在。首
 
 ## S0 出口
 
-会话已确认新项目、旧库维护边界、RBF 恢复方向、不透明分配、三种追加方式、嵌套文件租借、统一软轮转、目录生命周期、首帧 meta/header、成功 EndAppend 自动归还、数量上限配置文件，以及完整根字典最后发布、单文件 ref、历史选点与命名 fork 的目录共同发布。活跃 Builder 不再阻断对已完成输出的确认、随机读取或独立闭包的根发布。资源基线、文件 header、owned 租借/归档维护、读结果/同步 Inventory/Audit、编号恢复、正式路径、FrameAddress 值/公开 codec、格式门记录/只读校验、初次空 store 与直接门建立及软阈值参数/重开规则已由 S2 定稿；根准入/门成立前独占、私有数据残留及平台资格仍须工程定稿或实施验证。
+会话已确认新项目、旧库维护边界、RBF 恢复方向、不透明分配、三种追加方式、嵌套文件租借、统一软轮转、目录生命周期、首帧 meta/header、成功 EndAppend 自动归还、数量上限配置文件，以及完整根字典最后发布、单文件 ref、历史选点与命名 fork 的目录共同发布。活跃 Builder 不再阻断对已完成输出的确认、随机读取或独立闭包的根发布。资源基线、文件 header、owned 租借/归档维护、读结果/同步 Inventory/Audit、编号恢复、正式路径、FrameAddress 值/公开 codec、格式门记录/只读校验、初次空 store 与直接门建立及软阈值参数/重开规则已由 S2 定稿；owner 生命周期锁/门前 bootstrap/模式互斥已由 S2 定稿；实际根准入、私有数据残留及平台资格仍须工程定稿或实施验证。
 S1 的单文件尺寸和 ticket 合同已实施并独立验收为 Accepted。S2–S6 仍是 Draft，具体 wire、类名、方法签名及性能预算按各阶段阻断项细化；本片不代表新库或下游适配已完成。
