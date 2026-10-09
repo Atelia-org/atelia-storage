@@ -1,6 +1,6 @@
 # Atelia.FrameStore
 
-FrameStore 已实现 [S2](../../docs/FrameStore-VersionStore/02-framestore-core.md) 的公开持久化闭环：真实目录 `Create/Open/OpenReadOnly`、三种追加、交错 Builder、随机读取、同步耐久确认及归档。项目参加 solution 构建和测试，保持 source-only、暂不打包；VersionStore 尚未创建。
+FrameStore 已实现 [S2](../../docs/FrameStore-VersionStore/02-framestore-core.md) 的公开持久化闭环：真实目录 `Create/Open/OpenReadOnly`、三种追加、交错 Builder、随机读取、同步耐久确认及归档。S2/S3 已取得[独立源码验收](../../docs/FrameStore-VersionStore/02-framestore-final-acceptance.md)。项目参加 solution 构建和测试，保持 source-only、暂不打包；VersionStore 尚未创建。
 
 ```csharp
 using Atelia.FrameStore;
@@ -37,4 +37,4 @@ writer 的 `Length` 保留 RBF 已写/预留的逻辑累计长度，包含内部
 
 后续范围与自动迭代进度见[FrameStore 收尾计划](../../docs/FrameStore-VersionStore/02-framestore-completion-plan.md)。
 
-实现与测试证据见[同步物理检查](../../docs/FrameStore-VersionStore/02-framestore-inspection-implementation.md)、[公开持久化闭环](../../docs/FrameStore-VersionStore/02-framestore-persistence-implementation.md)及[首个源码切片](../../docs/FrameStore-VersionStore/02-framestore-core-implementation.md)。公开返回点的真实强杀、跨进程锁与冷重开见[过程取证 R1](../../docs/FrameStore-VersionStore/02-framestore-process-acceptance.md)；内部具名窗口和完整 S2 审核仍待后续。源码、平台测试与包消费资格分别判断。
+实现与测试证据见[同步物理检查](../../docs/FrameStore-VersionStore/02-framestore-inspection-implementation.md)、[公开持久化闭环](../../docs/FrameStore-VersionStore/02-framestore-persistence-implementation.md)及[首个源码切片](../../docs/FrameStore-VersionStore/02-framestore-core-implementation.md)。公开返回点的真实强杀、跨进程锁与冷重开见[过程取证 R1](../../docs/FrameStore-VersionStore/02-framestore-process-acceptance.md)；内部具名窗口及 S2/S3 逐项证据已在[最终源码验收 R3](../../docs/FrameStore-VersionStore/02-framestore-final-acceptance.md)闭合。源码、平台测试与包消费资格分别判断。

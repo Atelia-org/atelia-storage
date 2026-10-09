@@ -64,7 +64,7 @@ solution build/test 同时覆盖 main 底座和冻结旧栈参考项目；旧栈
 
 公共 binary codec 的规范见 [Bare Primitive Value](docs/Binary/bare-primitive-value.md)，实现入口为 [Atelia.Binary](src/Binary/README.md)：schema 驱动的基元、宽容 reader、精确尺寸与显式受控 Brotli/LZ4 block。源码/包资格单列于[实施验收](docs/Binary/bare-primitive-value-acceptance.md)。[Tagged Value](docs/Binary/tagged-value-intent.md) 仍仅为意向，优先评估 CBOR 等成熟标准。
 
-新栈主入口为 [FrameStore / VersionStore 分阶段设计](docs/FrameStore-VersionStore/README.md)。[S1 公共尺寸计算与提前 ticket](docs/FrameStore-VersionStore/01-rbf-sized-append.md)已 Accepted，源码资格见[阶段验收记录](docs/FrameStore-VersionStore/01-rbf-sized-append-acceptance.md)；S2–S6 仍为 Draft。S1 历史测试与本轮依赖拆分结果分开记录，不以 Accepted 推定新项目或包已交付。
+新栈主入口为 [FrameStore / VersionStore 分阶段设计](docs/FrameStore-VersionStore/README.md)。[S1 公共尺寸计算与提前 ticket](docs/FrameStore-VersionStore/01-rbf-sized-append.md)已 Accepted，源码资格见[阶段验收记录](docs/FrameStore-VersionStore/01-rbf-sized-append-acceptance.md)；S2/S3 已取得[FrameStore 独立源码验收](docs/FrameStore-VersionStore/02-framestore-final-acceptance.md)，保持 source-only；S4–S6 仍为 Draft。S1 历史测试与本轮依赖拆分结果分开记录，不以 Accepted 推定新项目或包已交付。
 
 - 协作约束见 [AGENTS.md](AGENTS.md)；本轮新旧依赖边界、状态与验收见 [过渡方案](docs/rbf1-reference-transition.md)。
 - 旧栈参考指南与 [EventJournal 历史设计](docs/EventJournal/)提供模型和事实背景，不是 main 新栈的规范权威。具体公开包以固定来源为准。

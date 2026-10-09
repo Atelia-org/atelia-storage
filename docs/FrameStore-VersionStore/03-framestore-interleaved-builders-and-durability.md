@@ -1,6 +1,6 @@
 # S3：FrameStore 交错构建、循环引用与同步耐久屏障
 
-状态：**Draft；2026-10-04 采用独占文件租借与交错完成；2026-10-05 确认自动归还、数量上限 config；2026-10-07 取消全部归还的屏障前置；2026-10-09 分离批量规划器设想，并消费 S2 已定资源、owned 租借与归档维护合同；FrameStore 项目与公开持久化闭环已实施，2026-10-10 补充独立循环图消费者及有界资源测量；完整阶段状态留待最终验收映射**。
+状态：**Accepted（2026-10-10，FrameStore 独立 public 交错构建与同步屏障消费资格）**。证据及适用边界见[最终源码验收](02-framestore-final-acceptance.md)；不包含 VersionStore 发布、包交付或多线程执行。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)。本层不解释根发布或 payload 引用。
 
 独立 public API 消费与资源证据见 [R2 记录](02-framestore-consumer-resource-acceptance.md)，真实进程中断的范围见 [R1 记录](02-framestore-process-acceptance.md)。这些记录分别证明实际覆盖的向量，不代替下文全部出口或上层发布资格。
@@ -12,7 +12,7 @@
 
 多个 Builder 的租借/归还仍串行，每文件一个 Builder；本阶段证明交错生命周期，不宣称多线程并行。基本构建能力来自 S2 的单帧追加与独占租借。
 
-## 候选合同
+## 合同
 
 ### spec [A-FS-EARLY-ADDRESSES] 已知尺寸租借直接取得互引地址
 
@@ -77,9 +77,11 @@ Builder/Writer 副本共用一次性 Lease，普通 borrow 前检的可纠正异
 FrameStore 单测不依赖发布库。没有公开 receipt 的伪造/过期测试；改测 owned 写入不可绕过、未归还 Builder 不阻断已完成输出的屏障且不获得资格、leased 文件旧 dirty 输出必须确认、后续新帧重新 dirty、成功返回前全部必要文件确认，以及 flush 失败停用所有 Builder。
 同文件历史随机读取成功，未完成 ticket 和帧后 Fence 跨边界先拒绝；不通过第二个句柄或缓存逃过 owned fault。扫描等入口仍受原 guard，不据此声称并发读写资格。
 
-## Ready 阻断项与出口
+## 出口与验收映射
 
-| ID | 需定稿 |
+全部 Q 项已按[最终源码验收](02-framestore-final-acceptance.md)完成映射；下表保留组合资格范围。
+
+| ID | 验收范围 |
 | --- | --- |
 | S3-Q1 | 消费 S2 已定的 config/计数/句柄基线；验证多个提前地址和 M=1 + 完整 Append 两种互引轨迹、数量拒绝与实际资源成本 |
 | S3-Q2 | 消费 S2 已定的共享 Lease、成功自动归还与独立归档维护；验证旧副本、可纠正 Result/borrow、取消/reuse、未知委派异常与资源释放 |

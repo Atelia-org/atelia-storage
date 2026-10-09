@@ -11,7 +11,9 @@ internal static class FrameStoreFactory {
     private static readonly IReadOnlyDictionary<uint, RbfTailRecoveryReport> EmptyReports =
         new ReadOnlyDictionary<uint, RbfTailRecoveryReport>(new Dictionary<uint, RbfTailRecoveryReport>());
 
-    internal static FrameStore Create(string rootPath, long rotationThresholdBytes) {
+    internal static FrameStore Create(string rootPath, long rotationThresholdBytes,
+        FrameStoreFactoryOperations? operations = null) {
+        operations ??= FrameStoreFactoryOperations.Default;
         RotationThreshold.Validate(rotationThresholdBytes);
         ArgumentException.ThrowIfNullOrWhiteSpace(rootPath);
         string root = Path.GetFullPath(rootPath);
@@ -26,11 +28,12 @@ internal static class FrameStoreFactory {
         IDisposable? ownerLock = null;
         FrameStoreCore? core = null;
         try {
-            ownerLock = FrameStorePlatform.AcquireOwnerLock(root, create: true, readOnly: false);
+            operations.BeforeCreateOwnerLock(root);
+            ownerLock = operations.AcquireOwnerLock(root, create: true, readOnly: false);
             // A competing Create may have completed after the preflight and before lock acquisition.
             DirectoryFrameStoreFiles.CheckFreshInput(root, allowOwnerLock: true);
             var config = DirectoryFrameStoreFiles.ReadConfiguration(root);
-            var identity = DirectoryFrameStoreFiles.InitializeEmptyStore(root);
+            var identity = DirectoryFrameStoreFiles.InitializeEmptyStore(root, operations);
             var files = new DirectoryFrameStoreFiles(root, identity);
             core = new FrameStoreCore(files, ownerLock, 0, writable: true,
                 rotationThresholdBytes, config.MaxOutstandingBuilders);
@@ -49,19 +52,21 @@ internal static class FrameStoreFactory {
         }
     }
 
-    internal static FrameStore Open(string rootPath, long rotationThresholdBytes, bool readOnly) {
+    internal static FrameStore Open(string rootPath, long rotationThresholdBytes, bool readOnly,
+        FrameStoreFactoryOperations? operations = null) {
+        operations ??= FrameStoreFactoryOperations.Default;
         if (!readOnly) { RotationThreshold.Validate(rotationThresholdBytes); }
         string root = FrameStorePlatform.AdmitRoot(rootPath, createIfMissing: false);
         IDisposable? ownerLock = null;
         FrameStoreCore? core = null;
         IRbfFile? pendingFile = null;
         try {
-            ownerLock = FrameStorePlatform.AcquireOwnerLock(root, create: false, readOnly);
+            ownerLock = operations.AcquireOwnerLock(root, create: false, readOnly);
             var config = readOnly ? FrameStoreConfiguration.Default : DirectoryFrameStoreFiles.ReadConfiguration(root);
-            var identity = DirectoryFrameStoreFiles.ReadGateAndCheckLayout(root);
+            var identity = DirectoryFrameStoreFiles.ReadGateAndCheckLayout(root, operations);
             var files = new DirectoryFrameStoreFiles(root, identity);
             var discovery = files.DiscoverFormalFiles();
-            files.QualifyPrivateCreation(discovery.MaxPublishedFileId, readOnly);
+            files.QualifyPrivateCreation(discovery.MaxPublishedFileId, readOnly, operations: operations);
 
             var reports = new Dictionary<uint, RbfTailRecoveryReport>(readOnly ? 0 : discovery.ActiveFileIds.Count);
             var publicReports = new ReadOnlyDictionary<uint, RbfTailRecoveryReport>(reports);

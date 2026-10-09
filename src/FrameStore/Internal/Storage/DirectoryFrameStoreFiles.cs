@@ -63,7 +63,7 @@ internal sealed class DirectoryFrameStoreFiles : IFrameStoreFiles {
     }
 
     /// <summary>已持独占锁的 fresh 根中先建必要空目录，最后直接 create-only 写门。</summary>
-    internal static StoreIdentity InitializeEmptyStore(string root) {
+    internal static StoreIdentity InitializeEmptyStore(string root, FrameStoreFactoryOperations? operations = null) {
         FrameStorePlatform.CreateDirectory(Path.Combine(root, FrameStorePaths.ActiveDirectoryName));
         FrameStorePlatform.CreateDirectory(Path.Combine(root, FrameStorePaths.ArchiveDirectoryName));
         FrameStorePlatform.CreateDirectory(Path.Combine(root, CreatingDirectoryName));
@@ -77,7 +77,7 @@ internal sealed class DirectoryFrameStoreFiles : IFrameStoreFiles {
         FileStream? stream = null;
         CleanupErrors errors = default;
         try {
-            stream = new FileStream(Path.Combine(root, GateFileName), FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            stream = (operations ?? FrameStoreFactoryOperations.Default).CreateGate(Path.Combine(root, GateFileName));
             stream.Write(gate);
             stream.Flush(flushToDisk: true);
         }
@@ -88,14 +88,14 @@ internal sealed class DirectoryFrameStoreFiles : IFrameStoreFiles {
     }
 
     /// <summary>共同只读门检查正常关闭后才认领身份；不补造布局。</summary>
-    internal static StoreIdentity ReadGateAndCheckLayout(string root) {
+    internal static StoreIdentity ReadGateAndCheckLayout(string root, FrameStoreFactoryOperations? operations = null) {
         string path = Path.Combine(root, GateFileName);
         FrameStorePlatform.RequireFile(path);
         FileStream? stream = null;
         StoreIdentity identity = default;
         CleanupErrors errors = default;
         try {
-            stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            stream = (operations ?? FrameStoreFactoryOperations.Default).ReadGate(path);
             if (stream.Length != FormatGateCodec.EncodedSize) { throw new InvalidDataException("The FrameStore format gate must contain exactly 24 bytes."); }
             Span<byte> bytes = stackalloc byte[FormatGateCodec.EncodedSize];
             stream.ReadExactly(bytes);
@@ -189,7 +189,8 @@ internal sealed class DirectoryFrameStoreFiles : IFrameStoreFiles {
 
     /// <summary>完整正式发现之后、任何恢复之前裁决唯一私有项；只读保留，可写只删合格项。</summary>
     internal void QualifyPrivateCreation(uint maxPublishedFileId, bool readOnly,
-        Action? checkpoint = null, Action? markOwnedCleanupFault = null) {
+        Action? checkpoint = null, Action? markOwnedCleanupFault = null,
+        FrameStoreFactoryOperations? operations = null) {
         string? candidate = null;
         uint candidateId = 0;
         EnumerateDirect(Path.Combine(_root, CreatingDirectoryName), path => {
@@ -210,7 +211,7 @@ internal sealed class DirectoryFrameStoreFiles : IFrameStoreFiles {
         CleanupErrors errors = default;
         try {
             checkpoint?.Invoke();
-            stream = new FileStream(candidate, FileMode.Open, FileAccess.Read, FileShare.Read);
+            stream = (operations ?? FrameStoreFactoryOperations.Default).ReadPrivateCandidate(candidate);
             checkpoint?.Invoke();
             long length = stream.Length;
             checkpoint?.Invoke();

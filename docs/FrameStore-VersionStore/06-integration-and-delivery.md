@@ -1,6 +1,6 @@
 # S6：消费者验证、公共包与交付
 
-状态：**Draft；2026-10-07 同步完整字典、单文件 ref、命名 fork 的目录共同发布与两类下游评估；2026-10-09 同步 ForkOrigin、跨文件历史与全分叉验收；FrameStore 已实施公开持久化闭环，Inventory/Audit 已实施（见[源码验收](02-framestore-inspection-implementation.md)）；本阶段端到端集成、包发布和消费者切换未执行**。
+状态：**Draft；2026-10-07 同步完整字典、单文件 ref、命名 fork 的目录共同发布与两类下游评估；2026-10-09 同步 ForkOrigin、跨文件历史与全分叉验收；2026-10-10 FrameStore S2/S3 独立源码验收已 Accepted（见[最终源码验收](02-framestore-final-acceptance.md)）；本阶段端到端集成、包发布和消费者切换未执行**。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。
 本阶段验证前序合同的组合，不作为前序层运行正确性的反向依赖。
 依赖 S5 的历史选点与命名核心；首版不纳入 ref 分段/轮转、差分/checkpoint、名称修改或精确发布尝试查询。
@@ -77,7 +77,7 @@ public 消费复用 S2 FrameAddress.EncodedSize/TryWrite/TryRead，在 Begin 前
 
 ### spec [S-DELIVERY-PACK-OWNER] 包入口有单一负责人
 
-新增生产包清单及 pack 顺序 MUST 只在 `eng/Pack.ps1` 注册。当前 main 仅 Primitives/Data/Rbf，后续加入 FrameStore/VersionStore。不得重新将冻结参考 EventJournal/RbfSegmentStore 加入 main pack。
+新增生产包清单及 pack 顺序 MUST 只在 `eng/Pack.ps1` 注册。当前 main 为 Primitives/Data/Rbf/Binary；Binary 独立于前三包，FrameStore/VersionStore 的包注册另行实施。不得重新将冻结参考 EventJournal/RbfSegmentStore 加入 main pack。
 同时适配 package-mode 依赖、smoke、metadata/assets/Source Link 校验与 CI。按 main 实际 All/manifest 入口审查扩展，不沿用历史五包/selective 选择假设，也不能只增加项目名字就声称完成。
 旧栈维护与公开发布使用 RBF1 分支；main 参考项目的固定包回归与新栈源码/包资格分别报告。
 
@@ -100,9 +100,9 @@ public 消费复用 S2 FrameAddress.EncodedSize/TryWrite/TryRead，在 Begin 前
 | RBF 新 API 与 XML | S1 完成；2026-10-07 活跃 Builder 随机读取底座改进另见[本轮记录](reviews/2026-10-07-completed-output-improvements.md)；S6 核对公共包入口可消费 |
 | 新库源码/测试与指南 | S2–S5 形成；S6 将 Accepted 合同映射到 public smoke |
 | `eng/Pack.ps1` | S6 注册包和明确选择/版本算法 |
-| `eng/Test-Package.ps1`、metadata helper | S6 在当前三包隔离验证基础上增加新闭包 smoke，不削弱来源/资产校验 |
+| `eng/Test-Package.ps1`、metadata helper | S6 在当前纯 Rbf 三包及纯 Binary 两包隔离验证基础上增加新闭包 smoke，不削弱来源/资产校验 |
 | `eng/Verify-Published.ps1`、发布 workflow/CI | 若纳入公开交付，按实际授权和新 manifest 形态适配 |
-| 根 README / AGENTS.md | 项目实际存在、交付事实变化后更新；FrameStore/VersionStore 仍只有设计修订，未创建项目 |
+| 根 README / AGENTS.md | 项目实际存在、交付事实变化后更新；FrameStore 与测试项目已创建、保持 source-only，VersionStore 尚未创建 |
 | 旧库维护 | RBF1 分支工作包；main 冻结参考及固定包合同不得为新栈改写 |
 
 ## 实施片
@@ -120,7 +120,7 @@ public 消费复用 S2 FrameAddress.EncodedSize/TryWrite/TryRead，在 Begin 前
 
 | ID | 需审定 |
 | --- | --- |
-| S6-Q1 | main 三包到五包的扩展、独立版本与 manifest 闭包；旧维护线保持隔离 |
+| S6-Q1 | 将 FrameStore/VersionStore 加入 main 包清单、独立版本与 manifest 闭包；保留 Binary 独立闭包及旧维护线隔离 |
 | S6-Q2 | public smoke 项目/入口与 Source Link/资产校验扩展 |
 | S6-Q3 | 两平台恢复与目录/文件发布分别资格、资源预算、全局名称发现规模成本及证据保存路径 |
 | S6-Q4 | 若纳入真实接入：DurableGraph 实际 API/数据需求和切换范围；不阻塞独立库/包核心 |

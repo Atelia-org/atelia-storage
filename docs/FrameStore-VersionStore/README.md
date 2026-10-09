@@ -1,8 +1,8 @@
 # FrameStore / VersionStore 分阶段设计入口
 
-FrameStore 后续实施调度见[收尾计划与自动队列入口](02-framestore-completion-plan.md)：预计 3 轮主线及 1 轮修复余量，聚焦源码与系统验收，不自动扩展到包交付或 VersionStore。
+FrameStore 的 R1–R3 收尾已完成，S2/S3 的[独立源码验收](02-framestore-final-acceptance.md)已 Accepted。[收尾计划与自动队列入口](02-framestore-completion-plan.md)现处完成状态，不自动扩展到包交付或 VersionStore。
 
-日期：2026-10-03；2026-10-05 确认 FrameStore header、归还、config 与核心/扩展分离；2026-10-07 更新完整字典、单文件 ref、已完成输出资格及命名 fork 的目录共同发布；2026-10-08 确认 FrameAddress 固定 12B 编码；2026-10-09 分离批量规划器设想、收敛 MVP 组合，增加 ForkOrigin 完整历史与全分叉设计，定稿资源、header、owned 租借/维护/读取及同步历史 visitor。状态：**S1 Accepted；S2–S6 Draft；FrameStore 已实施公开持久化闭环，Inventory/Audit 已实施，VersionStore 尚未创建；参考依赖拆分 Accepted**。
+日期：2026-10-03；2026-10-05 确认 FrameStore header、归还、config 与核心/扩展分离；2026-10-07 更新完整字典、单文件 ref、已完成输出资格及命名 fork 的目录共同发布；2026-10-08 确认 FrameAddress 固定 12B 编码；2026-10-09 分离批量规划器设想、收敛 MVP 组合，增加 ForkOrigin 完整历史与全分叉设计，定稿资源、header、owned 租借/维护/读取及同步历史 visitor。状态：**S1–S3 Accepted（各自源码资格）；S4–S6 Draft；FrameStore 独立源码验收已完成、保持 source-only，VersionStore 尚未创建；参考依赖拆分 Accepted**。
 初始设计源码观察基线：`main @ 70d1009e78a73342a0c0fdc8ffed7731dec58173`；S1 验收记录的核对基线为 `f6f1eb38557863ba5ea1634844a90f0cbe5774cf`；前轮设计阅读基线为 `4175a46`，本轮租借/目录修订核对 `50e8e28`。本文档集供逐阶段细化、审阅和实施，不把文档修订视为新实现或验收。
 
 目标：**以 RBF3 的帧原子性为基础，让中层构建新状态，再发布完整根地址字典使状态生效。**
@@ -16,7 +16,7 @@ main 当前演进主线为 RBF3 / FrameStore / VersionStore。旧 EventJournal/R
 ## 当前最小模型
 
 FrameStore 普通合同是不透明地址分配与随机读取，不提供业务全局顺序。保留 RBF 三种追加方式；每个 Builder 独占一个文件，owner 可以嵌套租借多个文件、交错构建并乱序完成，首版调用仍串行。三种追加统一在成功完成后按 TailOffset 大于软阈值触发轮转。
-S2 已定软阈值由可写 Create/Open 的一个 long 参数提供，默认 64GiB、实例内固定、不持久化；合法范围消费公共初始化边界与 SizedPtr.MaxOffset，不要求阈值对齐。重开按恢复后 active 的完成 tail 重算：提高阈值可重新使用尚未移档的文件，archive 永远只读。默认仅为工程起点；config 仍只有 Builder 数量属性，实际轮转/恢复和成本须实施验收。
+S2 已定软阈值由可写 Create/Open 的一个 long 参数提供，默认 64GiB、实例内固定、不持久化；合法范围消费公共初始化边界与 SizedPtr.MaxOffset，不要求阈值对齐。重开按恢复后 active 的完成 tail 重算：提高阈值可重新使用尚未移档的文件，archive 永远只读。默认仅为工程起点；config 仍只有 Builder 数量属性，实际轮转/恢复及成本见[源码验收](02-framestore-final-acceptance.md)。
 文件分配优先选择 active 中当前可分配的数值最低 FileId；忙文件和已停止分配文件跳过，没有候选才新建。不因已知帧尺寸提前试配，也不引入轮询或负载均衡。
 FrameAddress 首版固定编码为 12B，保持完整 uint FileId 与 SizedPtr；额外见证按明确需求引入，不把未来预留或内容 CRC 纳入基础定位合同。值/格式权威为 S2 `[F-FS-FRAME-ADDRESS-12B]`：一个 readonly struct、EncodedSize、精确 12B TryRead 与至少 12B TryWrite，失败 default/无写入、完整等值，数值下界消费公开 RBF 合同；无公开数值字段/构造、额外 codec/error 或规范文本。三种追加、互引和 VersionStore RootMap 复用这一入口。地址仍是局部定位值，StoreId 由上下文绑定；普通内部表示及实际运行时成本与持久编码分开，不从 sizeof 推导 wire 容量，该公开地址入口已进入[首个源码切片](02-framestore-core-implementation.md)，公开生命周期与证据见[后续持久化闭环](02-framestore-persistence-implementation.md)。
 私有 creating 槽位完成必需首帧 meta/header 后发布到 active。残留消费 S2 `[R-FS-CREATION-PRIVATE]`：完整正式 max 推得唯一下一号，全字节前缀合格才可写取消；只读合格留原样、未知内容保留拒绝。所需 RBF 公共纯前缀入口已实施，实际源码/平台测试见持久化闭环记录，内部探针保留自身历史身份。S2 已定稿固定 24B header，保存统一格式版本与 StoreId/FileId；按首位置识别，完整保留用户 uint tag 范围。可写打开先检查初始化长度下界，再消费公共 RBF 恢复并完整校验首帧。active 目录表达可写集合，flush/close 后移入固定 1024 编号分桶的 archive 并只读，不维护 active manifest 或全历史分段表。屏障确认全部必要 active 输出。
@@ -26,7 +26,7 @@ FrameStore 格式门记录/读取已定于 S2：`framestore.format` 是版本 + 
 成功 EndAppend 自动归还文件和数量配额，不等后续 Dispose。S2 定稿可选 framestore.config.json、默认 MaxOutstandingBuilders=32、严格校验、可写打开一次读取且实例固定；超限 Begin 立即拒绝。完整 Append 不占 Builder 配额，单 driver 最多另占一个短期租借，不引入精确总内存账本。首版保留可写 active 句柄并显式使用 RbfCacheMode.Off，archive 随机读按操作开关；成本按实际 active 和构建/读结果占用计算，降低配置不抹掉旧高峰。
 同步物理检查的源码与验证边界见[实施记录](02-framestore-inspection-implementation.md)。S2 已定 ReadFrame 返回独立拥有 buffer 的 FrameRead，关闭 reader/owner 后仍可使用至结果 Dispose。Inventory/Audit 使用同步 visitor：分别提供真实主链结构发现和全部实际帧完整 CRC 检查，回调期间拒绝同 owner mutation、允许随机读取；不公开扫描器或延迟 Reader-bound 结果，不把前缀回调、结构扫描或物理 CRC 健康当作业务闭包健康。
 S2 已定稿一次性共享 Lease 与 owned Builder/Writer：成功完成只登记并归还；下一合法 Append/Begin、ConfirmDurable 或可写 Open 统一归档停止文件。已完成帧不因维护失败撤销，可纠正拒绝保留租借，无法辨相位的委派异常保守停用 owner；Dispose 只尝试清理全部资源。
-编号恢复已定为完整流式正式名称检查，取 active/archive 实际最大 FileId，只保留内存 max 和既有 active 台账。空桶/私有槽不提供已发布编号，缺口不补填，uint 耗尽仅拒绝需新文件的请求；archive 内容仍按需校验。正式路径已定为 `active/<8位完整FileId>.rbf` 和 `archive/<6位bucket>/<同一FileId>.rbf`，严格小写 ASCII hex、非零编号、桶范围/对应及全部直接项语法；唯一细节见 S2。冷打开名称成本为 O(active 文件 + archive 桶 + archive 文件)，不保留计数器或全历史 ID 表。owner 锁、实际根准入/组件类型及私有残留合同已进入公开目录生命周期实现；两平台测试与剩余中断/资源/规模资格见[持久化闭环记录](02-framestore-persistence-implementation.md)。
+编号恢复已定为完整流式正式名称检查，取 active/archive 实际最大 FileId，只保留内存 max 和既有 active 台账。空桶/私有槽不提供已发布编号，缺口不补填，uint 耗尽仅拒绝需新文件的请求；archive 内容仍按需校验。正式路径已定为 `active/<8位完整FileId>.rbf` 和 `archive/<6位bucket>/<同一FileId>.rbf`，严格小写 ASCII hex、非零编号、桶范围/对应及全部直接项语法；唯一细节见 S2。冷打开名称成本为 O(active 文件 + archive 桶 + archive 文件)，不保留计数器或全历史 ID 表。owner 锁、实际根准入/组件类型及私有残留合同已进入公开目录生命周期实现；两平台测试、中断/资源/规模资格见[最终源码验收](02-framestore-final-acceptance.md)。
 循环引用通过多个已知尺寸 Builder 的提前地址形成。FrameStore core 与交错构建/耐久确认可以独立定稿、实施和验收。
 2026-10-07 VersionStore 收缩为完整 `RootMap = string => FrameAddress` 快照：每个 ref 一个 RBF3 文件，每次更新追加完整字典；tag 保存命名不可变字典，按固定名称哈希分桶；branch 为 name → 稳定 RefId 的 create-only 绑定。首版不分段/轮转 ref，不引入差分、checkpoint 或独立 Commit/Parent。
 VersionStore 借入一个 data FrameStore，拥有自己的 RBF3 发布目录。CreateRef / PublishRef / CreateTag 及命名 fork 先完成本根所需的新增依赖，再同步 data ConfirmDurable，随后确认字典输出及其必要发现边界并安装内存投影；无关 Builder 未归还不阻断独立闭包的发布。应用收到成功确认后按字典加载状态。CreateBranch 只给既有 ref 加 alias、确认自己的绑定文件，不重新发布 RootMap 或调用 data 屏障。所有 Key 的业务语义由应用解释，不消费中间帧的构建顺序。
@@ -40,7 +40,7 @@ branch 名称解析和查重覆盖全部正式 ref 的 names；首查可扫描�
 ListForks 消费 S5 `[A-VS-FORKS-CHECKED]`：每次扫描全部正式 ref 的 checked 首两帧，包括匿名与无来源根，完整源存在/迭代环检查后一次性交付自有只读 ForkInfo 边列表。只设正 int maxRefs 数量参数，计全部正式节点，预算失败不当无分叉或部分成功；首版不保留跨调用反向缓存或持久孩子表。来源字段仅为声明位置，不签发 checked 源 revision 或宣称全部源历史健康；实际历史跳转再校验源快照与子初始字典一致。数量不是硬内存/时限，实际成本与 S4 初始化/平台缺口仍另验；现有 RBF 逆扫只从 EOF 开始，历史定位旧 fork 点可能扫描源后续帧。
 输出异常停止实例并重开读取实际状态；完整快照损坏报错，不回退旧值。同步 mutation 的 Result/必选 out PublicationOutcome、公开尝试与确认边界已在 S4 定稿，异常路径不依赖新建证据包装；NotAttempted/Confirmed 均不代替实例健康。匿名创建丢失返回值后不按同值精确认领，首版不提供通用 CAS 或精确 Unknown 尝试查询。数据闭包、工具 operationId、外部 uncertain 策略、模拟器 RNG 和应用谱系由应用负责；[两类下游评估](reviews/2026-10-07-downstream-fit.md)未发现必须扩大核心的需求。VersionStore 发布与续跑协议仍未实施。
 
-2026-10-03 的初始裁决及失败轨迹见[历史设计审阅](reviews/2026-10-03-dialectical-review.md)；旧单流、单 active/locator、纯 batch planner，以及后来 Commit/control 草案均已被后续会话修订，不作为当前模型的实现证据。S1 已 Accepted；已确认方向见 S0，S2–S6 的剩余工程选择仍是 Draft。
+2026-10-03 的初始裁决及失败轨迹见[历史设计审阅](reviews/2026-10-03-dialectical-review.md)；旧单流、单 active/locator、纯 batch planner，以及后来 Commit/control 草案均已被后续会话修订，不作为当前模型的实现证据。S1–S3 已取得各自源码 Accepted；已确认方向见 S0，S4–S6 的剩余工程选择仍是 Draft。
 
 ## 顺序与职责
 
@@ -57,7 +57,7 @@ ListForks 消费 S5 `[A-VS-FORKS-CHECKED]`：每次扫描全部正式 ref 的 ch
 ## 阅读与状态规则
 
 - 先读仓库根 [README](../../README.md)，再读 [S0 总体决策](00-architecture-decisions.md)。
-- 本目录遵循 [规范约定](../spec-conventions.md)：`decision` 记录会话已确认方向；S1 的 `spec` 与签名已成为实施合同，S2–S6 仍是候选要求；未审定阶段的建议、算例、API 名称不自动冻结。
+- 本目录遵循 [规范约定](../spec-conventions.md)：`decision` 记录会话已确认方向；S1–S3 的 `spec` 与签名已成为实施合同，S4–S6 仍是候选要求；未审定阶段的建议、算例、API 名称不自动冻结。
 - 本组设计正文按用户要求只保留当前有效条款，被替代的草案条款直接移除，作为上述约定中保留废弃条款要求的局部例外。现行 Clause-ID 不重命名或复用；历史迁移保留在 `reviews/` 与 Git 历史，审阅记录的当时结论及检查数字不代表当前状态。
 - 阶段状态使用 `Draft → Ready → Implementing → Accepted`。Ready 前定稿字段/API/算法及验收映射；可以对范围明确的必要子合同单独审定，未支持能力不得借整体标签宣称成立。
 - S1 的实施合同提交为 `c940ed6`，实现提交为 `8ab98bf`；RBF 818/818、Data 288/288 和 W: public 源码消费已验收，实际工作树和二进制身份见[阶段验收记录](01-rbf-sized-append-acceptance.md)。本片不宣称新增包消费、性能或进程实杀通过，也不宣称下游已接入。
@@ -114,7 +114,7 @@ S2–S6 的 MVP 定稿、实施和验收不等待上述候选扩展的需求确�
 | V4 | S5 历史选点及 ForkOrigin 接续、匿名/原子命名 fork、ListForks、alias/名称发现、rewind/tag | 复用 S4 目录发布；分段/轮转、差分、随机 revision 读与名称修改后置 |
 | V5 | S6 平台、公共包、真实消费者边界 | 包 smoke/消费者接入仍各自出证据 |
 
-两个新生产项目和两个测试项目仍分别在 S2/S4 创建；V1 可以只创建和实现这些阶段的必要部分。S6 汇总组合与交付，不垄断第一次 public API 纵向验证。
+FrameStore 及其测试项目已在 S2 创建；VersionStore 及其测试项目仍由 S4 创建。S6 汇总组合与交付，不垄断第一次 public API 纵向验证。
 
 ## 新项目落点
 
@@ -125,7 +125,7 @@ S2–S6 的 MVP 定稿、实施和验收不等待上述候选扩展的需求确�
 | `src/VersionStore/VersionStore.csproj` | `Atelia.VersionStore`，生产库 | S4 |
 | `tests/VersionStore.Tests/VersionStore.Tests.csproj` | `Atelia.VersionStore.Tests`，非 pack 测试 | S4 |
 
-项目创建时使用仓库的 .NET 10 SDK、命名与测试依赖约定。新增生产包注册及 pack 顺序仍由 `eng/Pack.ps1` 唯一维护；当前主线仅注册 Primitives/Data/Rbf，旧参考库 IsPackable=false。后续新项目不得借旧库包名交付，源码阶段先明确候选包尚未交付的状态。S6 完成对应包入口后才能声明新库包消费可用。
+项目创建时使用仓库的 .NET 10 SDK、命名与测试依赖约定。新增生产包注册及 pack 顺序仍由 `eng/Pack.ps1` 唯一维护；当前主线注册 Primitives/Data/Rbf/Binary，旧参考库 IsPackable=false，FrameStore 保持 source-only。后续新项目不得借旧库包名交付；S6 完成对应包入口后才能声明新库包消费可用。
 
 本目录不固定后续实施的 Git 提交、包版本或公开发布；这些取决于实际实施会话的授权及验收结果。
 

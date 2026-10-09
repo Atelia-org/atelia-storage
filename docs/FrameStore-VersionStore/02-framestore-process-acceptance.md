@@ -48,4 +48,4 @@ Windows solution 和 Linux 首次从源码构建各有 41 项既存 Data/Rbf XML
 | 私有残留核验后的必要 Close 失败 | QualifyPrivateCreation 在 CloseOwned / ThrowIfAny 之后才 DeleteFile 的源码顺序 | **待补受控失败验证**：不删除、不恢复 active、不签发 owner，清理保持主错误及单次关闭 |
 | Create 初始预检与取得锁之间另一 Create 完成 | FrameStoreFactory 获锁后 CheckFreshInput 的源码双检；既有 bootstrap / 已有门拒绝测试 | **待补受控竞争验证**：A 预检后暂停，B 创建并释放，A 获锁后重新检查并拒绝 |
 
-后三项作为具名缺口交给 R3 / 必要时 R4，不由进程探针成功消除。下一步优先评估窄的 internal、逐调用测试接缝，复用真实工厂路径；不新增公开故障开关、全局回调或通用文件系统抽象。完整条款/证据裁决仍属于 R3，本表不是全部 S2 的验收映射。
+上表保留 R1 当时的证据边界。后三项已由 [R3 最终源码验收](02-framestore-final-acceptance.md)的逐调用 internal 接缝和受控失败/竞争测试补齐；没有将它们重标为 R1 的真实进程强杀。完整条款与当前状态以 R3 为准。

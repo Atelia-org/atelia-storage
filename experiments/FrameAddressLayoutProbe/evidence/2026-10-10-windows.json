@@ -1,0 +1,44 @@
+{
+  "sourceBaseline": "3fa45e3 plus R3 probe",
+  "runtime": ".NET 10.0.5",
+  "os": "Microsoft Windows 10.0.22000",
+  "architecture": "X64",
+  "assemblySha256": "59715CBC7596ED228ACF4AD8E1A3A941E6AF8DB386A4E8DCE6CA227088CBCC89",
+  "encodedSize": 12,
+  "managedSize": 16,
+  "arrayStride": 16,
+  "nestedValueSize": 32,
+  "containsReferences": false,
+  "arrayAllocations": [
+    {
+      "count": 1,
+      "allocatedBytes": 40
+    },
+    {
+      "count": 1024,
+      "allocatedBytes": 16408
+    },
+    {
+      "count": 65536,
+      "allocatedBytes": 1048600
+    }
+  ],
+  "samples": [
+    {
+      "Iterations": 200000,
+      "ElapsedMilliseconds": 32.5035,
+      "AllocatedBytes": 0
+    },
+    {
+      "Iterations": 200000,
+      "ElapsedMilliseconds": 34.0252,
+      "AllocatedBytes": 0
+    },
+    {
+      "Iterations": 200000,
+      "ElapsedMilliseconds": 37.7282,
+      "AllocatedBytes": 0
+    }
+  ],
+  "interpretation": "Managed layout is a runtime observation, not a wire contract. Each timed iteration performs one TryWrite, TryRead and typed Equals; allocation excludes setup and reporting. Wall time includes tiered JIT/host effects, with no throughput acceptance threshold. Array allocations include CLR array overhead; Envelope is byte \u002B FrameAddress \u002B byte."
+}

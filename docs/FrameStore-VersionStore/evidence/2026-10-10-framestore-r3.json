@@ -1,0 +1,925 @@
+{
+  "baseline": "3fa45e3369edce4e0f7819fc9b75ff7b54200adf",
+  "qualification": "S2/S3 source-only R3",
+  "sourceIdentity": "Baseline plus the code/tests/probe committed with this record; not a pre-existing clean-HEAD build.",
+  "sourceInputs": [
+    {
+      "path": "Directory.Build.props",
+      "sha256": "24913ea3cb4ff5331f93f46569c8faf0111f82acac62921990b3eda1e7e1eeda"
+    },
+    {
+      "path": "Directory.Build.targets",
+      "sha256": "86e48a29e00a5b80f443ecbb4641e3b800f4d75cbbe0829a523388b9dc344b6a"
+    },
+    {
+      "path": "experiments/FrameAddressLayoutProbe/Probe.csproj",
+      "sha256": "44f153335445663e6d9401793cf79a1d80498eeffb2d33b047af315c5807b6aa"
+    },
+    {
+      "path": "experiments/FrameAddressLayoutProbe/Program.cs",
+      "sha256": "b07b92bd5053528b25aae80dea35b9aed3301e4d9e6cef775c601453b61c356f"
+    },
+    {
+      "path": "global.json",
+      "sha256": "8ede13416e0155ae327d8816fce07b9ba21cb4e2c1e0b17ae2f052fb89cccbd4"
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "8799eac89e885893b14d22a2bcdc58c140e6f87c962e1cf25224736d36ed3798"
+    },
+    {
+      "path": "src/Data/Binary/XorEscape.cs",
+      "sha256": "77bb8fe7e19ce3b09ded9717e11c345f7d671b264bd75d2215d3e6085c078e0f"
+    },
+    {
+      "path": "src/Data/Binary/XorEscape.Search.cs",
+      "sha256": "436d9db35cf6edd7690ebb870a9a1d05a48d5ad617f6f3f9d1e0dbc2fb394971"
+    },
+    {
+      "path": "src/Data/Binary/XorEscape.Transform.cs",
+      "sha256": "11a125dfe7156bd40a610e11e60696214d3f32dacf7dfc5059c0d79b2ca1585e"
+    },
+    {
+      "path": "src/Data/ChunkedReservableWriter.cs",
+      "sha256": "e9d56f2188bcc313f0a3b13df22296f85ef380f25ce6888e19e1ad40266f875e"
+    },
+    {
+      "path": "src/Data/ChunkedReservableWriterOptions.cs",
+      "sha256": "466aeacb3be5b219d8b0a12e6195df49b9642fa652babd749fec685fe46192c3"
+    },
+    {
+      "path": "src/Data/ChunkSizingStrategy.cs",
+      "sha256": "977e43c406c634e1956370d44991b8682acd503f6d4deb182eae0b616c86ea19"
+    },
+    {
+      "path": "src/Data/Data.csproj",
+      "sha256": "43437e216af126d19dd43d97aa9d69a49ae5c2ec20c30c2318e6e39b43c335f3"
+    },
+    {
+      "path": "src/Data/FuncValuePredicate.cs",
+      "sha256": "746dc35faea9a71f5df0d0291e9350cc7c1be06483e8e38566b7a2601cf8f1c9"
+    },
+    {
+      "path": "src/Data/Hashing/RollingCrc.cs",
+      "sha256": "30603400ba8cb0d47389592be62aa207fc3e800a7a605c9a07a610774a6cb227"
+    },
+    {
+      "path": "src/Data/Hashing/RollingCrc.impl.cs",
+      "sha256": "7d6256d275fd4e2b0ca0ea3efd0078633484ecfb8286028d0a9f4eaee9f31615"
+    },
+    {
+      "path": "src/Data/Hashing/RollingCrc.Scanner.cs",
+      "sha256": "e032ac41b57fb0a2415d03cef460bc716fc0a6f1af49652e22ad3f1c1db642ac"
+    },
+    {
+      "path": "src/Data/Hashing/RollingCrc.Table.cs",
+      "sha256": "5413b377014634b20b3cd431f5b2eb8df6df03a81d6d1c8f3e770c9544b6838f"
+    },
+    {
+      "path": "src/Data/IByteSink.cs",
+      "sha256": "89de6d14fec0c54c753bf712ff2c3605e1546771f8df0d96bf2588b71779272f"
+    },
+    {
+      "path": "src/Data/IReservableBufferWriter.cs",
+      "sha256": "655a1874a3c8ea7b13d09246e1dd9a8ddcee1a90a098d8c6f6a0cc2265b730bd"
+    },
+    {
+      "path": "src/Data/IValuePredicate.cs",
+      "sha256": "94db987266aa920628e67bbfbe6811719ef1c8ccba7ca66b74108c0064174345"
+    },
+    {
+      "path": "src/Data/ReservableWriterChunk.cs",
+      "sha256": "615add0d988d3ac0295ea623cc86fc83d0bb934925bbcd6e38b34e1d6cae77f2"
+    },
+    {
+      "path": "src/Data/ReservationEntry.cs",
+      "sha256": "1b43df7cb2a430dec76dcd17e253e41fa925c9a63a57f1e186e1e3824140c4f1"
+    },
+    {
+      "path": "src/Data/ReservationTokenHelper.cs",
+      "sha256": "a9086c5ac71dd7ac492b24ee1731c0a9b4c0ded783488e3942810f0b05b2b8d2"
+    },
+    {
+      "path": "src/Data/ReservationTracker.cs",
+      "sha256": "7d891a6ae8e8f99bc4b2c87a7b8dd59a644806f4c22fe8cc6ce8c0a49db59e7f"
+    },
+    {
+      "path": "src/Data/SinkReservableWriter.cs",
+      "sha256": "06ffde8f46b4cae76c6cc380f51ddfcd19056bd9c72a68485970863a788ca73f"
+    },
+    {
+      "path": "src/Data/SizedPtr.cs",
+      "sha256": "072248792a0eca507090f3b4f07c372b8f0bb7ac299986538e776b9f5923228d"
+    },
+    {
+      "path": "src/Data/SlidingQueue.cs",
+      "sha256": "82fc8c1a595bebd205e1f877bb561407815842e799fe2d42db0262f3ea4e6c28"
+    },
+    {
+      "path": "src/FrameStore/FrameAddress.cs",
+      "sha256": "e3ef33a5bb7b5abf82d2b085cbdf906632478c0544909bfd84a57f1c89d7ed0e"
+    },
+    {
+      "path": "src/FrameStore/FrameBuilder.cs",
+      "sha256": "01797ea9f51fcd161cf7c0e6515b479a5fbc0a63892715213871caf9a1650ebf"
+    },
+    {
+      "path": "src/FrameStore/FrameFileAudit.cs",
+      "sha256": "d8e7d6eae46be168aa2d384b85b8214e9f84e9760e2ff6582163d8577c3906bc"
+    },
+    {
+      "path": "src/FrameStore/FrameInfo.cs",
+      "sha256": "03403a49cc35e297309fdabf8bb8e23731511041cb9c5d963607040fda3b3fa4"
+    },
+    {
+      "path": "src/FrameStore/FramePayloadWriter.cs",
+      "sha256": "235ca9b27bfccd8025c787fa66d860c6d75c3cc85d49829e3898485be33a7a87"
+    },
+    {
+      "path": "src/FrameStore/FrameRead.cs",
+      "sha256": "eae063e62ebf78f6b2e19dde42a05d144c9e717b021a3d6b9c4b26a3ff4217c0"
+    },
+    {
+      "path": "src/FrameStore/FrameStore.cs",
+      "sha256": "d8b05dd8470b2d8e25af2c79a7fbc520bbe3457491c2d1444577e60befee9d32"
+    },
+    {
+      "path": "src/FrameStore/FrameStore.csproj",
+      "sha256": "6bd9ebd23c4e08d5a2dbc83ac362cba7d645f06b1f27ed72c7b67e0467cd97f5"
+    },
+    {
+      "path": "src/FrameStore/FrameStoreStateError.cs",
+      "sha256": "78185af04a4a0fd259f64369d9c96374ff4b0b6973a32cdcb5db0cbd64ef404b"
+    },
+    {
+      "path": "src/FrameStore/Internal/Admission/FrameHeaderReader.cs",
+      "sha256": "8c40ff9ea264c059314b656a36632fe6fbf55f56edb61ec4961accab8edacfe0"
+    },
+    {
+      "path": "src/FrameStore/Internal/Format/FileHeaderCodec.cs",
+      "sha256": "0355d8a2d860e92dc7871ce1201c3fa491916b6a82fc48344317967ba141abc1"
+    },
+    {
+      "path": "src/FrameStore/Internal/Format/FormatGateCodec.cs",
+      "sha256": "a759f7bd5f22b9ee3bc59afe5cd7e46ac253d0067fb52de2ad882ddafc0bf0fc"
+    },
+    {
+      "path": "src/FrameStore/Internal/Format/FrameStoreConfiguration.cs",
+      "sha256": "ace7ebcd69562782f46541c6e337179008bb0e324f7c2271ade41a83f7a3cd38"
+    },
+    {
+      "path": "src/FrameStore/Internal/Format/FrameStorePaths.cs",
+      "sha256": "60ba57a1233c16c2f226cd3d6068caeb1836450cab650749cf200552beae5446"
+    },
+    {
+      "path": "src/FrameStore/Internal/Format/RotationThreshold.cs",
+      "sha256": "3831a8c98078793bb4e3dc5ec54195a6bf36856ba4d1195a20696fe2127d49e5"
+    },
+    {
+      "path": "src/FrameStore/Internal/Format/StoreIdentity.cs",
+      "sha256": "5d805f6c604b840215dcbf341b34d0bf46167f53eae6779149a9158b6c8395d6"
+    },
+    {
+      "path": "src/FrameStore/Internal/Platform/FrameStorePlatform.cs",
+      "sha256": "9a552f1a6e8f802b9df6447a52d1378ae1f6db1a855f41972a3d1743adcaca27"
+    },
+    {
+      "path": "src/FrameStore/Internal/Runtime/CleanupErrors.cs",
+      "sha256": "7002743b96379709f4561b4ffc64265acb7e1eed2b271617c88c082557b3e314"
+    },
+    {
+      "path": "src/FrameStore/Internal/Runtime/FrameFileEntry.cs",
+      "sha256": "5a55cb42496d60d4b4013be4c4a40f235484a3fd970f0f27117f710d113a525c"
+    },
+    {
+      "path": "src/FrameStore/Internal/Runtime/FrameLease.cs",
+      "sha256": "caca717f3accf1b3c4da754244f3c776209512fe47f3ac90116c57fd5266e6e4"
+    },
+    {
+      "path": "src/FrameStore/Internal/Runtime/FrameStoreCore.cs",
+      "sha256": "edea907e00bc5c9505be722aab35a5ca4e5312fc10b8797f72fbb1daf0e88ab0"
+    },
+    {
+      "path": "src/FrameStore/Internal/Runtime/FrameStoreCore.Scan.cs",
+      "sha256": "76db9e46adf8bd2445e3451100279d66b8e620c584cb0dd963187453add7c720"
+    },
+    {
+      "path": "src/FrameStore/Internal/Runtime/IFrameStoreFiles.cs",
+      "sha256": "8fb5bd85e8753f12afc8ced9447b5d473a547c69e3be0d6ccc86e96c8a288640"
+    },
+    {
+      "path": "src/FrameStore/Internal/Storage/DirectoryFrameStoreFiles.cs",
+      "sha256": "7e912ad20cb1f7c56b55da6949419c61f6e312044a6b94546126bc9d428e58bc"
+    },
+    {
+      "path": "src/FrameStore/Internal/Storage/FrameStoreDiscovery.cs",
+      "sha256": "48f79d785a9a484b5865bc99357314c74b4c377382b24c808d8d1820841c5451"
+    },
+    {
+      "path": "src/FrameStore/Internal/Storage/FrameStoreFactory.cs",
+      "sha256": "1016ec4905999a1db9a3b32cc76176ae69de932c34fef5529589029d58ff648d"
+    },
+    {
+      "path": "src/FrameStore/Internal/Storage/FrameStoreFactoryOperations.cs",
+      "sha256": "87ff2b777722c994480b76b6b859ff7e9b239abad9523c8c4dc246d4d77c417b"
+    },
+    {
+      "path": "src/Primitives/AsyncAteliaResult.cs",
+      "sha256": "a28be2fdb61006ba86ee8a3b93393d8bc0709cce0567f836d1bdb68b462e8d0a"
+    },
+    {
+      "path": "src/Primitives/AteliaError.cs",
+      "sha256": "00ed87c1390293c2ac248bfaf85abdeab121e2a58361f10ae9f615c65bd4a1c5"
+    },
+    {
+      "path": "src/Primitives/AteliaException.cs",
+      "sha256": "09383196a62adc0e9525c71e6fd2bc0e1d090915297d0b2d88a20dc466b6b238"
+    },
+    {
+      "path": "src/Primitives/AteliaResult.cs",
+      "sha256": "9e7f55af96ccef7e284feb602fa29f6f06e7f20be1f5080341e78fa00cdb9c89"
+    },
+    {
+      "path": "src/Primitives/DisposableAteliaResult.cs",
+      "sha256": "fd3d987284bfb911ac4261077567fa62a81733218452a3a31cced3f6cc0071b1"
+    },
+    {
+      "path": "src/Primitives/IAteliaHasError.cs",
+      "sha256": "65797ac7d4aa7501ebadaf64cded05191276cf2bbb99df41339be601762e315c"
+    },
+    {
+      "path": "src/Primitives/Primitives.csproj",
+      "sha256": "d217bf5cee0cde8d91ff591796955d70c0f84de8bef37104da854251b5eab9f4"
+    },
+    {
+      "path": "src/Primitives/ResultContractErrors.cs",
+      "sha256": "3f9bfe2ccde20b3d2014a9e08bb39be844f3af6ce9ca74b70ea7f14c0d7f5d30"
+    },
+    {
+      "path": "src/Rbf/Internal/RandomAccessByteSink.cs",
+      "sha256": "d375cce833756c6256990feafa7f1f58e132d8a046557ce200697300885e9301"
+    },
+    {
+      "path": "src/Rbf/Internal/RbfAppendImpl.cs",
+      "sha256": "0c09ff9c57fb8f4b35f91a148e00af851c6197bac662ae8f8a5ace5d3e5e9b3c"
+    },
+    {
+      "path": "src/Rbf/Internal/RbfConstants.cs",
+      "sha256": "0a5f8928f9d576da7c42972922c83b44176ae973ca2323e6a7cd8597ef597424"
+    },
+    {
+      "path": "src/Rbf/Internal/RbfErrors.cs",
+      "sha256": "9e0f96ea64d8b5e4acbdba0c986a0f2cfa6fe3651eefe86f3adac208e7179cdd"
+    },
+    {
+      "path": "src/Rbf/Internal/RbfFileImpl.cs",
+      "sha256": "d28919c83dee6b4d249029243c3de26ed9d7848ab592a00a00f49ed180568f86"
+    },
+    {
+      "path": "src/Rbf/Internal/RbfFrameWriteCore.cs",
+      "sha256": "5c3414b8e59dd714b7dc1f5eab64188e78acfd8034195344a734d10002b07ea4"
+    },
+    {
+      "path": "src/Rbf/Internal/RbfInitialFramePrefix.cs",
+      "sha256": "5871832c2415a2a5b5f6fd63a0fdcba0f12e2fdff177c05c6d6180a32c745a21"
+    },
+    {
+      "path": "src/Rbf/Internal/RbfLayout.cs",
+      "sha256": "44b25dc956c7f562cfcfaf549c5d8f74c894d3a0f8e9a783b04965814a3a7f60"
+    },
+    {
+      "path": "src/Rbf/Internal/RbfPrefixInspector.cs",
+      "sha256": "8bf491ddf87993d52fcd183c768e3d9acd5e17ad62b9ac7ef47fa6cfa0e929c3"
+    },
+    {
+      "path": "src/Rbf/Internal/RbfProfile.cs",
+      "sha256": "3c0c9625ff29126726beab9987eb3a934c175bb21ad730ee234f837f8f6ddbaa"
+    },
+    {
+      "path": "src/Rbf/Internal/RbfReadImpl.ReadFrame.cs",
+      "sha256": "05bbf0172493f799c6a9ca124ac31b847e599ed9ca04434c4fec018ca1d0f027"
+    },
+    {
+      "path": "src/Rbf/Internal/RbfReadImpl.ReadFrameInfo.cs",
+      "sha256": "c909230c1c78614ca5f94b6ca1dd0b56d5e822d1f1219a97ccdd8c4e6d780aea"
+    },
+    {
+      "path": "src/Rbf/Internal/RbfReadImpl.ReadTailMeta.cs",
+      "sha256": "b62237350f2fea821893700e953eccf755b9c38eb19958595d17f6bd09f270dc"
+    },
+    {
+      "path": "src/Rbf/Internal/RbfReadImpl.ReadTrailerBefore.cs",
+      "sha256": "39a0eb543d38201673112847c0ea7f7d690c0ffa0691db28b6c1a84db97adc9b"
+    },
+    {
+      "path": "src/Rbf/Internal/RbfReadImpl.ScanBoundary.cs",
+      "sha256": "66046e3acdba6b8a4081863c5f9b1895d15724318c215cfc3a5ff2c82c8a3859"
+    },
+    {
+      "path": "src/Rbf/Internal/RbfReadImpl.TailBlock.cs",
+      "sha256": "13e968458e6721c4fa9e44385c0252edfed693c46eda707574ba283bf811135f"
+    },
+    {
+      "path": "src/Rbf/Internal/RbfTailRecovery.cs",
+      "sha256": "1b4643cdfc23f737514b248eb0c7bcc1fa2b4d473d5f1b06e321843f8a8c8608"
+    },
+    {
+      "path": "src/Rbf/Internal/RbfWireCodec.cs",
+      "sha256": "1b68749b38e13d667b32943cdb3901c08429b52ed26a5d3e558c16eaeaa3b6f0"
+    },
+    {
+      "path": "src/Rbf/Internal/RbfWriteInstrumentation.cs",
+      "sha256": "96f4e92cdef901213275fdaa9cfc66a785961e2a59a5f04550af6e3e3816998b"
+    },
+    {
+      "path": "src/Rbf/Internal/TrailerCodewordHelper.cs",
+      "sha256": "990be2d4e2ba7e9f783ef3226c600d96e23c13d4a386c6c28aa2dc85676a4000"
+    },
+    {
+      "path": "src/Rbf/IRbfFile.cs",
+      "sha256": "9e26244f8a6d2af62930860da3754d6574b622a8c9c4df73777b570408a7e217"
+    },
+    {
+      "path": "src/Rbf/IRbfFrame.cs",
+      "sha256": "c57c34624452aeb67867c29dee16763f8e740369427aeee764a291b23f6abdef"
+    },
+    {
+      "path": "src/Rbf/IRbfTailMeta.cs",
+      "sha256": "cdf5ae39362bb4a2dbc03eec3ebab74096fc9a41ab0a61da524c30640912563e"
+    },
+    {
+      "path": "src/Rbf/OptionalRbfFrameInfo.cs",
+      "sha256": "1c71c9fcc6d064df7672e8c11c35d4d1506ace532ca5c4d85c1fb81d2ae53364"
+    },
+    {
+      "path": "src/Rbf/Rbf.csproj",
+      "sha256": "97d28075679aaba54b27fc5f4d4d27a32a04eb2f225279ae5852330024c9f7dd"
+    },
+    {
+      "path": "src/Rbf/RbfCacheMode.cs",
+      "sha256": "244fbce46770a5ffbf3045605539da37a756374a10f94ad3da5c6e4ba87acff4"
+    },
+    {
+      "path": "src/Rbf/RbfFile.cs",
+      "sha256": "067dea978635d273376e4e3f2a95414bfa6b96126440c66a096407f8590d1f21"
+    },
+    {
+      "path": "src/Rbf/RbfFormat.cs",
+      "sha256": "8c000a5716e34bc1f238c1a17d14235ee293b1879db18402faad70270c47231e"
+    },
+    {
+      "path": "src/Rbf/RbfForwardEnumerator.cs",
+      "sha256": "7313a8d4371326c2b1425075215bf5a38219f21bef8bfddbd3e0b519ae9f39ac"
+    },
+    {
+      "path": "src/Rbf/RbfForwardSequence.cs",
+      "sha256": "74112097f88251f27dedb677bc5dd9b4b29c21e5c536f06072d38f8d73917f40"
+    },
+    {
+      "path": "src/Rbf/RbfFrame.cs",
+      "sha256": "50f82272ccd1f9b8572a2db5ae792008076b76487089d0adfd6ba6134fbea9d5"
+    },
+    {
+      "path": "src/Rbf/RbfFrameBuilder.cs",
+      "sha256": "8cd219d24865a9ce6e38111569c1c500168b02c17f25f534028d044aa6522127"
+    },
+    {
+      "path": "src/Rbf/RbfFrameInfo.cs",
+      "sha256": "d903da6f2f0ace7c81e761e5f1ff41f89d8589280575e2916fd0b7db633acf8b"
+    },
+    {
+      "path": "src/Rbf/RbfPayloadWriter.cs",
+      "sha256": "67a477eee09919502dfba39d4d9e92c579aebb8719c57463302203f077efa5e6"
+    },
+    {
+      "path": "src/Rbf/RbfPooledFrame.cs",
+      "sha256": "df21d2689515d33a8b6c473fe57c58ad49dd0bb7857f8184e67e3c8f3dc6aee6"
+    },
+    {
+      "path": "src/Rbf/RbfPooledTailMeta.cs",
+      "sha256": "b6d884cb36e6d8cf30119d6df73e0649afce1cf9586cbc213ad57f81eef36bd5"
+    },
+    {
+      "path": "src/Rbf/RbfReadMetrics.cs",
+      "sha256": "930c8ba01cd7802843cd42967f815fd5a5eb46f29101119f18d4580c89748c4a"
+    },
+    {
+      "path": "src/Rbf/RbfRecovery.cs",
+      "sha256": "e1f26b7695bf9d01fede53784f8b617c9727e46f178117b1290b060a0703db71"
+    },
+    {
+      "path": "src/Rbf/RbfReverseEnumerator.cs",
+      "sha256": "cc13626733d931eb1e36a64b6c080b24cb424191897641886ba13bccd9137606"
+    },
+    {
+      "path": "src/Rbf/RbfReverseSequence.cs",
+      "sha256": "03b2a52d835efd82229bceefbe634585f31fe591c5bd488c188c587cf29482dc"
+    },
+    {
+      "path": "src/Rbf/RbfScanBoundary.cs",
+      "sha256": "b17bfcd3da73ecb47873e9311c1dcae25e72278b57dd6a06a87c41822d548342"
+    },
+    {
+      "path": "src/Rbf/RbfTailMeta.cs",
+      "sha256": "003b8295b55ae11287595e5570ef58e60b9873333fcfb190a9988ffce0279efc"
+    },
+    {
+      "path": "src/Rbf/RbfTailRecoveryReport.cs",
+      "sha256": "0ca2794ea0fc14256f81871477e1845ef68e4068829f084c9cce1f956ce987c3"
+    },
+    {
+      "path": "src/Rbf/RbfWriteSize.cs",
+      "sha256": "c1865b82084035b67b11dee97476656a795994332540c2679ae5300cc040d52a"
+    },
+    {
+      "path": "src/Rbf/ReadCache/CacheHitMap.cs",
+      "sha256": "29e8ce19a2f2c5dfc8c99c6fb1bccb36b949053ee1c3f3fa0fdb94e459c225fd"
+    },
+    {
+      "path": "src/Rbf/ReadCache/OffsetLength.cs",
+      "sha256": "1e67478a109f2f24cbbbbf02c436276deb13540170afed3d41cf2c90287a72f7"
+    },
+    {
+      "path": "src/Rbf/ReadCache/RandomAccessReader.cs",
+      "sha256": "5de6f3b441c72f09455aaba34418c4a4b4404666e4a6436f67c2cbad769e20c1"
+    },
+    {
+      "path": "src/Rbf/ReadCache/ReadLogger.cs",
+      "sha256": "8dc0354fee5b19d897704c0da40c3d898fee379445c92ae0dbb4b373efbb92c9"
+    },
+    {
+      "path": "src/Rbf/ReadCache/ReverseReadCache.cs",
+      "sha256": "5b5bb055763597668051cd65c3fe3cf326d9655e28c07df7cf2c2c307630d8ee"
+    },
+    {
+      "path": "src/Rbf/ReadCache/StartEnd.cs",
+      "sha256": "a88d71ac87e690a010da7fcade352dc7e4d6ca1ee4beb2a892c8d5f78f598bff"
+    },
+    {
+      "path": "tests/FrameStore.Tests/Admission/FrameHeaderReaderTests.cs",
+      "sha256": "89a3a56ff97e791898d92081a07383d2cc8a26389602b70d05bf1c466f34c932"
+    },
+    {
+      "path": "tests/FrameStore.Tests/Format/FormatRecordTests.cs",
+      "sha256": "cd0bd8b1ba34476cc27d211957547ea11747cfba89487c05e6bfe2c2e7005668"
+    },
+    {
+      "path": "tests/FrameStore.Tests/Format/FrameAddressTests.cs",
+      "sha256": "8874a56544754b2932bc9efa91625bb57c66f1c7cc4ef63ea74e669d61656790"
+    },
+    {
+      "path": "tests/FrameStore.Tests/Format/FrameStorePathsTests.cs",
+      "sha256": "97b53d7d0f75559ef45dde48819939ed44f7df2cd9c515cd880cb448c8210467"
+    },
+    {
+      "path": "tests/FrameStore.Tests/Format/FrameStorePolicyTests.cs",
+      "sha256": "b6be8150051f0e2f597686c8197507080565415728e00df8b46f8596e121bbbc"
+    },
+    {
+      "path": "tests/FrameStore.Tests/FrameStore.Tests.csproj",
+      "sha256": "dbc207593adad07b53db8e2dd5b4cbc266dbdec9ccb05f672677a9805e14be0f"
+    },
+    {
+      "path": "tests/FrameStore.Tests/Platform/FrameStorePlatformTests.cs",
+      "sha256": "c68e91c003014aad504c428250feebae5172cdb943122c9130d1076e96bab107"
+    },
+    {
+      "path": "tests/FrameStore.Tests/Public/InspectionOwnerHandoffTests.cs",
+      "sha256": "354c2c331c6660be8d527d6602848b7ec56129541df2567e88893db3fe70366b"
+    },
+    {
+      "path": "tests/FrameStore.Tests/Public/LegacyArchiveTests.cs",
+      "sha256": "45529c4c920f13d9c0a05da6de4374e5100fc2327e1777aeeb49be5652aa2ce8"
+    },
+    {
+      "path": "tests/FrameStore.Tests/Public/PublicAdmissionTests.cs",
+      "sha256": "c808b7fa2921f360425eb3fab256d35bc2504c107cf780ae9868c64861a31b6d"
+    },
+    {
+      "path": "tests/FrameStore.Tests/Public/PublicInspectionTests.cs",
+      "sha256": "a8533bb1022173e1c965368c4dd7018122f0677f704bd3793f9ca0c67b21df31"
+    },
+    {
+      "path": "tests/FrameStore.Tests/Public/PublicLifecycleTests.cs",
+      "sha256": "9201cd299f92414cf7a4f91cd82b507d625c39cab79f58d90e86fe096d662bdf"
+    },
+    {
+      "path": "tests/FrameStore.Tests/Public/PublicStoreFixture.cs",
+      "sha256": "cf5d9c531c84193f0114a5948d74b2f2f627f2115e0d4a4dde7d9995d96e5557"
+    },
+    {
+      "path": "tests/FrameStore.Tests/Public/RecoveryThresholdTests.cs",
+      "sha256": "1805f47b7e65d80cf014efb72ac8daaf0250a2308ccc5d84cad6a038b7efc7a5"
+    },
+    {
+      "path": "tests/FrameStore.Tests/Runtime/FrameStoreCoreTests.cs",
+      "sha256": "d8e17068b3eaf831782fa84ef793b886d26466a326e0251afa79de6eb4dbb207"
+    },
+    {
+      "path": "tests/FrameStore.Tests/Runtime/FrameStoreScanTests.cs",
+      "sha256": "1bab8ff099984fc5a191260d2e70facb4bfa93c84984f2e053804661a65e53d3"
+    },
+    {
+      "path": "tests/FrameStore.Tests/Runtime/RuntimeFixture.cs",
+      "sha256": "2f924661beffdd2231358fe218f2abcacf4f2bbe9b46ff4563706aacb9ead5a1"
+    },
+    {
+      "path": "tests/FrameStore.Tests/Storage/DirectoryFrameStoreFilesTests.cs",
+      "sha256": "d10b73f0120f2f2aa1e06608e044aec3c4002d8ae7457cf4b76356db473a6df5"
+    },
+    {
+      "path": "tests/FrameStore.Tests/Storage/DirectoryScanFilesTests.cs",
+      "sha256": "170c8cbaa6856a1f677a1da8d0aeb6aafab8a56ae60bd2ad05e5211387856364"
+    },
+    {
+      "path": "tests/FrameStore.Tests/Storage/FactoryFailureWindowTests.cs",
+      "sha256": "51180d909484b03ebbb0630652ee3f85cbaa690ee5fa449d7de5a5bbbce7f3a4"
+    }
+  ],
+  "windows": [
+    {
+      "path": "artifacts/framestore-r3-tests/gdtutu_TUTU17_2026-10-10_03_52_22.trx",
+      "sha256": "e580393bff08660d6a90a745653b55ee83f7cf28bd1d6554c8d5cd668dc4ae94",
+      "counters": {
+        "total": "395",
+        "executed": "392",
+        "passed": "392",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "outcome": "Completed",
+      "newVectors": [
+        {
+          "name": "Atelia.FrameStore.Tests.Storage.FactoryFailureWindowTests.CreateRejectsAfterPhysicalGateFlushOrCloseFailureAndLaterOpenUsesSameGate(failFlush: False, failClose: True, failLockClose: False)",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Public.LegacyArchiveTests.ValidRbf1ArchiveIsRejectedByFrameStoreReadersWithoutRepair",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Storage.FactoryFailureWindowTests.CreateRejectsAfterPhysicalGateFlushOrCloseFailureAndLaterOpenUsesSameGate(failFlush: True, failClose: True, failLockClose: True)",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Public.RecoveryThresholdTests.WritableOpenClassifiesAtRecoveredTailBeforeReturningOwner(completeTail: False, thresholdDelta: -1)",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Storage.FactoryFailureWindowTests.CreateRejectsAfterPhysicalGateFlushOrCloseFailureAndLaterOpenUsesSameGate(failFlush: True, failClose: False, failLockClose: False)",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Storage.FactoryFailureWindowTests.PrivateCandidateRequiredCloseFailurePreservesCandidateAndPrecedesActiveRecovery(failLockClose: False)",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Public.RecoveryThresholdTests.WritableOpenClassifiesAtRecoveredTailBeforeReturningOwner(completeTail: True, thresholdDelta: 0)",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Storage.FactoryFailureWindowTests.GateReadOrRequiredCloseFailureRejectsBothModesBeforePrivateCleanupAndActiveRecovery(readOnly: False, failRead: False)",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Public.RecoveryThresholdTests.WritableOpenClassifiesAtRecoveredTailBeforeReturningOwner(completeTail: True, thresholdDelta: -1)",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Storage.FactoryFailureWindowTests.PrivateCandidateRequiredCloseFailurePreservesCandidateAndPrecedesActiveRecovery(failLockClose: True)",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Storage.FactoryFailureWindowTests.GateReadOrRequiredCloseFailureRejectsBothModesBeforePrivateCleanupAndActiveRecovery(readOnly: True, failRead: False)",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Public.RecoveryThresholdTests.WritableOpenClassifiesAtRecoveredTailBeforeReturningOwner(completeTail: False, thresholdDelta: 0)",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Storage.FactoryFailureWindowTests.GateReadOrRequiredCloseFailureRejectsBothModesBeforePrivateCleanupAndActiveRecovery(readOnly: False, failRead: True)",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Storage.FactoryFailureWindowTests.CreateRechecksAfterPreflightWhileAnotherPublicCreateCompletes",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Storage.FactoryFailureWindowTests.GateReadOrRequiredCloseFailureRejectsBothModesBeforePrivateCleanupAndActiveRecovery(readOnly: True, failRead: True)",
+          "outcome": "Passed"
+        }
+      ]
+    },
+    {
+      "path": "artifacts/framestore-r3-tests/gdtutu_TUTU17_2026-10-10_03_52_25.trx",
+      "sha256": "c1a7c3090c6cc3ad8f50e22b1f1c5c24b0a9d0e8415a9089e4320d5a298d3ad4",
+      "counters": {
+        "total": "288",
+        "executed": "288",
+        "passed": "288",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "outcome": "Completed",
+      "newVectors": []
+    },
+    {
+      "path": "artifacts/framestore-r3-tests/gdtutu_TUTU17_2026-10-10_03_52_26.trx",
+      "sha256": "41b9c163dca415c6b5156c960953903fea3b3ca9c801eb10c57f3a9f5174b5fc",
+      "counters": {
+        "total": "75",
+        "executed": "75",
+        "passed": "75",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "outcome": "Completed",
+      "newVectors": []
+    },
+    {
+      "path": "artifacts/framestore-r3-tests/gdtutu_TUTU17_2026-10-10_03_52_26[1].trx",
+      "sha256": "a59de52f5028fdaf084d00dc276e4368b00c57cd63de9edeb1db087f661019e8",
+      "counters": {
+        "total": "214",
+        "executed": "214",
+        "passed": "214",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "outcome": "Completed",
+      "newVectors": []
+    },
+    {
+      "path": "artifacts/framestore-r3-tests/gdtutu_TUTU17_2026-10-10_03_52_26[2].trx",
+      "sha256": "04d5cfb0ec7d4c9a90a01a519209c4a84a7c24533cd15d24181b7bd82b84da1d",
+      "counters": {
+        "total": "48",
+        "executed": "48",
+        "passed": "48",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "outcome": "Completed",
+      "newVectors": []
+    },
+    {
+      "path": "artifacts/framestore-r3-tests/gdtutu_TUTU17_2026-10-10_03_52_26[3].trx",
+      "sha256": "93052ea17cc940361027e84ec4c21746c7233e65cd4772d726cd244cf48b29bc",
+      "counters": {
+        "total": "865",
+        "executed": "865",
+        "passed": "865",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "outcome": "Completed",
+      "newVectors": []
+    },
+    {
+      "path": "artifacts/framestore-r3-tests/gdtutu_TUTU17_2026-10-10_03_52_26[4].trx",
+      "sha256": "24516edd63e8a285f0818c4e5c0a69774b97be4ac1c5dd757b2c8c2b347665e7",
+      "counters": {
+        "total": "174",
+        "executed": "174",
+        "passed": "174",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "outcome": "Completed",
+      "newVectors": []
+    },
+    {
+      "path": "artifacts/framestore-r3-tests/gdtutu_TUTU17_2026-10-10_03_52_27.trx",
+      "sha256": "9efbb005d9aac1c76130e307c73b861ee358707af328db71ec241bfcc13dafbe",
+      "counters": {
+        "total": "122",
+        "executed": "122",
+        "passed": "122",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "outcome": "Completed",
+      "newVectors": []
+    }
+  ],
+  "linux": [
+    {
+      "path": "artifacts/framestore-r3-linux/_Tutu17_2026-10-10_03_53_27.trx",
+      "sha256": "c1f4de7f24ad2aa7dd7096ea3ad6628b5a3a63a1ad1d1a0828ffce0b87d83ab1",
+      "counters": {
+        "total": "395",
+        "executed": "394",
+        "passed": "394",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "outcome": "Completed",
+      "newVectors": [
+        {
+          "name": "Atelia.FrameStore.Tests.Storage.FactoryFailureWindowTests.PrivateCandidateRequiredCloseFailurePreservesCandidateAndPrecedesActiveRecovery(failLockClose: False)",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Public.RecoveryThresholdTests.WritableOpenClassifiesAtRecoveredTailBeforeReturningOwner(completeTail: False, thresholdDelta: 0)",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Storage.FactoryFailureWindowTests.PrivateCandidateRequiredCloseFailurePreservesCandidateAndPrecedesActiveRecovery(failLockClose: True)",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Storage.FactoryFailureWindowTests.CreateRechecksAfterPreflightWhileAnotherPublicCreateCompletes",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Public.RecoveryThresholdTests.WritableOpenClassifiesAtRecoveredTailBeforeReturningOwner(completeTail: True, thresholdDelta: -1)",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Storage.FactoryFailureWindowTests.CreateRejectsAfterPhysicalGateFlushOrCloseFailureAndLaterOpenUsesSameGate(failFlush: True, failClose: True, failLockClose: True)",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Storage.FactoryFailureWindowTests.GateReadOrRequiredCloseFailureRejectsBothModesBeforePrivateCleanupAndActiveRecovery(readOnly: False, failRead: True)",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Public.RecoveryThresholdTests.WritableOpenClassifiesAtRecoveredTailBeforeReturningOwner(completeTail: True, thresholdDelta: 0)",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Storage.FactoryFailureWindowTests.CreateRejectsAfterPhysicalGateFlushOrCloseFailureAndLaterOpenUsesSameGate(failFlush: True, failClose: False, failLockClose: False)",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Public.LegacyArchiveTests.ValidRbf1ArchiveIsRejectedByFrameStoreReadersWithoutRepair",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Storage.FactoryFailureWindowTests.GateReadOrRequiredCloseFailureRejectsBothModesBeforePrivateCleanupAndActiveRecovery(readOnly: True, failRead: False)",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Public.RecoveryThresholdTests.WritableOpenClassifiesAtRecoveredTailBeforeReturningOwner(completeTail: False, thresholdDelta: -1)",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Storage.FactoryFailureWindowTests.CreateRejectsAfterPhysicalGateFlushOrCloseFailureAndLaterOpenUsesSameGate(failFlush: False, failClose: True, failLockClose: False)",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Storage.FactoryFailureWindowTests.GateReadOrRequiredCloseFailureRejectsBothModesBeforePrivateCleanupAndActiveRecovery(readOnly: True, failRead: True)",
+          "outcome": "Passed"
+        },
+        {
+          "name": "Atelia.FrameStore.Tests.Storage.FactoryFailureWindowTests.GateReadOrRequiredCloseFailureRejectsBothModesBeforePrivateCleanupAndActiveRecovery(readOnly: False, failRead: False)",
+          "outcome": "Passed"
+        }
+      ]
+    }
+  ],
+  "linuxSnapshot": "/tmp/atelia-framestore-r3-9eb559ac",
+  "linuxSourceVerification": "All 133 extracted inputs hashed against this workspace manifest before build.",
+  "frameStoreActualAssets": {
+    "Atelia.Data/1.0.0": "project",
+    "Atelia.Primitives/1.0.0": "project",
+    "Atelia.Rbf/1.0.0": "project"
+  },
+  "rbf1Assets": "eng/Test-Rbf1ReferenceAssets.ps1 passed all seven reference projects; exact 0.2.0-rbf1-preview.1, source 3e9554e2ea70f769607e80b3fc11a85506050533.",
+  "artifacts": [
+    {
+      "path": "artifacts/framestore-r3-build.log",
+      "sha256": "b611223ddbeec1f9363a61b4510f185aa6ef3bea9aefe619c9ca65a7f1f85bb5"
+    },
+    {
+      "path": "artifacts/framestore-r3-tests.log",
+      "sha256": "1a5bebd783a2448880cae6bbb0c06a3f55523b8d1c405fc314669a59e83c33d1"
+    },
+    {
+      "path": "artifacts/framestore-r3-linux/build.log",
+      "sha256": "cb18350cf3b51b853fd6df219493dfec8d649e8100a7ab79d59760fcbd7e3a4c"
+    },
+    {
+      "path": "artifacts/framestore-r3-linux/tests.log",
+      "sha256": "ae8f2e798303fb676278eceec463388a4cea3a92c8b96260ab86c08569737b55"
+    },
+    {
+      "path": "artifacts/framestore-r3-linux/environment.txt",
+      "sha256": "1c565e5b9d8e976806cdc93274bab6263aa1ea6e554ca090246eea99164c776a"
+    },
+    {
+      "path": "experiments/FrameAddressLayoutProbe/evidence/2026-10-10-windows.json",
+      "sha256": "8e4692324eeb3d0e16b400f78b0b660f34a4221f6e8d4589704771a8c0faebdc"
+    },
+    {
+      "path": "experiments/FrameAddressLayoutProbe/evidence/2026-10-10-linux.json",
+      "sha256": "66c220274a89d48688ba62195cc7a21aed4d43fa037e23645f9212d646b4de7f"
+    }
+  ],
+  "limitations": [
+    "Controlled internal flush/close failures, not real OS failures.",
+    "Residue construction is not process interruption.",
+    "Linux runs only affected FrameStore tests, not the full solution.",
+    "No packaging, publication, VersionStore or power-loss qualification."
+  ]
+}
