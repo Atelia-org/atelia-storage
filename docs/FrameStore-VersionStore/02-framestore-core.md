@@ -5,6 +5,8 @@
 
 当前代码与验证边界见[同步物理检查记录](02-framestore-inspection-implementation.md)及[公开持久化闭环记录](02-framestore-persistence-implementation.md)，前片格式/运行内核证据见[首个源码切片](02-framestore-core-implementation.md)；下文仍是完整 S2 合同，不以功能实现替代完整系统验收。
 
+后续过程证据见[跨进程与中断取证 R1](02-framestore-process-acceptance.md)，包含真实 public 停点强杀与冷重开，以及仍须补足的三个内部窗口；当前实施进度以[收尾计划](02-framestore-completion-plan.md)为准。
+
 ## 本阶段目标
 
 创建 `src/FrameStore/FrameStore.csproj`、`tests/FrameStore.Tests/FrameStore.Tests.csproj`，采用 `Atelia.FrameStore` 身份。

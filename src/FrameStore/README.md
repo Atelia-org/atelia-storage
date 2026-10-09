@@ -21,6 +21,8 @@ using (var store = Store.OpenReadOnly(rootPath)) {
 
 `BeginAppend()` 提供未知尺寸 Builder；`BeginAppend(payloadLength, tailMetaLength, out address)` 在声明最终 stored 长度后提供提前地址。多个 Builder 可嵌套、交错并乱序完成，每个独占一个文件。其 `PayloadAndMeta` writer 的借用须经 Advance 归还，成功 EndAppend 自动归还租借；提前地址不证明完成、来源或耐久，取消后的坐标可能复用。普通 buffer Append 不消耗 Builder 配额。可选 `framestore.config.json` 只接受 `MaxOutstandingBuilders`，默认 32。
 
+writer 的 `Length` 保留 RBF 已写/预留的逻辑累计长度，包含内部 HeadLen；统计用户操作的逻辑增量应比较同一 Builder 操作前后的差值。该属性不表示物理输出量；当前实现到 EndAppend 提交 HeadLen 前会保留未完成内容。
+
 每个 owner 由调用方串行使用；writer 排斥其他全部 owner，多个 reader 可共享。持锁期间不得从外部改写、替换、删除或移动受管项。Windows/Linux 实现拒绝受管 symlink/reparse/FIFO 等特殊项，移动严格同文件系统且不覆盖；Windows 需要 volume GUID，Linux 需要 statx 的类型/大小/mount identity 及 renameat2，不支持的环境拒绝打开。这是本地文件系统机制资格，不承诺任意网络文件系统或敌对路径环境。
 
 `StoreId` 是持久身份的 16 个 opaque bytes，`IsReadOnly` 表示访问模式。`RecoveryReports` 按 FileId 保留本次可写 Open 的物理恢复报告；Create/RO 为空。格式/布局不合格拒绝，真实 I/O 错误保持原异常；ReadFrame 的非法 default 地址和底座读取拒绝使用 Result，实际缺失路径仍抛文件缺失异常。owner 输出/清理故障后停止使用，Dispose 按单次释放规则先关数据、最后关锁，不隐式确认。
@@ -33,4 +35,4 @@ using (var store = Store.OpenReadOnly(rootPath)) {
 
 后续范围与自动迭代进度见[FrameStore 收尾计划](../../docs/FrameStore-VersionStore/02-framestore-completion-plan.md)。
 
-本片实现与测试证据见[同步物理检查](../../docs/FrameStore-VersionStore/02-framestore-inspection-implementation.md)，此前证据见[公开持久化闭环](../../docs/FrameStore-VersionStore/02-framestore-persistence-implementation.md)及[首个源码切片](../../docs/FrameStore-VersionStore/02-framestore-core-implementation.md)。真实进程中断、资源/规模和完整 S2 审核仍待后续。源码、平台测试与包消费资格分别判断。
+实现与测试证据见[同步物理检查](../../docs/FrameStore-VersionStore/02-framestore-inspection-implementation.md)、[公开持久化闭环](../../docs/FrameStore-VersionStore/02-framestore-persistence-implementation.md)及[首个源码切片](../../docs/FrameStore-VersionStore/02-framestore-core-implementation.md)。公开返回点的真实强杀、跨进程锁与冷重开见[过程取证 R1](../../docs/FrameStore-VersionStore/02-framestore-process-acceptance.md)；内部具名窗口、资源/规模和完整 S2 审核仍待后续。源码、平台测试与包消费资格分别判断。

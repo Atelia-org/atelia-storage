@@ -16,6 +16,10 @@ public readonly struct FramePayloadWriter : IReservableBufferWriter {
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// 保留 RBF writer 已写/预留的逻辑累计长度投影（包括内部 HeadLen），不是物理输出量。
+    /// 需要统计本次写入/预留的逻辑增量时，应比较同一 Builder 操作前后的 Length 差值。
+    /// </remarks>
     public long Length => GetLease().Builder.PayloadAndMeta.Length;
 
     /// <inheritdoc/>

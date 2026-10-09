@@ -1,0 +1,792 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-10",
+  "baseline": "210bf40",
+  "sourceIdentity": "Baseline production behavior unchanged; probe sources and FramePayloadWriter.Length XML remarks added in the same commit as this record.",
+  "sdk": "10.0.201",
+  "windowsFileSystem": "E: ReFS",
+  "linuxFileSystem": "/dev/sde ext4, WSL2 Ubuntu, isolated /tmp/atelia-framestore-process-w3NZPP",
+  "sourceSnapshotManifest": "artifacts/framestore-process-source-sha256.json",
+  "sourceSnapshotManifestSha256": "478A0D71746A4EA51CB6B6ABDC1356EC8049A359EED39416C3E6AA56676E1A87",
+  "verifiedSourceBuildInputCount": 114,
+  "probeInputs": [
+    {
+      "path": "experiments/FrameStoreProcessProbe/Child.cs",
+      "sha256": "71DA90C0BABFDCA78EB20E5A8D4F76CDB24365D1E697337343DC7785665C9439"
+    },
+    {
+      "path": "experiments/FrameStoreProcessProbe/ChildProcess.cs",
+      "sha256": "3C7352C60E73BA63CA0AA247A52624A43E5ACB28883929D3A351E4FEFE89654C"
+    },
+    {
+      "path": "experiments/FrameStoreProcessProbe/Probe.csproj",
+      "sha256": "2999DA79623BE44E0C28AD790E2BAEDE23023D8B4877851054D6D7F67E674E3A"
+    },
+    {
+      "path": "experiments/FrameStoreProcessProbe/Program.cs",
+      "sha256": "0DB7A012FB649DA9D738D95748721505EA1392BBCDFE0216F9AACABCA896C06B"
+    },
+    {
+      "path": "experiments/FrameStoreProcessProbe/Protocol.cs",
+      "sha256": "133EB78056BEE9C99E638F0112D38B6035F359323AB49E4B93739448EF583051"
+    }
+  ],
+  "windowsSolutionTests": {
+    "passed": 2163,
+    "skipped": 3,
+    "failed": 0,
+    "trxDirectory": "artifacts/framestore-process-windows-tests"
+  },
+  "runs": [
+    {
+      "resultPath": "artifacts/framestore-process-windows-accepted/result.json",
+      "resultSha256": "4311556F9D6D8EA69396B051A02895E4A831C734A04AAACB3F247184B182C49C",
+      "passed": true,
+      "checkCount": 317,
+      "fixtureCount": 10,
+      "childCount": 80,
+      "killedChildCount": 13,
+      "unreapedChildCount": 0,
+      "durationSeconds": 22.1548295,
+      "environment": {
+        "runtime": ".NET 10.0.5",
+        "os": "Microsoft Windows 10.0.22000",
+        "architecture": "X64",
+        "parentPid": 21804,
+        "currentDirectory": "E:\\repos\\Atelia-org\\atelia-storage",
+        "outputDirectory": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\framestore-process-windows-accepted",
+        "timeoutSeconds": 30,
+        "dotnetSystemIoDisableFileLocking": null,
+        "appContextDisableFileLocking": false,
+        "assemblyPath": "E:\\repos\\Atelia-org\\atelia-storage\\experiments\\FrameStoreProcessProbe\\bin\\Release\\net10.0\\Atelia.FrameStoreProcessProbe.dll",
+        "assemblySha256": "8F38A08689C6DABE1E6E92643A50C73EC35810891D51B8E8C87CB82B763324DB"
+      },
+      "publicStops": [
+        "Create-returned",
+        "Append-returned-before-confirm",
+        "ConfirmDurable-returned",
+        "ConfirmDurable-returned-with-active-Builders-without-EndAppend",
+        "ConfirmDurable-returned-with-active-Builders-without-EndAppend",
+        "ConfirmDurable-returned-with-active-Builders-without-EndAppend",
+        "ConfirmDurable-returned-after-archive"
+      ],
+      "builderStages": [
+        {
+          "name": "known-builder acknowledged public stage",
+          "activeBuilders": 1,
+          "beforeBuilderWrite": [
+            {
+              "relativePath": "active/00000001.rbf",
+              "length": 116
+            }
+          ],
+          "afterBuilderWrite": [
+            {
+              "relativePath": "active/00000001.rbf",
+              "length": 116
+            }
+          ],
+          "builderProgress": [
+            {
+              "index": 0,
+              "initialWriterLength": 4,
+              "advancedBytes": 2097152,
+              "writerLengthBeforeConfirm": 2097156,
+              "writerLengthAfterConfirm": 2097156
+            }
+          ]
+        },
+        {
+          "name": "unknown-builder acknowledged public stage",
+          "activeBuilders": 1,
+          "beforeBuilderWrite": [
+            {
+              "relativePath": "active/00000001.rbf",
+              "length": 116
+            }
+          ],
+          "afterBuilderWrite": [
+            {
+              "relativePath": "active/00000001.rbf",
+              "length": 116
+            }
+          ],
+          "builderProgress": [
+            {
+              "index": 0,
+              "initialWriterLength": 4,
+              "advancedBytes": 2097152,
+              "writerLengthBeforeConfirm": 2097156,
+              "writerLengthAfterConfirm": 2097156
+            }
+          ]
+        },
+        {
+          "name": "mixed-builders acknowledged public stage",
+          "activeBuilders": 3,
+          "beforeBuilderWrite": [
+            {
+              "relativePath": "active/00000001.rbf",
+              "length": 116
+            },
+            {
+              "relativePath": "active/00000002.rbf",
+              "length": 116
+            },
+            {
+              "relativePath": "active/00000003.rbf",
+              "length": 116
+            }
+          ],
+          "afterBuilderWrite": [
+            {
+              "relativePath": "active/00000001.rbf",
+              "length": 116
+            },
+            {
+              "relativePath": "active/00000002.rbf",
+              "length": 116
+            },
+            {
+              "relativePath": "active/00000003.rbf",
+              "length": 116
+            }
+          ],
+          "builderProgress": [
+            {
+              "index": 0,
+              "initialWriterLength": 4,
+              "advancedBytes": 2097152,
+              "writerLengthBeforeConfirm": 2097156,
+              "writerLengthAfterConfirm": 2097156
+            },
+            {
+              "index": 1,
+              "initialWriterLength": 4,
+              "advancedBytes": 2097152,
+              "writerLengthBeforeConfirm": 2097156,
+              "writerLengthAfterConfirm": 2097156
+            },
+            {
+              "index": 2,
+              "initialWriterLength": 4,
+              "advancedBytes": 2097152,
+              "writerLengthBeforeConfirm": 2097156,
+              "writerLengthAfterConfirm": 2097156
+            }
+          ]
+        }
+      ],
+      "writableReopens": [
+        {
+          "name": "create-return fresh writable recovery",
+          "outcome": "opened",
+          "inventoryCount": 0,
+          "recoveryReports": []
+        },
+        {
+          "name": "append-return fresh writable recovery",
+          "outcome": "opened",
+          "inventoryCount": 2,
+          "recoveryReports": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 262284,
+              "finalLength": 262284,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ]
+        },
+        {
+          "name": "confirm-return fresh writable recovery",
+          "outcome": "opened",
+          "inventoryCount": 2,
+          "recoveryReports": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 262284,
+              "finalLength": 262284,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ]
+        },
+        {
+          "name": "known-builder fresh writable recovery",
+          "outcome": "opened",
+          "inventoryCount": 1,
+          "recoveryReports": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 116,
+              "finalLength": 116,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ]
+        },
+        {
+          "name": "unknown-builder fresh writable recovery",
+          "outcome": "opened",
+          "inventoryCount": 1,
+          "recoveryReports": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 116,
+              "finalLength": 116,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ]
+        },
+        {
+          "name": "mixed-builders fresh writable recovery",
+          "outcome": "opened",
+          "inventoryCount": 3,
+          "recoveryReports": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 116,
+              "finalLength": 116,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            },
+            {
+              "fileId": 2,
+              "action": "None",
+              "originalLength": 116,
+              "finalLength": 116,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            },
+            {
+              "fileId": 3,
+              "action": "None",
+              "originalLength": 116,
+              "finalLength": 116,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ]
+        },
+        {
+          "name": "archive-return fresh writable recovery",
+          "outcome": "opened",
+          "inventoryCount": 2,
+          "recoveryReports": []
+        }
+      ],
+      "observedRecoveryActions": [
+        "None"
+      ]
+    },
+    {
+      "resultPath": "artifacts/framestore-process-linux/linux-default/result.json",
+      "resultSha256": "612B70D55CA5A9C8CB7904930A7153F0B2695F029E66ED62744B441C4E2D5040",
+      "passed": true,
+      "checkCount": 317,
+      "fixtureCount": 10,
+      "childCount": 80,
+      "killedChildCount": 13,
+      "unreapedChildCount": 0,
+      "durationSeconds": 16.3026277,
+      "environment": {
+        "runtime": ".NET 10.0.5",
+        "os": "Ubuntu 24.04.4 LTS",
+        "architecture": "X64",
+        "parentPid": 32368,
+        "currentDirectory": "/tmp/atelia-framestore-process-w3NZPP",
+        "outputDirectory": "/tmp/atelia-framestore-process-w3NZPP/artifacts/linux-default",
+        "timeoutSeconds": 30,
+        "dotnetSystemIoDisableFileLocking": null,
+        "appContextDisableFileLocking": false,
+        "assemblyPath": "/tmp/atelia-framestore-process-w3NZPP/experiments/FrameStoreProcessProbe/bin/Release/net10.0/Atelia.FrameStoreProcessProbe.dll",
+        "assemblySha256": "BD9A53E8102F77558430C5212F846ABB0F63CBC176F11817007649A7B50EF974"
+      },
+      "publicStops": [
+        "Create-returned",
+        "Append-returned-before-confirm",
+        "ConfirmDurable-returned",
+        "ConfirmDurable-returned-with-active-Builders-without-EndAppend",
+        "ConfirmDurable-returned-with-active-Builders-without-EndAppend",
+        "ConfirmDurable-returned-with-active-Builders-without-EndAppend",
+        "ConfirmDurable-returned-after-archive"
+      ],
+      "builderStages": [
+        {
+          "name": "known-builder acknowledged public stage",
+          "activeBuilders": 1,
+          "beforeBuilderWrite": [
+            {
+              "relativePath": "active/00000001.rbf",
+              "length": 116
+            }
+          ],
+          "afterBuilderWrite": [
+            {
+              "relativePath": "active/00000001.rbf",
+              "length": 116
+            }
+          ],
+          "builderProgress": [
+            {
+              "index": 0,
+              "initialWriterLength": 4,
+              "advancedBytes": 2097152,
+              "writerLengthBeforeConfirm": 2097156,
+              "writerLengthAfterConfirm": 2097156
+            }
+          ]
+        },
+        {
+          "name": "unknown-builder acknowledged public stage",
+          "activeBuilders": 1,
+          "beforeBuilderWrite": [
+            {
+              "relativePath": "active/00000001.rbf",
+              "length": 116
+            }
+          ],
+          "afterBuilderWrite": [
+            {
+              "relativePath": "active/00000001.rbf",
+              "length": 116
+            }
+          ],
+          "builderProgress": [
+            {
+              "index": 0,
+              "initialWriterLength": 4,
+              "advancedBytes": 2097152,
+              "writerLengthBeforeConfirm": 2097156,
+              "writerLengthAfterConfirm": 2097156
+            }
+          ]
+        },
+        {
+          "name": "mixed-builders acknowledged public stage",
+          "activeBuilders": 3,
+          "beforeBuilderWrite": [
+            {
+              "relativePath": "active/00000001.rbf",
+              "length": 116
+            },
+            {
+              "relativePath": "active/00000002.rbf",
+              "length": 116
+            },
+            {
+              "relativePath": "active/00000003.rbf",
+              "length": 116
+            }
+          ],
+          "afterBuilderWrite": [
+            {
+              "relativePath": "active/00000001.rbf",
+              "length": 116
+            },
+            {
+              "relativePath": "active/00000002.rbf",
+              "length": 116
+            },
+            {
+              "relativePath": "active/00000003.rbf",
+              "length": 116
+            }
+          ],
+          "builderProgress": [
+            {
+              "index": 0,
+              "initialWriterLength": 4,
+              "advancedBytes": 2097152,
+              "writerLengthBeforeConfirm": 2097156,
+              "writerLengthAfterConfirm": 2097156
+            },
+            {
+              "index": 1,
+              "initialWriterLength": 4,
+              "advancedBytes": 2097152,
+              "writerLengthBeforeConfirm": 2097156,
+              "writerLengthAfterConfirm": 2097156
+            },
+            {
+              "index": 2,
+              "initialWriterLength": 4,
+              "advancedBytes": 2097152,
+              "writerLengthBeforeConfirm": 2097156,
+              "writerLengthAfterConfirm": 2097156
+            }
+          ]
+        }
+      ],
+      "writableReopens": [
+        {
+          "name": "create-return fresh writable recovery",
+          "outcome": "opened",
+          "inventoryCount": 0,
+          "recoveryReports": []
+        },
+        {
+          "name": "append-return fresh writable recovery",
+          "outcome": "opened",
+          "inventoryCount": 2,
+          "recoveryReports": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 262284,
+              "finalLength": 262284,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ]
+        },
+        {
+          "name": "confirm-return fresh writable recovery",
+          "outcome": "opened",
+          "inventoryCount": 2,
+          "recoveryReports": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 262284,
+              "finalLength": 262284,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ]
+        },
+        {
+          "name": "known-builder fresh writable recovery",
+          "outcome": "opened",
+          "inventoryCount": 1,
+          "recoveryReports": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 116,
+              "finalLength": 116,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ]
+        },
+        {
+          "name": "unknown-builder fresh writable recovery",
+          "outcome": "opened",
+          "inventoryCount": 1,
+          "recoveryReports": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 116,
+              "finalLength": 116,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ]
+        },
+        {
+          "name": "mixed-builders fresh writable recovery",
+          "outcome": "opened",
+          "inventoryCount": 3,
+          "recoveryReports": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 116,
+              "finalLength": 116,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            },
+            {
+              "fileId": 2,
+              "action": "None",
+              "originalLength": 116,
+              "finalLength": 116,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            },
+            {
+              "fileId": 3,
+              "action": "None",
+              "originalLength": 116,
+              "finalLength": 116,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ]
+        },
+        {
+          "name": "archive-return fresh writable recovery",
+          "outcome": "opened",
+          "inventoryCount": 2,
+          "recoveryReports": []
+        }
+      ],
+      "observedRecoveryActions": [
+        "None"
+      ]
+    },
+    {
+      "resultPath": "artifacts/framestore-process-linux/linux-no-bcl-lock/result.json",
+      "resultSha256": "3A91D2B8080D68CAFD1EB0722C42F55CC85680490F4FCF60508EC5C58A4FBB46",
+      "passed": true,
+      "checkCount": 317,
+      "fixtureCount": 10,
+      "childCount": 80,
+      "killedChildCount": 13,
+      "unreapedChildCount": 0,
+      "durationSeconds": 19.989632,
+      "environment": {
+        "runtime": ".NET 10.0.5",
+        "os": "Ubuntu 24.04.4 LTS",
+        "architecture": "X64",
+        "parentPid": 33073,
+        "currentDirectory": "/tmp/atelia-framestore-process-w3NZPP",
+        "outputDirectory": "/tmp/atelia-framestore-process-w3NZPP/artifacts/linux-no-bcl-lock",
+        "timeoutSeconds": 30,
+        "dotnetSystemIoDisableFileLocking": "1",
+        "appContextDisableFileLocking": false,
+        "assemblyPath": "/tmp/atelia-framestore-process-w3NZPP/experiments/FrameStoreProcessProbe/bin/Release/net10.0/Atelia.FrameStoreProcessProbe.dll",
+        "assemblySha256": "BD9A53E8102F77558430C5212F846ABB0F63CBC176F11817007649A7B50EF974"
+      },
+      "publicStops": [
+        "Create-returned",
+        "Append-returned-before-confirm",
+        "ConfirmDurable-returned",
+        "ConfirmDurable-returned-with-active-Builders-without-EndAppend",
+        "ConfirmDurable-returned-with-active-Builders-without-EndAppend",
+        "ConfirmDurable-returned-with-active-Builders-without-EndAppend",
+        "ConfirmDurable-returned-after-archive"
+      ],
+      "builderStages": [
+        {
+          "name": "known-builder acknowledged public stage",
+          "activeBuilders": 1,
+          "beforeBuilderWrite": [
+            {
+              "relativePath": "active/00000001.rbf",
+              "length": 116
+            }
+          ],
+          "afterBuilderWrite": [
+            {
+              "relativePath": "active/00000001.rbf",
+              "length": 116
+            }
+          ],
+          "builderProgress": [
+            {
+              "index": 0,
+              "initialWriterLength": 4,
+              "advancedBytes": 2097152,
+              "writerLengthBeforeConfirm": 2097156,
+              "writerLengthAfterConfirm": 2097156
+            }
+          ]
+        },
+        {
+          "name": "unknown-builder acknowledged public stage",
+          "activeBuilders": 1,
+          "beforeBuilderWrite": [
+            {
+              "relativePath": "active/00000001.rbf",
+              "length": 116
+            }
+          ],
+          "afterBuilderWrite": [
+            {
+              "relativePath": "active/00000001.rbf",
+              "length": 116
+            }
+          ],
+          "builderProgress": [
+            {
+              "index": 0,
+              "initialWriterLength": 4,
+              "advancedBytes": 2097152,
+              "writerLengthBeforeConfirm": 2097156,
+              "writerLengthAfterConfirm": 2097156
+            }
+          ]
+        },
+        {
+          "name": "mixed-builders acknowledged public stage",
+          "activeBuilders": 3,
+          "beforeBuilderWrite": [
+            {
+              "relativePath": "active/00000001.rbf",
+              "length": 116
+            },
+            {
+              "relativePath": "active/00000002.rbf",
+              "length": 116
+            },
+            {
+              "relativePath": "active/00000003.rbf",
+              "length": 116
+            }
+          ],
+          "afterBuilderWrite": [
+            {
+              "relativePath": "active/00000001.rbf",
+              "length": 116
+            },
+            {
+              "relativePath": "active/00000002.rbf",
+              "length": 116
+            },
+            {
+              "relativePath": "active/00000003.rbf",
+              "length": 116
+            }
+          ],
+          "builderProgress": [
+            {
+              "index": 0,
+              "initialWriterLength": 4,
+              "advancedBytes": 2097152,
+              "writerLengthBeforeConfirm": 2097156,
+              "writerLengthAfterConfirm": 2097156
+            },
+            {
+              "index": 1,
+              "initialWriterLength": 4,
+              "advancedBytes": 2097152,
+              "writerLengthBeforeConfirm": 2097156,
+              "writerLengthAfterConfirm": 2097156
+            },
+            {
+              "index": 2,
+              "initialWriterLength": 4,
+              "advancedBytes": 2097152,
+              "writerLengthBeforeConfirm": 2097156,
+              "writerLengthAfterConfirm": 2097156
+            }
+          ]
+        }
+      ],
+      "writableReopens": [
+        {
+          "name": "create-return fresh writable recovery",
+          "outcome": "opened",
+          "inventoryCount": 0,
+          "recoveryReports": []
+        },
+        {
+          "name": "append-return fresh writable recovery",
+          "outcome": "opened",
+          "inventoryCount": 2,
+          "recoveryReports": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 262284,
+              "finalLength": 262284,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ]
+        },
+        {
+          "name": "confirm-return fresh writable recovery",
+          "outcome": "opened",
+          "inventoryCount": 2,
+          "recoveryReports": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 262284,
+              "finalLength": 262284,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ]
+        },
+        {
+          "name": "known-builder fresh writable recovery",
+          "outcome": "opened",
+          "inventoryCount": 1,
+          "recoveryReports": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 116,
+              "finalLength": 116,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ]
+        },
+        {
+          "name": "unknown-builder fresh writable recovery",
+          "outcome": "opened",
+          "inventoryCount": 1,
+          "recoveryReports": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 116,
+              "finalLength": 116,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ]
+        },
+        {
+          "name": "mixed-builders fresh writable recovery",
+          "outcome": "opened",
+          "inventoryCount": 3,
+          "recoveryReports": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 116,
+              "finalLength": 116,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            },
+            {
+              "fileId": 2,
+              "action": "None",
+              "originalLength": 116,
+              "finalLength": 116,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            },
+            {
+              "fileId": 3,
+              "action": "None",
+              "originalLength": 116,
+              "finalLength": 116,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ]
+        },
+        {
+          "name": "archive-return fresh writable recovery",
+          "outcome": "opened",
+          "inventoryCount": 2,
+          "recoveryReports": []
+        }
+      ],
+      "observedRecoveryActions": [
+        "None"
+      ]
+    }
+  ],
+  "limitations": [
+    "ProcessCrashOnly; public stop points, not syscall interruption.",
+    "All observed recovery actions are None; CompletedTail/Truncated evidence remains constructed-residue tests.",
+    "Gate post-output failure, private close failure, and controlled Create race remain R3/R4 gaps.",
+    "No new package, resource-scale, or full S2 acceptance qualification."
+  ]
+}
