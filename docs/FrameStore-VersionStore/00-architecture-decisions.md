@@ -190,7 +190,8 @@ VersionStore 借入一个 data FrameStore，拥有独立的 RBF3 发布目录；
 完整字典使当前值无需 replay 历史或递归祖先；回溯时才沿本地帧链与 ForkOrigin 枚举完整发布前缀。字典内容从完整 checked-read 得到，拥有独立生命周期。匿名 fork 用 ForkRef，命名 fork 用 CreateBranchFromRevision 随目录一次发布来源、ref 与初始绑定；只传 roots 的入口建立无来源 ref。全分叉图由正式首帧声明派生，给既有 ref 加 alias 只发布一个名称文件、不产生新边。S4 的 ref 读写不解释 S5 名称记录，也不因名称损坏改变 ref 的身份或当前字典。
 
 RefId 是稳定对象身份；RefRevision 只表示已完成快照的位置，不提前签发，不用作 Unknown 尝试 token。同步历史调用期间首版禁止 owner mutation，调用结束后可用所选自有快照 fork/tag/rewind。跨重开的 RootMap 字典书签可使用 tag；它不保存精确 ref 历史来源，也不要求先提供随机 revision 读取或持久扫描 cursor。
-RefId 值/字段合同已定于 S4 `[F-VS-REF-ID-8B]`：公开自有值私有绑定持久 VSID，以完整上下文等值并在 I/O 前拒绝不同 VSID 的误传；内部字段仍唯一 8B LE，不重复存上下文。RefRevision 自有值/完整等值、只读 RefId/Ticket、同 VS 重开使用与既有 fork 复检见 `[A-VS-REF-REVISION-VALUE]`；不含 owner/epoch，不另立整体 codec。公开身份导入/导出、唯一分配/路径与 RootMap 表示仍未提供或待定。
+RefId 值/字段合同已定于 S4 `[F-VS-REF-ID-8B]`：公开自有值私有绑定持久 VSID，以完整上下文等值并在 I/O 前拒绝不同 VSID 的误传；内部字段仍唯一 8B LE，不重复存上下文。RefRevision 自有值/完整等值、只读 RefId/Ticket、同 VS 重开使用与既有 fork 复检见 `[A-VS-REF-REVISION-VALUE]`；不含 owner/epoch，不另立整体 codec。公开身份导入/导出、唯一分配/路径仍未提供或待定。
+RootMap/RefSnapshot 表示已定于 S4 `[A-VS-ROOTS-OWNED]`：字典公面复用 IReadOnlyDictionary，逐项 Ordinal 拒重后冻结，普通 sealed RefSnapshot 复用 Revision/Roots；内容比较仅内部进行，不定义公开字典/快照结构等值。BCL 探针排除了会泄漏 backing Dictionary 的普通 ReadOnlyDictionary 包装，不构成新库实施或性能资格；Key/wire/限额仍待定。
 
 CreateRef / PublishRef / CreateTag 及命名 fork 在发布 RootMap 前同步调用 data ConfirmDurable，不向调用方传递可复用 `DurabilityReceipt`；无关 Builder 未完成不阻断该屏障或发布，所需依赖仍须由应用保证完成。CreateBranch 不新增 data 屏障。branch 冷发现覆盖全部正式 ref 的 names，可使用可重建内存投影；tag 首版每次完整校验目标桶，不保留跨调用索引，统一桶 header 版本选择 record schema，初始化保护与查询唯一性见 S5。名称查询不保证 O(1)。字典、桶和文件容量按实际 codec 与公共尺寸 API 计算，“约 64B”只是少根短键场景估算。
 
