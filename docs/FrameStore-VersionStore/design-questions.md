@@ -1,6 +1,6 @@
 # 下一轮工程定稿：FrameStore 与根字典发布
 
-日期：2026-10-04；2026-10-05 更新核心/扩展分离；2026-10-07 收缩 VersionStore、放宽已完成输出资格并确定命名 fork 的目录共同发布；2026-10-08 关闭基础地址宽度/字段编码选择；2026-10-09 同步 ForkOrigin；资源、header、owned 租借/归档维护、读结果/同步 inventory/audit、FileId 编号恢复、正式 active/archive 路径及 FrameAddress 值/公开 codec 定稿写回 S2，发布调用证据与续跑边界写回 S4/S6，同步历史 visitor/预算/清理及 tag 桶初始化/组合 schema/每次完整扫描写回 S5；已定设计移出本问题表，实施验证保留所属阶段。状态：**Informative / Derived；问题汇总，不是新增实施阶段或规范输入**。
+日期：2026-10-04；2026-10-05 更新核心/扩展分离；2026-10-07 收缩 VersionStore、放宽已完成输出资格并确定命名 fork 的目录共同发布；2026-10-08 关闭基础地址宽度/字段编码选择；2026-10-09 同步 ForkOrigin；资源、header、owned 租借/归档维护、读结果/同步 inventory/audit、FileId 编号恢复、正式 active/archive 路径、FrameAddress 值/公开 codec 及格式门记录/只读校验定稿写回 S2，发布调用证据与续跑边界写回 S4/S6，同步历史 visitor/预算/清理及 tag 桶初始化/组合 schema/每次完整扫描写回 S5；已定设计移出本问题表，实施验证保留所属阶段。状态：**Informative / Derived；问题汇总，不是新增实施阶段或规范输入**。
 输入为本轮会话和 S0–S6 的 Draft 合同。FrameStore/VersionStore 本轮仅修订文档，项目尚未创建；RBF 底座的活跃构建随机读取改进单独记录验收。S1 与 RBF1 参考隔离的已有 Accepted 资格保留原身份，不构成新模型已实施的证据。
 
 ## 已形成的方向
@@ -52,6 +52,7 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 | 是否先持久占上 Creating 名称 | 不采用；全局名称预检至提交均串行，初始/alias 绑定使用统一 names 表示 |
 | 基础地址是否保持 16B 或带 SmartPointer 见证 | 固定 12B codec，完整 uint FileId + SizedPtr；无预留/内容 CRC，wire 与内存成本分离 |
 | FrameAddress 公开值/codec 如何交付 | S2 已定 readonly 不透明值、精确 TryRead/容量 TryWrite、公共数值下界、default/完整等值及失败 default/无写入；无额外错误族/规范文本，普通内部表示直接实施 |
+| FrameStore 格式门记录如何编码/读取 | S2 已定 framestore.format 普通 24B 记录与唯一 CRC32C、统一版本/StoreId、共同只读完整校验和关闭后交付；初次发布/根准入/平台协议仍未定 |
 
 以上各项统一见 [S0](00-architecture-decisions.md) 与相应 [S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。本表只导航，不建立第二套规范。
 
@@ -63,8 +64,9 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 
 **已确认：** creating 内部初始化 → active；停止分配、flush/close → archive；三者同一文件系统、目标不覆盖；每桶 1024 个编号，位置变化不改变 FrameAddress。私有创建槽位最多一个，当前已租出状态只在内存。
 
-**待定：** store 根准入/独占入口、实际固定组件与普通类型/no-follow 的平台资格、私有 creating 命名、创建残留允许前缀和拒绝规则、Windows/Linux rename 实现与中断验收。残留资格必须证明只是从未签发地址的私有初始化，不能仅凭合法 header 删除未知内容；词法路径不能替代根身份、类型或同文件系统证明。
+**待定：** 初次 store 创建/格式门发布协议、store 根准入/独占入口、实际固定组件与普通类型/no-follow 的平台资格、私有 creating 命名、创建残留允许前缀和拒绝规则、Windows/Linux rename 实现与中断验收。残留资格必须证明只是从未签发地址的私有初始化，不能仅凭合法 header 删除未知内容；词法路径不能替代根身份、类型或同文件系统证明。
 正式 active/archive 路径、严格名称/桶范围与全部直接项语法已定于 S2 `[F-FS-BUCKETED-PATHS]`，编号恢复、空桶/缺口/交错、发布后 max 登记及耗尽已定于 `[S-FS-DIRECTORY-STATES]`，均不再作为待定选择。O(A+B+H) 的完整正式名称枚举及实际组件/类型、两平台/规模验证留在 S2-Q2/Q3，不继承旧 locator 的历史规模无关 Open 承诺。
+格式门的固定普通记录/唯一 CRC/版本身份与只读完整校验已定于 `[F-FS-OWN-FORMAT]`，不再研究 raw/RBF 载体或额外字段；内容资格不关闭门的初次发布、根/锁或私有残留问题。VersionStore 自己的门仍属 D3。
 
 **收敛标准：** 创建、flush、关闭和移动各窗口只有一个可解释的文件位置；同编号两处同时存在明确拒绝；根准入、独占与残留范围可执行，直接消费已定正式路径/编号，冷启动与平台资格各自取证。
 
@@ -96,19 +98,19 @@ ListForks 同样覆盖全部正式 ref，但读 header/初始边界而非 names�
 
 ## 其余定稿项与条件扩展
 
-格式门、阈值默认/变更、根准入/私有目录协议及平台 rename、名称规则仍在各阶段 Ready 表中定稿；基础地址值/12B bool codec/数值与失败规则、普通内部表示及无规范文本、owned 租借/维护/清理、读结果/同步 inventory/audit 和正式 active/archive 路径已由 S2 锁定，历史入口/两项预算/终止及 tag 桶初始化/组合 schema/每次完整扫描已由 S5 锁定，已确认软阈值语义不表示所有参数都已冻结。地址实现/运行时成本留在 S2，内存优化不作为新的设计前置。
+FrameStore 格式门初次发布、VersionStore 格式门/身份、阈值默认/变更、根准入/私有目录协议及平台 rename、名称规则仍在各阶段 Ready 表中定稿；基础地址值/12B bool codec/数值与失败规则、普通内部表示及无规范文本、格式门记录/只读校验、owned 租借/维护/清理、读结果/同步 inventory/audit 和正式 active/archive 路径已由 S2 锁定，历史入口/两项预算/终止及 tag 桶初始化/组合 schema/每次完整扫描已由 S5 锁定，已确认软阈值语义不表示所有参数都已冻结。地址实现/运行时成本留在 S2，内存优化不作为新的设计前置。
 FrameAddress 不透明不等于支持帧重定位。目录归档只改变同一文件的位置；GC/compaction、逻辑 ID 映射、多线程执行、多个 data owner、跨实例 CAS 和更强断电模型在有需求时单独设计。多个 active 已是首版设计范围，不再列为未来条件扩展。
 地址见证的重评触发条件分别为：裸地址跨 store 流转且需要概率性误用检测时考虑 store/address fingerprint；要求库自动拒绝取消预约的旧引用时另设计每帧持久 token 与重开发号/碰撞规则；仅引用已完成对象且需要预期内容见证时考虑内容 CRC。最终内容 CRC 在 Begin 尚不可确定，A↔B 会引入 checksum 依赖，不能作为当前提前稳定地址字段。上述方案均无首版预留字段或实施前置；无碰撞的来源、完成或耐久保证不能由额外 4B 自行推出。
 ref 分段/轮转、随机 revision 读取、持久 cursor、差分/checkpoint、派生 tag 索引、名称 rename/unbind/delete/reuse、跨 ref 事务和精确尝试追踪不作为核心前置。业务 merge/provenance 由应用决定；出现无法用 RootMap 表达的明确需求后再扩展，不能从旧草案恢复候选功能。
 
 ## 下一轮建议顺序
 
-已确定的 FrameAddress 值/codec、header、config、资源、owned 租借/归档维护及读结果/同步物理检查直接消费 S2，历史 visitor/预算/清理和 tag 桶初始化/全扫描直接消费 S5；实现验收保留在相应阶段，不把已定字段和流程重新列为待定设计。
+已确定的 FrameAddress 值/codec、格式门记录/只读校验、header、config、资源、owned 租借/归档维护及读结果/同步物理检查直接消费 S2，历史 visitor/预算/清理和 tag 桶初始化/全扫描直接消费 S5；实现验收保留在相应阶段，不把已定字段和流程重新列为待定设计。
 S2 核心可直接围绕下表的工程问题推进；S4/S5 同样按已经收缩的模型关闭局部 codec / 路径 / 生命周期选择。
 
 | 工程定稿 | 剩余内容 |
 | --- | --- |
-| D6 / S2-Q1–Q3 | 格式门、根准入/独占、实际组件/类型、私有命名/残留与两平台 rename 实证；地址值/codec、正式路径与编号直接消费 S2 已定合同，地址成本不重新成为布局选择 |
+| D6 / S2-Q1–Q3 | 初次 store 创建/格式门发布、根准入/独占、实际组件/类型、私有命名/残留与两平台 rename 实证；门记录/只读校验、地址值/codec、正式路径与编号直接消费 S2 已定合同，地址成本不重新成为布局选择 |
 | D3 / S4-Q1–Q3、Q5–Q6 | RootMap/身份/codec、ForkOrigin、单文件创建和末读取、源成员及确认边界 |
 | D8 / S5-Q1、Q4 | 全局名称/ListForks 发现与规模成本、统一 binding/hash/路径、来源感知匿名/命名创建 |
 | S5-Q1（tag 局部） | 名称政策/编码/限额、与比较相等关系一致的固定 hash/桶路由/规范路径；RootMap/身份 codec 消费 D3，桶初始化/组合/扫描合同不再重选 |
