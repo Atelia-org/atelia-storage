@@ -1,6 +1,6 @@
 # S2：FrameStore 核心、地址与文件生命周期
 
-状态：**Draft；2026-10-05 确认首帧 header、自动归还与 config 数量上限；2026-10-07 允许活跃 Builder 期间确认和随机读取已完成输出；2026-10-08 确认地址固定 12B codec；2026-10-09 定稿资源基线、文件 header、owned 租借/归档维护、读结果/同步 inventory/audit 及 FileId 编号恢复；格式门、精确路径与独占/残留/平台资格仍待工程定稿或实施验证，项目尚未创建**。
+状态：**Draft；2026-10-05 确认首帧 header、自动归还与 config 数量上限；2026-10-07 允许活跃 Builder 期间确认和随机读取已完成输出；2026-10-08 确认地址固定 12B codec；2026-10-09 定稿资源基线、文件 header、owned 租借/归档维护、读结果/同步 inventory/audit、FileId 编号恢复及正式 active/archive 路径；格式门、根准入与独占/残留/平台资格仍待工程定稿或实施验证，项目尚未创建**。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)。本阶段独立于发布和命名层。
 
 ## 本阶段目标
@@ -19,7 +19,7 @@
 | 文件选择 | 从 active 当前可分配文件中选择数值 FileId 最小者；低编号忙时跳过，不等待 |
 | 轮转 | 三种追加均在成功完成后按 TailOffset 事后检查；大于阈值才停止新追加 |
 | 磁盘生命周期 | 私有 creating → active → 按编号分桶的 archive；不维护 active manifest/status |
-| 归档桶 | 固定 1024 个编号一个桶；精确路径字符串与格式版本待定 |
+| 归档桶 | 固定 1024 个编号一个桶；版本 1 使用 6 位小写 hex 桶名与 8 位完整 FileId 文件名，active/archive 共用文件名 codec |
 | 编号恢复 | 完整流式检查正式目录名称，取 active/archive 实际文件最大 FileId；无持久计数器或全历史 ID 表，不填缺口；耗尽仅拒绝需新文件的请求 |
 | 地址编码 | 固定 12B，完整 uint FileId 与 SizedPtr；基础地址无预留或内容见证字段 |
 | 耐久 | 确认调用时全部必要已完成 active 输出，包括 leased 文件；未完成 Builder 不获得资格，archive 资格来自移动前 flush |
@@ -252,7 +252,7 @@ Create 为 create-only；Open 不创建缺失 store。格式未知、metadata CR
 
 可写打开 MUST 枚举 active 的规范文件，按 `[F-FS-META-FIRST]` 先检查完整初始化的长度下界，再让 RBF 分别处理每个文件的单尾恢复并校验首帧；报告按 FileId 关联供诊断，Action 不驱动业务回滚或发布。所有需恢复的 active 文件成功打开并完成本层初始化检查后，才能向外签发新 Builder。
 Open 不重复读取整个尾 payload 取得结构资格；业务 metadata 作事实前仍 checked-read。archive 历史只读严格访问，残尾不被自动改写。恢复后的 TailOffset 大于当前阈值时，文件不可再租借，按归档协议处理。
-所有 active 恢复/header 检查及目录准入通过后，可写 Open MUST 执行 `[S-FS-ARCHIVE-AFTER-FLUSH]` 的统一归档维护，再签发 owner；任何维护或清理失败都不签发可用实例。具体目录裁决仍按 S2-Q2/Q3 定稿。
+所有 active 恢复/header 检查及目录准入通过后，可写 Open MUST 执行 `[S-FS-ARCHIVE-AFTER-FLUSH]` 的统一归档维护，再签发 owner；任何维护或清理失败都不签发可用实例。正式路径与编号按下文已定合同，根准入、独占与私有残留仍按 S2-Q1/Q3 定稿。
 正常 Open 核对格式门、私有创建槽位、active 集合及 `[S-FS-DIRECTORY-STATES]` 的完整正式名称发现/编号恢复；按需读取报告已知地址的缺失/坏内容，Inventory/Audit 覆盖实际发现的正式集合及其中已观察的错误，不声称发现不可观测的整文件丢失。枚举目录名不等于审计历史帧，不宣称已验证全部历史文件内容。只读复用正式名称发现与冲突检查，但不恢复、不移档、不清理创建残留。
 
 ### spec [S-FS-SOFT-THRESHOLD] 完成后大于阈值才停止追加
@@ -265,7 +265,30 @@ Open 不重复读取整个尾 payload 取得结构资格；业务 metadata 作�
 ### spec [F-FS-BUCKETED-PATHS] 归档路径由编号固定计算
 
 首版归档布局 MUST 固定 BucketShift=10：bucket = FileId >> 10，slot = FileId & 1023。每桶覆盖 1024 个编号，与帧大小、完成顺序和内存分段表无关。FileId=0 非法不意味着其他桶的 slot=0 非法。
-active 使用完整 FileId 命名，archive 由 bucket/slot 确定唯一位置；精确端序、名称宽度/大小写及路径格式在 S2-Q1/Q2 定稿。桶大小属于格式规则，不能在已存在 store 上随实例配置变化。
+
+**版本 1 的正式相对路径。** 令 F 为非零完整 uint FileId 的恰好 8 个小写 ASCII hex 字符，B 为 bucket 的恰好 6 个小写 ASCII hex 字符；以下组件相对于调用方选定的 store 根目录：
+
+| 位置 | canonical 组件序列 |
+| --- | --- |
+| active | `active/<F>.rbf` |
+| archive | `archive/<B>/<F>.rbf` |
+
+固定组件为精确小写 `active`、`archive`、`.rbf`；hex 字符只允许 `[0-9a-f]`，数值高位在前，与 FrameAddress/header 的二进制 LittleEndian 无关。B 的数值 MUST 在 `[0, 0x3fffff]`，空桶同样校验；6 个 hex 字符本身不证明落在 FileId 高 22 bits 的范围。归档文件的 B MUST 等于从其完整 F 解码的 FileId >> 10；slot 仅由该编号派生，不另写 slot 文件名或字段。桶大小、组件与编码属于统一格式版本，不随实例配置变化，不新增路径专用版本或 layout 选项。
+实现 MUST 共用一个内部文件名生成/checked 解析 codec，用于两种位置的生成、正式集合发现、随机定位和移档；不增加公开 path API。检查 MUST 以实际枚举项的组件名为输入，按字符/宽度/范围校验并与按值回编的组件 Ordinal 精确比较，不先 trim、case-fold 或规范化再认领。大小写变体、少/多前导零、符号/`0x`、非 ASCII 数字、尾部空格/点、错后缀、FileId=0、错桶和额外层级均拒绝。示例中的 `/` 表示组件分隔，实际用平台路径组合入口连接；不持久化 OS 分隔符或调用方根路径。
+
+**正式子树语法。** 目录发现 MUST 检查这些受管层级的全部直接目录项，包括隐藏项；不能用 `*.rbf`、仅文件/仅目录枚举或忽略不可访问项的选项预先过滤。active 的直接项只允许上述正式文件；archive 的直接项只允许合法 B 桶目录；每个桶的直接项只允许 B/F 对应的正式文件。未知名、错误类型或多余子目录立即拒绝，不递归寻找其中的合法后代，不忽略备份/临时后缀，也不修名、删除或迁移。
+这些受管目录及桶必须取得普通目录资格，叶项必须取得普通文件资格；不跟随其中的符号链接/junction/reparse，不把设备、FIFO 等特殊项计作正式文件。词法成功不提供类型或同文件系统证明。两平台实际类型/no-follow 检查入口、成本及拒绝向量仍须 S2-Q3 实施验证，不由本条指定系统调用或宣称无额外 metadata I/O。
+本条以目录准入已取得实际固定组件 `active`/`archive` 的精确拼写及目录资格为前提；大小写宽容的路径查找成功不能替代实际名称资格。取得该资格的入口仍属 S2-Q1/Q3；本条不规定 store 根其他项的白名单、私有槽/锁文件命名，或调用方根路径/祖先/硬链接的物理别名识别，不新增全树安全扫描或每次操作重查根目录。
+
+| FileId（hex 数值） | active 相对路径 | archive 相对路径 |
+| --- | --- | --- |
+| `00000001` | `active/00000001.rbf` | `archive/000000/00000001.rbf` |
+| `000003ff` | `active/000003ff.rbf` | `archive/000000/000003ff.rbf` |
+| `00000400` | `active/00000400.rbf` | `archive/000001/00000400.rbf` |
+| `89abcdef` | `active/89abcdef.rbf` | `archive/226af3/89abcdef.rbf` |
+| `ffffffff` | `active/ffffffff.rbf` | `archive/3fffff/ffffffff.rbf` |
+
+（Informative）archive 用完整 F 是复用一个 leaf codec、移档保持 basename 的工程选择。改用 3 位 slot 也可正确定位，但需另一套 leaf 解析/编号重组，且当前没有名称成本预算支持每文件省 5 个字符；不作为首版布局选项。旧 SegmentStore 的 6/8 位 hex 只提供实现参考，不产生旧布局兼容、连续编号或已验证新栈的义务。
 随机读取 MUST 按编号定位 archive 或 active，不依赖全历史分段表；只有路径确实不存在才尝试另一个允许位置，不把权限、I/O、格式或 CRC 错误当作缺失回退。
 
 ### spec [S-FS-DIRECTORY-STATES] 目录是文件生命周期事实
@@ -279,7 +302,7 @@ creating 是未发布的私有初始化槽位；active 是可能继续追加且�
 3. 取两个正式集合实际文件的最大编号；空桶不贡献编号，不以桶边界推算最大值。只有全部名称枚举及必要枚举资源清理成功后才取得这份资格；可写 Open 中的 active 恢复及归档 MUST 在正式名称检查通过之后进行。
 4. 私有槽位还须通过 `[R-FS-CREATION-PRIVATE]` / S2-Q3 的残留裁决。可写 Open 按既定合同恢复全部 active 并检查 header，之后才 DrainStopped 并签发 owner；只读按既定只读 header 合同检查，不恢复、不归档、不清理残留。creating 不计入正式 max，也不从其中 header 认领已发布编号；未裁决残留不得直接忽略、删除或复用其槽位。
 
-canonical 路径 codec MUST 为每个 FileId 在 active、archive 分别给出唯一位置并拒绝等值别名/错桶，桶名本身也校验规范编码与可表示范围，包括空桶；精确字符串仍在 S2-Q2 定稿。由此 archive 内不需要额外历史 ID 集合，跨集合重复用已有 active 台账检测。仅按正式名称发现文件便占用其编号，包括 header-only 文件；archive 不为恢复 max 额外打开或校验 header/payload，坏内容不能被当作空桶或腾出的编号，其内容/身份资格仍由按需 checked-read 与 Inventory/Audit 取得。active 的必需 header 错误仍阻止 Open。
+canonical 路径 codec 按 `[F-FS-BUCKETED-PATHS]` 为每个 FileId 在 active、archive 分别给出唯一位置并拒绝等值别名/错桶，桶名本身也校验规范编码与可表示范围，包括空桶。由此 archive 内不需要额外历史 ID 集合，跨集合重复用已有 active 台账检测。仅按正式名称发现文件便占用其编号，包括 header-only 文件；archive 不为恢复 max 额外打开或校验 header/payload，坏内容不能被当作空桶或腾出的编号，其内容/身份资格仍由按需 checked-read 与 Inventory/Audit 取得。active 的必需 header 错误仍阻止 Open。
 owner 初始化取得的目录资格在正常运行中由已定发布/归档协议维护；Append、Begin、Confirm 不重新全库枚举。Inventory/Audit 仍按自身合同发现完整实际集合，不把正常写入的内存台账代替全库检查。
 
 **发号与耗尽。** 通过格式门、必要目录与残留资格后，实际正式集合为空时 `MaxPublishedFileId=0`，下次真正新建取 1；这不决定 Create 是否预建首文件，也不将缺门/缺目录/坏文件或枚举失败视为空 store。允许实际编号缺口，但不证明缺口从未使用，也不填补缺口；下一候选只能是实际最大值加一。
@@ -404,6 +427,7 @@ Dispose 向量覆盖取消资源异常不重租、全部 owned 文件逐一尝�
 数量配置覆盖 M=1/32、满额 Begin 先于租借/创建/输出拒绝、初始化失败不占额度、短写拒绝仍占额度、成功 EndAppend/健康取消释放一次，以及有效/缺失/空 object/非法/重复或未知属性/读取错误、实例固定和下次打开生效；只读忽略写入配置。覆盖满额时合法 Append 仍成功、无关 Builder/ConfirmDurable 不受影响，以及 M=1 时先取得 A 地址、Append B 指向 A、再回填完成 A 的 public 轨迹；不以数量上限测试冒充总内存预算证据。
 资源基线覆盖所有工厂显式 Off、active idle 句柄保留与 archive 随机读结束后的关闭/自有结果、扫描提前结束和错误时释放、Open 中途失败清理、旧高上限留下的 active 数大于当前 M 仍完整检查并首次再确认。记录大 sizeHint、重复大 Append 后 scratch/池回收及实际句柄成本；不把配置降低等同于总资源立即缩减，也不宣称没有归档维护的 active 集合受 M 限制。
 文件选择覆盖乱序目录枚举、最低编号忙时选下一空闲文件、健康取消/归还后重新优先低编号、尚未移档但已停止分配的低编号排除，以及仅当全部候选不可分配时新建。编号恢复覆盖低号仍 active / 高号先 archive、较高桶连续为空、正式集合为空/全部已归档、合法缺口不补洞、uint 高位及1024边界、低桶错位/非规范别名/跨集合重复、枚举中途失败在 active 恢复前拒绝。覆盖 header-only active 已占号、私有残留通过裁决后不计 max、active 发布后首个 Builder 签发前失败与 rename 结果不明，重开按正式位置取得同一 max；归档/End/取消不改变 max。耗尽时 Open/读/Confirm/已有 Builder 仍合法、空闲低号仍可写、全忙或全停止时新建请求在维护/创建前不 fault 拒绝；不回绕或跳号绕过目标冲突。失去缓存句柄不改变选择结果，坏文件不被静默跳过。
+路径向量覆盖上述独立文本、0/uint 高位/最大编号、1023→1024 与合法 slot=0、首/末桶及空 `400000`/`ffffff` 超范围拒绝。覆盖 uppercase hex/`.RBF`、少/多零、空白/尾点/符号/Unicode/错层级、合法 stem 的目录或合法桶名的文件、隐藏未知项及枚举/类型检查失败；都不得经筛选或规范化成为成功完整名称资格。验证发现与按地址生成的位置一致、移档 basename/header FileId/12B 地址不变；Windows 实际固定组件大小写与两平台 link/特殊项拒绝另取得目录准入资格，不由纯字符串向量替代。
 最小消费者只按地址取回并解释引用；不同申请/完成次序构建相同逻辑图时，业务结果不依赖文件选择或枚举次序。
 健康 Open 成本包含 config 读取、全部正式名称的 O(A+B+H) 枚举及 active 的小型 header 校验；记录实际目录规模/冷打开成本，不宣称与历史规模无关或已符合性能预算。冷历史 reader、异常尾扫描、完整 payload 和 audit 的成本另外报告。
 项目遵循仓库 SDK/test pin，不复制生产包清单。源码可用不等于包已交付。
@@ -413,8 +437,8 @@ Dispose 向量覆盖取消资源异常不重租、全部 owned 文件逐一尝�
 | ID | 需定稿或实施验证 |
 | --- | --- |
 | S2-Q1 | 固定 12B FrameAddress codec 的公开入口、文本/错误与目标平台验证、内部 struct 布局；格式门完整 codec/发布协议与上下文保证，复用已定版本 1 及 StoreId 的 16B canonical 编码 |
-| S2-Q2 | 精确 canonical 路径字符串、软阈值默认/变更仍待定；完整正式名称扫描/单一内存 max/空桶/缺口/发号登记/耗尽已定，实施上述向量并测量 O(A+B+H) 目录规模成本，不重新选择计数器或最高桶快速路径 |
-| S2-Q3 | store 独占入口、creating 残留裁决、同文件系统不覆盖 rename 的两平台入口与中断实证 |
+| S2-Q2 | 软阈值默认/变更仍待定；版本 1 正式路径、单一内部文件名 codec、全部直接项语法及编号恢复已定，实施文本/拒绝/定位向量并测量 O(A+B+H) 目录规模成本，不重新选择布局、计数器或最高桶快速路径 |
+| S2-Q3 | store 根准入与独占入口、实际固定组件/普通类型/no-follow 资格、creating 命名与残留裁决、同文件系统不覆盖 rename 的两平台入口与中断实证 |
 | S2-Q4 | Builder/Writer/Lease、borrow、完成/dirty、维护/fault/Dispose，以及 FrameRead、纯值 FrameInfo、FrameFileAudit、同步 Inventory/Audit 准入/重入/取消/终止合同已定；实施对应拒绝/资源清理/信任级别与 completed-prefix 随机读取向量，不再作为待定 API 设计 |
 | S2-Q5 | 保留可写 active 句柄、显式 Off、只读按操作开关且无 reader pool 的基线已定；验证身份/读结果/扫描资源归属、Open 失败清理、历史峰值与实际资源成本，不做精确总资源配额 |
 | S2-Q6 | 24B header/单一格式版本/身份绑定、首位置识别、长度前检及 RBF 恢复后 checked-read、初始化与用户 tag/扫描合同已定；实施上述 bytes、拒绝、重复打开和用户残尾验收，不再作为待定设计 |
