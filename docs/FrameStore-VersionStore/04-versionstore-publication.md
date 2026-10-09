@@ -7,7 +7,7 @@
 
 创建 `src/VersionStore/VersionStore.csproj`、`tests/VersionStore.Tests/VersionStore.Tests.csproj`，采用 `Atelia.VersionStore` 身份。借入一个 data FrameStore，拥有独立的 RBF3 发布目录及其资源；直接使用主线 FrameStore/Rbf，不引用冻结旧栈或业务库。
 发布目录格式门持久绑定格式版本、VersionStoreId、DataStoreId。Open 在任何发布文件恢复/写入前核对借入 data 的身份与访问模式；发布位置不解释为 data FrameAddress，data 地址也不解释为 ref revision。
-单 owner/driver 串行操作，包括借入 data 的相关操作；发布目录须排斥另一 writer。VersionStore Dispose 释放私有文件、枚举器和锁，不 Dispose 借入 data。data 在使用期间必须存活；首版可写 VersionStore 借入可写 data owner，这是模式准入，不表示每个 mutation 都调用 data 屏障。资源、只读模式配对、借用与 fault 的具体公开接口在 Ready 时定稿。
+单 owner/driver 串行操作，包括借入 data 的相关操作；发布目录须排斥另一 writer。VersionStore Dispose 释放 owned 文件、当前遍历资源和锁，不 Dispose 借入 data。data 在使用期间必须存活；首版可写 VersionStore 借入可写 data owner，这是模式准入，不表示每个 mutation 都调用 data 屏障。资源、只读模式配对、借用与 fault 的具体公开接口在 Ready 时定稿。
 
 首版不创建独立 Commit 对象，不为每条 Snapshot 保存 Parent，不采用 Prepared handle、nonce 账本、默认 CAS 或精确 InspectPublication。ref 的创建来源由首帧 ForkOrigin 表达，文件内发布顺序仍由实际帧链表达。不提供跨 ref 原子事务；业务谱系、随机数状态、tool-loop 阶段、operationId 和外部副作用协议由应用保存和解释。
 
@@ -20,6 +20,7 @@
 RootMap MUST 使用唯一的 Ordinal key，不做隐式大小写折叠或 Unicode 归一化。空字典合法，且不同于 missing ref/tag。发布 MUST 先私有复制输入并编码为完整快照，避免调用方后续修改输入改变本次请求或返回值。
 库校验字典、key 和地址的格式/容量，并核对 VersionStore/data 格式门的身份及实例生命周期。FrameAddress 继承 S2 的局部地址合同：裸地址不携带原始 StoreId，库不能识别来自另一 store 的恰巧合法坐标。应用 MUST 保证所有引用属于该 data，所需新增依赖已完成，闭包不含 provisional/canceled 地址。数字地址本身不能证明完成来源；库 MUST NOT 把合法坐标或 data barrier 当成整个业务图已成立的证明。读取物理完整 orphan 后采用它，仍需由应用重新建立闭包资格。
 读取返回自有 RootMap 值；不持有 RBF pooled frame、Span 或枚举器临时缓冲。地址背后的内容由应用按 FrameStore.ReadFrame 完整读取与解释，VersionStore 不预读/遍历业务图。
+ReadRef 的成功值称为 RefSnapshot，提供只读 Revision 与 Roots；由库内部构造，不持有 owner/reader、不需要 Dispose，字典无公开修改入口。S5 历史读取复用同一自有结果，不另立历史快照或结果租借。RootMap/RefRevision 的具体 CLR 表示和 codec 仍由 S4-Q1/Q2 定稿。
 
 ## term `Ref-Revision` 已接受快照的位置身份
 
@@ -78,7 +79,7 @@ ForkOrigin MUST 在私有创建时写入，发布后不可改变。无来源表�
 | 候选操作 | 输入 | 成功结果 |
 | --- | --- | --- |
 | CreateRef | 完整初始 RootMap；空字典可用，无 ForkOrigin | 新 RefId 与初始快照/revision，独立历史起点 |
-| ReadRef | 已发布 RefId | 自有 RootMap 与实际末 revision |
+| ReadRef | 已发布 RefId | 自有 RefSnapshot：RootMap 与实际末 revision |
 | PublishRef | RefId、完整新/旧 RootMap | 已确认新快照/revision |
 | ListRefs | 本 VersionStore | 已发布 RefId，可发现未绑定 branch 的 ref |
 

@@ -1,6 +1,6 @@
 # 下一轮工程定稿：FrameStore 与根字典发布
 
-日期：2026-10-04；2026-10-05 更新核心/扩展分离；2026-10-07 收缩 VersionStore、放宽已完成输出资格并确定命名 fork 的目录共同发布；2026-10-08 关闭基础地址宽度/字段编码选择；2026-10-09 同步 ForkOrigin；资源、header、owned 租借/归档维护及读结果/同步 inventory/audit 定稿写回 S2，发布调用证据与续跑边界定稿写回 S4/S6；已定设计移出本问题表，实施验证保留所属阶段。状态：**Informative / Derived；问题汇总，不是新增实施阶段或规范输入**。
+日期：2026-10-04；2026-10-05 更新核心/扩展分离；2026-10-07 收缩 VersionStore、放宽已完成输出资格并确定命名 fork 的目录共同发布；2026-10-08 关闭基础地址宽度/字段编码选择；2026-10-09 同步 ForkOrigin；资源、header、owned 租借/归档维护及读结果/同步 inventory/audit 定稿写回 S2，发布调用证据与续跑边界写回 S4/S6，同步历史 visitor、预算与清理写回 S5；已定设计移出本问题表，实施验证保留所属阶段。状态：**Informative / Derived；问题汇总，不是新增实施阶段或规范输入**。
 输入为本轮会话和 S0–S6 的 Draft 合同。FrameStore/VersionStore 本轮仅修订文档，项目尚未创建；RBF 底座的活跃构建随机读取改进单独记录验收。S1 与 RBF1 参考隔离的已有 Accepted 资格保留原身份，不构成新模型已实施的证据。
 
 ## 已形成的方向
@@ -13,7 +13,7 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 2026-10-08 用户确认：FrameAddress 首版固定编码为 12B，保持完整 uint FileId 与 SizedPtr；额外见证按明确需求引入，不把未来预留或内容 CRC 纳入基础定位合同。S0 `[S-FS-ADDRESS-FIXED12]` 与 S2 `[F-FS-FRAME-ADDRESS-12B]` 已关闭基础地址宽度和二进制字段布局；内部 struct、公开 codec 入口、文本/错误及平台验证仍为工程定稿。
 2026-10-09 用户确认：[批量规划器与 API 设想](extensions/framestore-batch-planner-candidate.md)移至独立扩展草稿，需求与协议问题不列入 MVP 工程定稿或 Ready 条件。
 同日用户要求 fork 后仍能遍历完整历史并查询全部分叉。本轮设计在 ref 首帧增加不可变 ForkOrigin（源 RefId + 源 SizedPtr），文件内顺序继续表达发布编辑历史；来源感知创建按 revision 重读源字典，ListForks 从全部正式 ref 首帧声明派生图。来源字段见 S4，跨文件定位、预算与查询资格见 S5；业务因果/merge 仍由应用解释。
-旧单 active locator、全 owner 活跃期读取禁令已被替代。2026-10-07 按用户要求延期 ref 分段/轮转；Commit/Parent、全控制日志回放、Prepared token 和 checkpoint 不再是首版前置。历史逆序枚举仍是核心功能，返回释放枚举器后可继续使用的自有字典。
+旧单 active locator、全 owner 活跃期读取禁令已被替代。2026-10-07 按用户要求延期 ref 分段/轮转；Commit/Parent、全控制日志回放、Prepared token 和 checkpoint 不再是首版前置。历史逆序遍历仍是核心功能，经同步 visitor 交付调用结束后可继续使用的自有字典。
 
 ## 本轮已关闭的方向问题
 
@@ -44,6 +44,7 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 | 无关 Builder 是否阻断根发布 | 不阻断；应用保证本根新增依赖完成，data 先确认全部必要完成输出，根后发布 |
 | 活跃 Builder 是否阻断旧帧随机读取 | 不阻断已完成前缀内的指定地址读取；未完成/跨边界先拒绝，扫描相关资格未放宽 |
 | 读结果与物理检查如何交付 | S2 已定自有 FrameRead、纯值 inventory、完整 CRC audit 与同步 visitor guard；不外泄 reader/枚举器，不以部分回调或结构扫描称全库内容健康 |
+| 历史选点与遍历预算如何交付 | S5 已定同步 bool visitor、自有 RefSnapshot、返回数/工作步预算与单次调用清理；正常 Complete/VisitorStopped，预算专用失败，不外泄 sequence/epoch/cursor |
 | 命名 fork 是否允许公开未绑定新 ref | 组合入口一次发布完整 RefId 目录，新 ref/初始名称一起可见；手工两步仍不是事务 |
 | 是否先持久占上 Creating 名称 | 不采用；全局名称预检至提交均串行，初始/alias 绑定使用统一 names 表示 |
 | 基础地址是否保持 16B 或带 SmartPointer 见证 | 固定 12B codec，完整 uint FileId + SizedPtr；无预留/内容 CRC，内存布局独立选择 |
@@ -65,14 +66,14 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 
 ### D3：根地址与自有历史快照的最小合同如何定稿？
 
-**涉及阶段：** S2-Q1/Q4、S3-Q4；[S4](04-versionstore-publication.md) 的字典 codec / 身份 / 单文件创建；[S5](05-versionstore-names-and-indexes.md) 的历史生命周期。
+**涉及阶段：** S2-Q1/Q4、S3-Q4；[S4](04-versionstore-publication.md) 的字典 codec / 身份 / 单文件创建；消费 [S5](05-versionstore-names-and-indexes.md) 已定历史合同。
 
 **已确认：** 字典按值保存，地址解释于一个绑定的 data FrameStore，复用 S2 固定 12B codec。发布时应用保证全部必要对象已经完成，不能采用取消/未完成 ticket；data ConfirmDurable 不解析业务图，无关 Builder 未归还不阻断发布。屏障确认 leased 文件旧输出，不赋予其正在构建的新帧资格。旧 ref/tag 快照可以复用数据地址，不需要重新创建 Commit 或提交 parent。
 
 **工程定稿：** RootMap / RefId / RefRevision 的 public 值类型、Key 编码/长度，以及消费 S2 地址 codec 的校验；VersionStore 格式门与 data StoreId 绑定；统一 RefId 容器的路径编码、私有残留、一次目录 rename 的平台入口与资格。基础地址布局和发布目录单位已确定，不再开放地址宽度或“先文件后补名字”的选择。每条记录容量用 RBF 公共尺寸 API，不承诺“总是 64B”。
 
 历史枚举固定起始完成上界，沿不可变 ForkOrigin 接续各源选中位置及其更早历史；活动期间禁止同 owner mutation，返回的完整 RootMap 自有。RefRevision 只从完成发布/真实成员 checked-read 取得；来源元数据不自动签发 checked revision。来源感知 fork 先重读源字典，在子输出前完成 data 屏障与源文件 flush；只传 roots 的创建无来源。
-工程定稿还需明确 header 来源判别/RefId 与 SizedPtr codec、跨文件 owner/枚举器释放、路径 visited、返回/定位工作预算。现有 RBF 只有 EOF 逆扫，旧 fork 点的源后缀定位可能增长，不能承诺仅按返回条数计算；无关后缀 payload 不作历史审计，已观察的结构错误仍传播。完整无来源起点、预算耗尽、取消与错误须区分。
+剩余工程定稿为 header 来源判别/RefId codec 及与固定 8B SizedPtr 的组合。历史入口、自有值交付、跨文件资源/visited、返回/定位工作预算和终止已定于 S5 `[A-VS-REF-HISTORY-CHECKED]`，直接消费而非重新选择。现有 RBF 只有 EOF 逆扫，旧 fork 点的源后缀定位可能增长并支付工作步；无关后缀 payload 不作历史审计，已观察的结构错误仍传播。完整无来源起点、正常选点停止、预算失败、取消与错误按 S5 区分。
 
 **收敛标准：** 选中非末快照，结束枚举后 fork/tag/rewind；源继续更新、fork-of-fork、同值初始与源不同 revision，完整继承前缀保持正确。覆盖源真实成员、错 length、缺源/循环/字典不符、源 flush 失败、定位预算/错误和跨文件释放；不自动读取全部应用图或从 data 地址大小推算历史。
 
@@ -91,14 +92,14 @@ ListForks 同样覆盖全部正式 ref，但读 header/初始边界而非 names�
 
 ## 其余定稿项与条件扩展
 
-固定 12B 地址 codec 的公开入口、文本/错误与内部布局、格式门、阈值默认/变更、目录命名及平台 rename、名称规则和历史预算仍在各阶段 Ready 表中定稿；基础地址宽度/字段端序、owned 租借/维护/清理及读结果/同步 inventory/audit 已由 S2 锁定，已确认软阈值语义不表示所有参数都已冻结。
+固定 12B 地址 codec 的公开入口、文本/错误与内部布局、格式门、阈值默认/变更、目录命名及平台 rename、名称规则仍在各阶段 Ready 表中定稿；基础地址宽度/字段端序、owned 租借/维护/清理及读结果/同步 inventory/audit 已由 S2 锁定，历史入口/两项预算/终止已由 S5 锁定，已确认软阈值语义不表示所有参数都已冻结。
 FrameAddress 不透明不等于支持帧重定位。目录归档只改变同一文件的位置；GC/compaction、逻辑 ID 映射、多线程执行、多个 data owner、跨实例 CAS 和更强断电模型在有需求时单独设计。多个 active 已是首版设计范围，不再列为未来条件扩展。
 地址见证的重评触发条件分别为：裸地址跨 store 流转且需要概率性误用检测时考虑 store/address fingerprint；要求库自动拒绝取消预约的旧引用时另设计每帧持久 token 与重开发号/碰撞规则；仅引用已完成对象且需要预期内容见证时考虑内容 CRC。最终内容 CRC 在 Begin 尚不可确定，A↔B 会引入 checksum 依赖，不能作为当前提前稳定地址字段。上述方案均无首版预留字段或实施前置；无碰撞的来源、完成或耐久保证不能由额外 4B 自行推出。
 ref 分段/轮转、随机 revision 读取、持久 cursor、差分/checkpoint、派生 tag 索引、名称 rename/unbind/delete/reuse、跨 ref 事务和精确尝试追踪不作为核心前置。业务 merge/provenance 由应用决定；出现无法用 RootMap 表达的明确需求后再扩展，不能从旧草案恢复候选功能。
 
 ## 下一轮建议顺序
 
-已确定的 header、config、资源、owned 租借/归档维护及读结果/同步物理检查直接消费 S2；实现验收保留在相应阶段，不把已定字段和流程重新列为待定设计。
+已确定的 header、config、资源、owned 租借/归档维护及读结果/同步物理检查直接消费 S2，历史 visitor/预算/清理直接消费 S5；实现验收保留在相应阶段，不把已定字段和流程重新列为待定设计。
 S2 核心可直接围绕下表的工程问题推进；S4/S5 同样按已经收缩的模型关闭局部 codec / 路径 / 生命周期选择。
 
 | 工程定稿 | 剩余内容 |
@@ -107,9 +108,8 @@ S2 核心可直接围绕下表的工程问题推进；S4/S5 同样按已经收�
 | D3 / S4-Q1–Q3、Q5–Q6 | RootMap/身份/codec、ForkOrigin、单文件创建和末读取、源成员及确认边界 |
 | D8 / S5-Q1、Q4 | 全局名称/ListForks 发现与规模成本、统一 binding/hash/路径、来源感知匿名/命名创建 |
 | S5-Q3 | tag 桶初始化/codec/扫描或惰性内存表，与命名 fork 独立 |
-| S5-Q2 | 跨文件完整历史、固定上界、owned 字典、定位/返回预算、终止/Dispose 与 mutation guard |
 
-其余工程选择仍须在 Ready 前形成可操作协议；已定资源、文件 header、owned 生命周期及读/同步物理检查合同见 S2，S2-Q4/Q5/Q7、S3-Q1–Q3 保留对应实现验收，不重复开放其字段和流程。已定发布证据载体、Append/flush/rename 边界、清理和续跑责任见 S4/S6，S4-Q4 保留故障与冷重开实施验收，不再作为待定设计。无需把每个默认值或集合类型都升级为新的需求讨论；FrameStore/VersionStore 仍未开始新项目实施，文档定稿不代表恢复、性能或平台资格。RBF 底座改进的源码/测试资格单独报告。
+其余工程选择仍须在 Ready 前形成可操作协议；已定资源、文件 header、owned 生命周期及读/同步物理检查合同见 S2，S2-Q4/Q5/Q7、S3-Q1–Q3 保留对应实现验收，不重复开放其字段和流程。已定发布证据载体、Append/flush/rename 边界、清理和续跑责任见 S4/S6，S4-Q4 保留故障与冷重开实施验收，不再作为待定设计。S5 的同步历史 visitor、预算、终止与清理直接进入实现验证，不再列为待定设计。无需把每个默认值或集合类型都升级为新的需求讨论；FrameStore/VersionStore 仍未开始新项目实施，文档定稿不代表恢复、性能或平台资格。RBF 底座改进的源码/测试资格单独报告。
 
 下一轮核心优先解决 D6 的目录/编号，下游 codec/历史/名称问题按表推进；资源、header、owned 租借/维护和读/同步物理检查按 S2 进入实施验证。D3 是随后字典/发布阶段的局部工程问题，不反向要求分配器理解应用 codec；不再等待 Commit 或全局日志协议。
 结论写回所属阶段，按单向依赖复核；已确认方向不重复作为开放问题，本汇总不建立第二套规范。S2–S6 仍为 Draft，本次没有新项目或联合方案的恢复实证。

@@ -19,7 +19,7 @@ DurableGraph 是需求来源；S0 已记录兄弟仓的定位观察，实际接�
 | 循环引用图 | A↔B/self-reference，跨文件依赖与多个根地址 | 已知尺寸租借的提前地址、交错完成与全集耐久确认；应用循环由 opaque 数据表达 |
 
 两个模型用同一套 public API 写 data、CreateRef/PublishRef/ReadRef，枚举旧快照、创建 branch/tag，关闭并冷重开。匿名 fork 使用所选真实 revision 调用 ForkRef；命名 fork 用 CreateBranchFromRevision，在私有容器同时准备 ForkOrigin、初始 Snapshot 与 binding，一次目录 rename 共同发布；只传 roots 的创建表示独立历史起点。通过 ReadRefHistory 遍历完整继承前缀，通过 ListForks 查询全部声明分叉。普通 CreateBranch 仍为既有 ref 添加 alias，手工两步不是事务；没有 CreateCommit / PreparedPublication 或通用多对象事务步骤。
-覆盖相同字典的重复发布、新旧 revision 分离与多个 tag；ReadRefHistory 固定完成上界，枚举结束后旧字典仍可使用。rewind 追加旧字典，保留全部既有完整记录。不同 Builder 申请/完成次序构建相同逻辑图时，只按返回地址取回，不依靠文件选择或大小排序。
+覆盖相同字典的重复发布、新旧 revision 分离与多个 tag；ReadRefHistory 固定完成上界，经同步 visitor 交付自有 RefSnapshot，调用结束后旧字典仍可使用。rewind 追加旧字典，保留全部既有完整记录。不同 Builder 申请/完成次序构建相同逻辑图时，只按返回地址取回，不依靠文件选择或大小排序。
 这些是仓内可独立运行的最小消费者，不是 DurableGraph 已接入的证据。
 
 ## 两类需求的最小消费者
@@ -30,7 +30,7 @@ DurableGraph 是需求来源；S0 已记录兄弟仓的定位观察，实际接�
 | --- | --- | --- |
 | LLM tool-loop | RootMap 同时保存 runtime/history/tasks/context；发布 Prepared/Started 后模拟外发，发布结果后重开 | 冻结请求和执行阶段可恢复；Started 无结果进入应用 uncertain 路径，不证明任意外部调用 exactly-once |
 | 异步任务合并 | A/B 结果交由单 driver，依据最新 operationId/generation 串行合并，再发布字典 | 过期回包不覆盖新状态；不宣称 VersionStore 提供通用 CAS 或多线程 writer |
-| Gym 历史与扇出 | 枚举非末快照，释放枚举器后分别原子创建两个命名 fork，再独立推进 | 单个新 ref/初始名称共同发布；两个 fork 不是整批事务，可变对象隔离由应用加载层负责 |
+| Gym 历史与扇出 | visitor 选中非末快照并正常停止，调用结束后分别原子创建两个命名 fork，再独立推进 | 单个新 ref/初始名称共同发布；两个 fork 不是整批事务，可变对象隔离由应用加载层负责 |
 | rewind/tag | 从旧快照追加新 revision，再保存 tag，推进 branch 后冷重开 | 旧完整历史保留、重复字典不合并 revision、tag 字典固定；不把 ref 发布序列当跨分支因果谱系 |
 
 确定性模拟另由应用检验完整 world、runtime/cursor、RNG 坐标或内部状态、规则与 Agent 工作区。存储保证原样保存/选择与精确 ref 创建来源；轨迹 root 可另表达 action/reward/实验条件，不能把发布分叉图当作业务推演因果。外部 tool 的幂等、receipt/query 或显式重复策略也由应用/backend 验收。
@@ -58,8 +58,8 @@ public 消费另验证 FrameRead 在 reader/owner 关闭后仍可用、独立 Di
 首次 tag 桶的 header-only 初始化覆盖 flush/close/空桶 rename 故障及进程中断；尚未尝试 tag Append 时本次 tag 保持 NotAttempted，重开允许合法空桶但不存在该 tag，不清理已正式发布的合法桶。CreateBranch 单独验证只确认绑定文件、不调用 data 屏障，无关 data Builder 未结束不阻断纯命名；匿名/命名 fork 都消费完整 RootMap 屏障，A 依赖完成而无关 B 仍 Building 时组合创建可以成功。
 名称向量覆盖跨不同 ref 的全局同名拒绝且先于 barrier/输出、初始绑定与 alias 同一表示、同 ref 多 alias、绑定父容器/目标身份错误、hash 碰撞、坏 CRC/codec 和目录枚举失败不当 absent、重复 fullname 不 first-wins。standalone 未命名 ref 仍可列举，手工 CreateRef+CreateBranch 第二步失败保留第一步，alias 输出异常不撤销既有 ref/原名称。补大量未命名 ref/少量 branch 的冷发现成本，以及若采用内存表，其完整建立/正常结束和 Confirmed 后安装失败。
 容量边界分别验证单帧尺寸与起始 offset：ref / tag 桶最后合法记录的末端和尾 Fence 可以越过 SizedPtr.MaxOffset，随后追加在输出和额外 data barrier 前确定拒绝；不拿末端越界当作既有记录损坏。FrameStore 同样遵守起点规则，成功追加后按软阈值停止分配并归档。裸 FrameAddress 的原始 store 来源由应用保证，错误 data owner 的格式门绑定则必须在恢复/写入前由库拒绝，二者不能合并成自动来源检测能力。
-历史枚举向量 MUST 覆盖固定上界、活动期 mutation 拒绝、释放后自有字典继续使用、重复相同字典的不同 revision、损坏与 TerminationError。普通当前值读取不自动审计全部历史；显式历史遇到坏记录必须报告错误。
-来源感知 fork 另覆盖源真实成员重读、data 屏障后源 ref flush、私有 ForkOrigin/初始 Snapshot/名称共同发布及每个中断窗口。源 flush 失败时不输出子容器，源 head 不增加孩子登记。跨文件历史包含子初始与 exact 源点的不同 revision，覆盖 fork-of-fork、源后续更新不混入、rewind 发布史、缺源/错 length/循环/初始字典不符、后缀定位预算与错误、跨文件枚举器释放。
+同步历史 visitor 向量 MUST 覆盖固定上界、递归/全部 mutation 的 pre-I/O 拒绝、调用后自有字典继续使用、重复相同字典的不同 revision、损坏与 TerminationError。覆盖第 k 项正常停止不再读取旧坏记录，MaxSnapshots/MaxWorkSteps 的资格/定位/完整读计费，恰好到无来源初始时 Complete、有来源而额度不足时专用预算失败。最后回调 Dispose owner、取消或抛异常及最后临时关闭失败不得返回正常终止；跳转/所有退出归还一次并清 guard。普通当前值读取不自动审计全部历史；显式历史传播已观察的必要错误，VisitorStopped/预算失败不称未访问前缀健康。
+来源感知 fork 另覆盖源真实成员重读、data 屏障后源 ref flush、私有 ForkOrigin/初始 Snapshot/名称共同发布及每个中断窗口。源 flush 失败时不输出子容器，源 head 不增加孩子登记。跨文件历史包含子初始与 exact 源点的不同 revision，覆盖 fork-of-fork、源后续更新不混入、rewind 发布史、缺源/错 length/循环/初始字典不符、后缀定位预算与错误、栈内扫描器切换与临时句柄清理。
 ListForks 必须包含匿名与命名、多层及兄弟分叉，alias 不新增边、无来源同值复制不推断来源、creating 残留不参与；完整首帧声明扫描与图存在性/环检查后才返回全部关系。声明边查询不重验所有源 payload，实际历史跳转则必须校验；分别验证两种资格，错误/预算不足不能返回“没有分叉”。普通 ReadRef 的本地 header/初始/末快照检查不递归祖先。
 public 消费复用 S2 固定 12B 地址 codec，在 Begin 前计算自引用/双文件互引的 stored 尺寸，核对 Begin/End 编码一致并冷重开读回；RootMap、ref 历史与 tag 均复用同一地址格式。独立 bytes 验证完整 FileId/Packed 高位、精确字段消费和非法值，不把内部 struct 大小或 native ABI 当成 wire 长度；目标运行时布局资格与 codec/包消费分别记录。
 

@@ -1,6 +1,6 @@
 # FrameStore / VersionStore 分阶段设计入口
 
-日期：2026-10-03；2026-10-05 确认 FrameStore header、归还、config 与核心/扩展分离；2026-10-07 更新完整字典、单文件 ref、已完成输出资格及命名 fork 的目录共同发布；2026-10-08 确认 FrameAddress 固定 12B 编码；2026-10-09 分离批量规划器设想、收敛 MVP 组合，增加 ForkOrigin 完整历史与全分叉设计，并定稿资源、header 及 owned 租借/归档维护。状态：**S1 Accepted；S2–S6 Draft，两个新项目尚未创建；参考依赖拆分 Accepted**。
+日期：2026-10-03；2026-10-05 确认 FrameStore header、归还、config 与核心/扩展分离；2026-10-07 更新完整字典、单文件 ref、已完成输出资格及命名 fork 的目录共同发布；2026-10-08 确认 FrameAddress 固定 12B 编码；2026-10-09 分离批量规划器设想、收敛 MVP 组合，增加 ForkOrigin 完整历史与全分叉设计，定稿资源、header、owned 租借/维护/读取及同步历史 visitor。状态：**S1 Accepted；S2–S6 Draft，两个新项目尚未创建；参考依赖拆分 Accepted**。
 初始设计源码观察基线：`main @ 70d1009e78a73342a0c0fdc8ffed7731dec58173`；S1 验收记录的核对基线为 `f6f1eb38557863ba5ea1634844a90f0cbe5774cf`；前轮设计阅读基线为 `4175a46`，本轮租借/目录修订核对 `50e8e28`。本文档集供逐阶段细化、审阅和实施，不把文档修订视为新实现或验收。
 
 目标：**以 RBF3 的帧原子性为基础，让中层构建新状态，再发布完整根地址字典使状态生效。**
@@ -27,7 +27,7 @@ S2 已定稿一次性共享 Lease 与 owned Builder/Writer：成功完成只登�
 VersionStore 借入一个 data FrameStore，拥有自己的 RBF3 发布目录。CreateRef / PublishRef / CreateTag 及命名 fork 先完成本根所需的新增依赖，再同步 data ConfirmDurable，随后确认字典输出及其必要发现边界并安装内存投影；无关 Builder 未归还不阻断独立闭包的发布。应用收到成功确认后按字典加载状态。CreateBranch 只给既有 ref 加 alias、确认自己的绑定文件，不重新发布 RootMap 或调用 data 屏障。所有 Key 的业务语义由应用解释，不消费中间帧的构建顺序。
 2026-10-07 用户确认：**命名 fork 成功发布时，新 ref 与 branch 一起可见；发布前，普通查询两者都不可见。失败可以留下私有准备文件，但不会留下公开的未绑定 ref。** S4 统一 `refs/<RefId>/<RefId>.rbf` 与 `names` 容器，在 creating 内准备完成后一次目录 rename 发布；S5 的组合入口在同一容器加入初始 binding，所有后加 alias 也采用相同 names 文件表示。普通 CreateRef 仍可创建未命名 ref，手工 CreateRef+CreateBranch 仍不是事务。
 branch 名称解析和查重覆盖全部正式 ref 的 names；首查可扫描或建立可重建内存表，不承诺 O(1)，不写持久名称索引。全局名称准入依赖单 writer/driver 不交错操作；S4 Ref 读写不解释名称 codec，不增加永久 branch gate。正式目录/文件 rename 的平台资格仍待实施，Unknown 与私有残留不因共同发布而消失。
-当前值校验本地 header/初始快照并完整读取最后快照，不递归祖先；历史从固定完成上界逆序枚举，沿首帧 `ForkOrigin = 源 RefId + 源 SizedPtr` 接续前序发布前缀，返回结束枚举后仍可使用的自有字典。ForkRef / CreateBranchFromRevision 内部确认源成员、复制源字典，仍保存子初始完整快照；只传 roots 的创建是无来源起点。rewind 追加旧字典成为新 revision，tag 冻结所选字典。RefRevision 来自完整发布/实际历史枚举，不是输出前尝试 token；跨重开书签仍可用 tag。
+当前值校验本地 header/初始快照并完整读取最后快照，不递归祖先；S5 历史从固定完成上界沿首帧 `ForkOrigin = 源 RefId + 源 SizedPtr` 接续发布前缀，通过同步 bool visitor 逐项交付自有 RefSnapshot。选中后可正常停止，调用结束后再 fork/tag/rewind；不外泄枚举器/epoch。返回数与工作步分别限额，Complete/VisitorStopped 与专用预算失败区分，步数不称实际 I/O 或内存上限。ForkRef / CreateBranchFromRevision 内部确认源成员、复制源字典，仍保存子初始完整快照；只传 roots 的创建是无来源起点。rewind 追加旧字典成为新 revision，tag 冻结所选字典。RefRevision 来自完整发布/实际 checked 历史，不是输出前尝试 token；跨重开书签仍可用 tag。
 ListForks 扫描全部正式 ref 的 checked 首帧声明，包括匿名 ref，派生全部创建分叉图；不写持久孩子表，不据此宣称全部源历史健康。实际跳转再校验源快照与子初始字典一致。现有 RBF 逆扫只从 EOF 开始，定位旧 fork 点可能扫描源后续帧；S5 明确工作预算与成本，不假设随机起扫能力。
 输出异常停止实例并重开读取实际状态；完整快照损坏报错，不回退旧值。同步 mutation 的 Result/必选 out PublicationOutcome、公开尝试与确认边界已在 S4 定稿，异常路径不依赖新建证据包装；NotAttempted/Confirmed 均不代替实例健康。匿名创建丢失返回值后不按同值精确认领，首版不提供通用 CAS 或精确 Unknown 尝试查询。数据闭包、工具 operationId、外部 uncertain 策略、模拟器 RNG 和应用谱系由应用负责；[两类下游评估](reviews/2026-10-07-downstream-fit.md)未发现必须扩大核心的需求。本轮仍只修订设计，未实施发布与续跑协议。
 

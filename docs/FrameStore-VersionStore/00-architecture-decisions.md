@@ -117,7 +117,7 @@ tag 创建后不改；ref rewind 追加旧字典的新快照，不能截掉已�
 ### decision [S-VS-REF-SINGLE-FILE] 首版 ref 使用单个 RBF3 文件
 
 2026-10-07 用户明确要求：每个 ref MUST 使用一个以稳定唯一 RefId 定位的 RBF3 文件，每次更新追加一个完整字典帧；当前值只读最后快照。首版不分段、不轮转、不差分。RBF / SizedPtr 的帧尺寸和起始偏移硬界仍有效，超界显式拒绝，不能覆盖、回绕或截掉旧历史。
-历史选点是首版功能：从固定已完成上界逆序枚举完整快照，返回枚举结束后仍可使用的自有字典。随机历史读取、持久 cursor、索引及文件分段可以作为后续局部实施片；不提前写入其 wire。
+历史选点是首版功能：从固定已完成上界逆序交付完整快照，返回调用结束后仍可使用的自有字典。S5 定稿同步 bool visitor、返回/工作步两个预算，正常结束区分 Complete 与 VisitorStopped，预算耗尽是专用失败；不外泄枚举器、epoch 或 reader。随机历史读取、持久 cursor、索引及文件分段可以作为后续局部实施片；不提前写入其 wire。
 
 ### decision [S-VS-REF-FORK-LINK] 创建来源连接完整发布历史
 
@@ -185,7 +185,7 @@ VersionStore 借入一个 data FrameStore，拥有独立的 RBF3 发布目录；
 
 完整字典使当前值无需 replay 历史或递归祖先；回溯时才沿本地帧链与 ForkOrigin 枚举完整发布前缀。字典内容从完整 checked-read 得到，拥有独立生命周期。匿名 fork 用 ForkRef，命名 fork 用 CreateBranchFromRevision 随目录一次发布来源、ref 与初始绑定；只传 roots 的入口建立无来源 ref。全分叉图由正式首帧声明派生，给既有 ref 加 alias 只发布一个名称文件、不产生新边。S4 的 ref 读写不解释 S5 名称记录，也不因名称损坏改变 ref 的身份或当前字典。
 
-RefId 是稳定对象身份；RefRevision 只表示已完成快照的位置，不提前签发，不用作 Unknown 尝试 token。历史枚举期间首版禁止 owner mutation。跨重开的应用书签可使用 tag，无需先提供随机 revision 读取或持久扫描 cursor。
+RefId 是稳定对象身份；RefRevision 只表示已完成快照的位置，不提前签发，不用作 Unknown 尝试 token。同步历史调用期间首版禁止 owner mutation，调用结束后可用所选自有快照 fork/tag/rewind。跨重开的应用书签可使用 tag，无需先提供随机 revision 读取或持久扫描 cursor。
 
 CreateRef / PublishRef / CreateTag 及命名 fork 在发布 RootMap 前同步调用 data ConfirmDurable，不向调用方传递可复用 `DurabilityReceipt`；无关 Builder 未完成不阻断该屏障或发布，所需依赖仍须由应用保证完成。CreateBranch 不新增 data 屏障。branch 冷发现覆盖全部正式 ref 的 names，tag 查找与重名检查覆盖目标桶；均可使用可重建内存投影，不保证首次查询 O(1)。字典、桶和文件容量按实际 codec 与公共尺寸 API 计算，“约 64B”只是少根短键场景估算。
 
