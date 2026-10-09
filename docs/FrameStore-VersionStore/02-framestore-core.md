@@ -1,6 +1,6 @@
 # S2：FrameStore 核心、地址与文件生命周期
 
-状态：**Draft；2026-10-05 确认首帧 header、自动归还与 config 数量上限；2026-10-07 允许活跃 Builder 期间确认和随机读取已完成输出；2026-10-08 确认地址固定 12B codec；2026-10-09 定稿资源基线、文件 header、owned 租借/归档维护及读结果/同步 inventory/audit；格式门、目录及平台资格待工程定稿或实施验证，项目尚未创建**。
+状态：**Draft；2026-10-05 确认首帧 header、自动归还与 config 数量上限；2026-10-07 允许活跃 Builder 期间确认和随机读取已完成输出；2026-10-08 确认地址固定 12B codec；2026-10-09 定稿资源基线、文件 header、owned 租借/归档维护、读结果/同步 inventory/audit 及 FileId 编号恢复；格式门、精确路径与独占/残留/平台资格仍待工程定稿或实施验证，项目尚未创建**。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)。本阶段独立于发布和命名层。
 
 ## 本阶段目标
@@ -20,6 +20,7 @@
 | 轮转 | 三种追加均在成功完成后按 TailOffset 事后检查；大于阈值才停止新追加 |
 | 磁盘生命周期 | 私有 creating → active → 按编号分桶的 archive；不维护 active manifest/status |
 | 归档桶 | 固定 1024 个编号一个桶；精确路径字符串与格式版本待定 |
+| 编号恢复 | 完整流式检查正式目录名称，取 active/archive 实际文件最大 FileId；无持久计数器或全历史 ID 表，不填缺口；耗尽仅拒绝需新文件的请求 |
 | 地址编码 | 固定 12B，完整 uint FileId 与 SizedPtr；基础地址无预留或内容见证字段 |
 | 耐久 | 确认调用时全部必要已完成 active 输出，包括 leased 文件；未完成 Builder 不获得资格，archive 资格来自移动前 flush |
 | 活跃构建期间随机读取 | 同文件已完成前缀可以读；未完成新帧不可读，扫描相关入口仍遵循 RBF guard |
@@ -252,7 +253,7 @@ Create 为 create-only；Open 不创建缺失 store。格式未知、metadata CR
 可写打开 MUST 枚举 active 的规范文件，按 `[F-FS-META-FIRST]` 先检查完整初始化的长度下界，再让 RBF 分别处理每个文件的单尾恢复并校验首帧；报告按 FileId 关联供诊断，Action 不驱动业务回滚或发布。所有需恢复的 active 文件成功打开并完成本层初始化检查后，才能向外签发新 Builder。
 Open 不重复读取整个尾 payload 取得结构资格；业务 metadata 作事实前仍 checked-read。archive 历史只读严格访问，残尾不被自动改写。恢复后的 TailOffset 大于当前阈值时，文件不可再租借，按归档协议处理。
 所有 active 恢复/header 检查及目录准入通过后，可写 Open MUST 执行 `[S-FS-ARCHIVE-AFTER-FLUSH]` 的统一归档维护，再签发 owner；任何维护或清理失败都不签发可用实例。具体目录裁决仍按 S2-Q2/Q3 定稿。
-正常 Open 核对格式门、私有创建槽位、active 集合及编号恢复所需目录信息；按需读取报告已知地址的缺失/坏内容，Inventory/Audit 覆盖实际发现的正式集合及其中已观察的错误，不声称发现不可观测的整文件丢失。枚举目录名不等于审计历史帧，不宣称已验证全部历史文件。只读只验证，不恢复、不移档、不清理创建残留。
+正常 Open 核对格式门、私有创建槽位、active 集合及 `[S-FS-DIRECTORY-STATES]` 的完整正式名称发现/编号恢复；按需读取报告已知地址的缺失/坏内容，Inventory/Audit 覆盖实际发现的正式集合及其中已观察的错误，不声称发现不可观测的整文件丢失。枚举目录名不等于审计历史帧，不宣称已验证全部历史文件内容。只读复用正式名称发现与冲突检查，但不恢复、不移档、不清理创建残留。
 
 ### spec [S-FS-SOFT-THRESHOLD] 完成后大于阈值才停止追加
 
@@ -271,8 +272,22 @@ active 使用完整 FileId 命名，archive 由 bucket/slot 确定唯一位置�
 
 creating 是未发布的私有初始化槽位；active 是可能继续追加且重开时需检查/恢复的集合；archive 是已按本协议 flush 后移入的只读文件。当前“已租出”只保存在内存，不写状态帧或 status 文件。
 规范文件不得同编号同时出现在 active 与 archive；发现时 MUST 报协议矛盾，不能任选、覆盖或删一份掩盖问题。所需文件不存在时明确缺失，不寻找其他编号替代。正常 Open 不承担发现所有未知历史文件的全库 audit。
-FileId 首版采用递增非零 uint；没有可用新编号时 MUST 在新文件创建及其地址签发前拒绝，不回绕、不缩短编号。已完成帧及其文件不删除。下一编号倾向由实际目录恢复最大已发布编号后取得，不新增持久计数器；空桶、创建残留及缺号的具体裁决仍在 S2-Q2 定稿。
-（Informative）可枚举 active 与归档桶名，再检查最高相关桶的规范文件；最高桶为空时继续寻找实际已发布编号。下一编号的恢复必须覆盖 active 与 archive 两个集合；低编号文件仍租出、高编号文件先完成归档是合法情形，不能假定两个集合按编号分界。FS 枚举顺序不是数值顺序。没有计数器时须计入桶目录枚举成本，不沿用“健康 Open 与历史规模无关”的承诺。
+**编号恢复。** FileId 首版采用递增非零 uint，已完成帧及其文件不删除。首版正式目录发现 MUST 共用完整流式名称枚举/校验器，供 Open/OpenReadOnly 和 Inventory/Audit 的集合发现消费；只共用名称发现，不在物理检查中再次执行可写 Open 的恢复/归档。不新增持久 next counter、全历史 FileId 表或 Fast/Full 打开模式。编号状态只保留一个内存 `uint MaxPublishedFileId`；以下打开过程取得名称/编号资格，初次 Create 的格式门发布步骤仍在 S2-Q1/Q3 定稿：
+
+1. 格式门、必要目录与目录准入资格成立；可写打开还须先取得整个 store 的独占。完整枚举 active 的规范项，建立本来就需要的 active 台账，并按数值取最大 FileId。
+2. 完整枚举 archive 的全部桶与其中正式项。消费本阶段路径 codec 校验非零 FileId、唯一 canonical 路径/层级及 bucket/slot 对应；不按文件系统枚举次序推断大小。archive 的 ID 若已在 active 台账中，立即拒绝双位置，不挑副本。未知/非规范正式项和枚举/权限/I/O 错误不得跳过或折算为不存在。
+3. 取两个正式集合实际文件的最大编号；空桶不贡献编号，不以桶边界推算最大值。只有全部名称枚举及必要枚举资源清理成功后才取得这份资格；可写 Open 中的 active 恢复及归档 MUST 在正式名称检查通过之后进行。
+4. 私有槽位还须通过 `[R-FS-CREATION-PRIVATE]` / S2-Q3 的残留裁决。可写 Open 按既定合同恢复全部 active 并检查 header，之后才 DrainStopped 并签发 owner；只读按既定只读 header 合同检查，不恢复、不归档、不清理残留。creating 不计入正式 max，也不从其中 header 认领已发布编号；未裁决残留不得直接忽略、删除或复用其槽位。
+
+canonical 路径 codec MUST 为每个 FileId 在 active、archive 分别给出唯一位置并拒绝等值别名/错桶，桶名本身也校验规范编码与可表示范围，包括空桶；精确字符串仍在 S2-Q2 定稿。由此 archive 内不需要额外历史 ID 集合，跨集合重复用已有 active 台账检测。仅按正式名称发现文件便占用其编号，包括 header-only 文件；archive 不为恢复 max 额外打开或校验 header/payload，坏内容不能被当作空桶或腾出的编号，其内容/身份资格仍由按需 checked-read 与 Inventory/Audit 取得。active 的必需 header 错误仍阻止 Open。
+owner 初始化取得的目录资格在正常运行中由已定发布/归档协议维护；Append、Begin、Confirm 不重新全库枚举。Inventory/Audit 仍按自身合同发现完整实际集合，不把正常写入的内存台账代替全库检查。
+
+**发号与耗尽。** 通过格式门、必要目录与残留资格后，实际正式集合为空时 `MaxPublishedFileId=0`，下次真正新建取 1；这不决定 Create 是否预建首文件，也不将缺门/缺目录/坏文件或枚举失败视为空 store。允许实际编号缺口，但不证明缺口从未使用，也不填补缺口；下一候选只能是实际最大值加一。
+合法写请求仍优先复用当前最低可分配 active。owner/模式/参数及 Begin 数量 guard 通过后，若 max 为 uint.MaxValue 且用既有可分配谓词已能证明没有候选，MUST 在 DrainStopped、新文件创建和地址签发前确定拒绝，不 fault；维护只移走停止项，不会产生候选。拒绝不声明所有未维护文件健康。有可分配 active 时仍正常维护并复用；Open、读取、已有 Builder 完成/取消与 ConfirmDurable 不因编号耗尽整体失效。不在 Open 无条件计算 next；仅需新文件且 max 小于 uint.MaxValue 时计算 checked(max + 1)，不回绕、不缩短编号、不因目标冲突循环试更高号。
+新文件完成私有初始化并正常 rename 到 active 后，MUST 在签发任何用户 Builder/地址前把 max 上调到这个已发布 FileId；不等首个用户帧 End。后续 End、取消、归档或从 active 台账移除均不降低/再次递增 max。发布、登记或打开失败按 shared fault 停止旧实例，rename 结果不明也不得继续发号；重开只按实际正式位置重算。同编号只在 active 或 archive 任一处时计一次，两处都有拒绝；空桶或未发布私有 header 不补造发布事实。归档只改变位置，正式 ID union 与 max 不变。
+
+**成本与资格（Informative / Derived）。** 设 A 为 active 文件数、B 为 archive 桶数、H 为 archive 文件数，正常名称发现工作为 O(A+B+H) 目录项，保留 O(A) 的既有 active 台账、一个 max 及当前目录枚举状态，不排序/积累全部桶或历史文件。active 恢复/header、异常尾及实际路径入口成本另计；完整名称检查不证明 archive header/帧 CRC 健康，也无法从剩余集合证明一个已整体消失、没有已知引用的历史文件曾存在。最大编号文件若被外部删除，目录 max 无法见证旧 highwater；外部删除不属于本轮正常协议/ProcessCrashOnly，不增加计数器来承诺该能力。
+完整名称扫描是减少桶排序、空桶回退和逐 active 目标探测的首版工程选择，不是编号安全唯一可行的算法，也不是测量得出的性能优选。若实际冷打开目录成本超出预算，再研究最高实际非空桶定位等窄机制，并明确其名称检查资格变化；不预设历史规模无关 Open、配置双模式或新的持久索引。
 
 ### spec [R-FS-CREATION-PRIVATE] 初始化完整后才发布文件
 
@@ -289,7 +304,7 @@ creating 不接受用户帧、不签发地址。0–3B 的未完成 RBF Header �
 
 | 入口 | 首版维护时机 |
 | --- | --- |
-| Append / 两种 BeginAppend | owner/模式/参数及 Begin 数量准入全部通过之后，选择或创建本次用户帧文件之前，先排空停止文件 |
+| Append / 两种 BeginAppend | owner/模式/参数、Begin 数量及上述确定编号耗尽前检通过之后，选择或创建本次用户帧文件之前，先排空停止文件 |
 | ConfirmDurable | owner/模式准入后，先排空停止文件，再确认其余 dirty active（包括 leased）；归档已 flush 的文件不在本次重复 flush |
 | 可写 Open | 所有 active 的恢复/header 与目录准入通过后，签发 owner 之前排空；余下 active 仍登记为首次待确认 |
 | EndAppend / 个体取消 / 普通 Read / OpenReadOnly / owner Dispose | 不运行归档维护；End 成功先正常返回完成事实，Dispose 只清理资源 |
@@ -388,9 +403,9 @@ Dispose 向量覆盖取消资源异常不重租、全部 owned 文件逐一尝�
 随机读取覆盖目标文件 Building 时成功读取旧完整帧、提前地址及包含帧后 Fence 的跨边界范围在 I/O 前拒绝、CRC/解析/Dispose/fault 仍传播、同一历史读取不受租借分配结果影响。扫描/扫描边界/物理后继保留原 guard，不以随机读取放宽宣称并发或扫描已开放。
 数量配置覆盖 M=1/32、满额 Begin 先于租借/创建/输出拒绝、初始化失败不占额度、短写拒绝仍占额度、成功 EndAppend/健康取消释放一次，以及有效/缺失/空 object/非法/重复或未知属性/读取错误、实例固定和下次打开生效；只读忽略写入配置。覆盖满额时合法 Append 仍成功、无关 Builder/ConfirmDurable 不受影响，以及 M=1 时先取得 A 地址、Append B 指向 A、再回填完成 A 的 public 轨迹；不以数量上限测试冒充总内存预算证据。
 资源基线覆盖所有工厂显式 Off、active idle 句柄保留与 archive 随机读结束后的关闭/自有结果、扫描提前结束和错误时释放、Open 中途失败清理、旧高上限留下的 active 数大于当前 M 仍完整检查并首次再确认。记录大 sizeHint、重复大 Append 后 scratch/池回收及实际句柄成本；不把配置降低等同于总资源立即缩减，也不宣称没有归档维护的 active 集合受 M 限制。
-文件选择覆盖乱序目录枚举、最低编号忙时选下一空闲文件、健康取消/归还后重新优先低编号、尚未移档但已停止分配的低编号排除，以及仅当全部候选不可分配时新建。覆盖低号仍 active / 高号先 archive 后的重开编号恢复，以及最高归档桶为空时仍取得两个集合的实际最大编号。失去缓存句柄不改变选择结果，坏文件不被静默跳过。
+文件选择覆盖乱序目录枚举、最低编号忙时选下一空闲文件、健康取消/归还后重新优先低编号、尚未移档但已停止分配的低编号排除，以及仅当全部候选不可分配时新建。编号恢复覆盖低号仍 active / 高号先 archive、较高桶连续为空、正式集合为空/全部已归档、合法缺口不补洞、uint 高位及1024边界、低桶错位/非规范别名/跨集合重复、枚举中途失败在 active 恢复前拒绝。覆盖 header-only active 已占号、私有残留通过裁决后不计 max、active 发布后首个 Builder 签发前失败与 rename 结果不明，重开按正式位置取得同一 max；归档/End/取消不改变 max。耗尽时 Open/读/Confirm/已有 Builder 仍合法、空闲低号仍可写、全忙或全停止时新建请求在维护/创建前不 fault 拒绝；不回绕或跳号绕过目标冲突。失去缓存句柄不改变选择结果，坏文件不被静默跳过。
 最小消费者只按地址取回并解释引用；不同申请/完成次序构建相同逻辑图时，业务结果不依赖文件选择或枚举次序。
-健康 Open 成本包含 config 读取、active 文件数、编号恢复所需桶名枚举/有限桶内目录项及小型 header 校验；不宣称与全部历史规模无关。冷历史 reader、异常尾扫描、完整 payload 和 audit 的成本另外报告。
+健康 Open 成本包含 config 读取、全部正式名称的 O(A+B+H) 枚举及 active 的小型 header 校验；记录实际目录规模/冷打开成本，不宣称与历史规模无关或已符合性能预算。冷历史 reader、异常尾扫描、完整 payload 和 audit 的成本另外报告。
 项目遵循仓库 SDK/test pin，不复制生产包清单。源码可用不等于包已交付。
 
 ## Ready 阻断项与出口
@@ -398,7 +413,7 @@ Dispose 向量覆盖取消资源异常不重租、全部 owned 文件逐一尝�
 | ID | 需定稿或实施验证 |
 | --- | --- |
 | S2-Q1 | 固定 12B FrameAddress codec 的公开入口、文本/错误与目标平台验证、内部 struct 布局；格式门完整 codec/发布协议与上下文保证，复用已定版本 1 及 StoreId 的 16B canonical 编码 |
-| S2-Q2 | 精确路径字符串、软阈值默认/变更、递增编号恢复/空桶/缺号/耗尽及目录规模成本 |
+| S2-Q2 | 精确 canonical 路径字符串、软阈值默认/变更仍待定；完整正式名称扫描/单一内存 max/空桶/缺口/发号登记/耗尽已定，实施上述向量并测量 O(A+B+H) 目录规模成本，不重新选择计数器或最高桶快速路径 |
 | S2-Q3 | store 独占入口、creating 残留裁决、同文件系统不覆盖 rename 的两平台入口与中断实证 |
 | S2-Q4 | Builder/Writer/Lease、borrow、完成/dirty、维护/fault/Dispose，以及 FrameRead、纯值 FrameInfo、FrameFileAudit、同步 Inventory/Audit 准入/重入/取消/终止合同已定；实施对应拒绝/资源清理/信任级别与 completed-prefix 随机读取向量，不再作为待定 API 设计 |
 | S2-Q5 | 保留可写 active 句柄、显式 Off、只读按操作开关且无 reader pool 的基线已定；验证身份/读结果/扫描资源归属、Open 失败清理、历史峰值与实际资源成本，不做精确总资源配额 |
