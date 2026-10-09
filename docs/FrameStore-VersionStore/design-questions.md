@@ -1,6 +1,6 @@
 # 下一轮工程定稿：FrameStore 与根字典发布
 
-日期：2026-10-04；2026-10-05 更新核心/扩展分离；2026-10-07 收缩 VersionStore、放宽已完成输出资格并确定命名 fork 的目录共同发布；2026-10-08 关闭基础地址宽度/字段编码选择；2026-10-09 同步 ForkOrigin；资源、header 及 owned 租借/归档维护定稿写回 S2，已定设计移出本问题表，实施验证保留所属阶段。状态：**Informative / Derived；问题汇总，不是新增实施阶段或规范输入**。
+日期：2026-10-04；2026-10-05 更新核心/扩展分离；2026-10-07 收缩 VersionStore、放宽已完成输出资格并确定命名 fork 的目录共同发布；2026-10-08 关闭基础地址宽度/字段编码选择；2026-10-09 同步 ForkOrigin；资源、header 及 owned 租借/归档维护定稿写回 S2，发布调用证据与续跑边界定稿写回 S4/S6；已定设计移出本问题表，实施验证保留所属阶段。状态：**Informative / Derived；问题汇总，不是新增实施阶段或规范输入**。
 输入为本轮会话和 S0–S6 的 Draft 合同。FrameStore/VersionStore 本轮仅修订文档，项目尚未创建；RBF 底座的活跃构建随机读取改进单独记录验收。S1 与 RBF1 参考隔离的已有 Accepted 资格保留原身份，不构成新模型已实施的证据。
 
 ## 已形成的方向
@@ -40,6 +40,7 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 | Gym 历史选点是否要求每帧 parent / 随机 revision 读 | 文件顺序 + 首帧 ForkOrigin 接续完整发布前缀；按 revision fork 内部重读，不开放随机 ReadRevision |
 | 是否需要持久反向分叉索引 | ListForks 扫全部正式首帧声明，含匿名 ref；只可派生内存图，不写源孩子表 |
 | tool-loop 是否需要存储精确尝试 token / CAS | 单 driver + 应用 phase/operationId/generation；首版重开读实际状态 |
+| 发布失败证据和应用续跑如何衔接 | S4 已定 Result/必选 out 三态、公开尝试/确认边界及故障清理；重开恢复实际状态，不精确认领匿名旧调用，S6 保留外部 uncertain 政策 |
 | 无关 Builder 是否阻断根发布 | 不阻断；应用保证本根新增依赖完成，data 先确认全部必要完成输出，根后发布 |
 | 活跃 Builder 是否阻断旧帧随机读取 | 不阻断已完成前缀内的指定地址读取；未完成/跨边界先拒绝，扫描相关资格未放宽 |
 | 命名 fork 是否允许公开未绑定新 ref | 组合入口一次发布完整 RefId 目录，新 ref/初始名称一起可见；手工两步仍不是事务 |
@@ -87,18 +88,6 @@ ListForks 同样覆盖全部正式 ref，但读 header/初始边界而非 names�
 
 **收敛标准：** 同名创建先于 barrier/输出拒绝；组合发布前后 Read/List 的 ref 与 name 共同不可见/可见；alias 失败保留既有对象；只读不清理或采用私有残留。字段/API/平台默认由 Coding Agent 工程定稿，不能把逻辑原子解释为零残留或消除 Unknown。
 
-### D4：发布未知与应用续跑如何衔接？
-
-**涉及阶段：** S4 的 NotAttempted/Unknown/Confirmed 和局部恢复；S6 的应用最小流程。
-
-**已确认：** 首版不提供 Prepare / 精确 Inspect。输出异常停止实例，重开读取实际当前字典、tag 或 branch；不能从同值字典推断某次旧调用曾得到 Confirmed。完整未发布数据可保留，但不会自行变成当前状态。
-
-**工程定稿：** 普通 ref/tag 追加、新 ref/命名 fork 的目录发布与既有 ref alias 的文件发布具有不同确认边界。私有文件 flush 尚未建立可发现对象；最终 no-overwrite rename 后异常可能留下已成立对象，命名 fork 的两个公开资格仍共同成立。tag 桶 header-only 初始化只准备 metadata；空桶 rename 不确认首 tag，也不让尚未尝试 Append 的 tag 变成 Unknown。重开验收分别覆盖这些窗口，不能把目录维护异常伪装成安全可重试的未输出拒绝。
-
-tool-loop 应用把 phase、冻结请求、operationId 和结果放在 Roots 闭包；外发之前确认 Started，Started 无结果使用 backend 查询/幂等或显式 uncertain 策略。Gym 把 cursor/RNG/规则/轨迹来源放在应用对象。异步回包由单 driver 按最新 generation 合并，不要求存储通用 CAS。
-
-**收敛标准：** 根字典只恢复完整旧值或新值，结果已发布后不重复处理；应用未发布结果仍可能需要外部 uncertain 恢复。存储故障与外部调用的不确定性分开，不声称任意 tool exactly-once 或自动恢复丢失 LLM 响应。需求证据见[两类下游评估](reviews/2026-10-07-downstream-fit.md)。
-
 ## 其余定稿项与条件扩展
 
 固定 12B 地址 codec 的公开入口、文本/错误与内部布局、格式门、阈值默认/变更、目录命名及平台 rename、读结果/扫描 API、名称规则和分页预算仍在各阶段 Ready 表中定稿；基础地址宽度/字段端序及 owned 租借/维护/清理已由 S2 锁定，已确认软阈值语义不表示所有参数都已冻结。
@@ -116,12 +105,11 @@ S2 核心可直接围绕下表的工程问题推进；S4/S5 同样按已经收�
 | S2-Q4 的剩余 API | 读结果及 inventory/audit 签名、扫描生命周期与 mutation guard；不重新开放已定 Builder/Writer/维护/清理合同 |
 | D6 / S2-Q1–Q3 | 固定 12B codec 的公开入口/验证与内部布局、格式门、路径、编号恢复、store 独占与两平台 rename 实证 |
 | D3 / S4-Q1–Q3、Q5–Q6 | RootMap/身份/codec、ForkOrigin、单文件创建和末读取、源成员及确认边界 |
-| D4 / S4-Q4 | append/flush/正式 rename 的结果证据与故障签名 |
 | D8 / S5-Q1、Q4 | 全局名称/ListForks 发现与规模成本、统一 binding/hash/路径、来源感知匿名/命名创建 |
 | S5-Q3 | tag 桶初始化/codec/扫描或惰性内存表，与命名 fork 独立 |
 | S5-Q2 | 跨文件完整历史、固定上界、owned 字典、定位/返回预算、终止/Dispose 与 mutation guard |
 
-其余工程选择仍须在 Ready 前形成可操作协议；已定资源、文件 header 与 owned 生命周期合同见 S2，S2-Q4/Q5/Q7、S3-Q1–Q3 保留对应实现验收，不重复开放其字段和流程。无需把每个默认值或集合类型都升级为新的需求讨论；FrameStore/VersionStore 仍未开始新项目实施，文档定稿不代表恢复、性能或平台资格。RBF 底座改进的源码/测试资格单独报告。
+其余工程选择仍须在 Ready 前形成可操作协议；已定资源、文件 header 与 owned 生命周期合同见 S2，S2-Q4/Q5/Q7、S3-Q1–Q3 保留对应实现验收，不重复开放其字段和流程。已定发布证据载体、Append/flush/rename 边界、清理和续跑责任见 S4/S6，S4-Q4 保留故障与冷重开实施验收，不再作为待定设计。无需把每个默认值或集合类型都升级为新的需求讨论；FrameStore/VersionStore 仍未开始新项目实施，文档定稿不代表恢复、性能或平台资格。RBF 底座改进的源码/测试资格单独报告。
 
-下一轮核心优先解决 D6 的目录/编号，其余读/扫描 API 与下游 codec/历史/名称问题按表推进；资源、header、owned 租借与维护按 S2 进入实施验证。D3/D4 是随后字典/发布阶段的局部工程问题，不反向要求分配器理解应用 codec；不再等待 Commit 或全局日志协议。
+下一轮核心优先解决 D6 的目录/编号，其余读/扫描 API 与下游 codec/历史/名称问题按表推进；资源、header、owned 租借与维护按 S2 进入实施验证。D3 是随后字典/发布阶段的局部工程问题，不反向要求分配器理解应用 codec；不再等待 Commit 或全局日志协议。
 结论写回所属阶段，按单向依赖复核；已确认方向不重复作为开放问题，本汇总不建立第二套规范。S2–S6 仍为 Draft，本次没有新项目或联合方案的恢复实证。

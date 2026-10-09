@@ -28,7 +28,7 @@ VersionStore 借入一个 data FrameStore，拥有自己的 RBF3 发布目录。
 branch 名称解析和查重覆盖全部正式 ref 的 names；首查可扫描或建立可重建内存表，不承诺 O(1)，不写持久名称索引。全局名称准入依赖单 writer/driver 不交错操作；S4 Ref 读写不解释名称 codec，不增加永久 branch gate。正式目录/文件 rename 的平台资格仍待实施，Unknown 与私有残留不因共同发布而消失。
 当前值校验本地 header/初始快照并完整读取最后快照，不递归祖先；历史从固定完成上界逆序枚举，沿首帧 `ForkOrigin = 源 RefId + 源 SizedPtr` 接续前序发布前缀，返回结束枚举后仍可使用的自有字典。ForkRef / CreateBranchFromRevision 内部确认源成员、复制源字典，仍保存子初始完整快照；只传 roots 的创建是无来源起点。rewind 追加旧字典成为新 revision，tag 冻结所选字典。RefRevision 来自完整发布/实际历史枚举，不是输出前尝试 token；跨重开书签仍可用 tag。
 ListForks 扫描全部正式 ref 的 checked 首帧声明，包括匿名 ref，派生全部创建分叉图；不写持久孩子表，不据此宣称全部源历史健康。实际跳转再校验源快照与子初始字典一致。现有 RBF 逆扫只从 EOF 开始，定位旧 fork 点可能扫描源后续帧；S5 明确工作预算与成本，不假设随机起扫能力。
-输出异常停止实例并重开读取实际状态；完整快照损坏报错，不回退旧值。首版不提供通用 CAS 或精确 Unknown 尝试查询。数据闭包、工具 operationId、模拟器 RNG 和应用谱系由应用负责；[两类下游评估](reviews/2026-10-07-downstream-fit.md)未发现必须扩大核心的需求。
+输出异常停止实例并重开读取实际状态；完整快照损坏报错，不回退旧值。同步 mutation 的 Result/必选 out PublicationOutcome、公开尝试与确认边界已在 S4 定稿，异常路径不依赖新建证据包装；NotAttempted/Confirmed 均不代替实例健康。匿名创建丢失返回值后不按同值精确认领，首版不提供通用 CAS 或精确 Unknown 尝试查询。数据闭包、工具 operationId、外部 uncertain 策略、模拟器 RNG 和应用谱系由应用负责；[两类下游评估](reviews/2026-10-07-downstream-fit.md)未发现必须扩大核心的需求。本轮仍只修订设计，未实施发布与续跑协议。
 
 2026-10-03 的初始裁决及失败轨迹见[历史设计审阅](reviews/2026-10-03-dialectical-review.md)；旧单流、单 active/locator、纯 batch planner，以及后来 Commit/control 草案均已被后续会话修订，不作为当前模型的实现证据。S1 已 Accepted；已确认方向见 S0，S2–S6 的剩余工程选择仍是 Draft。
 

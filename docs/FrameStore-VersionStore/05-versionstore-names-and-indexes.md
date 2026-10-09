@@ -19,7 +19,7 @@
 | ListBranches | 枚举正式 branch 名称与 RefId | 全部正式 ref 容器的 names 文件集合 |
 | 无来源复制 / rewind 便利流程 | 旧字典新建独立 ref / 追加回原 ref | 调用 S4 CreateRef / PublishRef |
 
-操作名与具体签名在 Ready 定稿；有来源 fork 必须按 revision 创建，只传 roots 的入口表示无来源起点，不凭字典相等推断或补造链接。两个基础操作手工组合仍是两次发布。首版不提供 branch rename/unbind/delete/archive/name reuse、tag 修改/删除、差分或 state-checkpoint。命名创建的共同初始化是窄创建协议，不扩展为多个既有 ref 的事务；本层定义 ref 发布历史与创建分叉，应用数据的因果谱系仍由应用解释。
+操作名与成功值的具体类型在 Ready 定稿；同步 mutation 统一消费 S4 `[A-VS-PUBLICATION-EVIDENCE]` 的 AteliaResult/必选 out PublicationOutcome，不另立 tag/branch/fork 证据异常或恢复 token。有来源 fork 必须按 revision 创建，只传 roots 的入口表示无来源起点，不凭字典相等推断或补造链接。两个基础操作手工组合仍是两次发布。首版不提供 branch rename/unbind/delete/archive/name reuse、tag 修改/删除、差分或 state-checkpoint。命名创建的共同初始化是窄创建协议，不扩展为多个既有 ref 的事务；本层定义 ref 发布历史与创建分叉，应用数据的因果谱系仍由应用解释。
 
 ## 表达能力与历史边界
 
@@ -106,7 +106,7 @@ ResolveBranch / ListBranches 与所有名称创建的查重 MUST 覆盖全部正
 
 ### spec [S-VS-BRANCH-BIND-CREATE-ONLY] 给既有 ref 添加不可变名称绑定
 
-CreateBranch MUST 先验证名字、目标已发布 ref 与 `[A-VS-BRANCH-NAMES-GLOBAL]` 的全局重名准入，将完整记录写入正式 names 之外的私有文件，flush/close 后同文件系统 no-overwrite rename 到目标 ref 的 names 路径；正式安装成功才设置 Confirmed。名称层不得在正式 names 中留下半写文件。失败/不确定结果使用 S4 PublicationOutcome 与停用/重开规则，不在私有 flush 后宣称名称已建立。
+CreateBranch MUST 先验证名字、目标已发布 ref 与 `[A-VS-BRANCH-NAMES-GLOBAL]` 的全局重名准入，将完整记录写入正式 names 之外的私有文件，flush/close 后同文件系统 no-overwrite rename 到目标 ref 的 names 路径；调用 rename 前写回 Unknown，rename 正常返回后立即写回 Confirmed，然后才安装内存投影或交付成功值。名称层不得在正式 names 中留下半写文件。失败/不确定结果使用 S4 PublicationOutcome 与停用/重开规则，不在私有 flush 后宣称名称已建立。
 该 create-only 操作遵守 S4 owner 模式/生命周期及历史 mutation guard，但无需再次遍历/flush data 图，也不因无关 data Builder 尚未完成而拒绝：它只命名已经存在的 ref，不发布新的 RootMap。新 alias 失败不得删除、移动或重建既有 ref，也不得撤销其已有名称；只清理可证明私有的准备文件。
 `CreateRef(roots)` 与 `CreateBranch(name, refId)` 手工调用仍是两个独立步骤，MUST NOT 宣称跨操作原子；第二步失败可留下第一步已正式成立且 ListRefs 可发现的 ref。需要共同公开时 MUST 使用下面的组合协议，不追加 allocation 日志或回滚已发布 ref。
 
