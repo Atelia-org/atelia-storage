@@ -1,0 +1,47 @@
+{
+  "Runtime": "10.0.5",
+  "Platform": "Microsoft Windows NT 10.0.22000.0",
+  "Checks": 75,
+  "RootHeaderGolden": "010000000102030405060708090A0B0C0D0E0F10EFCDAB8967452301",
+  "ForkHeaderGolden": "010000000102030405060708090A0B0C0D0E0F10EFCDAB89674523011032547698BADCFE0800004000000000",
+  "RootHeaderPayloadBytes": 28,
+  "ForkHeaderPayloadBytes": 44,
+  "HeaderFrameLengths": [
+    56,
+    72
+  ],
+  "EmptyInitialFileLengths": [
+    100,
+    116
+  ],
+  "SnapshotPayloadLimit": 1048576,
+  "SnapshotFrameLimit": 1048604,
+  "ProbeDrive": "W:\\",
+  "NaiveEmptyMapInitializationMinimum": 100,
+  "IncompleteInitialLength": 104,
+  "InitialRepair": {
+    "Action": 4,
+    "OriginalLength": 104,
+    "FinalLength": 112,
+    "AffectedFrameOffset": 64,
+    "FrameTicket": {
+      "Packed": 1073741835,
+      "Offset": 64,
+      "Length": 44,
+      "EndOffsetExclusive": 108
+    }
+  },
+  "UpdateRepair": {
+    "Action": 4,
+    "OriginalLength": 140,
+    "FinalLength": 148,
+    "AffectedFrameOffset": 100,
+    "FrameTicket": {
+      "Packed": 1677721611,
+      "Offset": 100,
+      "Length": 44,
+      "EndOffsetExclusive": 144
+    }
+  },
+  "Scope": "Experimental numeric identity/header codec and public RBF files; synthetic RootMap golden; counterexample to a minimum-length-only initial guard. No VersionStore implementation, prefix qualification, crash/rename/platform/performance proof"
+}
