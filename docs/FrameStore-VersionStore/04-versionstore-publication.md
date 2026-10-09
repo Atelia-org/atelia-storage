@@ -1,6 +1,6 @@
 # S4：VersionStore 完整根字典与单文件 ref 发布
 
-状态：**Draft；2026-10-07 采用完整 RootMap、每 ref 一个 RBF3 文件与统一 RefId 目录发布，允许独立完成闭包发布；2026-10-08 同步 S2 固定 12B 地址；2026-10-09 增加不可变 ForkOrigin 首帧链接，定稿同步发布证据与续跑边界、格式门记录/只读校验及 data 身份绑定；其余 API、codec、路径编码与平台协议尚未实施/冻结，项目尚未创建**。
+状态：**Draft；2026-10-07 采用完整 RootMap、每 ref 一个 RBF3 文件与统一 RefId 目录发布，允许独立完成闭包发布；2026-10-08 同步 S2 固定 12B 地址；2026-10-09 增加不可变 ForkOrigin 首帧链接，定稿同步发布证据与续跑边界、格式门记录/只读校验及 data 身份绑定、RefId 公开上下文值与内部字段编码；其余 API、codec、路径编码与平台协议尚未实施/冻结，项目尚未创建**。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)。名称与历史见 [S5](05-versionstore-names-and-indexes.md)。
 
 ## 目标、归属与范围
@@ -44,9 +44,26 @@ RootMap MUST 使用唯一的 Ordinal key，不做隐式大小写折叠或 Unicod
 读取返回自有 RootMap 值；不持有 RBF pooled frame、Span 或枚举器临时缓冲。地址背后的内容由应用按 FrameStore.ReadFrame 完整读取与解释，VersionStore 不预读/遍历业务图。
 ReadRef 的成功值称为 RefSnapshot，提供只读 Revision 与 Roots；由库内部构造，不持有 owner/reader、不需要 Dispose，字典无公开修改入口。S5 历史读取复用同一自有结果，不另立历史快照或结果租借。RootMap/RefRevision 的具体 CLR 表示和 codec 仍由 S4-Q1/Q2 定稿。
 
+## RefId 值与内部字段编码
+
+### spec [F-VS-REF-ID-8B] 公开身份绑定上下文，持久字段使用固定 8B
+
+首版 RefId MUST 为不透明、自有的非 positional `public readonly struct RefId : IEquatable<RefId>`，提供 `Equals(RefId)`、`Equals(object?)`、`GetHashCode()`、`==` 与 `!=`。逻辑值为 `(VersionStoreId, LocalRefId)`：前者直接保存 `[F-VS-OWN-FORMAT]` 的 16B canonical 持久身份，后者为非零完整 ulong。等值 MUST 比较两者全部 bits，相等值具有相同 hash；比较与 hash 是纯值操作，不读取 owner 或磁盘，hash 不持久化或保证跨进程稳定。同一 VS 的相同 local 值跨 owner 重开仍相等；不同 VSID 下的相同 local 值不相等，不因共借同一 data 而合并。
+普通内部表示使用三个私有 ulong 保存上述字段，不转储 CLR 内存、不规定 Pack/Size、sizeof 或数组步长。类型不持有 owner 引用、epoch、buffer 或需要 Dispose 的资源，不提供公开数值构造/投影、Deconstruct、IsValid、Guid 转换、算术、排序或规范文本。default 是受支持公开构造路径中的唯一非法值；自等、比较及 hash 均合法，但不能访问或编码，不作为可选身份的持久 sentinel。无来源的判别仍由 header schema 定义。
+
+接受 RefId 的入口 MUST 在既有 owner disposed/fault 检查之后、任何目标发现 I/O 或 data barrier 之前，拒绝 default 及与本 owner 持久 VSID 不符的值。它们是确定参数拒绝，不新增 fault；mutation 仍先初始化 outcome=NotAttempted。MUST 比较持久身份，不以 owner 引用代替；先前取得的自有值可以交给同一 VS 的重开 owner。此检查仅拒绝不同 VSID 的误传，不证明目标存在、物理根唯一、身份生成无冲突或记录完成。
+
+**唯一内部字段 codec。** header、自身/来源身份、branch binding 与后续 CU 成员表中的 RefId 字段 MUST 恰为 8B，按完整 LocalRefId 的 uint64 LittleEndian 编码；不在每个字段重复 VSID，不追加版本、CRC、flags 或预留。所有非零 64bit 位模式均数值合法，包括 1、高位及 ulong.MaxValue；它不是 SizedPtr、FrameAddress、时间或分配顺序，不检查票据对齐/坐标或 UUID 位模式。
+内部 decoder MUST 要求字段输入恰为 8B，失败输出 default；只在非零检查通过后，结合宿主的预期 VSID 构造值。普通打开/读取的预期身份来自已 checked 的门上下文，记录内的身份须与之比较，不能从被检查记录反向认领期望身份；创建阶段可使用私有初始化已预定的非零 VSID，不要求初次 Create 先读取已发布门。磁盘字段与整个宿主的必要身份/CRC/codec 校验通过后，才向调用方交付值。
+内部 encoder MUST 先检查值非 default、VSID 与宿主预期身份相符及目标容量至少 8B；失败不改变任何目标 bytes，成功只写前 8B，剩余目标不变。复合 reader 先保证剩余至少 8B、切出精确字段，成功才提交消费；截短/零字段失败不提交，宿主负责全部记录的剩余字段及 trailing bytes。两方向不执行 I/O、不新增堆 buffer 或专用错误族，宿主映射为自己的字段错误；可信私有构造只保存已资格化身份值，不在发布确认后的成功值交付中重新解码、读回自身文件或引入可拒绝校验。
+
+RefId 可以来自正常创建结果、checked 对象/名称读取或 checked 来源元数据；绑定上下文并不赋予被声明源的存在、主链或发布资格。私有 planned RefId 不在正式发布前交付应用，也不签发 RefRevision；成员、发现与发布证据仍消费既有条款。RefRevision 保持 VSID、ref 和快照 ticket 的完整逻辑绑定，可复用 RefId 已携带的上下文，不要求重复保存一份；其 CLR 表示仍待定。
+首版不提供公开 EncodedSize、bytes/text codec 或自动序列化适配。因此不承诺把匿名 RefId 独立保存到应用外部记录再跨进程直接导入；名称/业务标记定位不是该能力的透明替代。出现这一明确消费者时，再定义带完整上下文的窄导入/导出合同，不能把内部 8B 字段当作无上下文的公开身份编码。
+（Informative）8B 是当前 VS 内稳定身份域的工程选择；4B/16B 也可能正确。它确实排除了原样 128bit local 发号，后续唯一分配/不复用/耗尽必须在此域内由 S4-Q3 成立，不以随机碰撞概率或字段宽度代替证明。公开值另携已有 VSID 是本轮工程防错选择：A/B 各有 local=7 时，A 的值误传 B.PublishRef 会被拒绝，而纯 local 值加正常 B header 校验会更新 B:7；局部 selector 加调用方选库责任也是可行备选。多 16 个逻辑身份 bytes 与一次上下文比较的成本未测量，24B 不成为 CLR ABI；不新增身份、通用 ID 框架或 public StoreId 类型。固定 LE 可直接用 BCL 基元，[已有 UInt64LE](../../src/Binary/BareValueWriter.cs)与[独立 golden](../../tests/Binary.Tests/ScalarTests.cs)仅佐证字段组合，不强加 Binary 依赖，也不构成新 RefId 实施资格。
+
 ## term `Ref-Revision` 已接受快照的位置身份
 
-RefId 是正式 ref 目录及其唯一 RBF3 文件的稳定身份，与 branch name 分离。RefRevision 是 opaque 值，绑定 VersionStoreId、RefId 和该文件中实际完整快照位置及长度；不可与 data 地址互换。
+RefId 由 `[F-VS-REF-ID-8B]` 定义，是正式 ref 目录及其唯一 RBF3 文件的稳定身份，与 branch name 分离。RefRevision 是 opaque 值，绑定 VersionStoreId、RefId 和该文件中实际完整快照位置及长度；不可与 data 地址互换。
 revision 只从完成发布或实际 checked-read 且已确认真实主链成员的当前/历史快照取得，不在输出前签发。不同完整物理快照即使 RootMap 同值也具有不同 revision。它不是某次未完成调用的尝试 token；首版不提供凭裸位置随机 ReadRevision，也不以字典相同证明某次调用成功 flush。S5 的按 revision fork 是内部重读与校验来源的窄创建入口，不开放任意位置读取。未来分段扩展仍保持其 opaque 边界。
 
 ## 单文件存储与最小 codec
@@ -78,7 +95,7 @@ ReadRef / PublishRef / ListRefs 及后序历史访问 MUST 仅依据正式 RefId
 | 单元 | 必要内容 | 工程定稿 |
 | --- | --- | --- |
 | 根格式门 | `[F-VS-OWN-FORMAT]` 的唯一 40B 记录 | 内容/只读检查/借入身份绑定已定；初次发布、模式与独占仍 S4-Q3 |
-| ref 首帧 meta/header | kind/version、ref 与 store 的身份绑定、可空 ForkOrigin | tag、RefId/来源判别编码、第二帧初始 Snapshot 的校验 |
+| ref 首帧 meta/header | kind/version、ref 与 store 的身份绑定、可空 ForkOrigin | RefId 字段消费 `[F-VS-REF-ID-8B]`；tag、来源判别及其余 header 编码、第二帧初始 Snapshot 的校验仍待定 |
 | Snapshot | kind/version、entry count、每项 key 与 S2 固定 12B FrameAddress | key 字符串/长度编码、其他字段端序及条目顺序；地址复用 S2 codec |
 
 计数、key bytes、总记录尺寸必须有界，解码先检查剩余容量和重复 key，再分配；未知字段版本明确拒绝。上下文由格式门/header 绑定，不要求在每个地址内重复 StoreId。具体上限采用工程默认并写入接口/格式合同，不将“少量根约 64B”写成固定记录尺寸保证。
@@ -88,7 +105,7 @@ key 编码此前的 UTF-8 方向尚未冻结；Ready 时评估采用 [Bare Primi
 
 ### spec [S-VS-REF-FORK-ORIGIN] 首帧保存一次性的 ref 创建来源
 
-header MUST 保存明确的无来源/有来源判别；有来源时 `ForkOrigin = (SourceRefId, SourceSnapshotTicket)`，ticket 为源 ref 文件中的 SizedPtr，包含 offset 与 length，MUST NOT 使用 data FrameAddress。源 RefId 与 ticket 必须通过编码/坐标校验，拒绝 default、零长度、非法起点与截短字段；数值合法不证明成员资格。来源限同一个 VersionStore 及绑定 data，上下文由格式门与两份 ref header 校验，不重复存一份 SourceStoreId。SizedPtr 采用固定 8B `Packed` LittleEndian；RefId 宽度与其余 header wire 在 Ready 定稿，不从 CLR 内存布局推导编码。
+header MUST 保存明确的无来源/有来源判别；有来源时 `ForkOrigin = (SourceRefId, SourceSnapshotTicket)`，ticket 为源 ref 文件中的 SizedPtr，包含 offset 与 length，MUST NOT 使用 data FrameAddress。源 RefId 与 ticket 必须通过编码/坐标校验，拒绝 default、零长度、非法起点与截短字段；数值合法不证明成员资格。来源限同一个 VersionStore 及绑定 data，上下文由格式门与两份 ref header 校验，不重复存一份 SourceStoreId。RefId 字段采用 `[F-VS-REF-ID-8B]` 的固定 8B LE，公开来源值绑定本 VS 上下文；SizedPtr 采用固定 8B `Packed` LittleEndian。来源判别及其余 header wire 仍在 Ready 定稿，不从 CLR 内存布局推导编码。
 
 ForkOrigin MUST 在私有创建时写入，发布后不可改变。无来源表示独立历史起点；复制相同 RootMap 不推断来源。有来源表示本 ref 的初始 Snapshot 按值复制该 exact 源快照，包含相同 Ordinal key 与 FrameAddress 值；它仍是子 ref 自己的新 revision。S5 创建入口负责建立源快照资格与两份字典一致性，后续历史跳转重新校验必要内容。
 
@@ -202,8 +219,8 @@ Open 不默认扫描所有 ref 历史或 data 图；按需打开/校验目标文
 
 | Ready 项 | 需定稿或实施验证 |
 | --- | --- |
-| S4-Q1 | RootMap/RefId/RefRevision 公开类型、比较与上下文；ListRefs 范围 |
-| S4-Q2 | 格式门内容/只读检查/借入身份绑定已定，实施独立向量；header/Snapshot tag 与 codec、ForkOrigin 判别/RefId 编码及 SizedPtr 固定 8B、首两帧校验、字符串/条目/总尺寸限额、消费 S2 固定 12B 地址 codec 的校验仍需定稿 |
+| S4-Q1 | RefId 自有公开上下文值、完整等值/default/跨 VSID 前检已定，实施向量；RootMap/RefRevision 公开类型、比较与上下文及 ListRefs 范围仍待定 |
+| S4-Q2 | 格式门内容/只读检查/借入身份绑定、RefId 内部固定 8B 字段 codec 已定，实施独立向量；header/Snapshot tag 与 codec、ForkOrigin 判别及 RefId/SizedPtr 固定字段的组合、首两帧校验、字符串/条目/总尺寸限额、消费 S2 固定 12B 地址 codec 的校验仍需定稿 |
 | S4-Q3 | 初次 store 创建/格式门发布、根准入与身份生成；统一 RefId 容器/creating 的路径编码、唯一身份与残留清理、目录 no-overwrite rename 两平台资格、独占/模式/Dispose/fault |
 | S4-Q4 | Result/必选 out PublicationOutcome、入口初始化、公开尝试/确认写回、pre-I/O Result 例外、异常清理及匿名续跑边界已定；实施拒绝/部分与完整输出/确认后安装故障及冷重开向量，不再开放证据载体设计 |
 | S4-Q5 | checked 末读取实现、资源预算、错误分类、已完成输出屏障对接及有无关活跃 Builder 的 public 发布轨迹 |
@@ -212,6 +229,7 @@ Open 不默认扫描所有 ref 历史或 data 图；按需打开/校验目标文
 验收覆盖错误 DataStoreId 在写入/恢复前拒绝、空/重复/超限 key、多根原子更新、旧/新帧混合、Builder 未完成/取消地址的应用合同、末帧/tombstone/TerminationError、完整坏 CRC 不回退、create-only 冲突、正式创建前后进程终止、合法末帧末端越过 MaxOffset / 下一次追加确定拒绝，以及借用 data 不被 Dispose。裸地址原始来源错误是应用合同向量，不宣称能由数值格式检查自动检测。源码与包/平台 qualification 分开，阶段仍 Draft。
 格式门独立向量固定 version=1、VersionStoreId bytes=`01..10`、DataStoreId bytes=`11..20`（均十六进制），末 4B 必须为 `FA 60 31 CD`（CRC32C=`0xcd3160fa`）；不得只用同一 encoder round-trip。覆盖全部短前缀/尾随、两身份及 CRC 的损坏、重新 seal 的未知版本/零身份、合法但不匹配的 DataStoreId；所有拒绝和必要 close 失败先于发布恢复/私有清理/输出，借入 data 保持其原资格。两角色 byte 同值合法；同 data 的两个 VS 仍区分 header/revision 身份。两打开模式不改门，缺坏门不因旁边合法 header 或私有门而补造；模式准入、初次发布和平台向量另取证。
 Snapshot codec 向量包含多个连续 12B 地址、完整 FileId/Packed 高位、非法/截短地址拒绝和 cold round-trip；自有历史 RootMap 与 tag codec 消费同一格式，不从 CLR struct 大小计算 wire 容量。
+RefId 内部字段使用独立 local=0x0123456789ABCDEF → `EF CD AB 89 67 45 23 01` 向量；覆盖 1、高位及全 FF 合法、零与 0/7/9B 拒绝、失败 default/不提交消费、encoder 短目标/错上下文/默认值失败无写入及长目标只改前 8B。公开等值/hash 覆盖同 VS 同 local、不同 VS 相同 local、同 VS 不同 local 与 default；旧自有值在同 VS 重开后可用，关 owner 不撤销值。两 VS 共借 data 且 local 相同，错误值在 ReadRef/PublishRef/History/alias 的 I/O/barrier 前确定拒绝、不新增 fault，mutation 保持 NotAttempted。checked 来源元数据可产生 bound 值但不证明源存在；坏宿主字段不外泄值、无来源不借零值代替未定判别。格式、public 类型与真实平台/发号资格分开验收，不拿现有 Binary 测试或候选算术称为新库通过。
 目录向量覆盖私有 header/Snapshot/flush/close 各阶段、目录 rename 前后、正式目录缺少必要文件或坏身份、只读不采用/清理私有残留、重复 RefId 不覆盖。纯 S4 ref 消费不读取 names，也不需要 S5 codec；S5 的组合创建另验同一发布点的名称资格。
 证据向量覆盖每个 mutation 最早重置 out、正常成功/失败 Result 的对应状态、内部助手异常时直接写回、公开 Append 的已证明 pre-I/O Result 拒绝恢复 NotAttempted，以及无法辨相位的 OOM/输出/flush 异常保持 Unknown。覆盖 data/源 flush、tag 空桶维护失败为 NotAttempted 但实例停用；目录/文件 rename 返回后立即 Confirmed，再分别注入成功值/投影安装和资源清理异常。清理不降档、不遮蔽原错误，汇总分配失败仍尝试其他资源；借入 data 不被 Dispose。匿名 rename 成立却无成功值交付时，ListRefs 能见对象但同值不能精确认领；正常/异常调用证据测试与真实进程终止后没有 out 的恢复测试分开，不把 C# byref 或单元注入当平台 rename 资格。
 header 向量覆盖无来源/有来源、非法/截短源 ticket、自链接、源 store/ref 身份以及第二帧初始化边界。普通 ReadRef 不扫描源历史；返回本地当前字典不宣称 ForkOrigin 目标健康，显式来源遍历缺/坏时报错且不改本地 head。

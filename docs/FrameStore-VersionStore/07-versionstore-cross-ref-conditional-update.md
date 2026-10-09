@@ -36,9 +36,9 @@ ConditionalUpdate:
 
 各成员可以有不同 RootMap 和帧尺寸；相同的是完整 Members 表。RootMap 继续复用完整字典 codec 和 S2 固定 12B FrameAddress。Members 的 ticket 是对应 ref 文件的 SizedPtr，不能替换为 data FrameStore 的 FrameAddress。
 
-本候选采用固定宽度 RefId、固定 8B `SizedPtr.Packed` LittleEndian 的编码方向；RefId 宽度、计数与字段顺序、kind/version、RootMap codec、限额仍待工程定稿。SizedPtr 解包不证明 frame 存在或完成。此方向不改变 S2 地址格式，不从 CLR struct 内存布局推导 wire。
+本候选消费 S4 `[F-VS-REF-ID-8B]`：RefId 内部字段为固定 8B LocalRefId LittleEndian，公开值另携同一 VS 的持久上下文；Members 不为每项重复写 VSID，入口在 I/O/barrier 前拒绝错上下文。ticket 采用固定 8B `SizedPtr.Packed` LittleEndian；计数与字段顺序、kind/version、RootMap codec、限额仍待工程定稿。两字段解码都不证明 frame 存在或完成。此方向不改变 S2 地址格式，不从 CLR struct 内存布局推导 wire。
 
-设各 RootMap 已编码字节数为 rᵢ，RefId 固定宽度为 w，成员数为 k，固定 schema 与计数字节数为 h。CU payload 长度可直接度量为 `h + rᵢ + k × (w + 8)`，不依赖 tickets 的数值。由公共 `MeasureWriteSize`、各文件可信 TailOffset 与 `SizedPtr.Create` 可先预测全部 tickets，再编码完整 payload，不存在自身尺寸的循环求解。
+设各 RootMap 已编码字节数为 rᵢ，RefId 字段宽度 w=8，成员数为 k，固定 schema 与计数字节数为 h。CU payload 长度可直接度量为 `h + rᵢ + k × (w + 8) = h + rᵢ + 16k`，不依赖 tickets 的数值。由公共 `MeasureWriteSize`、各文件可信 TailOffset 与 `SizedPtr.Create` 可先预测全部 tickets，再编码完整 payload，不存在自身尺寸的循环求解。
 
 准确说，消除循环只要求 ticket 的编码宽度不随值变化；已知 RefId 的编码长度也能事先度量。固定 RefId 是本候选按用户提议采用的方向，不是正确性额外要求。不得对包含待定 tickets 的整个 payload 做未经解决的变长压缩，再拿未确定的 stored 长度预约。
 

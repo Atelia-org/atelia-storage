@@ -60,7 +60,7 @@ AteliaResult<HistoryEnd> ReadRefHistory(
     CancellationToken cancellationToken = default);
 ```
 
-RefSnapshot 复用 S4 ReadRef 的自有结果，只读 Revision 与 Roots；不另立 history 专用快照、结果 Lease 或 Dispose。每项 MUST 完整校验 CRC、kind/version、身份与 RootMap codec，确认真实主链成员后才能交付。解码到自有值并释放临时 RbfPooledFrame 后再回调，不能外泄 Reader、RbfFrameInfo、pool Span 或依赖 reader 的字典。结果的 RootMap 不提供公开修改入口；方法结束、owner fault/Dispose 不撤销已交付值，内部初始字典比较不受 visitor 改写。RefRevision 仍由 S4 绑定实际位置，RootMap/身份的具体表示和 codec 留在 S4-Q1/Q2，不开放任意裸 revision 的随机 ReadRevision。
+RefSnapshot 复用 S4 ReadRef 的自有结果，只读 Revision 与 Roots；不另立 history 专用快照、结果 Lease 或 Dispose。每项 MUST 完整校验 CRC、kind/version、身份与 RootMap codec，确认真实主链成员后才能交付。解码到自有值并释放临时 RbfPooledFrame 后再回调，不能外泄 Reader、RbfFrameInfo、pool Span 或依赖 reader 的字典。结果的 RootMap 不提供公开修改入口；方法结束、owner fault/Dispose 不撤销已交付值，内部初始字典比较不受 visitor 改写。RefId 消费 S4 `[F-VS-REF-ID-8B]` 的公开上下文值、前检与内部字段 codec；RefRevision 仍由 S4 绑定实际位置，RootMap/RefRevision 的具体表示和 codec 留在 S4-Q1/Q2，不开放任意裸 revision 的随机 ReadRevision。
 
 visitor 返回 true 表示继续，false 表示已接收当前项并正常选点停止。false 后 MUST 不再扫描旧帧或访问下一源；先完成健康/取消复检和必要清理，再返回 VisitorStopped，即使该项恰为起点也保持此结果。调用方可保存所选值，在方法返回后 fork/tag/rewind；需要列表时由调用方收集，不要求库保留整批历史。
 
@@ -199,7 +199,7 @@ ListRefs 成本与正式 RefId 目录数相关；branch 首次解析/全局查�
 | --- | --- | --- |
 | tag 桶 header | FrameTag=0；统一格式版本、S4 VersionStoreId、uint32 LE BucketId | 组合 schema、初始化 I 保护已定；版本/16B 身份消费 S4 `[F-VS-OWN-FORMAT]`，桶数量/hash/路径仍 S5-Q1 |
 | tag record | FrameTag=1；完整 TagName、原样 S4 RootMap | 无额外版本/CRC/身份；每次全桶 checked 扫描已定，基础名称/根 codec 与限额消费 S5-Q1/S4-Q2 |
-| branch 绑定文件 | version/kind、VersionStoreId、完整 BranchName、RefId | 初始/alias 同一 checked codec、names 路径碰撞及全局发现验证 |
+| branch 绑定文件 | version/kind、VersionStoreId、完整 BranchName、RefId | RefId 字段与公开上下文值消费 S4 `[F-VS-REF-ID-8B]`；初始/alias 同一 checked codec、names 路径碰撞及全局发现验证仍待定 |
 | history 结果 | 复用 S4 RefSnapshot；实际 RefRevision、自有 RootMap | 同步 visitor、两项预算、Complete/VisitorStopped 与预算失败已定，实施所有权/终止/清理验证 |
 | fork 查询结果 | ChildRefId、S4 ForkOrigin 元数据 | 完整集合、预算/错误、内存视图与返回值所有权；不从元数据签发 checked revision |
 
