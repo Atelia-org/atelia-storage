@@ -1,6 +1,6 @@
 # S4：VersionStore 完整根字典与单文件 ref 发布
 
-状态：**Draft；2026-10-07 采用完整 RootMap、每 ref 一个 RBF3 文件与统一 RefId 目录发布，允许独立完成闭包发布；2026-10-08 同步 S2 固定 12B 地址；2026-10-09 增加不可变 ForkOrigin 首帧链接，定稿同步发布证据与续跑边界、格式门记录/只读校验及 data 身份绑定、RefId 公开上下文值与内部字段编码、RefRevision 自有位置值、RootMap/RefSnapshot 自有表示与 RootMap BPV1 codec/容量，以及 ref header/普通 Snapshot 组合格式；可写恢复前初始化保护、其余 API、路径编码与平台协议尚未定稿/实施，项目尚未创建**。
+状态：**Draft；2026-10-07 采用完整 RootMap、每 ref 一个 RBF3 文件与统一 RefId 目录发布，允许独立完成闭包发布；2026-10-08 同步 S2 固定 12B 地址；2026-10-09 增加不可变 ForkOrigin 首帧链接，定稿同步发布证据与续跑边界、格式门记录/只读校验及 data 身份绑定、RefId 公开上下文值与内部字段编码、RefRevision 自有位置值、RootMap/RefSnapshot 自有表示与 RootMap BPV1 codec/容量、ref header/普通 Snapshot 组合格式，以及正式 RefId 编号恢复/分配/耗尽规则；可写恢复前初始化保护、其余 API、路径编码与平台协议尚未定稿/实施，项目尚未创建**。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)。名称与历史见 [S5](05-versionstore-names-and-indexes.md)。
 
 ## 目标、归属与范围
@@ -91,13 +91,13 @@ Key 的字符域 MUST 保留全部非 null CLR string 的 code units：empty、N
 
 接受 RefId 的入口 MUST 在既有 owner disposed/fault 检查之后、任何目标发现 I/O 或 data barrier 之前，拒绝 default 及与本 owner 持久 VSID 不符的值。它们是确定参数拒绝，不新增 fault；mutation 仍先初始化 outcome=NotAttempted。MUST 比较持久身份，不以 owner 引用代替；先前取得的自有值可以交给同一 VS 的重开 owner。此检查仅拒绝不同 VSID 的误传，不证明目标存在、物理根唯一、身份生成无冲突或记录完成。
 
-**唯一内部字段 codec。** header、自身/来源身份、branch binding 与后续 CU 成员表中的 RefId 字段 MUST 恰为 8B，按完整 LocalRefId 的 uint64 LittleEndian 编码；不在每个字段重复 VSID，不追加版本、CRC、flags 或预留。所有非零 64bit 位模式均数值合法，包括 1、高位及 ulong.MaxValue；它不是 SizedPtr、FrameAddress、时间或分配顺序，不检查票据对齐/坐标或 UUID 位模式。
+**唯一内部字段 codec。** header、自身/来源身份、branch binding 与后续 CU 成员表中的 RefId 字段 MUST 恰为 8B，按完整 LocalRefId 的 uint64 LittleEndian 编码；不在每个字段重复 VSID，不追加版本、CRC、flags 或预留。所有非零 64bit 位模式均数值合法，包括 1、高位及 ulong.MaxValue；它不是 SizedPtr 或 FrameAddress，数值合法性不证明时间或分配顺序，不检查票据对齐/坐标或 UUID 位模式。
 内部 decoder MUST 要求字段输入恰为 8B，失败输出 default；只在非零检查通过后，结合宿主的预期 VSID 构造值。普通打开/读取的预期身份来自已 checked 的门上下文，记录内的身份须与之比较，不能从被检查记录反向认领期望身份；创建阶段可使用私有初始化已预定的非零 VSID，不要求初次 Create 先读取已发布门。磁盘字段与整个宿主的必要身份/CRC/codec 校验通过后，才向调用方交付值。
 内部 encoder MUST 先检查值非 default、VSID 与宿主预期身份相符及目标容量至少 8B；失败不改变任何目标 bytes，成功只写前 8B，剩余目标不变。复合 reader 先保证剩余至少 8B、切出精确字段，成功才提交消费；截短/零字段失败不提交，宿主负责全部记录的剩余字段及 trailing bytes。两方向不执行 I/O、不新增堆 buffer 或专用错误族，宿主映射为自己的字段错误；可信私有构造只保存已资格化身份值，不在发布确认后的成功值交付中重新解码、读回自身文件或引入可拒绝校验。
 
 RefId 可以来自正常创建结果、checked 对象/名称读取或 checked 来源元数据；绑定上下文并不赋予被声明源的存在、主链或发布资格。私有 planned RefId 不在正式发布前交付应用，也不签发 RefRevision；成员、发现与发布证据仍消费既有条款。RefRevision 直接复用 RefId 已携带的上下文，其值合同见 `[A-VS-REF-REVISION-VALUE]`。
 首版不提供公开 EncodedSize、bytes/text codec 或自动序列化适配。因此不承诺把匿名 RefId 独立保存到应用外部记录再跨进程直接导入；名称/业务标记定位不是该能力的透明替代。出现这一明确消费者时，再定义带完整上下文的窄导入/导出合同，不能把内部 8B 字段当作无上下文的公开身份编码。
-（Informative）8B 是当前 VS 内稳定身份域的工程选择；4B/16B 也可能正确。它确实排除了原样 128bit local 发号，后续唯一分配/不复用/耗尽必须在此域内由 S4-Q3 成立，不以随机碰撞概率或字段宽度代替证明。公开值另携已有 VSID 是本轮工程防错选择：A/B 各有 local=7 时，A 的值误传 B.PublishRef 会被拒绝，而纯 local 值加正常 B header 校验会更新 B:7；局部 selector 加调用方选库责任也是可行备选。多 16 个逻辑身份 bytes 与一次上下文比较的成本未测量，24B 不成为 CLR ABI；不新增身份、通用 ID 框架或 public StoreId 类型。固定 LE 可直接用 BCL 基元，[已有 UInt64LE](../../src/Binary/BareValueWriter.cs)与[独立 golden](../../tests/Binary.Tests/ScalarTests.cs)仅佐证字段组合，不强加 Binary 依赖，也不构成新 RefId 实施资格。
+（Informative）8B 是当前 VS 内稳定身份域的工程选择；4B/16B 也可能正确。它确实排除了原样 128bit local 发号；唯一分配/不复用/耗尽消费 `[S-VS-REF-ID-ALLOCATION]`，不以随机碰撞概率或字段宽度代替证明。公开值另携已有 VSID 是本轮工程防错选择：A/B 各有 local=7 时，A 的值误传 B.PublishRef 会被拒绝，而纯 local 值加正常 B header 校验会更新 B:7；局部 selector 加调用方选库责任也是可行备选。多 16 个逻辑身份 bytes 与一次上下文比较的成本未测量，24B 不成为 CLR ABI；不新增身份、通用 ID 框架或 public StoreId 类型。固定 LE 可直接用 BCL 基元，[已有 UInt64LE](../../src/Binary/BareValueWriter.cs)与[独立 golden](../../tests/Binary.Tests/ScalarTests.cs)仅佐证字段组合，不强加 Binary 依赖，也不构成新 RefId 实施资格。
 
 ## term `Ref-Revision` 已接受快照的位置身份
 
@@ -140,7 +140,32 @@ revision 只从完成发布或实际 checked-read 且已确认真实主链成员
 创建 MUST 在私有槽位完成本层 header 与初始 Snapshot，以及本次组合初始化的所有附加文件；各文件均须 flush/close 后，才能以同文件系统、不覆盖的一次目录 rename 发布完整容器。不得先创建正式空目录再逐个移动文件，不接受跨卷复制/删除替代该发布步骤。普通 CreateRef 的 names 为空；后序层可在同一私有容器准备其初始名称文件，再消费同一个目录发布步骤，不公开 Prepared handle 或应用 callback。
 ReadRef / PublishRef / ListRefs 及后序历史访问 MUST 仅依据正式 RefId 目录定位，不探测或采用 creating 内容。ListRefs 仍可列出由普通 CreateRef 成立的未命名 ref；列举不是全部历史/名称健康审计。正式容器缺少必需 ref 文件/header/初始 Snapshot，或必要内容损坏，MUST 报错，不能当私有准备、补成空字典或删除正式容器。Ref 访问不依赖 names 文件或 branch gate；S4 不解释后序名称 codec。
 实例异常或进程终止 MAY 留下私有槽位；其完整文件不自行成为 ref，也不自动补完或发布名称。只读打开 MUST 排除私有槽位且不清理；可写实例只可在独占 owner 下按可证明私有的路径/身份规则清理，清理不能跨入正式 refs。正式 rename 结果不确定时必须先按 `[R-VS-PUBLICATION-UNKNOWN]` 裁决实际位置，不以清理回滚已发布目录。
-私有槽位布局、唯一 RefId 分配、残留清理及单次目录 rename 的 Windows/Linux no-overwrite/中断资格在 S4-Q3 定稿；不以 `Directory.Move` 方法名或普通 file rename 的资格代替目录实证。本轮故障模型仍限进程终止、OS/FS 继续运行。
+唯一 RefId 编号消费下面的 `[S-VS-REF-ID-ALLOCATION]`；私有槽位布局/残留清理、路径编码及单次目录 rename 的 Windows/Linux no-overwrite/中断资格仍在 S4-Q3 定稿或取证，不以 `Directory.Move` 方法名或普通 file rename 的资格代替目录实证。本轮故障模型仍限进程终止、OS/FS 继续运行。
+
+### spec [S-VS-REF-ID-ALLOCATION] 正式容器集合决定下一编号
+
+首版 MUST 在同一 VersionStore 内递增分配非零 LocalRefId；已正式发布的身份与历史不删除、不复用。编号状态仅为 owner 内一个 `ulong MaxPublishedLocalRefId`，不新增公开 allocator、持久 next counter、预留账本或全 RefId 表。
+
+**可写冷开。** 在格式门、根/独占及正式目录准入资格成立后，MUST 完整流式发现 `refs` 的全部正式容器，包含匿名 ref，按完整 unsigned local 值取最大值；已资格化的空集合取内部单位元0，不能把缺目录或枚举失败当空集。消费 S4-Q3 尚待定的唯一 canonical 路径 codec 与实际普通目录资格，检查全部直接项；未知/非规范/重复身份或目录枚举、权限、I/O 及必要枚举资源清理错误均阻止签发可写 owner，不以部分 max 开始创建。此名称发现须先于本次发布文件恢复、私有清理及输出；私有残留仍须另行裁决通过后才能签发 owner。
+正式容器存在便占用其路径编号：不因未绑定名称、调用方未收到创建结果、必需文件缺失或内容损坏而腾号。不为求 max 默认打开全部 header/Snapshot/names，也不从 header 反向认领路径身份；必要访问仍按既有 checked 规则拒绝坏内容。namespace 资格只用于发号，不签发可用 RefId/RefRevision或证明全部 ref 健康。creating 不计入正式 max；其身份/残留资格未定或检查失败时，不能直接忽略、删除或复用槽位。OpenReadOnly 不因发号新增全集合求 max；其必要发现仍由所属查询合同规定。
+
+**新建与耗尽。** CreateRef、ForkRef、CreateBranchFromRoots、CreateBranchFromRevision MUST 共用此分配步骤。owner 生命周期/模式及既有 mutation guard 后检查 max：若等于 `ulong.MaxValue`，返回错误码 `VersionStore.RefIdExhausted` 的确定失败 Result，out 保持 NotAttempted，不新增 fault；拒绝先于本次 data/源 flush、私有准备及正式发布。否则候选为 `max + 1UL`，使用完整 unsigned 比较和受检加法，不转 long、取集合 Count+1、回绕、补洞或从源 ID 推算。规划候选不推进 max、不交付应用身份；纯前检失败不消耗编号。初次 store 创建的门发布仍待定，已资格化的空正式集合由此得到候选1，不因此规定 Create 自动预建 ref。
+正常目录 rename 返回后 MUST 先按既定证据写回 Confirmed，再无分配地登记 `MaxPublishedLocalRefId = candidate`，随后才执行可能失败的文件打开、投影/结果安装或清理。正常运行由独占/串行发布协议维护该值，不在每次创建重新全库枚举。私有/发布异常仍按既定规则停用；Unknown 后不在原 owner 探测位置、改选编号或循环 retry。冷重开完整发现实际正式集合，已发布但未交付结果的 ref 仍占号，不按同值 RootMap 认领旧调用。
+不复用保证针对**已正式发布的身份**；从未发布且从未交付的 planned local 可以在重开后的新请求中再次成为候选，但须先完成私有残留/槽位资格，不承诺可清理、覆盖、接续或发布旧残留。水位到达 Max 是本分配策略耗尽，即使下面有缺口也不补号，不声称全部非零64bit都已使用；耗尽不拒绝 Open、只读/历史查询、既有 ref 更新、alias 或 tag 等不需要新 RefId 的操作。
+
+| 实际正式集合/窗口 | 分配结果与边界 |
+| --- | --- |
+| 空集合 | 候选1；0只作内存单位元 |
+| `{1,3,7}`，任意枚举顺序 | 候选8，不用 Count+1 或填缺口 |
+| `{1,0x8000000000000000}` | 候选 `0x8000000000000001`，不按 signed 比较 |
+| max=7，私有8或更高编号，尚未正式发布 | max仍7；仅在残留/槽位资格通过后，新请求可选8 |
+| rename8实际成立，却抛错或成功结果丢失 | 旧owner停用；重开max至少8，下一候选至少9 |
+| 正式8缺坏必要内容 | 其路径号8仍占用；必要读取报错，不把8当空位 |
+| max=`ulong.MaxValue-1` / 已为Max | 可最后创建Max；之后只拒绝新 ref，不补洞 |
+| 枚举或必要清理未正常结束 | 不签发可写owner，不使用部分max |
+
+（Informative）完整正式集合均不大于max，新候选严格更大；不覆盖发布后登记新max，异常则停用并按实际集合重建，加上正式身份不删除，足以保证本 owner 协议下不重复发布身份。整个最高正式容器被外部删除/替换不在当前故障模型，本机制不增加遗失见证或认证同VSID拷贝。编号大小不成为公开排序、更新时间、fork来源资格或跨ref全序；历史/图仍用真实记录与来源链接。
+可写冷开新增 O(ref数量) 的名称发现成本，发号状态只保留一个scalar，健康实例每次候选计算为O(1)；实际目录/类型与清理成本仍须实施测量。随机64配合可靠占用检查或持久durable reserve counter也可正确，前者需要碰撞选择策略，后者引入额外持久更新/恢复协议；本方案是减少机制的MVP工程选择，不声称唯一正确或最快。出现明确启动规模/延迟目标不满足时再重评。编号规则定稿不关闭S4-Q3的根/路径/私有残留/平台、VSID生成或S4-Q2初始化保护，也不构成新库实施/平台资格。
 
 ### spec [F-VS-REF-FRAMES] 首帧用精确长度判别来源，普通快照只保存字典
 
@@ -288,7 +313,7 @@ Open 不默认扫描所有 ref 历史或 data 图；按需打开/校验目标文
 | --- | --- |
 | S4-Q1 | RefId/RefRevision 自有公开值、完整等值/default/跨 VSID 前检、revision 只读位置及同 VS 重开使用，RootMap 集合公面/冻结拥有权/内部内容比较、RefSnapshot 普通类及三操作成功值已定，实施向量；ListRefs 的具体公开结果/范围仍待定 |
 | S4-Q2 | 格式门内容/只读绑定、RefId内部8B、RootMap BPV1/1MiB、ref header28/44与Header/Snapshot的0/1 kind、统一schema/完整宿主容量及共同首两帧检查已定，实施独立向量；可变初始Snapshot的恢复前保护/公开底座准入仍需定稿，不能用最小I＋事后report宣称Ready |
-| S4-Q3 | 初次 store 创建/格式门发布、根准入与身份生成；统一 RefId 容器/creating 的路径编码、唯一身份与残留清理、目录 no-overwrite rename 两平台资格、独占/模式/Dispose/fault |
+| S4-Q3 | RefId完整正式集合max、单调分配/正式身份不复用及耗尽规则已定，实施发号与中断向量；初次store创建/格式门发布、根准入与VSID生成、统一RefId容器/creating路径及残留清理、目录no-overwrite rename两平台资格、独占/模式/Dispose/fault仍需定稿或取证 |
 | S4-Q4 | Result/必选 out PublicationOutcome、入口初始化、公开尝试/确认写回、pre-I/O Result 例外、异常清理及匿名续跑边界已定；实施拒绝/部分与完整输出/确认后安装故障及冷重开向量，不再开放证据载体设计 |
 | S4-Q5 | checked 末读取实现、资源预算、错误分类、已完成输出屏障对接及有无关活跃 Builder 的 public 发布轨迹 |
 | S4-Q6 | 新/旧/orphan 地址的应用闭包责任示例与冷重开资格；不增加图遍历来源证明 |
@@ -300,6 +325,7 @@ RootMap 独立 empty=`00`，一项 A 的完整 codeword=`01 03 41 EF CD AB 89 F0
 RefId 内部字段使用独立 local=0x0123456789ABCDEF → `EF CD AB 89 67 45 23 01` 向量；覆盖 1、高位及全 FF 合法、零与 0/7/9B 拒绝、失败 default/不提交消费、encoder 短目标/错上下文/默认值失败无写入及长目标只改前 8B。公开等值/hash 覆盖同 VS 同 local、不同 VS 相同 local、同 VS 不同 local 与 default；旧自有值在同 VS 重开后可用，关 owner 不撤销值。两 VS 共借 data 且 local 相同，错误值在 ReadRef/PublishRef/History/alias 的 I/O/barrier 前确定拒绝、不新增 fault，mutation 保持 NotAttempted。checked 来源元数据可产生 bound 值但不证明源存在；坏宿主字段不外泄值，无来源使用 `[F-VS-REF-FRAMES]` 的28B形状，不借零值代替来源判别。格式、public 类型与真实平台/发号资格分开验收，不拿现有 Binary 测试或候选算术称为新库通过。
 RefRevision 等值的内部独立向量覆盖完整 VSID/local/ticket、同 offset 不同 length、同 ref 同值重发及同值子初始/源不同 revision；default 的比较/hash/两属性合法，fork 准入拒绝 default/不同 VSID 先于 I/O/barrier 且 NotAttempted、不新增 fault。public 消费从正常发布/checked 当前与历史取得值，保存后结束查询/关闭并重开同 VS，再 fork 仍按现有协议重读与确认；继承快照的 RefId/Ticket 必须为实际源位置，能关联 ListForks 的 exact 来源边。缺源/坏内容/错成员不因持有旧值免检；ForkOrigin 元数据和提前 ticket 不签发 revision。确认后构造只保存值，后续交付异常保留 Confirmed；不以投影/default 或旧栈测试称为公开 codec、防伪、匿名跨进程书签或新库已实施。
 目录向量覆盖私有 header/Snapshot/flush/close 各阶段、目录 rename 前后、正式目录缺少必要文件或坏身份、只读不采用/清理私有残留、重复 RefId 不覆盖。纯 S4 ref 消费不读取 names，也不需要 S5 codec；S5 的组合创建另验同一发布点的名称资格。
+编号向量消费 `[S-VS-REF-ID-ALLOCATION]` 上表：含匿名的完整发现、缺口/无符号高位/Max边界、未知项及枚举/必要清理错误不安装partial max；正式坏内容不腾号，私有高号不制造耗尽但残留资格可阻断owner。覆盖确定耗尽先于data/源flush与任何本次输出、纯前检不烧号、rename不确定与Confirmed后结果/投影失败的冷重开；已有RefRevision/ForkOrigin仍指向原正式对象，不新增公开数值构造或回收身份。实际路径/类型/根/私有残留及进程中断资格分别验收，不拿算术推演称整个S4 Ready。
 证据向量覆盖每个 mutation 最早重置 out、正常成功/失败 Result 的对应状态、内部助手异常时直接写回、公开 Append 的已证明 pre-I/O Result 拒绝恢复 NotAttempted，以及无法辨相位的 OOM/输出/flush 异常保持 Unknown。覆盖 data/源 flush、tag 空桶维护失败为 NotAttempted 但实例停用；目录/文件 rename 返回后立即 Confirmed，再分别注入成功值/投影安装和资源清理异常。清理不降档、不遮蔽原错误，汇总分配失败仍尝试其他资源；借入 data 不被 Dispose。匿名 rename 成立却无成功值交付时，ListRefs 能见对象但同值不能精确认领；正常/异常调用证据测试与真实进程终止后没有 out 的恢复测试分开，不把 C# byref 或单元注入当平台 rename 资格。
 header 独立golden：version=1、VSID=`01..10`、自身local=`0x0123456789ABCDEF`的无来源payload为 `01 00 00 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 EF CD AB 89 67 45 23 01`；有来源追加source local=`0xFEDCBA9876543210`与SizedPtr(offset64,length32)，suffix=`10 32 54 76 98 BA DC FE 08 00 00 40 00 00 00 00`。覆盖28/44之外长度、完整帧中的截短/尾随、零/错身份、未知版、Source=self及非法ticket；44B的前28B若人为另封为合法无来源帧属于另一份记录，不把未framed的切片当完整截短检验。
 宿主向量覆盖Rbf3/首两帧真实成员、meta/tombstone/重复header/未知kind、Snapshot exact-consume与1MiB尺寸前检、初始即末复用及两种header物理后界。普通 ReadRef不扫描源历史；来源范围不能签发revision。112→104→112→再次None的坏初始化反例与已完整初始化后的合法更新残尾分别验收；实际恢复前保护未定，不以事后拒绝或探针称为已闭合。正式缺坏内容仍报错，显式来源遍历缺/坏时报错且不改本地head。

@@ -21,6 +21,7 @@
 
 历史读取的入口与终止值由 `[A-VS-REF-HISTORY-CHECKED]` 定义，其余操作的成功值类型在 Ready 定稿；同步 mutation 统一消费 S4 `[A-VS-PUBLICATION-EVIDENCE]` 的 AteliaResult/必选 out PublicationOutcome，不另立 tag/branch/fork 证据异常或恢复 token。有来源 fork 必须按 revision 创建，只传 roots 的入口表示无来源起点，不凭字典相等推断或补造链接。两个基础操作手工组合仍是两次发布。首版不提供 branch rename/unbind/delete/archive/name reuse、tag 修改/删除、差分或 state-checkpoint。命名创建的共同初始化是窄创建协议，不扩展为多个既有 ref 的事务；本层定义 ref 发布历史与创建分叉，应用数据的因果谱系仍由应用解释。
 ref header/普通 Snapshot 的字段、来源判别与完整记录容量唯一消费 S4 `[F-VS-REF-FRAMES]`；历史、fork 和 ListForks 不另选编码。可写恢复前的可变初始帧保护仍属 S4-Q2，不由本层的事后首两帧检查自动成立。
+匿名/命名新ref入口统一消费S4 `[S-VS-REF-ID-ALLOCATION]` 的候选与耗尽前检，在data/源flush和私有准备前拒绝发号耗尽；alias/tag不分配新RefId。正式目录发布正常返回后，先Confirmed和编号登记，再安装本层投影/结果；编号不成为分叉来源资格或跨ref全序。
 
 ## 表达能力与历史边界
 
