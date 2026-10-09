@@ -64,7 +64,7 @@ tag public 消费按 S5 每次完整校验目标桶，不依赖跨调用缓存�
 同步历史 visitor 向量 MUST 覆盖固定上界、递归/全部 mutation 的 pre-I/O 拒绝、调用后自有字典继续使用、重复相同字典的不同 revision、损坏与 TerminationError。覆盖第 k 项正常停止不再读取旧坏记录，MaxSnapshots/MaxWorkSteps 的资格/定位/完整读计费，恰好到无来源初始时 Complete、有来源而额度不足时专用预算失败。最后回调 Dispose owner、取消或抛异常及最后临时关闭失败不得返回正常终止；跳转/所有退出归还一次并清 guard。普通当前值读取不自动审计全部历史；显式历史传播已观察的必要错误，VisitorStopped/预算失败不称未访问前缀健康。
 来源感知 fork 另覆盖源真实成员重读、data 屏障后源 ref flush、私有 ForkOrigin/初始 Snapshot/名称共同发布及每个中断窗口。源 flush 失败时不输出子容器，源 head 不增加孩子登记。跨文件历史包含子初始与 exact 源点的不同 revision，覆盖 fork-of-fork、源后续更新不混入、rewind 发布史、缺源/错 length/循环/初始字典不符、后缀定位预算与错误、栈内扫描器切换与临时句柄清理。
 ListForks 必须包含匿名与命名、多层及兄弟分叉，alias 不新增边、无来源同值复制不推断来源、creating 残留不参与；完整首帧声明扫描与图存在性/环检查后才返回全部关系。声明边查询不重验所有源 payload，实际历史跳转则必须校验；分别验证两种资格，错误/预算不足不能返回“没有分叉”。普通 ReadRef 的本地 header/初始/末快照检查不递归祖先。
-public 消费复用 S2 固定 12B 地址 codec，在 Begin 前计算自引用/双文件互引的 stored 尺寸，核对 Begin/End 编码一致并冷重开读回；RootMap、ref 历史与 tag 均复用同一地址格式。独立 bytes 验证完整 FileId/Packed 高位、精确字段消费和非法值，不把内部 struct 大小或 native ABI 当成 wire 长度；目标运行时布局资格与 codec/包消费分别记录。
+public 消费复用 S2 FrameAddress.EncodedSize/TryWrite/TryRead，在 Begin 前计算自引用/双文件互引的 stored 尺寸，核对 Begin/End 编码一致并冷重开读回；RootMap、ref 历史与 tag 均复用同一 12B 地址格式。独立 bytes 验证完整 FileId/Packed 高位、公共数值下界与最大起点/长度、精确 slice/失败不推进、TryRead 失败 out=default 和 TryWrite 失败无写入/成功只改前 12B；header 坐标保持中性数值资格，裸值不证明真实帧。验证 default 可比较/哈希但在读取 I/O 前拒绝、成功追加后的可信构造无新增失败路径。不把内部 struct 大小或 native ABI 当成 wire 长度；目标运行时成本与 codec/包消费分别记录，旧地址/Serialize 编码不自动认领为兼容输入。
 
 ### spec [S-DELIVERY-PACK-OWNER] 包入口有单一负责人
 

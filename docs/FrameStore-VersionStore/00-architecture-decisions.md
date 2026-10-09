@@ -59,7 +59,7 @@ RootMap MUST 用 @`Frame-Address` 表达中性根地址，不要求 EventFrame t
 ### decision [S-FS-ADDRESS-FIXED12] 基础地址固定编码为 12B
 
 2026-10-08 用户确认：**FrameAddress 首版固定编码为 12B，保持完整 uint FileId 与 SizedPtr；额外见证按明确需求引入，不把未来预留或内容 CRC 纳入基础定位合同。** 文件编号非零、不回绕，SizedPtr 的现有偏移与长度容量保持；已知尺寸 Begin 签发的完整地址在正常 End 后不改变。
-本决策锁定基础持久编码，不锁定 CLR struct 的内存尺寸或参数传递 ABI。StoreId 继续由上下文及上层持久绑定承载；地址不证明原始来源、完成、耐久或追加尝试身份。store fingerprint、generation 与内容见证若出现明确需求，单独定义保证及编码演化，不为它们在首版地址中预留字段。S2 `[F-FS-FRAME-ADDRESS-12B]` 细化唯一 codec，后序 RootMap 与互引消费该格式。
+本决策锁定基础持久编码，不锁定 CLR struct 的内存尺寸或参数传递 ABI。StoreId 继续由上下文及上层持久绑定承载；地址不证明原始来源、完成、耐久或追加尝试身份。store fingerprint、generation 与内容见证若出现明确需求，单独定义保证及编码演化，不为它们在首版地址中预留字段。S2 `[F-FS-FRAME-ADDRESS-12B]` 已定不透明值及唯一两方向 bool codec、数值下界/默认/等值/失败规则；后序 RootMap 与互引直接消费，普通内部表示与无规范文本为工程默认，实施与运行时成本仍单独验证。
 
 ### decision [S-FS-CORE-INDEPENDENT] MVP 仅组合核心存储与发布能力
 
@@ -224,5 +224,5 @@ IO/发布尝试后结果可能 Unknown；完整记录可在重开后存在。首
 
 ## S0 出口
 
-会话已确认新项目、旧库维护边界、RBF 恢复方向、不透明分配、三种追加方式、嵌套文件租借、统一软轮转、目录生命周期、首帧 meta/header、成功 EndAppend 自动归还、数量上限配置文件，以及完整根字典最后发布、单文件 ref、历史选点与命名 fork 的目录共同发布。活跃 Builder 不再阻断对已完成输出的确认、随机读取或独立闭包的根发布。资源基线、文件 header、owned 租借/归档维护、读结果/同步 Inventory/Audit、编号恢复及正式路径已由 S2 定稿；格式门完整 codec、根准入/锁/私有残留及平台资格仍须工程定稿或实施验证。
+会话已确认新项目、旧库维护边界、RBF 恢复方向、不透明分配、三种追加方式、嵌套文件租借、统一软轮转、目录生命周期、首帧 meta/header、成功 EndAppend 自动归还、数量上限配置文件，以及完整根字典最后发布、单文件 ref、历史选点与命名 fork 的目录共同发布。活跃 Builder 不再阻断对已完成输出的确认、随机读取或独立闭包的根发布。资源基线、文件 header、owned 租借/归档维护、读结果/同步 Inventory/Audit、编号恢复、正式路径及 FrameAddress 值/公开 codec 已由 S2 定稿；格式门完整 codec、根准入/锁/私有残留及平台资格仍须工程定稿或实施验证。
 S1 的单文件尺寸和 ticket 合同已实施并独立验收为 Accepted。S2–S6 仍是 Draft，具体 wire、类名、方法签名及性能预算按各阶段阻断项细化；本片不代表新库或下游适配已完成。

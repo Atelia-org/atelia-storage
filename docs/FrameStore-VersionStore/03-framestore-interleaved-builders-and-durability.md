@@ -17,7 +17,7 @@
 调用方 MUST 提供每个 Builder 最终 stored payloadLength/tailMetaLength；FrameStore 使用 S1 的 BeginAppend(payloadLength, tailMetaLength, out ticket) 建立实际租借并签发 FrameAddress，不只保留合计长度。
 签发多个 Builder 时，各自绑定不同 RBF 文件。已有 Builder 不因下一次申请而提交、取消或移动；提前地址只表达位置与尺寸，不证明完成、耐久或此次尝试身份。正常 EndAppend(tag) 使用 Begin 声明的 meta 长度。
 调用方可取得全部所需地址后编码互引；未知尺寸 Builder 不提供提前地址，也不能靠猜测未来长度获得同等资格。容量试算调用 RBF 公共 API，不复制布局常量。
-互引消费 S2 `[F-FS-FRAME-ADDRESS-12B]` 的固定宽度 codec：每个基础地址字段恰占 12B，可以在 Begin 前计入 stored payloadLength；不根据内容 CRC、未来 witness 或 varint 的结果改变该字段长度。正常完成前后地址编码一致，不要求完成后再修补已写入其他帧的引用。
+互引消费 S2 `[F-FS-FRAME-ADDRESS-12B]` 的固定宽度 codec：每个基础地址字段恰占 FrameAddress.EncodedSize（12B），可以在 Begin 前计入 stored payloadLength；取得提前地址后用 TryWrite 编码，TryRead 从宿主精确切出的 12B 字段恢复。不根据内容 CRC、未来 witness 或 varint 的结果改变该字段长度。正常完成前后地址编码一致，不要求完成后再修补已写入其他帧的引用。
 
 ### spec [S-FS-BUILD-INTERLEAVED] 活跃 Builder 可交错填充并独立完成
 

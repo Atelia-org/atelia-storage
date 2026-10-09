@@ -15,7 +15,7 @@ main 当前演进主线为 RBF3 / FrameStore / VersionStore。旧 EventJournal/R
 
 FrameStore 普通合同是不透明地址分配与随机读取，不提供业务全局顺序。保留 RBF 三种追加方式；每个 Builder 独占一个文件，owner 可以嵌套租借多个文件、交错构建并乱序完成，首版调用仍串行。三种追加统一在成功完成后按 TailOffset 大于软阈值触发轮转。
 文件分配优先选择 active 中当前可分配的数值最低 FileId；忙文件和已停止分配文件跳过，没有候选才新建。不因已知帧尺寸提前试配，也不引入轮询或负载均衡。
-FrameAddress 首版固定编码为 12B，保持完整 uint FileId 与 SizedPtr；额外见证按明确需求引入，不把未来预留或内容 CRC 纳入基础定位合同。格式权威为 S2 `[F-FS-FRAME-ADDRESS-12B]`，三种追加、互引和 VersionStore RootMap 复用同一 codec。地址仍是局部定位值，StoreId 由上下文绑定；CLR 内存布局另行验证，不从 sizeof 推导 wire 容量。
+FrameAddress 首版固定编码为 12B，保持完整 uint FileId 与 SizedPtr；额外见证按明确需求引入，不把未来预留或内容 CRC 纳入基础定位合同。值/格式权威为 S2 `[F-FS-FRAME-ADDRESS-12B]`：一个 readonly struct、EncodedSize、精确 12B TryRead 与至少 12B TryWrite，失败 default/无写入、完整等值，数值下界消费公开 RBF 合同；无公开数值字段/构造、额外 codec/error 或规范文本。三种追加、互引和 VersionStore RootMap 复用这一入口。地址仍是局部定位值，StoreId 由上下文绑定；普通内部表示及实际运行时成本与持久编码分开，不从 sizeof 推导 wire 容量，上述入口尚未实施。
 私有 creating 槽位完成必需首帧 meta/header 后发布到 active。S2 已定稿固定 24B header，保存统一格式版本与 StoreId/FileId；按首位置识别，完整保留用户 uint tag 范围。可写打开先检查初始化长度下界，再消费公共 RBF 恢复并完整校验首帧。active 目录表达可写集合，flush/close 后移入固定 1024 编号分桶的 archive 并只读，不维护 active manifest 或全历史分段表。屏障确认全部必要 active 输出。
 2026-10-07 用户确认：**ConfirmDurable 确认调用时已经完成的全部必要输出；未完成 Builder 保持原状，不因此次确认而获得完成或耐久资格。** leased 文件中的旧完成输出也必须覆盖，Builder 后续完成重新登记为未确认；flush 失败停用整个 owner 及其他 Builder/Writer。
 **Builder 活跃期间，允许随机读取已经完成的文件前缀；正在构建的新帧仍不可读。** RBF 指定 ticket 随机入口的 Building 范围检查包含帧后 Fence；普通读取仍校验内容、生命周期和共享 fault，不扩大扫描相关入口或并发合同。正式核心要求见 S2。
