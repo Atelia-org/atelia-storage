@@ -1,6 +1,6 @@
 # S6：消费者验证、公共包与交付
 
-状态：**Draft；2026-10-07 同步完整字典、单文件 ref、命名 fork 的目录共同发布与两类下游评估；新库实施、包发布和消费者切换均未执行**。
+状态：**Draft；2026-10-07 同步完整字典、单文件 ref、命名 fork 的目录共同发布与两类下游评估；2026-10-09 同步 ForkOrigin、跨文件历史与全分叉验收；新库实施、包发布和消费者切换均未执行**。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。
 本阶段验证前序合同的组合，不作为前序层运行正确性的反向依赖。
 依赖 S5 的历史选点与命名核心；首版不纳入 ref 分段/轮转、差分/checkpoint、名称修改或精确发布尝试查询。
@@ -18,7 +18,7 @@ DurableGraph 是需求来源；S0 已记录兄弟仓的定位观察，实际接�
 | 简单多根状态 | 两类自定义 binary records 与一个 RootMap | 不依赖 EventFrameHeader/应用 Parent；一次完整发布全部根 |
 | 循环引用图 | A↔B/self-reference，跨文件依赖与多个根地址 | 已知尺寸租借的提前地址、交错完成与全集耐久确认；应用循环由 opaque 数据表达 |
 
-两个模型用同一套 public API 写 data、CreateRef/PublishRef/ReadRef，枚举旧快照、创建 branch/tag，关闭并冷重开。匿名 fork 使用枚举所得的自有 RootMap 调用 CreateRef；命名 fork 用 S5 的组合入口，在私有容器同时准备 ref 与初始 binding，一次目录 rename 共同发布。普通 CreateBranch 仍为既有 ref 添加 alias，手工两步不是事务；没有 CreateCommit / PreparedPublication 或通用多对象事务步骤。
+两个模型用同一套 public API 写 data、CreateRef/PublishRef/ReadRef，枚举旧快照、创建 branch/tag，关闭并冷重开。匿名 fork 使用所选真实 revision 调用 ForkRef；命名 fork 用 CreateBranchFromRevision，在私有容器同时准备 ForkOrigin、初始 Snapshot 与 binding，一次目录 rename 共同发布；只传 roots 的创建表示独立历史起点。通过 ReadRefHistory 遍历完整继承前缀，通过 ListForks 查询全部声明分叉。普通 CreateBranch 仍为既有 ref 添加 alias，手工两步不是事务；没有 CreateCommit / PreparedPublication 或通用多对象事务步骤。
 覆盖相同字典的重复发布、新旧 revision 分离与多个 tag；ReadRefHistory 固定完成上界，枚举结束后旧字典仍可使用。rewind 追加旧字典，保留全部既有完整记录。不同 Builder 申请/完成次序构建相同逻辑图时，只按返回地址取回，不依靠文件选择或大小排序。
 这些是仓内可独立运行的最小消费者，不是 DurableGraph 已接入的证据。
 
@@ -33,7 +33,7 @@ DurableGraph 是需求来源；S0 已记录兄弟仓的定位观察，实际接�
 | Gym 历史与扇出 | 枚举非末快照，释放枚举器后分别原子创建两个命名 fork，再独立推进 | 单个新 ref/初始名称共同发布；两个 fork 不是整批事务，可变对象隔离由应用加载层负责 |
 | rewind/tag | 从旧快照追加新 revision，再保存 tag，推进 branch 后冷重开 | 旧完整历史保留、重复字典不合并 revision、tag 字典固定；不把 ref 发布序列当跨分支因果谱系 |
 
-确定性模拟另由应用检验完整 world、runtime/cursor、RNG 坐标或内部状态、规则与 Agent 工作区。存储只保证原样保存/选择；轨迹 root 可表达 action/reward/fork origin。外部 tool 的幂等、receipt/query 或显式重复策略也由应用/backend 验收。
+确定性模拟另由应用检验完整 world、runtime/cursor、RNG 坐标或内部状态、规则与 Agent 工作区。存储保证原样保存/选择与精确 ref 创建来源；轨迹 root 可另表达 action/reward/实验条件，不能把发布分叉图当作业务推演因果。外部 tool 的幂等、receipt/query 或显式重复策略也由应用/backend 验收。
 
 ## 候选合同
 
@@ -55,6 +55,8 @@ DurableGraph 是需求来源；S0 已记录兄弟仓的定位观察，实际接�
 名称向量覆盖跨不同 ref 的全局同名拒绝且先于 barrier/输出、初始绑定与 alias 同一表示、同 ref 多 alias、绑定父容器/目标身份错误、hash 碰撞、坏 CRC/codec 和目录枚举失败不当 absent、重复 fullname 不 first-wins。standalone 未命名 ref 仍可列举，手工 CreateRef+CreateBranch 第二步失败保留第一步，alias 输出异常不撤销既有 ref/原名称。补大量未命名 ref/少量 branch 的冷发现成本，以及若采用内存表，其完整建立/正常结束和 Confirmed 后安装失败。
 容量边界分别验证单帧尺寸与起始 offset：ref / tag 桶最后合法记录的末端和尾 Fence 可以越过 SizedPtr.MaxOffset，随后追加在输出和额外 data barrier 前确定拒绝；不拿末端越界当作既有记录损坏。FrameStore 同样遵守起点规则，成功追加后按软阈值停止分配并归档。裸 FrameAddress 的原始 store 来源由应用保证，错误 data owner 的格式门绑定则必须在恢复/写入前由库拒绝，二者不能合并成自动来源检测能力。
 历史枚举向量 MUST 覆盖固定上界、活动期 mutation 拒绝、释放后自有字典继续使用、重复相同字典的不同 revision、损坏与 TerminationError。普通当前值读取不自动审计全部历史；显式历史遇到坏记录必须报告错误。
+来源感知 fork 另覆盖源真实成员重读、data 屏障后源 ref flush、私有 ForkOrigin/初始 Snapshot/名称共同发布及每个中断窗口。源 flush 失败时不输出子容器，源 head 不增加孩子登记。跨文件历史包含子初始与 exact 源点的不同 revision，覆盖 fork-of-fork、源后续更新不混入、rewind 发布史、缺源/错 length/循环/初始字典不符、后缀定位预算与错误、跨文件枚举器释放。
+ListForks 必须包含匿名与命名、多层及兄弟分叉，alias 不新增边、无来源同值复制不推断来源、creating 残留不参与；完整首帧声明扫描与图存在性/环检查后才返回全部关系。声明边查询不重验所有源 payload，实际历史跳转则必须校验；分别验证两种资格，错误/预算不足不能返回“没有分叉”。普通 ReadRef 的本地 header/初始/末快照检查不递归祖先。
 public 消费复用 S2 固定 12B 地址 codec，在 Begin 前计算自引用/双文件互引的 stored 尺寸，核对 Begin/End 编码一致并冷重开读回；RootMap、ref 历史与 tag 均复用同一地址格式。独立 bytes 验证完整 FileId/Packed 高位、精确字段消费和非法值，不把内部 struct 大小或 native ABI 当成 wire 长度；目标运行时布局资格与 codec/包消费分别记录。
 
 ### spec [S-DELIVERY-PACK-OWNER] 包入口有单一负责人

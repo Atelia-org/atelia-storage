@@ -1,6 +1,6 @@
 # S4：VersionStore 完整根字典与单文件 ref 发布
 
-状态：**Draft；2026-10-07 采用完整 RootMap、每 ref 一个 RBF3 文件与统一 RefId 目录发布，允许独立完成闭包发布；2026-10-08 同步 S2 固定 12B 地址；API、其余 codec、路径编码与平台协议尚未实施/冻结，项目尚未创建**。
+状态：**Draft；2026-10-07 采用完整 RootMap、每 ref 一个 RBF3 文件与统一 RefId 目录发布，允许独立完成闭包发布；2026-10-08 同步 S2 固定 12B 地址；2026-10-09 增加不可变 ForkOrigin 首帧链接；API、其余 codec、路径编码与平台协议尚未实施/冻结，项目尚未创建**。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)。名称与历史见 [S5](05-versionstore-names-and-indexes.md)。
 
 ## 目标、归属与范围
@@ -9,7 +9,7 @@
 发布目录格式门持久绑定格式版本、VersionStoreId、DataStoreId。Open 在任何发布文件恢复/写入前核对借入 data 的身份与访问模式；发布位置不解释为 data FrameAddress，data 地址也不解释为 ref revision。
 单 owner/driver 串行操作，包括借入 data 的相关操作；发布目录须排斥另一 writer。VersionStore Dispose 释放私有文件、枚举器和锁，不 Dispose 借入 data。data 在使用期间必须存活；首版可写 VersionStore 借入可写 data owner，这是模式准入，不表示每个 mutation 都调用 data 屏障。资源、只读模式配对、借用与 fault 的具体公开接口在 Ready 时定稿。
 
-首版不创建独立 Commit 对象，不保存 Parent，不采用 Prepared handle、nonce 账本、默认 CAS 或精确 InspectPublication。不提供跨 ref 原子事务；业务谱系、随机数状态、tool-loop 阶段、operationId 和外部副作用协议由应用保存和解释。
+首版不创建独立 Commit 对象，不为每条 Snapshot 保存 Parent，不采用 Prepared handle、nonce 账本、默认 CAS 或精确 InspectPublication。ref 的创建来源由首帧 ForkOrigin 表达，文件内发布顺序仍由实际帧链表达。不提供跨 ref 原子事务；业务谱系、随机数状态、tool-loop 阶段、operationId 和外部副作用协议由应用保存和解释。
 
 ## term `Root-Map` 应用命名的根地址字典
 
@@ -24,14 +24,14 @@ RootMap MUST 使用唯一的 Ordinal key，不做隐式大小写折叠或 Unicod
 ## term `Ref-Revision` 已接受快照的位置身份
 
 RefId 是正式 ref 目录及其唯一 RBF3 文件的稳定身份，与 branch name 分离。RefRevision 是 opaque 值，绑定 VersionStoreId、RefId 和该文件中实际完整快照位置及长度；不可与 data 地址互换。
-revision 只从完成发布或实际 checked-read 的当前/历史快照取得，不在输出前签发。不同完整物理快照即使 RootMap 同值也具有不同 revision。它不是某次未完成调用的尝试 token；首版不提供凭裸位置随机 ReadRevision，也不以字典相同证明某次调用成功 flush。未来分段扩展仍保持其 opaque 边界。
+revision 只从完成发布或实际 checked-read 且已确认真实主链成员的当前/历史快照取得，不在输出前签发。不同完整物理快照即使 RootMap 同值也具有不同 revision。它不是某次未完成调用的尝试 token；首版不提供凭裸位置随机 ReadRevision，也不以字典相同证明某次调用成功 flush。S5 的按 revision fork 是内部重读与校验来源的窄创建入口，不开放任意位置读取。未来分段扩展仍保持其 opaque 边界。
 
 ## 单文件存储与最小 codec
 
 ### spec [S-VS-REF-FILE-SINGLE] 每个 ref 保存一个完整快照序列
 
-每个 ref MUST 使用按唯一 RefId 命名的一个 RBF3 文件。首版不分段、轮转、差分或建立派生 checkpoint；每次更新追加一条完整 RootMap Snapshot。当前值只需校验文件 header 并完整 CRC 读取紧贴 EOF 的末 Snapshot，不扫描全部历史。
-选尾 MUST 使用真实 RBF 逆向主链和 `showTombstone: true`，检查末帧紧贴实际尾部，不能将过滤结果或随机 ticket 当成末快照成员证明。未知 kind/version、tombstone、非 Snapshot 尾帧、完整坏 CRC/codec 皆报错，不向前寻找旧快照替代。header 与首次 Snapshot 的位置/绑定在工程定稿时明确。
+每个 ref MUST 使用按唯一 RefId 命名的一个 RBF3 文件。首版不分段、轮转、差分或建立派生 checkpoint；每次更新追加一条完整 RootMap Snapshot。当前值校验本地 header、初始 Snapshot 及紧贴 EOF 的末 Snapshot，初始即末帧时复用读取；不扫描全部历史或递归祖先。
+选尾 MUST 使用真实 RBF 逆向主链和 `showTombstone: true`，检查末帧紧贴实际尾部，不能将过滤结果或随机 ticket 当成末快照成员证明。未知 kind/version、tombstone、非 Snapshot 尾帧、完整坏 CRC/codec 皆报错，不向前寻找旧快照替代。首帧为本层 header，第二帧为初始 Snapshot；两者都必须存在且 checked。ReadRef 只校验本地必要内容，不沿 ForkOrigin 递归读取祖先；声明的源历史缺/坏在实际历史访问中报错，不据此回退本 ref 的当前字典。
 单帧容量与下一帧起点硬界继承 RBF/SizedPtr；下一帧起点超过 SizedPtr.MaxOffset 时明确拒绝追加或要求维护，MUST NOT 隐式回绕、复用完整历史位置或自行拆成多帧发布。MaxOffset 只限制帧起点，最后一个合法帧的末端与尾 Fence 可以越过它，不额外要求文件总长度落在该起点上界内。容量预检使用 RBF 公共 Measure/追加预算 API，并分别检查追加起点；预算 API 不自行验证文件起点，不能把 MaxOffset - TailOffset 当作硬性追加字节预算。
 
 ### spec [S-VS-REF-DIRECTORY-PUBLISH] 新 ref 由完整容器目录发布
@@ -55,7 +55,7 @@ ReadRef / PublishRef / ListRefs 及后序历史访问 MUST 仅依据正式 RefId
 | 单元 | 必要内容 | 工程定稿 |
 | --- | --- | --- |
 | 根格式门 | version、VersionStoreId、DataStoreId | create-only 文件编码、模式、独占 owner 锁 |
-| ref 首帧 meta/header | kind/version、ref 与 store 的身份绑定 | tag、字段、初始化边界及首次 Snapshot 定位 |
+| ref 首帧 meta/header | kind/version、ref 与 store 的身份绑定、可空 ForkOrigin | tag、RefId/来源判别编码、第二帧初始 Snapshot 的校验 |
 | Snapshot | kind/version、entry count、每项 key 与 S2 固定 12B FrameAddress | key 字符串/长度编码、其他字段端序及条目顺序；地址复用 S2 codec |
 
 计数、key bytes、总记录尺寸必须有界，解码先检查剩余容量和重复 key，再分配；未知字段版本明确拒绝。上下文由格式门/header 绑定，不要求在每个地址内重复 StoreId。具体上限采用工程默认并写入接口/格式合同，不将“少量根约 64B”写成固定记录尺寸保证。
@@ -63,11 +63,21 @@ Snapshot 每个地址字段消费 S2 `[F-FS-FRAME-ADDRESS-12B]` 的唯一 codec�
 
 key 编码此前的 UTF-8 方向尚未冻结；Ready 时评估采用 [Bare Primitive Value](../Binary/bare-primitive-value.md) 的公共 string/VarInt 规则，并由 Snapshot 版本明确选择。该基础草案仍为 Draft，不在本轮冻结 RootMap 完整 wire，也不引入 Tagged 前置。
 
+### spec [S-VS-REF-FORK-ORIGIN] 首帧保存一次性的 ref 创建来源
+
+header MUST 保存明确的无来源/有来源判别；有来源时 `ForkOrigin = (SourceRefId, SourceSnapshotTicket)`，ticket 为源 ref 文件中的 SizedPtr，包含 offset 与 length，MUST NOT 使用 data FrameAddress。源 RefId 与 ticket 必须通过编码/坐标校验，拒绝 default、零长度、非法起点与截短字段；数值合法不证明成员资格。来源限同一个 VersionStore 及绑定 data，上下文由格式门与两份 ref header 校验，不重复存一份 SourceStoreId。SizedPtr 采用固定 8B `Packed` LittleEndian；RefId 宽度与其余 header wire 在 Ready 定稿，不从 CLR 内存布局推导编码。
+
+ForkOrigin MUST 在私有创建时写入，发布后不可改变。无来源表示独立历史起点；复制相同 RootMap 不推断来源。有来源表示本 ref 的初始 Snapshot 按值复制该 exact 源快照，包含相同 Ordinal key 与 FrameAddress 值；它仍是子 ref 自己的新 revision。S5 创建入口负责建立源快照资格与两份字典一致性，后续历史跳转重新校验必要内容。
+
+源 ref MUST 已正式发布，且源 ticket 必须是已接受快照的真实主链位置，不能指向 header、残尾或仅数值合法的位置。新 ref 使用 fresh RefId，禁止自链接；有效来源只能从新 ref 指向已经存在的 ref，故创建流程形成森林，无需持久 generation 或拓扑编号。跨文件历史另做 visited/cycle 检查，发现缺源、非法成员或循环报错，不截断为正常历史结束；全图声明查询的较窄资格见 S5。完整历史及正式 RefId 不删除、不搬迁、不复用；未来 GC/删除/分段需重新审定链接保留协议。
+
+声明来源与实际读取源快照是不同资格：checked header 可返回 ForkOrigin 元数据，但不能仅据其中的坐标签发 checked RefRevision。当前值访问保持本地路径；S5 定义跨文件历史与全分叉查询的访问范围、预算和错误。
+
 ## 最小 API 与发布步骤
 
 | 候选操作 | 输入 | 成功结果 |
 | --- | --- | --- |
-| CreateRef | 完整初始 RootMap；空字典可用 | 新 RefId 与初始快照/revision |
+| CreateRef | 完整初始 RootMap；空字典可用，无 ForkOrigin | 新 RefId 与初始快照/revision，独立历史起点 |
 | ReadRef | 已发布 RefId | 自有 RootMap 与实际末 revision |
 | PublishRef | RefId、完整新/旧 RootMap | 已确认新快照/revision |
 | ListRefs | 本 VersionStore | 已发布 RefId，可发现未绑定 branch 的 ref |
@@ -83,7 +93,7 @@ key 编码此前的 UTF-8 方向尚未冻结；Ready 时评估采用 [Bare Primi
 PublishRef 及 S5 CreateTag MUST 先完成确定输入、目标/名称及 owner 生命周期准入、私有拷贝与编码、记录/文件容量检查，再同步调用 `data.ConfirmDurable()`，然后向发布 RBF 追加完整记录并 `DurableFlush()`，最后安装内存状态/正常返回。MUST NOT 仅因 data 有未归还 Builder 而拒绝；未完成 Builder 不获完成或耐久资格。确定拒绝不追加、不调用 data barrier，也不因 guard fault。
 data 屏障消费 S2 `[A-FS-DURABLE-COMPLETED-OUTPUTS]`，覆盖 leased 文件内旧完成输出。应用仍 MUST 保证本次 RootMap 所需新增依赖全部已完成、属于绑定 data 且闭包不含 provisional/canceled 地址；屏障成功不证明该闭包，库不遍历业务图验证依赖闭包。无关 B 仍 Building 时，已完成的独立 A 可以发布；A 真正依赖未完成 B 时不能发布。
 库不接受“以前已 flush”标志代替本次 barrier；旧 RootMap、历史 rewind、fork 初始快照和 tag 同样走屏障，无需复制 data。调用过程中不执行应用 callback，不允许同 driver 的其他应用操作交错。data flush 失败不得进入本次发布输出；发生异常按所涉 owner/fault 合同停用 VersionStore，不虚称未输出的另一个 owner 同样故障。
-CreateRef MUST 先完成相同的输入/编码/容量及 owner 准入，调用 `data.ConfirmDurable()`，再按 `[S-VS-REF-DIRECTORY-PUBLISH]` 私有初始化并发布完整 RefId 容器；同样不要求无关 data Builder 归还。S5 的命名 fork 消费相同 data-first 准入与目录发布步骤，不得先调用公开 CreateRef 再补名称。清理不补造 ref，不另写 allocation/Init/Bind 账本。
+CreateRef MUST 先完成相同的输入/编码/容量及 owner 准入，调用 `data.ConfirmDurable()`，再按 `[S-VS-REF-DIRECTORY-PUBLISH]` 私有初始化并发布完整 RefId 容器；同样不要求无关 data Builder 归还。S5 的匿名/命名 fork 消费相同 data-first 准入与目录发布步骤，另确认所链接的源 ref 文件耐久；不得先调用公开 CreateRef 再补来源或名称。清理不补造 ref，不另写 allocation/Init/Bind 账本。
 
 ## term `Publication-Outcome` 本次调用的证据
 
@@ -92,12 +102,12 @@ CreateRef MUST 先完成相同的输入/编码/容量及 owner 准入，调用 `
 ### spec [R-VS-PUBLICATION-UNKNOWN] 输出异常保留实际证据
 
 更新/创建 tag 进入公开文件最终 Append 尝试后的异常 MUST 保守保留 Unknown，除非实际证据能证明 pre-I/O 拒绝；MUST 停用 VersionStore、释放私有资源并重开读取实际状态，不盲目重试、不回滚。
-CreateRef、S5 命名 fork 与既有 ref 的 CreateBranch 在私有准备阶段失败仍未尝试公开事实；尝试正式目录/绑定文件 rename 后无法证明结果时为 Unknown。私有 flush 成功不能提前设置 Confirmed。tag 桶的 header-only 初始化（包括空桶 rename）只准备 metadata；即使其结果不确定，尚未尝试 tag Append 时本次 tag 仍为 NotAttempted，停用后重开裁决桶状态。更新/tag 在发布文件 DurableFlush 返回后、创建 ref/命名 fork/alias 在所需文件 flush/close 与最终正式 rename 成功后，必须先记录 Confirmed，再进行可能失败的内存安装/清理/正常返回；后续异常不得降级该证据。
+CreateRef、ForkRef、命名创建与既有 ref 的 CreateBranch 在私有准备阶段失败仍未尝试公开事实；尝试正式目录/绑定文件 rename 后无法证明结果时为 Unknown。私有 flush 成功不能提前设置 Confirmed。tag 桶的 header-only 初始化（包括空桶 rename）只准备 metadata；即使其结果不确定，尚未尝试 tag Append 时本次 tag 仍为 NotAttempted，停用后重开裁决桶状态。更新/tag 在发布文件 DurableFlush 返回后、创建 ref/命名 fork/alias 在所需文件 flush/close 与最终正式 rename 成功后，必须先记录 Confirmed，再进行可能失败的内存安装/清理/正常返回；后续异常不得降级该证据。
 精确调用证据的载体/异常获取方式在 S4-Q4 定稿；不承诺崩溃后查询某个旧尝试的 Present/Absent。Unknown 后相同 RootMap 也不能证明该次调用曾 flush；应用以重开取得的实际状态续行，并自行处理外部 tool 操作身份和重试规则。
 
 ### spec [R-VS-LOCAL-COMPLETE] 重开接受局部完整发布事实
 
-可写重开先执行所属 RBF3 的结构恢复，再完整 CRC 读取并验证所需 header、实际末 Snapshot 或 S5 选中的 tag/name 记录。完整合法新 Snapshot 作为当前值；真正未完成残尾截掉后使用剩余末 Snapshot。正式新 ref 若已无初始 Snapshot，不得补成空字典。
+可写重开先执行所属 RBF3 的结构恢复，再完整 CRC 读取并验证所需 header、本地初始/实际末 Snapshot 或 S5 选中的 tag/name 记录。完整合法新 Snapshot 作为当前值；真正未完成残尾截掉后使用剩余末 Snapshot。正式新 ref 若已无初始 Snapshot，不得补成空字典。
 新 ref 的目录发现与私有残留遵循 `[S-VS-REF-DIRECTORY-PUBLISH]`；没有正式容器时，私有完整 Snapshot 也不建立 ref。命名 fork 的初始名称随同一容器发布，名称层按该正式容器的记录读取，不能从私有槽位推断或续作旧调用。
 完整坏 frame/未知版本/错误身份/非法 codec MUST 报错，不能当残尾、missing 或回退旧值。只读模式不隐式修尾。被引用 data 缺失/损坏在应用实际读取时报错，不据此改写已发布 RootMap。
 Open 不默认扫描所有 ref 历史或 data 图；按需打开/校验目标文件，不将成功 Open 宣称为全库审计或全部根图健康证明。所有必要错误传播显式；资源/I/O fault 不被吞成缺对象。
@@ -108,7 +118,8 @@ Open 不默认扫描所有 ref 历史或 data 图；按需打开/校验目标文
 | --- | --- | --- |
 | 参数、owner 生命周期、历史枚举 mutation guard、编码/容量确定拒绝 | NotAttempted | 无发布写入/额外 barrier，健康实例可继续；无关 data Builder 不构成拒绝 |
 | data ConfirmDurable 异常 | NotAttempted | data 按自身 fault，VersionStore 停止，无本次发布追加 |
-| 已公开文件 Append/flush 异常 | Unknown，除可证明 pre-I/O 拒绝 | 停止；重开 checked-read，不自动 retry/rollback |
+| fork 的源 ref DurableFlush 异常 | NotAttempted | 源 RBF 按自身 fault，VersionStore 停止，无子输出 |
+| 本次更新/tag 的发布 Append/flush 异常 | Unknown，除可证明 pre-I/O 拒绝 | 停止；重开 checked-read，不自动 retry/rollback |
 | 私有 ref 容器、命名 fork 的任一文件或 alias 绑定初始化/flush/close 异常 | NotAttempted | 尚未尝试本次业务事实；停止，允许私有残留，不删除正式对象 |
 | tag 桶 header-only 初始化、flush/close 或空桶 rename 异常，尚未尝试 tag Append | NotAttempted（本次 tag） | 停止；重开检查桶 metadata，不删除已正式发布的合法空桶 |
 | ref/命名 fork 的目录 rename 或既有 ref 的 alias 文件 rename 结果不确定 | Unknown | 检查实际正式对象；不因私有 flush 声称 Confirmed，不回滚目录 |
@@ -125,7 +136,7 @@ Open 不默认扫描所有 ref 历史或 data 图；按需打开/校验目标文
 | Ready 项 | 需定稿 |
 | --- | --- |
 | S4-Q1 | RootMap/RefId/RefRevision 公开类型、比较与上下文；ListRefs 范围 |
-| S4-Q2 | 格式门/header/Snapshot tag 与 codec、字符串/条目/总尺寸限额、消费 S2 固定 12B 地址 codec 的校验 |
+| S4-Q2 | 格式门/header/Snapshot tag 与 codec、ForkOrigin 判别/RefId 编码及 SizedPtr 固定 8B、首两帧校验、字符串/条目/总尺寸限额、消费 S2 固定 12B 地址 codec 的校验 |
 | S4-Q3 | 统一 RefId 容器/creating 的路径编码、唯一身份与残留清理、目录 no-overwrite rename 两平台资格、独占/模式/Dispose/fault |
 | S4-Q4 | 结果与异常证据载体、确定拒绝及 Append/flush/rename 不确定边界 |
 | S4-Q5 | checked 末读取实现、资源预算、错误分类、已完成输出屏障对接及有无关活跃 Builder 的 public 发布轨迹 |
@@ -134,5 +145,6 @@ Open 不默认扫描所有 ref 历史或 data 图；按需打开/校验目标文
 验收覆盖错误 DataStoreId 在写入/恢复前拒绝、空/重复/超限 key、多根原子更新、旧/新帧混合、Builder 未完成/取消地址的应用合同、末帧/tombstone/TerminationError、完整坏 CRC 不回退、create-only 冲突、正式创建前后进程终止、合法末帧末端越过 MaxOffset / 下一次追加确定拒绝，以及借用 data 不被 Dispose。裸地址原始来源错误是应用合同向量，不宣称能由数值格式检查自动检测。源码与包/平台 qualification 分开，阶段仍 Draft。
 Snapshot codec 向量包含多个连续 12B 地址、完整 FileId/Packed 高位、非法/截短地址拒绝和 cold round-trip；自有历史 RootMap 与 tag codec 消费同一格式，不从 CLR struct 大小计算 wire 容量。
 目录向量覆盖私有 header/Snapshot/flush/close 各阶段、目录 rename 前后、正式目录缺少必要文件或坏身份、只读不采用/清理私有残留、重复 RefId 不覆盖。纯 S4 ref 消费不读取 names，也不需要 S5 codec；S5 的组合创建另验同一发布点的名称资格。
+header 向量覆盖无来源/有来源、非法/截短源 ticket、自链接、源 store/ref 身份以及第二帧初始化边界。普通 ReadRef 不扫描源历史；返回本地当前字典不宣称 ForkOrigin 目标健康，显式来源遍历缺/坏时报错且不改本地 head。
 CreateRef/PublishRef/CreateTag 各覆盖 A 依赖全部完成而无关 B 仍 Building 时成功发布、B 所租文件中的旧 dirty 依赖在根写出前被确认、B 后续完成必须重新确认，以及任一 data flush 失败后不尝试根输出并停用 data 的全部 Builder/Writer。根真正依赖未完成 B 的负例属于应用闭包责任，不能把“库自动识别并拒绝任意未完成图”写成单测承诺。
 

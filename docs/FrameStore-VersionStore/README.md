@@ -1,6 +1,6 @@
 # FrameStore / VersionStore 分阶段设计入口
 
-日期：2026-10-03；2026-10-05 确认 FrameStore header、归还、config 与核心/扩展分离；2026-10-07 更新完整字典、单文件 ref、已完成输出资格及命名 fork 的目录共同发布；2026-10-08 确认 FrameAddress 固定 12B 编码；2026-10-09 将批量规划器及 API 移至扩展设想，并将 MVP 设计组合收敛为核心存储与发布能力。状态：**S1 Accepted；S2–S6 Draft，两个新项目尚未创建；参考依赖拆分 Accepted**。
+日期：2026-10-03；2026-10-05 确认 FrameStore header、归还、config 与核心/扩展分离；2026-10-07 更新完整字典、单文件 ref、已完成输出资格及命名 fork 的目录共同发布；2026-10-08 确认 FrameAddress 固定 12B 编码；2026-10-09 分离批量规划器设想、收敛 MVP 组合，并增加 ForkOrigin 完整历史与全分叉设计。状态：**S1 Accepted；S2–S6 Draft，两个新项目尚未创建；参考依赖拆分 Accepted**。
 初始设计源码观察基线：`main @ 70d1009e78a73342a0c0fdc8ffed7731dec58173`；S1 验收记录的核对基线为 `f6f1eb38557863ba5ea1634844a90f0cbe5774cf`；前轮设计阅读基线为 `4175a46`，本轮租借/目录修订核对 `50e8e28`。本文档集供逐阶段细化、审阅和实施，不把文档修订视为新实现或验收。
 
 目标：**以 RBF3 的帧原子性为基础，让中层构建新状态，再发布完整根地址字典使状态生效。**
@@ -25,7 +25,8 @@ FrameAddress 首版固定编码为 12B，保持完整 uint FileId 与 SizedPtr�
 VersionStore 借入一个 data FrameStore，拥有自己的 RBF3 发布目录。CreateRef / PublishRef / CreateTag 及命名 fork 先完成本根所需的新增依赖，再同步 data ConfirmDurable，随后确认字典输出及其必要发现边界并安装内存投影；无关 Builder 未归还不阻断独立闭包的发布。应用收到成功确认后按字典加载状态。CreateBranch 只给既有 ref 加 alias、确认自己的绑定文件，不重新发布 RootMap 或调用 data 屏障。所有 Key 的业务语义由应用解释，不消费中间帧的构建顺序。
 2026-10-07 用户确认：**命名 fork 成功发布时，新 ref 与 branch 一起可见；发布前，普通查询两者都不可见。失败可以留下私有准备文件，但不会留下公开的未绑定 ref。** S4 统一 `refs/<RefId>/<RefId>.rbf` 与 `names` 容器，在 creating 内准备完成后一次目录 rename 发布；S5 的组合入口在同一容器加入初始 binding，所有后加 alias 也采用相同 names 文件表示。普通 CreateRef 仍可创建未命名 ref，手工 CreateRef+CreateBranch 仍不是事务。
 branch 名称解析和查重覆盖全部正式 ref 的 names；首查可扫描或建立可重建内存表，不承诺 O(1)，不写持久名称索引。全局名称准入依赖单 writer/driver 不交错操作；S4 Ref 读写不解释名称 codec，不增加永久 branch gate。正式目录/文件 rename 的平台资格仍待实施，Unknown 与私有残留不因共同发布而消失。
-当前值完整读取最后快照；历史从固定完成上界逆序枚举，返回结束枚举后仍可使用的自有字典。fork 复制旧字典到新 ref，rewind 追加旧字典成为新 revision，tag 冻结所选字典。RefRevision 来自完整发布/实际历史枚举，不是输出前尝试 token。跨重开书签可用 tag。
+当前值校验本地 header/初始快照并完整读取最后快照，不递归祖先；历史从固定完成上界逆序枚举，沿首帧 `ForkOrigin = 源 RefId + 源 SizedPtr` 接续前序发布前缀，返回结束枚举后仍可使用的自有字典。ForkRef / CreateBranchFromRevision 内部确认源成员、复制源字典，仍保存子初始完整快照；只传 roots 的创建是无来源起点。rewind 追加旧字典成为新 revision，tag 冻结所选字典。RefRevision 来自完整发布/实际历史枚举，不是输出前尝试 token；跨重开书签仍可用 tag。
+ListForks 扫描全部正式 ref 的 checked 首帧声明，包括匿名 ref，派生全部创建分叉图；不写持久孩子表，不据此宣称全部源历史健康。实际跳转再校验源快照与子初始字典一致。现有 RBF 逆扫只从 EOF 开始，定位旧 fork 点可能扫描源后续帧；S5 明确工作预算与成本，不假设随机起扫能力。
 输出异常停止实例并重开读取实际状态；完整快照损坏报错，不回退旧值。首版不提供通用 CAS 或精确 Unknown 尝试查询。数据闭包、工具 operationId、模拟器 RNG 和应用谱系由应用负责；[两类下游评估](reviews/2026-10-07-downstream-fit.md)未发现必须扩大核心的需求。
 
 2026-10-03 的初始裁决及失败轨迹见[历史设计审阅](reviews/2026-10-03-dialectical-review.md)；旧单流、单 active/locator、纯 batch planner，以及后来 Commit/control 草案均已被后续会话修订，不作为当前模型的实现证据。S1 已 Accepted；已确认方向见 S0，S2–S6 的剩余工程选择仍是 Draft。
@@ -36,6 +37,7 @@ branch 名称解析和查重覆盖全部正式 ref 的 names；首查可扫描�
 | --- | --- | --- |
 | 单个 RBF 文件的物理追加顺序 | RBF；S2 后端调度 | 原子帧恢复，不解释数据谱系 |
 | 同一 ref 的快照追加顺序 | S4 单文件；S5 checked 历史枚举 | 选择当前值或旧快照；不建立跨 ref 全序 |
+| ref 创建来源与继承前缀 | S4 ForkOrigin；S5 跨文件历史及 ListForks | 固定分叉点、遍历发布历史、查询全部创建分叉；不按同值去重 |
 | 应用因果/实验谱系 | 应用数据 codec | 显式引用轨迹/来源，不由 ref 历史或 data 地址推算 |
 | branch/tag 的名称唯一性 | S5 名称政策与持久记录 | 定位对象/不可变字典，不要求不同名称具有全序 |
 
@@ -72,7 +74,7 @@ flowchart LR
 | [S2 FrameStore 核心](02-framestore-core.md) | 三种追加、不透明地址与固定 12B codec、独占租借、软轮转、目录生命周期与基础耐久确认 | 新建 FrameStore 与其测试项目 | 分配器可独立使用，多个 active 恢复及重开 |
 | [S3 交错构建与耐久确认](03-framestore-interleaved-builders-and-durability.md) | 提前地址、跨文件互引、交错完成，消费 S2 核心屏障的组合资格 | FrameStore 与其测试项目 | 消费者无需管理文件 flush，预算内互引与完成可独立验收 |
 | [S4 VersionStore 字典与发布](04-versionstore-publication.md) | RootMap codec、单文件 ref、统一容器发布、数据屏障、恢复与结果证据 | 新建 VersionStore 与其测试项目 | 当前值无历史 replay；目录发布与冷重开可独立验收 |
-| [S5 历史、branch 与 tag](05-versionstore-names-and-indexes.md) | owned 历史快照、全局名称发现、alias 与原子命名 fork、分桶 tag | VersionStore 与其测试项目 | fork/rewind/tag 与历史生命周期可独立验收 |
+| [S5 历史、branch 与 tag](05-versionstore-names-and-indexes.md) | owned 跨文件历史、全分叉发现、全局名称发现、alias 与来源感知原子命名 fork、分桶 tag | VersionStore 与其测试项目 | fork/rewind/tag、链接与历史生命周期可独立验收 |
 | [S6 集成与交付](06-integration-and-delivery.md) | 第二种状态模型、公共包消费、交付边界 | examples、eng、CI；消费者接入另有明确范围 | 源码、包及消费者证据分别齐备 |
 
 S4 当前值只读所访问 ref 的末快照，S5 回溯才枚举历史。branch 冷发现/全局查重扫描正式 ref 容器及名称记录；tag 首版可扫描目标桶，不据此宣称全库 Open 或名称查找固定 O(1)。分段、随机历史读、持久索引与差分只在真实规模需要时另立实施片。
@@ -98,7 +100,7 @@ S2–S6 的 MVP 定稿、实施和验收不等待上述候选扩展的需求确�
 | V1 | S2 owned 三种追加/嵌套租借与核心 barrier + S4 CreateRef/PublishRef/ReadRef；冷重开 | 单文件 ref，完整 RootMap；S3 验证交错构建组合，不引入分段或全局日志 |
 | V2 | S3 双文件 A↔B、self-reference 与乱序完成后同时发布多个根，取消/reuse/Unknown | 本根所需依赖完成并确认，无关 Builder 可继续构建，旧/新字典不能混搭 |
 | V3 | S2 creating/active/archive、软轮转/编号恢复 + S3 多 active barrier 组合验收与进程中断 | 完成后才声明完整多文件生命周期和恢复资格 |
-| V4 | S5 历史选点、原子命名 fork、alias/全局名称发现、rewind/tag | 复用 S4 目录发布；分段/轮转、差分、随机 revision 读与名称修改后置 |
+| V4 | S5 历史选点及 ForkOrigin 接续、匿名/原子命名 fork、ListForks、alias/名称发现、rewind/tag | 复用 S4 目录发布；分段/轮转、差分、随机 revision 读与名称修改后置 |
 | V5 | S6 平台、公共包、真实消费者边界 | 包 smoke/消费者接入仍各自出证据 |
 
 两个新生产项目和两个测试项目仍分别在 S2/S4 创建；V1 可以只创建和实现这些阶段的必要部分。S6 汇总组合与交付，不垄断第一次 public API 纵向验证。

@@ -1,6 +1,6 @@
 # 下一轮工程定稿：FrameStore 与根字典发布
 
-日期：2026-10-04；2026-10-05 更新核心/扩展分离；2026-10-07 收缩 VersionStore、放宽已完成输出资格并确定命名 fork 的目录共同发布；2026-10-08 关闭基础地址宽度/字段编码选择；2026-10-09 分离批量规划器设想，并将 MVP 问题索引收敛为核心存储与发布能力。状态：**Informative / Derived；问题汇总，不是新增实施阶段或规范输入**。
+日期：2026-10-04；2026-10-05 更新核心/扩展分离；2026-10-07 收缩 VersionStore、放宽已完成输出资格并确定命名 fork 的目录共同发布；2026-10-08 关闭基础地址宽度/字段编码选择；2026-10-09 分离批量规划器设想、收敛 MVP 问题，并同步 ForkOrigin 跨文件历史与全分叉查询。状态：**Informative / Derived；问题汇总，不是新增实施阶段或规范输入**。
 输入为本轮会话和 S0–S6 的 Draft 合同。FrameStore/VersionStore 本轮仅修订文档，项目尚未创建；RBF 底座的活跃构建随机读取改进单独记录验收。S1 与 RBF1 参考隔离的已有 Accepted 资格保留原身份，不构成新模型已实施的证据。
 
 ## 已形成的方向
@@ -12,6 +12,7 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 同日追加确认：命名 fork 在私有 RefId 容器同时准备 ref 与初始 binding，flush/close 后一次目录 rename 共同发布；所有 branch aliases 放同一种 names 文件。无公开 Creating 名称或永久 branch gate，私有残留不可查询，普通 CreateRef 与手工两步仍保留。正式定义见 S0 `[S-VS-NAMED-FORK-ATOMIC]`、S4 `[S-VS-REF-DIRECTORY-PUBLISH]` 与 S5 `[S-VS-NAMED-FORK-PUBLISH]`。
 2026-10-08 用户确认：FrameAddress 首版固定编码为 12B，保持完整 uint FileId 与 SizedPtr；额外见证按明确需求引入，不把未来预留或内容 CRC 纳入基础定位合同。S0 `[S-FS-ADDRESS-FIXED12]` 与 S2 `[F-FS-FRAME-ADDRESS-12B]` 已关闭基础地址宽度和二进制字段布局；内部 struct、公开 codec 入口、文本/错误及平台验证仍为工程定稿。
 2026-10-09 用户确认：[批量规划器与 API 设想](extensions/framestore-batch-planner-candidate.md)移至独立扩展草稿，需求与协议问题不列入 MVP 工程定稿或 Ready 条件。
+同日用户要求 fork 后仍能遍历完整历史并查询全部分叉。本轮设计在 ref 首帧增加不可变 ForkOrigin（源 RefId + 源 SizedPtr），文件内顺序继续表达发布编辑历史；来源感知创建按 revision 重读源字典，ListForks 从全部正式 ref 首帧声明派生图。来源字段见 S4，跨文件定位、预算与查询资格见 S5；业务因果/merge 仍由应用解释。
 旧单 active locator、全 owner 活跃期读取禁令已被替代。2026-10-07 按用户要求延期 ref 分段/轮转；Commit/Parent、全控制日志回放、Prepared token 和 checkpoint 不再是首版前置。历史逆序枚举仍是核心功能，返回释放枚举器后可继续使用的自有字典。
 
 ## 本轮已关闭的方向问题
@@ -33,7 +34,8 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 | 发布目标是否必须经过 Commit | 直接发布 string → FrameAddress 完整字典，应用解释 Key |
 | ref 是否首版分段/轮转 | 每 ref 一个 RBF3 文件，容量硬界显式拒绝；分段为后续局部片 |
 | 当前值是否必须 replay / checkpoint | 完整读取末快照即可；无差分和派生缓存前置 |
-| Gym 历史选点是否要求 parent / 随机 revision 读 | 固定上界逆序枚举完整自有字典，够用；跨重开书签用 tag |
+| Gym 历史选点是否要求每帧 parent / 随机 revision 读 | 文件顺序 + 首帧 ForkOrigin 接续完整发布前缀；按 revision fork 内部重读，不开放随机 ReadRevision |
+| 是否需要持久反向分叉索引 | ListForks 扫全部正式首帧声明，含匿名 ref；只可派生内存图，不写源孩子表 |
 | tool-loop 是否需要存储精确尝试 token / CAS | 单 driver + 应用 phase/operationId/generation；首版重开读实际状态 |
 | 无关 Builder 是否阻断根发布 | 不阻断；应用保证本根新增依赖完成，data 先确认全部必要完成输出，根后发布 |
 | 活跃 Builder 是否阻断旧帧随机读取 | 不阻断已完成前缀内的指定地址读取；未完成/跨边界先拒绝，扫描相关资格未放宽 |
@@ -99,9 +101,10 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 
 **工程定稿：** RootMap / RefId / RefRevision 的 public 值类型、Key 编码/长度，以及消费 S2 地址 codec 的校验；VersionStore 格式门与 data StoreId 绑定；统一 RefId 容器的路径编码、私有残留、一次目录 rename 的平台入口与资格。基础地址布局和发布目录单位已确定，不再开放地址宽度或“先文件后补名字”的选择。每条记录容量用 RBF 公共尺寸 API，不承诺“总是 64B”。
 
-历史枚举固定起始完成上界、活动期间禁止同 owner mutation；返回的完整 RootMap 自有，不依附池化 frame 或枚举器。RefRevision 只从完成发布/真实枚举取得；跨重开书签用 tag，不提前设计精确尝试身份或完整成员索引。
+历史枚举固定起始完成上界，沿不可变 ForkOrigin 接续各源选中位置及其更早历史；活动期间禁止同 owner mutation，返回的完整 RootMap 自有。RefRevision 只从完成发布/真实成员 checked-read 取得；来源元数据不自动签发 checked revision。来源感知 fork 先重读源字典，在子输出前完成 data 屏障与源文件 flush；只传 roots 的创建无来源。
+工程定稿还需明确 header 来源判别/RefId 与 SizedPtr codec、跨文件 owner/枚举器释放、路径 visited、返回/定位工作预算。现有 RBF 只有 EOF 逆扫，旧 fork 点的源后缀定位可能增长，不能承诺仅按返回条数计算；无关后缀 payload 不作历史审计，已观察的结构错误仍传播。完整无来源起点、预算耗尽、取消与错误须区分。
 
-**收敛标准：** 选中非末快照，结束枚举后创建两 ref/tag/rewind；旧字典不随源 ref 更新变化。覆盖错误存储上下文、非法字段、完整坏 CRC、取消地址不能作为完成来源与中断恢复；不自动读取全部应用图或从 data 地址大小推算历史。
+**收敛标准：** 选中非末快照，结束枚举后 fork/tag/rewind；源继续更新、fork-of-fork、同值初始与源不同 revision，完整继承前缀保持正确。覆盖源真实成员、错 length、缺源/循环/字典不符、源 flush 失败、定位预算/错误和跨文件释放；不自动读取全部应用图或从 data 地址大小推算历史。
 
 ### D8：统一名称发现的成本与局部工程协议如何定稿？
 
@@ -110,6 +113,7 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 **已确认：** 每个正式 ref 容器的 names 保存同一种 branch binding，初始名称与 alias 不分两套来源；命名 fork 由一个目录共同发布，给既有 ref 的 alias 只发布一个绑定文件。S4 不读取 branch gate，S5 消费其私有初始化/目录发布步骤。所有名称创建全程串行查重，不需要正式 Creating 状态或通用日志。
 
 **实际代价：** 冷名称解析、ListBranches 与全局重名检查要遍历全部正式 ref 目录和名称记录，包括未命名 ref；不能只检查目标目录，也不能遇到一个匹配就忽略重复/坏记录/枚举错误。无需加载全部 Snapshot 历史。允许完整 checked 扫描建立可重建内存表，但它不制造发布事实、不成为持久 catalog；具体是否采用由工作集/测量决定。
+ListForks 同样覆盖全部正式 ref，但读 header/初始边界而非 names；图存在性/环检查与完整集合资格须明确。返回首帧声明边不审计每条源 ticket，不能宣称源历史健康；声明边与实际历史跳转分别验收，避免廉价图发现隐含全部历史扫描。
 
 **剩余工程定稿：** 名称比较/安全路径/hash 碰撞、统一 checked codec、扫描与预算/失败/内存表生命周期，组合创建 API 与内部准备步骤复用；目录 rename 与 alias file rename 的 no-overwrite/进程中断资格分别获取。真实实验使用 W:，记录大量未命名 ref/少量 branch 的首查成本，不将未经测量的 O(1) 名称入口列为能力。
 
@@ -145,11 +149,11 @@ S2 核心可直接围绕下表的工程问题推进；S4/S5 同样按已经收�
 | D2 / S2-Q7 | config 文件位置/格式/默认/缺失或非法值/生效时机、配额计数与短期 Append 租借 |
 | D7 / S2-Q4 | 已自动归还条件下的归档维护入口、错误与旧副本/epoch 行为 |
 | D6 / S2-Q1–Q3 | 固定 12B codec 的公开入口/验证与内部布局、格式门、路径、编号恢复、store 独占与两平台 rename 实证 |
-| D3 / S4-Q1–Q3、Q5–Q6 | RootMap/身份/codec、单文件 ref 创建和末读取、地址闭包责任示例 |
+| D3 / S4-Q1–Q3、Q5–Q6 | RootMap/身份/codec、ForkOrigin、单文件创建和末读取、源成员及确认边界 |
 | D4 / S4-Q4 | append/flush/正式 rename 的结果证据与故障签名 |
-| D8 / S5-Q1、Q4 | 全局名称发现/规模成本、统一 binding/hash/路径、alias 与命名 fork 组合发布 |
+| D8 / S5-Q1、Q4 | 全局名称/ListForks 发现与规模成本、统一 binding/hash/路径、来源感知匿名/命名创建 |
 | S5-Q3 | tag 桶初始化/codec/扫描或惰性内存表，与命名 fork 独立 |
-| S5-Q2 | 历史固定上界、owned 字典、枚举终止/预算/Dispose 与 mutation guard |
+| S5-Q2 | 跨文件完整历史、固定上界、owned 字典、定位/返回预算、终止/Dispose 与 mutation guard |
 
 这些仍须在 Ready 前形成可操作协议，但属于可由 Coding Agent 负责提出并复核的工程定稿。无需把每个默认值或集合类型都升级为新的需求讨论；FrameStore/VersionStore 仍未开始新项目实施，不宣告已冻结 codec/config 或取得平台资格。RBF 底座改进的源码/测试资格单独报告。
 
