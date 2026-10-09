@@ -1,9 +1,9 @@
 # S2：FrameStore 核心、地址与文件生命周期
 
-状态：**Draft；2026-10-05 确认首帧 header、自动归还与 config 数量上限；2026-10-07 允许活跃 Builder 期间确认和随机读取已完成输出；2026-10-08 确认地址固定 12B codec；2026-10-09 定稿资源基线、文件 header、owned 租借/归档维护、读结果/同步 inventory/audit、FileId 编号恢复、正式 active/archive 路径、FrameAddress 值/公开 codec、格式门记录/只读校验及软阈值参数/重开规则；初次空 store/正式门直接 create-only 写入与成立/返回边界，以及 owner 生命周期锁/门前 bootstrap/模式互斥已定；私有 data 初始化前缀/取消与只读保留合同已定；实际根准入已定；公开工厂、目录生命周期与 RBF 公共前缀核验已实施；Inventory/Audit 与完整 S2 系统验收待后续切片**。
+状态：**Draft；2026-10-05 确认首帧 header、自动归还与 config 数量上限；2026-10-07 允许活跃 Builder 期间确认和随机读取已完成输出；2026-10-08 确认地址固定 12B codec；2026-10-09 定稿资源基线、文件 header、owned 租借/归档维护、读结果/同步 inventory/audit、FileId 编号恢复、正式 active/archive 路径、FrameAddress 值/公开 codec、格式门记录/只读校验及软阈值参数/重开规则；初次空 store/正式门直接 create-only 写入与成立/返回边界，以及 owner 生命周期锁/门前 bootstrap/模式互斥已定；私有 data 初始化前缀/取消与只读保留合同已定；实际根准入已定；公开工厂、目录生命周期与 RBF 公共前缀核验已实施；Inventory/Audit 已实施；完整 S2 系统验收待后续切片**。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)。本阶段独立于发布和命名层。
 
-当前代码与验证边界见[公开持久化闭环记录](02-framestore-persistence-implementation.md)，前片格式/运行内核证据见[首个源码切片](02-framestore-core-implementation.md)；下文仍是完整 S2 合同，Inventory/Audit 等尚未实施。
+当前代码与验证边界见[同步物理检查记录](02-framestore-inspection-implementation.md)及[公开持久化闭环记录](02-framestore-persistence-implementation.md)，前片格式/运行内核证据见[首个源码切片](02-framestore-core-implementation.md)；下文仍是完整 S2 合同，不以功能实现替代完整系统验收。
 
 ## 本阶段目标
 
@@ -165,13 +165,14 @@ Inventory MUST 遍历全部实际正式 active/archive 文件，各文件沿公�
 
 **资源与终止。** raw RBF sequence/枚举器只留在方法栈内，不把 ref struct 放入 class 或逃逸到延迟结果。当前临时扫描句柄保持到该文件结束，并登记在 owner 可清理的单一槽位；不积累历史 reader。正常文件结束、错误清理及 owner Dispose 都 MUST 在调用 public Dispose 前先取出并清空临时槽位，关闭抛错也不重试。owner Dispose 仍是合法受控清理，先失效 owner，再逐项尝试临时及其他 owned 资源；扫描 finally 只清理尚未取出的临时句柄，不重复 Dispose。每次 visitor 返回后、继续 I/O 前及最终成功返回前 MUST 重检 owner disposed/shared fault 与 cancellationToken；回调在最后一项 Dispose owner 或取消 token 也不能获得全库成功。
 目录迭代、文件打开/header 检查、每次 MoveNext/完整读及回调之间检查 cancellationToken；取消抛 OperationCanceledException，清理仍继续。不承诺打断正在执行的一次同步 I/O/CRC 或限制其耗时、单帧 buffer 与 RSS。每个 raw MoveNext=false MUST 检查 TerminationError，非 null 原样返回失败而非空/正常 EOF。文件定位、目录枚举、header/帧错误、I/O、取消或 visitor 异常均不得返回成功；不会跳过坏文件、找后继帧或自动修复 archive。
+“最后释放控制锁”针对 owner 台账中的临时扫描 reader、retained 数据文件及控制句柄。目录枚举器由同步调用栈清理；回调 Dispose owner 后，栈中枚举器只允许释放，MUST NOT 再次推进、访问新目录项或继续校验。调用方可以在 Dispose 返回后立即重开同一 store；旧扫描只收尾并拒绝成功，不再观察新 owner 的目录变化。
 正常成功 Result 的 long MUST 为完整访问/校验的用户帧总数，checked 累加，且只有全部正式目录枚举、全部文件 EOF、必要关闭及最终 guard 均通过后才能返回。visitor 已接收的前缀或单文件报告不等于全库完成。无正常早停 bool、partial-success 或 Complete/Stopped 枚举；需要取消时使用 token，visitor 自身异常直接传播。普通读/扫描错误 Result、纯读异常、visitor 异常及取消不自行 fault 健康 writer；actual owned 关闭/释放失败按 `[S-FS-OWNED-FAULT]` 停用 owner 并汇总，主异常优先。所有退出路径的 finally MUST 清除 ScanActive，即使清理抛错。
 
 **覆盖与成本。** 文件发现、规范路径/重复编号及创建残留资格消费本阶段目录协议，不在读 API 建立第二份 manifest。成本含实际目录项、全部文件 header 与 framing；Audit 再含全部用户 payload bytes，单次只保留当前文件 reader 和当前完整帧，visitor 自行累积结果的成本另计。无持久应有集合且允许编号缺口时，只能报告实际发现/定位中已观察的缺失；无法凭剩余目录证明一个已整体消失、没有已知引用的历史文件曾存在。全库完成只覆盖本次实际正式集合，不等于所有历史依赖健康或“所有曾发布文件未丢失”。正常分页、暂停/恢复 cursor、硬 I/O/内存预算及持续写入期间的全库扫描，等真实消费者要求这些能力后再设计。
 
 本合同复用当前 [RBF pooled 结果](../../src/Rbf/RbfPooledFrame.cs)、[栈内正向扫描](../../src/Rbf/RbfForwardEnumerator.cs)及[扫描信任级别测试](../../tests/Rbf.Tests/Internal/RbfScanForwardTests.cs)；这些是底座源码/测试证据，不是 FrameStore 实施验收。
 
-三种追加能力已确认，下面仅为签名候选，不是已存在的 public API：
+三种追加入口均已实施，公开签名如下：
 
 ```csharp
 AteliaResult<FrameAddress> Append(
@@ -187,7 +188,7 @@ FrameBuilder BeginAppend(int payloadLength, int tailMetaLength, out FrameAddress
 
 ### spec [A-FS-OWNED-BUILDER] Builder 与 Writer 共用一次性租借身份
 
-首版 owned façade 使用 readonly struct，签名如下；这些类型已在首个源码切片实施，当前由内部运行核心签发，公开 store 工厂尚未实施：
+首版 owned façade 使用 readonly struct，签名如下；这些类型已在首个源码切片实施，并由公开 store 工厂取得的 owner 签发：
 
 ```csharp
 public readonly struct FrameBuilder : IDisposable {

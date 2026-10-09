@@ -27,4 +27,8 @@ using (var store = Store.OpenReadOnly(rootPath)) {
 
 成功的 `FrameRead` 独立拥有 buffer，需调用方 Dispose，可在 store 关闭后使用；已取得的 span 不得越过 FrameRead.Dispose。地址通过 `FrameAddress.TryWrite/TryRead` 的唯一 12B codec 保存，必须同时知道所属 store；不公开裸 RBF writer 或路径导入。
 
-本片实现与测试证据见[公开持久化闭环](../../docs/FrameStore-VersionStore/02-framestore-persistence-implementation.md)，前片内核证据见[首个源码切片](../../docs/FrameStore-VersionStore/02-framestore-core-implementation.md)。Inventory/Audit 尚未实施；进程中断、资源/规模和完整 S2 Ready 审核仍待后续。源码、平台测试与包消费资格分别判断。
+`Inventory(visitor)` 同步返回实际正式集合的用户帧元信息，检查 framing/TrailerCRC；`Audit(visitor)` 额外完整检查每帧 CRC，逐文件报告 24B header 的独立副本和用户帧数。两者含用户 tag=0 与墓碑，只跳过经过检查的首帧 header；成功 Result 的 long 是用户帧总数。文件顺序不定义业务历史，实际集合审计不证明业务引用闭包或所有历史文件仍存在。
+
+扫描要求零活跃 Builder。回调中可以 ReadFrame，不能 Append、BeginAppend、ConfirmDurable 或递归扫描；这些拒绝不会停用 owner。visitor 异常直接传播，CancellationToken 取消抛 OperationCanceledException；已交付的前缀不等于扫描成功。回调可以 Dispose owner，但整次扫描随之拒绝成功返回。FrameInfo 不持有 reader，FrameFileAudit 的 header 副本可跨 owner 生命周期保留。
+
+本片实现与测试证据见[同步物理检查](../../docs/FrameStore-VersionStore/02-framestore-inspection-implementation.md)，此前证据见[公开持久化闭环](../../docs/FrameStore-VersionStore/02-framestore-persistence-implementation.md)及[首个源码切片](../../docs/FrameStore-VersionStore/02-framestore-core-implementation.md)。真实进程中断、资源/规模和完整 S2 审核仍待后续。源码、平台测试与包消费资格分别判断。

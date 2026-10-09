@@ -1,6 +1,6 @@
 # FrameStore / VersionStore 分阶段设计入口
 
-日期：2026-10-03；2026-10-05 确认 FrameStore header、归还、config 与核心/扩展分离；2026-10-07 更新完整字典、单文件 ref、已完成输出资格及命名 fork 的目录共同发布；2026-10-08 确认 FrameAddress 固定 12B 编码；2026-10-09 分离批量规划器设想、收敛 MVP 组合，增加 ForkOrigin 完整历史与全分叉设计，定稿资源、header、owned 租借/维护/读取及同步历史 visitor。状态：**S1 Accepted；S2–S6 Draft；FrameStore 已实施公开持久化闭环，Inventory/Audit 尚未实施，VersionStore 尚未创建；参考依赖拆分 Accepted**。
+日期：2026-10-03；2026-10-05 确认 FrameStore header、归还、config 与核心/扩展分离；2026-10-07 更新完整字典、单文件 ref、已完成输出资格及命名 fork 的目录共同发布；2026-10-08 确认 FrameAddress 固定 12B 编码；2026-10-09 分离批量规划器设想、收敛 MVP 组合，增加 ForkOrigin 完整历史与全分叉设计，定稿资源、header、owned 租借/维护/读取及同步历史 visitor。状态：**S1 Accepted；S2–S6 Draft；FrameStore 已实施公开持久化闭环，Inventory/Audit 已实施，VersionStore 尚未创建；参考依赖拆分 Accepted**。
 初始设计源码观察基线：`main @ 70d1009e78a73342a0c0fdc8ffed7731dec58173`；S1 验收记录的核对基线为 `f6f1eb38557863ba5ea1634844a90f0cbe5774cf`；前轮设计阅读基线为 `4175a46`，本轮租借/目录修订核对 `50e8e28`。本文档集供逐阶段细化、审阅和实施，不把文档修订视为新实现或验收。
 
 目标：**以 RBF3 的帧原子性为基础，让中层构建新状态，再发布完整根地址字典使状态生效。**
@@ -22,7 +22,7 @@ FrameStore 格式门记录/读取已定于 S2：`framestore.format` 是版本 + 
 2026-10-07 用户确认：**ConfirmDurable 确认调用时已经完成的全部必要输出；未完成 Builder 保持原状，不因此次确认而获得完成或耐久资格。** leased 文件中的旧完成输出也必须覆盖，Builder 后续完成重新登记为未确认；flush 失败停用整个 owner 及其他 Builder/Writer。
 **Builder 活跃期间，允许随机读取已经完成的文件前缀；正在构建的新帧仍不可读。** RBF 指定 ticket 随机入口的 Building 范围检查包含帧后 Fence；普通读取仍校验内容、生命周期和共享 fault，不扩大扫描相关入口或并发合同。正式核心要求见 S2。
 成功 EndAppend 自动归还文件和数量配额，不等后续 Dispose。S2 定稿可选 framestore.config.json、默认 MaxOutstandingBuilders=32、严格校验、可写打开一次读取且实例固定；超限 Begin 立即拒绝。完整 Append 不占 Builder 配额，单 driver 最多另占一个短期租借，不引入精确总内存账本。首版保留可写 active 句柄并显式使用 RbfCacheMode.Off，archive 随机读按操作开关；成本按实际 active 和构建/读结果占用计算，降低配置不抹掉旧高峰。
-S2 已定 ReadFrame 返回独立拥有 buffer 的 FrameRead，关闭 reader/owner 后仍可使用至结果 Dispose。Inventory/Audit 使用同步 visitor：分别提供真实主链结构发现和全部实际帧完整 CRC 检查，回调期间拒绝同 owner mutation、允许随机读取；不公开扫描器或延迟 Reader-bound 结果，不把前缀回调、结构扫描或物理 CRC 健康当作业务闭包健康。
+同步物理检查的源码与验证边界见[实施记录](02-framestore-inspection-implementation.md)。S2 已定 ReadFrame 返回独立拥有 buffer 的 FrameRead，关闭 reader/owner 后仍可使用至结果 Dispose。Inventory/Audit 使用同步 visitor：分别提供真实主链结构发现和全部实际帧完整 CRC 检查，回调期间拒绝同 owner mutation、允许随机读取；不公开扫描器或延迟 Reader-bound 结果，不把前缀回调、结构扫描或物理 CRC 健康当作业务闭包健康。
 S2 已定稿一次性共享 Lease 与 owned Builder/Writer：成功完成只登记并归还；下一合法 Append/Begin、ConfirmDurable 或可写 Open 统一归档停止文件。已完成帧不因维护失败撤销，可纠正拒绝保留租借，无法辨相位的委派异常保守停用 owner；Dispose 只尝试清理全部资源。
 编号恢复已定为完整流式正式名称检查，取 active/archive 实际最大 FileId，只保留内存 max 和既有 active 台账。空桶/私有槽不提供已发布编号，缺口不补填，uint 耗尽仅拒绝需新文件的请求；archive 内容仍按需校验。正式路径已定为 `active/<8位完整FileId>.rbf` 和 `archive/<6位bucket>/<同一FileId>.rbf`，严格小写 ASCII hex、非零编号、桶范围/对应及全部直接项语法；唯一细节见 S2。冷打开名称成本为 O(active 文件 + archive 桶 + archive 文件)，不保留计数器或全历史 ID 表。owner 锁、实际根准入/组件类型及私有残留合同已进入公开目录生命周期实现；两平台测试与剩余中断/资源/规模资格见[持久化闭环记录](02-framestore-persistence-implementation.md)。
 循环引用通过多个已知尺寸 Builder 的提前地址形成。FrameStore core 与交错构建/耐久确认可以独立定稿、实施和验收。

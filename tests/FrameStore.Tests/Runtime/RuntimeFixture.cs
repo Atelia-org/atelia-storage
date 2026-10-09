@@ -61,6 +61,19 @@ internal sealed class TestFiles : IFrameStoreFiles {
     internal Exception? UnownedReadFailure;
     internal Exception? UnownedCloseFailure;
     internal int UnownedReadCalls;
+    internal Exception? ScanVisitFailure;
+    internal Exception? ScanOpenFailure;
+    internal Exception? ScanHeaderFailure;
+    internal Exception? ScanCloseFailure;
+    internal Exception? ScanReadFailure;
+    internal AteliaError? ScanHeaderError;
+    internal AteliaError? ScanReadError;
+    internal Action? BeforeScanCompletion;
+    internal int ScanVisitCalls;
+    internal int ScanOpenCalls;
+    internal int ScanHeaderCalls;
+    internal readonly List<TrackedRbfFile> Scanned = [];
+    internal StoreIdentity Identity => _identity;
 
     internal TestFiles(string root, List<string> operations) {
         _root = root;
@@ -158,6 +171,63 @@ internal sealed class TestFiles : IFrameStoreFiles {
         if (failedResult is not null) { return failedResult; }
         return output!;
     }
+
+    public AteliaError? VisitScanFiles(Func<uint, bool, AteliaError?> visit, Action checkpoint, Action markOwnedCleanupFault) {
+        ScanVisitCalls++;
+        _operations.Add("scan:visit");
+        checkpoint();
+        if (ScanVisitFailure is { } failure) { throw failure; }
+        foreach (string path in Directory.EnumerateFiles(Path.Combine(_root, FrameStorePaths.ActiveDirectoryName))) {
+            checkpoint();
+            if (!FrameStorePaths.TryParseFileName(Path.GetFileName(path), out uint fileId)) {
+                throw new InvalidDataException("Invalid runtime fixture file name.");
+            }
+            if (visit(fileId, false) is { } visitError) { return visitError; }
+            checkpoint();
+        }
+        checkpoint();
+        foreach (string bucket in Directory.EnumerateDirectories(Path.Combine(_root, FrameStorePaths.ArchiveDirectoryName))) {
+            checkpoint();
+            foreach (string path in Directory.EnumerateFiles(bucket)) {
+                checkpoint();
+                if (!FrameStorePaths.TryParseArchiveFileName(Path.GetFileName(bucket), Path.GetFileName(path), out uint fileId)) {
+                    throw new InvalidDataException("Invalid runtime fixture archive name.");
+                }
+                if (visit(fileId, true) is { } visitError) { return visitError; }
+                checkpoint();
+            }
+        }
+        checkpoint();
+        // This test-only hook runs after the backend's last check to exercise the core's final success guard.
+        BeforeScanCompletion?.Invoke();
+        return null;
+    }
+
+    public IRbfFile OpenScanFile(uint fileId, bool archived) {
+        ScanOpenCalls++;
+        _operations.Add($"scan:open:{fileId}");
+        if (ScanOpenFailure is { } failure) { throw failure; }
+        IRbfFile? file = RbfFile.OpenReadOnlyExisting(archived ? ArchivePath(fileId) : ActivePath(fileId), RbfCacheMode.Off);
+        try {
+            var tracked = new TrackedRbfFile(fileId, file, _operations) {
+                DisposeFailure = ScanCloseFailure,
+                ReadFailure = ScanReadFailure,
+                ReadError = ScanReadError
+            };
+            Scanned.Add(tracked);
+            file = null;
+            return tracked;
+        }
+        finally { file?.Dispose(); }
+    }
+
+    public AteliaResult<SizedPtr> CheckScanHeader(IRbfFile file, uint fileId) {
+        ScanHeaderCalls++;
+        _operations.Add($"scan:header:{fileId}");
+        if (ScanHeaderFailure is { } failure) { throw failure; }
+        if (ScanHeaderError is { } error) { return error; }
+        return FrameHeaderReader.Check(file, _identity, fileId);
+    }
 }
 
 /// <summary>薄装饰器仅记录/注入 public 调用；全部正常存储行为由真实 RBF handle 完成。</summary>
@@ -168,11 +238,15 @@ internal sealed class TrackedRbfFile(uint fileId, IRbfFile inner, List<string> o
     internal int FlushCalls;
     internal int DisposeCalls;
     internal int ReadCalls;
+    internal int ReadFrameCalls;
+    internal int ScanForwardCalls;
     internal Exception? AppendFailure;
     internal Exception? BeginFailure;
     internal Exception? FlushFailure;
     internal Exception? DisposeFailure;
     internal Exception? TailOffsetFailure;
+    internal Exception? ReadFailure;
+    internal AteliaError? ReadError;
     internal RbfFrameBuilder LastBuilder;
 
     public RbfFormat Format => Inner.Format;
@@ -199,6 +273,8 @@ internal sealed class TrackedRbfFile(uint fileId, IRbfFile inner, List<string> o
 
     public AteliaResult<RbfPooledFrame> ReadPooledFrame(SizedPtr ptr) {
         ReadCalls++;
+        if (ReadFailure is { } failure) { throw failure; }
+        if (ReadError is { } error) { return error; }
         return Inner.ReadPooledFrame(ptr);
     }
 
@@ -216,9 +292,15 @@ internal sealed class TrackedRbfFile(uint fileId, IRbfFile inner, List<string> o
         if (DisposeFailure is { } error) { throw error; }
     }
 
-    public AteliaResult<RbfFrame> ReadFrame(SizedPtr ptr, Span<byte> buffer) => Inner.ReadFrame(ptr, buffer);
+    public AteliaResult<RbfFrame> ReadFrame(SizedPtr ptr, Span<byte> buffer) {
+        ReadFrameCalls++;
+        return Inner.ReadFrame(ptr, buffer);
+    }
     public RbfReverseSequence ScanReverse(bool showTombstone = false) => Inner.ScanReverse(showTombstone);
-    public RbfForwardSequence ScanForward(bool showTombstone = false) => Inner.ScanForward(showTombstone);
+    public RbfForwardSequence ScanForward(bool showTombstone = false) {
+        ScanForwardCalls++;
+        return Inner.ScanForward(showTombstone);
+    }
     public AteliaResult<RbfScanBoundary> GetScanBoundaryAfter(SizedPtr ticket) => Inner.GetScanBoundaryAfter(ticket);
     public AteliaResult<RbfForwardSequence> ScanForward(RbfScanBoundary boundary, bool showTombstone = false) => Inner.ScanForward(boundary, showTombstone);
     public long GetPhysicalOffsetImmediatelyAfter(SizedPtr ticket) => Inner.GetPhysicalOffsetImmediatelyAfter(ticket);

@@ -4,6 +4,8 @@
 
 状态：**本片已完成源码验收；S2 仍为 Draft，尚未实施 Inventory/Audit 或完成全部系统资格。**
 
+后续进展：Inventory/Audit 已在[同步物理检查切片](02-framestore-inspection-implementation.md)实施。本文保留本片当时的范围与测试身份。
+
 ## 接口与所有权
 
 公开 `Atelia.FrameStore.FrameStore` 是唯一目录工厂入口。Create/Open 接受已定单一 `rotationThresholdBytes`，OpenReadOnly 不消费写策略；StoreId 以只读的 16 个 opaque bytes 交付，IsReadOnly 表示访问模式，RecoveryReports 按 FileId 保留本次可写打开的 RBF 物理恢复诊断。诊断不证明业务发布或上次调用成功。

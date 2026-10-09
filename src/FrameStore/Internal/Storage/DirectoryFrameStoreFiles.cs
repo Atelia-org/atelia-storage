@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Atelia.Data;
 using Atelia.FrameStore.Internal.Admission;
 using Atelia.FrameStore.Internal.Format;
 using Atelia.FrameStore.Internal.Platform;
@@ -117,44 +118,90 @@ internal sealed class DirectoryFrameStoreFiles : IFrameStoreFiles {
 
     internal FrameStoreDiscovery DiscoverFormalFiles() {
         var active = new List<uint>();
-        var activeIds = new HashSet<uint>();
         uint max = 0;
-        EnumerateDirect(Path.Combine(_root, FrameStorePaths.ActiveDirectoryName), path => {
-            string name = Path.GetFileName(path);
-            if (!FrameStorePaths.TryParseFileName(name, out uint id)) { throw InvalidEntry(name); }
-            FrameStorePlatform.RequireEnumeratedFile(path);
-            if (!activeIds.Add(id)) { throw new InvalidDataException("An active FileId occurs more than once."); }
-            active.Add(id);
+        _ = VisitFormalFiles((id, archived) => {
+            if (!archived) { active.Add(id); }
             max = Math.Max(max, id);
-        });
-        EnumerateDirect(Path.Combine(_root, FrameStorePaths.ArchiveDirectoryName), bucketPath => {
-            string bucketName = Path.GetFileName(bucketPath);
-            if (!FrameStorePaths.TryParseBucketName(bucketName, out _)) { throw InvalidEntry(bucketName); }
-            FrameStorePlatform.RequireEnumeratedDirectory(bucketPath);
-            FrameStorePlatform.RequireSameFileSystem(_root, bucketPath);
-            EnumerateDirect(bucketPath, path => {
-                string name = Path.GetFileName(path);
-                if (!FrameStorePaths.TryParseArchiveFileName(bucketName, name, out uint id)) { throw InvalidEntry(name); }
-                FrameStorePlatform.RequireEnumeratedFile(path);
-                if (activeIds.Contains(id)) { throw new InvalidDataException($"FileId {id} occurs in both active and archive."); }
-                max = Math.Max(max, id);
-            });
+            return null;
         });
         active.Sort();
         return new FrameStoreDiscovery(active, max);
     }
 
+    /// <summary>重新发现实际正式集合；私有槽资格只读检查，逐文件回调不累积历史 ID。</summary>
+    public AteliaError? VisitScanFiles(Func<uint, bool, AteliaError?> visit, Action checkpoint, Action markOwnedCleanupFault) {
+        ArgumentNullException.ThrowIfNull(visit);
+        ArgumentNullException.ThrowIfNull(checkpoint);
+        ArgumentNullException.ThrowIfNull(markOwnedCleanupFault);
+        uint max = 0;
+        // Complete name qualification and its cleanup precede private-slot qualification or content I/O.
+        _ = VisitFormalFiles((id, _) => {
+            max = Math.Max(max, id);
+            return null;
+        }, checkpoint, markOwnedCleanupFault);
+        QualifyPrivateCreation(max, readOnly: true, checkpoint, markOwnedCleanupFault);
+        return VisitFormalFiles(visit, checkpoint, markOwnedCleanupFault);
+    }
+
+    /// <summary>名称资格由共同发现取得；正常返回即把尚未检查 header 的只读 Off handle 交给 core。</summary>
+    public IRbfFile OpenScanFile(uint fileId, bool archived) {
+        string path = archived ? ArchivePath(fileId) : ActivePath(fileId);
+        // Avoid re-enumerating the parent for each historical file after checked name discovery.
+        FrameStorePlatform.RequireEnumeratedFile(path);
+        return RbfFile.OpenReadOnlyExisting(path, RbfCacheMode.Off);
+    }
+
+    public AteliaResult<SizedPtr> CheckScanHeader(IRbfFile file, uint fileId) =>
+        FrameHeaderReader.Check(file, _identity, fileId);
+
+    private AteliaError? VisitFormalFiles(Func<uint, bool, AteliaError?> visit,
+        Action? checkpoint = null, Action? markOwnedCleanupFault = null) {
+        var activeIds = new HashSet<uint>();
+        var failedResult = EnumerateDirect(Path.Combine(_root, FrameStorePaths.ActiveDirectoryName), path => {
+            string name = Path.GetFileName(path);
+            if (!FrameStorePaths.TryParseFileName(name, out uint id)) { throw InvalidEntry(name); }
+            checkpoint?.Invoke();
+            FrameStorePlatform.RequireEnumeratedFile(path);
+            checkpoint?.Invoke();
+            if (!activeIds.Add(id)) { throw new InvalidDataException("An active FileId occurs more than once."); }
+            return visit(id, false);
+        }, checkpoint, markOwnedCleanupFault);
+        if (failedResult is not null) { return failedResult; }
+        return EnumerateDirect(Path.Combine(_root, FrameStorePaths.ArchiveDirectoryName), bucketPath => {
+            string bucketName = Path.GetFileName(bucketPath);
+            if (!FrameStorePaths.TryParseBucketName(bucketName, out _)) { throw InvalidEntry(bucketName); }
+            checkpoint?.Invoke();
+            FrameStorePlatform.RequireEnumeratedDirectory(bucketPath);
+            checkpoint?.Invoke();
+            FrameStorePlatform.RequireSameFileSystem(_root, bucketPath);
+            checkpoint?.Invoke();
+            return EnumerateDirect(bucketPath, path => {
+                string name = Path.GetFileName(path);
+                if (!FrameStorePaths.TryParseArchiveFileName(bucketName, name, out uint id)) { throw InvalidEntry(name); }
+                checkpoint?.Invoke();
+                FrameStorePlatform.RequireEnumeratedFile(path);
+                checkpoint?.Invoke();
+                if (activeIds.Contains(id)) { throw new InvalidDataException($"FileId {id} occurs in both active and archive."); }
+                return visit(id, true);
+            }, checkpoint, markOwnedCleanupFault);
+        }, checkpoint, markOwnedCleanupFault);
+    }
+
     /// <summary>完整正式发现之后、任何恢复之前裁决唯一私有项；只读保留，可写只删合格项。</summary>
-    internal void QualifyPrivateCreation(uint maxPublishedFileId, bool readOnly) {
+    internal void QualifyPrivateCreation(uint maxPublishedFileId, bool readOnly,
+        Action? checkpoint = null, Action? markOwnedCleanupFault = null) {
         string? candidate = null;
         uint candidateId = 0;
         EnumerateDirect(Path.Combine(_root, CreatingDirectoryName), path => {
             string name = Path.GetFileName(path);
             if (candidate is not null || !FrameStorePaths.TryParseFileName(name, out uint id)) { throw InvalidEntry(name); }
+            checkpoint?.Invoke();
             FrameStorePlatform.RequireEnumeratedFile(path);
+            checkpoint?.Invoke();
             candidate = path;
             candidateId = id;
-        });
+            return null;
+        }, checkpoint, markOwnedCleanupFault);
         if (candidate is null) { return; }
         if (maxPublishedFileId == uint.MaxValue || candidateId != checked(maxPublishedFileId + 1)) {
             throw new InvalidDataException("The private creation FileId is not the next formal FileId.");
@@ -162,14 +209,19 @@ internal sealed class DirectoryFrameStoreFiles : IFrameStoreFiles {
         FileStream? stream = null;
         CleanupErrors errors = default;
         try {
+            checkpoint?.Invoke();
             stream = new FileStream(candidate, FileMode.Open, FileAccess.Read, FileShare.Read);
+            checkpoint?.Invoke();
             long length = stream.Length;
+            checkpoint?.Invoke();
             if (length < 0 || length > FileHeaderCodec.InitializationBoundary) {
                 throw new InvalidDataException("The private creation file exceeds the initialization boundary.");
             }
             Span<byte> bytes = stackalloc byte[checked((int)FileHeaderCodec.InitializationBoundary)];
             Span<byte> actual = bytes[..checked((int)length)];
+            checkpoint?.Invoke();
             stream.ReadExactly(actual);
+            checkpoint?.Invoke();
             Span<byte> header = stackalloc byte[FileHeaderCodec.PayloadSize];
             FileHeaderCodec.TryWrite(_identity, candidateId, header);
             if (!RbfFile.IsInitialFramePrefix(actual, 0, header)) {
@@ -177,9 +229,13 @@ internal sealed class DirectoryFrameStoreFiles : IFrameStoreFiles {
             }
         }
         catch (Exception error) { errors.Add(error); }
-        CloseOwned(ref stream, ref errors);
+        CloseOwned(ref stream, ref errors, markOwnedCleanupFault);
         errors.ThrowIfAny();
-        if (!readOnly) { FrameStorePlatform.DeleteFile(candidate); }
+        checkpoint?.Invoke();
+        if (!readOnly) {
+            FrameStorePlatform.DeleteFile(candidate);
+            checkpoint?.Invoke();
+        }
     }
 
     internal IRbfFile OpenQualifiedActive(uint fileId, out RbfTailRecoveryReport recovery) {
@@ -334,29 +390,56 @@ internal sealed class DirectoryFrameStoreFiles : IFrameStoreFiles {
     private static InvalidDataException InvalidEntry(string name) => new($"Unexpected FrameStore directory entry '{name}'.");
 
     private static void EnumerateDirect(string directory, Action<string> visit) {
+        _ = EnumerateDirect(directory, path => {
+            visit(path);
+            return null;
+        });
+    }
+
+    private static AteliaError? EnumerateDirect(string directory, Func<string, AteliaError?> visit,
+        Action? checkpoint = null, Action? markOwnedCleanupFault = null) {
         // Root/layout or an outer actual enumeration has already established exact component spelling.
-        FrameStorePlatform.RequireEnumeratedDirectory(directory);
         IEnumerator<string>? enumerator = null;
         CleanupErrors errors = default;
+        AteliaError? failedResult = null;
         try {
+            checkpoint?.Invoke();
+            FrameStorePlatform.RequireEnumeratedDirectory(directory);
+            checkpoint?.Invoke();
             enumerator = Directory.EnumerateFileSystemEntries(directory, "*", new EnumerationOptions {
                 AttributesToSkip = 0,
                 IgnoreInaccessible = false,
                 RecurseSubdirectories = false,
                 ReturnSpecialDirectories = false
             }).GetEnumerator();
-            while (enumerator.MoveNext()) { visit(enumerator.Current); }
+            checkpoint?.Invoke();
+            while (true) {
+                checkpoint?.Invoke();
+                bool hasNext = enumerator.MoveNext();
+                checkpoint?.Invoke();
+                if (!hasNext) { break; }
+                failedResult = visit(enumerator.Current);
+                if (failedResult is not null) { break; }
+                checkpoint?.Invoke();
+            }
         }
         catch (Exception error) { errors.Add(error); }
-        CloseOwned(ref enumerator, ref errors);
+        CloseOwned(ref enumerator, ref errors, markOwnedCleanupFault);
         errors.ThrowIfAny();
+        if (failedResult is null) { checkpoint?.Invoke(); }
+        return failedResult;
     }
 
-    private static void CloseOwned<T>(ref T? slot, ref CleanupErrors errors) where T : class, IDisposable {
+    private static void CloseOwned<T>(ref T? slot, ref CleanupErrors errors,
+        Action? markOwnedCleanupFault = null) where T : class, IDisposable {
         var resource = slot;
         slot = null;
         if (resource is null) { return; }
         try { resource.Dispose(); }
-        catch (Exception error) { errors.Add(error); }
+        catch (Exception error) {
+            errors.Add(error);
+            try { markOwnedCleanupFault?.Invoke(); }
+            catch (Exception faultError) { errors.Add(faultError); }
+        }
     }
 }

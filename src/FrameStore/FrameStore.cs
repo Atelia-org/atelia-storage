@@ -63,6 +63,23 @@ public sealed class FrameStore : IDisposable {
     /// <summary>完整校验并读取一帧；成功结果独立拥有 buffer，由调用方释放。</summary>
     public AteliaResult<FrameRead> ReadFrame(FrameAddress address) => _core.ReadFrame(address);
 
+    /// <summary>同步访问实际正式集合中的用户帧元信息，成功返回用户帧总数。</summary>
+    /// <remarks>
+    /// 检查文件 header 与用户帧结构，不校验用户 PayloadCRC。包含墓碑；文件顺序不代表业务顺序。
+    /// 要求没有活跃 Builder；回调可随机读或 Dispose owner，不能追加、确认或递归扫描。
+    /// 取消或回调异常会终止扫描；已交付前缀不表示全库成功。
+    /// </remarks>
+    public AteliaResult<long> Inventory(Action<FrameInfo> visitor, CancellationToken cancellationToken = default) =>
+        _core.Inventory(visitor, cancellationToken);
+
+    /// <summary>完整校验全部实际正式帧，逐文件回调，成功返回用户帧总数。</summary>
+    /// <remarks>
+    /// 包含墓碑；仅在文件正常 EOF 和必要 reader 关闭成功后回调。报告不证明业务引用闭包或发布。
+    /// 准入、重入和取消规则与 Inventory 相同；最后一次回调关闭 owner 或取消也不能返回成功。
+    /// </remarks>
+    public AteliaResult<long> Audit(Action<FrameFileAudit> visitor, CancellationToken cancellationToken = default) =>
+        _core.Audit(visitor, cancellationToken);
+
     /// <summary>同步确认本次调用前全部必要已完成输出；不完成或取消活跃 Builder。</summary>
     public void ConfirmDurable() => _core.ConfirmDurable();
 

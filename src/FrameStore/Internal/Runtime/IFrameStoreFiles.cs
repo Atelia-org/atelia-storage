@@ -24,4 +24,17 @@ internal interface IFrameStoreFiles {
     /// 纯读取错误或异常不调用它。该回调不是公开扩展点。
     /// </summary>
     AteliaResult<FrameRead> ReadUnowned(FrameAddress address, Action markOwnedCleanupFault);
+
+    /// <summary>
+    /// 完整访问实际正式 active/archive 集合，沿用目录与 creating 的只读资格；不恢复、清理或归档。
+    /// 每次目录 I/O 前后调用 checkpoint；visitor 返回错误即停止，原样返回该错误。
+    /// 仅实际拥有的目录枚举器或 creating 资格 reader 释放失败调用 markOwnedCleanupFault。
+    /// </summary>
+    AteliaError? VisitScanFiles(Func<uint, bool, AteliaError?> visit, Action checkpoint, Action markOwnedCleanupFault);
+
+    /// <summary>打开指定正式位置的 CacheMode.Off 只读句柄；正常返回后由 core 单槽拥有。</summary>
+    IRbfFile OpenScanFile(uint fileId, bool archived);
+
+    /// <summary>在同一已拥有句柄上完整检查首帧身份/header，并返回应从用户扫描省略的唯一首 ticket。</summary>
+    AteliaResult<Atelia.Data.SizedPtr> CheckScanHeader(IRbfFile file, uint fileId);
 }
