@@ -25,6 +25,8 @@ pooled读取的唯一失败释放及RBF3 total≤8KiB打包输出后续修复已
 
 RBF 是"二进制信封"：只关心如何安全封装 payload，不解释 payload 语义。
 
+`RbfFile.IsInitialFramePrefix` 提供纯、有界的 RBF3 初始单帧前缀兼容核验，合同见[专门规范](rbf-initial-frame-prefix.md)。该入口不执行 I/O/恢复，也不单独授权上层清理私有文件。
+
 **设计原则**：
 - 上层只需依赖本文档，无需了解 RBF 内部实现细节
 - 对外接口以门面 `IRbfFile` 为中心，管理资源生命周期并提供读写能力

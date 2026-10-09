@@ -1,6 +1,6 @@
 # S6：消费者验证、公共包与交付
 
-状态：**Draft；2026-10-07 同步完整字典、单文件 ref、命名 fork 的目录共同发布与两类下游评估；2026-10-09 同步 ForkOrigin、跨文件历史与全分叉验收；FrameStore 已建立源码骨架和关键局部实现；本阶段端到端集成、包发布和消费者切换未执行**。
+状态：**Draft；2026-10-07 同步完整字典、单文件 ref、命名 fork 的目录共同发布与两类下游评估；2026-10-09 同步 ForkOrigin、跨文件历史与全分叉验收；FrameStore 已实施公开持久化闭环，Inventory/Audit 尚未实施；本阶段端到端集成、包发布和消费者切换未执行**。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。
 本阶段验证前序合同的组合，不作为前序层运行正确性的反向依赖。
 依赖 S5 的历史选点与命名核心；首版不纳入 ref 分段/轮转、差分/checkpoint、名称修改或精确发布尝试查询。

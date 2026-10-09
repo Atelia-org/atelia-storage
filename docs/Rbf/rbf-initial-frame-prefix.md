@@ -1,6 +1,6 @@
 # RBF3：有界初始帧前缀核验
 
-状态：**Draft；2026-10-09 选定支撑私有初始化残留裁决的机制，尚未提供生产 public API**。本合同只新增纯核验能力，不修改已 Accepted 的 S1、现有 Open/恢复或 RBF1/RBF3 格式。前置为 [RBF 接口](rbf-interface.md)、[RBF3 格式](rbf-format.md)与现有 Data CRC/XOR 核。
+状态：**Implemented；2026-10-09 已提供生产 public API，Windows 与 WSL Linux 源码构建/测试通过，具体证据见下文**。本合同只新增纯核验能力，不修改已 Accepted 的 S1、现有 Open/恢复或 RBF1/RBF3 格式。前置为 [RBF 接口](rbf-interface.md)、[RBF3 格式](rbf-format.md)与现有 Data CRC/XOR 核。
 
 ## 必要性与范围
 
@@ -10,7 +10,7 @@
 
 ### spec [A-RBF-INITIAL-FRAME-PREFIX] 核验预期初始单帧的有界字节前缀
 
-拟新增唯一纯入口；这是待实施合同：
+唯一纯入口已在 [RbfFile](../../src/Rbf/RbfFile.cs) 实施：
 
 ```csharp
 // RbfFile 的新增静态方法
@@ -36,9 +36,13 @@ RBF 内部复用现有 layout、plaintext footer/CRC 与 Data XOR 核，准备�
 
 [有界探针](../../experiments/PrivateInitializationPrefixProbe/README.md)在 Windows / .NET 10.0.5 / E: 通过 3,139 项断言：真实 writer 的 0/4/高位 Key、0..60B 各长度的实际部分输出、完整文件逐 bit 损坏、身份/后缀和另一份 36B 合法小帧反例，以及 0..232B 域的边界样本。高位 Key 使用既有 internal seam；原型使用现有 RBF 内部 core，尚非 public 入口。该实验证明有界机制可执行，不证明 FrameStore、普通类型/no-follow、清理、进程 kill、Linux、rename、断电或包资格。
 
-## 实施与验收交接
+## 当前实现与验收边界
 
-实施时把谓词放在 RBF 并复用生产 core，补公开消费和独立向量，确认任何拒绝都不修改输入或文件；未完成前，上层不能用可写 Open、宽松长度检查或 internal friend 绕过这项准入。实现的局部函数/栈布局由实现者选定。
+生产入口转发到 [RbfInitialFramePrefix](../../src/Rbf/Internal/RbfInitialFramePrefix.cs)，复用 `FrameLayout`、`RbfFrameWriteCore.WritePlaintextTail`、`RollingCrc` 与 `XorEscape`。实现使用一个最多 268B 的栈 buffer，在其中构造 plaintext body，再原位 XOR 后比较；短于首个完整 body word 时，固定区域核验后直接使用有界补全证明。没有新增 friend、文件工厂、恢复分支、selector 依赖或第二份生产 wire encoder。
+
+[源码测试](../../tests/Rbf.Tests/RbfInitialFramePrefixTests.cs)包含 0/4/高位 Key 的固定真实 writer 向量、公面只读完整帧校验与所有长度的真实中断输出；覆盖所有 0..232B payload × 四种合法 Key 的每个字节前缀、逐 bit 损坏、部分 Key/Fence、全部预期 body words 禁键、重算 CRC 后的错误形状/非零 padding、超长与 233B 异常先行。测试 oracle 独立实现 bitwise CRC 和 byte XOR，不调用生产 layout/footer/CRC/XOR；正常通过与拒绝路径另有预热后零托管分配断言。Windows 与 WSL Linux Release 的 Rbf.Tests 各 865/865 通过，其中本入口 30 个展开 case，包含零托管分配断言；同轮上层 public 残留裁决通过。完整本轮证据与平台边界见[FrameStore 持久化闭环](../FrameStore-VersionStore/02-framestore-persistence-implementation.md)。
+
+上层必须消费这项 public 准入，不能用可写 Open、宽松长度检查或 internal friend 替代。所有输入同步借用，核验不会修改输入；拒绝也不打开、恢复或修改文件。
 
 验收包括固定区域各截短、部分 Key bytes、推导到禁键、合法非默认 Key、body marker-free、所有已有 closure bytes、超长、完整 CRC/预期字段不符、padding 余数和 232/233B 边界。源码资格、上层残留清理、平台中断及包资格各自取得；本设计不重标现有 S1 或 RBF 的历史证据。
 

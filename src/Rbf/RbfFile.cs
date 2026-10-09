@@ -4,7 +4,7 @@ using Microsoft.Win32.SafeHandles;
 
 namespace Atelia.Rbf;
 
-/// <summary>RBF 文件工厂与新写入尺寸计算。</summary>
+/// <summary>RBF 文件工厂、新写入尺寸计算与有界初始帧前缀核验。</summary>
 public static class RbfFile {
     /// <summary>
     /// 单个新 RBF3 帧中 Payload 与 TailMeta 的最大合计长度（不含 HeadLen、Padding、PayloadCrc、TrailerCodeword、TailKey 与尾部 Fence）。
@@ -43,6 +43,21 @@ public static class RbfFile {
     /// </remarks>
     public static bool TryGetMaxPayloadLengthForAppendBudget(long byteBudget, int tailMetaLength, out int payloadLength) {
         return FrameLayout.TryGetMaxPayloadLengthForAppendBudget(RbfProfile.Rbf3, byteBudget, tailMetaLength, out payloadLength);
+    }
+
+    /// <summary>核验 bytes 是否兼容某个合法 Key 下的 RBF3 HeaderFence 与指定初始单帧的前缀。</summary>
+    /// <param name="prefix">已观察的文件前缀，包括空前缀或完整初始单帧文件。</param>
+    /// <param name="tag">预期初始帧标签。</param>
+    /// <param name="payload">预期初始帧的 payload，长度必须为 0..232 字节。</param>
+    /// <returns>所有已观察 bytes 与某个合法完整初始单帧文件兼容时为 true；不兼容或超长时为 false。</returns>
+    /// <exception cref="ArgumentOutOfRangeException">payload 长度超过 232 字节。</exception>
+    /// <remarks>
+    /// 预期帧没有 TailMeta 或墓碑，采用合法 zero padding、CRC、Key 和尾 Fence。
+    /// 只核验已观察范围，不认证尚未出现的身份或 CRC，也不提供删除、恢复或耐久资格。
+    /// 无 I/O、RNG、callback 或堆 buffer 分配；同步借用的输入在调用期间必须保持稳定。
+    /// </remarks>
+    public static bool IsInitialFramePrefix(ReadOnlySpan<byte> prefix, uint tag, ReadOnlySpan<byte> payload) {
+        return RbfInitialFramePrefix.IsMatch(prefix, tag, payload);
     }
 
     /// <summary>创建新的 RBF 文件（FailIfExists）。</summary>

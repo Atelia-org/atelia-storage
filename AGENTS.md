@@ -2,7 +2,7 @@
 
 使用简体中文交流，保留技术标识符原文。先读根 [README](README.md)，再按任务阅读 [EventJournal](src/EventJournal/README.md)、[RbfSegmentStore](src/RbfSegmentStore/README.md) 和 [RBF 规范](docs/Rbf/rbf-interface.md)。
 
-- main 面向 RBF3 / FrameStore / VersionStore 新栈，当前底座为 Rbf/Data/Primitives，另有独立 Binary codec（BCL + 精确 K4os.Compression.LZ4 `[1.3.8]`）；FrameStore 已建立非打包源码骨架和关键局部实现（见 src/FrameStore/README.md），公开工厂/目录协议尚未实施；VersionStore 尚未创建。身份、格式与 writer/recovery/Dispose 语义由当前 RBF 规范和测试约束；不要引入 atelia 业务依赖或其 `Analyzers.Style` / `Analyzers.Style.CodeFixes`。
+- main 面向 RBF3 / FrameStore / VersionStore 新栈，当前底座为 Rbf/Data/Primitives，另有独立 Binary codec（BCL + 精确 K4os.Compression.LZ4 `[1.3.8]`）；FrameStore 已实现非打包公开持久化闭环（见 src/FrameStore/README.md），Inventory/Audit 及完整 S2 系统验收尚未完成；VersionStore 尚未创建。身份、格式与 writer/recovery/Dispose 语义由当前 RBF 规范和测试约束；不要引入 atelia 业务依赖或其 `Analyzers.Style` / `Analyzers.Style.CodeFixes`。
 - EventJournal/RbfSegmentStore、toolkit 及旧栈测试保留为冻结参考，底层三个包精确固定为 `[0.2.0-rbf1-preview.1]`，不得改回 main 底层 ProjectReference 或新增运行时适配。旧栈维护和发布归 RBF1 分支；本轮拆分状态与验收见 [过渡方案](docs/rbf1-reference-transition.md)，原设计/验收记录保留历史身份。
 - 主线生产包及 pack 顺序只在 `eng/Pack.ps1` 定义，当前阶段 Primitives → Data → Rbf → Binary，Binary 不依赖前三包；两个旧库 `IsPackable=false`。不同内容用不同版本，不覆盖 feed 中既有版本；包版本独立于消费者自己的版本。
 - 修改前检查 `git status`，保留已有工作。Windows 下 build/test/pack 串行；先 build Release，再用匹配配置 `dotnet test Atelia.Storage.slnx -c Release --no-build`。

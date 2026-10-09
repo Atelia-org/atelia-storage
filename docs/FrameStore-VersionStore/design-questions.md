@@ -1,7 +1,7 @@
 # 设计阶段待定问题：FrameStore 与 VersionStore
 
 日期：2026-10-04；2026-10-05 更新核心/扩展分离；2026-10-07 收缩 VersionStore、放宽已完成输出资格并确定命名 fork 的目录共同发布；2026-10-08 关闭基础地址宽度/字段编码选择；2026-10-09 同步 ForkOrigin；资源、header、owned 租借/归档维护、读结果/同步 inventory/audit、FileId 编号恢复、正式 active/archive 路径、FrameAddress 值/公开 codec、格式门记录/只读校验及软阈值参数/重开规则定稿写回 S2，发布调用证据与续跑边界写回 S4/S6，同步历史 visitor/预算/清理及 tag 桶初始化/组合 schema/每次完整扫描写回 S5；已定设计移出本问题表，实施验证保留所属阶段。状态：**Informative / Derived；问题汇总，不是新增实施阶段或规范输入**。
-输入为本轮会话和 S0–S6 的 Draft 合同。FrameStore 已建立[源码骨架与关键局部实现](02-framestore-core-implementation.md)，完整工厂/目录协议未实施；VersionStore 项目尚未创建；RBF 底座的活跃构建随机读取改进单独记录验收。S1 与 RBF1 参考隔离的已有 Accepted 资格保留原身份，不构成新模型已实施的证据。
+输入为本轮会话和 S0–S6 的 Draft 合同。FrameStore 已实现[公开持久化闭环](02-framestore-persistence-implementation.md)，Inventory/Audit 尚未实施；VersionStore 项目尚未创建；RBF 底座的活跃构建随机读取改进单独记录验收。S1 与 RBF1 参考隔离的已有 Accepted 资格保留原身份，不构成新模型已实施的证据。
 
 ## 设计阶段的研究边界
 
@@ -71,27 +71,13 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 | 是否先持久占上 Creating 名称 | 不采用；全局名称预检至提交均串行，初始/alias 绑定使用统一 names 表示 |
 | 基础地址是否保持 16B 或带 SmartPointer 见证 | 固定 12B codec，完整 uint FileId + SizedPtr；无预留/内容 CRC，wire 与内存成本分离 |
 | FrameAddress 公开值/codec 如何交付 | S2 已定 readonly 不透明值、精确 TryRead/容量 TryWrite、公共数值下界、default/完整等值及失败 default/无写入；无额外错误族/规范文本，普通内部表示直接实施 |
-| FrameStore 格式门记录与初次建立 | S2 已定 framestore.format 普通24B记录/唯一CRC/共同只读校验；`[R-FS-STORE-CREATE]` 已定空store、正式门直接create-only写入及成立/返回/失败边界，无私有门或门rename；`[S-FS-OWNER-LOCK]` 已定永久0B控制设施/门前bootstrap与重检、writer独占/readers共享及最后关锁；私有data初始化残留语法/候选/全字节前缀、可写取消与只读保留已定，实际根准入仍待定，所需RBF纯入口/清理及平台资格留实施 |
+| FrameStore 格式门记录与初次建立 | S2 已定 framestore.format 普通24B记录/唯一CRC/共同只读校验；`[R-FS-STORE-CREATE]` 已定空store、正式门直接create-only写入及成立/返回/失败边界，无私有门或门rename；`[S-FS-OWNER-LOCK]` 已定永久0B控制设施/门前bootstrap与重检、writer独占/readers共享及最后关锁；私有data初始化残留语法/候选/全字节前缀、可写取消与只读保留已定，实际根准入已定于 `[S-FS-ROOT-ADMISSION]`，RBF纯入口/目录清理已实施，平台与系统资格按实施记录区分 |
 | VersionStore 格式门如何绑定 data | S4 已定 versionstore.format 普通 40B 记录、统一版本/双身份/唯一 CRC 与共同只读检查；按实际借入 owner 身份比较，必要关闭先于发布恢复/清理/输出；初次发布/根锁/身份生成/模式平台仍未定 |
 | VersionStore 身份与快照值如何交付 | S4 已定 RefId上下文/内部8B、RefRevision自有位置值、RootMap/RefSnapshot表示、RootMap BPV1/上限、ref header/普通Snapshot组合格式及正式RefId平面路径/内部16hex与max恢复/单调分配/不复用/耗尽；匿名外部身份导入导出仍延期，实际组件/私有残留、StoreId与可写恢复前初始化保护仍待定 |
 
 以上各项统一见 [S0](00-architecture-decisions.md) 与相应 [S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。本表只导航，不建立第二套规范。
 
 ## 设计与关键实现方案待定
-
-### D6：实际根身份与类型/no-follow 准入如何闭合？
-
-**涉及阶段：** S2-Q1/Q2/Q3。
-
-**已确认：** creating 内部初始化 → active；停止分配、flush/close → archive；三者同一文件系统、目标不覆盖；每桶 1024 个编号，位置变化不改变 FrameAddress。私有创建槽位最多一个，当前已租出状态只在内存。
-
-**设计 / 关键方案：** 实际根身份/准入、必要普通类型/no-follow 资格的可执行路径。需明确调用方根与实际固定组件的准入边界，使已定门/锁、正式目录及私有初始化协议可执行；词法路径或前缀兼容不能替代根身份、普通类型或同文件系统资格，不将非对抗性协议升级为任意外部改写的防护框架。
-
-**实现 / 验收：** 上述协议确定后，已定锁/私有协议的具体句柄/平台入口、实际固定组件/普通类型/no-follow 的调用及助手结构，在对应实现片中定稿；严格锁及同文件系统 no-overwrite rename 的 Windows/Linux 行为、冷启动和规模成本随实施取证。若当前平台入口无法满足合同，再提升为明确的机制缺口，不为每个调用或路径拼写单开研究轮。
-正式 active/archive 路径、严格名称/桶范围与全部直接项语法已定于 S2 `[F-FS-BUCKETED-PATHS]`，编号恢复、空桶/缺口/交错、发布后 max 登记及耗尽已定于 `[S-FS-DIRECTORY-STATES]`，均不再作为待定选择。O(A+B+H) 的完整正式名称枚举及实际组件/类型、两平台/规模验证留在 S2-Q2/Q3，不继承旧 locator 的历史规模无关 Open 承诺。
-格式门的固定普通记录/唯一 CRC/版本身份与只读完整校验消费 `[F-FS-OWN-FORMAT]`。初次空 store/成立与返回边界已定于 S2 `[R-FS-STORE-CREATE]`：窄初始输入、必要空布局先齐、直接 create-only 写正式24B门，正常返回须flush/close/交付成功；完整合格门不证明旧调用确认，异常不删门/根回滚，短坏门不修复覆盖。首个data文件延至实际追加，不增加私有门、门rename/残留、Creating或日志子题。owner 协调及门前bootstrap已定于 `[S-FS-OWNER-LOCK]`：永久0B控制文件、writer独占/readers共享、获锁后fresh重检、fault持锁至Dispose及最后关锁；仅合格control/config+control可复用，不续作初始化树。私有 data 残留已由 `[R-FS-CREATION-PRIVATE]` 定稿：唯一 creating 文件、由完整正式 max 推得下一号、只读全字节前缀兼容检查；可写取消，RO 合格保留，unknown 不改写。核验接受任意合法 Key、不认证历史作者；所需 [RBF 纯有界入口](../Rbf/rbf-initial-frame-prefix.md) 已选定可执行机制，[有界探针](../../experiments/PrivateInitializationPrefixProbe/README.md)支持可行性，但生产 public 入口与清理仍须实施。移出已关闭初次建立/锁/私有 data 设计子题；实际根身份/type/no-follow 与两平台实施证据仍保留。VersionStore 自己的初次门协议仍属 D3，不由本轮推广。
-
-**设计收敛标准：** 创建、flush、关闭和移动各窗口只有一个可解释的文件位置；同编号两处同时存在明确拒绝；实际根准入有可执行路径，锁与残留实施消费既定协议，直接消费已定正式路径/编号。平台与冷启动证据留所属实施验收，不能以口头可行代替。
 
 ### D3：根地址与自有历史快照的最小合同如何定稿？
 
@@ -130,18 +116,17 @@ ListForks 的公开结果/范围、单项数量预算、全图源存在/迭代�
 
 ## 其余定稿项与条件扩展
 
-FrameStore 初次空集合/直接门建立合同已定；FrameStore owner锁/门前bootstrap/模式互斥已定；FrameStore私有data残留协议已定；两库实际根准入与VersionStore私有发布残留、VersionStore根独占、VersionStore 初次门建立及恢复前初始化保护和名称行为仍按上述设计问题推进；身份 CLR 表示、具体平台调用及局部接口/codec 代码随对应实现定稿。基础地址、格式门记录/只读校验、资源、header、owned 生命周期、正式路径/编号及历史/tag/ListForks 已定合同直接消费 S2/S4/S5；其测试向量、运行时成本和平台/包证据保留所属阶段，不转回新的字段、默认值或表示选择。
+FrameStore 初次空集合/直接门建立合同已定；FrameStore owner锁/门前bootstrap/模式互斥已定；FrameStore私有data残留协议已定；FrameStore 实际根准入已定于 S2 `[S-FS-ROOT-ADMISSION]`；VersionStore 实际根准入与私有发布残留、VersionStore根独占、VersionStore 初次门建立及恢复前初始化保护和名称行为仍按上述设计问题推进；身份 CLR 表示、具体平台调用及局部接口/codec 代码随对应实现定稿。基础地址、格式门记录/只读校验、资源、header、owned 生命周期、正式路径/编号及历史/tag/ListForks 已定合同直接消费 S2/S4/S5；其测试向量、运行时成本和平台/包证据保留所属阶段，不转回新的字段、默认值或表示选择。
 FrameAddress 不透明不等于支持帧重定位。目录归档只改变同一文件的位置；GC/compaction、逻辑 ID 映射、多线程执行、多个 data owner、跨实例 CAS 和更强断电模型在有需求时单独设计。多个 active 已是首版设计范围，不再列为未来条件扩展。
 地址见证的重评触发条件分别为：裸地址跨 store 流转且需要概率性误用检测时考虑 store/address fingerprint；要求库自动拒绝取消预约的旧引用时另设计每帧持久 token 与重开发号/碰撞规则；仅引用已完成对象且需要预期内容见证时考虑内容 CRC。最终内容 CRC 在 Begin 尚不可确定，A↔B 会引入 checksum 依赖，不能作为当前提前稳定地址字段。上述方案均无首版预留字段或实施前置；无碰撞的来源、完成或耐久保证不能由额外 4B 自行推出。
 ref 分段/轮转、随机 revision 读取、持久 cursor、差分/checkpoint、派生 tag 索引、名称 rename/unbind/delete/reuse、跨 ref 事务和精确尝试追踪不作为核心前置。业务 merge/provenance 由应用决定；出现无法用 RootMap 表达的明确需求后再扩展，不能从旧草案恢复候选功能。
 
 ## 下一轮研究顺序与实施交接
 
-先解决能影响下一条实施路径的设计与关键机制选择。D6 接续关闭实际根身份/type/no-follow 准入，使已定空 store 创建/打开协议具有可执行准入；该切片所需设计闭合后，可交接 `Create/Open → Append/Read → ConfirmDurable → 冷重开` 的纵向实施，不等待所有 S4/S5 问题清空。后续层按需接续，各自保留具体阻碍。
+D6 已由 S2 `[S-FS-ROOT-ADMISSION]` 与真实目录工厂关闭：调用方根/可信父路径、受管精确组件、普通类型/no-follow、严格 owner 锁及同文件系统不覆盖移动已有具体机制。公开持久化闭环的实际验证见[实施记录](02-framestore-persistence-implementation.md)；Inventory/Audit、进程中断和资源/规模证据留实施验收。后续设计研究聚焦 D3、D8，不把这些已定机制的测试细节重新放回设计队列。
 
 | 范围 | 设计阶段聚焦 | 随实施决定或验证 |
 | --- | --- | --- |
-| D6 / S2-Q1–Q3 | 实际根身份/准入与普通类型/no-follow 的可执行路径 | 已定空store/直接门建立、owner锁/bootstrap/模式互斥与私有data残留；所需RBF公共前缀入口、取消/清理、具体平台调用、两平台锁/data rename与故障/资源/目录成本 |
 | D3 / S4 | 可变初始帧的恢复前准入、初次门发布/根独占/private 协议、身份/模式和未定公开查询的必要行为 | CLR 表示/接口语法/助手及读取实现；已定 codec、成员、屏障/Outcome/清理与冷重开验收 |
 | D8 / S5 | 名称相等/字符/容量、稳定表示与路由/碰撞裁决、统一 binding 和全局唯一性资格 | 满足合同的具体编码/hash/路径参数、创建/查询代码；发布、完整扫描、资源与规模验收 |
 | S2–S6 已定合同 | 仅在真实反例、机制不可行或明确新要求时重开 | 各阶段 Ready 表的实现测试、进程中断、平台及隔离包消费证据；条件优化另看实际需求 |
@@ -150,4 +135,4 @@ ref 分段/轮转、随机 revision 读取、持久 cursor、差分/checkpoint�
 
 涉及外部业务语义、接受风险或部署假设的未决取舍，列出具体选项交用户处理；符合既定合同的局部工程选择由实现者负责。FrameStore 分配器继续不理解应用 codec，不等待 Commit 或全局日志；不反向增加已延期的批量规划、索引或事务能力。
 
-S2–S6 仍为 Draft；FrameStore 已建立首个源码切片，VersionStore 尚未创建。设计闭合支持实施交接；Ready/Accepted 及源码、恢复、性能、平台、包资格仍分别按所属阶段的实际证据报告。研究队列继续聚焦设计与关键方案；局部源码资格及后续实施接缝见首个源码切片记录。
+S2–S6 仍为 Draft；FrameStore 已实施公开持久化闭环，Inventory/Audit 尚未实施，VersionStore 尚未创建。设计闭合支持实施交接；Ready/Accepted 及源码、恢复、性能、平台、包资格仍分别按所属阶段的实际证据报告。研究队列继续聚焦设计与关键方案；源码资格与下一片范围见[公开持久化闭环记录](02-framestore-persistence-implementation.md)。

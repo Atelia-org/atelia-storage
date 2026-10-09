@@ -1,9 +1,30 @@
 # Atelia.FrameStore
 
-FrameStore 的首个源码切片：按 [S2 核心设计](../../docs/FrameStore-VersionStore/02-framestore-core.md)建立格式和 owner 运行内核，供后续目录工厂接入。项目参加 solution 构建和测试，暂不打包；VersionStore 尚未创建。
+FrameStore 已实现 [S2](../../docs/FrameStore-VersionStore/02-framestore-core.md) 的公开持久化闭环：真实目录 `Create/Open/OpenReadOnly`、三种追加、交错 Builder、随机读取、同步耐久确认及归档。项目参加 solution 构建和测试，保持 source-only、暂不打包；VersionStore 尚未创建。
 
-当前可用的局部包括不透明 `FrameAddress` 的唯一 12B codec、内部格式/路径/config codec、首物理 header 的完整校验，以及 `FrameBuilder` / `FramePayloadWriter` / `FrameRead` 的所有权模型。内部运行核心负责 active 文件选择、一次性租借、完成登记、耐久确认和共享故障。
+```csharp
+using Atelia.FrameStore;
+using Store = Atelia.FrameStore.FrameStore;
 
-**当前没有可供应用打开 store 的公开工厂。** 测试经内部边界移交已初始化的真实 RBF 文件；这证明局部状态机和 RBF 组合行为，不证明完整目录准入、恢复或进程中断协议。未实施的文件系统层不能被临时目录测试后端替代。不要增加绕过根/锁/header 资格的公开句柄注册入口。
+FrameAddress address;
+using (var store = Store.Create(rootPath)) {
+    address = store.Append(1, "hello"u8).Unwrap();
+    store.ConfirmDurable();
+}
+using (var store = Store.OpenReadOnly(rootPath)) {
+    using var frame = store.ReadFrame(address).Unwrap();
+    // frame.PayloadAndMeta 是已完整校验且独立拥有的 bytes。
+}
+```
 
-实现范围、证据与后续接入约束见 [首个源码切片记录](../../docs/FrameStore-VersionStore/02-framestore-core-implementation.md)。S2 仍为 Draft，完整设计合同仍以 S2 为准。
+`Create` 只接受缺失末级根或合格空根（可带 config/锁 bootstrap）；父目录须存在。`Open` 不创建缺失 store；`OpenReadOnly` 不恢复、移档或清理私有残留。可写 Create/Open 的可选 `rotationThresholdBytes` 默认 64GiB，超过阈值的完成帧仍正常返回，后续合法写准入、ConfirmDurable 或 Open 才执行归档维护。
+
+`BeginAppend()` 提供未知尺寸 Builder；`BeginAppend(payloadLength, tailMetaLength, out address)` 在声明最终 stored 长度后提供提前地址。多个 Builder 可嵌套、交错并乱序完成，每个独占一个文件。其 `PayloadAndMeta` writer 的借用须经 Advance 归还，成功 EndAppend 自动归还租借；提前地址不证明完成、来源或耐久，取消后的坐标可能复用。普通 buffer Append 不消耗 Builder 配额。可选 `framestore.config.json` 只接受 `MaxOutstandingBuilders`，默认 32。
+
+每个 owner 由调用方串行使用；writer 排斥其他全部 owner，多个 reader 可共享。持锁期间不得从外部改写、替换、删除或移动受管项。Windows/Linux 实现拒绝受管 symlink/reparse/FIFO 等特殊项，移动严格同文件系统且不覆盖；Windows 需要 volume GUID，Linux 需要 statx 的类型/大小/mount identity 及 renameat2，不支持的环境拒绝打开。这是本地文件系统机制资格，不承诺任意网络文件系统或敌对路径环境。
+
+`StoreId` 是持久身份的 16 个 opaque bytes，`IsReadOnly` 表示访问模式。`RecoveryReports` 按 FileId 保留本次可写 Open 的物理恢复报告；Create/RO 为空。格式/布局不合格拒绝，真实 I/O 错误保持原异常；ReadFrame 的非法 default 地址和底座读取拒绝使用 Result，实际缺失路径仍抛文件缺失异常。owner 输出/清理故障后停止使用，Dispose 按单次释放规则先关数据、最后关锁，不隐式确认。
+
+成功的 `FrameRead` 独立拥有 buffer，需调用方 Dispose，可在 store 关闭后使用；已取得的 span 不得越过 FrameRead.Dispose。地址通过 `FrameAddress.TryWrite/TryRead` 的唯一 12B codec 保存，必须同时知道所属 store；不公开裸 RBF writer 或路径导入。
+
+本片实现与测试证据见[公开持久化闭环](../../docs/FrameStore-VersionStore/02-framestore-persistence-implementation.md)，前片内核证据见[首个源码切片](../../docs/FrameStore-VersionStore/02-framestore-core-implementation.md)。Inventory/Audit 尚未实施；进程中断、资源/规模和完整 S2 Ready 审核仍待后续。源码、平台测试与包消费资格分别判断。

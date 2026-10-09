@@ -3,7 +3,7 @@ using Atelia.Rbf;
 namespace Atelia.FrameStore.Internal.Runtime;
 
 /// <summary>
-/// 后续目录工厂的窄集成边界。本轮没有生产实现；它不授权跳过根、锁、门、header 或路径资格。
+/// 目录生命周期的窄集成边界；生产实现消费工厂取得的根、锁、门与路径资格。
 /// </summary>
 internal interface IFrameStoreFiles {
     /// <summary>

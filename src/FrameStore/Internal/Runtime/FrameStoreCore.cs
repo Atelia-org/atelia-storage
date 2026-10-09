@@ -5,8 +5,8 @@ using Atelia.Rbf;
 namespace Atelia.FrameStore.Internal.Runtime;
 
 /// <summary>
-/// 串行 owner 运行内核。构造不取得目录或锁资格；仅后续已资格化工厂能够移交这些资源。
-/// 本轮没有公开 owner、目录 backend 或 Create/Open 入口，不能据此绕过 S2 的准入协议。
+/// 串行 owner 运行内核。构造不取得目录或锁资格；仅已资格化工厂能够移交这些资源。
+/// 公开 owner 经 FrameStoreFactory 取得目录资格，不公开此内部移交接缝。
 /// </summary>
 internal sealed class FrameStoreCore : IDisposable {
     private readonly List<FrameFileEntry> _active = [];
