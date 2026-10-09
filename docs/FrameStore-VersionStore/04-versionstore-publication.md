@@ -1,15 +1,37 @@
 # S4：VersionStore 完整根字典与单文件 ref 发布
 
-状态：**Draft；2026-10-07 采用完整 RootMap、每 ref 一个 RBF3 文件与统一 RefId 目录发布，允许独立完成闭包发布；2026-10-08 同步 S2 固定 12B 地址；2026-10-09 增加不可变 ForkOrigin 首帧链接，定稿同步发布证据与续跑边界；其余 API、codec、路径编码与平台协议尚未实施/冻结，项目尚未创建**。
+状态：**Draft；2026-10-07 采用完整 RootMap、每 ref 一个 RBF3 文件与统一 RefId 目录发布，允许独立完成闭包发布；2026-10-08 同步 S2 固定 12B 地址；2026-10-09 增加不可变 ForkOrigin 首帧链接，定稿同步发布证据与续跑边界、格式门记录/只读校验及 data 身份绑定；其余 API、codec、路径编码与平台协议尚未实施/冻结，项目尚未创建**。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)。名称与历史见 [S5](05-versionstore-names-and-indexes.md)。
 
 ## 目标、归属与范围
 
-创建 `src/VersionStore/VersionStore.csproj`、`tests/VersionStore.Tests/VersionStore.Tests.csproj`，采用 `Atelia.VersionStore` 身份。借入一个 data FrameStore，拥有独立的 RBF3 发布目录及其资源；直接使用主线 FrameStore/Rbf，不引用冻结旧栈或业务库。
+创建 `src/VersionStore/VersionStore.csproj`、`tests/VersionStore.Tests/VersionStore.Tests.csproj`，采用 `Atelia.VersionStore` 身份。借入一个 data FrameStore，拥有独立发布目录、其中的 RBF3 帧文件及其资源；格式门是独立普通控制文件。直接使用主线 FrameStore/Rbf，不引用冻结旧栈或业务库。
 发布目录格式门持久绑定格式版本、VersionStoreId、DataStoreId。Open 在任何发布文件恢复/写入前核对借入 data 的身份与访问模式；发布位置不解释为 data FrameAddress，data 地址也不解释为 ref revision。
 单 owner/driver 串行操作，包括借入 data 的相关操作；发布目录须排斥另一 writer。VersionStore Dispose 释放 owned 文件、当前遍历资源和锁，不 Dispose 借入 data。data 在使用期间必须存活；首版可写 VersionStore 借入可写 data owner，这是模式准入，不表示每个 mutation 都调用 data 屏障。资源、只读模式配对、借用与 fault 的具体公开接口在 Ready 时定稿。
 
 首版不创建独立 Commit 对象，不为每条 Snapshot 保存 Parent，不采用 Prepared handle、nonce 账本、默认 CAS 或精确 InspectPublication。ref 的创建来源由首帧 ForkOrigin 表达，文件内发布顺序仍由实际帧链表达。不提供跨 ref 原子事务；业务谱系、随机数状态、tool-loop 阶段、operationId 和外部副作用协议由应用保存和解释。
+
+## VersionStore 格式门与 data 绑定
+
+### spec [F-VS-OWN-FORMAT] 固定记录绑定发布库与借入 data
+
+VersionStore MUST 有独立、create-only 的格式门；普通 ref/tag/name 发布不改变它。正式相对名称为精确小写 `versionstore.format`，是恰为 40 bytes 的普通文件，不是 RBF 文件：
+
+| byte 范围（半开） | 字段 | 编码与校验 |
+| --- | --- | --- |
+| `[0,4)` | VersionStoreFormatVersion | uint32 LittleEndian，首版为 1，统一选择本层目录与记录 schema |
+| `[4,20)` | VersionStoreId | 16 个 canonical opaque bytes，非全零，发布库的稳定身份 |
+| `[20,36)` | DataStoreId | 16 个 canonical opaque bytes，逐字节复制借入 data 已资格化的持久 StoreId 编码 |
+| `[36,40)` | CRC32C | 前 36B 的 CRC32C，uint32 LittleEndian；init/finalXor 均为 0xffffffff |
+
+两份身份按各自角色逐字节比较，不检查 UUID 结构、不重排字节或 dump CLR struct，不要求两者字节不同。DataStoreId 直接消费 S2 身份编码；VersionStoreId 的 16B 是首版工程选择，公开 CLR 表示与生成过程仍待定。FrameStore 与 VersionStore 的格式版本分别解释各自 schema，绑定不要求两层版本号相等。
+CRC MUST 使用现成 `RollingCrc.SealCodewordForward` / `CheckCodewordForward`，传入完整 40B codeword；这是普通门记录的唯一 CRC，不加 Magic、GateSchemaVersion、flags/预留、RefId、路径、集合、配置或追加状态。RBF 发布文件的 header 仍由 RBF 完整 CRC 保护，不再附加这份门 CRC。
+
+**共同只读检查。** Open 与 OpenReadOnly MUST 共用一个内部流程。在 S4-Q3 根/实际名称/普通文件/no-follow 及借入 owner 准入资格下，取得实际借入、此时可用的 data owner 的持久 StoreId；按所需模式检查，不能以另读 data pathname 的门替代此 owner。以 `FileMode.Open`、`FileAccess.Read`、`FileShare.Read` 打开正式门的临时 FileStream；同一句柄上先要求 Length 恰为 40，再 `ReadExactly` 到固定 40B 栈 buffer。先校验整个 codeword，再解码受支持版本与两份非零身份，最后比较 DataStoreId 与借入 data 的身份。不同即拒绝，不按门字段重新寻找或替换 data、不比较 data 路径或实例引用来替代持久身份。
+版本/身份只暂存在局部自有值中；绑定合格且临时句柄关闭成功后，才交给后续 owner 初始化。关闭前取出/清空资源槽，复用 S2 `[S-FS-OWNED-FAULT]` 的主错误优先/单次清理规则；不外泄 buffer、stream 或公开门 API。任一检查、绑定或必要清理失败 MUST 先于本次 VersionStore 打开中的发布文件恢复、私有清理与输出结束，不签发 owner。截短、尾随、CRC/字段坏、未知版本、缺门与身份不匹配明确拒绝；权限/I/O 保留原错误，不通过 File.Exists 猜缺失。本流程不调用 data barrier、恢复或写入 data，不因本层门失败而 fault/Dispose 健康的借入 data；调用方在借入前独立打开 data 所做的合法恢复不受此顺序约束。
+
+正式门 MUST NOT 修尾、追加、替换或从 ref/tag/data header 补造身份；缺坏时不采用私有候选、其他文件或自动创建。身份相符只证明所借 data 与门绑定一致，不证明裸地址原始来源、完成/耐久或业务闭包，也不认证外部改写。门内容资格不关闭初次 store 创建/门发布、根/锁、身份生成、私有残留及平台协议，这些仍在 S4-Q3 定稿或取证；模式配对及公开身份接口也保留原待定范围。
+（Informative）一个 VersionStore 借入一个 data 不推出每份 data 只能有一个 VersionStore；独立 VersionStoreId 继续区分其 header/revision 上下文，不建立反向持久登记。单帧 RBF 承载同一字段也可正确，但仍需字段 schema 和 profile/首帧形状/完整 CRC/唯一后界检查。门没有追加、历史或 ticket 消费者，首版选择定长读取与现成 codeword，不建立通用 Gate 框架或双载体 fallback；没有实测性能优劣。依据为 [公开 CRC codeword](../../src/Data/Hashing/RollingCrc.cs)及[独立 CRC/损坏测试](../../tests/Data.Tests/Hashing/RollingCrcCodewordTests.cs)，不是 VersionStore 已实施的证据。
 
 ## term `Root-Map` 应用命名的根地址字典
 
@@ -55,7 +77,7 @@ ReadRef / PublishRef / ListRefs 及后序历史访问 MUST 仅依据正式 RefId
 
 | 单元 | 必要内容 | 工程定稿 |
 | --- | --- | --- |
-| 根格式门 | version、VersionStoreId、DataStoreId | create-only 文件编码、模式、独占 owner 锁 |
+| 根格式门 | `[F-VS-OWN-FORMAT]` 的唯一 40B 记录 | 内容/只读检查/借入身份绑定已定；初次发布、模式与独占仍 S4-Q3 |
 | ref 首帧 meta/header | kind/version、ref 与 store 的身份绑定、可空 ForkOrigin | tag、RefId/来源判别编码、第二帧初始 Snapshot 的校验 |
 | Snapshot | kind/version、entry count、每项 key 与 S2 固定 12B FrameAddress | key 字符串/长度编码、其他字段端序及条目顺序；地址复用 S2 codec |
 
@@ -181,13 +203,14 @@ Open 不默认扫描所有 ref 历史或 data 图；按需打开/校验目标文
 | Ready 项 | 需定稿或实施验证 |
 | --- | --- |
 | S4-Q1 | RootMap/RefId/RefRevision 公开类型、比较与上下文；ListRefs 范围 |
-| S4-Q2 | 格式门/header/Snapshot tag 与 codec、ForkOrigin 判别/RefId 编码及 SizedPtr 固定 8B、首两帧校验、字符串/条目/总尺寸限额、消费 S2 固定 12B 地址 codec 的校验 |
-| S4-Q3 | 统一 RefId 容器/creating 的路径编码、唯一身份与残留清理、目录 no-overwrite rename 两平台资格、独占/模式/Dispose/fault |
+| S4-Q2 | 格式门内容/只读检查/借入身份绑定已定，实施独立向量；header/Snapshot tag 与 codec、ForkOrigin 判别/RefId 编码及 SizedPtr 固定 8B、首两帧校验、字符串/条目/总尺寸限额、消费 S2 固定 12B 地址 codec 的校验仍需定稿 |
+| S4-Q3 | 初次 store 创建/格式门发布、根准入与身份生成；统一 RefId 容器/creating 的路径编码、唯一身份与残留清理、目录 no-overwrite rename 两平台资格、独占/模式/Dispose/fault |
 | S4-Q4 | Result/必选 out PublicationOutcome、入口初始化、公开尝试/确认写回、pre-I/O Result 例外、异常清理及匿名续跑边界已定；实施拒绝/部分与完整输出/确认后安装故障及冷重开向量，不再开放证据载体设计 |
 | S4-Q5 | checked 末读取实现、资源预算、错误分类、已完成输出屏障对接及有无关活跃 Builder 的 public 发布轨迹 |
 | S4-Q6 | 新/旧/orphan 地址的应用闭包责任示例与冷重开资格；不增加图遍历来源证明 |
 
 验收覆盖错误 DataStoreId 在写入/恢复前拒绝、空/重复/超限 key、多根原子更新、旧/新帧混合、Builder 未完成/取消地址的应用合同、末帧/tombstone/TerminationError、完整坏 CRC 不回退、create-only 冲突、正式创建前后进程终止、合法末帧末端越过 MaxOffset / 下一次追加确定拒绝，以及借用 data 不被 Dispose。裸地址原始来源错误是应用合同向量，不宣称能由数值格式检查自动检测。源码与包/平台 qualification 分开，阶段仍 Draft。
+格式门独立向量固定 version=1、VersionStoreId bytes=`01..10`、DataStoreId bytes=`11..20`（均十六进制），末 4B 必须为 `FA 60 31 CD`（CRC32C=`0xcd3160fa`）；不得只用同一 encoder round-trip。覆盖全部短前缀/尾随、两身份及 CRC 的损坏、重新 seal 的未知版本/零身份、合法但不匹配的 DataStoreId；所有拒绝和必要 close 失败先于发布恢复/私有清理/输出，借入 data 保持其原资格。两角色 byte 同值合法；同 data 的两个 VS 仍区分 header/revision 身份。两打开模式不改门，缺坏门不因旁边合法 header 或私有门而补造；模式准入、初次发布和平台向量另取证。
 Snapshot codec 向量包含多个连续 12B 地址、完整 FileId/Packed 高位、非法/截短地址拒绝和 cold round-trip；自有历史 RootMap 与 tag codec 消费同一格式，不从 CLR struct 大小计算 wire 容量。
 目录向量覆盖私有 header/Snapshot/flush/close 各阶段、目录 rename 前后、正式目录缺少必要文件或坏身份、只读不采用/清理私有残留、重复 RefId 不覆盖。纯 S4 ref 消费不读取 names，也不需要 S5 codec；S5 的组合创建另验同一发布点的名称资格。
 证据向量覆盖每个 mutation 最早重置 out、正常成功/失败 Result 的对应状态、内部助手异常时直接写回、公开 Append 的已证明 pre-I/O Result 拒绝恢复 NotAttempted，以及无法辨相位的 OOM/输出/flush 异常保持 Unknown。覆盖 data/源 flush、tag 空桶维护失败为 NotAttempted 但实例停用；目录/文件 rename 返回后立即 Confirmed，再分别注入成功值/投影安装和资源清理异常。清理不降档、不遮蔽原错误，汇总分配失败仍尝试其他资源；借入 data 不被 Dispose。匿名 rename 成立却无成功值交付时，ListRefs 能见对象但同值不能精确认领；正常/异常调用证据测试与真实进程终止后没有 out 的恢复测试分开，不把 C# byref 或单元注入当平台 rename 资格。

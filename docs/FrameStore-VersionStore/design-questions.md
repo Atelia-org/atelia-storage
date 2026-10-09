@@ -54,6 +54,7 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 | 基础地址是否保持 16B 或带 SmartPointer 见证 | 固定 12B codec，完整 uint FileId + SizedPtr；无预留/内容 CRC，wire 与内存成本分离 |
 | FrameAddress 公开值/codec 如何交付 | S2 已定 readonly 不透明值、精确 TryRead/容量 TryWrite、公共数值下界、default/完整等值及失败 default/无写入；无额外错误族/规范文本，普通内部表示直接实施 |
 | FrameStore 格式门记录如何编码/读取 | S2 已定 framestore.format 普通 24B 记录与唯一 CRC32C、统一版本/StoreId、共同只读完整校验和关闭后交付；初次发布/根准入/平台协议仍未定 |
+| VersionStore 格式门如何绑定 data | S4 已定 versionstore.format 普通 40B 记录、统一版本/双身份/唯一 CRC 与共同只读检查；按实际借入 owner 身份比较，必要关闭先于发布恢复/清理/输出；初次发布/根锁/身份生成/模式平台仍未定 |
 
 以上各项统一见 [S0](00-architecture-decisions.md) 与相应 [S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。本表只导航，不建立第二套规范。
 
@@ -77,7 +78,8 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 
 **已确认：** 字典按值保存，地址解释于一个绑定的 data FrameStore，复用 S2 固定 12B codec。发布时应用保证全部必要对象已经完成，不能采用取消/未完成 ticket；data ConfirmDurable 不解析业务图，无关 Builder 未归还不阻断发布。屏障确认 leased 文件旧输出，不赋予其正在构建的新帧资格。旧 ref/tag 快照可以复用数据地址，不需要重新创建 Commit 或提交 parent。
 
-**工程定稿：** RootMap / RefId / RefRevision 的 public 值类型、Key 编码/长度，以及与已定 S2 地址 codec 的组合；地址数值规则不另选，default 预检和精确 12B 字段直接消费 S2。VersionStore 格式门与 data StoreId 绑定；统一 RefId 容器的路径编码、私有残留、一次目录 rename 的平台入口与资格。基础地址值/codec 和发布目录单位已确定，不再开放地址宽度或“先文件后补名字”的选择。每条记录容量用 RBF 公共尺寸 API，不承诺“总是 64B”。
+**工程定稿：** RootMap / RefId / RefRevision 的 public 值类型、Key 编码/长度，以及与已定 S2 地址 codec 的组合；地址数值规则不另选，default 预检和精确 12B 字段直接消费 S2。VersionStore 初次 store 创建/门发布、公开身份类型/生成与模式接口；统一 RefId 容器的路径编码、私有残留、一次目录 rename 的平台入口与资格。基础地址值/codec 和发布目录单位已确定，不再开放地址宽度或“先文件后补名字”的选择。每条记录容量用 RBF 公共尺寸 API，不承诺“总是 64B”。
+VersionStore 门记录/共同只读检查与 data 持久身份绑定已定于 S4 `[F-VS-OWN-FORMAT]`，不再作为待定 codec 或载体选择；16B canonical VersionStoreId 由下游直接消费。内容资格不关闭初次门发布、根/锁或平台协议，也不证明裸地址来源/应用闭包。
 
 历史枚举固定起始完成上界，沿不可变 ForkOrigin 接续各源选中位置及其更早历史；活动期间禁止同 owner mutation，返回的完整 RootMap 自有。RefRevision 只从完成发布/真实成员 checked-read 取得；来源元数据不自动签发 checked revision。来源感知 fork 先重读源字典，在子输出前完成 data 屏障与源文件 flush；只传 roots 的创建无来源。
 剩余工程定稿为 header 来源判别/RefId codec 及与固定 8B SizedPtr 的组合。历史入口、自有值交付、跨文件资源/visited、返回/定位工作预算和终止已定于 S5 `[A-VS-REF-HISTORY-CHECKED]`，直接消费而非重新选择。现有 RBF 只有 EOF 逆扫，旧 fork 点的源后缀定位可能增长并支付工作步；无关后缀 payload 不作历史审计，已观察的结构错误仍传播。完整无来源起点、正常选点停止、预算失败、取消与错误按 S5 区分。
@@ -99,7 +101,7 @@ ListForks 同样覆盖全部正式 ref，但读 header/初始边界而非 names�
 
 ## 其余定稿项与条件扩展
 
-FrameStore 格式门初次发布、VersionStore 格式门/身份、根准入/私有目录协议及平台 rename、名称规则仍在各阶段 Ready 表中定稿；基础地址值/12B bool codec/数值与失败规则、普通内部表示及无规范文本、格式门记录/只读校验、软阈值参数/默认/重开规则、owned 租借/维护/清理、读结果/同步 inventory/audit 和正式 active/archive 路径已由 S2 锁定，历史入口/两项预算/终止及 tag 桶初始化/组合 schema/每次完整扫描已由 S5 锁定。阈值行为/实际成本和地址实现/运行时成本留在 S2，不再为默认数字或内存优化开放新的设计前置。
+两库格式门初次发布、VersionStore 公开身份类型/生成、根准入/私有目录协议及平台 rename、名称规则仍在各阶段 Ready 表中定稿；基础地址值/12B bool codec/数值与失败规则、普通内部表示及无规范文本、格式门记录/只读校验、软阈值参数/默认/重开规则、owned 租借/维护/清理、读结果/同步 inventory/audit 和正式 active/archive 路径已由 S2 锁定；VersionStore 门记录/只读检查与 data 绑定已由 S4 锁定；历史入口/两项预算/终止及 tag 桶初始化/组合 schema/每次完整扫描已由 S5 锁定。阈值行为/实际成本和地址实现/运行时成本留在 S2，不再为默认数字或内存优化开放新的设计前置。
 FrameAddress 不透明不等于支持帧重定位。目录归档只改变同一文件的位置；GC/compaction、逻辑 ID 映射、多线程执行、多个 data owner、跨实例 CAS 和更强断电模型在有需求时单独设计。多个 active 已是首版设计范围，不再列为未来条件扩展。
 地址见证的重评触发条件分别为：裸地址跨 store 流转且需要概率性误用检测时考虑 store/address fingerprint；要求库自动拒绝取消预约的旧引用时另设计每帧持久 token 与重开发号/碰撞规则；仅引用已完成对象且需要预期内容见证时考虑内容 CRC。最终内容 CRC 在 Begin 尚不可确定，A↔B 会引入 checksum 依赖，不能作为当前提前稳定地址字段。上述方案均无首版预留字段或实施前置；无碰撞的来源、完成或耐久保证不能由额外 4B 自行推出。
 ref 分段/轮转、随机 revision 读取、持久 cursor、差分/checkpoint、派生 tag 索引、名称 rename/unbind/delete/reuse、跨 ref 事务和精确尝试追踪不作为核心前置。业务 merge/provenance 由应用决定；出现无法用 RootMap 表达的明确需求后再扩展，不能从旧草案恢复候选功能。
@@ -112,7 +114,7 @@ S2 核心可直接围绕下表的工程问题推进；S4/S5 同样按已经收�
 | 工程定稿 | 剩余内容 |
 | --- | --- |
 | D6 / S2-Q1–Q3 | 初次 store 创建/格式门发布、根准入/独占、实际组件/类型、私有命名/残留与两平台 rename 实证；门记录/只读校验、地址值/codec、正式路径与编号直接消费 S2 已定合同，地址成本不重新成为布局选择 |
-| D3 / S4-Q1–Q3、Q5–Q6 | RootMap/身份/codec、ForkOrigin、单文件创建和末读取、源成员及确认边界 |
+| D3 / S4-Q1–Q3、Q5–Q6 | RootMap/RefId/RefRevision 与公开身份/codec、ForkOrigin、初次门发布/根锁/身份生成、单文件创建和末读取、源成员及确认边界；门记录/只读检查与 data 绑定直接消费 S4 已定合同 |
 | D8 / S5-Q1、Q4 | 全局名称/ListForks 发现与规模成本、统一 binding/hash/路径、来源感知匿名/命名创建 |
 | S5-Q1（tag 局部） | 名称政策/编码/限额、与比较相等关系一致的固定 hash/桶路由/规范路径；RootMap/身份 codec 消费 D3，桶初始化/组合/扫描合同不再重选 |
 

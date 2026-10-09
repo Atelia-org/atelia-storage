@@ -115,7 +115,7 @@ ListForks MUST 覆盖全部正式 RefId 容器，checked-read 每个 header 与�
 每个 tag MUST 保存 `TagName + 完整 RootMap` 的一条 RBF3 record，使用 S4 `[S-VS-ROOTS-AFTER-DATA-CONFIRM]` 的私有拷贝、输入/容量 guard、data ConfirmDurable、Append 与 DurableFlush 协议；无关 data Builder 尚未归还不阻断 tag 创建，所需依赖仍必须由应用保证完成。tag 从某 ref/历史快照创建时复制当时字典，不持有可变 ref 间接绑定。同名再创建 MUST 在输出前拒绝，即使字典同值。
 tag 内容直接复用 S4 RootMap codec，包括其消费的 S2 固定 12B FrameAddress；名字、RefId 和 RefRevision 的 codec 属于各自合同，不因地址固定 12B 而获得同样宽度。
 TagName 的比较采用明确稳定的名称政策；默认候选为 Ordinal。路由 MUST 使用固定、跨进程复现的字符串 hash 与固定桶规则，不使用进程随机化的 string.GetHashCode；名称政策下比较相等的两个名字 MUST 路由同一桶，不能因原始大小写或同值 codeword 表示不同而漏掉同名。记录保留完整原名；hash 相同但名称不同不是同名，MUST 按完整名字比较。
-首版每桶一个 RBF3 文件、不轮转。以下是已选的 tag 局部合同；身份/RootMap 的基础 wire 消费 S4-Q2，名称编码/限额、固定 hash/桶数量/规范路径消费 S5-Q1，不能据此宣称这些依赖已经冻结。桶 header 身份消费 S4 格式门同一 VersionStoreId 的 canonical 编码，不另选身份宽度、不从 CLR struct 大小或被检查文件反推。
+首版每桶一个 RBF3 文件、不轮转。以下是已选的 tag 局部合同；统一版本与 16B canonical VersionStoreId 直接消费 S4 `[F-VS-OWN-FORMAT]`，RootMap wire 仍消费 S4-Q2，名称编码/限额、固定 hash/桶数量/规范路径仍消费 S5-Q1，不能据此宣称其余依赖已经冻结。桶 header 使用同一身份编码，不另选宽度、不从 CLR struct 大小或被检查文件反推。
 
 **单一格式与组合 schema。** 两种 RBF FrameTag 在 tag 桶文件中固定为 0（BucketHeader）、1（TagRecord）；所有帧 MUST 非 tombstone 且 TailMetaLength=0。RBF tag 已表达 kind，不在 payload 重复保存 kind：
 
@@ -197,7 +197,7 @@ ListRefs 成本与正式 RefId 目录数相关；branch 首次解析/全局查�
 
 | 单元 | 最小字段 | Ready 选择 |
 | --- | --- | --- |
-| tag 桶 header | FrameTag=0；统一格式版本、S4 VersionStoreId、uint32 LE BucketId | 组合 schema、初始化 I 保护已定；基础身份 wire 消费 S4-Q2，桶数量/hash/路径仍 S5-Q1 |
+| tag 桶 header | FrameTag=0；统一格式版本、S4 VersionStoreId、uint32 LE BucketId | 组合 schema、初始化 I 保护已定；版本/16B 身份消费 S4 `[F-VS-OWN-FORMAT]`，桶数量/hash/路径仍 S5-Q1 |
 | tag record | FrameTag=1；完整 TagName、原样 S4 RootMap | 无额外版本/CRC/身份；每次全桶 checked 扫描已定，基础名称/根 codec 与限额消费 S5-Q1/S4-Q2 |
 | branch 绑定文件 | version/kind、VersionStoreId、完整 BranchName、RefId | 初始/alias 同一 checked codec、names 路径碰撞及全局发现验证 |
 | history 结果 | 复用 S4 RefSnapshot；实际 RefRevision、自有 RootMap | 同步 visitor、两项预算、Complete/VisitorStopped 与预算失败已定，实施所有权/终止/清理验证 |

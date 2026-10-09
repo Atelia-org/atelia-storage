@@ -185,6 +185,7 @@ flowchart TD
 FrameStore 核心为多个 active 文件的独占租借与目录归档，不提供业务全局顺序。
 
 VersionStore 借入一个 data FrameStore，拥有独立的 RBF3 发布目录；格式门绑定两者身份。每个 ref 的 RefId 容器目录内保留一个同 RefId 命名的追加文件及 `names` 子目录；tag 按稳定名称哈希分桶，首版每桶一个追加文件；branch 使用 create-only 的名字到 RefId 绑定。具体 codec / 路径编码按 S4/S5 工程定稿，旧参考库不进入依赖。
+2026-10-09 门内容与绑定检查已定于 S4 `[F-VS-OWN-FORMAT]`：独立普通定长记录，借入身份匹配且必要关闭成功后才进入本次 Open 的发布文件恢复/私有清理/输出。RBF3 约束用于发布帧文件；门内容不关闭初次 store 创建/发布、根/锁、身份生成或平台资格，不将两层格式版本合为一个版本。
 
 完整字典使当前值无需 replay 历史或递归祖先；回溯时才沿本地帧链与 ForkOrigin 枚举完整发布前缀。字典内容从完整 checked-read 得到，拥有独立生命周期。匿名 fork 用 ForkRef，命名 fork 用 CreateBranchFromRevision 随目录一次发布来源、ref 与初始绑定；只传 roots 的入口建立无来源 ref。全分叉图由正式首帧声明派生，给既有 ref 加 alias 只发布一个名称文件、不产生新边。S4 的 ref 读写不解释 S5 名称记录，也不因名称损坏改变 ref 的身份或当前字典。
 
