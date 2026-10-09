@@ -1,7 +1,9 @@
 # S2：FrameStore 核心、地址与文件生命周期
 
-状态：**Draft；2026-10-05 确认首帧 header、自动归还与 config 数量上限；2026-10-07 允许活跃 Builder 期间确认和随机读取已完成输出；2026-10-08 确认地址固定 12B codec；2026-10-09 定稿资源基线、文件 header、owned 租借/归档维护、读结果/同步 inventory/audit、FileId 编号恢复、正式 active/archive 路径、FrameAddress 值/公开 codec、格式门记录/只读校验及软阈值参数/重开规则；初次空 store/正式门直接 create-only 写入与成立/返回边界，以及 owner 生命周期锁/门前 bootstrap/模式互斥已定；私有 data 初始化前缀/取消与只读保留合同已定；实际根准入仍待定；所需 RBF 公共前缀核验、清理与平台资格留实施，项目尚未创建**。
+状态：**Draft；2026-10-05 确认首帧 header、自动归还与 config 数量上限；2026-10-07 允许活跃 Builder 期间确认和随机读取已完成输出；2026-10-08 确认地址固定 12B codec；2026-10-09 定稿资源基线、文件 header、owned 租借/归档维护、读结果/同步 inventory/audit、FileId 编号恢复、正式 active/archive 路径、FrameAddress 值/公开 codec、格式门记录/只读校验及软阈值参数/重开规则；初次空 store/正式门直接 create-only 写入与成立/返回边界，以及 owner 生命周期锁/门前 bootstrap/模式互斥已定；私有 data 初始化前缀/取消与只读保留合同已定；实际根准入仍待定；所需 RBF 公共前缀核验、清理与平台资格留实施；已建立源码骨架及格式/owner 关键局部实现，完整工厂尚未实施**。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)。本阶段独立于发布和命名层。
+
+本轮局部代码与验证边界见[首个源码切片记录](02-framestore-core-implementation.md)；下文仍是完整 S2 合同，不能从局部实施推定全部入口已存在。
 
 ## 本阶段目标
 
@@ -78,7 +80,7 @@ StoreId 属于上下文，不必重复塞进每个数据引用。地址相等只
 MUST 按字段显式编码与解码，不转储 CLR struct 内存，不追加对齐 padding；Ticket 使用 Packed 的完整 64 bits，不改为 `SizedPtr.Serialize()` 的交错值或 varint，不将 offset/length 各压成 uint。解码须精确消费一条 12B 地址，拒绝截短/尾随输入、非法 FileId 及不满足下述数值下界的 ticket；容量与帧资格消费 RBF/Data 公共合同，恢复 Packed 本身不产生真实帧、主链成员或来源证明。FileId 与完整 Packed 决定同一上下文内的值相等。
 MUST 保留 SizedPtr 当前完整可表示范围，不新增单文件 4GiB/16GiB 硬界，不因地址编码把 MaxOffset 改成帧末端上界。基础地址不编码 StoreId、预留字段、CRC、fingerprint 或 generation。已知尺寸 Begin 签发的 FileId、ticket 及其 12B 编码在正常 End 后 MUST 保持相同；健康取消或修尾后的地址复用仍按既有定位合同处理，不承诺取消尝试身份。
 
-**公开值与唯一 codec。** 首版入口如下；这是待实施合同，不是已存在的 API：
+**公开值与唯一 codec。** 首版入口如下；FrameAddress 已在首个源码切片实施：
 
 ```csharp
 public readonly struct FrameAddress : IEquatable<FrameAddress> {
@@ -175,7 +177,7 @@ FrameBuilder BeginAppend(int payloadLength, int tailMetaLength, out FrameAddress
 
 ### spec [A-FS-OWNED-BUILDER] Builder 与 Writer 共用一次性租借身份
 
-首版 owned façade 使用 readonly struct，签名如下；这是待实施合同，不是已存在的 API：
+首版 owned façade 使用 readonly struct，签名如下；这些类型已在首个源码切片实施，当前由内部运行核心签发，公开 store 工厂尚未实施：
 
 ```csharp
 public readonly struct FrameBuilder : IDisposable {

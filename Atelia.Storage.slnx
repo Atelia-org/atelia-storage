@@ -4,6 +4,7 @@
     <Project Path="src/Data/Data.csproj" />
     <Project Path="src/Binary/Binary.csproj" />
     <Project Path="src/Rbf/Rbf.csproj" />
+    <Project Path="src/FrameStore/FrameStore.csproj" />
     <Project Path="src/RbfSegmentStore/RbfSegmentStore.csproj" />
     <Project Path="src/EventJournal/EventJournal.csproj" />
   </Folder>
@@ -15,6 +16,7 @@
     <Project Path="tests/Data.Tests/Data.Tests.csproj" />
     <Project Path="tests/Binary.Tests/Binary.Tests.csproj" />
     <Project Path="tests/Rbf.Tests/Rbf.Tests.csproj" />
+    <Project Path="tests/FrameStore.Tests/FrameStore.Tests.csproj" />
     <Project Path="tests/RbfSegmentStore.Tests/RbfSegmentStore.Tests.csproj" />
     <Project Path="tests/EventJournal.Tests/EventJournal.Tests.csproj" />
   </Folder>

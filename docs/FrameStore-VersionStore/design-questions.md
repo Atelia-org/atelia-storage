@@ -1,7 +1,7 @@
 # 设计阶段待定问题：FrameStore 与 VersionStore
 
 日期：2026-10-04；2026-10-05 更新核心/扩展分离；2026-10-07 收缩 VersionStore、放宽已完成输出资格并确定命名 fork 的目录共同发布；2026-10-08 关闭基础地址宽度/字段编码选择；2026-10-09 同步 ForkOrigin；资源、header、owned 租借/归档维护、读结果/同步 inventory/audit、FileId 编号恢复、正式 active/archive 路径、FrameAddress 值/公开 codec、格式门记录/只读校验及软阈值参数/重开规则定稿写回 S2，发布调用证据与续跑边界写回 S4/S6，同步历史 visitor/预算/清理及 tag 桶初始化/组合 schema/每次完整扫描写回 S5；已定设计移出本问题表，实施验证保留所属阶段。状态：**Informative / Derived；问题汇总，不是新增实施阶段或规范输入**。
-输入为本轮会话和 S0–S6 的 Draft 合同。FrameStore/VersionStore 本轮仅修订文档，项目尚未创建；RBF 底座的活跃构建随机读取改进单独记录验收。S1 与 RBF1 参考隔离的已有 Accepted 资格保留原身份，不构成新模型已实施的证据。
+输入为本轮会话和 S0–S6 的 Draft 合同。FrameStore 已建立[源码骨架与关键局部实现](02-framestore-core-implementation.md)，完整工厂/目录协议未实施；VersionStore 项目尚未创建；RBF 底座的活跃构建随机读取改进单独记录验收。S1 与 RBF1 参考隔离的已有 Accepted 资格保留原身份，不构成新模型已实施的证据。
 
 ## 设计阶段的研究边界
 
@@ -150,4 +150,4 @@ ref 分段/轮转、随机 revision 读取、持久 cursor、差分/checkpoint�
 
 涉及外部业务语义、接受风险或部署假设的未决取舍，列出具体选项交用户处理；符合既定合同的局部工程选择由实现者负责。FrameStore 分配器继续不理解应用 codec，不等待 Commit 或全局日志；不反向增加已延期的批量规划、索引或事务能力。
 
-S2–S6 仍为 Draft，FrameStore/VersionStore 项目尚未创建。设计闭合支持实施交接；Ready/Accepted 及源码、恢复、性能、平台、包资格仍分别按所属阶段的实际证据报告。本次只调整设计研究范围，没有实施新项目。
+S2–S6 仍为 Draft；FrameStore 已建立首个源码切片，VersionStore 尚未创建。设计闭合支持实施交接；Ready/Accepted 及源码、恢复、性能、平台、包资格仍分别按所属阶段的实际证据报告。研究队列继续聚焦设计与关键方案；局部源码资格及后续实施接缝见首个源码切片记录。

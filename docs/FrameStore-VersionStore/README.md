@@ -1,6 +1,6 @@
 # FrameStore / VersionStore 分阶段设计入口
 
-日期：2026-10-03；2026-10-05 确认 FrameStore header、归还、config 与核心/扩展分离；2026-10-07 更新完整字典、单文件 ref、已完成输出资格及命名 fork 的目录共同发布；2026-10-08 确认 FrameAddress 固定 12B 编码；2026-10-09 分离批量规划器设想、收敛 MVP 组合，增加 ForkOrigin 完整历史与全分叉设计，定稿资源、header、owned 租借/维护/读取及同步历史 visitor。状态：**S1 Accepted；S2–S6 Draft，两个新项目尚未创建；参考依赖拆分 Accepted**。
+日期：2026-10-03；2026-10-05 确认 FrameStore header、归还、config 与核心/扩展分离；2026-10-07 更新完整字典、单文件 ref、已完成输出资格及命名 fork 的目录共同发布；2026-10-08 确认 FrameAddress 固定 12B 编码；2026-10-09 分离批量规划器设想、收敛 MVP 组合，增加 ForkOrigin 完整历史与全分叉设计，定稿资源、header、owned 租借/维护/读取及同步历史 visitor。状态：**S1 Accepted；S2–S6 Draft；FrameStore 已有源码骨架和关键局部实现，VersionStore 尚未创建；参考依赖拆分 Accepted**。
 初始设计源码观察基线：`main @ 70d1009e78a73342a0c0fdc8ffed7731dec58173`；S1 验收记录的核对基线为 `f6f1eb38557863ba5ea1634844a90f0cbe5774cf`；前轮设计阅读基线为 `4175a46`，本轮租借/目录修订核对 `50e8e28`。本文档集供逐阶段细化、审阅和实施，不把文档修订视为新实现或验收。
 
 目标：**以 RBF3 的帧原子性为基础，让中层构建新状态，再发布完整根地址字典使状态生效。**
@@ -9,14 +9,14 @@ MVP 设计组合由 RBF3、FrameStore 核心与 VersionStore 的发布、历史�
 
 基础编码见已 Accepted 的 [BPV1 规范](../Binary/bare-primitive-value.md)及[实施验收](../Binary/bare-primitive-value-acceptance.md)：独立 `Atelia.Binary` 提供 FixedLE/VarInt、无损自适应 string、宽容 reader 与精确 Measure，当前依赖 BCL 与精确 K4os.Compression.LZ4 `[1.3.8]`。S4 RootMap 已选择复用普通基元；底座资格不替代各阶段的记录 schema、版本、限额与新库验收，FrameAddress 仍消费 S2 的唯一 12B codec。[Tagged Value](../Binary/tagged-value-intent.md) 仅记录意向，不是本栈前置。
 
-main 当前演进主线为 RBF3 / FrameStore / VersionStore。旧 EventJournal/RbfSegmentStore、toolkit 及测试保留为冻结参考，底层精确 PackageReference `[0.2.0-rbf1-preview.1]`；维护和公开交付归 RBF1 分支。依赖隔离、solution 共存与本轮仅三包交付的实施及证据见[过渡方案](../rbf1-reference-transition.md)。本轮不删除旧目录、不创建新项目，也不改变 main 的 RBF1 只读兼容。
+main 当前演进主线为 RBF3 / FrameStore / VersionStore。旧 EventJournal/RbfSegmentStore、toolkit 及测试保留为冻结参考，底层精确 PackageReference `[0.2.0-rbf1-preview.1]`；维护和公开交付归 RBF1 分支。依赖隔离、solution 共存与本轮仅三包交付的实施及证据见[过渡方案](../rbf1-reference-transition.md)。旧目录继续保留；FrameStore 源码切片不改变 main 的 RBF1 只读兼容或旧栈依赖。
 
 ## 当前最小模型
 
 FrameStore 普通合同是不透明地址分配与随机读取，不提供业务全局顺序。保留 RBF 三种追加方式；每个 Builder 独占一个文件，owner 可以嵌套租借多个文件、交错构建并乱序完成，首版调用仍串行。三种追加统一在成功完成后按 TailOffset 大于软阈值触发轮转。
 S2 已定软阈值由可写 Create/Open 的一个 long 参数提供，默认 64GiB、实例内固定、不持久化；合法范围消费公共初始化边界与 SizedPtr.MaxOffset，不要求阈值对齐。重开按恢复后 active 的完成 tail 重算：提高阈值可重新使用尚未移档的文件，archive 永远只读。默认仅为工程起点；config 仍只有 Builder 数量属性，实际轮转/恢复和成本须实施验收。
 文件分配优先选择 active 中当前可分配的数值最低 FileId；忙文件和已停止分配文件跳过，没有候选才新建。不因已知帧尺寸提前试配，也不引入轮询或负载均衡。
-FrameAddress 首版固定编码为 12B，保持完整 uint FileId 与 SizedPtr；额外见证按明确需求引入，不把未来预留或内容 CRC 纳入基础定位合同。值/格式权威为 S2 `[F-FS-FRAME-ADDRESS-12B]`：一个 readonly struct、EncodedSize、精确 12B TryRead 与至少 12B TryWrite，失败 default/无写入、完整等值，数值下界消费公开 RBF 合同；无公开数值字段/构造、额外 codec/error 或规范文本。三种追加、互引和 VersionStore RootMap 复用这一入口。地址仍是局部定位值，StoreId 由上下文绑定；普通内部表示及实际运行时成本与持久编码分开，不从 sizeof 推导 wire 容量，上述入口尚未实施。
+FrameAddress 首版固定编码为 12B，保持完整 uint FileId 与 SizedPtr；额外见证按明确需求引入，不把未来预留或内容 CRC 纳入基础定位合同。值/格式权威为 S2 `[F-FS-FRAME-ADDRESS-12B]`：一个 readonly struct、EncodedSize、精确 12B TryRead 与至少 12B TryWrite，失败 default/无写入、完整等值，数值下界消费公开 RBF 合同；无公开数值字段/构造、额外 codec/error 或规范文本。三种追加、互引和 VersionStore RootMap 复用这一入口。地址仍是局部定位值，StoreId 由上下文绑定；普通内部表示及实际运行时成本与持久编码分开，不从 sizeof 推导 wire 容量，该公开地址入口已进入[首个源码切片](02-framestore-core-implementation.md)，完整 store 生命周期资格仍待实施。
 私有 creating 槽位完成必需首帧 meta/header 后发布到 active。残留消费 S2 `[R-FS-CREATION-PRIVATE]`：完整正式 max 推得唯一下一号，全字节前缀合格才可写取消；只读合格留原样、未知内容保留拒绝。所需 RBF 公共纯前缀入口尚未实施，内部探针不代表新库/平台资格。S2 已定稿固定 24B header，保存统一格式版本与 StoreId/FileId；按首位置识别，完整保留用户 uint tag 范围。可写打开先检查初始化长度下界，再消费公共 RBF 恢复并完整校验首帧。active 目录表达可写集合，flush/close 后移入固定 1024 编号分桶的 archive 并只读，不维护 active manifest 或全历史分段表。屏障确认全部必要 active 输出。
 FrameStore 格式门记录/读取已定于 S2：`framestore.format` 是版本 + 16B StoreId + CRC32C 的普通固定 24B 文件，所有打开模式只读完整校验，必要关闭成功后才交付身份；缺坏门不修复或从数据 header 补造。门自身仅此一份 CRC，数据 header 仍由 RBF 保护。初次建立已定于 S2 `[R-FS-STORE-CREATE]`：先准备空必要布局，再直接 create-only 写正式门，flush/close/交付成功才正常返回；完整合格门即使来自失败调用也可按实际资格重开，不倒推旧调用确认。Create 不预建数据文件，首个实际追加才创建 FileId=1；owner 协调已定于 `[S-FS-OWNER-LOCK]`：永久0B控制文件、writer独占/readers共享、门前bootstrap后重检及最后关锁；不以文件存在判busy。私有data残留合同已定，实际根准入仍待定，所需RBF公面、清理与平台资格随实施取得。
 2026-10-07 用户确认：**ConfirmDurable 确认调用时已经完成的全部必要输出；未完成 Builder 保持原状，不因此次确认而获得完成或耐久资格。** leased 文件中的旧完成输出也必须覆盖，Builder 后续完成重新登记为未确认；flush 失败停用整个 owner 及其他 Builder/Writer。
@@ -24,7 +24,7 @@ FrameStore 格式门记录/读取已定于 S2：`framestore.format` 是版本 + 
 成功 EndAppend 自动归还文件和数量配额，不等后续 Dispose。S2 定稿可选 framestore.config.json、默认 MaxOutstandingBuilders=32、严格校验、可写打开一次读取且实例固定；超限 Begin 立即拒绝。完整 Append 不占 Builder 配额，单 driver 最多另占一个短期租借，不引入精确总内存账本。首版保留可写 active 句柄并显式使用 RbfCacheMode.Off，archive 随机读按操作开关；成本按实际 active 和构建/读结果占用计算，降低配置不抹掉旧高峰。
 S2 已定 ReadFrame 返回独立拥有 buffer 的 FrameRead，关闭 reader/owner 后仍可使用至结果 Dispose。Inventory/Audit 使用同步 visitor：分别提供真实主链结构发现和全部实际帧完整 CRC 检查，回调期间拒绝同 owner mutation、允许随机读取；不公开扫描器或延迟 Reader-bound 结果，不把前缀回调、结构扫描或物理 CRC 健康当作业务闭包健康。
 S2 已定稿一次性共享 Lease 与 owned Builder/Writer：成功完成只登记并归还；下一合法 Append/Begin、ConfirmDurable 或可写 Open 统一归档停止文件。已完成帧不因维护失败撤销，可纠正拒绝保留租借，无法辨相位的委派异常保守停用 owner；Dispose 只尝试清理全部资源。
-编号恢复已定为完整流式正式名称检查，取 active/archive 实际最大 FileId，只保留内存 max 和既有 active 台账。空桶/私有槽不提供已发布编号，缺口不补填，uint 耗尽仅拒绝需新文件的请求；archive 内容仍按需校验。正式路径已定为 `active/<8位完整FileId>.rbf` 和 `archive/<6位bucket>/<同一FileId>.rbf`，严格小写 ASCII hex、非零编号、桶范围/对应及全部直接项语法；唯一细节见 S2。冷打开名称成本为 O(active 文件 + archive 桶 + archive 文件)，不保留计数器或全历史 ID 表。owner 锁合同已定，实际根准入/组件类型仍待定，私有残留合同及两平台严格锁/rename 的实施资格仍需取得；上述规则尚未实施。
+编号恢复已定为完整流式正式名称检查，取 active/archive 实际最大 FileId，只保留内存 max 和既有 active 台账。空桶/私有槽不提供已发布编号，缺口不补填，uint 耗尽仅拒绝需新文件的请求；archive 内容仍按需校验。正式路径已定为 `active/<8位完整FileId>.rbf` 和 `archive/<6位bucket>/<同一FileId>.rbf`，严格小写 ASCII hex、非零编号、桶范围/对应及全部直接项语法；唯一细节见 S2。冷打开名称成本为 O(active 文件 + archive 桶 + archive 文件)，不保留计数器或全历史 ID 表。owner 锁合同已定，实际根准入/组件类型仍待定，私有残留合同及两平台严格锁/rename 的实施资格仍需取得；纯路径 codec 和内部运行内核已进入首个源码切片，完整目录协议尚未实施。
 循环引用通过多个已知尺寸 Builder 的提前地址形成。FrameStore core 与交错构建/耐久确认可以独立定稿、实施和验收。
 2026-10-07 VersionStore 收缩为完整 `RootMap = string => FrameAddress` 快照：每个 ref 一个 RBF3 文件，每次更新追加完整字典；tag 保存命名不可变字典，按固定名称哈希分桶；branch 为 name → 稳定 RefId 的 create-only 绑定。首版不分段/轮转 ref，不引入差分、checkpoint 或独立 Commit/Parent。
 VersionStore 借入一个 data FrameStore，拥有自己的 RBF3 发布目录。CreateRef / PublishRef / CreateTag 及命名 fork 先完成本根所需的新增依赖，再同步 data ConfirmDurable，随后确认字典输出及其必要发现边界并安装内存投影；无关 Builder 未归还不阻断独立闭包的发布。应用收到成功确认后按字典加载状态。CreateBranch 只给既有 ref 加 alias、确认自己的绑定文件，不重新发布 RootMap 或调用 data 屏障。所有 Key 的业务语义由应用解释，不消费中间帧的构建顺序。
@@ -36,7 +36,7 @@ S4 `[F-VS-REF-FRAMES]` 已定 RefHeader=0 / Snapshot=1、meta0/非墓碑；heade
 branch 名称解析和查重覆盖全部正式 ref 的 names；首查可扫描或建立可重建内存表，不承诺 O(1)，不写持久名称索引。全局名称准入依赖单 writer/driver 不交错操作；S4 Ref 读写不解释名称 codec，不增加永久 branch gate。正式目录/文件 rename 的平台资格仍待实施，Unknown 与私有残留不因共同发布而消失。
 当前值校验本地 header/初始快照并完整读取最后快照，不递归祖先；S5 历史从固定完成上界沿首帧 `ForkOrigin = 源 RefId + 源 SizedPtr` 接续发布前缀，通过同步 bool visitor 逐项交付自有 RefSnapshot。选中后可正常停止，调用结束后再 fork/tag/rewind；不外泄枚举器/epoch。返回数与工作步分别限额，Complete/VisitorStopped 与专用预算失败区分，步数不称实际 I/O 或内存上限。ForkRef / CreateBranchFromRevision 内部确认源成员、复制源字典，仍保存子初始完整快照；只传 roots 的创建是无来源起点。rewind 追加旧字典成为新 revision，tag 冻结所选字典。RefRevision 来自完整发布/实际 checked 历史，不是输出前尝试 token；跨重开的 RootMap 字典书签可用 tag，不保存精确 ref 历史来源。
 ListForks 消费 S5 `[A-VS-FORKS-CHECKED]`：每次扫描全部正式 ref 的 checked 首两帧，包括匿名与无来源根，完整源存在/迭代环检查后一次性交付自有只读 ForkInfo 边列表。只设正 int maxRefs 数量参数，计全部正式节点，预算失败不当无分叉或部分成功；首版不保留跨调用反向缓存或持久孩子表。来源字段仅为声明位置，不签发 checked 源 revision 或宣称全部源历史健康；实际历史跳转再校验源快照与子初始字典一致。数量不是硬内存/时限，实际成本与 S4 初始化/平台缺口仍另验；现有 RBF 逆扫只从 EOF 开始，历史定位旧 fork 点可能扫描源后续帧。
-输出异常停止实例并重开读取实际状态；完整快照损坏报错，不回退旧值。同步 mutation 的 Result/必选 out PublicationOutcome、公开尝试与确认边界已在 S4 定稿，异常路径不依赖新建证据包装；NotAttempted/Confirmed 均不代替实例健康。匿名创建丢失返回值后不按同值精确认领，首版不提供通用 CAS 或精确 Unknown 尝试查询。数据闭包、工具 operationId、外部 uncertain 策略、模拟器 RNG 和应用谱系由应用负责；[两类下游评估](reviews/2026-10-07-downstream-fit.md)未发现必须扩大核心的需求。本轮仍只修订设计，未实施发布与续跑协议。
+输出异常停止实例并重开读取实际状态；完整快照损坏报错，不回退旧值。同步 mutation 的 Result/必选 out PublicationOutcome、公开尝试与确认边界已在 S4 定稿，异常路径不依赖新建证据包装；NotAttempted/Confirmed 均不代替实例健康。匿名创建丢失返回值后不按同值精确认领，首版不提供通用 CAS 或精确 Unknown 尝试查询。数据闭包、工具 operationId、外部 uncertain 策略、模拟器 RNG 和应用谱系由应用负责；[两类下游评估](reviews/2026-10-07-downstream-fit.md)未发现必须扩大核心的需求。VersionStore 发布与续跑协议仍未实施。
 
 2026-10-03 的初始裁决及失败轨迹见[历史设计审阅](reviews/2026-10-03-dialectical-review.md)；旧单流、单 active/locator、纯 batch planner，以及后来 Commit/control 草案均已被后续会话修订，不作为当前模型的实现证据。S1 已 Accepted；已确认方向见 S0，S2–S6 的剩余工程选择仍是 Draft。
 

@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- This partial implementation is not a deliverable production package. -->
+    <StorageSourceOnly>true</StorageSourceOnly>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Rbf/Rbf.csproj" />
+    <ProjectReference Include="../Data/Data.csproj" />
+    <ProjectReference Include="../Primitives/Primitives.csproj" />
+    <InternalsVisibleTo Include="Atelia.FrameStore.Tests" />
+  </ItemGroup>
+</Project>
