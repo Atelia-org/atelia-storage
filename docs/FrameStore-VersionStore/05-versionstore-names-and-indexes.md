@@ -37,7 +37,7 @@
 
 ### spec [S-VS-FORK-FROM-REVISION] fork 在创建时建立精确来源资格
 
-ForkRef / CreateBranchFromRevision MUST 接收本 VersionStore 的已发布 RefRevision，由库定位正式源 ref、checked header，并从真实 RBF 主链确认 exact 源 SizedPtr；完整读取该 Snapshot 的 CRC、kind/version、身份与 RootMap codec，私有复制其字典。MUST NOT 接受调用方自由组合 roots 与 origin，不接受 header、残尾或仅随机 CRC 读成功的伪成员。源可以是当前或历史快照，也可以位于另一 ref 的继承历史；链接指向返回该快照的实际 RefId，不指向发起枚举的子 ref。
+ForkRef / CreateBranchFromRevision MUST 接收本 VersionStore 的已发布 RefRevision，先消费 S4 `[A-VS-REF-REVISION-VALUE]` 的 default/持久上下文前检，再由库定位正式源 ref、checked header，并从真实 RBF 主链确认 exact 源 SizedPtr；完整读取该 Snapshot 的 CRC、kind/version、身份与 RootMap codec，私有复制其字典。MUST NOT 接受调用方自由组合 roots 与 origin，不接受 header、残尾或仅随机 CRC 读成功的伪成员。源可以是当前或历史快照，也可以位于另一 ref 的继承历史；链接指向返回该快照的实际 RefId，不指向发起枚举的子 ref。
 
 所有生命周期、历史 mutation guard、名称查重及输入/编码/容量检查先完成。随后调用 data ConfirmDurable，再对本次 exact 源 ref 文件调用 DurableFlush，最后在私有子容器写入完整 header/ForkOrigin 与初始 Snapshot，并按 S4 flush/close、目录 rename 发布；命名入口同时准备初始名称。源 flush 为本次 fork 显式确认所引用发布记录的耐久依赖，checked-read 不替代该确认；不新增 receipt，也不重刷所有祖先。该额外屏障明确本次 fork 的确认范围，仍限现有 ProcessCrashOnly 故障模型。
 
@@ -60,7 +60,7 @@ AteliaResult<HistoryEnd> ReadRefHistory(
     CancellationToken cancellationToken = default);
 ```
 
-RefSnapshot 复用 S4 ReadRef 的自有结果，只读 Revision 与 Roots；不另立 history 专用快照、结果 Lease 或 Dispose。每项 MUST 完整校验 CRC、kind/version、身份与 RootMap codec，确认真实主链成员后才能交付。解码到自有值并释放临时 RbfPooledFrame 后再回调，不能外泄 Reader、RbfFrameInfo、pool Span 或依赖 reader 的字典。结果的 RootMap 不提供公开修改入口；方法结束、owner fault/Dispose 不撤销已交付值，内部初始字典比较不受 visitor 改写。RefId 消费 S4 `[F-VS-REF-ID-8B]` 的公开上下文值、前检与内部字段 codec；RefRevision 仍由 S4 绑定实际位置，RootMap/RefRevision 的具体表示和 codec 留在 S4-Q1/Q2，不开放任意裸 revision 的随机 ReadRevision。
+RefSnapshot 复用 S4 ReadRef 的自有结果，只读 Revision 与 Roots；不另立 history 专用快照、结果 Lease 或 Dispose。每项 MUST 完整校验 CRC、kind/version、身份与 RootMap codec，确认真实主链成员后才能交付。解码到自有值并释放临时 RbfPooledFrame 后再回调，不能外泄 Reader、RbfFrameInfo、pool Span 或依赖 reader 的字典。结果的 RootMap 不提供公开修改入口；方法结束、owner fault/Dispose 不撤销已交付值，内部初始字典比较不受 visitor 改写。RefId 消费 S4 `[F-VS-REF-ID-8B]` 的公开上下文值、前检与内部字段 codec；RefRevision 消费 `[A-VS-REF-REVISION-VALUE]` 的自有值、完整等值和只读实际位置，RootMap/RefSnapshot 表示与 RootMap codec 留在 S4-Q1/Q2，不开放任意裸 revision 的随机 ReadRevision。
 
 visitor 返回 true 表示继续，false 表示已接收当前项并正常选点停止。false 后 MUST 不再扫描旧帧或访问下一源；先完成健康/取消复检和必要清理，再返回 VisitorStopped，即使该项恰为起点也保持此结果。调用方可保存所选值，在方法返回后 fork/tag/rewind；需要列表时由调用方收集，不要求库保留整批历史。
 
@@ -104,7 +104,7 @@ ListForks MUST 覆盖全部正式 RefId 容器，checked-read 每个 header 与�
 
 扫描、构图及缓存安装 MUST 属于同一次串行 driver 操作，不允许 mutation 交错。完整扫描正常结束后，MUST 核对每条边的源 RefId 属于同一正式集合、源 header 身份正确，拒绝自链接与整个来源图中的循环。目录枚举、必要 CRC/codec、身份、预算或 I/O 错误不能当成无分叉或完整的部分结果；成功返回全部边之前不安装证明“没有孩子”的缓存。结果只声明本次已校验首帧记录的创建关系，不重新定位每条源 ticket、不校验所有源快照或子初始字典与源字典同值，不宣称全部历史健康。实际沿边遍历时才建立这些资格；结果中的 ForkOrigin 坐标不是新签发的 checked 源 RefRevision。
 
-该边集合是唯一来源的派生视图：按 SourceRefId 可找直接分叉，按 exact source ticket 可区分同一 ref 的不同分叉点，对 child/source 关系求传递闭包可找所有后代；全图包含多层与兄弟分叉，不隐含跨 ref 的时间全序。alias 只增加名称，不增加分叉边；名称解析可另行附加展示，不成为图查询前置。
+该边集合是唯一来源的派生视图：按 SourceRefId 可找直接分叉，按 exact source ticket 可区分同一 ref 的不同分叉点，对 child/source 关系求传递闭包可找所有后代；全图包含多层与兄弟分叉，不隐含跨 ref 的时间全序。所选 RefSnapshot 可用 Revision.RefId/Ticket 与声明的 SourceRefId/SourceSnapshotTicket 比较，直接关联该 exact 点的分叉；这只是位置匹配，不把声明边转换成 checked 源 revision 或证明源内容健康。alias 只增加名称，不增加分叉边；名称解析可另行附加展示，不成为图查询前置。
 
 实现 MAY 从完整 checked 扫描建立可重建内存反向表，空间 O(ref 数 + fork 数)；同 owner 成功创建后按 Confirmed 规则更新。缓存不替代其依赖的必要读取或提供永久 CRC 健康保证。首版不写持久孩子列表、全局 catalog 或反向索引，也不在每次 PublishRef 时维护分叉图。
 
@@ -113,7 +113,7 @@ ListForks MUST 覆盖全部正式 RefId 容器，checked-read 每个 header 与�
 ### spec [S-VS-TAG-ROOTS-IMMUTABLE] tag 一次冻结完整根字典
 
 每个 tag MUST 保存 `TagName + 完整 RootMap` 的一条 RBF3 record，使用 S4 `[S-VS-ROOTS-AFTER-DATA-CONFIRM]` 的私有拷贝、输入/容量 guard、data ConfirmDurable、Append 与 DurableFlush 协议；无关 data Builder 尚未归还不阻断 tag 创建，所需依赖仍必须由应用保证完成。tag 从某 ref/历史快照创建时复制当时字典，不持有可变 ref 间接绑定。同名再创建 MUST 在输出前拒绝，即使字典同值。
-tag 内容直接复用 S4 RootMap codec，包括其消费的 S2 固定 12B FrameAddress；名字、RefId 和 RefRevision 的 codec 属于各自合同，不因地址固定 12B 而获得同样宽度。
+tag 内容直接复用 S4 RootMap codec，包括其消费的 S2 固定 12B FrameAddress；名称 codec 属于本层，RefId 字段消费 S4，RefRevision 不另立整体 codec，均不从地址固定 12B 推导宽度。tag 不保存 RefRevision 或精确 ref 历史来源。
 TagName 的比较采用明确稳定的名称政策；默认候选为 Ordinal。路由 MUST 使用固定、跨进程复现的字符串 hash 与固定桶规则，不使用进程随机化的 string.GetHashCode；名称政策下比较相等的两个名字 MUST 路由同一桶，不能因原始大小写或同值 codeword 表示不同而漏掉同名。记录保留完整原名；hash 相同但名称不同不是同名，MUST 按完整名字比较。
 首版每桶一个 RBF3 文件、不轮转。以下是已选的 tag 局部合同；统一版本与 16B canonical VersionStoreId 直接消费 S4 `[F-VS-OWN-FORMAT]`，RootMap wire 仍消费 S4-Q2，名称编码/限额、固定 hash/桶数量/规范路径仍消费 S5-Q1，不能据此宣称其余依赖已经冻结。桶 header 使用同一身份编码，不另选宽度、不从 CLR struct 大小或被检查文件反推。
 
