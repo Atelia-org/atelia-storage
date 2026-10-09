@@ -79,7 +79,7 @@ flowchart LR
 | [S5 历史、branch 与 tag](05-versionstore-names-and-indexes.md) | owned 跨文件历史、全分叉发现、全局名称发现、alias 与来源感知原子命名 fork、分桶 tag | VersionStore 与其测试项目 | fork/rewind/tag、链接与历史生命周期可独立验收 |
 | [S6 集成与交付](06-integration-and-delivery.md) | 第二种状态模型、公共包消费、交付边界 | examples、eng、CI；消费者接入另有明确范围 | 源码、包及消费者证据分别齐备 |
 
-S4 当前值只读所访问 ref 的末快照，S5 回溯才枚举历史。branch 冷发现/全局查重扫描正式 ref 容器及名称记录；tag 首版可扫描目标桶，不据此宣称全库 Open 或名称查找固定 O(1)。分段、随机历史读、持久索引与差分只在真实规模需要时另立实施片。
+S4 当前值只读所访问 ref 的末快照，S5 回溯才枚举历史。branch 冷发现/全局查重扫描正式 ref 容器及名称记录；tag 首版每次完整校验目标桶，用临时全名集合确认唯一性，不保留跨调用索引。合法空桶先完整初始化，统一 header 版本选择 TagName + S4 RootMap 的记录 schema；基础 codec/名称路由仍需工程定稿。每次 tag 查询成本为 O(桶记录数 + checked bytes)，不宣称全库 Open 或名称查找固定 O(1)。分段、随机历史读、索引与差分只在真实规模需要时另立实施片。
 
 [07：ConditionalUpdate 跨 ref 事务](07-versionstore-cross-ref-conditional-update.md)是单独的专题设计稿，作为多 ref 联合提交的优先发展方向。它细化完整成员表、精确读与实际槽位消歧、fresh/self 和整批 Outcome；协议审阅与 public RBF3 研究支持正式选型建议，但尚未并入 S4/S5 的实施合同，VersionStore 尚未实施。
 

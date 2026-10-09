@@ -150,7 +150,7 @@ Outcome 与实例健康是两个事实：NotAttempted 不表示零 I/O 或可直
 
 ### spec [R-VS-LOCAL-COMPLETE] 重开接受局部完整发布事实
 
-可写重开先执行所属 RBF3 的结构恢复，再完整 CRC 读取并验证所需 header、本地初始/实际末 Snapshot 或 S5 选中的 tag/name 记录。完整合法新 Snapshot 作为当前值；真正未完成残尾截掉后使用剩余末 Snapshot。正式新 ref 若已无初始 Snapshot，不得补成空字典。
+可写重开先按所属初始化保护执行 RBF3 结构恢复，再完整 CRC 读取并验证所需 header、本地初始/实际末 Snapshot，或 S5 所需的目标 tag 桶全部记录/名称记录。tag 桶访问先执行 S5 的初始化长度前检，不把 header 修尾认领为初始化；惰性访问不默认扫描全部桶。完整合法新 Snapshot 作为当前值；真正未完成残尾截掉后使用剩余末 Snapshot。正式新 ref 若已无初始 Snapshot，不得补成空字典。
 新 ref 的目录发现与私有残留遵循 `[S-VS-REF-DIRECTORY-PUBLISH]`；没有正式容器时，私有完整 Snapshot 也不建立 ref。命名 fork 的初始名称随同一容器发布，名称层按该正式容器的记录读取，不能从私有槽位推断或续作旧调用。
 完整坏 frame/未知版本/错误身份/非法 codec MUST 报错，不能当残尾、missing 或回退旧值。只读模式不隐式修尾。被引用 data 缺失/损坏在应用实际读取时报错，不据此改写已发布 RootMap。
 Open 不默认扫描所有 ref 历史或 data 图；按需打开/校验目标文件，不将成功 Open 宣称为全库审计或全部根图健康证明。所有必要错误传播显式；资源/I/O fault 不被吞成缺对象。

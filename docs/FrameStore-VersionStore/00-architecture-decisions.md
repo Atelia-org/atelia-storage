@@ -187,7 +187,7 @@ VersionStore 借入一个 data FrameStore，拥有独立的 RBF3 发布目录；
 
 RefId 是稳定对象身份；RefRevision 只表示已完成快照的位置，不提前签发，不用作 Unknown 尝试 token。同步历史调用期间首版禁止 owner mutation，调用结束后可用所选自有快照 fork/tag/rewind。跨重开的应用书签可使用 tag，无需先提供随机 revision 读取或持久扫描 cursor。
 
-CreateRef / PublishRef / CreateTag 及命名 fork 在发布 RootMap 前同步调用 data ConfirmDurable，不向调用方传递可复用 `DurabilityReceipt`；无关 Builder 未完成不阻断该屏障或发布，所需依赖仍须由应用保证完成。CreateBranch 不新增 data 屏障。branch 冷发现覆盖全部正式 ref 的 names，tag 查找与重名检查覆盖目标桶；均可使用可重建内存投影，不保证首次查询 O(1)。字典、桶和文件容量按实际 codec 与公共尺寸 API 计算，“约 64B”只是少根短键场景估算。
+CreateRef / PublishRef / CreateTag 及命名 fork 在发布 RootMap 前同步调用 data ConfirmDurable，不向调用方传递可复用 `DurabilityReceipt`；无关 Builder 未完成不阻断该屏障或发布，所需依赖仍须由应用保证完成。CreateBranch 不新增 data 屏障。branch 冷发现覆盖全部正式 ref 的 names，可使用可重建内存投影；tag 首版每次完整校验目标桶，不保留跨调用索引，统一桶 header 版本选择 record schema，初始化保护与查询唯一性见 S5。名称查询不保证 O(1)。字典、桶和文件容量按实际 codec 与公共尺寸 API 计算，“约 64B”只是少根短键场景估算。
 
 VersionStore 内部投影安装与消费者安装应用状态分别负责。发布已确认后前者失败仍保留 Confirmed 并停用库实例；应用安装失败时，从实际已发布字典重新加载，不撤销发布、不要求业务 callback。同步 mutation 的 Result/必选 out PublicationOutcome 及公开 Append/flush/rename 证据边界由 S4 `[A-VS-PUBLICATION-EVIDENCE]` 定稿；该证据不持久化，匿名异常不保证交付丢失的 RefId。外部工具 exactly-once 和模拟确定性不是存储层保证。
 
