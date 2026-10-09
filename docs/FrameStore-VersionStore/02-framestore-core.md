@@ -5,7 +5,7 @@
 
 当前代码与验证边界见[同步物理检查记录](02-framestore-inspection-implementation.md)及[公开持久化闭环记录](02-framestore-persistence-implementation.md)，前片格式/运行内核证据见[首个源码切片](02-framestore-core-implementation.md)；下文仍是完整 S2 合同，不以功能实现替代完整系统验收。
 
-后续过程证据见[跨进程与中断取证 R1](02-framestore-process-acceptance.md)，包含真实 public 停点强杀与冷重开，以及仍须补足的三个内部窗口；当前实施进度以[收尾计划](02-framestore-completion-plan.md)为准。
+后续过程证据见[跨进程与中断取证 R1](02-framestore-process-acceptance.md)，包含真实 public 停点强杀与冷重开，以及仍须补足的三个内部窗口；独立循环图消费者与有界资源/规模测量见 [R2 记录](02-framestore-consumer-resource-acceptance.md)。当前实施进度以[收尾计划](02-framestore-completion-plan.md)为准。
 
 ## 本阶段目标
 
@@ -270,7 +270,7 @@ Create/Open 不自动补写缺失 config；32 是便于小规模交错构建的�
 
 当前 RBF 已知/未知尺寸 Begin 均不预分配声明长度，而是从 HeadLen reservation 开始；最早 reservation 阻止提交前的帧 bytes 输出。多个 Builder 的实际租用 chunks 相加，GetSpan/GetMemory 的 sizeHint 与池数组容量也影响占用。已知声明只限制实际 Advance/Reserve 消费，不限制借用容量；即使很小的声明也可能先申请很大的空 chunk，不能用 `M × 声明长度` 或 `M × 最大帧长度` 当作内存硬上界。
 成功 End 的 Commit 与健康取消 Reset 会把 chunks 归还池；这不保证进程 RSS 立即下降，writer 的增长目标和容器容量也可以跨租借保留。完整 Append 保持输入 borrowed：当前 RBF 小帧使用至多 8 KiB stack buffer，非零转义键的大帧可为每个打开文件保留一个申请尺寸为 1 MiB 的 scratch，直至 File Dispose；实际池数组可更大。显式 Off 消除默认 Slots16 的每文件 64 KiB pages + 8 KiB scratch，不能据此承诺吞吐更优。
-因此资源预算应分别报告实际 active/停止分配文件数、活跃 Builder 的实际 chunk 占用、Append scratch、调用方预编码输入及尚未 Dispose 的自有读结果。及时完成/取消、合理 sizeHint 和释放读结果由消费者控制；数量配置不是完整资源账本。以上依据当前 [RBF Writer](../../src/Rbf/RbfPayloadWriter.cs)、[chunk 归还](../../src/Data/SinkReservableWriter.cs)、[完整 Append](../../src/Rbf/Internal/RbfAppendImpl.cs) 与[读缓存](../../src/Rbf/ReadCache/ReverseReadCache.cs)源码推导，不是 FrameStore 已实施或资源测量证据。
+因此资源预算应分别报告实际 active/停止分配文件数、活跃 Builder 的实际 chunk 占用、Append scratch、调用方预编码输入及尚未 Dispose 的自有读结果。及时完成/取消、合理 sizeHint 和释放读结果由消费者控制；数量配置不是完整资源账本。以上机制依据当前 [RBF Writer](../../src/Rbf/RbfPayloadWriter.cs)、[chunk 归还](../../src/Data/SinkReservableWriter.cs)、[完整 Append](../../src/Rbf/Internal/RbfAppendImpl.cs) 与[读缓存](../../src/Rbf/ReadCache/ReverseReadCache.cs)源码推导。FrameStore 的实际 public 资源轨迹另见 [R2 测量](02-framestore-consumer-resource-acceptance.md)；其中进程分配、GC 后存活量和 RSS 不是库独占占用，也不能直接分解为池、scratch 与 chunks 的精确账本。
 
 ### spec [S-FS-LOWEST-FILE-FIRST] 从可分配 active 文件中选择最低编号
 

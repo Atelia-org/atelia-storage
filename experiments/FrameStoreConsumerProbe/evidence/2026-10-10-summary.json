@@ -1,0 +1,573 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-10",
+  "baseline": "59ebd43",
+  "identity": "Baseline is the unchanged production revision. Probes, evidence and acceptance document are bound by the same R2 commit.",
+  "sourceInputCount": 116,
+  "probeSources": [
+    {
+      "path": "experiments/FrameStoreConsumerProbe/Probe.csproj",
+      "sha256": "0FFC83B0971D27D146EA02F133E213A7FB979FB02834F386C6FB1D45A6509428"
+    },
+    {
+      "path": "experiments/FrameStoreConsumerProbe/Program.cs",
+      "sha256": "A85DDC99865B99E83A6172AF3603A219A3CACF43E449E1F8DAF4AE024A28B857"
+    },
+    {
+      "path": "experiments/FrameStoreResourceProbe/Measurements.cs",
+      "sha256": "3888975DE9A9B4EFC843E9C26FF9528F7C03F84FD6508778651437C93381471E"
+    },
+    {
+      "path": "experiments/FrameStoreResourceProbe/Probe.csproj",
+      "sha256": "CD81C4A462467519563D567547A532C6B41977481D1D3BE2A6E418504172FADB"
+    },
+    {
+      "path": "experiments/FrameStoreResourceProbe/ProbeOptions.cs",
+      "sha256": "E9B96DBF9A69D28F4CE0406AA6C86E913BA6F7FDF89028D06E5B0890B8C29F4A"
+    },
+    {
+      "path": "experiments/FrameStoreResourceProbe/Program.cs",
+      "sha256": "F52103C70D38CBF6E9C371213E9983D2705B707C77D6B50C6716574EE0EFCC69"
+    }
+  ],
+  "runs": [
+    {
+      "label": "windows",
+      "rawResult": "artifacts/framestore-consumer-windows-r2-accepted/result.json",
+      "rawSha256": "C5022C798A9939BC6DC92B18F52E3E4EE1ADF6810952AF907594DFA6CBABDF8D",
+      "passed": true,
+      "startedUtc": "2026-10-09T19:23:33.4872772Z",
+      "finishedUtc": "2026-10-09T19:23:34.5450053Z",
+      "environment": {
+        "runtime": ".NET 10.0.5",
+        "os": "Microsoft Windows 10.0.22000",
+        "architecture": "X64",
+        "pid": 16888,
+        "currentDirectory": "E:\\repos\\Atelia-org\\atelia-storage",
+        "outputDirectory": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\framestore-consumer-windows-r2-accepted",
+        "dotnetSystemIoDisableFileLocking": null,
+        "appContextDisableFileLocking": false,
+        "probeAssembly": {
+          "path": "E:\\repos\\Atelia-org\\atelia-storage\\experiments\\FrameStoreConsumerProbe\\bin\\Release\\net10.0\\Atelia.FrameStoreConsumerProbe.dll",
+          "sha256": "EDCC744C066B8C63F3ADE0E0D8624BB9A7E413402801E9560C61AB3A9A2B990F"
+        },
+        "frameStoreAssembly": {
+          "path": "E:\\repos\\Atelia-org\\atelia-storage\\experiments\\FrameStoreConsumerProbe\\bin\\Release\\net10.0\\Atelia.FrameStore.dll",
+          "sha256": "46BF2D2504B127134BEB6C449E35FB957528E47974ED5D6FDCAA45803CF6267D"
+        }
+      },
+      "input": {
+        "fixtures": 6,
+        "nodePayloadBytes": 24,
+        "addressFieldBytes": 12,
+        "completedUserFrames": 11
+      },
+      "assertionCount": 304,
+      "scenarios": [
+        {
+          "name": "self-reference-archive",
+          "storeRoot": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\framestore-consumer-windows-r2-accepted\\self-reference-archive\\store",
+          "manifestPath": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\framestore-consumer-windows-r2-accepted\\self-reference-archive\\consumer-addresses.json",
+          "events": [
+            "Begin sized self -> write own 12B address -> End",
+            "ConfirmDurable -> archive -> ReadFrame(same address) -> save evidence addresses -> Dispose",
+            "Reload 12B evidence address -> new OpenReadOnly -> decode graph"
+          ],
+          "beforeArchive": {
+            "activeFiles": [
+              "active/00000001.rbf"
+            ],
+            "archiveFiles": []
+          },
+          "afterArchive": {
+            "activeFiles": [],
+            "archiveFiles": [
+              "archive/000000/00000001.rbf"
+            ]
+          },
+          "reopened": {
+            "logicalGraph": "7->7",
+            "nodes": [
+              {
+                "identity": 7,
+                "expectedTargetIdentity": 7,
+                "addressHex": "010000000D00003C00000000",
+                "referenceHex": "010000000D00003C00000000"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mutual-forward-completion",
+          "storeRoot": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\framestore-consumer-windows-r2-accepted\\mutual-forward-completion\\store",
+          "manifestPath": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\framestore-consumer-windows-r2-accepted\\mutual-forward-completion\\consumer-addresses.json",
+          "maxOutstandingBuilders": 2,
+          "events": [
+            "Begin A -> write A header",
+            "Begin B while A is active -> write B header",
+            "Reserve A reference -> reserve B reference -> backfill/Commit B -> backfill/Commit A",
+            "End A -> End B",
+            "ConfirmDurable -> save evidence addresses -> Dispose",
+            "Reload 12B evidence address -> new OpenReadOnly -> follow decoded A/B references"
+          ],
+          "reopened": {
+            "logicalGraph": "1->2,2->1",
+            "nodes": [
+              {
+                "identity": 1,
+                "expectedTargetIdentity": 2,
+                "addressHex": "010000000D00003C00000000",
+                "referenceHex": "020000000D00003C00000000"
+              },
+              {
+                "identity": 2,
+                "expectedTargetIdentity": 1,
+                "addressHex": "020000000D00003C00000000",
+                "referenceHex": "010000000D00003C00000000"
+              }
+            ]
+          },
+          "layout": {
+            "activeFiles": [
+              "active/00000001.rbf",
+              "active/00000002.rbf"
+            ],
+            "archiveFiles": []
+          }
+        },
+        {
+          "name": "mutual-reverse-completion",
+          "storeRoot": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\framestore-consumer-windows-r2-accepted\\mutual-reverse-completion\\store",
+          "manifestPath": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\framestore-consumer-windows-r2-accepted\\mutual-reverse-completion\\consumer-addresses.json",
+          "maxOutstandingBuilders": 2,
+          "events": [
+            "Begin A -> write A header",
+            "Begin B while A is active -> write B header",
+            "Reserve A reference -> reserve B reference -> backfill/Commit B -> backfill/Commit A",
+            "End B -> End A",
+            "ConfirmDurable -> save evidence addresses -> Dispose",
+            "Reload 12B evidence address -> new OpenReadOnly -> follow decoded A/B references"
+          ],
+          "reopened": {
+            "logicalGraph": "1->2,2->1",
+            "nodes": [
+              {
+                "identity": 1,
+                "expectedTargetIdentity": 2,
+                "addressHex": "010000000D00003C00000000",
+                "referenceHex": "020000000D00003C00000000"
+              },
+              {
+                "identity": 2,
+                "expectedTargetIdentity": 1,
+                "addressHex": "020000000D00003C00000000",
+                "referenceHex": "010000000D00003C00000000"
+              }
+            ]
+          },
+          "layout": {
+            "activeFiles": [
+              "active/00000001.rbf",
+              "active/00000002.rbf"
+            ],
+            "archiveFiles": []
+          }
+        },
+        {
+          "name": "mutual-reverse-acquisition",
+          "storeRoot": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\framestore-consumer-windows-r2-accepted\\mutual-reverse-acquisition\\store",
+          "manifestPath": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\framestore-consumer-windows-r2-accepted\\mutual-reverse-acquisition\\consumer-addresses.json",
+          "maxOutstandingBuilders": 2,
+          "events": [
+            "Begin B -> write B header",
+            "Begin A while B is active -> write A header",
+            "Reserve A reference -> reserve B reference -> backfill/Commit B -> backfill/Commit A",
+            "End A -> End B",
+            "ConfirmDurable -> save evidence addresses -> Dispose",
+            "Reload 12B evidence address -> new OpenReadOnly -> follow decoded A/B references"
+          ],
+          "reopened": {
+            "logicalGraph": "1->2,2->1",
+            "nodes": [
+              {
+                "identity": 1,
+                "expectedTargetIdentity": 2,
+                "addressHex": "020000000D00003C00000000",
+                "referenceHex": "010000000D00003C00000000"
+              },
+              {
+                "identity": 2,
+                "expectedTargetIdentity": 1,
+                "addressHex": "010000000D00003C00000000",
+                "referenceHex": "020000000D00003C00000000"
+              }
+            ]
+          },
+          "layout": {
+            "activeFiles": [
+              "active/00000001.rbf",
+              "active/00000002.rbf"
+            ],
+            "archiveFiles": []
+          }
+        },
+        {
+          "name": "mutual-single-slot-append",
+          "storeRoot": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\framestore-consumer-windows-r2-accepted\\mutual-single-slot-append\\store",
+          "manifestPath": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\framestore-consumer-windows-r2-accepted\\mutual-single-slot-append\\consumer-addresses.json",
+          "maxOutstandingBuilders": 1,
+          "events": [
+            "Begin sized A -> write header -> reserve its 12B reference",
+            "Append complete B with reference to early A while its sole Builder slot is occupied",
+            "TryGetReservedSpan A -> write B address -> Commit -> End A",
+            "ConfirmDurable -> save evidence addresses -> Dispose",
+            "Reload 12B evidence address -> new OpenReadOnly -> decode A/B cycle"
+          ],
+          "reopened": {
+            "logicalGraph": "1->2,2->1",
+            "nodes": [
+              {
+                "identity": 1,
+                "expectedTargetIdentity": 2,
+                "addressHex": "010000000D00003C00000000",
+                "referenceHex": "020000000D00003C00000000"
+              },
+              {
+                "identity": 2,
+                "expectedTargetIdentity": 1,
+                "addressHex": "020000000D00003C00000000",
+                "referenceHex": "010000000D00003C00000000"
+              }
+            ]
+          },
+          "layout": {
+            "activeFiles": [
+              "active/00000001.rbf",
+              "active/00000002.rbf"
+            ],
+            "archiveFiles": []
+          }
+        },
+        {
+          "name": "cancel-reuse-abandoned-graph",
+          "storeRoot": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\framestore-consumer-windows-r2-accepted\\cancel-reuse-abandoned-graph\\store",
+          "manifestPath": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\framestore-consumer-windows-r2-accepted\\cancel-reuse-abandoned-graph\\consumer-addresses.json",
+          "events": [
+            "Begin B -> Begin A -> complete A pointing to B -> ConfirmDurable while B is unfinished",
+            "Cancel B -> consumer abandons the old A/B construction state",
+            "Begin C at b -> reject stale Builder/Writer operations -> stale Dispose -> complete fresh C self-reference -> ConfirmDurable",
+            "Dispose -> reload evidence addresses -> new OpenReadOnly -> physical b reads C -> consumer rejects old A/B identity -> decode fresh C graph"
+          ],
+          "oldGraphAbandoned": true,
+          "staleEndError": "FrameStore.StateError",
+          "orphanA": {
+            "identity": 1,
+            "expectedTargetIdentity": 2,
+            "addressHex": "020000000D00003C00000000",
+            "referenceHex": "010000000D00003C00000000"
+          },
+          "physicalAtCancelledAddress": {
+            "identity": 3,
+            "expectedTargetIdentity": 3,
+            "addressHex": "010000000D00003C00000000",
+            "referenceHex": "010000000D00003C00000000"
+          },
+          "consumerRejection": {
+            "expectedIdentity": 2,
+            "actualIdentity": 3,
+            "addressHex": "010000000D00003C00000000",
+            "message": "Consumer expected node identity 2, but physical frame at 010000000D00003C00000000 contains 3."
+          },
+          "responsibility": "The consumer checks node identity and abandons provisional state. FrameStore validates physical bytes, not graph provenance.",
+          "freshGraph": {
+            "logicalGraph": "3->3",
+            "nodes": [
+              {
+                "identity": 3,
+                "expectedTargetIdentity": 3,
+                "addressHex": "010000000D00003C00000000",
+                "referenceHex": "010000000D00003C00000000"
+              }
+            ]
+          },
+          "layout": {
+            "activeFiles": [
+              "active/00000001.rbf",
+              "active/00000002.rbf"
+            ],
+            "archiveFiles": []
+          }
+        }
+      ]
+    },
+    {
+      "label": "linux",
+      "rawResult": "artifacts/framestore-r2-linux/consumer-result.json",
+      "rawSha256": "F3CBAC1EBE79B4A960EE898F7AD54616A37B3973BE798D8A266A0F8138806594",
+      "passed": true,
+      "startedUtc": "2026-10-09T19:32:26.6139692Z",
+      "finishedUtc": "2026-10-09T19:32:28.1088242Z",
+      "environment": {
+        "runtime": ".NET 10.0.5",
+        "os": "Ubuntu 24.04.4 LTS",
+        "architecture": "X64",
+        "pid": 34521,
+        "currentDirectory": "/tmp/atelia-framestore-r2-Dojh1W",
+        "outputDirectory": "/tmp/atelia-framestore-r2-Dojh1W/artifacts/consumer-linux",
+        "dotnetSystemIoDisableFileLocking": null,
+        "appContextDisableFileLocking": false,
+        "probeAssembly": {
+          "path": "/tmp/atelia-framestore-r2-Dojh1W/experiments/FrameStoreConsumerProbe/bin/Release/net10.0/Atelia.FrameStoreConsumerProbe.dll",
+          "sha256": "5DC62964AA2F91540E3DDE054E8DBF9FD6D1313EC846410F0C109FE115EBCD29"
+        },
+        "frameStoreAssembly": {
+          "path": "/tmp/atelia-framestore-r2-Dojh1W/experiments/FrameStoreConsumerProbe/bin/Release/net10.0/Atelia.FrameStore.dll",
+          "sha256": "4D8670DA6BD4597DBAE47C4A7276176F61F62BBCA9CBB8889FB3758B53D81847"
+        }
+      },
+      "input": {
+        "fixtures": 6,
+        "nodePayloadBytes": 24,
+        "addressFieldBytes": 12,
+        "completedUserFrames": 11
+      },
+      "assertionCount": 304,
+      "scenarios": [
+        {
+          "name": "self-reference-archive",
+          "storeRoot": "/tmp/atelia-framestore-r2-Dojh1W/artifacts/consumer-linux/self-reference-archive/store",
+          "manifestPath": "/tmp/atelia-framestore-r2-Dojh1W/artifacts/consumer-linux/self-reference-archive/consumer-addresses.json",
+          "events": [
+            "Begin sized self -> write own 12B address -> End",
+            "ConfirmDurable -> archive -> ReadFrame(same address) -> save evidence addresses -> Dispose",
+            "Reload 12B evidence address -> new OpenReadOnly -> decode graph"
+          ],
+          "beforeArchive": {
+            "activeFiles": [
+              "active/00000001.rbf"
+            ],
+            "archiveFiles": []
+          },
+          "afterArchive": {
+            "activeFiles": [],
+            "archiveFiles": [
+              "archive/000000/00000001.rbf"
+            ]
+          },
+          "reopened": {
+            "logicalGraph": "7->7",
+            "nodes": [
+              {
+                "identity": 7,
+                "expectedTargetIdentity": 7,
+                "addressHex": "010000000D00003C00000000",
+                "referenceHex": "010000000D00003C00000000"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mutual-forward-completion",
+          "storeRoot": "/tmp/atelia-framestore-r2-Dojh1W/artifacts/consumer-linux/mutual-forward-completion/store",
+          "manifestPath": "/tmp/atelia-framestore-r2-Dojh1W/artifacts/consumer-linux/mutual-forward-completion/consumer-addresses.json",
+          "maxOutstandingBuilders": 2,
+          "events": [
+            "Begin A -> write A header",
+            "Begin B while A is active -> write B header",
+            "Reserve A reference -> reserve B reference -> backfill/Commit B -> backfill/Commit A",
+            "End A -> End B",
+            "ConfirmDurable -> save evidence addresses -> Dispose",
+            "Reload 12B evidence address -> new OpenReadOnly -> follow decoded A/B references"
+          ],
+          "reopened": {
+            "logicalGraph": "1->2,2->1",
+            "nodes": [
+              {
+                "identity": 1,
+                "expectedTargetIdentity": 2,
+                "addressHex": "010000000D00003C00000000",
+                "referenceHex": "020000000D00003C00000000"
+              },
+              {
+                "identity": 2,
+                "expectedTargetIdentity": 1,
+                "addressHex": "020000000D00003C00000000",
+                "referenceHex": "010000000D00003C00000000"
+              }
+            ]
+          },
+          "layout": {
+            "activeFiles": [
+              "active/00000001.rbf",
+              "active/00000002.rbf"
+            ],
+            "archiveFiles": []
+          }
+        },
+        {
+          "name": "mutual-reverse-completion",
+          "storeRoot": "/tmp/atelia-framestore-r2-Dojh1W/artifacts/consumer-linux/mutual-reverse-completion/store",
+          "manifestPath": "/tmp/atelia-framestore-r2-Dojh1W/artifacts/consumer-linux/mutual-reverse-completion/consumer-addresses.json",
+          "maxOutstandingBuilders": 2,
+          "events": [
+            "Begin A -> write A header",
+            "Begin B while A is active -> write B header",
+            "Reserve A reference -> reserve B reference -> backfill/Commit B -> backfill/Commit A",
+            "End B -> End A",
+            "ConfirmDurable -> save evidence addresses -> Dispose",
+            "Reload 12B evidence address -> new OpenReadOnly -> follow decoded A/B references"
+          ],
+          "reopened": {
+            "logicalGraph": "1->2,2->1",
+            "nodes": [
+              {
+                "identity": 1,
+                "expectedTargetIdentity": 2,
+                "addressHex": "010000000D00003C00000000",
+                "referenceHex": "020000000D00003C00000000"
+              },
+              {
+                "identity": 2,
+                "expectedTargetIdentity": 1,
+                "addressHex": "020000000D00003C00000000",
+                "referenceHex": "010000000D00003C00000000"
+              }
+            ]
+          },
+          "layout": {
+            "activeFiles": [
+              "active/00000001.rbf",
+              "active/00000002.rbf"
+            ],
+            "archiveFiles": []
+          }
+        },
+        {
+          "name": "mutual-reverse-acquisition",
+          "storeRoot": "/tmp/atelia-framestore-r2-Dojh1W/artifacts/consumer-linux/mutual-reverse-acquisition/store",
+          "manifestPath": "/tmp/atelia-framestore-r2-Dojh1W/artifacts/consumer-linux/mutual-reverse-acquisition/consumer-addresses.json",
+          "maxOutstandingBuilders": 2,
+          "events": [
+            "Begin B -> write B header",
+            "Begin A while B is active -> write A header",
+            "Reserve A reference -> reserve B reference -> backfill/Commit B -> backfill/Commit A",
+            "End A -> End B",
+            "ConfirmDurable -> save evidence addresses -> Dispose",
+            "Reload 12B evidence address -> new OpenReadOnly -> follow decoded A/B references"
+          ],
+          "reopened": {
+            "logicalGraph": "1->2,2->1",
+            "nodes": [
+              {
+                "identity": 1,
+                "expectedTargetIdentity": 2,
+                "addressHex": "020000000D00003C00000000",
+                "referenceHex": "010000000D00003C00000000"
+              },
+              {
+                "identity": 2,
+                "expectedTargetIdentity": 1,
+                "addressHex": "010000000D00003C00000000",
+                "referenceHex": "020000000D00003C00000000"
+              }
+            ]
+          },
+          "layout": {
+            "activeFiles": [
+              "active/00000001.rbf",
+              "active/00000002.rbf"
+            ],
+            "archiveFiles": []
+          }
+        },
+        {
+          "name": "mutual-single-slot-append",
+          "storeRoot": "/tmp/atelia-framestore-r2-Dojh1W/artifacts/consumer-linux/mutual-single-slot-append/store",
+          "manifestPath": "/tmp/atelia-framestore-r2-Dojh1W/artifacts/consumer-linux/mutual-single-slot-append/consumer-addresses.json",
+          "maxOutstandingBuilders": 1,
+          "events": [
+            "Begin sized A -> write header -> reserve its 12B reference",
+            "Append complete B with reference to early A while its sole Builder slot is occupied",
+            "TryGetReservedSpan A -> write B address -> Commit -> End A",
+            "ConfirmDurable -> save evidence addresses -> Dispose",
+            "Reload 12B evidence address -> new OpenReadOnly -> decode A/B cycle"
+          ],
+          "reopened": {
+            "logicalGraph": "1->2,2->1",
+            "nodes": [
+              {
+                "identity": 1,
+                "expectedTargetIdentity": 2,
+                "addressHex": "010000000D00003C00000000",
+                "referenceHex": "020000000D00003C00000000"
+              },
+              {
+                "identity": 2,
+                "expectedTargetIdentity": 1,
+                "addressHex": "020000000D00003C00000000",
+                "referenceHex": "010000000D00003C00000000"
+              }
+            ]
+          },
+          "layout": {
+            "activeFiles": [
+              "active/00000001.rbf",
+              "active/00000002.rbf"
+            ],
+            "archiveFiles": []
+          }
+        },
+        {
+          "name": "cancel-reuse-abandoned-graph",
+          "storeRoot": "/tmp/atelia-framestore-r2-Dojh1W/artifacts/consumer-linux/cancel-reuse-abandoned-graph/store",
+          "manifestPath": "/tmp/atelia-framestore-r2-Dojh1W/artifacts/consumer-linux/cancel-reuse-abandoned-graph/consumer-addresses.json",
+          "events": [
+            "Begin B -> Begin A -> complete A pointing to B -> ConfirmDurable while B is unfinished",
+            "Cancel B -> consumer abandons the old A/B construction state",
+            "Begin C at b -> reject stale Builder/Writer operations -> stale Dispose -> complete fresh C self-reference -> ConfirmDurable",
+            "Dispose -> reload evidence addresses -> new OpenReadOnly -> physical b reads C -> consumer rejects old A/B identity -> decode fresh C graph"
+          ],
+          "oldGraphAbandoned": true,
+          "staleEndError": "FrameStore.StateError",
+          "orphanA": {
+            "identity": 1,
+            "expectedTargetIdentity": 2,
+            "addressHex": "020000000D00003C00000000",
+            "referenceHex": "010000000D00003C00000000"
+          },
+          "physicalAtCancelledAddress": {
+            "identity": 3,
+            "expectedTargetIdentity": 3,
+            "addressHex": "010000000D00003C00000000",
+            "referenceHex": "010000000D00003C00000000"
+          },
+          "consumerRejection": {
+            "expectedIdentity": 2,
+            "actualIdentity": 3,
+            "addressHex": "010000000D00003C00000000",
+            "message": "Consumer expected node identity 2, but physical frame at 010000000D00003C00000000 contains 3."
+          },
+          "responsibility": "The consumer checks node identity and abandons provisional state. FrameStore validates physical bytes, not graph provenance.",
+          "freshGraph": {
+            "logicalGraph": "3->3",
+            "nodes": [
+              {
+                "identity": 3,
+                "expectedTargetIdentity": 3,
+                "addressHex": "010000000D00003C00000000",
+                "referenceHex": "010000000D00003C00000000"
+              }
+            ]
+          },
+          "layout": {
+            "activeFiles": [
+              "active/00000001.rbf",
+              "active/00000002.rbf"
+            ],
+            "archiveFiles": []
+          }
+        }
+      ]
+    }
+  ]
+}

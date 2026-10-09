@@ -1,0 +1,6545 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-10",
+  "baseline": "59ebd43",
+  "identity": "Baseline is the unchanged production revision. Probes, evidence and acceptance document are bound by the same R2 commit.",
+  "sourceInputCount": 116,
+  "probeSources": [
+    {
+      "path": "experiments/FrameStoreConsumerProbe/Probe.csproj",
+      "sha256": "0FFC83B0971D27D146EA02F133E213A7FB979FB02834F386C6FB1D45A6509428"
+    },
+    {
+      "path": "experiments/FrameStoreConsumerProbe/Program.cs",
+      "sha256": "A85DDC99865B99E83A6172AF3603A219A3CACF43E449E1F8DAF4AE024A28B857"
+    },
+    {
+      "path": "experiments/FrameStoreResourceProbe/Measurements.cs",
+      "sha256": "3888975DE9A9B4EFC843E9C26FF9528F7C03F84FD6508778651437C93381471E"
+    },
+    {
+      "path": "experiments/FrameStoreResourceProbe/Probe.csproj",
+      "sha256": "CD81C4A462467519563D567547A532C6B41977481D1D3BE2A6E418504172FADB"
+    },
+    {
+      "path": "experiments/FrameStoreResourceProbe/ProbeOptions.cs",
+      "sha256": "E9B96DBF9A69D28F4CE0406AA6C86E913BA6F7FDF89028D06E5B0890B8C29F4A"
+    },
+    {
+      "path": "experiments/FrameStoreResourceProbe/Program.cs",
+      "sha256": "F52103C70D38CBF6E9C371213E9983D2705B707C77D6B50C6716574EE0EFCC69"
+    }
+  ],
+  "derivation": "Groups retain all matching repetitions. Timing and allocation are min/median/max. immediateHandleDeltaRange uses after.preGc minus before.postGc. afterGcHandleDeltaRange uses after.postGc minus after.preGc. Ranges include all repetitions. Raw results remain in artifacts; no throughput or leak threshold.",
+  "runs": [
+    {
+      "label": "windows",
+      "rawResult": "artifacts/framestore-resource-windows-r2-final/result.json",
+      "rawSha256": "63341D2EEA19E09AF0C721E2527F3CAD65A968EB622DD59313ACE5892BF77D01",
+      "status": "passed",
+      "startedUtc": "2026-10-09T19:27:26.3724374Z",
+      "finishedUtc": "2026-10-09T19:31:44.0832522Z",
+      "elapsedMilliseconds": 257709.9185,
+      "input": {
+        "workRoot": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\framestore-resource-windows-r2-final",
+        "output": null,
+        "sourceRevision": "59ebd43-plus-R2-probes",
+        "builderLimits": [
+          1,
+          4,
+          16
+        ],
+        "archiveScales": [
+          16,
+          128,
+          1024
+        ],
+        "sizeHints": [
+          1048576,
+          4194304,
+          8388608
+        ],
+        "repeats": 3,
+        "hintIterations": 4,
+        "appendIterations": 8,
+        "largePayloadBytes": 262144,
+        "archivePayloadBytes": 256,
+        "randomReads": 64,
+        "maxSeconds": 600,
+        "maxDiskBytes": 100663296,
+        "estimatedDataBytes": 18120704
+      },
+      "environment": {
+        "framework": ".NET 10.0.5",
+        "os": "Microsoft Windows 10.0.22000",
+        "architecture": "X64",
+        "runtimeVersion": "10.0.5",
+        "processorCount": 16,
+        "processId": 30836,
+        "serverGC": false,
+        "fileLockingEnvironment": null
+      },
+      "finalDisk": {
+        "fileCount": 1295,
+        "directoryCount": 73,
+        "activeFileCount": 79,
+        "archiveFileCount": 1169,
+        "archiveBucketCount": 5,
+        "logicalFileBytes": 12999364,
+        "allocatedFileBytes": 17817600,
+        "allocationMetric": "GetFileInformationByHandleEx FileStandardInfo.AllocationSize via access=0 metadata handle; directory metadata excluded",
+        "allocationError": null
+      },
+      "assertionCount": 200,
+      "sampleCount": 226,
+      "expectedFailureCount": 6,
+      "selectedDetails": [
+        {
+          "scenario": "size-hint",
+          "phase": "borrow-advance0-cancel",
+          "repeat": 0,
+          "scale": 1048576,
+          "details": {
+            "requestedSizeHint": 1048576,
+            "declaredPayloadBytes": 1,
+            "iterations": 4,
+            "managedPoolRetainedBytes": "unknown",
+            "returnedCapacities": [
+              1048576,
+              1048576,
+              1048576,
+              1048576
+            ],
+            "logicalLengthDeltas": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "scenario": "size-hint",
+          "phase": "borrow-advance0-cancel",
+          "repeat": 1,
+          "scale": 1048576,
+          "details": {
+            "requestedSizeHint": 1048576,
+            "declaredPayloadBytes": 1,
+            "iterations": 4,
+            "managedPoolRetainedBytes": "unknown",
+            "returnedCapacities": [
+              1048576,
+              1048576,
+              1048576,
+              1048576
+            ],
+            "logicalLengthDeltas": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "scenario": "size-hint",
+          "phase": "borrow-advance0-cancel",
+          "repeat": 2,
+          "scale": 1048576,
+          "details": {
+            "requestedSizeHint": 1048576,
+            "declaredPayloadBytes": 1,
+            "iterations": 4,
+            "managedPoolRetainedBytes": "unknown",
+            "returnedCapacities": [
+              1048576,
+              1048576,
+              1048576,
+              1048576
+            ],
+            "logicalLengthDeltas": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "scenario": "size-hint",
+          "phase": "borrow-advance0-cancel",
+          "repeat": 0,
+          "scale": 4194304,
+          "details": {
+            "requestedSizeHint": 4194304,
+            "declaredPayloadBytes": 1,
+            "iterations": 4,
+            "managedPoolRetainedBytes": "unknown",
+            "returnedCapacities": [
+              4194304,
+              4194304,
+              4194304,
+              4194304
+            ],
+            "logicalLengthDeltas": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "scenario": "size-hint",
+          "phase": "borrow-advance0-cancel",
+          "repeat": 1,
+          "scale": 4194304,
+          "details": {
+            "requestedSizeHint": 4194304,
+            "declaredPayloadBytes": 1,
+            "iterations": 4,
+            "managedPoolRetainedBytes": "unknown",
+            "returnedCapacities": [
+              4194304,
+              4194304,
+              4194304,
+              4194304
+            ],
+            "logicalLengthDeltas": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "scenario": "size-hint",
+          "phase": "borrow-advance0-cancel",
+          "repeat": 2,
+          "scale": 4194304,
+          "details": {
+            "requestedSizeHint": 4194304,
+            "declaredPayloadBytes": 1,
+            "iterations": 4,
+            "managedPoolRetainedBytes": "unknown",
+            "returnedCapacities": [
+              4194304,
+              4194304,
+              4194304,
+              4194304
+            ],
+            "logicalLengthDeltas": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "scenario": "size-hint",
+          "phase": "borrow-advance0-cancel",
+          "repeat": 0,
+          "scale": 8388608,
+          "details": {
+            "requestedSizeHint": 8388608,
+            "declaredPayloadBytes": 1,
+            "iterations": 4,
+            "managedPoolRetainedBytes": "unknown",
+            "returnedCapacities": [
+              8388608,
+              8388608,
+              8388608,
+              8388608
+            ],
+            "logicalLengthDeltas": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "scenario": "size-hint",
+          "phase": "borrow-advance0-cancel",
+          "repeat": 1,
+          "scale": 8388608,
+          "details": {
+            "requestedSizeHint": 8388608,
+            "declaredPayloadBytes": 1,
+            "iterations": 4,
+            "managedPoolRetainedBytes": "unknown",
+            "returnedCapacities": [
+              8388608,
+              8388608,
+              8388608,
+              8388608
+            ],
+            "logicalLengthDeltas": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "scenario": "size-hint",
+          "phase": "borrow-advance0-cancel",
+          "repeat": 2,
+          "scale": 8388608,
+          "details": {
+            "requestedSizeHint": 8388608,
+            "declaredPayloadBytes": 1,
+            "iterations": 4,
+            "managedPoolRetainedBytes": "unknown",
+            "returnedCapacities": [
+              8388608,
+              8388608,
+              8388608,
+              8388608
+            ],
+            "logicalLengthDeltas": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "scenario": "size-hint",
+          "phase": "owner-dispose",
+          "repeat": 0,
+          "scale": 0,
+          "details": {}
+        },
+        {
+          "scenario": "large-append",
+          "phase": "owner-dispose",
+          "repeat": 0,
+          "scale": 262144,
+          "details": {
+            "payloadPattern": "no-fence",
+            "observedLastTailKeyAfterDispose": 0
+          }
+        },
+        {
+          "scenario": "large-append",
+          "phase": "owner-dispose",
+          "repeat": 0,
+          "scale": 262144,
+          "details": {
+            "payloadPattern": "aligned-rbf3-fence",
+            "observedLastTailKeyAfterDispose": 672632288
+          }
+        }
+      ],
+      "groups": [
+        {
+          "scenario": "observer",
+          "phase": "warmed-baseline",
+          "scale": 0,
+          "payloadPattern": null,
+          "repetitions": 1,
+          "milliseconds": [
+            0.1192,
+            0.1192,
+            0.1192
+          ],
+          "allocatedBytes": [
+            40,
+            40,
+            40
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            700440,
+            700440,
+            700440
+          ],
+          "rssAfterGcBytes": [
+            32387072,
+            32387072,
+            32387072
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "create",
+          "scale": 1,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            17.4628,
+            24.0545,
+            36.4899
+          ],
+          "allocatedBytes": [
+            97440,
+            97440,
+            97480
+          ],
+          "immediateHandleDeltaRange": [
+            1,
+            1
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            708416,
+            713080,
+            717592
+          ],
+          "rssAfterGcBytes": [
+            32555008,
+            32808960,
+            34566144
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "hold-full-quota-plus-append",
+          "scale": 1,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            35.9199,
+            37.8654,
+            41.7195
+          ],
+          "allocatedBytes": [
+            50592,
+            50592,
+            50648
+          ],
+          "immediateHandleDeltaRange": [
+            2,
+            2
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            712040,
+            716712,
+            721160
+          ],
+          "rssAfterGcBytes": [
+            32555008,
+            32645120,
+            34508800
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "healthy-cancel-to-idle",
+          "scale": 1,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            16.5953,
+            17.9202,
+            23.0733
+          ],
+          "allocatedBytes": [
+            27640,
+            27704,
+            27920
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            713120,
+            717792,
+            722432
+          ],
+          "rssAfterGcBytes": [
+            32509952,
+            34258944,
+            34824192
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "dispose",
+          "scale": 1,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.2096,
+            0.2249,
+            0.3681
+          ],
+          "allocatedBytes": [
+            40,
+            40,
+            40
+          ],
+          "immediateHandleDeltaRange": [
+            -3,
+            -3
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            1
+          ],
+          "managedAfterGcBytes": [
+            710448,
+            715120,
+            719760
+          ],
+          "rssAfterGcBytes": [
+            32526336,
+            34189312,
+            35344384
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "cold-owner-open-m1",
+          "scale": 1,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            7.468,
+            7.6182,
+            9.462
+          ],
+          "allocatedBytes": [
+            80592,
+            80592,
+            80616
+          ],
+          "immediateHandleDeltaRange": [
+            3,
+            3
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            714264,
+            718880,
+            723520
+          ],
+          "rssAfterGcBytes": [
+            32714752,
+            34242560,
+            35360768
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "m1-first-confirm",
+          "scale": 1,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            5.2946,
+            9.629,
+            11.8487
+          ],
+          "allocatedBytes": [
+            1568,
+            1568,
+            1656
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            715496,
+            720080,
+            724720
+          ],
+          "rssAfterGcBytes": [
+            32509952,
+            34324480,
+            35414016
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "reopened-dispose",
+          "scale": 1,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.0861,
+            0.0925,
+            0.2571
+          ],
+          "allocatedBytes": [
+            40,
+            40,
+            40
+          ],
+          "immediateHandleDeltaRange": [
+            -3,
+            -3
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            712904,
+            717488,
+            722128
+          ],
+          "rssAfterGcBytes": [
+            32550912,
+            34369536,
+            35196928
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "create",
+          "scale": 4,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            15.5412,
+            23.3972,
+            73.6139
+          ],
+          "allocatedBytes": [
+            97440,
+            97440,
+            97440
+          ],
+          "immediateHandleDeltaRange": [
+            1,
+            1
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            722208,
+            744128,
+            749000
+          ],
+          "rssAfterGcBytes": [
+            35385344,
+            36225024,
+            38547456
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "hold-full-quota-plus-append",
+          "scale": 4,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            93.383,
+            103.8437,
+            597.1737
+          ],
+          "allocatedBytes": [
+            127480,
+            127856,
+            139792
+          ],
+          "immediateHandleDeltaRange": [
+            5,
+            5
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            743016,
+            753000,
+            757448
+          ],
+          "rssAfterGcBytes": [
+            35704832,
+            36356096,
+            38637568
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "healthy-cancel-to-idle",
+          "scale": 4,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            28.0006,
+            148.4414,
+            318.5825
+          ],
+          "allocatedBytes": [
+            51160,
+            51160,
+            56360
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            748944,
+            753304,
+            758176
+          ],
+          "rssAfterGcBytes": [
+            35733504,
+            36405248,
+            38629376
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "dispose",
+          "scale": 4,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.2249,
+            0.2422,
+            0.2471
+          ],
+          "allocatedBytes": [
+            40,
+            40,
+            40
+          ],
+          "immediateHandleDeltaRange": [
+            -6,
+            -6
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            741680,
+            746040,
+            750912
+          ],
+          "rssAfterGcBytes": [
+            35749888,
+            36507648,
+            38633472
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "cold-owner-open-m1",
+          "scale": 4,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            9.8702,
+            10.3654,
+            11.5693
+          ],
+          "allocatedBytes": [
+            108232,
+            108656,
+            108656
+          ],
+          "immediateHandleDeltaRange": [
+            6,
+            6
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            749752,
+            753944,
+            758984
+          ],
+          "rssAfterGcBytes": [
+            35610624,
+            36532224,
+            38797312
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "m1-first-confirm",
+          "scale": 4,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            7.8666,
+            273.6996,
+            299.3712
+          ],
+          "allocatedBytes": [
+            1568,
+            1616,
+            2152
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            750528,
+            755400,
+            759760
+          ],
+          "rssAfterGcBytes": [
+            35893248,
+            38625280,
+            40140800
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "reopened-dispose",
+          "scale": 4,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.1119,
+            0.1244,
+            0.1304
+          ],
+          "allocatedBytes": [
+            40,
+            40,
+            40
+          ],
+          "immediateHandleDeltaRange": [
+            -6,
+            -6
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            744352,
+            749224,
+            753584
+          ],
+          "rssAfterGcBytes": [
+            36003840,
+            38641664,
+            40189952
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "create",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            17.3449,
+            17.7104,
+            19.7647
+          ],
+          "allocatedBytes": [
+            97656,
+            97656,
+            97656
+          ],
+          "immediateHandleDeltaRange": [
+            1,
+            1
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            753400,
+            808168,
+            812560
+          ],
+          "rssAfterGcBytes": [
+            40271872,
+            40873984,
+            40988672
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "hold-full-quota-plus-append",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            345.5611,
+            349.1269,
+            361.0593
+          ],
+          "allocatedBytes": [
+            463224,
+            464536,
+            515192
+          ],
+          "immediateHandleDeltaRange": [
+            17,
+            17
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            833520,
+            836320,
+            842072
+          ],
+          "rssAfterGcBytes": [
+            40812544,
+            41086976,
+            41160704
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "healthy-cancel-to-idle",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            42.7661,
+            55.4065,
+            223.8873
+          ],
+          "allocatedBytes": [
+            144840,
+            144840,
+            144840
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            831512,
+            835904,
+            840272
+          ],
+          "rssAfterGcBytes": [
+            40902656,
+            41095168,
+            41213952
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "dispose",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.3604,
+            0.3768,
+            0.4163
+          ],
+          "allocatedBytes": [
+            40,
+            40,
+            40
+          ],
+          "immediateHandleDeltaRange": [
+            -18,
+            -18
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            805816,
+            810208,
+            814576
+          ],
+          "rssAfterGcBytes": [
+            40632320,
+            41111552,
+            41230336
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "cold-owner-open-m1",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            22.0095,
+            22.1667,
+            22.359
+          ],
+          "allocatedBytes": [
+            218520,
+            218520,
+            219904
+          ],
+          "immediateHandleDeltaRange": [
+            18,
+            18
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            828624,
+            834400,
+            837384
+          ],
+          "rssAfterGcBytes": [
+            40747008,
+            41226240,
+            41238528
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "m1-first-confirm",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            27.8594,
+            30.8886,
+            39.1434
+          ],
+          "allocatedBytes": [
+            1568,
+            1568,
+            1616
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            829824,
+            834216,
+            838584
+          ],
+          "rssAfterGcBytes": [
+            40751104,
+            41222144,
+            41238528
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "reopened-dispose",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.1908,
+            0.2605,
+            0.2612
+          ],
+          "allocatedBytes": [
+            40,
+            40,
+            40
+          ],
+          "immediateHandleDeltaRange": [
+            -18,
+            -18
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            809248,
+            813640,
+            818008
+          ],
+          "rssAfterGcBytes": [
+            40767488,
+            40894464,
+            40910848
+          ]
+        },
+        {
+          "scenario": "size-hint",
+          "phase": "borrow-advance0-cancel",
+          "scale": 1048576,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.0128,
+            0.0399,
+            21.9553
+          ],
+          "allocatedBytes": [
+            680,
+            66240,
+            1114952
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            1
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            1908432,
+            1976192,
+            1977240
+          ],
+          "rssAfterGcBytes": [
+            41144320,
+            41340928,
+            41439232
+          ]
+        },
+        {
+          "scenario": "size-hint",
+          "phase": "borrow-advance0-cancel",
+          "scale": 4194304,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.0122,
+            0.023,
+            0.036
+          ],
+          "allocatedBytes": [
+            680,
+            680,
+            4195008
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            6172656,
+            6173664,
+            6174712
+          ],
+          "rssAfterGcBytes": [
+            41443328,
+            41517056,
+            41529344
+          ]
+        },
+        {
+          "scenario": "size-hint",
+          "phase": "borrow-advance0-cancel",
+          "scale": 8388608,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.0125,
+            0.0149,
+            0.0539
+          ],
+          "allocatedBytes": [
+            640,
+            640,
+            8389272
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            14564392,
+            14565400,
+            14566448
+          ],
+          "rssAfterGcBytes": [
+            41480192,
+            41480192,
+            41484288
+          ]
+        },
+        {
+          "scenario": "size-hint",
+          "phase": "owner-dispose",
+          "scale": 0,
+          "payloadPattern": null,
+          "repetitions": 1,
+          "milliseconds": [
+            0.1475,
+            0.1475,
+            0.1475
+          ],
+          "allocatedBytes": [
+            0,
+            0,
+            0
+          ],
+          "immediateHandleDeltaRange": [
+            -2,
+            -2
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            14565568,
+            14565568,
+            14565568
+          ],
+          "rssAfterGcBytes": [
+            41500672,
+            41500672,
+            41500672
+          ]
+        },
+        {
+          "scenario": "large-append",
+          "phase": "create",
+          "scale": 262144,
+          "payloadPattern": "no-fence",
+          "repetitions": 1,
+          "milliseconds": [
+            20.1405,
+            20.1405,
+            20.1405
+          ],
+          "allocatedBytes": [
+            99112,
+            99112,
+            99112
+          ],
+          "immediateHandleDeltaRange": [
+            1,
+            1
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            14828656,
+            14828656,
+            14828656
+          ],
+          "rssAfterGcBytes": [
+            41627648,
+            41627648,
+            41627648
+          ]
+        },
+        {
+          "scenario": "large-append",
+          "phase": "append-batch",
+          "scale": 262144,
+          "payloadPattern": "no-fence",
+          "repetitions": 3,
+          "milliseconds": [
+            2.1609,
+            2.2368,
+            29.5998
+          ],
+          "allocatedBytes": [
+            280,
+            536,
+            25224
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            1
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            14830912,
+            19033000,
+            19035336
+          ],
+          "rssAfterGcBytes": [
+            41627648,
+            43909120,
+            44064768
+          ]
+        },
+        {
+          "scenario": "owned-read",
+          "phase": "retain-read-results",
+          "scale": 262144,
+          "payloadPattern": "no-fence",
+          "repetitions": 3,
+          "milliseconds": [
+            1.549,
+            1.6103,
+            6.7149
+          ],
+          "allocatedBytes": [
+            920,
+            920,
+            4195560
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            19026976,
+            19034416,
+            19036752
+          ],
+          "rssAfterGcBytes": [
+            43876352,
+            44036096,
+            44064768
+          ]
+        },
+        {
+          "scenario": "owned-read",
+          "phase": "dispose-read-results",
+          "scale": 262144,
+          "payloadPattern": "no-fence",
+          "repetitions": 3,
+          "milliseconds": [
+            0.0085,
+            0.0278,
+            0.323
+          ],
+          "allocatedBytes": [
+            0,
+            0,
+            5168
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            19032088,
+            19034296,
+            19036632
+          ],
+          "rssAfterGcBytes": [
+            43892736,
+            44060672,
+            44068864
+          ]
+        },
+        {
+          "scenario": "large-append",
+          "phase": "confirm",
+          "scale": 262144,
+          "payloadPattern": "no-fence",
+          "repetitions": 1,
+          "milliseconds": [
+            108.9154,
+            108.9154,
+            108.9154
+          ],
+          "allocatedBytes": [
+            0,
+            0,
+            0
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            19037320,
+            19037320,
+            19037320
+          ],
+          "rssAfterGcBytes": [
+            44068864,
+            44068864,
+            44068864
+          ]
+        },
+        {
+          "scenario": "large-append",
+          "phase": "owner-dispose",
+          "scale": 262144,
+          "payloadPattern": "no-fence",
+          "repetitions": 1,
+          "milliseconds": [
+            0.4526,
+            0.4526,
+            0.4526
+          ],
+          "allocatedBytes": [
+            0,
+            0,
+            0
+          ],
+          "immediateHandleDeltaRange": [
+            -2,
+            -2
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            19036368,
+            19036368,
+            19036368
+          ],
+          "rssAfterGcBytes": [
+            44068864,
+            44068864,
+            44068864
+          ]
+        },
+        {
+          "scenario": "large-append",
+          "phase": "create",
+          "scale": 262144,
+          "payloadPattern": "aligned-rbf3-fence",
+          "repetitions": 1,
+          "milliseconds": [
+            253.5144,
+            253.5144,
+            253.5144
+          ],
+          "allocatedBytes": [
+            101144,
+            101144,
+            101144
+          ],
+          "immediateHandleDeltaRange": [
+            1,
+            1
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            19037104,
+            19037104,
+            19037104
+          ],
+          "rssAfterGcBytes": [
+            50683904,
+            50683904,
+            50683904
+          ]
+        },
+        {
+          "scenario": "large-append",
+          "phase": "append-batch",
+          "scale": 262144,
+          "payloadPattern": "aligned-rbf3-fence",
+          "repetitions": 3,
+          "milliseconds": [
+            2.1503,
+            2.3841,
+            99.7317
+          ],
+          "allocatedBytes": [
+            280,
+            536,
+            25800
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            1
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            19039376,
+            19041712,
+            19044048
+          ],
+          "rssAfterGcBytes": [
+            45674496,
+            50651136,
+            50778112
+          ]
+        },
+        {
+          "scenario": "owned-read",
+          "phase": "retain-read-results",
+          "scale": 262144,
+          "payloadPattern": "aligned-rbf3-fence",
+          "repetitions": 3,
+          "milliseconds": [
+            1.5589,
+            1.5827,
+            1.6388
+          ],
+          "allocatedBytes": [
+            920,
+            920,
+            920
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            19040856,
+            19043128,
+            19045464
+          ],
+          "rssAfterGcBytes": [
+            49377280,
+            50610176,
+            50794496
+          ]
+        },
+        {
+          "scenario": "owned-read",
+          "phase": "dispose-read-results",
+          "scale": 262144,
+          "payloadPattern": "aligned-rbf3-fence",
+          "repetitions": 3,
+          "milliseconds": [
+            0.0093,
+            0.0127,
+            0.0196
+          ],
+          "allocatedBytes": [
+            0,
+            0,
+            0
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            19040800,
+            19043008,
+            19045344
+          ],
+          "rssAfterGcBytes": [
+            45465600,
+            49532928,
+            50606080
+          ]
+        },
+        {
+          "scenario": "large-append",
+          "phase": "confirm",
+          "scale": 262144,
+          "payloadPattern": "aligned-rbf3-fence",
+          "repetitions": 1,
+          "milliseconds": [
+            165.3727,
+            165.3727,
+            165.3727
+          ],
+          "allocatedBytes": [
+            0,
+            0,
+            0
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            19046032,
+            19046032,
+            19046032
+          ],
+          "rssAfterGcBytes": [
+            49532928,
+            49532928,
+            49532928
+          ]
+        },
+        {
+          "scenario": "large-append",
+          "phase": "owner-dispose",
+          "scale": 262144,
+          "payloadPattern": "aligned-rbf3-fence",
+          "repetitions": 1,
+          "milliseconds": [
+            0.3107,
+            0.3107,
+            0.3107
+          ],
+          "allocatedBytes": [
+            0,
+            0,
+            0
+          ],
+          "immediateHandleDeltaRange": [
+            -2,
+            -2
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            19045064,
+            19045064,
+            19045064
+          ],
+          "rssAfterGcBytes": [
+            49537024,
+            49537024,
+            49537024
+          ]
+        },
+        {
+          "scenario": "open-failure",
+          "phase": "highest-active-header-crc",
+          "scale": 3,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            8.9185,
+            9.26,
+            11.6558
+          ],
+          "allocatedBytes": [
+            92560,
+            92560,
+            92560
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18786080,
+            18805264,
+            18810840
+          ],
+          "rssAfterGcBytes": [
+            43151360,
+            45035520,
+            45060096
+          ]
+        },
+        {
+          "scenario": "open-failure",
+          "phase": "header-restored-open-confirm",
+          "scale": 3,
+          "payloadPattern": null,
+          "repetitions": 1,
+          "milliseconds": [
+            31.9521,
+            31.9521,
+            31.9521
+          ],
+          "allocatedBytes": [
+            89392,
+            89392,
+            89392
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18815280,
+            18815280,
+            18815280
+          ],
+          "rssAfterGcBytes": [
+            45076480,
+            45076480,
+            45076480
+          ]
+        },
+        {
+          "scenario": "open-failure",
+          "phase": "bad-formal-name",
+          "scale": 3,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            6.0459,
+            6.093,
+            6.1455
+          ],
+          "allocatedBytes": [
+            70872,
+            70872,
+            70872
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18817240,
+            18823552,
+            18829896
+          ],
+          "rssAfterGcBytes": [
+            45268992,
+            45281280,
+            45486080
+          ]
+        },
+        {
+          "scenario": "open-failure",
+          "phase": "formal-item-removed-open-confirm",
+          "scale": 3,
+          "payloadPattern": null,
+          "repetitions": 1,
+          "milliseconds": [
+            30.0114,
+            30.0114,
+            30.0114
+          ],
+          "allocatedBytes": [
+            89352,
+            89352,
+            89352
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18835296,
+            18835296,
+            18835296
+          ],
+          "rssAfterGcBytes": [
+            45522944,
+            45522944,
+            45522944
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "construct",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 1,
+          "milliseconds": [
+            679.9133,
+            679.9133,
+            679.9133
+          ],
+          "allocatedBytes": [
+            831984,
+            831984,
+            831984
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18836208,
+            18836208,
+            18836208
+          ],
+          "rssAfterGcBytes": [
+            46317568,
+            46317568,
+            46317568
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "cold-owner-open",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            11.2214,
+            11.2541,
+            12.372
+          ],
+          "allocatedBytes": [
+            121784,
+            121784,
+            121784
+          ],
+          "immediateHandleDeltaRange": [
+            1,
+            1
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18836384,
+            18846840,
+            18857296
+          ],
+          "rssAfterGcBytes": [
+            45633536,
+            46178304,
+            46317568
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "inventory",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            22.2243,
+            23.4289,
+            24.8078
+          ],
+          "allocatedBytes": [
+            231904,
+            231904,
+            231968
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18837024,
+            18847352,
+            18857808
+          ],
+          "rssAfterGcBytes": [
+            45371392,
+            46182400,
+            46325760
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "audit",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            22.1328,
+            23.7837,
+            25.5212
+          ],
+          "allocatedBytes": [
+            233704,
+            233704,
+            233704
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18837728,
+            18847992,
+            18858448
+          ],
+          "rssAfterGcBytes": [
+            45371392,
+            45916160,
+            46329856
+          ]
+        },
+        {
+          "scenario": "archive-read",
+          "phase": "repeated-random-read-and-dispose",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            42.0491,
+            45.6322,
+            46.1282
+          ],
+          "allocatedBytes": [
+            686968,
+            686968,
+            686968
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18839928,
+            18850128,
+            18860584
+          ],
+          "rssAfterGcBytes": [
+            45748224,
+            46309376,
+            46714880
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "inventory-visitor-throw",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            9.0542,
+            10.279,
+            10.6257
+          ],
+          "allocatedBytes": [
+            105136,
+            105136,
+            105136
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18842152,
+            18852320,
+            18862776
+          ],
+          "rssAfterGcBytes": [
+            45391872,
+            45953024,
+            46235648
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "owner-usable-after-inventory-throw",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            23.0714,
+            24.3458,
+            25.3273
+          ],
+          "allocatedBytes": [
+            242544,
+            242544,
+            242608
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18841712,
+            18851816,
+            18862272
+          ],
+          "rssAfterGcBytes": [
+            45375488,
+            45944832,
+            46223360
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "inventory-cancel",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            9.2719,
+            9.7746,
+            10.9219
+          ],
+          "allocatedBytes": [
+            103368,
+            103368,
+            103448
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18842576,
+            18852168,
+            18862624
+          ],
+          "rssAfterGcBytes": [
+            45375488,
+            45944832,
+            46247936
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "owner-usable-after-inventory-cancel",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            22.004,
+            23.5393,
+            24.4803
+          ],
+          "allocatedBytes": [
+            242544,
+            242544,
+            242544
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18843480,
+            18853072,
+            18863528
+          ],
+          "rssAfterGcBytes": [
+            45649920,
+            45789184,
+            46215168
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "audit-visitor-throw",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            8.902,
+            9.0146,
+            10.9195
+          ],
+          "allocatedBytes": [
+            102864,
+            102864,
+            102864
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18844000,
+            18853592,
+            18864048
+          ],
+          "rssAfterGcBytes": [
+            45592576,
+            45662208,
+            45764608
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "owner-usable-after-audit-throw",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            22.3424,
+            23.1332,
+            24.2825
+          ],
+          "allocatedBytes": [
+            244208,
+            244208,
+            244272
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18844936,
+            18855488,
+            18864920
+          ],
+          "rssAfterGcBytes": [
+            45592576,
+            45662208,
+            45748224
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "audit-cancel",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            9.3492,
+            10.1338,
+            10.2503
+          ],
+          "allocatedBytes": [
+            102992,
+            102992,
+            102992
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18845712,
+            18856264,
+            18865696
+          ],
+          "rssAfterGcBytes": [
+            45608960,
+            45658112,
+            45748224
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "owner-usable-after-audit-cancel",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            22.4637,
+            22.7997,
+            23.3107
+          ],
+          "allocatedBytes": [
+            245592,
+            245592,
+            247664
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18847992,
+            18858544,
+            18869000
+          ],
+          "rssAfterGcBytes": [
+            45633536,
+            45658112,
+            46174208
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "owner-dispose",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.0516,
+            0.0558,
+            0.2609
+          ],
+          "allocatedBytes": [
+            0,
+            0,
+            0
+          ],
+          "immediateHandleDeltaRange": [
+            -1,
+            -1
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18845344,
+            18855800,
+            18866256
+          ],
+          "rssAfterGcBytes": [
+            45633536,
+            45658112,
+            46178304
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "construct",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 1,
+          "milliseconds": [
+            4674.1636,
+            4674.1636,
+            4674.1636
+          ],
+          "allocatedBytes": [
+            8474960,
+            8474960,
+            8474960
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18877328,
+            18877328,
+            18877328
+          ],
+          "rssAfterGcBytes": [
+            48123904,
+            48123904,
+            48123904
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "cold-owner-open",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            57.2139,
+            58.0405,
+            58.1577
+          ],
+          "allocatedBytes": [
+            564656,
+            564656,
+            564656
+          ],
+          "immediateHandleDeltaRange": [
+            1,
+            1
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18873456,
+            18883712,
+            18893152
+          ],
+          "rssAfterGcBytes": [
+            46190592,
+            46292992,
+            47542272
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "inventory",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            178.4174,
+            186.5512,
+            200.5122
+          ],
+          "allocatedBytes": [
+            1678352,
+            1678352,
+            1678416
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18879320,
+            18889448,
+            18898888
+          ],
+          "rssAfterGcBytes": [
+            46297088,
+            47546368,
+            47546368
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "audit",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            182.0965,
+            183.1946,
+            199.5761
+          ],
+          "allocatedBytes": [
+            1686584,
+            1686584,
+            1686584
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18874808,
+            18884872,
+            18894312
+          ],
+          "rssAfterGcBytes": [
+            46297088,
+            47538176,
+            47546368
+          ]
+        },
+        {
+          "scenario": "archive-read",
+          "phase": "repeated-random-read-and-dispose",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            52.9487,
+            56.9522,
+            57.1491
+          ],
+          "allocatedBytes": [
+            2927736,
+            2927736,
+            2927736
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18880848,
+            18890848,
+            18900288
+          ],
+          "rssAfterGcBytes": [
+            46297088,
+            47538176,
+            47550464
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "inventory-visitor-throw",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            54.3165,
+            56.1961,
+            61.5062
+          ],
+          "allocatedBytes": [
+            546592,
+            546592,
+            546592
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18877848,
+            18887816,
+            18897256
+          ],
+          "rssAfterGcBytes": [
+            46305280,
+            47542272,
+            47550464
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "owner-usable-after-inventory-throw",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            182.2969,
+            186.2738,
+            197.1533
+          ],
+          "allocatedBytes": [
+            1718720,
+            1718720,
+            1718720
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18878728,
+            18888696,
+            18898136
+          ],
+          "rssAfterGcBytes": [
+            46309376,
+            47542272,
+            47550464
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "inventory-cancel",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            54.5549,
+            56.3883,
+            58.983
+          ],
+          "allocatedBytes": [
+            546208,
+            546208,
+            546208
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18879512,
+            18889048,
+            18898488
+          ],
+          "rssAfterGcBytes": [
+            46313472,
+            47542272,
+            47550464
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "owner-usable-after-inventory-cancel",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            179.5877,
+            181.8604,
+            186.4274
+          ],
+          "allocatedBytes": [
+            1723944,
+            1723944,
+            1723944
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18885640,
+            18895176,
+            18904616
+          ],
+          "rssAfterGcBytes": [
+            46309376,
+            47542272,
+            47554560
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "audit-visitor-throw",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            53.6643,
+            56.0981,
+            57.1887
+          ],
+          "allocatedBytes": [
+            545704,
+            545704,
+            545704
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18880936,
+            18890472,
+            18899912
+          ],
+          "rssAfterGcBytes": [
+            46051328,
+            46309376,
+            47542272
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "owner-usable-after-audit-throw",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            182.2616,
+            183.39,
+            190.7738
+          ],
+          "allocatedBytes": [
+            1737256,
+            1737256,
+            1737256
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18887032,
+            18896568,
+            18906008
+          ],
+          "rssAfterGcBytes": [
+            46051328,
+            46309376,
+            47546368
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "audit-cancel",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            51.0906,
+            56.2329,
+            57.0043
+          ],
+          "allocatedBytes": [
+            545320,
+            545832,
+            545832
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18882584,
+            18892120,
+            18901560
+          ],
+          "rssAfterGcBytes": [
+            46051328,
+            46309376,
+            47546368
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "owner-usable-after-audit-cancel",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            182.738,
+            194.0694,
+            201.7596
+          ],
+          "allocatedBytes": [
+            1737256,
+            1737256,
+            1737256
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18888704,
+            18898240,
+            18907552
+          ],
+          "rssAfterGcBytes": [
+            46063616,
+            46313472,
+            47517696
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "owner-dispose",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.0461,
+            0.0687,
+            0.0719
+          ],
+          "allocatedBytes": [
+            0,
+            0,
+            0
+          ],
+          "immediateHandleDeltaRange": [
+            -1,
+            -1
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18882216,
+            18891656,
+            18900968
+          ],
+          "rssAfterGcBytes": [
+            46063616,
+            46313472,
+            47517696
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "construct",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 1,
+          "milliseconds": [
+            92238.5693,
+            92238.5693,
+            92238.5693
+          ],
+          "allocatedBytes": [
+            214456920,
+            214456920,
+            214456920
+          ],
+          "immediateHandleDeltaRange": [
+            -2,
+            -2
+          ],
+          "afterGcHandleDeltaRange": [
+            3,
+            3
+          ],
+          "managedAfterGcBytes": [
+            4144936,
+            4144936,
+            4144936
+          ],
+          "rssAfterGcBytes": [
+            46174208,
+            46174208,
+            46174208
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "cold-owner-open",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            858.7739,
+            887.4139,
+            903.187
+          ],
+          "allocatedBytes": [
+            4121256,
+            4121256,
+            4121256
+          ],
+          "immediateHandleDeltaRange": [
+            1,
+            4
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            938352,
+            941192,
+            2510712
+          ],
+          "rssAfterGcBytes": [
+            45375488,
+            45465600,
+            46182400
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "inventory",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            3407.0907,
+            3445.4774,
+            3496.8207
+          ],
+          "allocatedBytes": [
+            13270048,
+            13270048,
+            13275312
+          ],
+          "immediateHandleDeltaRange": [
+            -3,
+            3
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            965720,
+            968624,
+            2543496
+          ],
+          "rssAfterGcBytes": [
+            45375488,
+            45441024,
+            46309376
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "audit",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            3424.5597,
+            3428.4332,
+            3463.3812
+          ],
+          "allocatedBytes": [
+            13376680,
+            13376680,
+            13377216
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            966368,
+            969272,
+            2020328
+          ],
+          "rssAfterGcBytes": [
+            45371392,
+            45391872,
+            46055424
+          ]
+        },
+        {
+          "scenario": "archive-read",
+          "phase": "repeated-random-read-and-dispose",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            192.074,
+            193.624,
+            196.0525
+          ],
+          "allocatedBytes": [
+            21319280,
+            21319280,
+            21319280
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            936088,
+            938992,
+            1990112
+          ],
+          "rssAfterGcBytes": [
+            45371392,
+            45391872,
+            45993984
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "inventory-visitor-throw",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            883.8614,
+            899.8707,
+            910.6863
+          ],
+          "allocatedBytes": [
+            4103032,
+            4103032,
+            4103032
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            938280,
+            941184,
+            1992336
+          ],
+          "rssAfterGcBytes": [
+            45367296,
+            45387776,
+            45989888
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "owner-usable-after-inventory-throw",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            3440.278,
+            3440.4414,
+            3653.947
+          ],
+          "allocatedBytes": [
+            13603040,
+            13603040,
+            13603040
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            3
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            966136,
+            969040,
+            2020064
+          ],
+          "rssAfterGcBytes": [
+            45404160,
+            45486080,
+            45973504
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "inventory-cancel",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            878.8511,
+            879.6718,
+            918.9823
+          ],
+          "allocatedBytes": [
+            4102648,
+            4102648,
+            4102648
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            935456,
+            938296,
+            1465504
+          ],
+          "rssAfterGcBytes": [
+            45379584,
+            45486080,
+            45961216
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "owner-usable-after-inventory-cancel",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            3389.0526,
+            3452.7339,
+            3619.5395
+          ],
+          "allocatedBytes": [
+            13603040,
+            13603040,
+            13603040
+          ],
+          "immediateHandleDeltaRange": [
+            -3,
+            3
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            967328,
+            970232,
+            1497504
+          ],
+          "rssAfterGcBytes": [
+            45383680,
+            45395968,
+            46370816
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "audit-visitor-throw",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            901.48,
+            904.6909,
+            920.2507
+          ],
+          "allocatedBytes": [
+            4102144,
+            4102144,
+            4102144
+          ],
+          "immediateHandleDeltaRange": [
+            -3,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            936816,
+            939720,
+            1466840
+          ],
+          "rssAfterGcBytes": [
+            45371392,
+            45391872,
+            45961216
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "owner-usable-after-audit-throw",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            3410.4531,
+            3445.1278,
+            3470.0879
+          ],
+          "allocatedBytes": [
+            13709536,
+            13709536,
+            13709536
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            967504,
+            968720,
+            1494624
+          ],
+          "rssAfterGcBytes": [
+            45371392,
+            45391872,
+            45961216
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "audit-cancel",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            874.0097,
+            888.1521,
+            913.932
+          ],
+          "allocatedBytes": [
+            4101760,
+            4101760,
+            4101760
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            3
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            934344,
+            937312,
+            1464432
+          ],
+          "rssAfterGcBytes": [
+            45391872,
+            45731840,
+            46059520
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "owner-usable-after-audit-cancel",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            3348.2659,
+            3412.4776,
+            3465.3724
+          ],
+          "allocatedBytes": [
+            13709536,
+            13709536,
+            13709536
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            966272,
+            969240,
+            972048
+          ],
+          "rssAfterGcBytes": [
+            43507712,
+            45391872,
+            45551616
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "owner-dispose",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.0509,
+            0.0538,
+            0.0567
+          ],
+          "allocatedBytes": [
+            0,
+            0,
+            0
+          ],
+          "immediateHandleDeltaRange": [
+            -1,
+            -1
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            933880,
+            936784,
+            939688
+          ],
+          "rssAfterGcBytes": [
+            43479040,
+            45391872,
+            45514752
+          ]
+        }
+      ]
+    },
+    {
+      "label": "linux",
+      "rawResult": "artifacts/framestore-r2-linux/resource-result.json",
+      "rawSha256": "DD605582789B9A242F7FD5DD7F947FBD9431AF59F009E5D153934AEC9B9326F4",
+      "status": "passed",
+      "startedUtc": "2026-10-09T19:32:35.2385861Z",
+      "finishedUtc": "2026-10-09T19:35:08.8299686Z",
+      "elapsedMilliseconds": 141096.7199,
+      "input": {
+        "workRoot": "/tmp/atelia-framestore-r2-Dojh1W/artifacts/resource-linux",
+        "output": null,
+        "sourceRevision": "59ebd43-plus-R2-probes",
+        "builderLimits": [
+          1,
+          4,
+          16
+        ],
+        "archiveScales": [
+          16,
+          128,
+          1024
+        ],
+        "sizeHints": [
+          1048576,
+          4194304,
+          8388608
+        ],
+        "repeats": 3,
+        "hintIterations": 4,
+        "appendIterations": 8,
+        "largePayloadBytes": 262144,
+        "archivePayloadBytes": 256,
+        "randomReads": 64,
+        "maxSeconds": 600,
+        "maxDiskBytes": 100663296,
+        "estimatedDataBytes": 18120704
+      },
+      "environment": {
+        "framework": ".NET 10.0.5",
+        "os": "Ubuntu 24.04.4 LTS",
+        "architecture": "X64",
+        "runtimeVersion": "10.0.5",
+        "processorCount": 12,
+        "processId": 34605,
+        "serverGC": false,
+        "fileLockingEnvironment": null
+      },
+      "finalDisk": {
+        "fileCount": 1295,
+        "directoryCount": 73,
+        "activeFileCount": 79,
+        "archiveFileCount": 1169,
+        "archiveBucketCount": 5,
+        "logicalFileBytes": 12999364,
+        "allocatedFileBytes": 17817600,
+        "allocationMetric": "Linux statx stx_blocks * 512 for regular files; directory metadata excluded",
+        "allocationError": null
+      },
+      "assertionCount": 200,
+      "sampleCount": 226,
+      "expectedFailureCount": 6,
+      "selectedDetails": [
+        {
+          "scenario": "size-hint",
+          "phase": "borrow-advance0-cancel",
+          "repeat": 0,
+          "scale": 1048576,
+          "details": {
+            "requestedSizeHint": 1048576,
+            "declaredPayloadBytes": 1,
+            "iterations": 4,
+            "managedPoolRetainedBytes": "unknown",
+            "returnedCapacities": [
+              1048576,
+              1048576,
+              1048576,
+              1048576
+            ],
+            "logicalLengthDeltas": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "scenario": "size-hint",
+          "phase": "borrow-advance0-cancel",
+          "repeat": 1,
+          "scale": 1048576,
+          "details": {
+            "requestedSizeHint": 1048576,
+            "declaredPayloadBytes": 1,
+            "iterations": 4,
+            "managedPoolRetainedBytes": "unknown",
+            "returnedCapacities": [
+              1048576,
+              1048576,
+              1048576,
+              1048576
+            ],
+            "logicalLengthDeltas": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "scenario": "size-hint",
+          "phase": "borrow-advance0-cancel",
+          "repeat": 2,
+          "scale": 1048576,
+          "details": {
+            "requestedSizeHint": 1048576,
+            "declaredPayloadBytes": 1,
+            "iterations": 4,
+            "managedPoolRetainedBytes": "unknown",
+            "returnedCapacities": [
+              1048576,
+              1048576,
+              1048576,
+              1048576
+            ],
+            "logicalLengthDeltas": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "scenario": "size-hint",
+          "phase": "borrow-advance0-cancel",
+          "repeat": 0,
+          "scale": 4194304,
+          "details": {
+            "requestedSizeHint": 4194304,
+            "declaredPayloadBytes": 1,
+            "iterations": 4,
+            "managedPoolRetainedBytes": "unknown",
+            "returnedCapacities": [
+              4194304,
+              4194304,
+              4194304,
+              4194304
+            ],
+            "logicalLengthDeltas": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "scenario": "size-hint",
+          "phase": "borrow-advance0-cancel",
+          "repeat": 1,
+          "scale": 4194304,
+          "details": {
+            "requestedSizeHint": 4194304,
+            "declaredPayloadBytes": 1,
+            "iterations": 4,
+            "managedPoolRetainedBytes": "unknown",
+            "returnedCapacities": [
+              4194304,
+              4194304,
+              4194304,
+              4194304
+            ],
+            "logicalLengthDeltas": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "scenario": "size-hint",
+          "phase": "borrow-advance0-cancel",
+          "repeat": 2,
+          "scale": 4194304,
+          "details": {
+            "requestedSizeHint": 4194304,
+            "declaredPayloadBytes": 1,
+            "iterations": 4,
+            "managedPoolRetainedBytes": "unknown",
+            "returnedCapacities": [
+              4194304,
+              4194304,
+              4194304,
+              4194304
+            ],
+            "logicalLengthDeltas": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "scenario": "size-hint",
+          "phase": "borrow-advance0-cancel",
+          "repeat": 0,
+          "scale": 8388608,
+          "details": {
+            "requestedSizeHint": 8388608,
+            "declaredPayloadBytes": 1,
+            "iterations": 4,
+            "managedPoolRetainedBytes": "unknown",
+            "returnedCapacities": [
+              8388608,
+              8388608,
+              8388608,
+              8388608
+            ],
+            "logicalLengthDeltas": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "scenario": "size-hint",
+          "phase": "borrow-advance0-cancel",
+          "repeat": 1,
+          "scale": 8388608,
+          "details": {
+            "requestedSizeHint": 8388608,
+            "declaredPayloadBytes": 1,
+            "iterations": 4,
+            "managedPoolRetainedBytes": "unknown",
+            "returnedCapacities": [
+              8388608,
+              8388608,
+              8388608,
+              8388608
+            ],
+            "logicalLengthDeltas": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "scenario": "size-hint",
+          "phase": "borrow-advance0-cancel",
+          "repeat": 2,
+          "scale": 8388608,
+          "details": {
+            "requestedSizeHint": 8388608,
+            "declaredPayloadBytes": 1,
+            "iterations": 4,
+            "managedPoolRetainedBytes": "unknown",
+            "returnedCapacities": [
+              8388608,
+              8388608,
+              8388608,
+              8388608
+            ],
+            "logicalLengthDeltas": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "scenario": "size-hint",
+          "phase": "owner-dispose",
+          "repeat": 0,
+          "scale": 0,
+          "details": {}
+        },
+        {
+          "scenario": "large-append",
+          "phase": "owner-dispose",
+          "repeat": 0,
+          "scale": 262144,
+          "details": {
+            "payloadPattern": "no-fence",
+            "observedLastTailKeyAfterDispose": 0
+          }
+        },
+        {
+          "scenario": "large-append",
+          "phase": "owner-dispose",
+          "repeat": 0,
+          "scale": 262144,
+          "details": {
+            "payloadPattern": "aligned-rbf3-fence",
+            "observedLastTailKeyAfterDispose": 705980630
+          }
+        }
+      ],
+      "groups": [
+        {
+          "scenario": "observer",
+          "phase": "warmed-baseline",
+          "scale": 0,
+          "payloadPattern": null,
+          "repetitions": 1,
+          "milliseconds": [
+            0.0944,
+            0.0944,
+            0.0944
+          ],
+          "allocatedBytes": [
+            40,
+            40,
+            40
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            502472,
+            502472,
+            502472
+          ],
+          "rssAfterGcBytes": [
+            51965952,
+            51965952,
+            51965952
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "create",
+          "scale": 1,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            50.0363,
+            50.0787,
+            53.0053
+          ],
+          "allocatedBytes": [
+            36112,
+            36112,
+            36152
+          ],
+          "immediateHandleDeltaRange": [
+            1,
+            1
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            510112,
+            522688,
+            527176
+          ],
+          "rssAfterGcBytes": [
+            52215808,
+            52862976,
+            55005184
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "hold-full-quota-plus-append",
+          "scale": 1,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            93.4338,
+            109.0833,
+            137.3247
+          ],
+          "allocatedBytes": [
+            19040,
+            19064,
+            19096
+          ],
+          "immediateHandleDeltaRange": [
+            2,
+            2
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            513624,
+            526208,
+            530656
+          ],
+          "rssAfterGcBytes": [
+            52563968,
+            53211136,
+            55439360
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "healthy-cancel-to-idle",
+          "scale": 1,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            44.6251,
+            46.0207,
+            53.5509
+          ],
+          "allocatedBytes": [
+            6008,
+            6288,
+            9960
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            522712,
+            527288,
+            531928
+          ],
+          "rssAfterGcBytes": [
+            52596736,
+            54902784,
+            55459840
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "dispose",
+          "scale": 1,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.0174,
+            0.0218,
+            0.1567
+          ],
+          "allocatedBytes": [
+            40,
+            40,
+            40
+          ],
+          "immediateHandleDeltaRange": [
+            -3,
+            -3
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            520160,
+            524736,
+            529376
+          ],
+          "rssAfterGcBytes": [
+            52715520,
+            54960128,
+            55459840
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "cold-owner-open-m1",
+          "scale": 1,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.5377,
+            0.6183,
+            2.5029
+          ],
+          "allocatedBytes": [
+            32128,
+            32128,
+            32152
+          ],
+          "immediateHandleDeltaRange": [
+            3,
+            3
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            523856,
+            528376,
+            533016
+          ],
+          "rssAfterGcBytes": [
+            52793344,
+            54960128,
+            55459840
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "m1-first-confirm",
+          "scale": 1,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            53.3922,
+            53.7446,
+            54.7996
+          ],
+          "allocatedBytes": [
+            1568,
+            1568,
+            1656
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            525088,
+            529576,
+            534216
+          ],
+          "rssAfterGcBytes": [
+            52793344,
+            54886400,
+            55459840
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "reopened-dispose",
+          "scale": 1,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.0139,
+            0.0159,
+            0.149
+          ],
+          "allocatedBytes": [
+            40,
+            40,
+            40
+          ],
+          "immediateHandleDeltaRange": [
+            -3,
+            -3
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            522616,
+            527104,
+            531744
+          ],
+          "rssAfterGcBytes": [
+            52797440,
+            54915072,
+            55463936
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "create",
+          "scale": 4,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            48.7079,
+            49.2571,
+            51.7877
+          ],
+          "allocatedBytes": [
+            36112,
+            36112,
+            36112
+          ],
+          "immediateHandleDeltaRange": [
+            1,
+            1
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            531816,
+            548536,
+            553432
+          ],
+          "rssAfterGcBytes": [
+            55480320,
+            55988224,
+            56766464
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "hold-full-quota-plus-append",
+          "scale": 4,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            230.0227,
+            246.4808,
+            283.5018
+          ],
+          "allocatedBytes": [
+            48528,
+            48952,
+            56768
+          ],
+          "immediateHandleDeltaRange": [
+            5,
+            5
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            548224,
+            557128,
+            561600
+          ],
+          "rssAfterGcBytes": [
+            55902208,
+            56582144,
+            60375040
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "healthy-cancel-to-idle",
+          "scale": 4,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            53.7548,
+            53.9215,
+            58.8392
+          ],
+          "allocatedBytes": [
+            9512,
+            9512,
+            9536
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            2
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            553072,
+            557456,
+            562328
+          ],
+          "rssAfterGcBytes": [
+            55910400,
+            56819712,
+            60403712
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "dispose",
+          "scale": 4,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.0255,
+            0.0262,
+            0.0266
+          ],
+          "allocatedBytes": [
+            40,
+            40,
+            40
+          ],
+          "immediateHandleDeltaRange": [
+            -6,
+            -6
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            546096,
+            550480,
+            555352
+          ],
+          "rssAfterGcBytes": [
+            55910400,
+            56823808,
+            60506112
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "cold-owner-open-m1",
+          "scale": 4,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.5844,
+            0.6514,
+            1.0066
+          ],
+          "allocatedBytes": [
+            39704,
+            40128,
+            40128
+          ],
+          "immediateHandleDeltaRange": [
+            6,
+            6
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            553880,
+            558096,
+            563136
+          ],
+          "rssAfterGcBytes": [
+            55918592,
+            56840192,
+            60506112
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "m1-first-confirm",
+          "scale": 4,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            60.893,
+            61.4409,
+            65.4137
+          ],
+          "allocatedBytes": [
+            1568,
+            1616,
+            2104
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            554656,
+            559552,
+            563912
+          ],
+          "rssAfterGcBytes": [
+            55918592,
+            56606720,
+            60641280
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "reopened-dispose",
+          "scale": 4,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.0191,
+            0.0249,
+            0.0427
+          ],
+          "allocatedBytes": [
+            40,
+            40,
+            40
+          ],
+          "immediateHandleDeltaRange": [
+            -6,
+            -6
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            548768,
+            553664,
+            558024
+          ],
+          "rssAfterGcBytes": [
+            55926784,
+            56635392,
+            60645376
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "create",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            54.1698,
+            56.1503,
+            68.6945
+          ],
+          "allocatedBytes": [
+            36120,
+            36120,
+            36120
+          ],
+          "immediateHandleDeltaRange": [
+            1,
+            1
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            557800,
+            612600,
+            616968
+          ],
+          "rssAfterGcBytes": [
+            60657664,
+            61542400,
+            61702144
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "hold-full-quota-plus-append",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            906.9962,
+            956.5833,
+            971.8484
+          ],
+          "allocatedBytes": [
+            190432,
+            191816,
+            238336
+          ],
+          "immediateHandleDeltaRange": [
+            17,
+            17
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            632880,
+            639776,
+            645528
+          ],
+          "rssAfterGcBytes": [
+            61177856,
+            61673472,
+            61829120
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "healthy-cancel-to-idle",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            67.7701,
+            68.0586,
+            68.7876
+          ],
+          "allocatedBytes": [
+            22840,
+            22840,
+            22840
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            634992,
+            639360,
+            643728
+          ],
+          "rssAfterGcBytes": [
+            61251584,
+            61673472,
+            61841408
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "dispose",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.0431,
+            0.0435,
+            0.0516
+          ],
+          "allocatedBytes": [
+            40,
+            40,
+            40
+          ],
+          "immediateHandleDeltaRange": [
+            -18,
+            -18
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            610256,
+            614624,
+            618992
+          ],
+          "rssAfterGcBytes": [
+            61267968,
+            61673472,
+            61837312
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "cold-owner-open-m1",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.8588,
+            0.9285,
+            0.9396
+          ],
+          "allocatedBytes": [
+            69368,
+            69368,
+            70752
+          ],
+          "immediateHandleDeltaRange": [
+            18,
+            18
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            632104,
+            637856,
+            640840
+          ],
+          "rssAfterGcBytes": [
+            61272064,
+            61689856,
+            61911040
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "m1-first-confirm",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            66.7566,
+            67.4652,
+            75.5854
+          ],
+          "allocatedBytes": [
+            1568,
+            1616,
+            1616
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            633304,
+            637672,
+            642040
+          ],
+          "rssAfterGcBytes": [
+            61300736,
+            61698048,
+            61911040
+          ]
+        },
+        {
+          "scenario": "builders",
+          "phase": "reopened-dispose",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.0407,
+            0.041,
+            0.0421
+          ],
+          "allocatedBytes": [
+            40,
+            40,
+            40
+          ],
+          "immediateHandleDeltaRange": [
+            -18,
+            -18
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            613688,
+            618056,
+            622424
+          ],
+          "rssAfterGcBytes": [
+            61440000,
+            61698048,
+            61911040
+          ]
+        },
+        {
+          "scenario": "size-hint",
+          "phase": "borrow-advance0-cancel",
+          "scale": 1048576,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.0103,
+            0.0236,
+            51.012
+          ],
+          "allocatedBytes": [
+            680,
+            66240,
+            1099152
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            1
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            1712784,
+            1780544,
+            1781592
+          ],
+          "rssAfterGcBytes": [
+            62210048,
+            62242816,
+            62312448
+          ]
+        },
+        {
+          "scenario": "size-hint",
+          "phase": "borrow-advance0-cancel",
+          "scale": 4194304,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.0081,
+            0.0088,
+            0.04
+          ],
+          "allocatedBytes": [
+            680,
+            680,
+            4195008
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            5977008,
+            5978016,
+            5979064
+          ],
+          "rssAfterGcBytes": [
+            62316544,
+            62357504,
+            62357504
+          ]
+        },
+        {
+          "scenario": "size-hint",
+          "phase": "borrow-advance0-cancel",
+          "scale": 8388608,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.0066,
+            0.007,
+            0.0829
+          ],
+          "allocatedBytes": [
+            680,
+            680,
+            8389312
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            14368784,
+            14369792,
+            14370840
+          ],
+          "rssAfterGcBytes": [
+            62361600,
+            62361600,
+            62365696
+          ]
+        },
+        {
+          "scenario": "size-hint",
+          "phase": "owner-dispose",
+          "scale": 0,
+          "payloadPattern": null,
+          "repetitions": 1,
+          "milliseconds": [
+            0.008,
+            0.008,
+            0.008
+          ],
+          "allocatedBytes": [
+            40,
+            40,
+            40
+          ],
+          "immediateHandleDeltaRange": [
+            -2,
+            -2
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            14370024,
+            14370024,
+            14370024
+          ],
+          "rssAfterGcBytes": [
+            62365696,
+            62365696,
+            62365696
+          ]
+        },
+        {
+          "scenario": "large-append",
+          "phase": "create",
+          "scale": 262144,
+          "payloadPattern": "no-fence",
+          "repetitions": 1,
+          "milliseconds": [
+            53.8476,
+            53.8476,
+            53.8476
+          ],
+          "allocatedBytes": [
+            37248,
+            37248,
+            37248
+          ],
+          "immediateHandleDeltaRange": [
+            1,
+            1
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            14633104,
+            14633104,
+            14633104
+          ],
+          "rssAfterGcBytes": [
+            62652416,
+            62652416,
+            62652416
+          ]
+        },
+        {
+          "scenario": "large-append",
+          "phase": "append-batch",
+          "scale": 262144,
+          "payloadPattern": "no-fence",
+          "repetitions": 3,
+          "milliseconds": [
+            2.2765,
+            2.4326,
+            59.9762
+          ],
+          "allocatedBytes": [
+            320,
+            576,
+            9256
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            1
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            14635304,
+            18836112,
+            18838448
+          ],
+          "rssAfterGcBytes": [
+            62660608,
+            64925696,
+            64925696
+          ]
+        },
+        {
+          "scenario": "owned-read",
+          "phase": "retain-read-results",
+          "scale": 262144,
+          "payloadPattern": "no-fence",
+          "repetitions": 3,
+          "milliseconds": [
+            1.0436,
+            1.2446,
+            5.9533
+          ],
+          "allocatedBytes": [
+            960,
+            960,
+            4195600
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18831368,
+            18837528,
+            18839864
+          ],
+          "rssAfterGcBytes": [
+            64913408,
+            64925696,
+            64929792
+          ]
+        },
+        {
+          "scenario": "owned-read",
+          "phase": "dispose-read-results",
+          "scale": 262144,
+          "payloadPattern": "no-fence",
+          "repetitions": 3,
+          "milliseconds": [
+            0.0061,
+            0.0068,
+            0.2189
+          ],
+          "allocatedBytes": [
+            40,
+            40,
+            3928
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18835200,
+            18837408,
+            18839744
+          ],
+          "rssAfterGcBytes": [
+            64913408,
+            64925696,
+            64929792
+          ]
+        },
+        {
+          "scenario": "large-append",
+          "phase": "confirm",
+          "scale": 262144,
+          "payloadPattern": "no-fence",
+          "repetitions": 1,
+          "milliseconds": [
+            137.6758,
+            137.6758,
+            137.6758
+          ],
+          "allocatedBytes": [
+            40,
+            40,
+            40
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18840432,
+            18840432,
+            18840432
+          ],
+          "rssAfterGcBytes": [
+            64954368,
+            64954368,
+            64954368
+          ]
+        },
+        {
+          "scenario": "large-append",
+          "phase": "owner-dispose",
+          "scale": 262144,
+          "payloadPattern": "no-fence",
+          "repetitions": 1,
+          "milliseconds": [
+            0.2089,
+            0.2089,
+            0.2089
+          ],
+          "allocatedBytes": [
+            0,
+            0,
+            0
+          ],
+          "immediateHandleDeltaRange": [
+            -2,
+            -2
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18839504,
+            18839504,
+            18839504
+          ],
+          "rssAfterGcBytes": [
+            64954368,
+            64954368,
+            64954368
+          ]
+        },
+        {
+          "scenario": "large-append",
+          "phase": "create",
+          "scale": 262144,
+          "payloadPattern": "aligned-rbf3-fence",
+          "repetitions": 1,
+          "milliseconds": [
+            53.7917,
+            53.7917,
+            53.7917
+          ],
+          "allocatedBytes": [
+            38400,
+            38400,
+            38400
+          ],
+          "immediateHandleDeltaRange": [
+            1,
+            1
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18840232,
+            18840232,
+            18840232
+          ],
+          "rssAfterGcBytes": [
+            71528448,
+            71528448,
+            71528448
+          ]
+        },
+        {
+          "scenario": "large-append",
+          "phase": "append-batch",
+          "scale": 262144,
+          "payloadPattern": "aligned-rbf3-fence",
+          "repetitions": 3,
+          "milliseconds": [
+            2.6276,
+            2.726,
+            49.2492
+          ],
+          "allocatedBytes": [
+            280,
+            536,
+            9616
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            1
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18842448,
+            18844784,
+            18847120
+          ],
+          "rssAfterGcBytes": [
+            71806976,
+            71811072,
+            71811072
+          ]
+        },
+        {
+          "scenario": "owned-read",
+          "phase": "retain-read-results",
+          "scale": 262144,
+          "payloadPattern": "aligned-rbf3-fence",
+          "repetitions": 3,
+          "milliseconds": [
+            1.1029,
+            1.1746,
+            1.2189
+          ],
+          "allocatedBytes": [
+            920,
+            920,
+            920
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18843928,
+            18846200,
+            18848536
+          ],
+          "rssAfterGcBytes": [
+            71806976,
+            71811072,
+            71815168
+          ]
+        },
+        {
+          "scenario": "owned-read",
+          "phase": "dispose-read-results",
+          "scale": 262144,
+          "payloadPattern": "aligned-rbf3-fence",
+          "repetitions": 3,
+          "milliseconds": [
+            0.0053,
+            0.0055,
+            0.0071
+          ],
+          "allocatedBytes": [
+            0,
+            0,
+            0
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18843872,
+            18846080,
+            18848416
+          ],
+          "rssAfterGcBytes": [
+            71811072,
+            71811072,
+            71815168
+          ]
+        },
+        {
+          "scenario": "large-append",
+          "phase": "confirm",
+          "scale": 262144,
+          "payloadPattern": "aligned-rbf3-fence",
+          "repetitions": 1,
+          "milliseconds": [
+            104.6754,
+            104.6754,
+            104.6754
+          ],
+          "allocatedBytes": [
+            0,
+            0,
+            0
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18849104,
+            18849104,
+            18849104
+          ],
+          "rssAfterGcBytes": [
+            71819264,
+            71819264,
+            71819264
+          ]
+        },
+        {
+          "scenario": "large-append",
+          "phase": "owner-dispose",
+          "scale": 262144,
+          "payloadPattern": "aligned-rbf3-fence",
+          "repetitions": 1,
+          "milliseconds": [
+            0.0202,
+            0.0202,
+            0.0202
+          ],
+          "allocatedBytes": [
+            0,
+            0,
+            0
+          ],
+          "immediateHandleDeltaRange": [
+            -2,
+            -2
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18848200,
+            18848200,
+            18848200
+          ],
+          "rssAfterGcBytes": [
+            71819264,
+            71819264,
+            71819264
+          ]
+        },
+        {
+          "scenario": "open-failure",
+          "phase": "highest-active-header-crc",
+          "scale": 3,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.4385,
+            0.4975,
+            2.5146
+          ],
+          "allocatedBytes": [
+            37384,
+            37384,
+            37384
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18589024,
+            18606784,
+            18612296
+          ],
+          "rssAfterGcBytes": [
+            65396736,
+            68476928,
+            68497408
+          ]
+        },
+        {
+          "scenario": "open-failure",
+          "phase": "header-restored-open-confirm",
+          "scale": 3,
+          "payloadPattern": null,
+          "repetitions": 1,
+          "milliseconds": [
+            58.7041,
+            58.7041,
+            58.7041
+          ],
+          "allocatedBytes": [
+            34264,
+            34264,
+            34264
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18616672,
+            18616672,
+            18616672
+          ],
+          "rssAfterGcBytes": [
+            68505600,
+            68505600,
+            68505600
+          ]
+        },
+        {
+          "scenario": "open-failure",
+          "phase": "bad-formal-name",
+          "scale": 3,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.2301,
+            0.2757,
+            0.4644
+          ],
+          "allocatedBytes": [
+            29064,
+            29064,
+            29064
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18618584,
+            18624816,
+            18631080
+          ],
+          "rssAfterGcBytes": [
+            68509696,
+            68513792,
+            68517888
+          ]
+        },
+        {
+          "scenario": "open-failure",
+          "phase": "formal-item-removed-open-confirm",
+          "scale": 3,
+          "payloadPattern": null,
+          "repetitions": 1,
+          "milliseconds": [
+            15.0682,
+            15.0682,
+            15.0682
+          ],
+          "allocatedBytes": [
+            34224,
+            34224,
+            34224
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18636400,
+            18636400,
+            18636400
+          ],
+          "rssAfterGcBytes": [
+            68526080,
+            68526080,
+            68526080
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "construct",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 1,
+          "milliseconds": [
+            1740.3975,
+            1740.3975,
+            1740.3975
+          ],
+          "allocatedBytes": [
+            289328,
+            289328,
+            289328
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18640384,
+            18640384,
+            18640384
+          ],
+          "rssAfterGcBytes": [
+            68706304,
+            68706304,
+            68706304
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "cold-owner-open",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.2795,
+            0.5058,
+            0.5582
+          ],
+          "allocatedBytes": [
+            30056,
+            30056,
+            30056
+          ],
+          "immediateHandleDeltaRange": [
+            1,
+            1
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18640552,
+            18651008,
+            18661464
+          ],
+          "rssAfterGcBytes": [
+            68710400,
+            68919296,
+            69062656
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "inventory",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.7873,
+            0.8751,
+            1.3221
+          ],
+          "allocatedBytes": [
+            49032,
+            49032,
+            49096
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18641192,
+            18651520,
+            18661976
+          ],
+          "rssAfterGcBytes": [
+            68714496,
+            68919296,
+            69062656
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "audit",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.9306,
+            1.1123,
+            1.2455
+          ],
+          "allocatedBytes": [
+            50832,
+            50832,
+            50832
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18641896,
+            18652160,
+            18662616
+          ],
+          "rssAfterGcBytes": [
+            68714496,
+            68919296,
+            69062656
+          ]
+        },
+        {
+          "scenario": "archive-read",
+          "phase": "repeated-random-read-and-dispose",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            3.1883,
+            3.2756,
+            3.9041
+          ],
+          "allocatedBytes": [
+            418968,
+            418968,
+            418968
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18644096,
+            18654296,
+            18664752
+          ],
+          "rssAfterGcBytes": [
+            68907008,
+            69054464,
+            69066752
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "inventory-visitor-throw",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.3564,
+            0.358,
+            0.7097
+          ],
+          "allocatedBytes": [
+            23184,
+            23184,
+            23184
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18646320,
+            18656488,
+            18666944
+          ],
+          "rssAfterGcBytes": [
+            68911104,
+            69054464,
+            69066752
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "owner-usable-after-inventory-throw",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.8698,
+            0.9239,
+            1.2
+          ],
+          "allocatedBytes": [
+            55488,
+            55488,
+            55552
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18645880,
+            18655984,
+            18666440
+          ],
+          "rssAfterGcBytes": [
+            68911104,
+            69058560,
+            69066752
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "inventory-cancel",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.288,
+            0.3481,
+            0.5145
+          ],
+          "allocatedBytes": [
+            21416,
+            21416,
+            21496
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18646744,
+            18656336,
+            18666792
+          ],
+          "rssAfterGcBytes": [
+            68911104,
+            69058560,
+            69066752
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "owner-usable-after-inventory-cancel",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.8642,
+            0.9106,
+            0.9327
+          ],
+          "allocatedBytes": [
+            55488,
+            55488,
+            55488
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18647648,
+            18657240,
+            18667696
+          ],
+          "rssAfterGcBytes": [
+            68915200,
+            69058560,
+            69087232
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "audit-visitor-throw",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.3443,
+            0.3702,
+            0.4663
+          ],
+          "allocatedBytes": [
+            20912,
+            20912,
+            20912
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18648168,
+            18657760,
+            18668216
+          ],
+          "rssAfterGcBytes": [
+            68915200,
+            69058560,
+            69095424
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "owner-usable-after-audit-throw",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.9266,
+            1.0459,
+            1.0735
+          ],
+          "allocatedBytes": [
+            57152,
+            57152,
+            57216
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18649104,
+            18659656,
+            18669088
+          ],
+          "rssAfterGcBytes": [
+            68915200,
+            69062656,
+            69111808
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "audit-cancel",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.3458,
+            0.3695,
+            0.3738
+          ],
+          "allocatedBytes": [
+            21040,
+            21040,
+            21040
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18649880,
+            18660432,
+            18669864
+          ],
+          "rssAfterGcBytes": [
+            68915200,
+            69062656,
+            69111808
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "owner-usable-after-audit-cancel",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.8061,
+            0.8975,
+            0.9128
+          ],
+          "allocatedBytes": [
+            58536,
+            58536,
+            60608
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18652160,
+            18662712,
+            18673168
+          ],
+          "rssAfterGcBytes": [
+            68919296,
+            69062656,
+            69120000
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "owner-dispose",
+          "scale": 16,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.0057,
+            0.0057,
+            0.1557
+          ],
+          "allocatedBytes": [
+            0,
+            0,
+            0
+          ],
+          "immediateHandleDeltaRange": [
+            -1,
+            -1
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18649520,
+            18659976,
+            18670432
+          ],
+          "rssAfterGcBytes": [
+            68919296,
+            69062656,
+            69128192
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "construct",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 1,
+          "milliseconds": [
+            13597.8766,
+            13597.8766,
+            13597.8766
+          ],
+          "allocatedBytes": [
+            4068024,
+            4068024,
+            4068024
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18681504,
+            18681504,
+            18681504
+          ],
+          "rssAfterGcBytes": [
+            72908800,
+            72908800,
+            72908800
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "cold-owner-open",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.8907,
+            0.9344,
+            1.15
+          ],
+          "allocatedBytes": [
+            95536,
+            95536,
+            95536
+          ],
+          "immediateHandleDeltaRange": [
+            1,
+            1
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18677568,
+            18687880,
+            18697320
+          ],
+          "rssAfterGcBytes": [
+            72916992,
+            73084928,
+            73129984
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "inventory",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            5.3467,
+            5.3516,
+            5.9484
+          ],
+          "allocatedBytes": [
+            362488,
+            362488,
+            362552
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18683432,
+            18693616,
+            18703056
+          ],
+          "rssAfterGcBytes": [
+            72990720,
+            73089024,
+            73129984
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "audit",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            5.6091,
+            5.6642,
+            6.0517
+          ],
+          "allocatedBytes": [
+            370720,
+            370720,
+            370720
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18678976,
+            18689040,
+            18698480
+          ],
+          "rssAfterGcBytes": [
+            72990720,
+            73089024,
+            73129984
+          ]
+        },
+        {
+          "scenario": "archive-read",
+          "phase": "repeated-random-read-and-dispose",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            7.7296,
+            7.7455,
+            8.0685
+          ],
+          "allocatedBytes": [
+            2315160,
+            2315160,
+            2315160
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18685016,
+            18695016,
+            18704456
+          ],
+          "rssAfterGcBytes": [
+            72998912,
+            73089024,
+            73129984
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "inventory-visitor-throw",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            1.2282,
+            1.3087,
+            1.4509
+          ],
+          "allocatedBytes": [
+            87216,
+            87216,
+            87216
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18682016,
+            18691984,
+            18701424
+          ],
+          "rssAfterGcBytes": [
+            73003008,
+            73089024,
+            73129984
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "owner-usable-after-inventory-throw",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            5.2298,
+            5.8382,
+            6.5101
+          ],
+          "allocatedBytes": [
+            393288,
+            393288,
+            393288
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18682896,
+            18692864,
+            18702304
+          ],
+          "rssAfterGcBytes": [
+            73007104,
+            73093120,
+            73134080
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "inventory-cancel",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.9747,
+            1.1166,
+            1.3831
+          ],
+          "allocatedBytes": [
+            86832,
+            86832,
+            86832
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18683680,
+            18693216,
+            18702656
+          ],
+          "rssAfterGcBytes": [
+            73007104,
+            73093120,
+            73134080
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "owner-usable-after-inventory-cancel",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            5.2596,
+            5.5955,
+            5.7947
+          ],
+          "allocatedBytes": [
+            398512,
+            398512,
+            398512
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18689808,
+            18699344,
+            18708784
+          ],
+          "rssAfterGcBytes": [
+            73011200,
+            73093120,
+            73138176
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "audit-visitor-throw",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            1.0735,
+            1.1595,
+            1.2063
+          ],
+          "allocatedBytes": [
+            86328,
+            86328,
+            86328
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18685104,
+            18694640,
+            18704080
+          ],
+          "rssAfterGcBytes": [
+            73011200,
+            73093120,
+            73134080
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "owner-usable-after-audit-throw",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            5.8519,
+            6.192,
+            6.3054
+          ],
+          "allocatedBytes": [
+            411824,
+            411824,
+            411824
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18691200,
+            18700736,
+            18710176
+          ],
+          "rssAfterGcBytes": [
+            73011200,
+            73097216,
+            73138176
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "audit-cancel",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            1.1558,
+            1.2027,
+            1.2938
+          ],
+          "allocatedBytes": [
+            85944,
+            86456,
+            86456
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18686752,
+            18696288,
+            18705728
+          ],
+          "rssAfterGcBytes": [
+            73011200,
+            73121792,
+            73138176
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "owner-usable-after-audit-cancel",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            6.0218,
+            6.2774,
+            6.2961
+          ],
+          "allocatedBytes": [
+            411824,
+            411824,
+            411824
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18692872,
+            18702408,
+            18711848
+          ],
+          "rssAfterGcBytes": [
+            73023488,
+            73121792,
+            73138176
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "owner-dispose",
+          "scale": 128,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.0045,
+            0.0058,
+            0.0073
+          ],
+          "allocatedBytes": [
+            0,
+            0,
+            0
+          ],
+          "immediateHandleDeltaRange": [
+            -1,
+            -1
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            18686392,
+            18695832,
+            18705272
+          ],
+          "rssAfterGcBytes": [
+            73023488,
+            73121792,
+            73138176
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "construct",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 1,
+          "milliseconds": [
+            114666.337,
+            114666.337,
+            114666.337
+          ],
+          "allocatedBytes": [
+            157512568,
+            157512568,
+            157512568
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            3960200,
+            3960200,
+            3960200
+          ],
+          "rssAfterGcBytes": [
+            73285632,
+            73285632,
+            73285632
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "cold-owner-open",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            7.4198,
+            7.5988,
+            7.6125
+          ],
+          "allocatedBytes": [
+            627888,
+            627888,
+            636104
+          ],
+          "immediateHandleDeltaRange": [
+            1,
+            1
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            1805480,
+            1846528,
+            1855984
+          ],
+          "rssAfterGcBytes": [
+            73285632,
+            75845632,
+            75870208
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "inventory",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            44.3387,
+            44.952,
+            48.8628
+          ],
+          "allocatedBytes": [
+            2880072,
+            2890168,
+            2890168
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            1837056,
+            1888112,
+            1897568
+          ],
+          "rssAfterGcBytes": [
+            73322496,
+            75845632,
+            75870208
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "audit",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            48.0981,
+            50.5475,
+            54.4823
+          ],
+          "allocatedBytes": [
+            2955736,
+            2955736,
+            2976320
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            1837720,
+            1847696,
+            1857152
+          ],
+          "rssAfterGcBytes": [
+            73322496,
+            75845632,
+            75870208
+          ]
+        },
+        {
+          "scenario": "archive-read",
+          "phase": "repeated-random-read-and-dispose",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            42.5799,
+            43.1157,
+            44.0758
+          ],
+          "allocatedBytes": [
+            17977624,
+            17998104,
+            17998104
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            1838536,
+            1889512,
+            1898968
+          ],
+          "rssAfterGcBytes": [
+            73326592,
+            75849728,
+            75874304
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "inventory-visitor-throw",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            7.6671,
+            7.7337,
+            8.3288
+          ],
+          "allocatedBytes": [
+            619416,
+            619416,
+            619416
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            1820176,
+            1850640,
+            1860096
+          ],
+          "rssAfterGcBytes": [
+            73326592,
+            75845632,
+            75870208
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "owner-usable-after-inventory-throw",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            45.7621,
+            47.5833,
+            50.9767
+          ],
+          "allocatedBytes": [
+            3129568,
+            3129568,
+            3191216
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            1851520,
+            1860976,
+            1882704
+          ],
+          "rssAfterGcBytes": [
+            73322496,
+            75845632,
+            75866112
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "inventory-cancel",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            7.5027,
+            7.8592,
+            8.6853
+          ],
+          "allocatedBytes": [
+            619032,
+            619032,
+            619032
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            1842320,
+            1851872,
+            1861328
+          ],
+          "rssAfterGcBytes": [
+            73322496,
+            75845632,
+            75866112
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "owner-usable-after-inventory-cancel",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            44.7893,
+            45.237,
+            45.6765
+          ],
+          "allocatedBytes": [
+            3170632,
+            3170632,
+            3170632
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            1884288,
+            1893840,
+            1903296
+          ],
+          "rssAfterGcBytes": [
+            73322496,
+            75866112,
+            75870208
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "audit-visitor-throw",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            7.4526,
+            7.5128,
+            8.1052
+          ],
+          "allocatedBytes": [
+            618528,
+            618528,
+            618528
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            1843744,
+            1853296,
+            1862752
+          ],
+          "rssAfterGcBytes": [
+            73322496,
+            75866112,
+            75870208
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "owner-usable-after-audit-throw",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            48.1003,
+            51.0181,
+            66.6952
+          ],
+          "allocatedBytes": [
+            3277128,
+            3277128,
+            3277128
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            1885680,
+            1895232,
+            1904688
+          ],
+          "rssAfterGcBytes": [
+            73322496,
+            75866112,
+            75870208
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "audit-cancel",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            7.5852,
+            7.6587,
+            7.7254
+          ],
+          "allocatedBytes": [
+            618144,
+            618144,
+            618144
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            1845392,
+            1854944,
+            1864400
+          ],
+          "rssAfterGcBytes": [
+            73322496,
+            75866112,
+            75870208
+          ]
+        },
+        {
+          "scenario": "scan-failure",
+          "phase": "owner-usable-after-audit-cancel",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            47.5424,
+            47.8838,
+            50.1042
+          ],
+          "allocatedBytes": [
+            3277128,
+            3277128,
+            3277128
+          ],
+          "immediateHandleDeltaRange": [
+            0,
+            0
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            1887352,
+            1896904,
+            1906360
+          ],
+          "rssAfterGcBytes": [
+            73322496,
+            75870208,
+            75874304
+          ]
+        },
+        {
+          "scenario": "archive-scale",
+          "phase": "owner-dispose",
+          "scale": 1024,
+          "payloadPattern": null,
+          "repetitions": 3,
+          "milliseconds": [
+            0.0069,
+            0.0085,
+            0.01
+          ],
+          "allocatedBytes": [
+            0,
+            0,
+            0
+          ],
+          "immediateHandleDeltaRange": [
+            -1,
+            -1
+          ],
+          "afterGcHandleDeltaRange": [
+            0,
+            0
+          ],
+          "managedAfterGcBytes": [
+            1845032,
+            1854488,
+            1863944
+          ],
+          "rssAfterGcBytes": [
+            73322496,
+            75870208,
+            75874304
+          ]
+        }
+      ]
+    }
+  ],
+  "incompleteRun": {
+    "rawResult": "artifacts/framestore-resource-windows-r2-accepted/result.json",
+    "rawSha256": "0F4CA1BECCC64100C85902540CFA6AAA7DC21259047872244F754A717F551B7A",
+    "status": "budget-exceeded",
+    "elapsedMilliseconds": 180056.6553,
+    "assertionCount": 176,
+    "sampleCount": 199,
+    "assertionFailures": 0,
+    "failure": "FrameStoreResourceProbe.BudgetExceededException: Cooperative time budget 180s exceeded; stores retained, owner cleanup still runs.\r\n   at FrameStoreResourceProbe.ResourceProbe.CheckTime() in E:\\repos\\Atelia-org\\atelia-storage\\experiments\\FrameStoreResourceProbe\\Program.cs:line 401\r\n   at FrameStoreResourceProbe.ResourceProbe.Measure(String scenario, String phase, Int32 repeat, Int32 scale, String root, Action action, Dictionary`2 details) in E:\\repos\\Atelia-org\\atelia-storage\\experiments\\FrameStoreResourceProbe\\Program.cs:line 396\r\n   at FrameStoreResourceProbe.ResourceProbe.ScanFailure(FrameStore store, String root, Int32 scale, Int32 repeat, Boolean audit, Boolean cancel, FrameAddress address, Byte[] payload) in E:\\repos\\Atelia-org\\atelia-storage\\experiments\\FrameStoreResourceProbe\\Program.cs:line 365\r\n   at FrameStoreResourceProbe.ResourceProbe.Archives(Int32 scale) in E:\\repos\\Atelia-org\\atelia-storage\\experiments\\FrameStoreResourceProbe\\Program.cs:line 336\r\n   at FrameStoreResourceProbe.ResourceProbe.Run() in E:\\repos\\Atelia-org\\atelia-storage\\experiments\\FrameStoreResourceProbe\\Program.cs:line 66\r\n   at FrameStoreResourceProbe.Program.Main(String[] args) in E:\\repos\\Atelia-org\\atelia-storage\\experiments\\FrameStoreResourceProbe\\Program.cs:line 26",
+    "note": "180-second cooperative budget exhausted. This build preceded a diagnostic-string-only edit; excluded from final qualification."
+  }
+}
