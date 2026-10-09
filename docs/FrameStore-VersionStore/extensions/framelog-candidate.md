@@ -1,7 +1,7 @@
 # FrameLog：FrameStore 有序帧日志候选扩展
 
 日期：2026-10-05；2026-10-07 同步 VersionStore 简化。状态：**Draft / 可选扩展候选；需求、去留、API 与实施范围尚未确认；新栈首版不依赖本扩展**。
-候选依赖：[S0 边界](../00-architecture-decisions.md)、[S1 RBF 能力](../01-rbf-sized-append.md)、[S2 FrameStore 核心](../02-framestore-core.md)；交错构建的消费资格可参阅 [S3](../03-framestore-batches-and-durability.md)。依赖方向为扩展使用核心；核心定稿、实施和 Accepted 出口不等待本扩展。
+候选依赖：[S0 边界](../00-architecture-decisions.md)、[S1 RBF 能力](../01-rbf-sized-append.md)、[S2 FrameStore 核心](../02-framestore-core.md)；交错构建的消费资格可参阅 [S3](../03-framestore-interleaved-builders-and-durability.md)。依赖方向为扩展使用核心；核心定稿、实施和 Accepted 出口不等待本扩展。
 
 本文承接原 S2 中的日志术语、`[S-FS-LOG-ORDERED]`、`[A-FS-LOG-CURSOR]` 及相关工程问题和验收要求，保留条款标识用于追溯。下文 MUST/MUST NOT 描述选用该候选后拟建立的合同，不表示已确认需要实施。
 

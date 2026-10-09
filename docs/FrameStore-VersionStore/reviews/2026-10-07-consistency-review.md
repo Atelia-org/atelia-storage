@@ -13,7 +13,7 @@
 
 | 问题 | 失败轨迹或不一致 | 处理与权威位置 |
 | --- | --- | --- |
-| data 屏障范围过宽 | S0/S3 的“任何发布”会把纯 branch 命名也纳入，因无关 data Builder 而拒绝 | RootMap 的 CreateRef/PublishRef/CreateTag 执行屏障；CreateBranch 只确认自己的绑定记录。见 [S0](../00-architecture-decisions.md)、[S3](../03-framestore-batches-and-durability.md)、[S4](../04-versionstore-publication.md)、[S5](../05-versionstore-names-and-indexes.md) |
+| data 屏障范围过宽 | S0/S3 的“任何发布”会把纯 branch 命名也纳入，因无关 data Builder 而拒绝 | RootMap 的 CreateRef/PublishRef/CreateTag 执行屏障；CreateBranch 只确认自己的绑定记录。见 [S0](../00-architecture-decisions.md)、[S3](../03-framestore-interleaved-builders-and-durability.md)、[S4](../04-versionstore-publication.md)、[S5](../05-versionstore-names-and-indexes.md) |
 | 空桶 rename 与 tag 业务结果混淆 | 首次 CreateTag 尚未 Append，header-only 桶 rename 异常被通用表误记 Unknown | 本次 tag 为 NotAttempted，metadata 可能不确定、实例停止；重开检查并保留合法空桶。S4/S5 |
 | 起点硬界误作文件总长度上界 | 用 MaxOffset - TailOffset 作硬预算，会额外拒绝最后一个合法帧 | 分别检查帧尺寸与起点，允许合法末帧末端/Fence 越界；下一次追加确定拒绝。S4/S5 与 [S6](../06-integration-and-delivery.md) |
 | ref 创建与更新的恢复向量混用 | CreateRef 正式 rename 前没有“旧字典” | 已有 ref 更新为完整旧/新；创建为不存在/完整初始 ref，不能补空。S6 |

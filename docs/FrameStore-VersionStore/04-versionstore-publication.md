@@ -1,7 +1,7 @@
 # S4：VersionStore 完整根字典与单文件 ref 发布
 
 状态：**Draft；2026-10-07 采用完整 RootMap、每 ref 一个 RBF3 文件与统一 RefId 目录发布，允许独立完成闭包发布；2026-10-08 同步 S2 固定 12B 地址；API、其余 codec、路径编码与平台协议尚未实施/冻结，项目尚未创建**。
-前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-batches-and-durability.md)。名称与历史见 [S5](05-versionstore-names-and-indexes.md)。
+前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)。名称与历史见 [S5](05-versionstore-names-and-indexes.md)。
 
 ## 目标、归属与范围
 

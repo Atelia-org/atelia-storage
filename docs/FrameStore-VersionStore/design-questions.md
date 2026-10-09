@@ -1,6 +1,6 @@
 # 下一轮工程定稿：FrameStore 与根字典发布
 
-日期：2026-10-04；2026-10-05 更新核心/扩展分离；2026-10-07 收缩 VersionStore、放宽已完成输出资格并确定命名 fork 的目录共同发布；2026-10-08 关闭基础地址宽度/字段编码选择。状态：**Informative / Derived；问题汇总，不是新增实施阶段或规范输入**。
+日期：2026-10-04；2026-10-05 更新核心/扩展分离；2026-10-07 收缩 VersionStore、放宽已完成输出资格并确定命名 fork 的目录共同发布；2026-10-08 关闭基础地址宽度/字段编码选择；2026-10-09 分离批量规划器设想。状态：**Informative / Derived；问题汇总，不是新增实施阶段或规范输入**。
 输入为本轮会话和 S0–S6 的 Draft 合同。FrameStore/VersionStore 本轮仅修订文档，项目尚未创建；RBF 底座的活跃构建随机读取改进单独记录验收。S1 与 RBF1 参考隔离的已有 Accepted 资格保留原身份，不构成新模型已实施的证据。
 
 ## 已形成的方向
@@ -11,7 +11,8 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 2026-10-07 追加确认：ConfirmDurable 确认调用时全部必要完成输出，未归还 Builder 不阻断屏障、不获得完成/耐久资格；本根依赖已完成时可独立发布。Builder 活跃期间同文件已完成前缀可随机读取，新帧仍不可读。串行、完整内容校验、生命周期与共享 fault 保持，扫描相关 guard 不变。
 同日追加确认：命名 fork 在私有 RefId 容器同时准备 ref 与初始 binding，flush/close 后一次目录 rename 共同发布；所有 branch aliases 放同一种 names 文件。无公开 Creating 名称或永久 branch gate，私有残留不可查询，普通 CreateRef 与手工两步仍保留。正式定义见 S0 `[S-VS-NAMED-FORK-ATOMIC]`、S4 `[S-VS-REF-DIRECTORY-PUBLISH]` 与 S5 `[S-VS-NAMED-FORK-PUBLISH]`。
 2026-10-08 用户确认：FrameAddress 首版固定编码为 12B，保持完整 uint FileId 与 SizedPtr；额外见证按明确需求引入，不把未来预留或内容 CRC 纳入基础定位合同。S0 `[S-FS-ADDRESS-FIXED12]` 与 S2 `[F-FS-FRAME-ADDRESS-12B]` 已关闭基础地址宽度和二进制字段布局；内部 struct、公开 codec 入口、文本/错误及平台验证仍为工程定稿。
-旧单 active locator、全 owner 活跃期读取禁令和 BeginNext 必选方案已被替代；FrameBatch 是待需求验证的大规模优化。2026-10-07 按用户要求延期 ref 分段/轮转；Commit/Parent、全控制日志回放、Prepared token 和 checkpoint 不再是首版前置。历史逆序枚举仍是核心功能，返回释放枚举器后可继续使用的自有字典。
+2026-10-09 用户确认：[批量规划器与 API 设想](extensions/framestore-batch-planner-candidate.md)移至独立扩展草稿，需求与协议问题不列入 MVP 工程定稿或 Ready 条件。
+旧单 active locator、全 owner 活跃期读取禁令已被替代。2026-10-07 按用户要求延期 ref 分段/轮转；Commit/Parent、全控制日志回放、Prepared token 和 checkpoint 不再是首版前置。历史逆序枚举仍是核心功能，返回释放枚举器后可继续使用的自有字典。
 
 ## 本轮已关闭的方向问题
 
@@ -23,7 +24,7 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 | 已知/未知尺寸是否分别轮转 | 统一成功完成后 TailOffset > 阈值；目标阈值不限制最大合法帧 |
 | 可写集合是否另存 manifest | active 目录是事实，archive 位置表示已按协议 flush 并封存 |
 | 归档寻址是否要全历史分段表 | 1024 编号一个桶，按 FileId 高低位计算 |
-| 循环引用是否必须先做 batch planner | 预算内通过实际已知尺寸租借取得地址，交错完成；planner 可单独评估 |
+| 如何构建循环引用 | 预算内通过多个实际已知尺寸租借取得地址，交错填充并独立完成 |
 | 并发是否现在实施 | 首版串行；保留独立文件/Builder 边界，未来并行另行验收 |
 | 是否采用首帧 meta/header | 必须采用并保留版本解释；字段/codec/校验规则交由 Coding Agent 定稿 |
 | 成功提交何时归还 | EndAppend 正常成功返回前自动归还，不等后续 Dispose |
@@ -41,7 +42,7 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 | 是否先持久占上 Creating 名称 | 不采用；全局名称预检至提交均串行，初始/alias 绑定使用统一 names 表示 |
 | 基础地址是否保持 16B 或带 SmartPointer 见证 | 固定 12B codec，完整 uint FileId + SizedPtr；无预留/内容 CRC，内存布局独立选择 |
 
-以上各项统一见 [S0](00-architecture-decisions.md) 与相应 [S2](02-framestore-core.md)、[S3](03-framestore-batches-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。本表只导航，不建立第二套规范。
+以上各项统一见 [S0](00-architecture-decisions.md) 与相应 [S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。本表只导航，不建立第二套规范。
 
 ## 优先讨论的问题
 
@@ -55,16 +56,16 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 
 ### D2：已确认的构建自由如何映射到资源预算？
 
-**涉及阶段：** [S2](02-framestore-core.md) 的 S2-Q4/Q5/Q7；[S3](03-framestore-batches-and-durability.md) 的 S3-Q1/Q2。
+**涉及阶段：** [S2](02-framestore-core.md) 的 S2-Q4/Q5/Q7；[S3](03-framestore-interleaved-builders-and-durability.md) 的 S3-Q1/Q2。
 
-**已确认：** 多个活跃 Builder 各占一个 RBF 文件，支持嵌套、交错填充与不同申请次序的完成；同文件历史帧可在已完成前缀内串行随机读取，不因文件分配结果改变业务读取资格。未完成提前地址及包含帧后 Fence 的跨边界范围先于 I/O 拒绝；扫描/扫描边界/物理后继仍受各自 RBF Building guard。可分配文件中优先最低 FileId，忙/停止分配项跳过；无需 BeginNext 或提前规划尚未创建文件的位置。
+**已确认：** 多个活跃 Builder 各占一个 RBF 文件，支持嵌套、交错填充与不同申请次序的完成；同文件历史帧可在已完成前缀内串行随机读取，不因文件分配结果改变业务读取资格。未完成提前地址及包含帧后 Fence 的跨边界范围先于 I/O 拒绝；扫描/扫描边界/物理后继仍受各自 RBF Building guard。可分配文件中优先最低 FileId，忙/停止分配项跳过。
 
-**剩余难点：** 当前 RBF Builder 保留整帧缓冲，多个 Builder 的内存成本相加，同时占用文件句柄。大量提前地址不能假定低成本；取消后的文件复用、空闲文件选择和 reader 缓存也是资源策略，不是持久状态账本。
+**剩余难点：** 已知尺寸 Begin 不按声明长度预分配整帧；当前 RBF Builder 在提交前保留已构建的帧字节，多个 Builder 的资源成本相加，同时占用文件句柄。预算内的提前地址仍需核实实际资源成本；取消后的文件复用、空闲文件选择和 reader 缓存也是资源策略，不是持久状态账本。
 
 **已关闭的准入选择：** 未归还 Builder 数量上限由 config 文件提供，超限立即拒绝，不引入精确总内存或总句柄配额账本。成功 EndAppend 自动归还并释放配额，不等 Dispose。
 **剩余工程定稿：** config 的位置/格式/默认/缺失或非法值/生效规则、一次性 Append 的短期准入、空闲句柄关闭策略和 owned Writer 类型。最低编号选择已定，不再讨论轮询/均衡。将来按 Builder 并行执行时，租借/归还、fault 与 barrier 的同步如何单独取得资格；本轮不提前实现这些并发机制。数量限制不等于总内存硬保证。
 
-**收敛标准：** A、B 同时取得地址、先完成 B 后完成 A、再构建 Root 和统一确认的 public 轨迹；另覆盖 A 已完成而无关 B 仍 Building 时确认并发布 A，同文件历史随机读取与新帧拒绝、超预算、取消/reuse。若真实规模需要 planner，再形成独立扩展，不把它重新塞回首版核心前置。
+**收敛标准：** A、B 同时取得地址、先完成 B 后完成 A、再构建 Root 和统一确认的 public 轨迹；另覆盖 A 已完成而无关 B 仍 Building 时确认并发布 A，同文件历史随机读取与新帧拒绝、超预算、取消/reuse。
 
 ### D5：必需首帧 meta/header 的最小内容与校验如何定稿？
 

@@ -38,7 +38,7 @@
 
 FrameAddress 对外是不透明、可持久编码的局部地址；首版采用 `FileId + SizedPtr`，正整数 `uint` 文件编号、0/default 非法，ticket 的范围由 RBF/Data 公共 API 校验。不向普通调用方提供字段拆解、地址算术、大小排序或相邻帧推算合同。
 StoreId 属于上下文，不必重复塞进每个数据引用。地址相等只在同一个 store 中有意义；相同数值在另一个 store 可能恰好也合法，**裸地址无法检测调用方原始来源错误**。
-跨 owner 的 Builder/plan 拒绝由实例生命周期负责；持久上层绑定负责选择正确 store。二进制格式由下条锁定；公开 codec 入口、文本表示与错误载体在 S2-A 关闭。
+跨 owner 的 Builder 拒绝由实例生命周期负责；持久上层绑定负责选择正确 store。二进制格式由下条锁定；公开 codec 入口、文本表示与错误载体在 S2-A 关闭。
 成功完成的帧在首版存续期间不重新分配、不改写、不删除。整个文件从 active 移到 archive 只改变容器路径，不改变 FileId、ticket 或帧字节，不属于帧重定位。地址不透明不等于已经提供可搬迁的逻辑对象 ID；未来改变定位编码必须另行处理兼容性。取消或截断的未完成预约没有稳定身份保证。
 
 ### spec [F-FS-FRAME-ADDRESS-12B] 基础地址使用固定 12B codec
@@ -143,7 +143,7 @@ Create 为 create-only；Open 不创建缺失 store。格式未知、metadata CR
 
 ### spec [A-FS-CONTEXT-ADDRESS] 地址与上下文资格明确
 
-地址 MUST 明确非法值、segment/ticket 范围、编码、相等和默认规则；Builder/plan 绑定 owner 与 epoch。
+地址 MUST 明确非法值、segment/ticket 范围、编码、相等和默认规则；Builder 绑定 owner 与 epoch。
 来自成功追加、真实主链扫描或已接受上层事实的地址具有明确来源；任意合法数值及一次随机 CRC 读取不自动证明其 intended identity。
 只有中性定位信息进入 FrameAddress；Parent、graph schema、提交关系等在上层记录中。跨 owner 或旧 epoch 的 Builder/Writer/read handle 在访问文件前拒绝。
 
@@ -213,13 +213,13 @@ archive 文件在移动前已 flush；所有必要 active 文件的完成输出�
 leased 文件成功 flush 可清除其此次已完成输出的未确认登记；该 Builder 后续成功 EndAppend MUST 重新登记新完成输出为未确认。后续输出必须由新的屏障确认，不能把文件或租借“以前 flush 过”解释为未来帧的耐久证据。健康取消也不让该次提前地址获得资格；位置可能复用，地址来源责任不因屏障改变。
 任一 flush 失败 MUST 按 `[S-FS-OWNED-FAULT]` 停止整个 FrameStore owner；其他文件上的 Builder、旧 Writer 及缓存命中也必须在访问 owned 状态前拒绝，受控 Dispose 仍负责资源清理。不能只 fault 单个 RBF 后让其余 Builder 继续。失败不撤销已有完整 bytes，也不产生成功耐久返回。
 不允许裸 RBF writer 或外部文件导入绕过登记。范围可包含不相关完整 orphan，无须选择每帧集合；它不解析业务依赖闭包，也不覆盖未来多个 data owner。
-首版不提供 DurabilityReceipt、集合合并/复用/过期协议。多个 active 已是当前设计范围，必要输出必须全部覆盖；只 flush 根所在文件不满足本条。未来独立 batch plan 或并发屏障须另建合同。
+首版不提供 DurabilityReceipt、集合合并/复用/过期协议。多个 active 已是当前设计范围，必要输出必须全部覆盖；只 flush 根所在文件不满足本条。未来并发屏障须另建合同。
 
 ## 单帧资格与实施片
 
 已知尺寸为 `Opened → Building(address known) → Completed`；未知尺寸只在正常完成时取得地址。Builder 完成/取消与文件归还的边界由 owned wrapper 明确，值拷贝、旧 epoch、重复 End/Dispose 不得二次归还或改变别人的租借。
 ConfirmDurable 消费本阶段 `[A-FS-DURABLE-COMPLETED-OUTPUTS]` 的核心合同，不解析业务依赖闭包；交错构建与循环引用的消费资格在后续阶段独立验证。
-批量计划不作为基本交错构建的前置；业务发布不在本阶段建立。
+业务发布不在本阶段建立。
 
 1. S2-A：创建项目/solution；实现不透明 FrameAddress 与固定 12B codec，定稿公开入口/文本/错误和内部布局，以及 StoreId/格式门、路径、必需首帧 header codec、数量上限 config、模式。
 2. S2-B：三种 owned 追加、可嵌套独占租借/归还、交错完成、随机读取、基础耐久确认、buffer/fault/Dispose。

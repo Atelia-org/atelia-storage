@@ -1,7 +1,7 @@
 # S6：消费者验证、公共包与交付
 
 状态：**Draft；2026-10-07 同步完整字典、单文件 ref、命名 fork 的目录共同发布与两类下游评估；新库实施、包发布和消费者切换均未执行**。
-前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-batches-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。
+前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。
 本阶段验证前序合同的组合，不作为前序层运行正确性的反向依赖。
 依赖 S5 的历史选点与命名核心；首版不纳入 ref 分段/轮转、差分/checkpoint、名称修改或精确发布尝试查询。
 FrameLog 是[独立可选扩展](extensions/framelog-candidate.md)，不属于 S2/S3 核心验收，也不是 S4/S5 的前置。下文只验证单文件 ref、分桶 tag 和独立 branch 绑定的实际协议。
@@ -19,7 +19,7 @@ DurableGraph 是需求来源；S0 已记录兄弟仓的定位观察，实际接�
 | 循环引用图 | A↔B/self-reference，跨文件依赖与多个根地址 | 已知尺寸租借的提前地址、交错完成与全集耐久确认；应用循环由 opaque 数据表达 |
 
 两个模型用同一套 public API 写 data、CreateRef/PublishRef/ReadRef，枚举旧快照、创建 branch/tag，关闭并冷重开。匿名 fork 使用枚举所得的自有 RootMap 调用 CreateRef；命名 fork 用 S5 的组合入口，在私有容器同时准备 ref 与初始 binding，一次目录 rename 共同发布。普通 CreateBranch 仍为既有 ref 添加 alias，手工两步不是事务；没有 CreateCommit / PreparedPublication 或通用多对象事务步骤。
-覆盖相同字典的重复发布、新旧 revision 分离与多个 tag；ReadRefHistory 固定完成上界，枚举结束后旧字典仍可使用。rewind 追加旧字典，保留全部既有完整记录。不同 Builder 申请/完成次序构建相同逻辑图时，只按返回地址取回，不依靠文件选择或大小排序。FrameBatch 尚未纳入首版核心，不以该优化缺失判定基本互引失败。
+覆盖相同字典的重复发布、新旧 revision 分离与多个 tag；ReadRefHistory 固定完成上界，枚举结束后旧字典仍可使用。rewind 追加旧字典，保留全部既有完整记录。不同 Builder 申请/完成次序构建相同逻辑图时，只按返回地址取回，不依靠文件选择或大小排序。
 这些是仓内可独立运行的最小消费者，不是 DurableGraph 已接入的证据。
 
 ## 两类需求的最小消费者
@@ -44,7 +44,7 @@ DurableGraph 是需求来源；S0 已记录兄弟仓的定位观察，实际接�
 
 ### spec [R-INTEGRATION-CRASH-EVIDENCE] 进程中断验证真实组合
 
-资格 MUST 覆盖提前地址签发、交错构建各帧、必需首帧 header 初始化/校验与 active 发布、归档 flush/close/rename、多个 active 恢复、data barrier、ref 私有容器初始化与目录发布、命名 fork 的附加绑定及共同发布、ref 快照追加/flush、tag 桶初始化/追加、既有 ref 的 alias 文件发布、库内投影及应用状态安装窗口。补成功 EndAppend 自动归还、数量 config 超限拒绝与配额计数；未来 batch/多线程优化另行取得资格。不测试首版不存在的 ref 轮转或 Commit/control 日志。
+资格 MUST 覆盖提前地址签发、交错构建各帧、必需首帧 header 初始化/校验与 active 发布、归档 flush/close/rename、多个 active 恢复、data barrier、ref 私有容器初始化与目录发布、命名 fork 的附加绑定及共同发布、ref 快照追加/flush、tag 桶初始化/追加、既有 ref 的 alias 文件发布、库内投影及应用状态安装窗口。补成功 EndAppend 自动归还、数量 config 超限拒绝与配额计数；未来多线程优化另行取得资格。不测试首版不存在的 ref 轮转或 Commit/control 日志。
 使用子进程中断/真实磁盘镜像验证冷重开，并保留源 commit、SDK、平台、阶段和预期/实际结果；单元 fault injection 不能冒充进程中断实证。
 恢复结果只能来自完整 checked 快照和正式发布的文件/名字。已有 ref 更新中断后只能得到完整旧字典或完整新字典，不混搭 Key；CreateRef 中断后则为未创建或已正式发布的完整初始 ref，不补造空字典。完整坏快照不回退。Unknown 重开读取实际状态，不承诺精确尝试的 Present/Absent，也不从同值字典倒推旧调用曾确认成功。
 命名 fork MUST 覆盖所有私有文件创建/flush/close、同卷目录 rename 前后及 Confirmed 后安装失败：普通名称查询与 ref 查询共同不可见或共同可见，私有残留不公开 unbound ref、不自动续作，readonly 不清理。正式目录缺/坏必要 ref 内容或完整坏绑定报错，不按未完成创建删除；最终 rename 结果不明仍 Unknown。目录 no-overwrite/单点发布的 Windows/Linux 资格须单独记录，不以普通 file rename 通过代替。
