@@ -1,6 +1,6 @@
 # FrameStore / VersionStore 分阶段设计入口
 
-日期：2026-10-03；2026-10-05 确认 FrameStore header、归还、config 与核心/扩展分离；2026-10-07 更新完整字典、单文件 ref、已完成输出资格及命名 fork 的目录共同发布；2026-10-08 确认 FrameAddress 固定 12B 编码；2026-10-09 分离批量规划器设想、收敛 MVP 组合，增加 ForkOrigin 完整历史与全分叉设计，并定稿 D2 资源基线。状态：**S1 Accepted；S2–S6 Draft，两个新项目尚未创建；参考依赖拆分 Accepted**。
+日期：2026-10-03；2026-10-05 确认 FrameStore header、归还、config 与核心/扩展分离；2026-10-07 更新完整字典、单文件 ref、已完成输出资格及命名 fork 的目录共同发布；2026-10-08 确认 FrameAddress 固定 12B 编码；2026-10-09 分离批量规划器设想、收敛 MVP 组合，增加 ForkOrigin 完整历史与全分叉设计，并定稿 D2 资源基线与 D5 文件 header。状态：**S1 Accepted；S2–S6 Draft，两个新项目尚未创建；参考依赖拆分 Accepted**。
 初始设计源码观察基线：`main @ 70d1009e78a73342a0c0fdc8ffed7731dec58173`；S1 验收记录的核对基线为 `f6f1eb38557863ba5ea1634844a90f0cbe5774cf`；前轮设计阅读基线为 `4175a46`，本轮租借/目录修订核对 `50e8e28`。本文档集供逐阶段细化、审阅和实施，不把文档修订视为新实现或验收。
 
 目标：**以 RBF3 的帧原子性为基础，让中层构建新状态，再发布完整根地址字典使状态生效。**
@@ -16,7 +16,7 @@ main 当前演进主线为 RBF3 / FrameStore / VersionStore。旧 EventJournal/R
 FrameStore 普通合同是不透明地址分配与随机读取，不提供业务全局顺序。保留 RBF 三种追加方式；每个 Builder 独占一个文件，owner 可以嵌套租借多个文件、交错构建并乱序完成，首版调用仍串行。三种追加统一在成功完成后按 TailOffset 大于软阈值触发轮转。
 文件分配优先选择 active 中当前可分配的数值最低 FileId；忙文件和已停止分配文件跳过，没有候选才新建。不因已知帧尺寸提前试配，也不引入轮询或负载均衡。
 FrameAddress 首版固定编码为 12B，保持完整 uint FileId 与 SizedPtr；额外见证按明确需求引入，不把未来预留或内容 CRC 纳入基础定位合同。格式权威为 S2 `[F-FS-FRAME-ADDRESS-12B]`，三种追加、互引和 VersionStore RootMap 复用同一 codec。地址仍是局部定位值，StoreId 由上下文绑定；CLR 内存布局另行验证，不从 sizeof 推导 wire 容量。
-私有 creating 槽位完成必需首帧 meta/header 后发布到 active；header 至少提供版本解释，字段/codec 由 Coding Agent 定稿。active 目录表达可写集合，flush/close 后移入固定 1024 编号分桶的 archive 并只读，不维护 active manifest 或全历史分段表。屏障确认全部必要 active 输出。
+私有 creating 槽位完成必需首帧 meta/header 后发布到 active。S2 已定稿固定 24B header，保存统一格式版本与 StoreId/FileId；按首位置识别，完整保留用户 uint tag 范围。可写打开先检查初始化长度下界，再消费公共 RBF 恢复并完整校验首帧。active 目录表达可写集合，flush/close 后移入固定 1024 编号分桶的 archive 并只读，不维护 active manifest 或全历史分段表。屏障确认全部必要 active 输出。
 2026-10-07 用户确认：**ConfirmDurable 确认调用时已经完成的全部必要输出；未完成 Builder 保持原状，不因此次确认而获得完成或耐久资格。** leased 文件中的旧完成输出也必须覆盖，Builder 后续完成重新登记为未确认；flush 失败停用整个 owner 及其他 Builder/Writer。
 **Builder 活跃期间，允许随机读取已经完成的文件前缀；正在构建的新帧仍不可读。** RBF 指定 ticket 随机入口的 Building 范围检查包含帧后 Fence；普通读取仍校验内容、生命周期和共享 fault，不扩大扫描相关入口或并发合同。正式核心要求见 S2。
 成功 EndAppend 自动归还文件和数量配额，不等后续 Dispose。S2 定稿可选 framestore.config.json、默认 MaxOutstandingBuilders=32、严格校验、可写打开一次读取且实例固定；超限 Begin 立即拒绝。完整 Append 不占 Builder 配额，单 driver 最多另占一个短期租借，不引入精确总内存账本。首版保留可写 active 句柄并显式使用 RbfCacheMode.Off，archive 随机读按操作开关；成本按实际 active 和构建/读结果占用计算，降低配置不抹掉旧高峰。编号恢复和归档维护的确切协议仍须工程定稿。
