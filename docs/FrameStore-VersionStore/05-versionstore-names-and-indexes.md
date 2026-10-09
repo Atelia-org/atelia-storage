@@ -1,6 +1,6 @@
 # S5：ref 历史、不可变 tag 与 branch 名称
 
-状态：**Draft；2026-10-07 采用完整 RootMap、真实 ref 历史、单文件 tag 桶、统一 branch 绑定与命名 fork 的目录共同发布；2026-10-08 同步 S2 固定 12B 地址；2026-10-09 增加来源感知 fork、跨文件完整发布历史与全分叉查询，定稿同步历史 visitor、预算与清理，以及 tag 桶初始化/组合 schema/每次完整扫描；其余 API、路径编码及基础 codec 尚未实施/冻结**。
+状态：**Draft；2026-10-07 采用完整 RootMap、真实 ref 历史、单文件 tag 桶、统一 branch 绑定与命名 fork 的目录共同发布；2026-10-08 同步 S2 固定 12B 地址；2026-10-09 增加来源感知 fork、跨文件完整发布历史与全分叉查询，定稿同步历史 visitor、预算与清理，tag 桶初始化/组合 schema/每次完整扫描，以及 ListForks 完整自有结果/单项数量预算/迭代图校验与清理；其余 API、路径编码及基础 codec 尚未实施/冻结**。
 前置：[S0](00-architecture-decisions.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)。扩展 S4 的完整根快照与局部发布协议，不增加全局事实日志。
 
 ## 目标与最小公开操作
@@ -11,7 +11,7 @@
 | --- | --- | --- |
 | ReadRefHistory(refId, budget, visitor, cancellationToken) | 从固定上界逐项交付本地及 ForkOrigin 接续的自有快照，可正常选点停止 | 同步 visitor；文件内真实链 + 首帧来源链接，无另写索引 |
 | ForkRef(sourceRevision) | 从精确源快照创建匿名 fork | 子 ref 的 header/ForkOrigin 与完整初始 Snapshot，一次目录发布 |
-| ListForks(budget) | 查询全部正式 ref 声明的创建来源边 | checked header 与初始边界，派生完整分叉图 |
+| ListForks(maxRefs, cancellationToken) | 查询全部正式 ref 声明的创建来源边 | checked 首两帧与完整图；单次自有只读结果，无跨调用缓存 |
 | CreateTag(name, roots) / ResolveTag(name) | 创建/读取不可变完整字典 | 目标桶的一条完整 tag record |
 | CreateBranch(name, refId) / ResolveBranch(name) | 为既有 ref 建立/解析不可变名称绑定 | 该 ref 的 names 中一个 create-only 绑定文件 |
 | CreateBranchFromRoots(name, roots) | 原子创建无来源的命名 ref | 私有 RefId 容器内的 ref 与初始绑定，一次目录发布 |
@@ -19,7 +19,7 @@
 | ListBranches | 枚举正式 branch 名称与 RefId | 全部正式 ref 容器的 names 文件集合 |
 | 无来源复制 / rewind 便利流程 | 旧字典新建独立 ref / 追加回原 ref | 调用 S4 CreateRef / PublishRef |
 
-历史读取的入口与终止值由 `[A-VS-REF-HISTORY-CHECKED]` 定义，其余操作的成功值类型在 Ready 定稿；同步 mutation 统一消费 S4 `[A-VS-PUBLICATION-EVIDENCE]` 的 AteliaResult/必选 out PublicationOutcome，不另立 tag/branch/fork 证据异常或恢复 token。有来源 fork 必须按 revision 创建，只传 roots 的入口表示无来源起点，不凭字典相等推断或补造链接。两个基础操作手工组合仍是两次发布。首版不提供 branch rename/unbind/delete/archive/name reuse、tag 修改/删除、差分或 state-checkpoint。命名创建的共同初始化是窄创建协议，不扩展为多个既有 ref 的事务；本层定义 ref 发布历史与创建分叉，应用数据的因果谱系仍由应用解释。
+历史读取的入口与终止值由 `[A-VS-REF-HISTORY-CHECKED]` 定义，ListForks 的完整结果与限额由 `[A-VS-FORKS-CHECKED]` 定义；其余操作的成功值类型在 Ready 定稿；同步 mutation 统一消费 S4 `[A-VS-PUBLICATION-EVIDENCE]` 的 AteliaResult/必选 out PublicationOutcome，不另立 tag/branch/fork 证据异常或恢复 token。有来源 fork 必须按 revision 创建，只传 roots 的入口表示无来源起点，不凭字典相等推断或补造链接。两个基础操作手工组合仍是两次发布。首版不提供 branch rename/unbind/delete/archive/name reuse、tag 修改/删除、差分或 state-checkpoint。命名创建的共同初始化是窄创建协议，不扩展为多个既有 ref 的事务；本层定义 ref 发布历史与创建分叉，应用数据的因果谱系仍由应用解释。
 ref header/普通 Snapshot 的字段、来源判别与完整记录容量唯一消费 S4 `[F-VS-REF-FRAMES]`；历史、fork 和 ListForks 不另选编码。可写恢复前的可变初始帧保护仍属 S4-Q2，不由本层的事后首两帧检查自动成立。
 匿名/命名新ref入口统一消费S4 `[S-VS-REF-ID-ALLOCATION]` 的候选与耗尽前检，在data/源flush和私有准备前拒绝发号耗尽；alias/tag不分配新RefId。正式目录发布正常返回后，先Confirmed和编号登记，再安装本层投影/结果；编号不成为分叉来源资格或跨ref全序。
 正式ref容器/文件及names根定位消费S4 `[F-VS-REF-PATHS]`；完整容器发现复用其直接项检查，历史按exact来源RefId定位。名称/tag内部文件路径与codec仍由本层定稿，不借路径复用新增全部历史审计或缩减匿名发现范围。
@@ -103,13 +103,38 @@ visitor 返回 true 表示继续，false 表示已接收当前项并正常选点
 
 ### spec [A-VS-FORKS-CHECKED] 正式 ref 的首帧声明完整分叉图
 
-ListForks MUST 覆盖全部正式 RefId 容器，checked-read 每个 header 与本地初始 Snapshot/边界；包括未命名 ref，不依赖 names、branch aliases 或当前 head 值。返回自有 `ForkInfo = (ChildRefId, ForkOrigin)` 集合：无来源的 ref 不产出边；有来源的每个 ref 恰产出一条边，精确保留 SourceRefId 与 SourceSnapshotTicket。creating 槽位不参与，header-only 正式容器报错，不当作完整 fork。
+首版入口如下；这是待实施合同，不是已存在的 API：
 
-扫描、构图及缓存安装 MUST 属于同一次串行 driver 操作，不允许 mutation 交错。完整扫描正常结束后，MUST 核对每条边的源 RefId 属于同一正式集合、源 header 身份正确，拒绝自链接与整个来源图中的循环。目录枚举、必要 CRC/codec、身份、预算或 I/O 错误不能当成无分叉或完整的部分结果；成功返回全部边之前不安装证明“没有孩子”的缓存。结果只声明本次已校验首帧记录的创建关系，不重新定位每条源 ticket、不校验所有源快照或子初始字典与源字典同值，不宣称全部历史健康。实际沿边遍历时才建立这些资格；结果中的 ForkOrigin 坐标不是新签发的 checked 源 RefRevision。
+```csharp
+public readonly struct ForkInfo {
+    public RefId ChildRefId { get; }
+    public RefId SourceRefId { get; }
+    public SizedPtr SourceSnapshotTicket { get; }
+    // 仅库内部构造；三个属性保存自有值。
+}
 
-该边集合是唯一来源的派生视图：按 SourceRefId 可找直接分叉，按 exact source ticket 可区分同一 ref 的不同分叉点，对 child/source 关系求传递闭包可找所有后代；全图包含多层与兄弟分叉，不隐含跨 ref 的时间全序。所选 RefSnapshot 可用 Revision.RefId/Ticket 与声明的 SourceRefId/SourceSnapshotTicket 比较，直接关联该 exact 点的分叉；这只是位置匹配，不把声明边转换成 checked 源 revision 或证明源内容健康。alias 只增加名称，不增加分叉边；名称解析可另行附加展示，不成为图查询前置。
+AteliaResult<IReadOnlyList<ForkInfo>> ListForks(
+    int maxRefs, CancellationToken cancellationToken = default);
+```
 
-实现 MAY 从完整 checked 扫描建立可重建内存反向表，空间 O(ref 数 + fork 数)；同 owner 成功创建后按 Confirmed 规则更新。缓存不替代其依赖的必要读取或提供永久 CRC 健康保证。首版不写持久孩子列表、全局 catalog 或反向索引，也不在每次 PublishRef 时维护分叉图。
+**完整集合与必要资格。** ListForks MUST 覆盖全部正式 RefId 容器，包括未命名与无来源 ref；不依赖 names、branch aliases 或当前 head 值。直接消费 S4 `[F-VS-REF-PATHS]` 的全部直接项发现/期望目标定位，以及 `[F-VS-REF-FRAMES]` 的共同首两帧形状、物理成员、完整 CRC/身份/codec 检查；不是用首帧 framing 或随机 CRC 成功代替。creating 不参与，正式缺文件/header/初始 Snapshot、未知项、枚举或必要读取错误皆报错；只有已资格化且正常结束的空正式集合才可当空，不能用 File.Exists=false 或过滤枚举猜缺失。逐 ref 及时释放 pooled 帧和初始字典，仅保留身份与可选来源元数据；不调用会额外检查末 head 的 ReadRef，不收集全部 RootMap、扫描全部本地历史或重读所有 source ticket。
+
+**单一数量预算。** 在任何发现 I/O 前 MUST 检查 owner disposed/fault、`maxRefs > 0` 与取消；没有隐含默认限额，不按 maxRefs 预分配。每个正式 ref 在本次打开/首两帧检查及加入节点表前计一项，含无来源根，不能只计输出边。达到上限后仍可推进直接项枚举并按 S4 检查该项名称/类型，以证明实际 EOF；若还有正式容器，在其 ref 文件打开/内容读取或节点表增长前返回错误码 `VersionStore.ForkQueryBudgetExceeded` 的失败 Result。不以额度用完猜 EOF，不探测超额 ref 的内容；未知项/枚举或必要清理错误仍走原错误通道。恰有 maxRefs 个 ref 且正常 EOF 可以成功；int.MaxValue 合法，只表示不设置更小逻辑限额，不保证实际集合分配成功。
+数量上限约束节点、结果项及下述图算法的访问规模，不是目录枚举内部工作、RBF factory 尾部资格/恢复、同步单帧读/CRC/解码、物理 I/O bytes、耗时或 RSS 硬上限。记录尺寸/prerent 与 RootMap 容量继续消费 S4；取消在每个直接项、文件访问/关闭前后及图行走步骤之间检查，不承诺抢占底层同步调用。无独立 MaxForks/MaxWorkSteps/bytes 计数、预算载体、usage、配置或分页协议。
+
+**一个临时图。** 扫描与构图属于同一次 single-driver 操作，不允许 mutation 交错。用一个本次调用的 RefId 节点表保存所有 checked 正式身份、可选来源及检查状态；完整目录正常结束并必要关闭成功后，逐来源核对 SourceRefId 属于同一已 checked 集合，拒绝自链接。无来源根仍在表中，不作为缺源；源 header 已在本次扫描校验，不再逐边打开。全图环检查 MUST 使用迭代三色或等价的已完成节点记忆，每节点仅作常数次图访问；禁止递归深链或从每个节点重新追完整祖先链，也不以 RefId 大小替代来源图检查。不排序，不引入持久 generation、拓扑编号或通用图框架。
+
+**仅交付完整自有边集合。** 全部资格、图校验、必要清理、结果构造及最终 owner/fault/token 复检通过后，才返回非 null 自有列表；无来源 ref 不输出，有来源的每个 child 恰输出一项，零边成功为空列表。任一失败或取消不交付部分成功、visitor 前缀、正常 BudgetExhausted 或“没有孩子”的结论。输出顺序没有跨调用稳定、编号排序或时间顺序承诺。
+ForkInfo 是普通非 record readonly struct，仅有三个只读属性及内部构造，无 setter/init、带参 public 构造、Deconstruct、专用整体等值/hash/codec、owner/reader 或 Dispose。它平铺逻辑 ForkOrigin，避免再公开嵌套来源类型；SourceSnapshotTicket 保留完整 SizedPtr（含 length），MUST NOT 包装成 checked 源 RefRevision。default 属性可读取，但不是库成功列表中的有效边，不新增 IsValid/default 错误族。结果仅声明本次已 checked 创建关系，不定位每条源 ticket、不校验源快照与子初始字典同值，不证明全部历史/data 图健康或旧调用曾 Confirmed；内部构造也不是防伪认证。
+列表内部使用唯一自有数组和只实现 IReadOnlyList/IEnumerable 的私有薄封装；不外露可变 array/List、IList 或能取得 backing 的 ICollection.SyncRoot，不复用下一调用 scratch 或长期缓存。ForkInfo 内的 RefId/SizedPtr 都是自有值，无需复制业务对象。查询结束、后续查询/创建及 owner fault/Dispose 不改变已交付列表；反射、Unsafe 等越过正常接口的改写不在此保证内。
+
+**句柄与失败。** 本查询无应用 callback，按既有串行前提执行，不新增 ListForksActive/busy 或改写 HistoryActive。历史 visitor 可调用它；匹配 RefId 时复用可用的既有 owner/历史当前句柄，不重复独占打开、不关闭借用句柄。其他 ref 逐个使用本方法局部临时句柄，绝不覆盖历史当前临时槽；关闭前取出并清空局部槽，finally 只清理仍登记的资源，每个句柄仅尝试一次。目录枚举器、当前 pooled 帧和全部临时句柄的正常/异常退出，消费 S4 的 owned 清理/主错误优先规则；最后关闭失败不能被空列表或预算错误掩盖。
+取消抛 OperationCanceledException；必要格式/CRC/codec/身份/图/预算失败返回所属失败，I/O/运行期异常原样传播，不跳过坏 ref。纯读取、预算、取消或结果分配失败本身不新增健康 writer fault；实际 owned 恢复/清理失败按 S4 停用并受控清理，不 Dispose 借入 data。访问模式及可写打开的恢复直接消费 S4，本查询不另行 flush、发布或清理 private；S4 恢复前初始化保护、实际组件/根准入及平台资格仍待定，本条不把事后首两帧校验称为这些缺口已关闭。
+
+该边集合是唯一来源的派生视图：按 SourceRefId 可找直接分叉，按 exact source ticket 可区分同一 ref 的不同分叉点，对 child/source 关系求传递闭包可找所有后代；不隐含跨 ref 时间全序。已有 RefSnapshot 可用 Revision.RefId/Ticket 与声明位置比较，关联 exact 点的分叉；匹配不签发源 revision 或证明源内容健康。alias 不增加边，名称展示另行查询；应用可从结果派生反向表。
+首版每次 ListForks 都执行上述完整 checked 扫描，不保留跨调用反向表、负缓存或图安装/更新相位，不写持久孩子列表、全局 catalog 或索引。实际重复查询成本超出目标后，再研究内存表及其完整建立/更新资格；名称层已有的可选投影不受本条重选。
+
+（Informative）int 参数与完整物化列表/节点索引的 Count 域相符，是没有超出该域消费者时的工程选择，long 也可正确。readonly 结果与私有薄封装提供稳定保留视图；独立可变副本或标准 immutable 集合也可正确，不因此建立公共集合框架或安全凭证。每 ref 的本层读取固定为首两帧，图行走是线性节点访问；哈希表定位按通常均摊成本估算，不承诺碰撞下的硬 CPU 界。公开 [RBF 正扫](../../src/Rbf/RbfForwardEnumerator.cs)与[payload 坏仍可结构扫描的测试](../../tests/Rbf.Tests/Internal/RbfScanForwardTests.cs)证明 framing 不替代必要完整读取；兄弟仓的[私有只读列表封装](../../../durable-graph/src/DurableGraph.Storage/StateRevision.cs)只提供窄所有权实现参考，不引入依赖或兼容。没有新栈实际消费者或性能测量证明额外 work/byte 限额、排序、缓存及通用图 API 必要；本条不是实现、平台或包资格。
 
 ## 不可变 tag 与固定分桶
 
@@ -192,7 +217,7 @@ ReadRef/ResolveTag MUST 返回 checked 发布记录里的 RootMap，ReadRef 同�
 
 Open MUST NOT 默认回放全部 ref 历史或扫描 data 图，也不因此宣称全库 O(1)。目录/格式门、名称及文件枚举的实际成本须报告；惰性打开只把检查延后到目标访问，不把未检查对象说成健康。
 当前 ReadRef 成本为本地 header、初始 Snapshot 与完整末 Snapshot bytes（初始即末帧时复用），不随历史帧数或祖先深度增长。ReadRefHistory 成本含返回快照的完整读取、跨文件 header/初始边界和定位源 fork 点所跳过的后缀 framing，不能只按返回条数估算；预算未覆盖的历史不计作已验证。按 revision fork 的来源定位也可能扫描源后缀，并增加一次源文件 flush。tag 每次查找/重名检查均为 O(目标桶记录数 + checked bytes)，临时名称集合为 O(该桶名称数)，完整字典只保留当前/所选值；连续创建同桶 n 个 tag 可能累计 O(n²) 次记录检查。不承诺分桶即可 O(1) 查询或长期无限容量。出现实际桶规模、重复解析/批量创建成本不可接受的证据后再设计跨调用内存位置表及其资格/更新规则，磁盘索引仍为独立后续片。
-ListForks 成本为 O(ref 目录数 + header/初始 Snapshot bytes + fork 数)，含全图存在性/环检测，不含所有源历史；结果与可选反向表占 O(ref 数 + fork 数) 内存。该成本与 branch names 数独立，不因只有少数命名 branch 就跳过匿名 ref。
+ListForks 每次执行完整 checked 扫描：令 N 为正式 ref 数、F 为有来源 ref 数，本层预期成本为 O(N + F + header/初始 Snapshot checked bytes)，含全部源存在和迭代环检查；哈希定位按通常成本估算。临时元数据 O(N)、自有结果 O(F)，另仅保留当前必要字典/pooled 帧，不保存全部初始 RootMap。数量参数包括无来源根；底座 factory 的尾部资格/恢复、实际 metadata/I/O 与内存成本另行报告，不能将 maxRefs 当硬时限/RSS 或历史规模无关的工厂保证。该查询与 names 数独立，不因只有少数命名 branch 而跳过匿名 ref；实际重复扫描超出目标后再研究内存反向表。
 ListRefs 成本与正式 RefId 目录数相关；branch 首次解析/全局查重/ListBranches 需要遍历正式 ref 目录及 names 记录，成本为 O(ref 目录数 + binding 数 + 所需 checked bytes)，不扫描全部 Snapshot 历史。即使大量 ref 未命名、只有少数 branch，也可能付出全部目录发现成本；不能按名字编码直接访问一个全局正式路径而宣称 O(1)。
 实现 MAY 惰性建立唯一的可重建内存 name→RefId/绑定位置表；其内存为 O(binding 数)，构建须消费 `[A-VS-BRANCH-NAMES-GLOBAL]` 的完整资格，后续定位仍需所选记录/目标的检查。名称解析后可保留 stable RefId，直接 ReadRef 不依赖该表或任何初生名称。目录/名称、句柄缓存及枚举生命周期的实际成本须报告，不增加持久名称索引、control 全量投影、全部尝试账本或磁盘 catalog/checkpoint。
 
@@ -204,7 +229,7 @@ ListRefs 成本与正式 RefId 目录数相关；branch 首次解析/全局查�
 | tag record | FrameTag=1；完整 TagName、原样 S4 RootMap | 无额外版本/CRC/身份；每次全桶 checked 扫描及 S4 RootMap codec/上限已定；名称与完整组合容量消费 S5-Q1 |
 | branch 绑定文件 | version/kind、VersionStoreId、完整 BranchName、RefId | RefId 字段与公开上下文值消费 S4 `[F-VS-REF-ID-8B]`；初始/alias 同一 checked codec、names 路径碰撞及全局发现验证仍待定 |
 | history 结果 | 复用 S4 RefSnapshot；实际 RefRevision、自有 RootMap | 同步 visitor、两项预算、Complete/VisitorStopped 与预算失败已定，实施所有权/终止/清理验证 |
-| fork 查询结果 | ChildRefId、S4 ForkOrigin 元数据 | 完整集合、预算/错误、内存视图与返回值所有权；不从元数据签发 checked revision |
+| fork 查询结果 | 自有 ForkInfo：ChildRefId、SourceRefId、完整 SourceSnapshotTicket | `[A-VS-FORKS-CHECKED]` 的 IReadOnlyList/私有只读封装、单项 maxRefs、完整集合/图及清理已定；不从元数据签发 checked revision |
 
 未来 ref 分段/轮转、tag 分片、差分与可重建索引均为独立后续片，需实际容量/工作集证据及自己的定位/恢复合同；不预建 segment manifest 或 checkpoint 缓存。业务 Parent/RNG/operationId 可放在应用已引用对象中，不扩展中立字典 codec。外部工具 exactly-once、跨 ref 事务和自动 merge 均无框架保证。
 
@@ -220,7 +245,7 @@ ListRefs 成本与正式 RefId 目录数相关；branch 首次解析/全局查�
 | S5-Q1 | 名称比较/编码/字符/限额、独立命名空间、bucket hash/数量/路径；名称比较相等必路由同桶，同名拒绝 |
 | S5-Q2 | 同步 visitor、自有 RefSnapshot、返回/工作步预算、两种正常结束与预算失败、visited/单临时句柄/HistoryActive 已定；实施跨文件资格、回调停止/重入/Dispose、取消及各退出清理，不再开放扫描器/epoch/预算载体设计 |
 | S5-Q3 | header-only 空桶初始化/I 前检/恢复保护、单一版本组合 schema、每次全桶校验及自有结果/一次清理已定；消费 S5-Q1/S4-Q2 的基础 codec，实施首 tag/后续 tag、缺失/坏记录/重复与 Outcome 验证，不再选择索引或第二版本权威 |
-| S5-Q4 | 统一绑定 codec/names 路径、全局扫描或惰性内存表、alias 文件发布、来源感知 fork API/重读/源 flush/容器发布/Outcome、ListForks 完整结果与规模成本 |
+| S5-Q4 | 统一绑定 codec/names 路径、全局名称扫描或惰性名称表、alias 文件发布、来源感知 fork API/重读/源 flush/容器发布/Outcome；ListForks 公开结果/单项数量预算/迭代图/清理已定，实施完整性、所有权、额度与规模向量 |
 
 验收覆盖历史调用结束后字典仍可发布/创建 tag、R0→R1→R0 仍保留三个 revision、预算失败与损坏区分、tombstone/unknown/CRC/TerminationError 不跳过、调用期间 mutation 拒绝及结束后恢复、空字典与 missing、hash 碰撞/同名同值拒绝、tag 不随 ref 更新、多个 branch 同 ref、fork 不改源/不复制 data、应用数据读取坏时不回退。故障证据沿用 S4；首版 Accepted 不要求分段、差分、checkpoint、业务谱系或精确历史尝试追踪。
 历史 visitor 向量另覆盖：选中第 k 项后 false 不读取更旧坏 payload 或源；首项即初始与重复同值 revision；返回额度恰好在无来源初始耗尽可 Complete，有来源则预算失败；forward 资格、每次 source 进入、无输出后缀/false 扫描及完整读都计 work，预算检查不隐含越额 I/O。覆盖递归历史及全部 mutation 的 pre-I/O 拒绝、回调当前值/data 读取、最后回调 false/true 时 owner Dispose/token 取消/异常、最后临时 close 失败、跳转/错误/取消每个句柄仅清理一次及 guard 释放；Result 失败后的已交付自有值有效，不把前缀或 VisitorStopped 称完整历史。
@@ -230,7 +255,7 @@ tag 向量另覆盖合法正式空桶与 missing、bare Fence/短 header/缺原 
 补无关 data Builder 活跃时以已完成闭包创建 tag/fork ref，以及借助同文件历史随机读取构建新状态；CreateBranch 仍只确认自己的绑定，不新增 data 屏障。分别验证同步历史调用的 VersionStore mutation guard 与无关 data Builder 不阻断发布的资格。
 
 链接验收覆盖当前/非末源快照、源后续追加不进入继承前缀、fork-of-fork、多孩子同一源位置、从继承快照再次 fork 时使用其实际 RefId、子初始与源同值但均返回、rewind 后完整发布历史仍含撤回记录。拒绝跨 store/header/伪成员/错 length 来源；实际跳转遇到缺源、坏身份/CRC/codec、初始字典不符或循环报错。覆盖后缀定位 framing 错误、工作预算先于下一项耗尽、取消与跨文件资源释放，不把定位失败当正常历史结束。
-ListForks 覆盖匿名与命名孩子、多层/兄弟分叉、alias 不产生新边、无来源同值复制不产生边、creating 残留排除、header-only 正式容器错误、全图缺源/循环/枚举失败、完整缓存建立与 Confirmed 后安装失败。声明边查询不审计源 ticket payload，而实际历史访问该坏源快照必须报错，两种资格分别验证。来源 fork 的源 flush 失败不得输出子容器；正常确认与 rename 结果未知的冷重开仍只见完整子 header/初始快照/名称，不补写源孩子表。
+ListForks 覆盖匿名与命名孩子、多层/兄弟分叉、alias 不产生新边、无来源同值复制不产生边、creating 排除、header-only/坏初始正式容器错误、未知项/枚举及必要关闭失败。预算向量含非法零/负数先于 I/O、无来源根也计费、恰好额度且 EOF 成功、超额 ref 不打开/读取/扩表而专用失败；全无来源仍可成功空边。覆盖缺源、自链接、独立分量中的环、深链迭代与大量兄弟共享祖先，不递归或逐节点重追；图错误或末关闭/取消/结果分配失败不交部分成功。验证结果三个自有字段/完整 length、无稳定顺序承诺、正常接口不能改写 backing、后续查询/创建/关 owner 后保存结果仍有效；历史 visitor 内调用借用匹配句柄、其他本地临时句柄归还一次，不覆盖历史槽。声明边不审计源 ticket payload，而实际历史访问该坏源快照必须报错；两种资格分开验证，factory 初始化保护及平台/规模成本仍另取证。来源 fork 的源 flush 失败不得输出子容器；正常确认与 rename 未知的冷重开仍只见完整子 header/初始快照/名称，不补写源孩子表。
 
 07 的跨 ref CU 尚未并入本合同。未来接纳时，source revision 必须来自已接受的 Snapshot 或满足共同事务判据的 CU；物理完整但事务不完整的 CU 不得成为 fork 源或继承历史节点。ForkOrigin 继续指向该实际 ref/frame，不能改为跟踪其他参与 ref 的当前 head；相应读取资格与成本另随正式并入验收。
 
