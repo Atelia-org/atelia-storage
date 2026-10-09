@@ -22,6 +22,7 @@ RBF（Reversible Binary Framing）是 Atelia 的二进制信封格式，用于�
 | [rbf-decisions.md](rbf-decisions.md) | **Decision-Layer** | 关键设计决策（AI 不可修改） |
 | [rbf-interface.md](rbf-interface.md) | Layer 0/1边界 | RBF1只读/RBF3纯新writer、结构Open与单尾截断/补原后缀、byte API与读取资格管线 |
 | [rbf-format.md](rbf-format.md) | Layer 0 (RBF) | RBF1旧byte布局及RBF3 units/Key/28B布局、原wire CRC与Header派发 |
+| [rbf-initial-frame-prefix.md](rbf-initial-frame-prefix.md) | Draft / 后续纯能力 | 有界初始单帧前缀谓词；机制与内部探针已研究，生产 public 入口尚未实施，不重标 S1 或当前 RBF 资格 |
 | [rbf-type-bone.md](rbf-type-bone.md) | Plan-Tier (指导编码) | 核心类型骨架（非规范性实现指南） |
 | [rbf-recovery.md](rbf-recovery.md) | Design Memo | 离线救援/分析用 Recovery Scan 设计备忘 |
 | [rbf-tail-recovery-refactoring.md](rbf-tail-recovery-refactoring.md) | Implementation / RBF1 | 旧byte-length格式单个残缺尾帧自愈的历史记录；不支配当前RBF3普通打开 |

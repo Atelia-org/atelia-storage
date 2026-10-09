@@ -1,0 +1,42 @@
+{
+  "designBaseline": "a7794cf",
+  "runtime": ".NET 10.0.5",
+  "os": "Microsoft Windows 10.0.22000",
+  "workspace": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\private-initialization-prefix-probe\\99b27994511d43ae8a61905ef28fd55b",
+  "scope": "Internal RBF-core prototype plus real partial-write injection and public checked reads; no production public prefix API, FrameStore, root/no-follow, deletion, process kill, Linux, rename, power-loss or package qualification.",
+  "initializationLength": 60,
+  "checkedAssertions": 3139,
+  "groups": {
+    "zero-key/complete-public-read": 5,
+    "zero-key/actual-partial-writes": 305,
+    "zero-key/full-image-corruption": 480,
+    "zero-key/context-and-suffix": 8,
+    "marker-key/complete-public-read": 5,
+    "marker-key/actual-partial-writes": 305,
+    "marker-key/full-image-corruption": 480,
+    "marker-key/context-and-suffix": 8,
+    "alternative-high-key/complete-public-read": 5,
+    "alternative-high-key/actual-partial-writes": 305,
+    "alternative-high-key/full-image-corruption": 480,
+    "alternative-high-key/context-and-suffix": 8,
+    "unknown-legal-content": 5,
+    "bounded-generic-oracle": 740
+  },
+  "images": [
+    {
+      "Name": "zero-key",
+      "ExpectedKey": 0,
+      "bytes": "524246330D000000010000000102030405060708090A0B0C0D0E0F10010000001BEC45BAB9E253B100000000000000000D0000000000000052424633"
+    },
+    {
+      "Name": "marker-key",
+      "ExpectedKey": 4,
+      "bytes": "524246330D00000005000000564246335742463354424633554246330500000055D85282BDE253B10400000004000000090000000400000052424633"
+    },
+    {
+      "Name": "alternative-high-key",
+      "ExpectedKey": 2166572391,
+      "bytes": "524246330D0000006645238166472085624324896E4F288D6A4B2C91664523817CA9663BDEA7703067452381674523816A4523816745238152424633"
+    }
+  ]
+}

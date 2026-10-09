@@ -1,6 +1,6 @@
 # S2：FrameStore 核心、地址与文件生命周期
 
-状态：**Draft；2026-10-05 确认首帧 header、自动归还与 config 数量上限；2026-10-07 允许活跃 Builder 期间确认和随机读取已完成输出；2026-10-08 确认地址固定 12B codec；2026-10-09 定稿资源基线、文件 header、owned 租借/归档维护、读结果/同步 inventory/audit、FileId 编号恢复、正式 active/archive 路径、FrameAddress 值/公开 codec、格式门记录/只读校验及软阈值参数/重开规则；初次空 store/正式门直接 create-only 写入与成立/返回边界，以及 owner 生命周期锁/门前 bootstrap/模式互斥已定；实际根准入/数据创建残留/平台资格仍待工程定稿或实施验证，项目尚未创建**。
+状态：**Draft；2026-10-05 确认首帧 header、自动归还与 config 数量上限；2026-10-07 允许活跃 Builder 期间确认和随机读取已完成输出；2026-10-08 确认地址固定 12B codec；2026-10-09 定稿资源基线、文件 header、owned 租借/归档维护、读结果/同步 inventory/audit、FileId 编号恢复、正式 active/archive 路径、FrameAddress 值/公开 codec、格式门记录/只读校验及软阈值参数/重开规则；初次空 store/正式门直接 create-only 写入与成立/返回边界，以及 owner 生命周期锁/门前 bootstrap/模式互斥已定；私有 data 初始化前缀/取消与只读保留合同已定；实际根准入仍待定；所需 RBF 公共前缀核验、清理与平台资格留实施，项目尚未创建**。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)。本阶段独立于发布和命名层。
 
 ## 本阶段目标
@@ -298,7 +298,7 @@ CRC 使用现有 `RollingCrc.SealCodewordForward` / `CheckCodewordForward`，传
 **共同只读校验。** Open 与 OpenReadOnly MUST 共用一个内部检查流程；在 S2-Q3 的实际名称/普通文件/no-follow 准入资格下，以 `FileMode.Open`、`FileAccess.Read`、`FileShare.Read` 取得临时 FileStream。先在同一句柄上要求 Length 恰为 24，再 `ReadExactly` 到固定 24B 栈 buffer，校验整个 codeword，最后解码版本并检查非零 StoreId。截短、尾随、CRC 坏或字段不合法均拒绝；CRC 不合格时不能认领其中身份。固定长度已提供完整消费，无需额外 EOF 探测、第二个长度查询句柄或 RBF scanner。
 版本/身份只暂存在局部值中；取得独立拥有的身份值且临时句柄关闭成功后，才交给后续 owner 初始化。不得外泄 span、stream 或借用 buffer；关闭前先取出/清空资源槽，所有失败按 `[S-FS-OWNED-FAULT]` 的主错误优先/单次清理规则处理。任何检查或必要清理失败 MUST 在 active 恢复、私有清理及新输出前结束，不签发 owner。仅真实缺失作缺门分类，权限/I/O 不折算为不存在；不通过 File.Exists 猜缺失。
 
-正式门 MUST NOT 通过可写 RBF Open、修尾、追加、替换或数据 header 认领来“修复”；缺坏门时不从其他文件取得身份或自动创建。正确记录是打开的必要条件，不独自证明 root 身份/目录资格、独占或旧 Create 已成功返回；FileShare.Read 不替代整个 store 锁。初次建立消费 `[R-FS-STORE-CREATE]`；owner 锁消费 `[S-FS-OWNER-LOCK]`；实际组件大小写/类型入口、根准入、私有数据创建残留及平台锁/data rename 资格仍在 S2-Q3 定稿或验证，本条不授权清理未知内容。
+正式门 MUST NOT 通过可写 RBF Open、修尾、追加、替换或数据 header 认领来“修复”；缺坏门时不从其他文件取得身份或自动创建。正确记录是打开的必要条件，不独自证明 root 身份/目录资格、独占或旧 Create 已成功返回；FileShare.Read 不替代整个 store 锁。初次建立消费 `[R-FS-STORE-CREATE]`；owner 锁消费 `[S-FS-OWNER-LOCK]`；私有数据残留消费 `[R-FS-CREATION-PRIVATE]`；实际组件大小写/类型入口、根准入及平台锁/data rename 资格仍在 S2-Q3 定稿或验证，本条不授权清理未知内容。
 
 （Informative）固定门每次 owner 打开只读一次，没有历史/追加需求；普通定长读取和现成 Data codeword 是本轮更直接的工程默认。单帧 RBF3 承载同一 20B 内容也可正确，但需额外编排格式、首帧/形状、完整帧和唯一后界；当前推导为 56B 文件，未测得 raw 的性能优势。首版只选一个 codec，不提供双模式/fallback 或公开门 API；有实际统一物理工具消费者时再评估格式演化。依据为 [公开 CRC codeword](../../src/Data/Hashing/RollingCrc.cs)及[独立 CRC/损坏测试](../../tests/Data.Tests/Hashing/RollingCrcCodewordTests.cs)，不构成新 FrameStore 实施资格。
 
@@ -333,7 +333,7 @@ CRC 使用现有 `RollingCrc.SealCodewordForward` / `CheckCodewordForward`，传
 
 可写打开 MUST 枚举 active 的规范文件，按 `[F-FS-META-FIRST]` 先检查完整初始化的长度下界，再让 RBF 分别处理每个文件的单尾恢复并校验首帧；报告按 FileId 关联供诊断，Action 不驱动业务回滚或发布。所有需恢复的 active 文件成功打开并完成本层初始化检查后，才能向外签发新 Builder。
 Open 不重复读取整个尾 payload 取得结构资格；业务 metadata 作事实前仍 checked-read。archive 历史只读严格访问，残尾不被自动改写。恢复后的 TailOffset 大于当前阈值时，文件不可再租借，按归档协议处理。
-所有 active 恢复/header 检查及目录准入通过后，可写 Open MUST 执行 `[S-FS-ARCHIVE-AFTER-FLUSH]` 的统一归档维护，再签发 owner；任何维护或清理失败都不签发可用实例。正式路径与编号按下文已定合同，owner 独占消费 `[S-FS-OWNER-LOCK]`；实际根准入与私有残留仍按 S2-Q1/Q3 定稿。
+所有 active 恢复/header 检查及目录准入通过后，可写 Open MUST 执行 `[S-FS-ARCHIVE-AFTER-FLUSH]` 的统一归档维护，再签发 owner；任何维护或清理失败都不签发可用实例。正式路径与编号按下文已定合同，owner 独占消费 `[S-FS-OWNER-LOCK]`；私有残留消费 `[R-FS-CREATION-PRIVATE]`，实际根准入仍按 S2-Q1/Q3 定稿。
 正常 Open 核对格式门、私有创建槽位、active 集合及 `[S-FS-DIRECTORY-STATES]` 的完整正式名称发现/编号恢复；按需读取报告已知地址的缺失/坏内容，Inventory/Audit 覆盖实际发现的正式集合及其中已观察的错误，不声称发现不可观测的整文件丢失。枚举目录名不等于审计历史帧，不宣称已验证全部历史文件内容。只读复用正式名称发现与冲突检查，但不恢复、不移档、不清理创建残留。
 
 ### spec [S-FS-SOFT-THRESHOLD] 完成后大于阈值才停止追加
@@ -396,7 +396,7 @@ creating 是未发布的私有初始化槽位；active 是可能继续追加且�
 1. 格式门、必要目录与目录准入资格成立；可写打开还须先取得整个 store 的独占。完整枚举 active 的规范项，建立本来就需要的 active 台账，并按数值取最大 FileId。
 2. 完整枚举 archive 的全部桶与其中正式项。消费本阶段路径 codec 校验非零 FileId、唯一 canonical 路径/层级及 bucket/slot 对应；不按文件系统枚举次序推断大小。archive 的 ID 若已在 active 台账中，立即拒绝双位置，不挑副本。未知/非规范正式项和枚举/权限/I/O 错误不得跳过或折算为不存在。
 3. 取两个正式集合实际文件的最大编号；空桶不贡献编号，不以桶边界推算最大值。只有全部名称枚举及必要枚举资源清理成功后才取得这份资格；可写 Open 中的 active 恢复及归档 MUST 在正式名称检查通过之后进行。
-4. 私有槽位还须通过 `[R-FS-CREATION-PRIVATE]` / S2-Q3 的残留裁决。可写 Open 按既定合同恢复全部 active 并检查 header，之后才 DrainStopped 并签发 owner；只读按既定只读 header 合同检查，不恢复、不归档、不清理残留。creating 不计入正式 max，也不从其中 header 认领已发布编号；未裁决残留不得直接忽略、删除或复用其槽位。
+4. 私有槽位还须通过 `[R-FS-CREATION-PRIVATE]` 的残留裁决，取得资格前不恢复 active。可写 Open 按既定合同恢复全部 active 并检查 header，之后才 DrainStopped 并签发 owner；只读按既定只读 header 合同检查，不恢复、不归档、不清理残留。creating 不计入正式 max，也不从其中 header 认领已发布编号；未裁决残留不得直接忽略、删除或复用其槽位。
 
 canonical 路径 codec 按 `[F-FS-BUCKETED-PATHS]` 为每个 FileId 在 active、archive 分别给出唯一位置并拒绝等值别名/错桶，桶名本身也校验规范编码与可表示范围，包括空桶。由此 archive 内不需要额外历史 ID 集合，跨集合重复用已有 active 台账检测。仅按正式名称发现文件便占用其编号，包括 header-only 文件；archive 不为恢复 max 额外打开或校验 header/payload，坏内容不能被当作空桶或腾出的编号，其内容/身份资格仍由按需 checked-read 与 Inventory/Audit 取得。active 的必需 header 错误仍阻止 Open。
 owner 初始化取得的目录资格在正常运行中由已定发布/归档协议维护；Append、Begin、Confirm 不重新全库枚举。Inventory/Audit 仍按自身合同发现完整实际集合，不把正常写入的内存台账代替全库检查。
@@ -410,9 +410,30 @@ owner 初始化取得的目录资格在正常运行中由已定发布/归档协�
 
 ### spec [R-FS-CREATION-PRIVATE] 初始化完整后才发布文件
 
-新文件 MUST create-only 写入私有 creating 槽位，完成本层初始化并 flush/close，再同文件系统、不覆盖地 rename 到 active；成功登记后才能打开供追加、签发 Builder/提前地址。目录管理串行，因此每次至多一个未发布创建槽位。
-creating 不接受用户帧、不签发地址。0–3B 的未完成 RBF Header 只可能是私有创建残留，不削弱 RBF 普通 Open 的拒绝规则。本层初始化边界必须包括完整首帧 meta/header，由其 RBF ticket 与公共边界 API 确定；RbfScanBoundary.Empty.EndExclusive 只表示底层空 RBF，不再表示可发布的 FrameStore 文件。
-在可证明为本层内部初始化的范围内，重开可写 owner 取消未发布创建槽位；完整初始化也可取消，不必补发布。精确残留前缀与损坏拒绝规则仍在 S2-Q3 定稿，消费下述固定 header schema；不能仅据文件名或一份合法 header 删除未知内容，只读不清理。
+新文件 MUST create-only 写入私有 creating 槽位，完成本层初始化并 flush/close，再同文件系统、不覆盖地 rename 到 active；成功登记后才能打开供追加、签发 Builder/提前地址。目录管理串行，因此每次至多一个未发布创建槽位。creating 不接受用户帧、不签发地址，也不贡献正式 max；取消未发布初始化不消耗编号，发布到 active 后的编号则不得撤销。
+
+**私有语法与独立候选。** 格式版本 1 使用根内精确小写普通目录 `creating`，其全部直接项只允许空集合或一个 `<F>.rbf` 普通文件；F 共用正式文件的 8 位小写非零 FileId codec。必须完整枚举，包括隐藏项；未知/多项、目录/特殊项/链接、错误拼写或枚举失败均拒绝，不递归寻找合法内容、不筛掉未知项。creating 是 Create 准备的必要布局，Open 缺失时不补建；实际普通类型/no-follow 和根准入仍按 S2-Q3 实施。
+
+只有完整正式名称发现、双位置冲突与枚举资源清理通过后，才由 MaxPublishedFileId 推出私有期望：空槽不需要 next；存在文件时 max MUST 小于 uint.MaxValue，候选号为 checked(max+1)，文件名 MUST 恰为该号。错号或已耗尽时有私有文件属于协议矛盾，保留拒绝；不从残留 header 认领身份/水位，也不另开持久编号账本。预期 header 由已校验门的版本/StoreId 和这个独立候选号编码。
+
+这消费现有单槽/串行/单点 rename：creating 期间正式 union/max 不变；发布成功后源消失、正式目标占号；rename 结果不明即停用旧 owner，不能再发号。因而正常未发布残留的号必为当前 max+1。该论证不覆盖外部复制、删除、改写或断电，不把目录 max 称为不可伪造历史证明。
+
+**字节资格。** 在 owner 锁、完整格式门、根/目录/普通类型资格及上述名称条件下，以同一只读普通句柄取长度并读取全部实存 bytes。令 I 为 `[F-FS-META-FIRST]` 的初始化后界；长度 MUST 在 0..I，超过 I 先拒绝，不读取任意大文件或仅检查其 header。对实际长度的 bytes 调用 [RBF 有界初始帧前缀核验](../Rbf/rbf-initial-frame-prefix.md)，传入 Tag=0 和上述预期 24B payload。只有全部 bytes 兼容某个合法 Key 下的完整预期 RBF3 初始化 codeword 的前缀，且必要只读句柄单次关闭成功，才取得残留资格。
+
+0B、0–3B HeaderFence 前缀、裸完整 HeaderFence、部分 header 帧以及完整 header-only 初始化均可取得该范围资格；空/短前缀没有尚未出现的 StoreId/FileId/CRC 证明。谓词只证明前缀兼容，不认证历史作者；清理资格来自本条全部前提，不能仅凭文件名、长度、合法 header、CRC 或谓词 true 删除任意文件。任何不兼容 bytes、完整坏身份/形状/CRC、用户或未知 suffix 都保留并拒绝，不修复、覆盖或补发布。
+
+**打开与取消。** 正式名称及全部私有项/bytes/必要关闭检查 MUST 在任何 active 可写 RBF 恢复、私有删除或新输出之前完成。私有文件不得交给可写 RbfFile.OpenExisting 修尾后再认领，也不能用严格 RO 工厂拒绝残尾代替前缀核验。
+
+| 入口 / 事实 | 行为 |
+| --- | --- |
+| creating 合格且为空 | 两种打开正常接续正式集合，不因空槽计算耗尽 next |
+| 唯一文件取得全部残留资格，可写 Open | 在持续独占下仅删除这个文件，保留 creating 目录；不恢复或补发布，再检查/恢复 active |
+| 同样合格的文件，OpenReadOnly | 原样保留，只接续正式集合；不计 max、签发地址或公开该文件 |
+| 任何私有项不合格或必要读取/关闭/删除失败 | 不交付 owner；内容不合格时不删除，I/O/权限/清理错误传播，不折算为空或成功 |
+
+删除中断后的事实只有原文件仍在或槽已空；下次从相同门、正式集合和实存 bytes 重新裁决，不记取消 receipt，也不循环重试删除。所有失败/关闭仍消费 `[S-FS-OWNED-FAULT]` 的主错误优先/单次清理，最后释放 store 锁；不递归删除目录、盲删目标或在失败旧 owner 内重建/续跑。普通创建中断也保留残留交下次 Open 裁决，不能因为初始化尚未签地址就跳过内容资格回滚。没有完整格式门的初次 store 残留仍按 `[R-FS-STORE-CREATE]` 拒绝，不能用本条续作初始化树。
+
+**底座与证据。** 当前 RBF public 工厂不能完成上述未修改前缀资格；须先实施该窄纯入口，复用 RBF layout/footer/CRC 与 Data XOR，不在 FrameStore 复制 wire parser/encoder，也不另写 scratch RBF/marker/日志。[探针](../../experiments/PrivateInitializationPrefixProbe/README.md)已用内部 core 和真实部分输出验证可行性，但不是公面或完整 FrameStore 验收。新入口、普通类型/no-follow、取消/清理和两平台 rename/中断分别随 S2 实施取得；S1 的既有 Accepted 资格不变。
 
 ### spec [S-FS-ARCHIVE-AFTER-FLUSH] 先确认内容再归档
 
@@ -464,7 +485,7 @@ header 保持标准 RBF3 帧，RBF 不感知其业务类型。初始化完整的
 
 **共同首帧检查。** 在 Idle 的 owned RBF 句柄上先要求 Format=Rbf3；调用 `ScanForward(showTombstone: true)`，只取第一个物理帧。MoveNext 返回 false 时先传播 TerminationError，没有错误才报缺少 header；不得跳过墓碑、寻找后续同 tag 帧或从 EOF 猜 header。先核对首位置、H.FrameLength、payload 24B、meta 0、tag 0 和非墓碑，拒绝错形状而不按其长度申请大 buffer；再以该真实 ticket 执行完整 `ReadFrame` 或 `info.ReadFrame`，取得完整 CRC 资格后解码并核对版本/StoreId/FileId。正常 Open 的这一步不遍历用户历史；扫描结构资格或随机 CRC 读取单独不能替代首位置与身份检查。
 
-**创建顺序。** `CreateNew(creating, Off) → Append(0, encodedHeader, noTailMeta) → 共同首帧检查 → GetScanBoundaryAfter(headerTicket) → DurableFlush → close → 不覆盖 rename 到 active`。Append 返回 ticket 必须等于首帧检查所得 ticket，TailOffset 与 checked boundary 必须均为 I；creating 中不允许后续用户帧。只有完成这条初始化协议并发布、登记后的文件才能供普通追加使用。失败不签发用户地址，残留的所属/删除资格仍按 S2-Q3，不因 CRC 合格自动认领或补发布。
+**创建顺序。** `CreateNew(creating/<F>.rbf, Off) → Append(0, encodedHeader, noTailMeta) → 共同首帧检查 → GetScanBoundaryAfter(headerTicket) → DurableFlush → close → 不覆盖 rename 到 active`。Append 返回 ticket 必须等于首帧检查所得 ticket，TailOffset 与 checked boundary 必须均为 I；creating 中不允许后续用户帧。只有完成这条初始化协议并发布、登记后的文件才能供普通追加使用。失败不签发用户地址，残留资格消费 `[R-FS-CREATION-PRIVATE]`，不因 CRC 合格自动认领或补发布。
 
 **可写打开顺序。** 在 store 独占及已知格式门资格成立后、任何可写 `RbfFile.OpenExisting` 前，MUST 用公共文件长度入口检查该 active 的实际长度 >= I；过短直接拒绝且不交给 RBF 修复。只读长度查询须在进入 RBF 的 FileShare.None 工厂前关闭；该预检不解析 RBF wire，也不替代独占资格，I/O/权限/缺失错误保留。随后调用 `OpenExisting(path, out recovery, Off)`，再做共同首帧检查。非 None 恢复若 AffectedFrameOffset 缺失或小于 I，MUST 拒绝；合法用户残尾从 I 或更后位置开始。所有 active 通过后才签发 owner/Builder；失败按 owned 资源合同清理已打开句柄，不补造 header 或身份。
 
@@ -516,6 +537,7 @@ ConfirmDurable 消费本阶段 `[A-FS-DURABLE-COMPLETED-OUTPUTS]` 的核心合�
 header 独立 bytes 向量固定 version=1、StoreId 为 hex 01 至 10、FileId=0x89ABCDEF：decoded payload 为 `01 00 00 00 | 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 | EF CD AB 89`，不是原文件 escaped bytes。覆盖精确 24B、截短/多字节/meta/墓碑/错 tag、全零/错 StoreId、0/错 FileId、未知/门不一致版本、HeadLen/TrailerCRC/PayloadCRC/Fence 损坏；坏首帧后存在合法同 tag 帧仍拒绝，合法 header 后同 tag 用户帧仍读出。验证无用户帧的初始化文件合法、首用户 ticket 从 I 开始、原生 RBF 可见和用户 inventory/audit 分类。正式 active 的每个短于 I 的 header 字节前缀在可写 Open 前拒绝，重复打开仍不修改/接纳；尤其覆盖仅缺 Key/Fence 的完整 body。header 后用户帧残尾按 RBF 恢复，report 不得触及初始化区；长度足够但坏身份/header CRC 的文件仍拒绝，即使底层已先修用户尾。私有 creating 中断留给目录协议裁决，不把初始化校验当删除授权。
 格式门独立文件 bytes 取 version=1、StoreId 为 hex 01 至 10：`01 00 00 00 | 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 | 7D 5C 28 69`，CRC32C=0x69285c7d；这是完整 raw 24B 文件，不是 header 的 decoded payload 或 escaped RBF frame。覆盖 0–23B 每个前缀、25B/尾随、版本与 ID/CRC 各区损坏、重新封 CRC 的未知版本/全零 ID、旧 marker/RBF 文件及缺门；重复可写/只读打开都不修门、不从合法 data header 补身份。失败不得发生 active 恢复/私有清理/输出；校验成功但必要 close 失败也不签发 owner，读取/关闭双失败保留主错误且不二次关闭。实际规范名称/普通类型及初次发布中断仍另取 Q1/Q3 资格。
 初次创建向量覆盖缺根/空根/合法 config-only 输入与非法 config 先于初始化输出拒绝；已有好/坏门、初始化树、私有残留及未知内容不覆盖或收养。覆盖必要目录准备各窗口、门缺失/0–23B前缀/完整坏字段的重复拒绝，以及完整合法门写出后、flush/close返回前或owner交付失败时可按实际事实重开；不要求写24B原子，不把失败等同未创建。任何故障清理不得删除正式门/根，门前独占不得依赖已有门；合法门旁缺必要目录仍拒绝且不补建。成功Create无data文件/桶/RBF句柄，重开StoreId不变，空确认/Inventory/Audit不建文件且扫描计0；首次实际追加才建FileId=1，非法请求不建、已发布后取消仍占号。具体根/锁/type/no-follow及进程中断、资源失败实证仍归Q3和S2-D。
+私有初始化验收覆盖 0..I 全部实际顺序前缀、合法非默认 Key、232/233B 底座有界域与同一句柄完整读取/单次关闭；不得将 internal 原型当 public 消费证据。正式 max 完整发现后才核对唯一候选号，覆盖空槽/Max 空槽合法、错号/正式重复/Max 有私有文件、缺 creating/未知/隐藏/多项/特殊项及完整枚举失败。另一份合法短 RBF、合法 header 后用户帧、错预期身份/形状/CRC 或坏 closure 必须拒绝并保留，重复打开不修改；合格短前缀不宣称身份/作者认证。只读合格留原样且不纳入 Inventory/Audit/地址/max；可写全部资格及必要 close 成功后才删唯一文件，之后 active 才可恢复。取消中断、读取/close/delete 错误与主/清理双失败不签 owner、不过早释放锁、不递归删目录或补发布；当前写入正常中断不自动盲删。无格式门的初次残留不套用本协议续作。
 owner 锁向量覆盖无data/全部archive时仍排斥第二writer，writer/RO互斥、RO/RO共享；两类句柄都在完整门/正式目录检查前取得锁，所有factory失败与Dispose最后单次关锁。覆盖Create锁前空根→其他调用先建门/布局→本调用获锁后重检拒绝，以及纯control/config+control bootstrap中断可复用而坏门/初始化树不能续作；非空/特殊control、缺control的Open/RO拒绝且不补造/修复。覆盖fault期间第二owner仍被排斥、取消/数据close/汇总异常不跳过最后关锁、kill后保留同一空control可重开、不删除或DeleteOnClose。Linux验证禁用BCL自动锁或native错误不能绕过显式锁准入，unsupported即拒绝；两平台实际名称/ordinary/no-follow与资源证据另取得。Windows原语28项探针不替代完整factory或Linux验收。
 屏障覆盖 A 完成/B 仍 Building 时成功确认 A、B 租借文件内更早 dirty 帧也被确认、B 内容及租借不变、B 后续完成须重新确认、B 健康取消不获得资格、reopened active Action=None 首次确认，以及任一文件 flush 失败后所有 owned Builder/Writer 停用。
 维护向量覆盖 End 成功/配额释放后没有 flush/close/rename，下一合法写准入先维护、满额或非法 Begin 不维护，以及 Confirm/Open 排空、读/取消/Dispose 不移档。让 A 成功越过阈值，下一 Begin 或 Confirm 的 flush/close/rename 各自失败：A 仍是完整事实、本次无新 Builder/成功确认，其他活跃 Builder/Writer 全部拒绝；关闭已尝试对象不重复 Dispose，重开按真实位置裁决。覆盖 M 个 Builder 加一次 Append 的 M + 1 停止项窗口、持续 Append 不调用 Confirm 时仍及时归档、同一次 Confirm 不重复 flush 已归档项。
@@ -538,7 +560,7 @@ Dispose 向量覆盖取消资源异常不重租、全部 owned 文件逐一尝�
 | --- | --- |
 | S2-Q1 | FrameAddress 值/两方向 12B bool codec、数值/默认/相等/失败、普通表示，以及 framestore.format 的 24B 记录/唯一 CRC/只读完整校验已定；实施相应 bytes/拒绝/关闭/无后验失败向量并记录地址运行时成本。初次空 store/直接 create-only 门建立与成立/返回/失败边界已定，实施对应中断、空集合和首次追加向量；owner 模式互斥消费 `[S-FS-OWNER-LOCK]`，实际上下文/根准入仍需定稿或验证，直接消费统一版本 1 / 16B StoreId |
 | S2-Q2 | 软阈值唯一 long 参数/64GiB 默认/范围/实例固定/恢复后重算与 archive 不解封已定，实施小阈值 public、非法参数、升降/修尾及维护失败向量；正式路径/单一 codec/全部直接项语法和编号恢复已定，实施文本/拒绝/定位向量并测量 O(A+B+H) 目录成本，不重新选择布局、计数器或最高桶快速路径 |
-| S2-Q3 | 初始输入消费 `[R-FS-STORE-CREATE]`，owner 锁/控制角色、门前 bootstrap 与获锁后重检、模式互斥及退出顺序消费 `[S-FS-OWNER-LOCK]`；实施同/跨进程冲突、锁前后竞争、kill/fault/关闭错误向量。实际 store 根身份/准入、固定组件/普通类型/no-follow、私有数据 creating 命名与残留裁决、两平台严格锁/data 同文件系统不覆盖 rename 入口与中断实证仍需定稿或验证 |
+| S2-Q3 | 初始输入消费 `[R-FS-STORE-CREATE]`，owner 锁/控制角色、门前 bootstrap 与获锁后重检、模式互斥及退出顺序消费 `[S-FS-OWNER-LOCK]`；实施同/跨进程冲突、锁前后竞争、kill/fault/关闭错误向量。私有 creating 语法/独立候选/全部前缀资格、可写取消及只读保留消费 `[R-FS-CREATION-PRIVATE]`；先实施/验收所需 RBF 公共纯前缀入口及取消/清理向量。实际 store 根身份/准入、固定组件/普通类型/no-follow、两平台严格锁/data 同文件系统不覆盖 rename 入口与中断实证仍需定稿或验证 |
 | S2-Q4 | Builder/Writer/Lease、borrow、完成/dirty、维护/fault/Dispose，以及 FrameRead、纯值 FrameInfo、FrameFileAudit、同步 Inventory/Audit 准入/重入/取消/终止合同已定；实施对应拒绝/资源清理/信任级别与 completed-prefix 随机读取向量，不再作为待定 API 设计 |
 | S2-Q5 | 保留可写 active 句柄、显式 Off、只读按操作开关且无 reader pool 的基线已定；验证身份/读结果/扫描资源归属、Open 失败清理、历史峰值与实际资源成本，不做精确总资源配额 |
 | S2-Q6 | 24B header/单一格式版本/身份绑定、首位置识别、长度前检及 RBF 恢复后 checked-read、初始化与用户 tag/扫描合同已定；实施上述 bytes、拒绝、重复打开和用户残尾验收，不再作为待定设计 |
