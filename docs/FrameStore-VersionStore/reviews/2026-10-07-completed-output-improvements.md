@@ -14,6 +14,8 @@ RootMap 仍由应用保证实际新增依赖全部完成、来源及闭包合法
 
 ## 条款迁移与权威位置
 
+下表的“本轮处理”及后文检查数字保留本次验收时的事实。当前设计稿已移除 S2/S4 被替代的条目；旧 Clause-ID 仅用于辨认历史迁移，当前要求仍由表中替代条款定义。
+
 | 原条款 | 本轮处理 | 当前权威 |
 | --- | --- | --- |
 | `[A-FS-DURABLE-OWNER]` | 保留旧锚点并标记 DEPRECATED，取消全局无 Builder 前置 | [S2](../02-framestore-core.md) `[A-FS-DURABLE-COMPLETED-OUTPUTS]` |

@@ -63,8 +63,6 @@ RbfWriteSize 是计算结果，不是执行凭据；default 的零值没有已�
 
 ### spec [A-RBF-MEASURE-WRITE-SIZE] 提供精确新写尺寸计算
 
-替代草案 `[A-RBF-EXACT-MEASURE]`（DEPRECATED）：这是后续层必须消费的基础能力。
-
 MeasureWriteSize MUST 无 I/O、确定计算，输入是最终 stored payload 和 TailMeta 的字节长度。负数、meta 超过 RbfFile.MaxTailMetaLength、合计超过 RbfFile.MaxPayloadAndMetaLength 或容量算术不合法时返回 RbfArgumentError。
 参数验证和 layout MUST 与实际 Append/Builder 共用内部实现，不能只包装依赖 Debug.Assert 的布局构造器；合计先以宽整数计算，避免输入相加溢出。
 结果 MUST 区分 frame 长度和追加占用；下游无需知道 EscapeKey、长度单位或固定开销。新 writer 只采用 RBF3，无公共 profile 参数；RBF1 读取保留原容量。

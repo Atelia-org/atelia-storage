@@ -1,6 +1,6 @@
 # S2：FrameStore 核心、地址与文件生命周期
 
-状态：**Draft；2026-10-05 确认首帧 header、自动归还与 config 数量上限；2026-10-07 允许活跃 Builder 期间确认和随机读取已完成输出；wire/API/header codec/config 与恢复细节待工程定稿，项目尚未创建**。
+状态：**Draft；2026-10-05 确认首帧 header、自动归还与 config 数量上限；2026-10-07 允许活跃 Builder 期间确认和随机读取已完成输出；2026-10-08 确认地址固定 12B codec；其余 wire/API/header codec/config 与恢复细节待工程定稿，项目尚未创建**。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)。本阶段独立于发布和命名层。
 
 ## 本阶段目标
@@ -20,6 +20,7 @@
 | 轮转 | 三种追加均在成功完成后按 TailOffset 事后检查；大于阈值才停止新追加 |
 | 磁盘生命周期 | 私有 creating → active → 按编号分桶的 archive；不维护 active manifest/status |
 | 归档桶 | 固定 1024 个编号一个桶；精确路径字符串与格式版本待定 |
+| 地址编码 | 固定 12B，完整 uint FileId 与 SizedPtr；基础地址无预留或内容见证字段 |
 | 耐久 | 确认调用时全部必要已完成 active 输出，包括 leased 文件；未完成 Builder 不获得资格，archive 资格来自移动前 flush |
 | 活跃构建期间随机读取 | 同文件已完成前缀可以读；未完成新帧不可读，扫描相关入口仍遵循 RBF guard |
 | 首帧 meta/header | 必须采用并至少承载版本解释；字段/codec/tag/校验顺序由 Coding Agent 定稿 |
@@ -33,12 +34,25 @@
 一个持有持久 StoreId、访问模式及实例生命周期的存储 owner。它拥有文件组织、所有读写句柄和 fault 事实；首版由调用方串行使用。整个 store 只有一个可写 owner，不能仅靠某个 RBF 文件的独占打开替代这个约束；锁定入口在 S2-Q3 定稿。
 候选 StoreId 为随机非零 128-bit 值，在 create-only 格式门中持久化；路径移动不改变身份。复制与外部改写不由本协议自动协调。
 
-## 地址的候选表示
+## 地址表示与固定编码
 
-FrameAddress 对外是不透明、可持久编码的局部地址；首版内部候选采用 `FileId + SizedPtr`（旧草案称 SegmentId），正整数 `uint` 文件编号、0/default 非法，ticket 的范围由 RBF/Data 公共 API 校验。不向普通调用方提供字段拆解、地址算术、大小排序或相邻帧推算合同。
+FrameAddress 对外是不透明、可持久编码的局部地址；首版采用 `FileId + SizedPtr`，正整数 `uint` 文件编号、0/default 非法，ticket 的范围由 RBF/Data 公共 API 校验。不向普通调用方提供字段拆解、地址算术、大小排序或相邻帧推算合同。
 StoreId 属于上下文，不必重复塞进每个数据引用。地址相等只在同一个 store 中有意义；相同数值在另一个 store 可能恰好也合法，**裸地址无法检测调用方原始来源错误**。
-跨 owner 的 Builder/plan 拒绝由实例生命周期负责；持久上层绑定负责选择正确 store。精确 wire、端序及文本表示在 S2-A 关闭。
+跨 owner 的 Builder/plan 拒绝由实例生命周期负责；持久上层绑定负责选择正确 store。二进制格式由下条锁定；公开 codec 入口、文本表示与错误载体在 S2-A 关闭。
 成功完成的帧在首版存续期间不重新分配、不改写、不删除。整个文件从 active 移到 archive 只改变容器路径，不改变 FileId、ticket 或帧字节，不属于帧重定位。地址不透明不等于已经提供可搬迁的逻辑对象 ID；未来改变定位编码必须另行处理兼容性。取消或截断的未完成预约没有稳定身份保证。
+
+### spec [F-FS-FRAME-ADDRESS-12B] 基础地址使用固定 12B codec
+
+本条遵循 S0 `[S-FS-ADDRESS-FIXED12]`。首版 FrameAddress 的 canonical 二进制编码 MUST 恰为 12 bytes，字段布局如下：
+
+| byte 范围（半开） | 字段 | 编码 |
+| --- | --- | --- |
+| `[0,4)` | FileId | 完整 uint32，LittleEndian，0 非法 |
+| `[4,12)` | Ticket | 完整 `SizedPtr.Packed` ulong，LittleEndian |
+
+MUST 按字段显式编码与解码，不转储 CLR struct 内存，不追加对齐 padding；Ticket 使用 Packed 的完整 64 bits，不改为 `SizedPtr.Serialize()` 的交错值或 varint，不将 offset/length 各压成 uint。解码须精确消费一条 12B 地址，拒绝截短输入、非法 FileId 及不满足既有 ticket 约束的值；容量与帧资格消费 RBF/Data 公共合同，恢复 Packed 本身不产生真实帧、主链成员或来源证明。FileId 与完整 Packed 决定同一上下文内的值相等。
+MUST 保留 SizedPtr 当前完整可表示范围，不新增单文件 4GiB/16GiB 硬界，不因地址编码把 MaxOffset 改成帧末端上界。基础地址不编码 StoreId、预留字段、CRC、fingerprint 或 generation。已知尺寸 Begin 签发的 FileId、ticket 及其 12B 编码在正常 End 后 MUST 保持相同；健康取消或修尾后的地址复用仍按既有定位合同处理，不承诺取消尝试身份。
+（Informative）CLR 内存布局与持久 codec 分离。可优先评估 private SizedPtr + uint FileId 的 Sequential/Pack=4 布局，也可用三个私有 uint 保存 FileId/PackedLow/PackedHigh，按需拼回 SizedPtr。两者不改变公开不透明性或 wire；内存大小、数组步长、嵌套容器及调用成本在目标运行时验证，不把 12B wire 当作通用内存 ABI 或速度保证。
 
 ## term `Completed-Frame` 已完成帧
 
@@ -139,10 +153,6 @@ Create 为 create-only；Open 不创建缺失 store。格式未知、metadata CR
 Open 不重复读取整个尾 payload 取得结构资格；业务 metadata 作事实前仍 checked-read。archive 历史只读严格访问，残尾不被自动改写。恢复后的 TailOffset 大于当前阈值时，文件不可再租借，按归档协议处理。
 正常 Open 核对格式门、私有创建槽位、active 集合及编号恢复所需目录信息；历史缺段/坏内容按需读取或完整 inventory/audit 时报告。枚举目录名不等于审计历史帧，不宣称已验证全部历史文件。只读只验证，不恢复、不移档、不清理创建残留。
 
-### spec [S-FS-ROTATION-NEXT-SLOT] 轮转只有一个未发布 next 槽位（DEPRECATED）
-
-此前单 active/locator 协议及更早的 `[S-FS-ROTATION-RECOVERABLE]` 已由 `[S-FS-SOFT-THRESHOLD]`、`[S-FS-DIRECTORY-STATES]`、`[R-FS-CREATION-PRIVATE]` 和 `[S-FS-ARCHIVE-AFTER-FLUSH]` 替代。保留锚点，不沿用其 locator 裁决或单 active 健康 Open 成本。
-
 ### spec [S-FS-SOFT-THRESHOLD] 完成后大于阈值才停止追加
 
 三种追加 MUST 共用事后检查：成功完成帧并取得新的 TailOffset 后，只有 TailOffset > RotationThreshold 才停止该文件的新分配并进入归档；等于阈值仍可追加。未知尺寸与已知尺寸不使用不同轮转算法。
@@ -160,7 +170,7 @@ active 使用完整 FileId 命名，archive 由 bucket/slot 确定唯一位置�
 
 creating 是未发布的私有初始化槽位；active 是可能继续追加且重开时需检查/恢复的集合；archive 是已按本协议 flush 后移入的只读文件。当前“已租出”只保存在内存，不写状态帧或 status 文件。
 规范文件不得同编号同时出现在 active 与 archive；发现时 MUST 报协议矛盾，不能任选、覆盖或删一份掩盖问题。所需文件不存在时明确缺失，不寻找其他编号替代。正常 Open 不承担发现所有未知历史文件的全库 audit。
-FileId 首版候选为递增非零 uint，不回绕；已完成帧及其文件不删除。下一编号倾向由实际目录恢复最大已发布编号后取得，不新增持久计数器；空桶、创建残留、编号耗尽及缺号的具体裁决仍在 S2-Q2 定稿。
+FileId 首版采用递增非零 uint；没有可用新编号时 MUST 在新文件创建及其地址签发前拒绝，不回绕、不缩短编号。已完成帧及其文件不删除。下一编号倾向由实际目录恢复最大已发布编号后取得，不新增持久计数器；空桶、创建残留及缺号的具体裁决仍在 S2-Q2 定稿。
 （Informative）可枚举 active 与归档桶名，再检查最高相关桶的规范文件；最高桶为空时继续寻找实际已发布编号。下一编号的恢复必须覆盖 active 与 archive 两个集合；低编号文件仍租出、高编号文件先完成归档是合法情形，不能假定两个集合按编号分界。FS 枚举顺序不是数值顺序。没有计数器时须计入桶目录枚举成本，不沿用“健康 Open 与历史规模无关”的承诺。
 
 ### spec [R-FS-CREATION-PRIVATE] 初始化完整后才发布文件
@@ -196,10 +206,6 @@ owned append、最终 Builder 提交、flush、轮转和 metadata 输出 MUST �
 输出异常后停止实例，缓存命中也不绕过 guard；取消资源异常不承诺可继续用。Dispose 尝试释放全部 owned resources，并定稿异常汇总规则。
 成功 EndAppend 自动归还已确认；归档/资源释放失败不撤销此前已完成帧，维护入口及维护异常如何映射到返回结果仍在 S2-Q4 定稿。耐久确认范围由下面的 `[A-FS-DURABLE-COMPLETED-OUTPUTS]` 唯一定义，Open 与完成资格不替代该屏障。
 
-### spec [A-FS-DURABLE-OWNER] 同步确认 owner 的全部完成输出（DEPRECATED）
-
-DEPRECATED；原条款以全部 Builder 归还作为屏障前置。2026-10-07 改为确认调用时的已完成输出，未完成 Builder 不阻断屏障且不获得资格，由 `[A-FS-DURABLE-COMPLETED-OUTPUTS]` 替代。
-
 ### spec [A-FS-DURABLE-COMPLETED-OUTPUTS] 同步确认调用时的全部必要完成输出
 
 ConfirmDurable MUST 同步确认调用时本 owner 所有已完成、尚未确认的必要输出；成功返回是本调用栈对这些输出的耐久证据。MUST NOT 仅因仍有未归还 Builder 而拒绝；未完成 Builder 保持构建内容、声明、epoch、租借与配额，不被隐式提交、取消或赋予完成/耐久资格。首版所有调用串行，屏障执行期间不允许 EndAppend 或其他调用交错，因而本次完成边界不变化。
@@ -207,7 +213,7 @@ archive 文件在移动前已 flush；所有必要 active 文件的完成输出�
 leased 文件成功 flush 可清除其此次已完成输出的未确认登记；该 Builder 后续成功 EndAppend MUST 重新登记新完成输出为未确认。后续输出必须由新的屏障确认，不能把文件或租借“以前 flush 过”解释为未来帧的耐久证据。健康取消也不让该次提前地址获得资格；位置可能复用，地址来源责任不因屏障改变。
 任一 flush 失败 MUST 按 `[S-FS-OWNED-FAULT]` 停止整个 FrameStore owner；其他文件上的 Builder、旧 Writer 及缓存命中也必须在访问 owned 状态前拒绝，受控 Dispose 仍负责资源清理。不能只 fault 单个 RBF 后让其余 Builder 继续。失败不撤销已有完整 bytes，也不产生成功耐久返回。
 不允许裸 RBF writer 或外部文件导入绕过登记。范围可包含不相关完整 orphan，无须选择每帧集合；它不解析业务依赖闭包，也不覆盖未来多个 data owner。
-首版不提供 DurabilityReceipt、集合合并/复用/过期协议。多个 active 已是当前设计范围，必要输出必须全部覆盖；只 flush 根所在文件不满足本条。未来独立 batch plan 或并发屏障须另建合同，不保留当前已取消的全局无 Builder guard。
+首版不提供 DurabilityReceipt、集合合并/复用/过期协议。多个 active 已是当前设计范围，必要输出必须全部覆盖；只 flush 根所在文件不满足本条。未来独立 batch plan 或并发屏障须另建合同。
 
 ## 单帧资格与实施片
 
@@ -215,12 +221,13 @@ leased 文件成功 flush 可清除其此次已完成输出的未确认登记；
 ConfirmDurable 消费本阶段 `[A-FS-DURABLE-COMPLETED-OUTPUTS]` 的核心合同，不解析业务依赖闭包；交错构建与循环引用的消费资格在后续阶段独立验证。
 批量计划不作为基本交错构建的前置；业务发布不在本阶段建立。
 
-1. S2-A：创建项目/solution；定稿不透明 FrameAddress、StoreId/格式门、路径、必需首帧 header codec、数量上限 config、模式/错误。
+1. S2-A：创建项目/solution；实现不透明 FrameAddress 与固定 12B codec，定稿公开入口/文本/错误和内部布局，以及 StoreId/格式门、路径、必需首帧 header codec、数量上限 config、模式。
 2. S2-B：三种 owned 追加、可嵌套独占租借/归还、交错完成、随机读取、基础耐久确认、buffer/fault/Dispose。
 3. S2-C：统一事后轮转、编号恢复、creating/active/archive 中断状态与多个 active 的独立恢复。
 4. S2-D：进程中断/资源失败、只读、错误格式、规模和 public 指南资格。
 
 至少验证两种无 EventHeader 记录、三种追加、嵌套租借与乱序完成、取消后文件复用、旧地址跨归档稳定、FrameAddress 的 context 限制、archive RBF1 拒绝、创建/flush/close/rename 各窗口、多个 active 独立恢复及完整内容损坏。
+地址向量覆盖固定 12B/端序的独立 bytes、FileId 高位与 uint.MaxValue、Packed 高低 32 bits 的往返、SizedPtr 最大起点/长度且末端可越过起点上界、0/default 与截短输入拒绝、嵌在复合记录中仅消费 12B、Begin/End 编码相等、归档和冷重开不改编码、编号耗尽不回绕。codec 验证与内部 struct/数组布局验证分开，不宣称格式解码能检测错 store 或取消预约复用。
 覆盖阈值以下/等于/超过、最大帧超阈值仍成功、可纠正失败不归还、成功后不等 Dispose 即可重新申请/确认、重复 Dispose 不二次释放、不覆盖归档目标、1024 边界与 slot=0、编号耗尽/空桶、仅根文件 flush 不充分；首帧 header 覆盖初始化中断、缺失/损坏、未知版本、字段绑定和用户扫描规则。
 屏障覆盖 A 完成/B 仍 Building 时成功确认 A、B 租借文件内更早 dirty 帧也被确认、B 内容及租借不变、B 后续完成须重新确认、B 健康取消不获得资格、reopened active Action=None 首次确认，以及任一文件 flush 失败后所有 owned Builder/Writer 停用。
 随机读取覆盖目标文件 Building 时成功读取旧完整帧、提前地址及包含帧后 Fence 的跨边界范围在 I/O 前拒绝、CRC/解析/Dispose/fault 仍传播、同一历史读取不受租借分配结果影响。扫描/扫描边界/物理后继保留原 guard，不以随机读取放宽宣称并发或扫描已开放。
@@ -234,7 +241,7 @@ ConfirmDurable 消费本阶段 `[A-FS-DURABLE-COMPLETED-OUTPUTS]` 的核心合�
 
 | ID | 需定稿 |
 | --- | --- |
-| S2-Q1 | FrameAddress 持久 codec、StoreId/格式门编码与版本；上下文实际保证 |
+| S2-Q1 | 固定 12B FrameAddress codec 的公开入口、文本/错误与目标平台验证、内部 struct 布局；StoreId/格式门编码与版本、上下文实际保证 |
 | S2-Q2 | 精确路径字符串、软阈值默认/变更、递增编号恢复/空桶/缺号/耗尽及目录规模成本 |
 | S2-Q3 | store 独占入口、creating 残留裁决、同文件系统不覆盖 rename 的两平台入口与中断实证 |
 | S2-Q4 | 成功提交自动归还已确认；Builder/Writer/读结果及 inventory/audit 签名、全 active/leased/重开完成输出登记与后续重新 dirty、completed-prefix 随机读取、归档维护入口、跨文件共享 fault/Dispose |

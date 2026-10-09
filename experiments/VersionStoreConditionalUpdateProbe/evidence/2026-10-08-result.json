@@ -1,0 +1,42 @@
+{
+  "prefixCases": 150,
+  "byteCases": 260,
+  "truncated": 220,
+  "completedTail": 32,
+  "readonlyRejected": 252,
+  "replacements": [
+    {
+      "delta": 0,
+      "anotherConditional": false,
+      "sameTicket": true,
+      "staleRead": "Success"
+    },
+    {
+      "delta": 4,
+      "anotherConditional": false,
+      "sameTicket": false,
+      "staleRead": "Rbf.FramingError"
+    },
+    {
+      "delta": 0,
+      "anotherConditional": true,
+      "sameTicket": true,
+      "staleRead": "Success"
+    },
+    {
+      "delta": 4,
+      "anotherConditional": true,
+      "sameTicket": false,
+      "staleRead": "Rbf.FramingError"
+    }
+  ],
+  "extraChecks": {
+    "laterOrdinaryUpdatePreservesGroup": true,
+    "copiedSelfRejected": true,
+    "peerContentError": "Rbf.CrcMismatch",
+    "propagatedError": "Rbf.CrcMismatch",
+    "errorPropagated": true
+  },
+  "work": "W:\\storage-conditional-update-probe-20261008\\run-final",
+  "scope": "Real RBF3 public API and saved byte-prefix images; synthetic payload; no process kill, power-loss, VersionStore or package qualification."
+}

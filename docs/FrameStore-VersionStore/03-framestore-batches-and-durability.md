@@ -12,28 +12,17 @@
 
 ## term `Frame-Batch` 大规模批量地址规划候选
 
-旧草案的 FrameBatch 先规划全部地址、再 BeginNext 串行填充，试图在大量预约时降低同时持有的 writer/文件/缓冲数量。该优化仍可另行评估，但不作为首版循环引用或发布的前置，也未冻结公开 API。
+FrameBatch 是先规划全部地址、再逐帧填充的候选优化，目标是在大量预约时降低同时持有的 writer/文件/缓冲数量。该优化可另行评估，但不作为首版循环引用或发布的前置，也未冻结公开 API。
 直接租借能解决嵌套构建和预算内自引用/跨文件互引；预取成千上万地址可能需要不同资源策略。需求出现时再比较纯规划、逐帧填充等方案，不能把交错 Builder 的实证扩大为任意规模批次资格。
 
 ## 候选合同
-
-### spec [A-FS-BATCH-PLAN] 批次先规划全部地址（DEPRECATED）
-
-首版入口改由 `[A-FS-EARLY-ADDRESSES]` 表达。保留旧锚点追溯，不继续要求先规划尚未创建文件的地址、全 owner 排他 plan 或第二套轮转算法。若将来采用独立批次优化，需形成新合同后再宣称支持。
 
 ### spec [A-FS-EARLY-ADDRESSES] 已知尺寸租借直接取得互引地址
 
 调用方 MUST 提供每个 Builder 最终 stored payloadLength/tailMetaLength；FrameStore 使用 S1 的 BeginAppend(payloadLength, tailMetaLength, out ticket) 建立实际租借并签发 FrameAddress，不只保留合计长度。
 签发多个 Builder 时，各自绑定不同 RBF 文件。已有 Builder 不因下一次申请而提交、取消或移动；提前地址只表达位置与尺寸，不证明完成、耐久或此次尝试身份。正常 EndAppend(tag) 使用 Begin 声明的 meta 长度。
 调用方可取得全部所需地址后编码互引；未知尺寸 Builder 不提供提前地址，也不能靠猜测未来长度获得同等资格。容量试算调用 RBF 公共 API，不复制布局常量。
-
-### spec [S-FS-BATCH-ORDERED] 按物理顺序完成（DEPRECATED）
-
-此前由 `[A-FS-BATCH-FILL-SERIAL]` 替代；后者也已由交错租借合同替代。物理追加留在每个 RBF 文件，不成为消费者解释帧的依据。
-
-### spec [A-FS-BATCH-FILL-SERIAL] 首版串行填充预约项（DEPRECATED）
-
-首版不再要求 BeginNext 或按描述符次序完成。由 `[S-FS-BUILD-INTERLEAVED]` 替代；串行 API 调用仍保留，但不意味着申请顺序等于完成顺序。
+互引消费 S2 `[F-FS-FRAME-ADDRESS-12B]` 的固定宽度 codec：每个基础地址字段恰占 12B，可以在 Begin 前计入 stored payloadLength；不根据内容 CRC、未来 witness 或 varint 的结果改变该字段长度。正常完成前后地址编码一致，不要求完成后再修补已写入其他帧的引用。
 
 ### spec [S-FS-BUILD-INTERLEAVED] 活跃 Builder 可交错填充并独立完成
 
@@ -46,10 +35,6 @@
 中断后完整 frames 保留，残尾由 RBF 处理；不回滚完整帧，不从残缺 bytes 恢复 batch，不写第二套 batch 账本。
 未完成 Builder/handle 的资格失效；数值地址可能重用。消费者 MUST 放弃包含取消地址的旧构建状态；A 已完成、B 被取消后 C 占用 b，不能把旧 A↔B 根当作新状态。
 读取完整 orphan 是合法物理读取；采用它必须重新建立完成及业务闭包来源，不能沿用旧 provisional 资格。
-
-### spec [A-FS-DURABLE-PREFIX] 同步确认完成前缀（DEPRECATED）
-
-曾由归入 S2 的 `[A-FS-DURABLE-OWNER]` 替代；2026-10-07 后统一消费 S2 的 `[A-FS-DURABLE-COMPLETED-OUTPUTS]`，不再要求全部 Builder 归还。本阶段不另建耐久权威，全部完成输出的集合不要求对外存在一个可排序的地址前缀。更早的 `[A-FS-DURABLE-SET]`、`[S-FS-RECEIPT-SCOPE]` 也保持 DEPRECATED。
 
 ## 构建与耐久是不同资格
 

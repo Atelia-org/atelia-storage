@@ -1,6 +1,6 @@
 # S0：总体边界与决策
 
-日期：2026-10-03；2026-10-04–05 确认 FrameStore 文件租借、目录与资源合同；2026-10-07 采用完整根地址字典、单文件 ref 和独立命名，并允许活跃 Builder 期间确认及随机读取已完成输出。状态：**会话方向已确认；S2–S6 wire/API 与剩余工程选择仍为 Draft；FrameLog 为独立可选扩展，VersionStore 首版不依赖它；参考依赖拆分 Accepted**。
+日期：2026-10-03；2026-10-04–05 确认 FrameStore 文件租借、目录与资源合同；2026-10-07 采用完整根地址字典、单文件 ref、活跃 Builder 期间的已完成输出资格，以及命名 fork 的目录共同发布；2026-10-08 确认 FrameAddress 固定 12B 编码。状态：**会话方向已确认；S2–S6 剩余 wire/API 与工程选择仍为 Draft；FrameLog 为独立可选扩展，VersionStore 首版不依赖它；参考依赖拆分 Accepted**。
 本文件记录本次用户已表达的决策。规范写法依 [规范约定](../spec-conventions.md)。API/wire 的具体选择由后续阶段细化。
 
 ## term `FrameStore` 中性的 Frame 存储库
@@ -23,10 +23,6 @@ FrameStore 坐标系中定位一个 frame 的地址，候选代码名为 `FrameA
 
 候选代码名 RootMap，内容为 `string => FrameAddress`。字典按值保存，Key 唯一；空字典是合法快照，不等于对象不存在。所有地址解释于 VersionStore 绑定的一个 data FrameStore；应用状态、工具意图、随机状态、轨迹与业务谱系保存在其指向的数据中。
 
-## term `Commit-Object` 不可变提交对象（DEPRECATED）
-
-2026-10-04 草案曾要求 StateRoot + ParentCommit 小帧。2026-10-07 由 RootMap 直接发布替代，不再是首版对象或 API；应用需要因果链时自行编码。
-
 ## 已确认决策
 
 ### decision [S-NEW-STORAGE-PROJECTS] 新能力由新项目承载
@@ -43,12 +39,8 @@ MUST 新建 FrameStore、VersionStore 两个生产项目及分别配套的单元
 
 ### decision [S-ROOT-PUBLISHED-LAST] 状态根最后发布
 
-保存或替换 RootMap 的协议 MUST 先完成该 RootMap 所需的新增应用数据帧，再确认全部新增依赖耐久，随后追加单条完整字典记录、确认其耐久，最后安装内存状态。发布旧字典可以复用其既有数据帧。新 ref 的发现还须完成其目录发布步骤，不能把私有文件 flush 视为已经对外建立对象。仅把 branch 名称绑定到既有 ref 不重新发布 RootMap，只确认绑定记录及其正式目录发布。
+保存或替换 RootMap 的协议 MUST 先完成该 RootMap 所需的新增应用数据帧，再确认全部新增依赖耐久，随后追加单条完整字典记录、确认其耐久，最后安装内存状态。发布旧字典可以复用其既有数据帧。新 ref 的发现还须完成其目录发布步骤，不能把私有文件 flush 视为已经对外建立对象；命名 fork 在同一个目录发布点同时建立新 ref 与初始 branch。仅把 branch 名称绑定到既有 ref 不重新发布 RootMap，只确认绑定记录及其正式文件发布。
 消费者 MUST 保证依赖闭包由此前已耐久帧和本次完成、确认耐久的新增帧组成。通用库不得声称可从任意 opaque payload 自动证明该闭包。
-
-### decision [S-NEUTRAL-FRAME-TARGETS] 根目标使用中性地址（DEPRECATED）
-
-本条的早期单根范围由 `[S-NEUTRAL-STATE-ROOTS]` 与 `[S-VS-ROOT-MAP-SNAPSHOTS]` 替代。保留锚点用于追溯早期草案。
 
 ### decision [S-NEUTRAL-STATE-ROOTS] 状态根保持中性
 
@@ -63,6 +55,11 @@ RootMap MUST 用 @`Frame-Address` 表达中性根地址，不要求 EventFrame t
 
 2026-10-04 用户确认：FrameStore MUST 提供带数据 buffer 的 Append、未知尺寸 BeginAppend，以及分立 payloadLength/tailMetaLength 的已知尺寸 BeginAppend。已知尺寸入口提前签发 FrameAddress，未知尺寸入口在完成时返回地址。
 本层只提升寻址与 owned 生命周期，不复制 RBF layout/CRC/EscapeKey 或 payload/meta 编码规则。确切 wrapper、读结果及错误签名在 S2 定稿。
+
+### decision [S-FS-ADDRESS-FIXED12] 基础地址固定编码为 12B
+
+2026-10-08 用户确认：**FrameAddress 首版固定编码为 12B，保持完整 uint FileId 与 SizedPtr；额外见证按明确需求引入，不把未来预留或内容 CRC 纳入基础定位合同。** 文件编号非零、不回绕，SizedPtr 的现有偏移与长度容量保持；已知尺寸 Begin 签发的完整地址在正常 End 后不改变。
+本决策锁定基础持久编码，不锁定 CLR struct 的内存尺寸或参数传递 ABI。StoreId 继续由上下文及上层持久绑定承载；地址不证明原始来源、完成、耐久或追加尝试身份。store fingerprint、generation 与内容见证若出现明确需求，单独定义保证及编码演化，不为它们在首版地址中预留字段。S2 `[F-FS-FRAME-ADDRESS-12B]` 细化唯一 codec，后序 RootMap 与互引消费该格式。
 
 ### decision [S-FS-CORE-INDEPENDENT] 核心与日志候选独立
 
@@ -120,9 +117,12 @@ tag 创建后不改；ref rewind 追加旧字典的新快照，不能截掉已�
 2026-10-07 用户明确要求：每个 ref MUST 使用一个以稳定唯一 RefId 定位的 RBF3 文件，每次更新追加一个完整字典帧；当前值只读最后快照。首版不分段、不轮转、不差分。RBF / SizedPtr 的帧尺寸和起始偏移硬界仍有效，超界显式拒绝，不能覆盖、回绕或截掉旧历史。
 历史选点是首版功能：从固定已完成上界逆序枚举完整快照，返回枚举结束后仍可使用的自有字典。随机历史读取、持久 cursor、索引及文件分段可以作为后续局部实施片；不提前写入其 wire。
 
-### decision [S-VS-COMMITS-SEPARATE-REFS] 提交关系与发布历史分离（DEPRECATED）
+### decision [S-VS-NAMED-FORK-ATOMIC] 命名 fork 共同发布新 ref 与 branch
 
-旧草案的独立 Commit / parent 与控制 token 模型由 `[S-VS-ROOT-MAP-SNAPSHOTS]`、`[S-VS-REF-SINGLE-FILE]` 替代。仍区分应用因果关系与 ref 发布历史，但首版不由 VersionStore 管理前者。
+2026-10-07 用户接受：**命名 fork 成功发布时，新 ref 与 branch 一起可见；发布前，普通查询两者都不可见。失败可以留下私有准备文件，但不会留下公开的未绑定 ref。**
+组合创建入口 MUST 在同一个私有 RefId 目录内准备完整 ref 与初始 branch 绑定，各文件 flush/close 后，以同文件系统、不覆盖的一次目录 rename 共同发布。所有 ref 采用统一的 RefId 容器目录；所有 branch 绑定（包括后加的 alias）放在所属 ref 的 `names` 子目录，不另设初生绑定表示、正式 Creating 名称或永久 branch 发布 gate。
+普通 CreateRef 仍可建立未命名 ref；CreateBranch(name, refId) 仍只命名既有 ref。调用方手工组合这两个公开操作不是事务，新组合入口不得以先公开 CreateRef 再补绑定实现。名称查找与查重覆盖全部正式 ref 的名称集合；单 writer/driver 串行准入保证检查至提交期间无其他名称创建交错，不能将局部 no-overwrite 误称为跨目录全局名称锁。
+（Informative）该选择用冷名称发现的目录扫描成本换取较少持久状态；允许可重建内存名称表，但不增加持久 catalog、通用事务或精确尝试账本。目录 rename 的平台资格仍须实施验收；逻辑原子不保证磁盘上没有私有残留，也不消除 Unknown。
 
 ### decision [S-LEGACY-READ-ONLY] 主线旧格式只读且无转写
 
@@ -171,13 +171,13 @@ flowchart TD
 
 FrameStore 核心为多个 active 文件的独占租借与目录归档，不提供业务全局顺序。FrameLog 的候选合同、工程问题和验收要求已迁至[可选扩展](extensions/framelog-candidate.md)，不参与 S2 的核心定稿与验收。
 
-VersionStore 借入一个 data FrameStore，拥有独立的 RBF3 发布目录；格式门绑定两者身份。每个 ref 独立一个追加文件；tag 按稳定名称哈希分桶，首版每桶一个追加文件；branch 使用 create-only 的名字到 RefId 绑定。具体 codec / 路径按 S4/S5 工程定稿，旧参考库不进入依赖。
+VersionStore 借入一个 data FrameStore，拥有独立的 RBF3 发布目录；格式门绑定两者身份。每个 ref 的 RefId 容器目录内保留一个同 RefId 命名的追加文件及 `names` 子目录；tag 按稳定名称哈希分桶，首版每桶一个追加文件；branch 使用 create-only 的名字到 RefId 绑定。具体 codec / 路径编码按 S4/S5 工程定稿，旧参考库不进入依赖。
 
-完整字典使当前值无需 replay 历史，回溯时才枚举该 ref。字典内容从完整 checked-read 得到，拥有独立生命周期；选择旧快照后可新建 ref、创建 tag 或追加 rewind。branch 创建只绑定已有 ref；fork 的 ref 创建与名称绑定为两个独立操作，允许留下未命名 ref，不宣称跨文件事务。
+完整字典使当前值无需 replay 历史，回溯时才枚举该 ref。字典内容从完整 checked-read 得到，拥有独立生命周期；选择旧快照后可新建 ref、创建 tag 或追加 rewind。匿名 fork 用 CreateRef，命名 fork 用组合入口随目录一次发布 ref 与初始绑定；给既有 ref 加 alias 只发布一个名称文件。S4 的 ref 读写不解释 S5 名称记录，也不因名称损坏改变 ref 的身份或当前字典。
 
 RefId 是稳定对象身份；RefRevision 只表示已完成快照的位置，不提前签发，不用作 Unknown 尝试 token。历史枚举期间首版禁止 owner mutation。跨重开的应用书签可使用 tag，无需先提供随机 revision 读取或持久扫描 cursor。
 
-CreateRef / PublishRef / CreateTag 在发布 RootMap 前同步调用 data ConfirmDurable，不向调用方传递可复用 `DurabilityReceipt`；无关 Builder 未完成不阻断该屏障或发布，所需依赖仍须由应用保证完成。CreateBranch 不新增 data 屏障。tag 桶查找与重名检查首版可扫描目标桶或使用按需内存投影，不保证 O(1)；字典、桶和文件容量按实际 codec 与公共尺寸 API 计算，“约 64B”只是少根短键场景估算。
+CreateRef / PublishRef / CreateTag 及命名 fork 在发布 RootMap 前同步调用 data ConfirmDurable，不向调用方传递可复用 `DurabilityReceipt`；无关 Builder 未完成不阻断该屏障或发布，所需依赖仍须由应用保证完成。CreateBranch 不新增 data 屏障。branch 冷发现覆盖全部正式 ref 的 names，tag 查找与重名检查覆盖目标桶；均可使用可重建内存投影，不保证首次查询 O(1)。字典、桶和文件容量按实际 codec 与公共尺寸 API 计算，“约 64B”只是少根短键场景估算。
 
 VersionStore 内部投影安装与消费者安装应用状态分别负责。发布已确认后前者失败仍保留 Confirmed 并停用库实例；应用安装失败时，从实际已发布字典重新加载，不撤销发布、不要求业务 callback。外部工具 exactly-once 和模拟确定性不是存储层保证。
 
@@ -212,5 +212,5 @@ IO/发布尝试后结果可能 Unknown；完整记录可在重开后存在。首
 
 ## S0 出口
 
-会话已确认新项目、旧库维护边界、RBF 恢复方向、不透明分配、三种追加方式、嵌套文件租借、统一软轮转、目录生命周期、首帧 meta/header、成功 EndAppend 自动归还、数量上限配置文件、core/日志候选分离，以及完整根字典最后发布、单文件 ref 与历史选点。活跃 Builder 不再阻断对已完成输出的确认、随机读取或独立闭包的根发布。header/config、codec/路径/API 和恢复细节仍须工程定稿；FrameLog 的独立去留不阻断新栈首版。
+会话已确认新项目、旧库维护边界、RBF 恢复方向、不透明分配、三种追加方式、嵌套文件租借、统一软轮转、目录生命周期、首帧 meta/header、成功 EndAppend 自动归还、数量上限配置文件、core/日志候选分离，以及完整根字典最后发布、单文件 ref、历史选点与命名 fork 的目录共同发布。活跃 Builder 不再阻断对已完成输出的确认、随机读取或独立闭包的根发布。header/config、codec/路径编码/API 和恢复细节仍须工程定稿；FrameLog 的独立去留不阻断新栈首版。
 S1 的单文件尺寸和 ticket 合同已实施并独立验收为 Accepted。S2–S6 仍是 Draft，具体 wire、类名、方法签名及性能预算按各阶段阻断项细化；本片不代表新库或下游适配已完成。

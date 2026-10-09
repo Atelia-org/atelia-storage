@@ -1,10 +1,12 @@
 # FrameStore / VersionStore 分阶段设计入口
 
-日期：2026-10-03；2026-10-05 确认 FrameStore header、归还、config 与核心/扩展分离；2026-10-07 更新完整字典、单文件 ref 及活跃构建期间的已完成输出资格。状态：**S1 Accepted；S2–S6 Draft，FrameLog 为独立候选且不是首版依赖，两个新项目尚未创建；参考依赖拆分 Accepted**。
+日期：2026-10-03；2026-10-05 确认 FrameStore header、归还、config 与核心/扩展分离；2026-10-07 更新完整字典、单文件 ref、已完成输出资格及命名 fork 的目录共同发布；2026-10-08 确认 FrameAddress 固定 12B 编码。状态：**S1 Accepted；S2–S6 Draft，FrameLog 为独立候选且不是首版依赖，两个新项目尚未创建；参考依赖拆分 Accepted**。
 初始设计源码观察基线：`main @ 70d1009e78a73342a0c0fdc8ffed7731dec58173`；S1 验收记录的核对基线为 `f6f1eb38557863ba5ea1634844a90f0cbe5774cf`；前轮设计阅读基线为 `4175a46`，本轮租借/目录修订核对 `50e8e28`。本文档集供逐阶段细化、审阅和实施，不把文档修订视为新实现或验收。
 
 目标：**以 RBF3 的帧原子性为基础，让中层构建新状态，再发布完整根地址字典使状态生效。**
 恢复依据是完整事实帧及其有效发布记录。RBF 处理物理尾部；FrameStore 分配不可变帧并按地址读取；中层负责状态构建和业务依赖闭包；VersionStore 管理字典快照、ref 历史与 branch/tag。
+
+基础编码候选见 [Bare Primitive Value 草案](../Binary/bare-primitive-value.md)：独立 BCL-only `Atelia.Binary`、FixedLE/VarInt、自适应 string、宽容 reader 与精确 Measure。它可供后续 header/RootMap 复用，但尚未审定/实施，不替代各阶段的记录 schema、版本、限额与资格；既定 FrameAddress 12B 保持。[Tagged Value](../Binary/tagged-value-intent.md) 仅记录意向，不是本栈前置。
 
 main 当前演进主线为 RBF3 / FrameStore / VersionStore。旧 EventJournal/RbfSegmentStore、toolkit 及测试保留为冻结参考，底层精确 PackageReference `[0.2.0-rbf1-preview.1]`；维护和公开交付归 RBF1 分支。依赖隔离、solution 共存与本轮仅三包交付的实施及证据见[过渡方案](../rbf1-reference-transition.md)。本轮不删除旧目录、不创建新项目，也不改变 main 的 RBF1 只读兼容。
 
@@ -12,6 +14,7 @@ main 当前演进主线为 RBF3 / FrameStore / VersionStore。旧 EventJournal/R
 
 FrameStore 普通合同是不透明地址分配与随机读取，不提供业务全局顺序。保留 RBF 三种追加方式；每个 Builder 独占一个文件，owner 可以嵌套租借多个文件、交错构建并乱序完成，首版调用仍串行。三种追加统一在成功完成后按 TailOffset 大于软阈值触发轮转。
 文件分配优先选择 active 中当前可分配的数值最低 FileId；忙文件和已停止分配文件跳过，没有候选才新建。不因已知帧尺寸提前试配，也不引入轮询或负载均衡。
+FrameAddress 首版固定编码为 12B，保持完整 uint FileId 与 SizedPtr；额外见证按明确需求引入，不把未来预留或内容 CRC 纳入基础定位合同。格式权威为 S2 `[F-FS-FRAME-ADDRESS-12B]`，三种追加、互引和 VersionStore RootMap 复用同一 codec。地址仍是局部定位值，StoreId 由上下文绑定；CLR 内存布局另行验证，不从 sizeof 推导 wire 容量。
 私有 creating 槽位完成必需首帧 meta/header 后发布到 active；header 至少提供版本解释，字段/codec 由 Coding Agent 定稿。active 目录表达可写集合，flush/close 后移入固定 1024 编号分桶的 archive 并只读，不维护 active manifest 或全历史分段表。屏障确认全部必要 active 输出。
 2026-10-07 用户确认：**ConfirmDurable 确认调用时已经完成的全部必要输出；未完成 Builder 保持原状，不因此次确认而获得完成或耐久资格。** leased 文件中的旧完成输出也必须覆盖，Builder 后续完成重新登记为未确认；flush 失败停用整个 owner 及其他 Builder/Writer。
 **Builder 活跃期间，允许随机读取已经完成的文件前缀；正在构建的新帧仍不可读。** RBF 指定 ticket 随机入口的 Building 范围检查包含帧后 Fence；普通读取仍校验内容、生命周期和共享 fault，不扩大扫描相关入口或并发合同。正式核心要求见 S2。
@@ -19,7 +22,9 @@ FrameStore 普通合同是不透明地址分配与随机读取，不提供业务
 循环引用可以直接通过多个已知尺寸 Builder 的提前地址形成，不以完整 FrameBatch/BeginNext 为首版前置。FrameStore core 与交错构建/耐久确认可以独立定稿、实施和验收。
 [FrameLog](extensions/framelog-candidate.md) 已从 S2 迁为独立可选扩展候选；术语、顺序/cursor 合同、工程问题与验收要求均在该文档。去留与实施范围尚未确认，不阻断核心出口。
 2026-10-07 VersionStore 收缩为完整 `RootMap = string => FrameAddress` 快照：每个 ref 一个 RBF3 文件，每次更新追加完整字典；tag 保存命名不可变字典，按固定名称哈希分桶；branch 为 name → 稳定 RefId 的 create-only 绑定。首版不分段/轮转 ref，不引入差分、checkpoint、独立 Commit/Parent 或全局 FrameLog。
-VersionStore 借入一个 data FrameStore，拥有自己的 RBF3 发布目录。CreateRef / PublishRef / CreateTag 先完成本根所需的新增依赖，再同步 data ConfirmDurable，随后追加/确认字典发布记录并安装内存投影；无关 Builder 未归还不阻断独立闭包的发布。应用收到成功确认后按字典加载状态。CreateBranch 只命名既有 ref、确认自己的绑定记录，不重新发布 RootMap 或调用 data 屏障。新建文件和名称还需完成正式目录发布。所有 Key 的业务语义由应用解释，不消费中间帧的构建顺序。
+VersionStore 借入一个 data FrameStore，拥有自己的 RBF3 发布目录。CreateRef / PublishRef / CreateTag 及命名 fork 先完成本根所需的新增依赖，再同步 data ConfirmDurable，随后确认字典输出及其必要发现边界并安装内存投影；无关 Builder 未归还不阻断独立闭包的发布。应用收到成功确认后按字典加载状态。CreateBranch 只给既有 ref 加 alias、确认自己的绑定文件，不重新发布 RootMap 或调用 data 屏障。所有 Key 的业务语义由应用解释，不消费中间帧的构建顺序。
+2026-10-07 用户确认：**命名 fork 成功发布时，新 ref 与 branch 一起可见；发布前，普通查询两者都不可见。失败可以留下私有准备文件，但不会留下公开的未绑定 ref。** S4 统一 `refs/<RefId>/<RefId>.rbf` 与 `names` 容器，在 creating 内准备完成后一次目录 rename 发布；S5 的组合入口在同一容器加入初始 binding，所有后加 alias 也采用相同 names 文件表示。普通 CreateRef 仍可创建未命名 ref，手工 CreateRef+CreateBranch 仍不是事务。
+branch 名称解析和查重覆盖全部正式 ref 的 names；首查可扫描或建立可重建内存表，不承诺 O(1)，不写持久名称索引。全局名称准入依赖单 writer/driver 不交错操作；S4 Ref 读写不解释名称 codec，不增加永久 branch gate。正式目录/文件 rename 的平台资格仍待实施，Unknown 与私有残留不因共同发布而消失。
 当前值完整读取最后快照；历史从固定完成上界逆序枚举，返回结束枚举后仍可使用的自有字典。fork 复制旧字典到新 ref，rewind 追加旧字典成为新 revision，tag 冻结所选字典。RefRevision 来自完整发布/实际历史枚举，不是输出前尝试 token。跨重开书签可用 tag。
 输出异常停止实例并重开读取实际状态；完整快照损坏报错，不回退旧值。首版不提供通用 CAS 或精确 Unknown 尝试查询。数据闭包、工具 operationId、模拟器 RNG 和应用谱系由应用负责；[两类下游评估](reviews/2026-10-07-downstream-fit.md)未发现必须扩大核心的需求。
 
@@ -40,6 +45,7 @@ VersionStore 借入一个 data FrameStore，拥有自己的 RBF3 发布目录。
 
 - 先读仓库根 [README](../../README.md)，再读 [S0 总体决策](00-architecture-decisions.md)。
 - 本目录遵循 [规范约定](../spec-conventions.md)：`decision` 记录会话已确认方向；S1 的 `spec` 与签名已成为实施合同，S2–S6 仍是候选要求；未审定阶段的建议、算例、API 名称不自动冻结。
+- 本组设计正文按用户要求只保留当前有效条款，被替代的草案条款直接移除，作为上述约定中保留废弃条款要求的局部例外。现行 Clause-ID 不重命名或复用；历史迁移保留在 `reviews/` 与 Git 历史，审阅记录的当时结论及检查数字不代表当前状态。
 - 阶段状态使用 `Draft → Ready → Implementing → Accepted`。Ready 前定稿字段/API/算法及验收映射；可以对范围明确的必要子合同单独审定，未支持能力不得借整体标签宣称成立。
 - S1 的实施合同提交为 `c940ed6`，实现提交为 `8ab98bf`；RBF 818/818、Data 288/288 和 W: public 源码消费已验收，实际工作树和二进制身份见[阶段验收记录](01-rbf-sized-append-acceptance.md)。本片不宣称新增包消费、性能或进程实杀通过，也不宣称下游已接入。
 - 后续参考依赖拆分轮次已取得 RBF3 三包候选的 W: 隔离 PackageReference 消费资格；候选版本、实现提交和 76 个源码 checksum 见[过渡验收记录](../rbf1-reference-transition.md#6-验收记录)。它不重标 S1 的历史工件，也不代表公开发布或 FrameStore/VersionStore 已交付。
@@ -64,17 +70,21 @@ flowchart LR
 | --- | --- | --- | --- |
 | [S0 总体边界与决策](00-architecture-decisions.md) | 项目边界、事实归属、恢复模型、兼容政策 | 文档决策 | 后续阶段无需反向依赖消费者语义 |
 | [S1 RBF 已知尺寸追加（Accepted）](01-rbf-sized-append.md) | 正向/预算尺寸试算、分立长度 Begin + out ticket、格式信息、Builder 生命周期 | `src/Rbf`、`tests/Rbf.Tests`、RBF public 源码 smoke | [单文件独立验收](01-rbf-sized-append-acceptance.md)已闭合 |
-| [S2 FrameStore 核心](02-framestore-core.md) | 三种追加、不透明地址、独占租借、软轮转、目录生命周期与基础耐久确认 | 新建 FrameStore 与其测试项目 | 分配器可独立使用，多个 active 恢复及重开 |
+| [S2 FrameStore 核心](02-framestore-core.md) | 三种追加、不透明地址与固定 12B codec、独占租借、软轮转、目录生命周期与基础耐久确认 | 新建 FrameStore 与其测试项目 | 分配器可独立使用，多个 active 恢复及重开 |
 | [S3 交错构建与耐久确认](03-framestore-batches-and-durability.md) | 提前地址、跨文件互引、交错完成，消费 S2 核心屏障的组合资格；batch 优化待定 | FrameStore 与其测试项目 | 消费者无需管理文件 flush，预算内互引与完成可独立验收 |
-| [S4 VersionStore 字典与发布](04-versionstore-publication.md) | RootMap codec、单文件 ref、数据屏障、完整快照恢复与结果证据 | 新建 VersionStore 与其测试项目 | 当前值无历史 replay；多根完整发布与冷重开可验收 |
-| [S5 历史、branch 与 tag](05-versionstore-names-and-indexes.md) | owned 历史快照、旧值选点、稳定名字绑定、分桶不可变 tag | VersionStore 与其测试项目 | fork/rewind/tag 与历史生命周期可独立验收 |
+| [S4 VersionStore 字典与发布](04-versionstore-publication.md) | RootMap codec、单文件 ref、统一容器发布、数据屏障、恢复与结果证据 | 新建 VersionStore 与其测试项目 | 当前值无历史 replay；目录发布与冷重开可独立验收 |
+| [S5 历史、branch 与 tag](05-versionstore-names-and-indexes.md) | owned 历史快照、全局名称发现、alias 与原子命名 fork、分桶 tag | VersionStore 与其测试项目 | fork/rewind/tag 与历史生命周期可独立验收 |
 | [S6 集成与交付](06-integration-and-delivery.md) | 第二种状态模型、公共包消费、交付边界 | examples、eng、CI；消费者接入另有明确范围 | 源码、包及消费者证据分别齐备 |
 
-S4 当前值只读所访问 ref 的末快照，S5 回溯才枚举历史。tag 首版可扫描目标桶；不据此宣称全库 Open 或标签查找固定 O(1)。分段、随机历史读、派生索引与差分只在真实规模需要时另立实施片。
+S4 当前值只读所访问 ref 的末快照，S5 回溯才枚举历史。branch 冷发现/全局查重扫描正式 ref 容器及名称记录；tag 首版可扫描目标桶，不据此宣称全库 Open 或名称查找固定 O(1)。分段、随机历史读、持久索引与差分只在真实规模需要时另立实施片。
+
+[07：ConditionalUpdate 跨 ref 事务](07-versionstore-cross-ref-conditional-update.md)是单独的专题设计稿，作为多 ref 联合提交的优先发展方向。它细化完整成员表、精确读与实际槽位消歧、fresh/self 和整批 Outcome；协议审阅与 public RBF3 研究支持正式选型建议，但尚未并入 S4/S5 的实施合同，VersionStore 尚未实施。
 
 | 候选扩展 | 内容 | 接纳与实施 |
 | --- | --- | --- |
 | [FrameLog](extensions/framelog-candidate.md) | 不透明帧的跨文件追加顺序与扫描边界，拟复用 S2/S3 | 单独确认需求、协议及资格；不是 S2 核心阶段或出口 |
+
+[Prepare + Commit 历史比较方案](extensions/obsolete/versionstore-cross-ref-prepare-commit-candidate.md)保留作 07 的比较基线，不列入当前候选扩展。
 
 S4/S5 首版不依赖日志扩展；S2/S3 与它的工程定稿和验收继续独立。
 
@@ -89,7 +99,7 @@ S4/S5 首版不依赖日志扩展；S2/S3 与它的工程定稿和验收继续�
 | V1 | S2 owned 三种追加/嵌套租借与核心 barrier + S4 CreateRef/PublishRef/ReadRef；冷重开 | 单文件 ref，完整 RootMap；S3 验证交错构建组合，不引入分段或全局日志 |
 | V2 | S3 双文件 A↔B、self-reference 与乱序完成后同时发布多个根，取消/reuse/Unknown | 无需 Commit 或完整 planner；本根所需依赖完成并确认，无关 Builder 可继续构建，旧/新字典不能混搭 |
 | V3 | S2 creating/active/archive、软轮转/编号恢复 + S3 多 active barrier 组合验收与进程中断 | 完成后才声明完整多文件生命周期和恢复资格；日志扩展另行验收 |
-| V4 | S5 ReadRefHistory 的旧快照选点、fork/rewind、branch/tag | 分段/轮转、差分/缓存、随机 revision 读与名称修改后置 |
+| V4 | S5 历史选点、原子命名 fork、alias/全局名称发现、rewind/tag | 复用 S4 目录发布；分段/轮转、差分、随机 revision 读与名称修改后置 |
 | V5 | S6 平台、公共包、真实消费者边界 | 包 smoke/消费者接入仍各自出证据 |
 
 两个新生产项目和两个测试项目仍分别在 S2/S4 创建；V1 可以只创建和实现这些阶段的必要部分。S6 汇总组合与交付，不垄断第一次 public API 纵向验证。

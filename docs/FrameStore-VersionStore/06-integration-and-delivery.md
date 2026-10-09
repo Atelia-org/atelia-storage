@@ -1,6 +1,6 @@
 # S6：消费者验证、公共包与交付
 
-状态：**Draft；2026-10-07 同步完整字典、单文件 ref 与两类下游评估；新库实施、包发布和消费者切换均未执行**。
+状态：**Draft；2026-10-07 同步完整字典、单文件 ref、命名 fork 的目录共同发布与两类下游评估；新库实施、包发布和消费者切换均未执行**。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-batches-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。
 本阶段验证前序合同的组合，不作为前序层运行正确性的反向依赖。
 依赖 S5 的历史选点与命名核心；首版不纳入 ref 分段/轮转、差分/checkpoint、名称修改或精确发布尝试查询。
@@ -18,7 +18,7 @@ DurableGraph 是需求来源；S0 已记录兄弟仓的定位观察，实际接�
 | 简单多根状态 | 两类自定义 binary records 与一个 RootMap | 不依赖 EventFrameHeader/应用 Parent；一次完整发布全部根 |
 | 循环引用图 | A↔B/self-reference，跨文件依赖与多个根地址 | 已知尺寸租借的提前地址、交错完成与全集耐久确认；应用循环由 opaque 数据表达 |
 
-两个模型用同一套 public API 写 data、CreateRef/PublishRef/ReadRef，枚举旧快照、创建 branch/tag，关闭并冷重开。fork 使用枚举所得的自有 RootMap 创建新 ref，再绑定名称；第二步失败允许留下未命名 ref，不虚称跨文件原子事务。没有 CreateCommit / PreparedPublication 步骤。
+两个模型用同一套 public API 写 data、CreateRef/PublishRef/ReadRef，枚举旧快照、创建 branch/tag，关闭并冷重开。匿名 fork 使用枚举所得的自有 RootMap 调用 CreateRef；命名 fork 用 S5 的组合入口，在私有容器同时准备 ref 与初始 binding，一次目录 rename 共同发布。普通 CreateBranch 仍为既有 ref 添加 alias，手工两步不是事务；没有 CreateCommit / PreparedPublication 或通用多对象事务步骤。
 覆盖相同字典的重复发布、新旧 revision 分离与多个 tag；ReadRefHistory 固定完成上界，枚举结束后旧字典仍可使用。rewind 追加旧字典，保留全部既有完整记录。不同 Builder 申请/完成次序构建相同逻辑图时，只按返回地址取回，不依靠文件选择或大小排序。FrameBatch 尚未纳入首版核心，不以该优化缺失判定基本互引失败。
 这些是仓内可独立运行的最小消费者，不是 DurableGraph 已接入的证据。
 
@@ -30,7 +30,7 @@ DurableGraph 是需求来源；S0 已记录兄弟仓的定位观察，实际接�
 | --- | --- | --- |
 | LLM tool-loop | RootMap 同时保存 runtime/history/tasks/context；发布 Prepared/Started 后模拟外发，发布结果后重开 | 冻结请求和执行阶段可恢复；Started 无结果进入应用 uncertain 路径，不证明任意外部调用 exactly-once |
 | 异步任务合并 | A/B 结果交由单 driver，依据最新 operationId/generation 串行合并，再发布字典 | 过期回包不覆盖新状态；不宣称 VersionStore 提供通用 CAS 或多线程 writer |
-| Gym 历史与扇出 | 枚举非末快照，释放枚举器后创建两个 ref，绑定不同 branch 并分别推进 | 历史选点与盘上数据共享；可变对象隔离由应用加载层负责 |
+| Gym 历史与扇出 | 枚举非末快照，释放枚举器后分别原子创建两个命名 fork，再独立推进 | 单个新 ref/初始名称共同发布；两个 fork 不是整批事务，可变对象隔离由应用加载层负责 |
 | rewind/tag | 从旧快照追加新 revision，再保存 tag，推进 branch 后冷重开 | 旧完整历史保留、重复字典不合并 revision、tag 字典固定；不把 ref 发布序列当跨分支因果谱系 |
 
 确定性模拟另由应用检验完整 world、runtime/cursor、RNG 坐标或内部状态、规则与 Agent 工作区。存储只保证原样保存/选择；轨迹 root 可表达 action/reward/fork origin。外部 tool 的幂等、receipt/query 或显式重复策略也由应用/backend 验收。
@@ -44,15 +44,18 @@ DurableGraph 是需求来源；S0 已记录兄弟仓的定位观察，实际接�
 
 ### spec [R-INTEGRATION-CRASH-EVIDENCE] 进程中断验证真实组合
 
-资格 MUST 覆盖提前地址签发、交错构建各帧、必需首帧 header 初始化/校验与 active 发布、归档 flush/close/rename、多个 active 恢复、data barrier、ref 私有初始化与正式发布、ref 快照追加/flush、tag 桶初始化/追加、branch 私有写入与名称发布、库内投影及应用状态安装窗口。补成功 EndAppend 自动归还、数量 config 超限拒绝与配额计数；未来 batch/多线程优化另行取得资格。不测试首版不存在的 ref 轮转或 Commit/control 日志。
+资格 MUST 覆盖提前地址签发、交错构建各帧、必需首帧 header 初始化/校验与 active 发布、归档 flush/close/rename、多个 active 恢复、data barrier、ref 私有容器初始化与目录发布、命名 fork 的附加绑定及共同发布、ref 快照追加/flush、tag 桶初始化/追加、既有 ref 的 alias 文件发布、库内投影及应用状态安装窗口。补成功 EndAppend 自动归还、数量 config 超限拒绝与配额计数；未来 batch/多线程优化另行取得资格。不测试首版不存在的 ref 轮转或 Commit/control 日志。
 使用子进程中断/真实磁盘镜像验证冷重开，并保留源 commit、SDK、平台、阶段和预期/实际结果；单元 fault injection 不能冒充进程中断实证。
 恢复结果只能来自完整 checked 快照和正式发布的文件/名字。已有 ref 更新中断后只能得到完整旧字典或完整新字典，不混搭 Key；CreateRef 中断后则为未创建或已正式发布的完整初始 ref，不补造空字典。完整坏快照不回退。Unknown 重开读取实际状态，不承诺精确尝试的 Present/Absent，也不从同值字典倒推旧调用曾确认成功。
+命名 fork MUST 覆盖所有私有文件创建/flush/close、同卷目录 rename 前后及 Confirmed 后安装失败：普通名称查询与 ref 查询共同不可见或共同可见，私有残留不公开 unbound ref、不自动续作，readonly 不清理。正式目录缺/坏必要 ref 内容或完整坏绑定报错，不按未完成创建删除；最终 rename 结果不明仍 Unknown。目录 no-overwrite/单点发布的 Windows/Linux 资格须单独记录，不以普通 file rename 通过代替。
 补确定 guard 先于 data IO 拒绝、data / VersionStore 身份混用与 fault 范围、发布屏障覆盖调用时最新完成 data，以及应用安装失败不撤销 Confirmed。无关 data Builder 活跃不构成拒绝；其声明、构建内容、epoch、租借和配额在屏障后不变。数据帧写出中断与根发布中断分开裁决；完整未发布数据不自行改变任何 ref/tag。新文件私有 flush 后、正式 no-overwrite rename 前不算对象成立；rename 后调用未返回可能留下已成立对象。
 组合向量包含 A 的全部依赖完成而 B 不相关仍 Building 时 CreateRef/PublishRef/CreateTag 成功、A 已发布后 B 中断/取消不撤销 A、B 所租文件中旧 dirty 依赖被 flush、B 后续 EndAppend 重新登记并须新屏障、健康取消/位置复用不赋予旧地址完成来源、任一数据 flush 失败后所有 owned Builder/Writer 停用且根不输出。真正依赖未完成 B 的 RootMap 不能发布，这是应用闭包责任，不能从数值地址或屏障成功推导库已自动验证。
 同文件 Builder 活跃时，经普通指定地址随机读取此前已完成帧，配合嵌套构建验证应用行为不依赖文件分配；未完成提前地址和连同帧后 Fence 的跨边界范围先于读取拒绝。仍校验完整内容、生命周期与共享 fault，扫描/扫描边界/物理后继 guard 不变；不把本轮串行轨迹重标为并发资格。
-首次 tag 桶的 header-only 初始化覆盖 flush/close/空桶 rename 故障及进程中断；尚未尝试 tag Append 时本次 tag 保持 NotAttempted，重开允许合法空桶但不存在该 tag，不清理已正式发布的合法桶。CreateBranch 单独验证只确认绑定文件、不调用 data 屏障，无关 data Builder 未结束不阻断纯命名；fork 中 CreateRef 仍遵循完整 RootMap 屏障。
+首次 tag 桶的 header-only 初始化覆盖 flush/close/空桶 rename 故障及进程中断；尚未尝试 tag Append 时本次 tag 保持 NotAttempted，重开允许合法空桶但不存在该 tag，不清理已正式发布的合法桶。CreateBranch 单独验证只确认绑定文件、不调用 data 屏障，无关 data Builder 未结束不阻断纯命名；匿名/命名 fork 都消费完整 RootMap 屏障，A 依赖完成而无关 B 仍 Building 时组合创建可以成功。
+名称向量覆盖跨不同 ref 的全局同名拒绝且先于 barrier/输出、初始绑定与 alias 同一表示、同 ref 多 alias、绑定父容器/目标身份错误、hash 碰撞、坏 CRC/codec 和目录枚举失败不当 absent、重复 fullname 不 first-wins。standalone 未命名 ref 仍可列举，手工 CreateRef+CreateBranch 第二步失败保留第一步，alias 输出异常不撤销既有 ref/原名称。补大量未命名 ref/少量 branch 的冷发现成本，以及若采用内存表，其完整建立/正常结束和 Confirmed 后安装失败。
 容量边界分别验证单帧尺寸与起始 offset：ref / tag 桶最后合法记录的末端和尾 Fence 可以越过 SizedPtr.MaxOffset，随后追加在输出和额外 data barrier 前确定拒绝；不拿末端越界当作既有记录损坏。FrameStore 同样遵守起点规则，成功追加后按软阈值停止分配并归档。裸 FrameAddress 的原始 store 来源由应用保证，错误 data owner 的格式门绑定则必须在恢复/写入前由库拒绝，二者不能合并成自动来源检测能力。
 历史枚举向量 MUST 覆盖固定上界、活动期 mutation 拒绝、释放后自有字典继续使用、重复相同字典的不同 revision、损坏与 TerminationError。普通当前值读取不自动审计全部历史；显式历史遇到坏记录必须报告错误。
+public 消费复用 S2 固定 12B 地址 codec，在 Begin 前计算自引用/双文件互引的 stored 尺寸，核对 Begin/End 编码一致并冷重开读回；RootMap、ref 历史与 tag 均复用同一地址格式。独立 bytes 验证完整 FileId/Packed 高位、精确字段消费和非法值，不把内部 struct 大小或 native ABI 当成 wire 长度；目标运行时布局资格与 codec/包消费分别记录。
 
 ### spec [S-DELIVERY-PACK-OWNER] 包入口有单一负责人
 
@@ -101,7 +104,7 @@ DurableGraph 是需求来源；S0 已记录兄弟仓的定位观察，实际接�
 | --- | --- |
 | S6-Q1 | main 三包到五包的扩展、独立版本与 manifest 闭包；旧维护线保持隔离 |
 | S6-Q2 | public smoke 项目/入口与 Source Link/资产校验扩展 |
-| S6-Q3 | 两平台恢复资格、资源/规模阈值及证据保存路径 |
+| S6-Q3 | 两平台恢复与目录/文件发布分别资格、资源预算、全局名称发现规模成本及证据保存路径 |
 | S6-Q4 | 若纳入真实接入：DurableGraph 实际 API/数据需求和切换范围；不阻塞独立库/包核心 |
 
 最低出口：两个新库的 Accepted 源码闭包、组合恢复资格和隔离公共包消费证据。

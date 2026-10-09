@@ -77,6 +77,8 @@ FrameStore 每实例单流。VersionStore 借 data、拥有私有 control，持�
 
 ## Draft 条款替换
 
+下表记录本轮审阅当时的迁移关系。当前设计稿已移除被替代条目，不再保留其旧 Clause-ID；当前有效要求以各阶段正文为准。
+
 | DEPRECATED 原草案条款 | 新条款 |
 | --- | --- |
 | A-RBF-EXACT-MEASURE | A-RBF-MEASURE-WRITE-SIZE |

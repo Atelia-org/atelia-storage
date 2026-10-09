@@ -1,6 +1,7 @@
 # 2026-10-07：完整 RootMap 与单文件 ref 的下游适配评估
 
 > 后续合同变更说明（同日）：用户已接受活跃 Builder 期间确认/随机读取此前已完成输出，且不相关 Builder 不再阻断 RootMap 发布。本文保留原始需求评估正文；新合同与独立源码验收另见[改进记录](2026-10-07-completed-output-improvements.md)，本评估不重标为运行时验证。
+> 其后同日接受命名 fork 的目录共同发布；本文第 6 项“允许未命名 ref”的原始向量只适用于手工 CreateRef+CreateBranch，新组合入口不留下公开 unbound ref。当前协议见 [S4](../04-versionstore-publication.md) `[S-VS-REF-DIRECTORY-PUBLISH]` 与 [S5](../05-versionstore-names-and-indexes.md) `[S-VS-NAMED-FORK-PUBLISH]`，目录平台资格仍待实施。
 
 状态：**Informative / 设计评估完成；未实现新库，未运行下游、build/test 或真实进程中断实验**。
 两个只读 subagent 分别评估 LLM tool-loop 与 Game Agent Gym；主线程核对关键源码和失败轨迹后裁决。兄弟仓是需求证据，不能作为新栈的实现或接入资格。
