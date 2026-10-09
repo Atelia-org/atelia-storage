@@ -1,9 +1,10 @@
 # FrameStore / VersionStore 分阶段设计入口
 
-日期：2026-10-03；2026-10-05 确认 FrameStore header、归还、config 与核心/扩展分离；2026-10-07 更新完整字典、单文件 ref、已完成输出资格及命名 fork 的目录共同发布；2026-10-08 确认 FrameAddress 固定 12B 编码；2026-10-09 将批量规划器及 API 移至扩展设想。状态：**S1 Accepted；S2–S6 Draft，FrameLog 等扩展为独立候选且不是首版依赖，两个新项目尚未创建；参考依赖拆分 Accepted**。
+日期：2026-10-03；2026-10-05 确认 FrameStore header、归还、config 与核心/扩展分离；2026-10-07 更新完整字典、单文件 ref、已完成输出资格及命名 fork 的目录共同发布；2026-10-08 确认 FrameAddress 固定 12B 编码；2026-10-09 将批量规划器及 API 移至扩展设想，并将 MVP 设计组合收敛为核心存储与发布能力。状态：**S1 Accepted；S2–S6 Draft，两个新项目尚未创建；参考依赖拆分 Accepted**。
 初始设计源码观察基线：`main @ 70d1009e78a73342a0c0fdc8ffed7731dec58173`；S1 验收记录的核对基线为 `f6f1eb38557863ba5ea1634844a90f0cbe5774cf`；前轮设计阅读基线为 `4175a46`，本轮租借/目录修订核对 `50e8e28`。本文档集供逐阶段细化、审阅和实施，不把文档修订视为新实现或验收。
 
 目标：**以 RBF3 的帧原子性为基础，让中层构建新状态，再发布完整根地址字典使状态生效。**
+MVP 设计组合由 RBF3、FrameStore 核心与 VersionStore 的发布、历史和命名能力组成；格式、API、实施顺序与验收以 S0–S6 为准。
 恢复依据是完整事实帧及其有效发布记录。RBF 处理物理尾部；FrameStore 分配不可变帧并按地址读取；中层负责状态构建和业务依赖闭包；VersionStore 管理字典快照、ref 历史与 branch/tag。
 
 基础编码候选见 [Bare Primitive Value 草案](../Binary/bare-primitive-value.md)：独立 BCL-only `Atelia.Binary`、FixedLE/VarInt、自适应 string、宽容 reader 与精确 Measure。它可供后续 header/RootMap 复用，但尚未审定/实施，不替代各阶段的记录 schema、版本、限额与资格；既定 FrameAddress 12B 保持。[Tagged Value](../Binary/tagged-value-intent.md) 仅记录意向，不是本栈前置。
@@ -20,8 +21,7 @@ FrameAddress 首版固定编码为 12B，保持完整 uint FileId 与 SizedPtr�
 **Builder 活跃期间，允许随机读取已经完成的文件前缀；正在构建的新帧仍不可读。** RBF 指定 ticket 随机入口的 Building 范围检查包含帧后 Fence；普通读取仍校验内容、生命周期和共享 fault，不扩大扫描相关入口或并发合同。正式核心要求见 S2。
 成功 EndAppend 自动归还文件和数量配额，不等后续 Dispose。config 文件提供可调整的未归还 Builder 上限，超限立即拒绝，不引入精确总内存账本；config 格式/默认/生效、编号恢复和归档维护的确切协议仍须工程定稿。
 循环引用通过多个已知尺寸 Builder 的提前地址形成。FrameStore core 与交错构建/耐久确认可以独立定稿、实施和验收。
-[FrameLog](extensions/framelog-candidate.md) 已从 S2 迁为独立可选扩展候选；术语、顺序/cursor 合同、工程问题与验收要求均在该文档。去留与实施范围尚未确认，不阻断核心出口。
-2026-10-07 VersionStore 收缩为完整 `RootMap = string => FrameAddress` 快照：每个 ref 一个 RBF3 文件，每次更新追加完整字典；tag 保存命名不可变字典，按固定名称哈希分桶；branch 为 name → 稳定 RefId 的 create-only 绑定。首版不分段/轮转 ref，不引入差分、checkpoint、独立 Commit/Parent 或全局 FrameLog。
+2026-10-07 VersionStore 收缩为完整 `RootMap = string => FrameAddress` 快照：每个 ref 一个 RBF3 文件，每次更新追加完整字典；tag 保存命名不可变字典，按固定名称哈希分桶；branch 为 name → 稳定 RefId 的 create-only 绑定。首版不分段/轮转 ref，不引入差分、checkpoint 或独立 Commit/Parent。
 VersionStore 借入一个 data FrameStore，拥有自己的 RBF3 发布目录。CreateRef / PublishRef / CreateTag 及命名 fork 先完成本根所需的新增依赖，再同步 data ConfirmDurable，随后确认字典输出及其必要发现边界并安装内存投影；无关 Builder 未归还不阻断独立闭包的发布。应用收到成功确认后按字典加载状态。CreateBranch 只给既有 ref 加 alias、确认自己的绑定文件，不重新发布 RootMap 或调用 data 屏障。所有 Key 的业务语义由应用解释，不消费中间帧的构建顺序。
 2026-10-07 用户确认：**命名 fork 成功发布时，新 ref 与 branch 一起可见；发布前，普通查询两者都不可见。失败可以留下私有准备文件，但不会留下公开的未绑定 ref。** S4 统一 `refs/<RefId>/<RefId>.rbf` 与 `names` 容器，在 creating 内准备完成后一次目录 rename 发布；S5 的组合入口在同一容器加入初始 binding，所有后加 alias 也采用相同 names 文件表示。普通 CreateRef 仍可创建未命名 ref，手工 CreateRef+CreateBranch 仍不是事务。
 branch 名称解析和查重覆盖全部正式 ref 的 names；首查可扫描或建立可重建内存表，不承诺 O(1)，不写持久名称索引。全局名称准入依赖单 writer/driver 不交错操作；S4 Ref 读写不解释名称 codec，不增加永久 branch gate。正式目录/文件 rename 的平台资格仍待实施，Unknown 与私有残留不因共同发布而消失。
@@ -60,7 +60,6 @@ flowchart LR
     S0["S0 总体边界"] --> S1["S1 RBF 已知尺寸追加"]
     S1 --> S2["S2 FrameStore 核心"]
     S2 --> S3["S3 交错构建 / 同步屏障"]
-    S3 -. 候选扩展 .-> LOG["FrameLog（去留待定）"]
     S3 --> S4["S4 完整字典 / 单文件 ref 发布"]
     S4 --> S5["S5 历史选点 / branch / tag"]
     S5 --> S6["S6 集成与交付"]
@@ -82,7 +81,6 @@ S4 当前值只读所访问 ref 的末快照，S5 回溯才枚举历史。branch
 
 | 候选扩展 | 内容 | 接纳与实施 |
 | --- | --- | --- |
-| [FrameLog](extensions/framelog-candidate.md) | 不透明帧的跨文件追加顺序与扫描边界，拟复用 S2/S3 | 单独确认需求、协议及资格；不是 S2 核心阶段或出口 |
 | [FrameBatch 批量规划器](extensions/framestore-batch-planner-candidate.md) | 先规划大量地址、再以少量 Builder 逐帧填充的资源优化及 API 草图 | 设想阶段；需求未验证、API 未冻结，不属于 MVP 实施或 Ready 条件 |
 
 [Prepare + Commit 历史比较方案](extensions/obsolete/versionstore-cross-ref-prepare-commit-candidate.md)保留作 07 的比较基线，不列入当前候选扩展。
@@ -99,7 +97,7 @@ S2–S6 的 MVP 定稿、实施和验收不等待上述候选扩展的需求确�
 | V0 | S1 尺寸/格式/early ticket，双 RBF 文件互引读回 | 单文件能力，不声称新库已实现 |
 | V1 | S2 owned 三种追加/嵌套租借与核心 barrier + S4 CreateRef/PublishRef/ReadRef；冷重开 | 单文件 ref，完整 RootMap；S3 验证交错构建组合，不引入分段或全局日志 |
 | V2 | S3 双文件 A↔B、self-reference 与乱序完成后同时发布多个根，取消/reuse/Unknown | 本根所需依赖完成并确认，无关 Builder 可继续构建，旧/新字典不能混搭 |
-| V3 | S2 creating/active/archive、软轮转/编号恢复 + S3 多 active barrier 组合验收与进程中断 | 完成后才声明完整多文件生命周期和恢复资格；日志扩展另行验收 |
+| V3 | S2 creating/active/archive、软轮转/编号恢复 + S3 多 active barrier 组合验收与进程中断 | 完成后才声明完整多文件生命周期和恢复资格 |
 | V4 | S5 历史选点、原子命名 fork、alias/全局名称发现、rewind/tag | 复用 S4 目录发布；分段/轮转、差分、随机 revision 读与名称修改后置 |
 | V5 | S6 平台、公共包、真实消费者边界 | 包 smoke/消费者接入仍各自出证据 |
 

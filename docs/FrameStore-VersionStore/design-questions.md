@@ -1,11 +1,11 @@
 # 下一轮工程定稿：FrameStore 与根字典发布
 
-日期：2026-10-04；2026-10-05 更新核心/扩展分离；2026-10-07 收缩 VersionStore、放宽已完成输出资格并确定命名 fork 的目录共同发布；2026-10-08 关闭基础地址宽度/字段编码选择；2026-10-09 分离批量规划器设想。状态：**Informative / Derived；问题汇总，不是新增实施阶段或规范输入**。
+日期：2026-10-04；2026-10-05 更新核心/扩展分离；2026-10-07 收缩 VersionStore、放宽已完成输出资格并确定命名 fork 的目录共同发布；2026-10-08 关闭基础地址宽度/字段编码选择；2026-10-09 分离批量规划器设想，并将 MVP 问题索引收敛为核心存储与发布能力。状态：**Informative / Derived；问题汇总，不是新增实施阶段或规范输入**。
 输入为本轮会话和 S0–S6 的 Draft 合同。FrameStore/VersionStore 本轮仅修订文档，项目尚未创建；RBF 底座的活跃构建随机读取改进单独记录验收。S1 与 RBF1 参考隔离的已有 Accepted 资格保留原身份，不构成新模型已实施的证据。
 
 ## 已形成的方向
 
-FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务底层恢复。[FrameLog](extensions/framelog-candidate.md) 已独立为可选扩展候选，需求和去留仍待审定。VersionStore 使用完整 RootMap、每 ref 单个 RBF3 文件、分桶不可变 tag 和独立 branch 绑定，不依赖应用中间帧构建顺序或日志候选。
+FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务底层恢复。VersionStore 使用完整 RootMap、每 ref 单个 RBF3 文件、分桶不可变 tag 和独立 branch 绑定，不依赖应用中间帧构建顺序。
 2026-10-04 已确认：三种 RBF 追加能力、单文件独占租借、多 Builder 可嵌套和交错完成、租借/归还串行、优先选择可分配的最低 active FileId、事后软轮转、active 目录与固定 1024 编号分桶归档，以及覆盖全部必要 active 输出的同步 owner barrier。首版不承诺多线程执行。
 2026-10-05 追加确认：采用首帧 meta/header，内容交由 Coding Agent 研究决定；成功 EndAppend 自动归还文件；只设可配置的未归还 Builder 数量上限、超限立即拒绝，并通过 config 文件提供设置。
 2026-10-07 追加确认：ConfirmDurable 确认调用时全部必要完成输出，未归还 Builder 不阻断屏障、不获得完成/耐久资格；本根依赖已完成时可独立发布。Builder 活跃期间同文件已完成前缀可随机读取，新帧仍不可读。串行、完整内容校验、生命周期与共享 fault 保持，扫描相关 guard 不变。
@@ -29,7 +29,6 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 | 是否采用首帧 meta/header | 必须采用并保留版本解释；字段/codec/校验规则交由 Coding Agent 定稿 |
 | 成功提交何时归还 | EndAppend 正常成功返回前自动归还，不等后续 Dispose |
 | 如何控制未归还 Builder 数量 | config 文件提供可调整上限，超限立即拒绝；不做精确总内存账本 |
-| 日志候选是否属于核心 | 已分离为独立可选扩展；S2 核心定稿、实施与验收不等待其去留 |
 | VersionStore 是否消费应用帧构建顺序 | 不依赖中间帧申请/完成/物理顺序；自己保存完整根字典 |
 | 发布目标是否必须经过 Commit | 直接发布 string → FrameAddress 完整字典，应用解释 Key |
 | ref 是否首版分段/轮转 | 每 ref 一个 RBF3 文件，容量硬界显式拒绝；分段为后续局部片 |
@@ -45,14 +44,6 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 以上各项统一见 [S0](00-architecture-decisions.md) 与相应 [S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。本表只导航，不建立第二套规范。
 
 ## 优先讨论的问题
-
-### D1：独立 FrameLog 扩展是否接纳？
-
-**已关闭的边界选择：** FrameLog 已从 S2 核心分离。候选合同、factory/用途字段、顺序/cursor、资源复用与验收要求统一见[扩展文档 FSLOG-Q1–Q6](extensions/framelog-candidate.md)。这些不是 S2-Q1/Q4 的日志阻断项。
-
-**仍待讨论：** 是否存在独立有序帧序列的实际需求、是否接纳和何时实施。S4/S5 的首版无需该能力，不能因旧草案引用 FrameLog 就把它变成新栈必需能力。
-
-**收敛标准：** 如接纳，用不认识 VersionStore 的最小消费者证明稳定追加序列和续读，保持核心独立；VersionStore 始终不消费具体应用中间帧的构建顺序。
 
 ### D2：已确认的构建自由如何映射到资源预算？
 
@@ -73,7 +64,7 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 
 **当前状态：** 2026-10-05 用户确认采用，至少提供版本解释；具体内容授权 Coding Agent 研究决定，不再需要讨论是否采用。优先评估最小版本与 StoreId/FileId 绑定，暂不加入业务关系、发布序号、时间戳、可变状态或索引。
 
-**剩余工程定稿：** 版本及识别字段、是否加入 StoreId/FileId、codec/tag、原生 RBF 扫描可见与 FrameStore inventory/audit 是否过滤；如何保留消费方 data tag 范围。日志扩展的扫描展示在该扩展单独定稿。
+**剩余工程定稿：** 版本及识别字段、是否加入 StoreId/FileId、codec/tag、原生 RBF 扫描可见与 FrameStore inventory/audit 是否过滤；如何保留消费方 data tag 范围。
 初始化必须在 creating 内完成，不能向 active 发布裸 RBF Header 后再补首帧。还需证明最小初始化边界、完整 CRC 检查、未知版本拒绝，以及 header 校验与 active 尾恢复的 public API 顺序。缺失/损坏必需 header 不能被自动补造，header 不替代 store 格式门或裸地址来源约束。可调整 Builder 数量不进入不可变 header。
 
 **收敛标准：** 在已采用的决定下给出最小 wire/API、创建中断与冷重开轨迹；不增加未经需要的业务字段，也不把尚未研究的 codec 宣称为已经冻结。
@@ -146,7 +137,7 @@ ref 分段/轮转、随机 revision 读取、持久 cursor、差分/checkpoint�
 ## 下一轮建议顺序
 
 2026-10-05 已关闭 header 是否采用、成功提交是否自动归还、是否设置 Builder 数量上限及超限拒绝/等待的选择。新增明确要求是通过 config 文件提供上限；字段和配置格式交给 Coding Agent 定稿。
-FrameLog 去留在独立扩展中继续讨论，已不再是 VersionStore 首版依赖。S2 核心可直接围绕下表的工程问题推进；S4/S5 同样按已经收缩的模型关闭局部 codec / 路径 / 生命周期选择。
+S2 核心可直接围绕下表的工程问题推进；S4/S5 同样按已经收缩的模型关闭局部 codec / 路径 / 生命周期选择。
 
 | 工程定稿 | 剩余内容 |
 | --- | --- |

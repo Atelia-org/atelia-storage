@@ -4,7 +4,7 @@
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。
 本阶段验证前序合同的组合，不作为前序层运行正确性的反向依赖。
 依赖 S5 的历史选点与命名核心；首版不纳入 ref 分段/轮转、差分/checkpoint、名称修改或精确发布尝试查询。
-FrameLog 是[独立可选扩展](extensions/framelog-candidate.md)，不属于 S2/S3 核心验收，也不是 S4/S5 的前置。下文只验证单文件 ref、分桶 tag 和独立 branch 绑定的实际协议。
+本阶段验证单文件 ref、分桶 tag 和独立 branch 绑定的实际协议。
 
 ## 本阶段目标
 
@@ -59,7 +59,7 @@ public 消费复用 S2 固定 12B 地址 codec，在 Begin 前计算自引用/�
 
 ### spec [S-DELIVERY-PACK-OWNER] 包入口有单一负责人
 
-新增生产包清单及 pack 顺序 MUST 只在 `eng/Pack.ps1` 注册。当前 main 仅 Primitives/Data/Rbf，后续加入 FrameStore/VersionStore；若接纳 FrameLog，其候选落点为 FrameStore 包，不另造生产包。不得重新将冻结参考 EventJournal/RbfSegmentStore 加入 main pack。
+新增生产包清单及 pack 顺序 MUST 只在 `eng/Pack.ps1` 注册。当前 main 仅 Primitives/Data/Rbf，后续加入 FrameStore/VersionStore。不得重新将冻结参考 EventJournal/RbfSegmentStore 加入 main pack。
 同时适配 package-mode 依赖、smoke、metadata/assets/Source Link 校验与 CI。按 main 实际 All/manifest 入口审查扩展，不沿用历史五包/selective 选择假设，也不能只增加项目名字就声称完成。
 旧栈维护与公开发布使用 RBF1 分支；main 参考项目的固定包回归与新栈源码/包资格分别报告。
 

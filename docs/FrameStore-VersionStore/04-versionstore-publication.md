@@ -9,7 +9,7 @@
 发布目录格式门持久绑定格式版本、VersionStoreId、DataStoreId。Open 在任何发布文件恢复/写入前核对借入 data 的身份与访问模式；发布位置不解释为 data FrameAddress，data 地址也不解释为 ref revision。
 单 owner/driver 串行操作，包括借入 data 的相关操作；发布目录须排斥另一 writer。VersionStore Dispose 释放私有文件、枚举器和锁，不 Dispose 借入 data。data 在使用期间必须存活；首版可写 VersionStore 借入可写 data owner，这是模式准入，不表示每个 mutation 都调用 data 屏障。资源、只读模式配对、借用与 fault 的具体公开接口在 Ready 时定稿。
 
-首版不创建独立 Commit 对象，不保存 Parent，不采用全局 FrameLog、Prepared handle、nonce 账本、默认 CAS 或精确 InspectPublication。不提供跨 ref 原子事务；业务谱系、随机数状态、tool-loop 阶段、operationId 和外部副作用协议由应用保存和解释。
+首版不创建独立 Commit 对象，不保存 Parent，不采用 Prepared handle、nonce 账本、默认 CAS 或精确 InspectPublication。不提供跨 ref 原子事务；业务谱系、随机数状态、tool-loop 阶段、operationId 和外部副作用协议由应用保存和解释。
 
 ## term `Root-Map` 应用命名的根地址字典
 
