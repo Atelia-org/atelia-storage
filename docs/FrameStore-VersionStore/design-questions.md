@@ -48,14 +48,14 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 | 活跃 Builder 是否阻断旧帧随机读取 | 不阻断已完成前缀内的指定地址读取；未完成/跨边界先拒绝，扫描相关资格未放宽 |
 | 读结果与物理检查如何交付 | S2 已定自有 FrameRead、纯值 inventory、完整 CRC audit 与同步 visitor guard；不外泄 reader/枚举器，不以部分回调或结构扫描称全库内容健康 |
 | 历史选点与遍历预算如何交付 | S5 已定同步 bool visitor、自有 RefSnapshot、返回数/工作步预算与单次调用清理；正常 Complete/VisitorStopped，预算专用失败，不外泄 sequence/epoch/cursor |
-| tag 桶如何初始化/校验、是否需要索引 | S5 已定完整 header 初始化边界与恢复保护、统一版本组合 schema、每次全桶 checked 扫描及临时 fullname 集合；不保留跨调用索引，基础名称/RootMap codec 仍消费 S5-Q1/S4-Q2 |
+| tag 桶如何初始化/校验、是否需要索引 | S5 已定完整 header 初始化边界与恢复保护、统一版本组合 schema、每次全桶 checked 扫描及临时 fullname 集合；不保留跨调用索引，RootMap 原样消费 S4 已定 codeword，名称/组合容量仍在 S5-Q1 |
 | 命名 fork 是否允许公开未绑定新 ref | 组合入口一次发布完整 RefId 目录，新 ref/初始名称一起可见；手工两步仍不是事务 |
 | 是否先持久占上 Creating 名称 | 不采用；全局名称预检至提交均串行，初始/alias 绑定使用统一 names 表示 |
 | 基础地址是否保持 16B 或带 SmartPointer 见证 | 固定 12B codec，完整 uint FileId + SizedPtr；无预留/内容 CRC，wire 与内存成本分离 |
 | FrameAddress 公开值/codec 如何交付 | S2 已定 readonly 不透明值、精确 TryRead/容量 TryWrite、公共数值下界、default/完整等值及失败 default/无写入；无额外错误族/规范文本，普通内部表示直接实施 |
 | FrameStore 格式门记录如何编码/读取 | S2 已定 framestore.format 普通 24B 记录与唯一 CRC32C、统一版本/StoreId、共同只读完整校验和关闭后交付；初次发布/根准入/平台协议仍未定 |
 | VersionStore 格式门如何绑定 data | S4 已定 versionstore.format 普通 40B 记录、统一版本/双身份/唯一 CRC 与共同只读检查；按实际借入 owner 身份比较，必要关闭先于发布恢复/清理/输出；初次发布/根锁/身份生成/模式平台仍未定 |
-| VersionStore 身份与快照值如何交付 | S4 已定 RefId 上下文/内部 8B、RefRevision 自有位置值及 RootMap 集合公面/冻结拥有权/内部内容比较、RefSnapshot 普通类和三操作成功值；匿名外部身份导入导出仍延期，唯一分配/路径、StoreId 与 Key/wire/限额仍待定 |
+| VersionStore 身份与快照值如何交付 | S4 已定 RefId 上下文/内部 8B、RefRevision 自有位置值、RootMap/RefSnapshot 表示与 RootMap BPV1 codec/单一 codeword 上限；匿名外部身份导入导出仍延期，唯一分配/路径、StoreId 与 header/宿主组合仍待定 |
 
 以上各项统一见 [S0](00-architecture-decisions.md) 与相应 [S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。本表只导航，不建立第二套规范。
 
@@ -79,12 +79,12 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 
 **已确认：** 字典按值保存，地址解释于一个绑定的 data FrameStore，复用 S2 固定 12B codec。发布时应用保证全部必要对象已经完成，不能采用取消/未完成 ticket；data ConfirmDurable 不解析业务图，无关 Builder 未归还不阻断发布。屏障确认 leased 文件旧输出，不赋予其正在构建的新帧资格。旧 ref/tag 快照可以复用数据地址，不需要重新创建 Commit 或提交 parent。
 
-**工程定稿：** RootMap Key 编码/长度、条目/记录限额与 wire，以及与已定 S2 地址 codec 的组合；地址数值规则不另选，default 预检和精确 12B 字段直接消费 S2。VersionStore 初次 store 创建/门发布、公开 StoreId 类型/身份生成与模式接口；统一 RefId 容器的路径编码、私有残留、一次目录 rename 的平台入口与资格。基础地址值/codec 和发布目录单位已确定，不再开放地址宽度或“先文件后补名字”的选择。每条记录容量用 RBF 公共尺寸 API，不承诺“总是 64B”。
+**工程定稿：** VersionStore 初次 store 创建/门发布、公开 StoreId 类型/codec/身份生成与模式接口；统一 RefId 容器的路径编码、私有残留、一次目录 rename 的平台入口与资格；header/Snapshot 的 kind/tag、外层字段与完整宿主容量。基础地址值/codec、RootMap codeword 和发布目录单位已确定，不再开放地址宽度、key/wire/限额或“先文件后补名字”的选择。地址数值规则、default 预检及精确 12B 字段直接消费 S2，每条完整记录仍用 RBF 公共尺寸 API。
 VersionStore 门记录/共同只读检查与 data 持久身份绑定已定于 S4 `[F-VS-OWN-FORMAT]`，不再作为待定 codec 或载体选择；16B canonical VersionStoreId 由下游直接消费。内容资格不关闭初次门发布、根/锁或平台协议，也不证明裸地址来源/应用闭包。
 RefId 自有公开值/完整上下文等值/default/不同 VSID 前检及内部唯一 8B 字段 codec 已定于 S4 `[F-VS-REF-ID-8B]`，不再作为待定值类型或宽度选择；暂不提供公开序列化，出现明确外部匿名身份持久化消费者时再立窄合同。唯一分配/不复用/耗尽与路径仍属 S4-Q3，不因字段固定而宣称已成立。
 
 RefRevision 自有公开值、完整等值/default/上下文前检、只读实际位置及同 VS 重开使用已定于 S4 `[A-VS-REF-REVISION-VALUE]`，不再作为待定表示或整体 codec 选择；未提供匿名精确 revision 的跨进程导入导出，出现消费者再立窄合同，tag 字典不能透明替代其精确来源书签。
-RootMap 集合公面/冻结拥有权/内部内容比较、RefSnapshot 普通类与 S4 三操作成功值已定于 `[A-VS-ROOTS-OWNED]`，不再作为待定表示或公开等值选择；Key/wire/限额仍待定，BCL 探针不构成新库实施资格或冻结成本已达性能目标。
+RootMap/RefSnapshot 表示直接消费 `[A-VS-ROOTS-OWNED]`；key/wire/容量直接消费 `[F-VS-ROOTMAP-BPV1]`，不再列为待定设计。tag/history/CU 候选原样复用；基元与组合探针不构成真实 FrameAddress、新库/宿主、峰值或性能资格。
 历史枚举固定起始完成上界，沿不可变 ForkOrigin 接续各源选中位置及其更早历史；活动期间禁止同 owner mutation，返回的完整 RootMap 自有。RefRevision 只从完成发布/真实成员 checked-read 取得；来源元数据不自动签发 checked revision。来源感知 fork 先重读源字典，在子输出前完成 data 屏障与源文件 flush；只传 roots 的创建无来源。
 剩余工程定稿为 header 来源判别及已定 RefId/SizedPtr 固定 8B 字段的组合。历史入口、自有值交付、跨文件资源/visited、返回/定位工作预算和终止已定于 S5 `[A-VS-REF-HISTORY-CHECKED]`，直接消费而非重新选择。现有 RBF 只有 EOF 逆扫，旧 fork 点的源后缀定位可能增长并支付工作步；无关后缀 payload 不作历史审计，已观察的结构错误仍传播。完整无来源起点、正常选点停止、预算失败、取消与错误按 S5 区分。
 
@@ -118,11 +118,11 @@ S2 核心可直接围绕下表的工程问题推进；S4/S5 同样按已经收�
 | 工程定稿 | 剩余内容 |
 | --- | --- |
 | D6 / S2-Q1–Q3 | 初次 store 创建/格式门发布、根准入/独占、实际组件/类型、私有命名/残留与两平台 rename 实证；门记录/只读校验、地址值/codec、正式路径与编号直接消费 S2 已定合同，地址成本不重新成为布局选择 |
-| D3 / S4-Q1–Q3、Q5–Q6 | RootMap Key/wire/限额、公开 StoreId/codec、ForkOrigin 组合、初次门发布/根锁/身份生成、RefId 唯一分配/路径、单文件创建和末读取、源成员及确认边界；身份/自有位置值、RootMap/RefSnapshot 表示与门记录/只读检查及 data 绑定直接消费 S4 已定合同 |
+| D3 / S4-Q1–Q3、Q5–Q6 | 公开 StoreId/codec、header/Snapshot/ForkOrigin 组合与宿主容量、初次门发布/根锁/身份生成、RefId 唯一分配/路径、单文件创建和末读取、源成员及确认边界；身份/位置值、RootMap/RefSnapshot 表示、RootMap codec/上限与门记录/只读绑定直接消费 S4 已定合同 |
 | D8 / S5-Q1、Q4 | 全局名称/ListForks 发现与规模成本、统一 binding/hash/路径、来源感知匿名/命名创建 |
-| S5-Q1（tag 局部） | 名称政策/编码/限额、与比较相等关系一致的固定 hash/桶路由/规范路径；RootMap/身份 codec 消费 D3，桶初始化/组合/扫描合同不再重选 |
+| S5-Q1（tag 局部） | 名称政策/编码/限额、与比较相等关系一致的固定 hash/桶路由/规范路径及完整记录组合容量；RootMap/身份字段消费 S4 已定合同，桶初始化/扫描合同不再重选 |
 
-其余工程选择仍须在 Ready 前形成可操作协议；已定资源、文件 header、owned 生命周期及读/同步物理检查合同见 S2，S2-Q4/Q5/Q7、S3-Q1–Q3 保留对应实现验收，不重复开放其字段和流程。已定发布证据载体、Append/flush/rename 边界、清理和续跑责任见 S4/S6，S4-Q4 保留故障与冷重开实施验收，不再作为待定设计。S5 的同步历史 visitor、预算、终止与清理，以及 tag 桶初始化/组合 schema/每次完整扫描直接进入实现验证；S5-Q2/Q3 不再列为待定设计，基础名称/hash/路径与 RootMap/身份编码仍分别在 S5-Q1/D3 定稿。无需把每个默认值或集合类型都升级为新的需求讨论；FrameStore/VersionStore 仍未开始新项目实施，文档定稿不代表恢复、性能或平台资格。RBF 底座改进的源码/测试资格单独报告。
+其余工程选择仍须在 Ready 前形成可操作协议；已定资源、文件 header、owned 生命周期及读/同步物理检查合同见 S2，S2-Q4/Q5/Q7、S3-Q1–Q3 保留对应实现验收，不重复开放其字段和流程。已定发布证据载体、Append/flush/rename 边界、清理和续跑责任见 S4/S6，S4-Q4 保留故障与冷重开实施验收，不再作为待定设计。S5 的同步历史 visitor、预算、终止与清理，以及 tag 桶初始化/组合 schema/每次完整扫描直接进入实现验证；S5-Q2/Q3 不再列为待定设计，名称/hash/路径仍在 S5-Q1、其余身份/header/宿主组合在 D3，已定 RootMap codeword 不再重选。无需把每个默认值或集合类型都升级为新的需求讨论；FrameStore/VersionStore 仍未开始新项目实施，文档定稿不代表恢复、性能或平台资格。RBF 底座改进的源码/测试资格单独报告。
 
 下一轮核心优先解决 D6 的根准入/独占/私有残留，下游 codec/历史/名称问题按表推进；正式路径/编号恢复与资源、header、owned 租借/维护和读/同步物理检查按 S2 进入实施验证。D3 是随后字典/发布阶段的局部工程问题，不反向要求分配器理解应用 codec；不再等待 Commit 或全局日志协议。
 结论写回所属阶段，按单向依赖复核；已确认方向不重复作为开放问题，本汇总不建立第二套规范。S2–S6 仍为 Draft，本次没有新项目或联合方案的恢复实证。

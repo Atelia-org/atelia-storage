@@ -1,0 +1,14 @@
+{
+  "Runtime": "10.0.5",
+  "Platform": "Microsoft Windows NT 10.0.22000.0",
+  "Checks": 47,
+  "IndependentGolden": "010341EFCDAB89F0DEBC9A78563412",
+  "KeysRoundTripped": 12,
+  "EncodedMapBytes": 179,
+  "DefaultUtf8Collision": true,
+  "DefaultUtf16ReplacesLoneSurrogate": true,
+  "RbfPayloadAndMetaMaximum": 268435424,
+  "RootMapCodewordLimit": 1048576,
+  "ConservativeEntryCountBound": 80659,
+  "Scope": "Public Binary/Rbf composition with synthetic numeric addresses and actual 1MiB map; no FrameStore/VersionStore, persistence, near-RBF-limit allocations or performance qualification"
+}

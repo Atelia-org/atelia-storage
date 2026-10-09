@@ -60,7 +60,7 @@ AteliaResult<HistoryEnd> ReadRefHistory(
     CancellationToken cancellationToken = default);
 ```
 
-RefSnapshot 复用 S4 `[A-VS-ROOTS-OWNED]` 的普通自有结果类与集合公面，只读 Revision 与 Roots；不另立 history 专用快照、结果 Lease 或 Dispose。每项 MUST 完整校验 CRC、kind/version、身份与 RootMap codec，确认真实主链成员后才能交付。解码到自有值并释放临时 RbfPooledFrame 后再回调，不能外泄 Reader、RbfFrameInfo、pool Span 或依赖 reader 的字典。结果的 RootMap 不提供公开修改入口；方法结束、owner fault/Dispose 不撤销已交付值，内部初始字典比较不受 visitor 改写。RefId 消费 S4 `[F-VS-REF-ID-8B]` 的公开上下文值、前检与内部字段 codec；RefRevision 消费 `[A-VS-REF-REVISION-VALUE]` 的自有值、完整等值和只读实际位置，RootMap wire/限额仍留 S4-Q2，不开放任意裸 revision 的随机 ReadRevision。
+RefSnapshot 复用 S4 `[A-VS-ROOTS-OWNED]` 的普通自有结果类与集合公面，只读 Revision 与 Roots；不另立 history 专用快照、结果 Lease 或 Dispose。每项 MUST 完整校验 CRC、kind/version、身份与 RootMap codec，确认真实主链成员后才能交付。解码到自有值并释放临时 RbfPooledFrame 后再回调，不能外泄 Reader、RbfFrameInfo、pool Span 或依赖 reader 的字典。结果的 RootMap 不提供公开修改入口；方法结束、owner fault/Dispose 不撤销已交付值，内部初始字典比较不受 visitor 改写。RefId 消费 S4 `[F-VS-REF-ID-8B]` 的公开上下文值、前检与内部字段 codec；RefRevision 消费 `[A-VS-REF-REVISION-VALUE]` 的自有值、完整等值和只读实际位置，RootMap wire/限额消费 `[F-VS-ROOTMAP-BPV1]`，不开放任意裸 revision 的随机 ReadRevision。
 
 visitor 返回 true 表示继续，false 表示已接收当前项并正常选点停止。false 后 MUST 不再扫描旧帧或访问下一源；先完成健康/取消复检和必要清理，再返回 VisitorStopped，即使该项恰为起点也保持此结果。调用方可保存所选值，在方法返回后 fork/tag/rewind；需要列表时由调用方收集，不要求库保留整批历史。
 
@@ -115,7 +115,7 @@ ListForks MUST 覆盖全部正式 RefId 容器，checked-read 每个 header 与�
 每个 tag MUST 保存 `TagName + 完整 RootMap` 的一条 RBF3 record，使用 S4 `[S-VS-ROOTS-AFTER-DATA-CONFIRM]` 的私有拷贝、输入/容量 guard、data ConfirmDurable、Append 与 DurableFlush 协议；无关 data Builder 尚未归还不阻断 tag 创建，所需依赖仍必须由应用保证完成。tag 从某 ref/历史快照创建时复制当时字典，不持有可变 ref 间接绑定。同名再创建 MUST 在输出前拒绝，即使字典同值。
 tag 内容直接复用 S4 RootMap codec，包括其消费的 S2 固定 12B FrameAddress；名称 codec 属于本层，RefId 字段消费 S4，RefRevision 不另立整体 codec，均不从地址固定 12B 推导宽度。tag 不保存 RefRevision 或精确 ref 历史来源。
 TagName 的比较采用明确稳定的名称政策；默认候选为 Ordinal。路由 MUST 使用固定、跨进程复现的字符串 hash 与固定桶规则，不使用进程随机化的 string.GetHashCode；名称政策下比较相等的两个名字 MUST 路由同一桶，不能因原始大小写或同值 codeword 表示不同而漏掉同名。记录保留完整原名；hash 相同但名称不同不是同名，MUST 按完整名字比较。
-首版每桶一个 RBF3 文件、不轮转。以下是已选的 tag 局部合同；统一版本与 16B canonical VersionStoreId 直接消费 S4 `[F-VS-OWN-FORMAT]`，RootMap wire 仍消费 S4-Q2，名称编码/限额、固定 hash/桶数量/规范路径仍消费 S5-Q1，不能据此宣称其余依赖已经冻结。桶 header 使用同一身份编码，不另选宽度、不从 CLR struct 大小或被检查文件反推。
+首版每桶一个 RBF3 文件、不轮转。以下是已选的 tag 局部合同；统一版本与 16B canonical VersionStoreId 直接消费 S4 `[F-VS-OWN-FORMAT]`，RootMap wire/1MiB codeword 上限消费 `[F-VS-ROOTMAP-BPV1]`；名称编码/限额、固定 hash/桶数量/规范路径仍消费 S5-Q1，不能据此宣称其余依赖已经冻结。桶 header 使用同一身份编码，不另选宽度、不从 CLR struct 大小或被检查文件反推。
 
 **单一格式与组合 schema。** 两种 RBF FrameTag 在 tag 桶文件中固定为 0（BucketHeader）、1（TagRecord）；所有帧 MUST 非 tombstone 且 TailMetaLength=0。RBF tag 已表达 kind，不在 payload 重复保存 kind：
 
@@ -124,7 +124,7 @@ TagName 的比较采用明确稳定的名称政策；默认候选为 Ordinal。�
 | 首物理帧 BucketHeader | uint32 LE VersionStoreFormatVersion；S4 canonical VersionStoreId；uint32 LE BucketId | 版本与格式门一致，身份与已 checked 格式门逐字节一致，桶号合法且等于名称路由/规范路径要求的期望值 |
 | 后续 TagRecord | S5-Q1 的完整 TagName codeword；S4 的完整 RootMap codeword | 名称有效且重新路由到本桶；RootMap 使用同一 key/地址/容量检查，完整消费 payload，不接受截短或 trailing bytes |
 
-header 的统一格式版本选择整个桶的名称与 RootMap 组合 schema，不另立 HeaderSchemaVersion/TagRecordVersion。若被复用的 S4 RootMap codec 本身含版本等字段，MUST 原样消费。未知格式版本、未知 FrameTag、后续 header 或非法组合均报错；首版不在同一桶混合 schema，未来升级需另定合同。无额外 magic、内容 CRC、预留字段、每记录 StoreId/BucketId 或 tag revision；RBF 完整 CRC 覆盖内容和 kind。
+header 的统一格式版本选择整个桶的名称与 RootMap 组合 schema，不另立 HeaderSchemaVersion/TagRecordVersion；原样消费 S4 codeword，不增 tag 专用 RootMap 版本或容量规则。未知格式版本、未知 FrameTag、后续 header 或非法组合均报错；首版不在同一桶混合 schema，未来升级需另定合同。无额外 magic、内容 CRC、预留字段、每记录 StoreId/BucketId 或 tag revision；RBF 完整 CRC 覆盖内容和 kind。
 
 **初始化边界与访问。** 以格式门版本、期望 VersionStoreId/BucketId 编码该版本的 canonical header，得到本次期望 header 的确定 payload 长度 L；令 `H = RbfFile.MeasureWriteSize(L, 0)`、`I = RbfScanBoundary.Empty.EndExclusive + H.AppendLength`。共同首帧检查 MUST 要求 Rbf3，使用 `ScanForward(showTombstone: true)` 取得首物理帧，先核对 offset、H.FrameLength、payload L、kind/meta/tombstone，再完整读取 CRC、精确解码及比对期望身份；header 的 checked 后界 MUST 为 I。没有首帧时先检查 TerminationError，再报缺 header，不寻找后续替代帧。
 可写访问正式桶 MUST 在 public RbfFile.OpenExisting 前用公共文件长度入口拒绝实际长度 < I，先关闭长度探测句柄再进入独占 RBF 工厂；非 None 恢复必须具有 `AffectedFrameOffset >= I`。随后执行共同首帧检查，只允许 header 后的 tag 残尾恢复，不补造/认领 header。此顺序消费 S2 `[F-FS-META-FIRST]` 的初始化保护模式：header body 完整但缺 Key/Fence 时，不能让 CompletedTail 修好后在下次 Action=None 被接纳。长度足够但身份/CRC 错的 header 仍拒绝，不承诺底层 tag 尾恢复前完全不修改坏文件。只读访问使用 public OpenReadOnlyExisting，残尾拒绝、不修复。访问按需进行，不要求 owner Open 扫描全部桶。
@@ -198,7 +198,7 @@ ListRefs 成本与正式 RefId 目录数相关；branch 首次解析/全局查�
 | 单元 | 最小字段 | Ready 选择 |
 | --- | --- | --- |
 | tag 桶 header | FrameTag=0；统一格式版本、S4 VersionStoreId、uint32 LE BucketId | 组合 schema、初始化 I 保护已定；版本/16B 身份消费 S4 `[F-VS-OWN-FORMAT]`，桶数量/hash/路径仍 S5-Q1 |
-| tag record | FrameTag=1；完整 TagName、原样 S4 RootMap | 无额外版本/CRC/身份；每次全桶 checked 扫描已定，基础名称/根 codec 与限额消费 S5-Q1/S4-Q2 |
+| tag record | FrameTag=1；完整 TagName、原样 S4 RootMap | 无额外版本/CRC/身份；每次全桶 checked 扫描及 S4 RootMap codec/上限已定；名称与完整组合容量消费 S5-Q1 |
 | branch 绑定文件 | version/kind、VersionStoreId、完整 BranchName、RefId | RefId 字段与公开上下文值消费 S4 `[F-VS-REF-ID-8B]`；初始/alias 同一 checked codec、names 路径碰撞及全局发现验证仍待定 |
 | history 结果 | 复用 S4 RefSnapshot；实际 RefRevision、自有 RootMap | 同步 visitor、两项预算、Complete/VisitorStopped 与预算失败已定，实施所有权/终止/清理验证 |
 | fork 查询结果 | ChildRefId、S4 ForkOrigin 元数据 | 完整集合、预算/错误、内存视图与返回值所有权；不从元数据签发 checked revision |

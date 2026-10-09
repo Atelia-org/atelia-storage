@@ -160,13 +160,14 @@ flowchart TD
     App --> F["FrameStore"]
     V --> F
     V --> R
+    V --> B["Binary"]
     F --> R["RBF"]
     R --> D["Data / Primitives"]
     F --> D
     V --> D
 ```
 
-箭头表示 C# 项目依赖；Primitives/Data 的直接引用按实际使用决定。新生产库不得引用 atelia 业务项目、其 Analyzer 或旧存储库。旧栈依赖闭包保持独立。
+箭头表示 C# 项目依赖；Primitives/Data 的直接引用按实际使用决定。S4 RootMap 复用 Binary 普通基元，Binary 当前另有精确 K4os.Compression.LZ4 `[1.3.8]` 依赖；不因本图省略它便声称纯 BCL 闭包。新生产库不得引用 atelia 业务项目、其 Analyzer 或旧存储库。旧栈依赖闭包保持独立。
 
 | 事实或资格 | 唯一负责层 | 其他层的使用方式 |
 | --- | --- | --- |
@@ -191,7 +192,7 @@ VersionStore 借入一个 data FrameStore，拥有独立的 RBF3 发布目录；
 
 RefId 是稳定对象身份；RefRevision 只表示已完成快照的位置，不提前签发，不用作 Unknown 尝试 token。同步历史调用期间首版禁止 owner mutation，调用结束后可用所选自有快照 fork/tag/rewind。跨重开的 RootMap 字典书签可使用 tag；它不保存精确 ref 历史来源，也不要求先提供随机 revision 读取或持久扫描 cursor。
 RefId 值/字段合同已定于 S4 `[F-VS-REF-ID-8B]`：公开自有值私有绑定持久 VSID，以完整上下文等值并在 I/O 前拒绝不同 VSID 的误传；内部字段仍唯一 8B LE，不重复存上下文。RefRevision 自有值/完整等值、只读 RefId/Ticket、同 VS 重开使用与既有 fork 复检见 `[A-VS-REF-REVISION-VALUE]`；不含 owner/epoch，不另立整体 codec。公开身份导入/导出、唯一分配/路径仍未提供或待定。
-RootMap/RefSnapshot 表示已定于 S4 `[A-VS-ROOTS-OWNED]`：字典公面复用 IReadOnlyDictionary，逐项 Ordinal 拒重后冻结，普通 sealed RefSnapshot 复用 Revision/Roots；内容比较仅内部进行，不定义公开字典/快照结构等值。BCL 探针排除了会泄漏 backing Dictionary 的普通 ReadOnlyDictionary 包装，不构成新库实施或性能资格；Key/wire/限额仍待定。
+RootMap/RefSnapshot 表示已定于 S4 `[A-VS-ROOTS-OWNED]`：字典公面复用 IReadOnlyDictionary，逐项 Ordinal 拒重后冻结，普通 sealed RefSnapshot 复用 Revision/Roots；内容比较仅内部进行，不定义公开字典/快照结构等值。Key/wire/容量消费 `[F-VS-ROOTMAP-BPV1]` 的无损基元组合与单一 1MiB codeword 工程上限，无排序/独立 key 或 count 配额。集合与 codec 探针均不构成新库实施、峰值资源或性能资格；header/宿主组合与名称政策仍待定。
 
 CreateRef / PublishRef / CreateTag 及命名 fork 在发布 RootMap 前同步调用 data ConfirmDurable，不向调用方传递可复用 `DurabilityReceipt`；无关 Builder 未完成不阻断该屏障或发布，所需依赖仍须由应用保证完成。CreateBranch 不新增 data 屏障。branch 冷发现覆盖全部正式 ref 的 names，可使用可重建内存投影；tag 首版每次完整校验目标桶，不保留跨调用索引，统一桶 header 版本选择 record schema，初始化保护与查询唯一性见 S5。名称查询不保证 O(1)。字典、桶和文件容量按实际 codec 与公共尺寸 API 计算，“约 64B”只是少根短键场景估算。
 

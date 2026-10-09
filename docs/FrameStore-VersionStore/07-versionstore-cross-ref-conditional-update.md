@@ -36,7 +36,7 @@ ConditionalUpdate:
 
 各成员可以有不同 RootMap 和帧尺寸；相同的是完整 Members 表。RootMap 继续复用完整字典 codec 和 S2 固定 12B FrameAddress。Members 的 ticket 是对应 ref 文件的 SizedPtr，不能替换为 data FrameStore 的 FrameAddress。
 
-本候选消费 S4 `[F-VS-REF-ID-8B]`：RefId 内部字段为固定 8B LocalRefId LittleEndian，公开值另携同一 VS 的持久上下文；Members 不为每项重复写 VSID，入口在 I/O/barrier 前拒绝错上下文。ticket 采用固定 8B `SizedPtr.Packed` LittleEndian；计数与字段顺序、kind/version、RootMap codec、限额仍待工程定稿。两字段解码都不证明 frame 存在或完成。此方向不改变 S2 地址格式，不从 CLR struct 内存布局推导 wire。
+本候选消费 S4 `[F-VS-REF-ID-8B]`：RefId 内部字段为固定 8B LocalRefId LittleEndian，公开值另携同一 VS 的持久上下文；Members 不为每项重复写 VSID，入口在 I/O/barrier 前拒绝错上下文。ticket 采用固定 8B `SizedPtr.Packed` LittleEndian；RootMap 原样消费 `[F-VS-ROOTMAP-BPV1]` 的 codeword/1MiB 上限。Members 计数与字段顺序、kind/version、完整 CU 组合上限仍待工程定稿。两定位字段解码都不证明 frame 存在或完成。此方向不改变 S2 地址格式，不从 CLR struct 内存布局推导 wire。
 
 设各 RootMap 已编码字节数为 rᵢ，RefId 字段宽度 w=8，成员数为 k，固定 schema 与计数字节数为 h。CU payload 长度可直接度量为 `h + rᵢ + k × (w + 8) = h + rᵢ + 16k`，不依赖 tickets 的数值。由公共 `MeasureWriteSize`、各文件可信 TailOffset 与 `SizedPtr.Create` 可先预测全部 tickets，再编码完整 payload，不存在自身尺寸的循环求解。
 
@@ -277,7 +277,7 @@ Windows / W: 真实 public RBF3 探针，初录 [结果](../../experiments/Versi
 
 **成熟度判断：可以正式选择 CU 作为跨 ref 事务协议。** 共同判据、位置复用与稳定性有明确论证，现有 public API 足以实现读取；本次删除替换内容审计不改变原子判据，并有源码和定向检查支持必要结构消歧。没有发现需要新增持久机制的失败轨迹；新读取路径的完整组合验收仍属于实施出口。对用户当前少量根、几个地址的目标，减少帧与阶段的收益明确；P+C 的诊断、分帧容量及拒绝未提交组时可少读 RootMap 的优势仍保留，不据此宣称 CU 在所有工作负载更快。
 
-该结论不等于整个 S4/S5 Ready。正式选型并入时，须同步替换 S0/S4/S5 及入口的“无跨 ref 事务/直接接受末 Snapshot/当前值与历史成本”旧合同，保留普通单 ref 路径与名称创建的独立范围；不能只在导航加一个链接便称主线支持。具体 Ready 项为共享 RefId/RootMap/header codec 与限额、PublishRefs/批次结果类型、文件/枚举生命周期与真实错误载体；它们是已有阶段工程定稿及本协议的实施出口，不是新的事务身份或恢复日志。
+该结论不等于整个 S4/S5 Ready。正式选型并入时，须同步替换 S0/S4/S5 及入口的“无跨 ref 事务/直接接受末 Snapshot/当前值与历史成本”旧合同，保留普通单 ref 路径与名称创建的独立范围；不能只在导航加一个链接便称主线支持。RefId 字段及 RootMap codec/上限直接消费 S4 已定合同；具体 Ready 项为 header/CU Members 组合 codec 与完整容量、PublishRefs/批次结果类型、文件/枚举生命周期与真实错误载体。它们是已有阶段工程定稿及本协议的实施出口，不是新的事务身份或恢复日志。
 
 最小安全纵向片是**两个已正式创建的 ref**：正式 codec/header + 绑定 data barrier + PublishRefs + 当前/历史共用判据 + owned revisions；随后在每个 Begin/End、输出、flush、确认后安装位置验证失败与冷重开。验收包含布尔资格与读取失败、坏身份/self/重复表/同 ticket 坏内容、异长坏 HeadLen、异长未读坏 payload 不影响否定旧成员及直接读取仍报错、缺前驱/后继不符、I/O/fault；失败旧 A/B 后新 B/C 且不递归；lazy CompletedTail；同值/rewind/预算；普通单 ref 不增加成员表；新 helper 全矩阵与 k 增长成本。Windows/Linux 与 public 包消费分别出证据，不为此片先实现名称事务、全局 Heads 或日志。
 
