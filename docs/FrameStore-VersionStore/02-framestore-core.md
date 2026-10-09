@@ -1,6 +1,6 @@
 # S2：FrameStore 核心、地址与文件生命周期
 
-状态：**Draft；2026-10-05 确认首帧 header、自动归还与 config 数量上限；2026-10-07 允许活跃 Builder 期间确认和随机读取已完成输出；2026-10-08 确认地址固定 12B codec；2026-10-09 定稿资源基线、文件 header、owned 租借/归档维护、读结果/同步 inventory/audit、FileId 编号恢复、正式 active/archive 路径、FrameAddress 值/公开 codec 及格式门记录/只读校验；初次 store 创建/格式门发布、根准入与独占/残留/平台资格仍待工程定稿或实施验证，项目尚未创建**。
+状态：**Draft；2026-10-05 确认首帧 header、自动归还与 config 数量上限；2026-10-07 允许活跃 Builder 期间确认和随机读取已完成输出；2026-10-08 确认地址固定 12B codec；2026-10-09 定稿资源基线、文件 header、owned 租借/归档维护、读结果/同步 inventory/audit、FileId 编号恢复、正式 active/archive 路径、FrameAddress 值/公开 codec、格式门记录/只读校验及软阈值参数/重开规则；初次 store 创建/格式门发布、根准入与独占/残留/平台资格仍待工程定稿或实施验证，项目尚未创建**。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)。本阶段独立于发布和命名层。
 
 ## 本阶段目标
@@ -17,7 +17,7 @@
 | 单帧追加能力 | 保留 RBF 的 buffer Append、未知尺寸 Builder、分立长度的已知尺寸 Builder；签名细节待定 |
 | 构建自由 | 每文件一个 Builder；owner 可持多个未完成 Builder；租借可嵌套；首版调用仍串行 |
 | 文件选择 | 从 active 当前可分配文件中选择数值 FileId 最小者；低编号忙时跳过，不等待 |
-| 轮转 | 三种追加均在成功完成后按 TailOffset 事后检查；大于阈值才停止新追加 |
+| 轮转 | 三种追加成功后 TailOffset 大于阈值才停止；Create/Open 单一 long 参数、默认 64GiB、实例固定；重开按恢复后 TailOffset 重算，archive 不解封 |
 | 磁盘生命周期 | 私有 creating → active → 按编号分桶的 archive；不维护 active manifest/status |
 | 归档桶 | 固定 1024 个编号一个桶；版本 1 使用 6 位小写 hex 桶名与 8 位完整 FileId 文件名，active/archive 共用文件名 codec |
 | 编号恢复 | 完整流式检查正式目录名称，取 active/archive 实际文件最大 FileId；无持久计数器或全历史 ID 表，不填缺口；耗尽仅拒绝需新文件的请求 |
@@ -298,8 +298,23 @@ Open 不重复读取整个尾 payload 取得结构资格；业务 metadata 作�
 
 三种追加 MUST 共用事后检查：成功完成帧并取得新的 TailOffset 后，只有 TailOffset > RotationThreshold 才停止该文件的新分配并进入归档；等于阈值仍可追加。未知尺寸与已知尺寸不使用不同轮转算法。
 正常取消和可纠正拒绝不推进 TailOffset，不据此触发尺寸轮转。成功完成的合法 RBF 帧不得因使文件超过目标阈值被拒绝、改地址或挪到另一文件。
-阈值不保证单文件尺寸不超过该值。初始化边界 <= 阈值 <= SizedPtr.MaxOffset；初始化边界由 `[F-FS-META-FIRST]` 定义，默认值及重开时阈值变化的规则在 S2-Q2 定稿。既有大文件不为新阈值拆分或重写。
+阈值不保证单文件尺寸不超过该值。合法范围 MUST 为初始化边界 I <= RotationThreshold <= SizedPtr.MaxOffset；I 由 `[F-FS-META-FIRST]` 的公共尺寸/边界定义，不复制当前初始化长度。阈值是 long 字节比较值，不是 ticket 起点，MUST NOT 增加 4B 对齐要求或向上/向下取整。既有大文件不为新阈值拆分或重写。
+
+**唯一运行输入。** 可写 Create/Open MUST 接受同一个可选 `long rotationThresholdBytes` 参数，首版默认值为 `64L * 1024 * 1024 * 1024`（64GiB）。在任何文件系统访问、恢复、私有清理或初始化输出前检查上述范围；非法参数抛 ArgumentOutOfRangeException，不创建或修改 store。有效值捕获为实例的 RotationThreshold，整个 owner 生命周期固定，不在普通追加/确认时重读或热修改。OpenReadOnly 不提供此参数，也不消费写入阈值策略。
+首版只选这个输入：不新增 Options 类、公开 setter、config 字段或参数/config 优先级；`framestore.config.json` 仍仅接受 `[A-FS-BUILDER-LIMIT]` 的 MaxOutstandingBuilders。阈值不写入格式门、文件 header 或每文件状态，不改变格式版本或地址编码。
+
+**重开与变更。** 每次可写 Open MUST 用本次有效阈值和各 active 的恢复后完成 TailOffset 重新派生停止资格，不能使用恢复前的原文件长度、预约量或丢失的旧阈值/停止位。所有正式目录、私有残留及 active 恢复/header 资格通过后，按 `[S-FS-ARCHIVE-AFTER-FLUSH]` 排空停止文件，再签发 owner；失败不签发实例，不跳过坏文件。
+
+| 重开后的实际位置与完成 tail | 本次阈值的作用 |
+| --- | --- |
+| active，TailOffset > RotationThreshold | 停止分配；在 Open 返回前 fresh flush/close/归档 |
+| active，TailOffset <= RotationThreshold | 仍可按最低 FileId 规则分配，包括合法 header-only 文件 |
+| 上轮已超过旧阈值，但尚未移档的 active | 提高阈值后可以重新成为可分配项；旧内存停止位不是持久事实 |
+| archive | 始终只读；提高阈值不移回 active 或重新追加 |
+
+阈值变化不撤销已完成/确认事实，不改变 FileId/ticket，不拆分、重写或删除文件。OpenReadOnly 不恢复或归档，不因 active 超过某个写入阈值而拒绝其只读资格。
 （Informative）固定阈值下，新文件只在未超过阈值时开始下一帧，因此正常尺寸超出量最多是一次最大合法追加占用；用 RBF 公共 MeasureWriteSize 计算，不复制 wire 常量。物理长度查询可用 TailOffset，不要求每帧额外 FileInfo/stat。
+（Informative）单参数让尚不存在的根也可直接选取策略，并以小阈值执行同一 public 合同的轮转/重开验收；它是工程可验证性选择，当前没有新栈业务消费者证明可调必须公有。固定常量或唯一 config 字段也能正确，首版不同时提供。64GiB 是可调工程起点，不是测量出的最优值或资源/磁盘上限；若工作集与目录成本要求不同目标，调用方传入其他合法值。起点/末端资格依据 [RBF 公共合同](../Rbf/rbf-interface.md)、[最大起点 Builder 向量](../../tests/Rbf.Tests/Internal/RbfFrameBuilderTests.cs)及[最大起点 Append 向量](../../tests/Rbf.Tests/Internal/RbfFacadeTests.cs)，不是 FrameStore 实施或性能资格。
 
 ### spec [F-FS-BUCKETED-PATHS] 归档路径由编号固定计算
 
@@ -447,7 +462,7 @@ leased 文件成功 flush 可清除其此次已完成输出的未确认登记；
 ConfirmDurable 消费本阶段 `[A-FS-DURABLE-COMPLETED-OUTPUTS]` 的核心合同，不解析业务依赖闭包；交错构建与循环引用的消费资格在后续阶段独立验证。
 业务发布不在本阶段建立。
 
-1. S2-A：创建项目/solution；实施已定不透明 FrameAddress 值/两方向 12B bool codec、数值下界/失败产物和普通内部表示，记录目标运行时成本；实施已定格式门 24B codec/只读校验，定稿初次发布、根准入与模式；实施本阶段已定的 StoreId/header codec 和数量上限 config。
+1. S2-A：创建项目/solution；实施已定不透明 FrameAddress 值/两方向 12B bool codec、数值下界/失败产物和普通内部表示，记录目标运行时成本；实施已定格式门 24B codec/只读校验，定稿初次发布、根准入与模式；实施本阶段已定的 StoreId/header codec、数量上限 config 及软阈值单参数/范围/实例固定。
 2. S2-B：实施已定 FrameBuilder/FramePayloadWriter、一次性共享 Lease、borrow 前检、无分配的完成/归还登记与保守共享 fault，以及 FrameRead、同步 Inventory/Audit；三种追加、交错完成、随机读、物理检查、基础确认与 Dispose 清理可独立验证。
 3. S2-C：实施统一 DrainStopped 及确认/写准入/Open 入口，结合编号恢复、creating/active/archive 中断状态与多个 active 的独立恢复取得资格。
 4. S2-D：进程中断/资源失败、只读、错误格式、规模和 public 指南资格。
@@ -455,6 +470,7 @@ ConfirmDurable 消费本阶段 `[A-FS-DURABLE-COMPLETED-OUTPUTS]` 的核心合�
 至少验证两种无 EventHeader 记录、三种追加、嵌套租借与乱序完成、取消后文件复用、旧地址跨归档稳定、FrameAddress 的 context 限制、archive RBF1 拒绝、创建/flush/close/rename 各窗口、多个 active 独立恢复及完整内容损坏。
 地址向量覆盖固定 12B/端序的独立 bytes、FileId 高位与 uint.MaxValue、Packed 高低 32 bits 的往返、SizedPtr 最大起点/长度且末端可越过起点上界、Begin/End 编码相等、归档和冷重开不改编码、编号耗尽不回绕。独立 bytes 取 FileId=0x89ABCDEF、Packed=0x123456789ABCDEF0，预期 `EF CD AB 89 | F0 DE BC 9A 78 56 34 12`；最大 FileId/Packed 的 12B 全 FF 仍数值合法。覆盖 FileId=0、ticket 起点 0、零长度（包括 Packed 非零）和低于公共 RBF3 minimum 的长度；header 坐标仍可编码。TryRead 的 0/11/13B 均 false 且覆盖先前有效 out 为 default；TryWrite 的 default/短目标 false 不修改任何 bytes，长目标仅前 12B 改变。复合 reader 先切 12B、成功才推进，失败不吞下字段；default 可比较/hash 但不能 ReadFrame，值比较包含 Packed 全部 bits且无排序合同。codec 验证与内部 struct/数组成本验证分开，不宣称格式解码能检测错 store、旧 Serialize wire 或取消预约复用。
 覆盖阈值以下/等于/超过、最大帧超阈值仍成功、可纠正失败不归还、成功后不等 Dispose 即可重新申请/确认、重复 Dispose 不二次释放、不覆盖归档目标、1024 边界与 slot=0、编号耗尽/空桶、仅根文件 flush 不充分；首帧 header 覆盖初始化中断、缺失/损坏、未知版本、字段绑定和用户扫描规则。
+阈值参数覆盖省略时 64GiB、I/I+1/MaxOffset 合法且不要求对齐、I-1/MaxOffset+1/负数/long.MaxValue 在任何文件系统访问前拒绝且不留输出。以小 T 验证 header-only 可分配、三种追加的等于/越过、声明大尺寸后取消仍可复用；T=MaxOffset 的最后合法帧成功后停止而不后验拒绝。降低 T 后按恢复后的 tail 分类，分别覆盖 Truncated 变短与 CompletedTail 变长、全部 active/header 资格后才维护，以及维护失败不签发 owner。提高 T 时，尚未移档的超旧阈值 active 可重新分配，同内容已归档文件仍只读；归档/冷重开前后地址与 payload 不变。不增加生产测试开关或以内部比较测试代替 public 生命周期验收。
 header 独立 bytes 向量固定 version=1、StoreId 为 hex 01 至 10、FileId=0x89ABCDEF：decoded payload 为 `01 00 00 00 | 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 | EF CD AB 89`，不是原文件 escaped bytes。覆盖精确 24B、截短/多字节/meta/墓碑/错 tag、全零/错 StoreId、0/错 FileId、未知/门不一致版本、HeadLen/TrailerCRC/PayloadCRC/Fence 损坏；坏首帧后存在合法同 tag 帧仍拒绝，合法 header 后同 tag 用户帧仍读出。验证无用户帧的初始化文件合法、首用户 ticket 从 I 开始、原生 RBF 可见和用户 inventory/audit 分类。正式 active 的每个短于 I 的 header 字节前缀在可写 Open 前拒绝，重复打开仍不修改/接纳；尤其覆盖仅缺 Key/Fence 的完整 body。header 后用户帧残尾按 RBF 恢复，report 不得触及初始化区；长度足够但坏身份/header CRC 的文件仍拒绝，即使底层已先修用户尾。私有 creating 中断留给目录协议裁决，不把初始化校验当删除授权。
 格式门独立文件 bytes 取 version=1、StoreId 为 hex 01 至 10：`01 00 00 00 | 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 | 7D 5C 28 69`，CRC32C=0x69285c7d；这是完整 raw 24B 文件，不是 header 的 decoded payload 或 escaped RBF frame。覆盖 0–23B 每个前缀、25B/尾随、版本与 ID/CRC 各区损坏、重新封 CRC 的未知版本/全零 ID、旧 marker/RBF 文件及缺门；重复可写/只读打开都不修门、不从合法 data header 补身份。失败不得发生 active 恢复/私有清理/输出；校验成功但必要 close 失败也不签发 owner，读取/关闭双失败保留主错误且不二次关闭。实际规范名称/普通类型及初次发布中断仍另取 Q1/Q3 资格。
 屏障覆盖 A 完成/B 仍 Building 时成功确认 A、B 租借文件内更早 dirty 帧也被确认、B 内容及租借不变、B 后续完成须重新确认、B 健康取消不获得资格、reopened active Action=None 首次确认，以及任一文件 flush 失败后所有 owned Builder/Writer 停用。
@@ -477,7 +493,7 @@ Dispose 向量覆盖取消资源异常不重租、全部 owned 文件逐一尝�
 | ID | 需定稿或实施验证 |
 | --- | --- |
 | S2-Q1 | FrameAddress 值/两方向 12B bool codec、数值/默认/相等/失败、普通表示，以及 framestore.format 的 24B 记录/唯一 CRC/只读完整校验已定；实施相应 bytes/拒绝/关闭/无后验失败向量并记录地址运行时成本。待定为初次 store 创建/格式门发布协议、访问模式与上下文准入保证，直接消费统一版本 1 / 16B StoreId |
-| S2-Q2 | 软阈值默认/变更仍待定；版本 1 正式路径、单一内部文件名 codec、全部直接项语法及编号恢复已定，实施文本/拒绝/定位向量并测量 O(A+B+H) 目录规模成本，不重新选择布局、计数器或最高桶快速路径 |
+| S2-Q2 | 软阈值唯一 long 参数/64GiB 默认/范围/实例固定/恢复后重算与 archive 不解封已定，实施小阈值 public、非法参数、升降/修尾及维护失败向量；正式路径/单一 codec/全部直接项语法和编号恢复已定，实施文本/拒绝/定位向量并测量 O(A+B+H) 目录成本，不重新选择布局、计数器或最高桶快速路径 |
 | S2-Q3 | store 根准入与独占入口、实际固定组件/普通类型/no-follow 资格、creating 命名与残留裁决、同文件系统不覆盖 rename 的两平台入口与中断实证 |
 | S2-Q4 | Builder/Writer/Lease、borrow、完成/dirty、维护/fault/Dispose，以及 FrameRead、纯值 FrameInfo、FrameFileAudit、同步 Inventory/Audit 准入/重入/取消/终止合同已定；实施对应拒绝/资源清理/信任级别与 completed-prefix 随机读取向量，不再作为待定 API 设计 |
 | S2-Q5 | 保留可写 active 句柄、显式 Off、只读按操作开关且无 reader pool 的基线已定；验证身份/读结果/扫描资源归属、Open 失败清理、历史峰值与实际资源成本，不做精确总资源配额 |

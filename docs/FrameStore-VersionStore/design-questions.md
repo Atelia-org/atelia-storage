@@ -1,6 +1,6 @@
 # 下一轮工程定稿：FrameStore 与根字典发布
 
-日期：2026-10-04；2026-10-05 更新核心/扩展分离；2026-10-07 收缩 VersionStore、放宽已完成输出资格并确定命名 fork 的目录共同发布；2026-10-08 关闭基础地址宽度/字段编码选择；2026-10-09 同步 ForkOrigin；资源、header、owned 租借/归档维护、读结果/同步 inventory/audit、FileId 编号恢复、正式 active/archive 路径、FrameAddress 值/公开 codec 及格式门记录/只读校验定稿写回 S2，发布调用证据与续跑边界写回 S4/S6，同步历史 visitor/预算/清理及 tag 桶初始化/组合 schema/每次完整扫描写回 S5；已定设计移出本问题表，实施验证保留所属阶段。状态：**Informative / Derived；问题汇总，不是新增实施阶段或规范输入**。
+日期：2026-10-04；2026-10-05 更新核心/扩展分离；2026-10-07 收缩 VersionStore、放宽已完成输出资格并确定命名 fork 的目录共同发布；2026-10-08 关闭基础地址宽度/字段编码选择；2026-10-09 同步 ForkOrigin；资源、header、owned 租借/归档维护、读结果/同步 inventory/audit、FileId 编号恢复、正式 active/archive 路径、FrameAddress 值/公开 codec、格式门记录/只读校验及软阈值参数/重开规则定稿写回 S2，发布调用证据与续跑边界写回 S4/S6，同步历史 visitor/预算/清理及 tag 桶初始化/组合 schema/每次完整扫描写回 S5；已定设计移出本问题表，实施验证保留所属阶段。状态：**Informative / Derived；问题汇总，不是新增实施阶段或规范输入**。
 输入为本轮会话和 S0–S6 的 Draft 合同。FrameStore/VersionStore 本轮仅修订文档，项目尚未创建；RBF 底座的活跃构建随机读取改进单独记录验收。S1 与 RBF1 参考隔离的已有 Accepted 资格保留原身份，不构成新模型已实施的证据。
 
 ## 已形成的方向
@@ -23,6 +23,7 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 | 第二个 Builder 如何获得位置 | 保持已有租借，使用其他空闲文件，没有合适文件才新建 |
 | active 中多个空闲文件如何选择 | 选择数值 FileId 最小者；忙/停止分配项跳过，不等待、不轮询、不按帧长度试配 |
 | 已知/未知尺寸是否分别轮转 | 统一成功完成后 TailOffset > 阈值；目标阈值不限制最大合法帧 |
+| 软阈值默认/变更如何处理 | S2 已定 Create/Open 单一 long 参数、64GiB 工程默认、合法范围/实例固定；重开只按恢复后 active tail 重算，archive 永不解封，无阈值 config 或持久状态 |
 | 可写集合是否另存 manifest | active 目录是事实，archive 位置表示已按协议 flush 并封存 |
 | 归档寻址是否要全历史分段表 | 1024 编号一个桶，按 FileId 高低位计算 |
 | 如何恢复下一个 FileId | S2 已定完整流式正式名称发现，取 active/archive 实际最大编号；只保留内存 max，空桶/私有槽不计、缺口不补，耗尽只拒绝新文件；目录成本与实施向量留在 S2 |
@@ -98,14 +99,14 @@ ListForks 同样覆盖全部正式 ref，但读 header/初始边界而非 names�
 
 ## 其余定稿项与条件扩展
 
-FrameStore 格式门初次发布、VersionStore 格式门/身份、阈值默认/变更、根准入/私有目录协议及平台 rename、名称规则仍在各阶段 Ready 表中定稿；基础地址值/12B bool codec/数值与失败规则、普通内部表示及无规范文本、格式门记录/只读校验、owned 租借/维护/清理、读结果/同步 inventory/audit 和正式 active/archive 路径已由 S2 锁定，历史入口/两项预算/终止及 tag 桶初始化/组合 schema/每次完整扫描已由 S5 锁定，已确认软阈值语义不表示所有参数都已冻结。地址实现/运行时成本留在 S2，内存优化不作为新的设计前置。
+FrameStore 格式门初次发布、VersionStore 格式门/身份、根准入/私有目录协议及平台 rename、名称规则仍在各阶段 Ready 表中定稿；基础地址值/12B bool codec/数值与失败规则、普通内部表示及无规范文本、格式门记录/只读校验、软阈值参数/默认/重开规则、owned 租借/维护/清理、读结果/同步 inventory/audit 和正式 active/archive 路径已由 S2 锁定，历史入口/两项预算/终止及 tag 桶初始化/组合 schema/每次完整扫描已由 S5 锁定。阈值行为/实际成本和地址实现/运行时成本留在 S2，不再为默认数字或内存优化开放新的设计前置。
 FrameAddress 不透明不等于支持帧重定位。目录归档只改变同一文件的位置；GC/compaction、逻辑 ID 映射、多线程执行、多个 data owner、跨实例 CAS 和更强断电模型在有需求时单独设计。多个 active 已是首版设计范围，不再列为未来条件扩展。
 地址见证的重评触发条件分别为：裸地址跨 store 流转且需要概率性误用检测时考虑 store/address fingerprint；要求库自动拒绝取消预约的旧引用时另设计每帧持久 token 与重开发号/碰撞规则；仅引用已完成对象且需要预期内容见证时考虑内容 CRC。最终内容 CRC 在 Begin 尚不可确定，A↔B 会引入 checksum 依赖，不能作为当前提前稳定地址字段。上述方案均无首版预留字段或实施前置；无碰撞的来源、完成或耐久保证不能由额外 4B 自行推出。
 ref 分段/轮转、随机 revision 读取、持久 cursor、差分/checkpoint、派生 tag 索引、名称 rename/unbind/delete/reuse、跨 ref 事务和精确尝试追踪不作为核心前置。业务 merge/provenance 由应用决定；出现无法用 RootMap 表达的明确需求后再扩展，不能从旧草案恢复候选功能。
 
 ## 下一轮建议顺序
 
-已确定的 FrameAddress 值/codec、格式门记录/只读校验、header、config、资源、owned 租借/归档维护及读结果/同步物理检查直接消费 S2，历史 visitor/预算/清理和 tag 桶初始化/全扫描直接消费 S5；实现验收保留在相应阶段，不把已定字段和流程重新列为待定设计。
+已确定的 FrameAddress 值/codec、格式门记录/只读校验、header、config、软阈值参数/重开规则、资源、owned 租借/归档维护及读结果/同步物理检查直接消费 S2，历史 visitor/预算/清理和 tag 桶初始化/全扫描直接消费 S5；实现验收保留在相应阶段，不把已定字段和流程重新列为待定设计。
 S2 核心可直接围绕下表的工程问题推进；S4/S5 同样按已经收缩的模型关闭局部 codec / 路径 / 生命周期选择。
 
 | 工程定稿 | 剩余内容 |
