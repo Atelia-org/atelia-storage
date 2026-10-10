@@ -2,7 +2,7 @@
 
 日期：2026-10-10。状态：**Draft / key 的 Unicode 与 JSON 映射合同已由用户采用；RootMap 为首个可选应用 payload codec。VersionStore 尚未实施；bytes 公面已采用 11 专项；CU 尚未并入主线**。
 
-本文内聚 RootMap 的 key、wire 与容量合同，供选择该 codec 的应用显式使用；[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)、[tag 专项](09-versionstore-immutable-tags.md)及 [CU 候选](07-versionstore-cross-ref-conditional-update.md)只保存 opaque bytes。RootMap 是完整 string→FrameAddress 字典；RootMap 自有集合定义于本篇；bytes 自有结果由 11 公面专项定义；fork 来源一致性由 S4 root-payload bytes 合同定义，不消费字典内容比较，FrameAddress codec 由 S2 定义。
+本文内聚 RootMap 的 key、wire 与容量合同，供选择该 codec 的应用显式使用；[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)、[tag 专项](09-versionstore-immutable-tags.md)及 [CU 候选](07-versionstore-cross-ref-conditional-update.md)只保存 opaque bytes。RootMap 是完整 string→FrameAddress 字典；RootMap 自有集合定义于本篇；bytes 自有结果由 11 公面专项定义；fork 来源一致性由 S5 `[A-VS-REF-HISTORY-CHECKED]` 定义，不消费字典内容比较，FrameAddress codec 由 S2 定义。
 
 ## JSON 名称映射
 
@@ -41,7 +41,7 @@ RootMap codec 的输入与解码结果使用 `IReadOnlyDictionary<string, FrameA
 | 2，重复 count 次 | 非 null key | BPV1 ordinary BareString，原样保留 UTF-16 code units |
 | 3，每个 key 后 | FrameAddress | S2 `[F-FS-FRAME-ADDRESS-VARINT]`：VarUInt32(FileId) + VarUInt64(SizedPtr.Serialize())，无符号，合法地址 3..15B |
 
-Key MUST 为非 null 的有效 Unicode 字符串：UTF-16 中每个 high surrogate 必须紧邻一个 low surrogate，每个 low surrogate 必须属于这样的配对；输入及持久解码均拒绝未配对 surrogate，不 replacement。empty、中文、emoji、空白、NUL、控制符、路径分隔符及 U+FEFF 仍合法，长度受下述 codeword 预算限制；不剔除 BOM、不 trim、不归一化或大小写折叠，按 Ordinal 比较。这使 key 能无损映射成 JSON 对象属性名；JSON 转义只是文本表示，不进入 key 值或持久编码。这是应用 key，不继承 tag/path 政策。writer 使用 PrepareString 的最短无损选择及 FrameAddress.WriteVarInt 的最短地址表示；reader 接受 BPV1 指定的另一种合法字符串编码、字符串/count 有界冗余前缀及 S2 允许的冗余地址表示，非法 UTF8 明确拒绝而非 replacement。条目无排序要求，reader 按解码后的 Ordinal key 拒重；同 key 不同字符串表示也重复。wire bytes/枚举次序不定义字典语义等值；fork 原样 clone 的一致性另按 S4 bytes 合同，也不承诺同字典产生同 bytes。
+Key MUST 为非 null 的有效 Unicode 字符串：UTF-16 中每个 high surrogate 必须紧邻一个 low surrogate，每个 low surrogate 必须属于这样的配对；输入及持久解码均拒绝未配对 surrogate，不 replacement。empty、中文、emoji、空白、NUL、控制符、路径分隔符及 U+FEFF 仍合法，长度受下述 codeword 预算限制；不剔除 BOM、不 trim、不归一化或大小写折叠，按 Ordinal 比较。这使 key 能无损映射成 JSON 对象属性名；JSON 转义只是文本表示，不进入 key 值或持久编码。这是应用 key，不继承 tag/path 政策。writer 使用 PrepareString 的最短无损选择及 FrameAddress.WriteVarInt 的最短地址表示；reader 接受 BPV1 指定的另一种合法字符串编码、字符串/count 有界冗余前缀及 S2 允许的冗余地址表示，非法 UTF8 明确拒绝而非 replacement。条目无排序要求，reader 按解码后的 Ordinal key 拒重；同 key 不同字符串表示也重复。wire bytes/枚举次序不定义字典语义等值；fork 原样 clone 与来源比较另按 S5 合同，也不承诺同字典产生同 bytes。
 
 首版完整 RootMap codeword MUST 不超过 **1,048,576B（1MiB）**，包括 count、全部实际 string header/payload 与地址；读写使用同一固定上限，不增加独立 key/count 配额或配置。默认输出精确尺寸为 `M = MeasureVarUInt32(n) + Σ(StringEncodingPlan.EncodedLength + address.MeasureVarInt())`，逐项度量地址并用 checked long 累积，不能用 FrameAddress.EncodedSize 或固定变长宽度代替；捕获过程中按实际条目检查增长，不信任源 Count，超限不得先物化超限完整输出。过长 key 可用 code-unit 数的必然尺寸下界先拒绝，再用现成 plan 确认精确尺寸。Encode 确定拒绝不交付数组；不得截断 key、拆 map 或丢弃条目来适配。
 

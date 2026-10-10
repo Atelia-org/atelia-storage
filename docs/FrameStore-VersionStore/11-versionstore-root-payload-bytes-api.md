@@ -32,7 +32,7 @@ public sealed class RefBytesSnapshot {
 
 owner/mutation/参数准入后先按实际 Span.Length 检查 1..1,048,576B；公共常量 VersionStore.MaxRootPayloadLength=1,048,576，非可配置。默认/空 Span 因0B确定拒绝，与合法空 RootMap 的1B codeword不同；不要把 missing 与空内容混用。仅复制有效 slice，不复制 backing capacity，不截断/拆记录，也不扫描任何 payload 内容。
 
-库在任何本次 data barrier/发布输出前完成精确长度私有副本、完整 frame/起点检查及必要确定准备。输入原 buffer 由调用方拥有；同步调用期间必须有效、不被修改/释放/归池且不得通过输入访问重入 owner/data。返回或抛出后可立即重用/归还；库不保留原 buffer，不转移 ownership。复制/分配/确定拒绝保持 NotAttempted，不新增健康 owner fault。取消、I/O 与确认后异常按 S4 原合同，不由复制规则重分类。
+库在任何本次 data barrier/发布输出前完成精确长度私有副本、完整 frame/起点检查及必要确定准备。输入原 buffer 由调用方拥有；同步调用期间必须有效、不被修改/释放/归池且不得通过输入访问重入 owner/data。返回或抛出后可立即重用/归还；库不保留原 buffer，不转移 ownership。纯输入复制/分配/确定拒绝本身保持 NotAttempted，不新增健康 owner fault。实际 owned 资源清理、恢复、取消、I/O 与确认后异常仍按 S4 原合同，不由复制规则重分类。
 
 ### spec [A-VS-BYTES-OWNED] 结果独立于 owner 和 pooled 帧
 
@@ -62,7 +62,7 @@ CU 候选 PublishRefs 接收 IReadOnlyDictionary<RefId, ReadOnlyMemory<byte>> ch
 
 ReadOnlyMemory 仅用于放入普通集合，不转移 ownership；调用方在整个同步调用期间保持集合和全部 backing buffer 稳定、有效且不重入。库访问 Span 后分别复制有效 slice，全部副本完成才进入发布协议。自定义枚举器/MemoryManager 访问可能执行调用方代码，沿用 single-driver 前提，不新增并发快照/违约诊断。
 
-总临时 payload 内存为 Σ实际长度，另计成员表及结果；1MiB不是整批总预算，不承诺合法批次永不 OOM。捕获及其清理失败无本次输出，保持 NotAttempted、不新增健康 owner fault。正式输出尝试后的未确认异常保持 Unknown；全部确认后包括结果构造/冻结/清理异常保持 Confirmed，并按 S4 停用，不降级。每帧完整容量及起点仍用 RBF 公共 MeasureWriteSize 检查，不能把 payload 上限当物理 frame 上限。
+总临时 payload 内存为 Σ实际长度，另计成员表及结果；1MiB不是整批总预算，不承诺合法批次永不 OOM。纯输入捕获及输入枚举器清理失败无本次输出，本身保持 NotAttempted、不新增健康 owner fault；若同时发生实际 owned 资源清理失败，仍按 S4 停用。正式输出尝试后的未确认异常保持 Unknown；全部确认后包括结果构造/冻结/清理异常保持 Confirmed，并按 S4 停用，不降级。每帧完整容量及起点仍用 RBF 公共 MeasureWriteSize 检查，不能把 payload 上限当物理 frame 上限。
 
 ## codec 与故障边界
 
@@ -70,6 +70,6 @@ ReadOnlyMemory 仅用于放入普通集合，不转移 ownership；调用方在�
 
 ## 验收与成本
 
-覆盖1B/1MiB/0B/超限、只复制 slice、输入修改与归池、stackalloc/数组/池来源；read/历史/tag 结果在 pooled 归还与 owner Dispose 后仍有效，后续读取不改变旧结果。证明所有核心路径不调用 RootMap decoder，并覆盖 JSON UTF-8、有界随机 bytes 与内容 codec 失败独立于 CRC/事务资格。批次实际重复/错上下文、同一 buffer 多个slice、捕获失败先于输出、整批 Outcome/确认后结果安装异常与 CU 元数据独立定位均须验证。
+覆盖1B/1MiB/0B/超限、只复制 slice、输入修改与归池、stackalloc/数组/池来源；read/历史/tag 结果在 pooled 归还与 owner Dispose 后仍有效，后续读取不改变旧结果。证明所有核心路径不调用 RootMap decoder，并覆盖 JSON UTF-8、有界随机 bytes 与内容 codec 失败独立于 CRC/事务资格。批次实际重复/错上下文、同一 buffer 多个slice、捕获失败先于输出、整批 Outcome/确认后结果安装异常与 CU 元数据独立定位均须验证；纯输入失败与同时发生 owned 清理失败的停用差异也须覆盖。
 
 小根对象下选择捕获/交付复制以换取简单 ownership；没有零复制、公开 Builder、streaming、Lease/Dispose、codec callback 或通用预算框架。测量发现复制/RSS成为实际瓶颈后再单独评估。当前只是设计；RBF pooled 生命周期与 FrameStore FrameRead 是底座参考，不是本结果模型已实施的证据。

@@ -169,7 +169,7 @@ ReadDesignatedMember(peer, wanted):
         返回无指定成员；不读取或解析替换 payload
 ```
 
-这是当前 public API 的执行路径，不给原子判据增加持久字段或新接口。逆扫途中各条已观察元信息、actual 与前驱 p 均按 ref 布局检查 kind / tombstone；未知或位置不允许的 kind、tombstone 直接报错，合法初始化 header 不当作发布记录。所返回完整帧只在必要范围内使用并归还 pool；接受结果须物化为 owned 值。所有扫描、后继查询和内容读取都计入预算；失败、取消与预算不足不能返回“无指定成员”。
+这是当前 public API 的执行路径，不给原子判据增加持久字段或新接口。逆扫途中各条已观察元信息、actual 与前驱 p 均按 ref 布局检查 kind / tombstone；未知或位置不允许的 kind、tombstone 直接报错，合法初始化 header 不当作发布记录。所返回完整帧只在必要范围内使用并归还 pool；接受结果须物化为 owned 值。用于 ReadRefHistory 时，peer 访问、扫描、后继查询和完整读取都按下文消费本次历史工作步；失败、取消与预算不足不能返回“无指定成员”。
 
 当前 `ReadPooledFrame(wanted)` 先检查短读及 HeadLen 与 wanted length 一致，再验证 TrailerCRC 和 PayloadCRC。因此正常异长替换只会产生范围或 framing 拒绝，**CRC 错误直接传播，不进入消歧**。不能把 `ReadFrameInfo(oldTicket)` 的错误 footer/CRC 行为套到这条完整读取路径。allowlist 不包括 state、buffer 或未知错误码，也不捕获异常；后续底层改变检查顺序时须重新核对。非法 Members 坐标不由消歧修复。
 
@@ -216,7 +216,9 @@ ReadRef 从本地真实 RBF 逆向链读：合法普通 Snapshot 直接交付自
 
 写入只触及本批 k 个 ref。每个组的精确 ticket 校验只访问它的成员与必要 bytes，不需要所有 N 个 Heads；全部 k 张完整表比较仍是 O(k²) 元数据工作，并需读取所选 peer 的完整帧 bytes/CRC；不解析其 RootMap 内容。已成立组的精确读取不扫描 peer 后续历史。连续失败后缀的本地逆扫会累积；异长消歧可能扫描 peer 后缀及真实前驱，再作一次结构后继查询，但不读替换 payload。一次 ReadRef 回退多个旧 CU 时，读取范围是这些被检查组成员集合的并集，不能宣称始终只读最终成立组的成员。
 
-预算计扫描帧、bytes 和 peer I/O，不能只计返回 revisions。预算耗尽或取消不是 Uncommitted 见证，不能继续回退并把旧值作为成功结果；历史按既有预算/结束合同报告未完成范围，不声称全历史已验证。首次必要文件打开/恢复另计。失败时固定读取范围或时延目前没有保证。
+ReadRefHistory 共用 S5 的 MaxSnapshots / MaxWorkSteps：只有向 visitor 交付成立的发布记录才计一项快照；每次进入 peer、forward/reverse MoveNext 尝试和完整帧读取均按既有规则计一步，包括无输出的组验证和失败定位。CU 异长消歧的 ReadFrameInfoImmediatelyAfter 结构后继查询另计一步，正式接纳时须补入 S5 的计费表；每个动作前检查并扣费。复用已读本地 CU 不重复计一次 peer 读取；peer 访问不加入 ForkOrigin 继承路径的 visited，也不递归另一组。
+
+预算耗尽或取消不是 Uncommitted 见证，不能继续回退并把旧值作为成功结果；历史按既有预算/结束合同报告未完成范围，不声称全历史已验证。bytes、底层物理 I/O 与文件工厂内部检查/恢复另作成本测量，不新增字节预算或 ReadRef/ForkRef 预算参数；工作步仍不是固定读取范围或时延保证。
 
 后续成功发布的普通 Snapshot 或成立 CU 会终止当前值的逆向回退；历史依赖仍保留。不增加 PreviousPublishedTicket、持久索引、全量 Heads 或 TxId 来掩盖这些代价。未来若实际要求失败情况下稳定冷读成本，优先评估上述窄定位入口或独立有证据的优化。
 
@@ -263,8 +265,8 @@ Windows / W: 真实 public RBF3 探针，初录 [结果](../../experiments/Versi
 
 **协议可正式选择，尚未并入主线。** 共同判据、fresh 完整锚点与观察稳定性有明确论证，现有 public RBF API 足以执行结构消歧；少量根场景下减少帧和阶段的收益明确。P+C 仍有分帧容量、诊断以及拒绝未提交组时少读 root bytes 的优势，不宣称 CU 在所有工作负载更快。新读取路径完整组合验收仍缺，历史探针不代替生产资格。
 
-正式接纳须同步S0/S4/S5及入口的单ref范围、选尾/历史/fork资格与成本，而非只加导航链接。待工程定稿为CU FrameTag、完整CU容量/codec及其运行错误载体；接纳CU来源须重审S4普通Snapshot的SourceSnapshotTicket上界和接受kind。沿用既定身份、bytes/时间、恢复后完整性、生命周期与Outcome，不新增TxId/nonce、Prepared handle、持久索引或恢复日志。只有真实失败查询成本需求才重审窄start定位入口等优化。
+正式接纳须同步S0/S4/S5及入口的单ref范围、选尾/历史/fork资格、工作步计费与成本，而非只加导航链接。待工程定稿为CU FrameTag、完整CU容量/codec及其运行错误载体；接纳CU来源须重审S4普通Snapshot的SourceSnapshotTicket上界和接受kind。沿用既定身份、bytes/时间、恢复后完整性、生命周期与Outcome，不新增TxId/nonce、Prepared handle、持久索引或恢复日志。只有真实失败查询成本需求才重审窄start定位入口等优化。
 
 最小实施片为两个正式既有ref：正式CU envelope/header+绑定data屏障+PublishRefs+当前/历史共用判据+自有revisions；随后验证每个Begin/End、最终输出、flush及确认后安装的失败/冷开。
 
-特有验收包括：Members-first边界/count越界/截短、self/完整表/坏身份/重复项、不同opaque payload的同组与禁用peer decoder；同ticket坏内容硬失败、异长坏HeadLen/缺前驱/后继不符失败、异长未读坏payload不妨碍否定旧ticket但直接读取仍报错；失败旧A/B后新B/C不递归另一组、lazy CompletedTail与观察稳定性、同值/rewind/预算/取消/I/O/fault。CU来源接纳时补CU→普通子Snapshot仅clone root bytes、排除Members的向量；普通单ref不增加表。新helper全矩阵与k增长成本、Windows/Linux及public包资格分别取证。
+特有验收包括：Members-first边界/count越界/截短、self/完整表/坏身份/重复项、不同opaque payload的同组与禁用peer decoder；同ticket坏内容硬失败、异长坏HeadLen/缺前驱/后继不符失败、异长未读坏payload不妨碍否定旧ticket但直接读取仍报错；失败旧A/B后新B/C不递归另一组、lazy CompletedTail与观察稳定性、同值/rewind/预算/取消/I/O/fault。历史组验证不交付快照也计工作步，结构后继查询先扣费，peer 不误入继承 visited；CU来源接纳时补CU→普通子Snapshot仅clone root bytes、排除Members的向量；普通单ref不增加表。新helper全矩阵与k增长成本、Windows/Linux及public包资格分别取证。
