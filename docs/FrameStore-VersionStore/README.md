@@ -90,7 +90,7 @@ flowchart LR
 | [S5 历史、fork 与 tag](05-versionstore-names-and-indexes.md) | owned 跨文件历史、全分叉发现、来源 fork 与分桶 tag | VersionStore 及测试 | fork/rewind/tag 与历史生命周期验收 |
 | [S6 集成与交付](06-integration-and-delivery.md) | 第二种状态模型、公共包消费、交付边界 | examples、eng、CI；消费者接入另有明确范围 | 源码、包及消费者证据分别齐备 |
 
-S4 当前值只检查本地必要首两帧/末快照，S5 历史才回溯。可写冷开发号仍完整枚举正式 ref 文件，直接 ID 访问无需映射表。tag 每次完整校验目标桶，以临时全名集合确认唯一性，无跨调用索引；名称政策/路由仍定稿，不宣称 O(1)查名。
+S4 当前值只检查本地必要首两帧/末快照，S5 历史才回溯。可写冷开发号仍完整枚举正式 ref 文件，直接 ID 访问无需映射表。tag 每次完整校验目标桶，以临时全名集合确认唯一性，无跨调用索引；稳定路由/碰撞合同已定，TagName 接受合同及首版名称/分桶参数只影响 S5-B，不阻塞 ref、历史或 fork 实施，不宣称 O(1)查名。
 
 [08：ref记录元信息](08-versionstore-record-metadata.md)是S4时间语义、固定8B TailMeta与长度判形的唯一权威。S4定义RefSnapshot属性和普通宿主尺寸，S5定义历史/fork语义，07复用元信息组合CU；不重复定义时间编码，不给header/tag/data加时间，也不要求全库时间顺序。
 

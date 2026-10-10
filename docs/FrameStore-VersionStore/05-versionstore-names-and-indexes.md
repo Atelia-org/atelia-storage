@@ -1,6 +1,6 @@
 # S5：ref 历史、fork 与不可变 tag
 
-状态：**Draft；历史 visitor/预算/清理、ForkOrigin/ListForks 与 tag 桶合同已定；2026-10-10 移除 branch 名称层，fork 统一消费自动/预留区指定创建及单文件发布。tag 名称政策、相应实施/平台与验收仍待定；VersionStore 尚未创建**。
+状态：**Draft；历史 visitor/预算/清理、ForkOrigin/ListForks 与 tag 桶合同已定；2026-10-10 移除 branch 名称层，fork 统一消费自动/预留区指定创建及单文件发布。仅 tag 名称接受合同待设计定稿，名称/分桶格式参数交 S5-B 首写前固定；实施/平台与验收尚缺，VersionStore 尚未创建**。
 2026-10-10 RefId 自身/来源字段与指定 fork 目标消费 S4 固定 4B LE LocalRefId/uint32 合同；SourceSnapshotTicket 仍保持完整 8B，历史与分叉语义不变。
 2026-10-10 tag、历史与 fork 的 RootMap 同步采用 S4 的变长地址字段；S2 fixed12 codec 原样保留，tag 层不另定义地址格式或兼容 fallback。VersionStore 尚未实施。
 记录时间与元信息形状直接消费 [S4 元信息专项](08-versionstore-record-metadata.md)；本阶段不另定义时间 codec、时钟或格式版本。
@@ -143,6 +143,7 @@ ForkInfo 是普通非 record readonly struct，仅有三个只读属性及内部
 每个 tag MUST 保存 `TagName + 完整 RootMap` 的一条 RBF3 record，使用 S4 `[S-VS-ROOTS-AFTER-DATA-CONFIRM]` 的私有拷贝、输入/容量 guard、data ConfirmDurable、Append 与 DurableFlush 协议；无关 data Builder 尚未归还不阻断 tag 创建，所需依赖仍必须由应用保证完成。tag 从某 ref/历史快照创建时复制当时字典，不持有可变 ref 间接绑定。同名再创建 MUST 在输出前拒绝，即使字典同值。
 tag 内容直接复用 S4 RootMap codec，包括其消费的 S2 `[F-FS-FRAME-ADDRESS-VARINT]` 与逐地址精确尺寸、实际消费含冗余表示的容量检查；名称 codec 属于本层，RefId 字段消费 S4，RefRevision 不另立整体 codec，不从地址格式推导它们的宽度。tag 不保存 RefRevision 或精确 ref 历史来源；历史与 fork 的字典重读/复制也复用同一变长 RootMap，不接受旧 fixed12 RootMap fallback。
 TagName 的比较采用明确稳定的名称政策；默认候选为 Ordinal。路由 MUST 使用固定、跨进程复现的字符串 hash 与固定桶规则，不使用进程随机化的 string.GetHashCode；名称政策下比较相等的两个名字 MUST 路由同一桶，不能因原始大小写或同值 codeword 表示不同而漏掉同名。记录保留完整原名；hash 相同但名称不同不是同名，MUST 按完整名字比较。
+上述稳定性/碰撞要求已定，不再列为开放设计。TagName 的相等、接受域及名称/完整记录容量仍待 S5-Q1 定稿；名称 codec、hash 输入/算法、桶数及 BucketId 到规范路径的具体规则须在 S5-B 首次格式写入前固定并回写本规范，作为 VersionStoreFormatVersion 选择的组合 schema，不是跨落盘可自由替换的内部参数。该缺口只影响 tag 实施，不阻塞 S4 ref 或本阶段历史/fork/ListForks；无工作集或成本目标时不要求先证明最优参数。名称存于 record 字段，不自动继承 branch 或旧栈的文件名字符限制。
 首版每桶一个 RBF3 文件、不轮转。以下是已选的 tag 局部合同；统一版本与 16B canonical VersionStoreId 直接消费 S4 `[F-VS-OWN-FORMAT]`，RootMap wire/1MiB codeword 上限消费 `[F-VS-ROOTMAP-BPV1]`；名称编码/限额、固定 hash/桶数量/规范路径仍消费 S5-Q1，不能据此宣称其余依赖已经冻结。桶 header 使用同一身份编码，不另选宽度、不从 CLR struct 大小或被检查文件反推。
 
 **单一格式与组合 schema。** 两种 RBF FrameTag 在 tag 桶文件中固定为 0（BucketHeader）、1（TagRecord）；所有帧 MUST 非 tombstone 且 TailMetaLength=0。RBF tag 已表达 kind，不在 payload 重复保存 kind：
@@ -187,7 +188,7 @@ ReadRef/ResolveTag MUST 返回 checked 发布记录里的 RootMap，ReadRef 同�
 ### spec [A-VS-QUERY-COSTS-EXPLICIT] 首版成本明确且无隐藏索引
 
 Open MUST NOT 默认回放全部 ref 历史或扫描 data 图，也不因此宣称全库 O(1)。目录/格式门、tag 名称及文件枚举的实际成本须报告；惰性打开只把检查延后到目标访问，不把未检查对象说成健康。
-当前 ReadRef 成本为本地 header、初始 Snapshot 与完整末 Snapshot bytes（初始即末帧时复用），不随历史帧数或祖先深度增长。ReadRefHistory 成本含返回快照的完整读取、跨文件 header/初始边界和定位源 fork 点所跳过的后缀 framing，不能只按返回条数估算；预算未覆盖的历史不计作已验证。按 revision fork 的来源定位也可能扫描源后缀，并增加一次源文件 flush。tag 每次查找/重名检查均为 O(目标桶记录数 + checked bytes)，临时名称集合为 O(该桶名称数)，完整字典只保留当前/所选值；连续创建同桶 n 个 tag 可能累计 O(n²) 次记录检查。不承诺分桶即可 O(1) 查询或长期无限容量。出现实际桶规模、重复解析/批量创建成本不可接受的证据后再设计跨调用内存位置表及其资格/更新规则，磁盘索引仍为独立后续片。
+当前 ReadRef 成本为本地 header、初始 Snapshot 与完整末 Snapshot bytes（初始即末帧时复用），不随历史帧数或祖先深度增长。ReadRefHistory 成本含返回快照的完整读取、跨文件 header/初始边界和定位源 fork 点所跳过的后缀 framing，不能只按返回条数估算；预算未覆盖的历史不计作已验证。按 revision fork 的来源定位也可能扫描源后缀，并增加一次源文件 flush。tag 每次查找/重名检查均为 O(目标桶记录数 + checked bytes)，临时名称集合为 O(该桶名称数)，完整字典只保留当前/所选值；连续创建同桶 n 个 tag 可能累计 O(n²) 次记录检查。分桶参数/分布也影响已创建桶的文件/header 开销、单桶不轮转的容量压力及坏记录连带范围：目标桶的坏非目标记录同样使查询失败，其他桶不因这次内容错误被判坏。不承诺分桶即可 O(1) 查询或长期无限容量。出现实际桶规模、重复解析/批量创建成本不可接受的证据后再设计跨调用内存位置表及其资格/更新规则，磁盘索引仍为独立后续片。
 ListForks 每次执行完整 checked 扫描：令 N 为正式 ref 数、F 为有来源 ref 数，本层预期成本为 O(N + F + header/初始 Snapshot checked bytes)，含全部源存在和迭代环检查；哈希定位按通常成本估算。临时元数据 O(N)、自有结果 O(F)，另仅保留当前必要字典/pooled 帧，不保存全部初始 RootMap。数量参数包括无来源根；底座 factory 的尾部资格/恢复、实际 metadata/I/O 与内存成本另行报告，不能将 maxRefs 当硬时限/RSS 或历史规模无关的工厂保证。该查询不依赖应用映射，预留区与自动区 ref 都参与；实际重复扫描超出目标后再研究内存反向表。
 ListRefs 与可写冷开水位发现均完整枚举正式 ref 文件集合，但不打开全部快照；ListRefs按S4 `[A-VS-REFS-DISCOVERY]` 交付自有路径身份集合，不等同本篇ListForks的checked首两帧/图查询。只读Open不因pending全扫ref；按整数直接访问ref不需要全ID或应用名称映射表。自动/指定创建的编号算术、占用及耗尽消费S4，不新增全局名称发现。
 不新增持久名称索引、control 全量投影、全部尝试账本或磁盘 catalog/checkpoint；tag 的每次桶内临时全名集合只服务其既有唯一性资格，不成为 branch 映射。实际句柄/枚举资源与查询成本随实施报告。
@@ -212,7 +213,7 @@ ListRefs 与可写冷开水位发现均完整枚举正式 ref 文件集合，但
 
 | Ready 项 | 需定稿或实施验证 |
 | --- | --- |
-| S5-Q1 | 仅 tag 名称的相等/编码/字符/限额、持久表示与 bucket hash/数量/路径；相等必同桶、碰撞按完整名字裁决 |
+| S5-Q1 | 名称相等/接受域与名称/完整记录容量待定；名称 codec、hash 输入/算法、桶数/规范路径交 S5-B 首写前固定并绑定统一版本，记录成本/容量/坏记录连带取舍。相等必同桶、稳定路由与完整名碰撞裁决已定，不重开机制研究 |
 | S5-Q2 | 同步 visitor、自有 RefSnapshot、返回/工作步预算、两种正常结束与预算失败、visited/单临时句柄/HistoryActive 已定；实施跨文件资格、回调停止/重入/Dispose、取消及各退出清理，不再开放扫描器/epoch/预算载体设计 |
 | S5-Q3 | header-only 空桶初始化/I 前检/恢复保护、单一版本组合 schema、每次全桶校验及自有结果/一次清理已定；消费 S5-Q1/S4-Q2 的基础 codec，实施首 tag/后续 tag、缺失/坏记录/重复与 Outcome 验证，不再选择索引或第二版本权威 |
 | S5-Q4 | 自动/指定 fork 的来源重读/源 flush/单文件发布与 Outcome；ListForks 结果/数量/迭代图/清理已定，实施完整性/所有权/额度/规模向量 |
