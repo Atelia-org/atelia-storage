@@ -1,6 +1,6 @@
 # S5-B 专项：不可变 tag
 
-日期：2026-10-10。状态：**Draft；用户已批准固定名称长度上限与请求范围的坏记录隔离，本次修订保留名称 codec、256 桶路由、初始化保护、data-first 与 PublicationOutcome。VersionStore 尚未创建，本次契约修订未实施，无运行或验收证据**。
+日期：2026-10-10。状态：**Draft；用户已批准固定名称长度上限与请求范围的坏记录隔离，本次修订保留名称 codec、256 桶路由、初始化保护、data-first 与 PublicationOutcome。VersionStore 已有V0骨架，但 tag 尚未实施、无 tag 运行或验收证据（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。
 
 本文属于 [S5](05-versionstore-names-and-indexes.md) 的 S5-B，不是新增项目或阶段。建议先完成 S4 ref 闭环与 S5 历史/fork，再施工本文 tag，最后补齐 S6 tag 组合消费；tag 的机制依赖 S4，历史回调互操作另消费 S5，不将这份施工建议变成新增依赖。执行保持单 owner/driver 串行与 ProcessCrashOnly，不增加并发或断电保证。统一版本、持久身份、root-payload envelope、借入 data、根/锁、唯一 pending 及停用清理由 [S4](04-versionstore-publication.md) 唯一定义；本篇是 tag 名称、桶及其操作的唯一权威，不复制下层格式或尺寸算法。
 
@@ -137,6 +137,6 @@ CreateTag 直接消费 S4 `[S-VS-ROOTS-AFTER-DATA-CONFIRM]`、`[A-VS-PUBLICATION
 | 发布/恢复/Outcome | 同名/目标损坏/缺失不确定/容量拒绝先于barrier；无关Builder不阻断；data失败无tag输出；pending中断/取消/RO保留；空桶rename仍NotAttempted；首body截断保留空桶、CompletedTail后请求范围重验；Append/flush Unknown、flush后close/交付失败Confirmed；冷开不认领旧尝试 |
 | 组合消费 | 历史选点后创建 tag，ref 后续更新不影响它；应用按地址读取坏 data 时明确失败、不回退；冷重开取 tag bytes 可作无来源 CreateRef，不能由 tag 直接取得精确 fork 来源 |
 
-**施工与成熟度：** 本次名称上限与请求范围隔离已获用户批准，修订取代未实施的旧容量/全桶资格草案，无旧数据迁移。先在独立 tag 切片实现名称/容量/路由及损坏裁决，再完成正式空桶初始化、CreateTag→ResolveTag→冷重开，补扫描EOF/Outcome/资源与历史互操作验收。所需tag底座能力已公开，不新增路径、索引或RBF prefix接口；D8设计关闭。独立完整校验仍承担全桶健康与重复检查，不由日常成功替代，本专项不另立泛用audit API。尚缺VersionStore实现、真实冷进程/中断、平台、资源和包证据，不宣称Ready/Accepted。`tags`根准入应在S4工厂实现时认识，桶内容能力可后续施工；目录布局认识不等于tag已支持。
+**施工与成熟度：** 本次名称上限与请求范围隔离已获用户批准，修订取代未实施的旧容量/全桶资格草案，无旧数据迁移。先在独立 tag 切片实现名称/容量/路由及损坏裁决，再完成正式空桶初始化、CreateTag→ResolveTag→冷重开，补扫描EOF/Outcome/资源与历史互操作验收。所需tag底座能力已公开，不新增路径、索引或RBF prefix接口；D8设计关闭。独立完整校验仍承担全桶健康与重复检查，不由日常成功替代，本专项不另立泛用audit API。尚缺tag实现、VS真实冷进程/中断、平台、资源和包证据，不宣称Ready/Accepted。`tags`根准入应在S4工厂实现时认识，桶内容能力可后续施工；目录布局认识不等于tag已支持。
 
 依据：本篇既有 tag 合同从 `35d6c2d` 的 S5 迁入；[S5](05-versionstore-names-and-indexes.md)现只保留导航与历史互操作。[S4 下层契约](04-versionstore-publication.md)、[RBF 公共扫描/CRC/恢复](../Rbf/rbf-interface.md)、[RbfFile 公共容量与尺寸入口](../../src/Rbf/RbfFile.cs)、[BPV string 选择](../../src/Binary/BareValueEncoding.Strings.cs)、[分配前限制与 cursor 提交](../../src/Binary/BareValueReader.Strings.cs)、[轻量计划](../../src/Binary/StringEncodingPlan.cs)是本次机制依据。[RBF 正扫测试](../../tests/Rbf.Tests/Internal/RbfScanForwardTests.cs)是底座证据；冻结旧栈[不可变 tag 测试](../../tests/EventJournal.Tests/ImmutableTagTests.cs)与[书签消费者](../../../durable-graph/tests/DurableGraph.Persistence.Tests/RepositoryTagTests.cs)仅提供工作流背景，不引入旧 API/格式，也不构成本专项实施验收。

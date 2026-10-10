@@ -1,6 +1,6 @@
 # VersionStore：ref 记录时间与 TailMeta 格式
 
-日期：2026-10-10。状态：**Draft；用户采用固定 8B Unix 毫秒时间、以 TailMeta 长度判别元信息格式；VersionStore 尚未实施**。
+日期：2026-10-10。状态：**Draft；用户采用固定 8B Unix 毫秒时间、以 TailMeta 长度判别元信息格式；meta codec 与普通 ref 局部接线已进入 [骨架与后续实施计划](12-versionstore-implementation-plan.md) 的 V0，真实目录/历史/fork尚缺**。
 
 本文是 S4 的公共记录元信息子合同，不是新增实施阶段。规范底座为 [RBF 接口](../Rbf/rbf-interface.md)与[RBF 格式](../Rbf/rbf-format.md)。[S4](04-versionstore-publication.md)负责普通 ref 的 kind、header、root-payload envelope、结果定位及完整宿主尺寸；[S5](05-versionstore-names-and-indexes.md)负责历史/fork；[CU 候选](07-versionstore-cross-ref-conditional-update.md)负责联合提交资格。它们引用本合同，不各自定义时间编码。
 
@@ -42,7 +42,7 @@ CreateRef、ForkRef、PublishRef（含同值重发/rewind）MUST 为本次新记
 
 VersionStore 格式门/ref header 选择本层格式规则；记录形状由文件上下文、FrameTag 和 RbfFrameInfo.TailMetaLength 共同判别。TailMetaLength 不在 meta 中重复编码，不增加 version、flags、presence、padding 预留、Magic 或独立 CRC。现行 Snapshot 的 payload 是不透明 root bytes；CU payload 仍由自身 schema 定义，不能把 meta 长度当成所有 payload schema 的通用版本。
 
-对本次需要完整资格化的 Snapshot/CU，reader MUST 精确接受 8B；0B、短/长形状与其他未知长度报错，不回退旧 head、不当 CU 事务不完整、不自动截出已知前缀接受未知扩展。RefHeader 的 0B 由其 kind 合同另行允许，不表示无时间 Snapshot。VersionStore 尚未实施，首版 VersionStoreFormatVersion 仍为 1，不增加旧无时间草案兼容。
+对本次需要完整资格化的 Snapshot/CU，reader MUST 精确接受 8B；0B、短/长形状与其他未知长度报错，不回退旧 head、不当 CU 事务不完整、不自动截出已知前缀接受未知扩展。RefHeader 的 0B 由其 kind 合同另行允许，不表示无时间 Snapshot。首版 VersionStoreFormatVersion 为 1，不增加旧无时间草案兼容。
 
 **以后扩展的约束。** 同一记录 kind 的新 meta schema 只可在现有末尾追加确定宽度字段，每种已定义形状具有唯一长度，先前字段保持不变。当前不分配未来长度/字段，也不实现注册表、版本协商或动态可选字段。新 reader 接受哪些旧长度需在届时 schema 中列明；旧 reader 对未知长度仍拒绝。改变既有字段意义或不兼容 payload 时，须另作 FrameTag/所属格式版本决策，不能复用相同 meta 长度冒充同一形状。
 

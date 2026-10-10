@@ -1,6 +1,6 @@
 # VersionStore：Binary RootMap payload 专项
 
-日期：2026-10-10。状态：**Draft / key 的 Unicode 与 JSON 映射合同已由用户采用；RootMap 为首个可选应用 payload codec。VersionStore 尚未实施；bytes 公面已采用 11 专项；CU 尚未并入主线**。
+日期：2026-10-10。状态：**Draft / key 的 Unicode 与 JSON 映射合同已由用户采用；RootMap 为首个可选应用 payload codec。独立 RootMapCodec 已实施于 [骨架与后续实施计划](12-versionstore-implementation-plan.md) 的 V0；VS真实目录工厂尚缺，CU 尚未并入主线**。
 
 本文内聚 RootMap 的 key、wire 与容量合同，供选择该 codec 的应用显式使用；[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)、[tag 专项](09-versionstore-immutable-tags.md)及 [CU 候选](07-versionstore-cross-ref-conditional-update.md)只保存 opaque bytes。RootMap 是完整 string→FrameAddress 字典；RootMap 自有集合定义于本篇；bytes 自有结果由 11 公面专项定义；fork 来源一致性由 S5 `[A-VS-REF-HISTORY-CHECKED]` 定义，不消费字典内容比较，FrameAddress codec 由 S2 定义。
 
@@ -12,7 +12,7 @@ key 原样映射为 JSON 对象属性名：空串合法，Ordinal 区分大小�
 
 ## 应用 codec 公面与自有字典
 
-RootMapCodec 提供两个无 owner、无 I/O 的公开静态入口；这是待实施 API：
+RootMapCodec 提供两个无 owner、无 I/O 的公开静态入口；实现见 [RootMapCodec](../../src/VersionStore/RootMapCodec.cs)：
 
 - Encode(IReadOnlyDictionary<string, FrameAddress> roots) → AteliaResult<byte[]>：生成调用方拥有的精确长度数组，可作为 bytes 发布输入。
 - Decode(ReadOnlySpan<byte> payload) → AteliaResult<IReadOnlyDictionary<string, FrameAddress>>：要求整个输入 exact-consume，返回自有 Ordinal 冻结字典。
@@ -63,4 +63,4 @@ Decode 入口先检查实际输入为1..1MiB，容量及消费 MUST 按 reader �
 
 输入和磁盘解码均覆盖孤立 high/low surrogate、连续 high surrogate、字符串末尾截断 pair 的拒绝，以及合法 surrogate pair/emoji 的保留；空串、NUL、控制符、分隔符、U+FEFF、组合/预组合字符原样往返，后两者仍是不同 Ordinal key。合法 BPV UTF-16LE 但非有效 Unicode 的 key 在 RootMap 层拒绝，Binary reader 自身不收紧。JSON 转义解码后的重复 key 与有效 Unicode 映射由对应工具验收。
 
-既有 RootMap 探针曾接受未配对 surrogate，其结果保留历史身份；本次只调整设计接受域，没有重写探针或声称现行探针已验证新合同。
+既有 RootMap 探针曾接受未配对 surrogate，其结果保留历史身份；该历史探针未改写；当前接受域由 V0 的生产 RootMapCodec 与新增单元测试验证，不重标旧探针。

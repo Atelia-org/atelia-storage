@@ -1,6 +1,6 @@
 # S5：ref 历史、fork 与 tag 施工导航
 
-状态：**Draft；历史 visitor/预算/清理与 ForkOrigin/ListForks 合同已定，用户已采用旧点直接定位与初始内容延后检查；VersionStore 尚未创建，RBF 边界逆扫增量与实施/平台验收尚缺**。
+状态：**Draft；历史 visitor/预算/清理与 ForkOrigin/ListForks 合同已定，用户已采用旧点直接定位与初始内容延后检查；VersionStore 已建骨架，历史/fork、RBF 边界逆扫增量与对应实施/平台验收尚缺（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。
 本文负责历史、fork 与声明图查询；ref 格式/身份/编号及发布协议消费 [S4](04-versionstore-publication.md)，记录时间见 [08 专项](08-versionstore-record-metadata.md)，bytes 结果见 [11 专项](11-versionstore-root-payload-bytes-api.md)。不可变 tag 由 [09 专项](09-versionstore-immutable-tags.md)定义，安排在 ref、历史与 fork 之后施工。
 前置：[S0](00-architecture-decisions.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)。扩展 S4 的完整根快照与局部发布协议，不增加全局事实日志。
 

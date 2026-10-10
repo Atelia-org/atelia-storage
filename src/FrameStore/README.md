@@ -1,6 +1,6 @@
 # Atelia.FrameStore
 
-FrameStore 已实现 [S2](../../docs/FrameStore-VersionStore/02-framestore-core.md) 的公开持久化闭环：真实目录 `Create/Open/OpenReadOnly`、三种追加、交错 Builder、随机读取、同步耐久确认及归档。S2/S3 已取得[独立源码验收](../../docs/FrameStore-VersionStore/02-framestore-final-acceptance.md)。项目参加 solution 构建和测试，保持 source-only、暂不打包；VersionStore 尚未创建。
+FrameStore 已实现 [S2](../../docs/FrameStore-VersionStore/02-framestore-core.md) 的公开持久化闭环：真实目录 `Create/Open/OpenReadOnly`、三种追加、交错 Builder、随机读取、同步耐久确认及归档。S2/S3 已取得[独立源码验收](../../docs/FrameStore-VersionStore/02-framestore-final-acceptance.md)。项目参加 solution 构建和测试，保持 source-only、暂不打包；VersionStore 已建骨架，真实目录工厂尚未实施；见[续接计划](../../docs/FrameStore-VersionStore/12-versionstore-implementation-plan.md)。
 
 ```csharp
 using Atelia.FrameStore;
@@ -29,7 +29,7 @@ writer 的 `Length` 保留 RBF 已写/预留的逻辑累计长度，包含内部
 
 `StoreId` 是持久身份的 16 个 opaque bytes，`IsReadOnly` 表示访问模式。`RecoveryReports` 按 FileId 保留本次可写 Open 的物理恢复报告；Create/RO 为空。格式/布局不合格拒绝，真实 I/O 错误保持原异常；ReadFrame 的非法 default 地址和底座读取拒绝使用 Result，实际缺失路径仍抛文件缺失异常。owner 输出/清理故障后停止使用，Dispose 按单次释放规则先关数据、最后关锁，不隐式确认。
 
-`StoreId`、`IsReadOnly` 是纯保存值，fault/Dispose 后仍可读取，不能证明当前可用。为 VersionStore 借入选定的公共 `EnsureUsable()` **尚未实施**；其窄转发合同与新增验证见 [S2](../../docs/FrameStore-VersionStore/02-framestore-core.md) `[A-FS-ENSURE-USABLE]`，借入入口/持续责任见 [S4](../../docs/FrameStore-VersionStore/04-versionstore-publication.md) `[S-VS-DATA-BORROW]`。当前内部检查不等于已有公共 API 或新增 Accepted 资格。
+`StoreId`、`IsReadOnly` 是纯保存值，fault/Dispose 后仍可读取，不能证明当前可用。公共 `EnsureUsable()` 已直接转发现有内部检查；其窄转发合同见 [S2](../../docs/FrameStore-VersionStore/02-framestore-core.md) `[A-FS-ENSURE-USABLE]`，借入入口/持续责任见 [S4](../../docs/FrameStore-VersionStore/04-versionstore-publication.md) `[S-VS-DATA-BORROW]`。新增验证与 VS 骨架接线见[本轮记录](../../docs/FrameStore-VersionStore/12-versionstore-implementation-plan.md)，不重标原 Accepted 证据。
 
 成功的 `FrameRead` 独立拥有 buffer，需调用方 Dispose，可在 store 关闭后使用；已取得的 span 不得越过 FrameRead.Dispose。地址必须同时知道所属 store；不公开裸 RBF writer 或路径导入。
 

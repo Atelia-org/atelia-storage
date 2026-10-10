@@ -1,6 +1,6 @@
 # VersionStore：ConditionalUpdate 单帧跨 ref 事务候选
 
-状态：**Draft / 用户暂定的优先候选；协议推荐可正式选型，尚未并入S4/S5；VersionStore未实施，生产事务/进程终止/平台及包资格另取证**。本文负责CU的记录、共同判据、位置复用与读取算法；身份字段消费S4，时间消费[08专项](08-versionstore-record-metadata.md)，批量bytes公面消费[11专项](11-versionstore-root-payload-bytes-api.md)。
+状态：**Draft / 用户暂定的优先候选；协议推荐可正式选型，尚未并入S4/S5；VersionStore已有V0骨架，CU尚未实施；生产事务/进程终止/平台及包资格另取证**。本文负责CU的记录、共同判据、位置复用与读取算法；身份字段消费S4，时间消费[08专项](08-versionstore-record-metadata.md)，批量bytes公面消费[11专项](11-versionstore-root-payload-bytes-api.md)。
 
 比较基线：[Prepare + Commit 历史方案](extensions/obsolete/versionstore-cross-ref-prepare-commit-candidate.md)。现行合同：[S0](00-architecture-decisions.md)、[S1 已知尺寸追加](01-rbf-sized-append.md)、[S4 发布](04-versionstore-publication.md)、[S5 历史](05-versionstore-names-and-indexes.md)、[RBF 接口](../Rbf/rbf-interface.md)。可重复研究探针见 [VersionStoreConditionalUpdateProbe](../../experiments/VersionStoreConditionalUpdateProbe/README.md)。
 

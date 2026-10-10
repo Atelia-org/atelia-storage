@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- The staged implementation is source-only; package qualification is separate. -->
+    <StorageSourceOnly>true</StorageSourceOnly>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../FrameStore/FrameStore.csproj" />
+    <ProjectReference Include="../Binary/Binary.csproj" />
+    <ProjectReference Include="../Rbf/Rbf.csproj" />
+    <ProjectReference Include="../Data/Data.csproj" />
+    <ProjectReference Include="../Primitives/Primitives.csproj" />
+    <InternalsVisibleTo Include="Atelia.VersionStore.Tests" />
+  </ItemGroup>
+</Project>

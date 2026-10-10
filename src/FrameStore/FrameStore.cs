@@ -45,6 +45,10 @@ public sealed class FrameStore : IDisposable {
     /// <summary>本 owner 是否只读。</summary>
     public bool IsReadOnly { get; }
 
+    /// <summary>检查此 owner 尚未 Dispose 或进入 fault；不执行 I/O 或确认输出。</summary>
+    /// <remarks>允许只读 owner 与活跃 Builder。正常返回只证明检查时的生命周期资格，不保证后续操作成功。</remarks>
+    public void EnsureUsable() => _core.EnsureUsable();
+
     /// <summary>本次可写 Open 按文件编号记录的物理恢复报告；Create/只读打开为空。</summary>
     /// <remarks>报告不证明应用发布或此前调用成功，也不撤销已存在的完整帧。</remarks>
     public IReadOnlyDictionary<uint, RbfTailRecoveryReport> RecoveryReports { get; }

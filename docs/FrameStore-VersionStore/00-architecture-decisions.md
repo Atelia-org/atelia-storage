@@ -1,6 +1,6 @@
 # S0：总体边界与决策
 
-日期：2026-10-03–10 逐步确认 FrameStore 核心、RootMap 发布与 ForkOrigin；2026-10-10 新增 FrameAddress 变长 codec，并采用无 branch 名称、持久预留低号区、自动/预留区指定创建及单文件 ref 发布。状态：**会话方向已确认；S2/S3 独立源码验收 Accepted，新增地址能力单独验证；S4–S6 仍 Draft，VersionStore 尚未实施；参考依赖拆分 Accepted**。
+日期：2026-10-03–10 逐步确认 FrameStore 核心、RootMap 发布与 ForkOrigin；2026-10-10 新增 FrameAddress 变长 codec，并采用无 branch 名称、持久预留低号区、自动/预留区指定创建及单文件 ref 发布。状态：**会话方向已确认；S2/S3 独立源码验收 Accepted，新增地址能力单独验证；S4–S6 仍 Draft，VersionStore 已建 source-only 骨架、真实目录工厂尚缺；参考依赖拆分 Accepted**。
 本文件记录本次用户已表达的决策。规范写法依 [规范约定](../spec-conventions.md)。API/wire 的具体选择由后续阶段细化。
 
 ## term `FrameStore` 中性的 Frame 存储库
@@ -207,7 +207,7 @@ FrameStore 核心为多个 active 文件的独占租借与目录归档，不提�
 
 VersionStore 借入一个 data FrameStore，拥有独立发布目录；44B 格式门绑定双身份与不可变预留上界。ref 直接位于 `refs/<8hex>.rbf`，tag 按稳定名称哈希分桶；应用语义不进入 ref 文件名。正式路径见 S4 `[F-VS-REF-PATHS]`，唯一private工作文件见 `[S-VS-CREATING-WORKSPACE]`，tag正式路径由 [S5-B 专项](09-versionstore-immutable-tags.md) 定义，旧参考库不进入依赖。
 2026-10-09 门内容与绑定检查已定于 S4 `[F-VS-OWN-FORMAT]`：独立普通定长记录，借入身份匹配且必要关闭成功后才进入本次 Open 的发布文件恢复/私有清理/输出。2026-10-10 建库/根锁/随机VSID/工作区合同另已定稿，直接消费 `[S-VS-DIRECTORY-LIFECYCLE]` 与 S4；RBF3 约束用于发布帧文件，不将两层格式版本合为一个版本，协议闭合不证明VS平台或运行验收。
-2026-10-10 借入准入定稿于 S4 `[S-VS-DATA-BORROW]`：工厂在本次 VS I/O 前消费 S2 `[A-FS-ENSURE-USABLE]` 的窄 guard，再核对模式与身份；调用方负责持续串行及 data 生命周期。该公共转发尚未实施，不能用纯身份/模式属性代替检查或从原 FrameStore Accepted 推定新增资格。
+2026-10-10 借入准入定稿于 S4 `[S-VS-DATA-BORROW]`：工厂在本次 VS I/O 前消费 S2 `[A-FS-ENSURE-USABLE]` 的窄 guard，再核对模式与身份；调用方负责持续串行及 data 生命周期。该公共转发已在 [骨架与后续实施计划](12-versionstore-implementation-plan.md) 所述 V0 实施；不能用纯身份/模式属性代替检查，也不从原 FrameStore Accepted 推定新增资格。
 
 完整 payload 使当前值无需 replay 历史或递归祖先；历史沿本地帧链/ForkOrigin 遍历发布前缀，返回自有 bytes。自动/指定 ForkRef 同文件发布精确来源与完整初始快照；CreateRef(payload) 是独立起点。全分叉图从正式首帧派生，应用名称映射不产生新边。
 
@@ -244,7 +244,7 @@ IO/发布尝试后结果可能 Unknown；完整记录可在重开后存在。首
 | RBF3 create/open/recovery 及串行、资源异常边界 | 当前 [接口规范](../Rbf/rbf-interface.md)和 [70d1009 随附验收](../Rbf/rbf3-review-repairs-acceptance.md)；本次未重跑 |
 | 精确尺寸公共 API、提前 ticket Builder、格式投影 | [S1](01-rbf-sized-append.md) 已 Accepted；实现 `8ab98bf`、RBF 818/818 与 W: public 源码消费等身份见[阶段验收](01-rbf-sized-append-acceptance.md) |
 | main 参考依赖拆分及三包交付入口 | [过渡验收](../rbf1-reference-transition.md#6-验收记录) Accepted；1525/1525、七个旧栈 assets 图及 `4db3b8f` 的 W: 三包候选消费通过，不重标 S1 历史结果 |
-| FrameStore 与其测试项目 / VersionStore | FrameStore 已有[公开持久化闭环](02-framestore-persistence-implementation.md)及[同步物理检查](02-framestore-inspection-implementation.md)，S2/S3独立源码Accepted、暂不打包；VersionStore尚未创建，D3设计闭合不提供实现资格 |
+| FrameStore 与其测试项目 / VersionStore | FrameStore 已有[公开持久化闭环](02-framestore-persistence-implementation.md)及[同步物理检查](02-framestore-inspection-implementation.md)，S2/S3独立源码Accepted、暂不打包；VersionStore已有[骨架与后续实施计划](12-versionstore-implementation-plan.md)，真实目录工厂尚缺；D3设计闭合不提供系统验收资格 |
 | 新根发布模型 | 本次需求与候选设计，尚无实现证据 |
 | DurableGraph 当前接口及接入 | 2026-10-04 已定位兄弟仓；生产代码仍使用未知尺寸 Begin/End，无新 API 接入证据，不以历史 tag 文档代替实证 |
 

@@ -2,7 +2,7 @@
 
 状态：**Accepted（2026-10-10，独立源码与已验证 Windows/Linux 环境资格）**。公开持久化闭环、同步物理检查及完整验收映射见[最终源码验收](02-framestore-final-acceptance.md)；FrameStore 保持 source-only，包交付另行验收。
 2026-10-10 新增 `[F-FS-FRAME-ADDRESS-VARINT]` 变长 codec 合同；前轮 Accepted 仍对应原验收范围，新增 API 的源码与消费资格由本轮[独立实施验证](02-framestore-varint-address-implementation.md)另记，不从前轮结果推定。本新增能力不改变 FrameStore 文件格式、格式版本或 fixed12 codec。
-2026-10-10 为 VersionStore 借入准入补充 `[A-FS-ENSURE-USABLE]`：窄公共 guard 的设计已定，公共转发及新增测试尚未实施；不从原 Accepted 或地址 codec 验证推定该入口可用。
+2026-10-10 为 VersionStore 借入准入补充 `[A-FS-ENSURE-USABLE]`：窄公共 guard 的转发及新增测试已纳入 VersionStore [骨架与后续实施计划](12-versionstore-implementation-plan.md) 的 V0；实际新增验证单独记录，不从原 Accepted 或地址 codec 验证推定。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)。本阶段独立于发布和命名层。
 
 当前代码与验证边界见[同步物理检查记录](02-framestore-inspection-implementation.md)及[公开持久化闭环记录](02-framestore-persistence-implementation.md)，前片格式/运行内核证据见[首个源码切片](02-framestore-core-implementation.md)；下文仍是完整 S2 合同，不以功能实现替代完整系统验收。
@@ -46,7 +46,7 @@ StoreId 为创建时生成的随机非零 128-bit 值，以 16 个 opaque bytes 
 
 ### spec [A-FS-ENSURE-USABLE] 窄公共入口检查 owner 生命周期
 
-为上层借入 owner 的入口准入提供以下公面；这是新增待实施合同：
+为上层借入 owner 的入口准入提供以下公面；转发已实施，新增验证见 [骨架与后续实施计划](12-versionstore-implementation-plan.md)：
 
 ```csharp
 public void EnsureUsable();
@@ -56,7 +56,7 @@ MUST 直接转发到现有 `FrameStoreCore.EnsureUsable()`：先检查 disposed�
 
 `StoreId`、`IsReadOnly` 保持纯保存值的属性语义，fault/Dispose 后仍可读取；它们不执行此 guard，也不证明实例当前可用。EnsureUsable 不承诺磁盘健康、文件仍存在、引用闭包、耐久或后续操作成功，不签发 lease、health 枚举或持续可用保证。检查与后续操作继续由调用方串行；不会为并发 Dispose/fault 竞争加锁。上层如何消费入口检查及承担借用期间责任，由 [S4](04-versionstore-publication.md) `[S-VS-DATA-BORROW]` 定义。
 
-实施验收覆盖正常可写/只读、disposed/faulted 拒绝及 disposed 优先，验证纯属性保持可读；借助现有故障注入和文件操作计数，验证检查不访问底座、不确认待确认输出、不结束或撤销活跃 Builder，并能继续按原流程完成/取消和确认。现有内部 guard 是可执行机制依据，公共转发与这些新增消费向量仍须另取源码证据；不修改原验收记录或 FrameStore 持久格式。
+实施验收覆盖正常可写/只读、disposed/faulted 拒绝及 disposed 优先，验证纯属性保持可读；借助现有故障注入和文件操作计数，验证检查不访问底座、不确认待确认输出、不结束或撤销活跃 Builder，并能继续按原流程完成/取消和确认。现有内部 guard 是可执行机制依据，公共转发与这些新增消费向量的源码证据另记于 V0；不修改原验收记录或 FrameStore 持久格式。
 
 ### spec [S-FS-OWNER-LOCK] 同一控制文件协调整个 owner 生命周期
 

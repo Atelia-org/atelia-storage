@@ -1,0 +1,43 @@
+using System.Buffers.Binary;
+using Atelia.Data.Hashing;
+
+namespace Atelia.VersionStore.Internal.Format;
+
+internal readonly record struct FormatGate(
+    StoreIdentity VersionStoreId, StoreIdentity DataStoreId, uint ReservedRefIdUpperBound);
+
+/// <summary>44B 普通格式门记录；不执行 I/O，也不证明实际根或 borrowed data 绑定资格。</summary>
+internal static class FormatGateCodec {
+    internal const uint CurrentVersion = 1;
+    internal const int EncodedSize = 44;
+
+    internal static bool TryRead(ReadOnlySpan<byte> source, out FormatGate gate) {
+        gate = default;
+        if (source.Length != EncodedSize || !RollingCrc.CheckCodewordForward(source)) { return false; }
+        if (BinaryPrimitives.ReadUInt32LittleEndian(source) != CurrentVersion ||
+            !StoreIdentity.TryRead(source.Slice(4, StoreIdentity.EncodedSize), out StoreIdentity versionStoreId) ||
+            !StoreIdentity.TryRead(source.Slice(20, StoreIdentity.EncodedSize), out StoreIdentity dataStoreId)) {
+            return false;
+        }
+
+        uint upperBound = BinaryPrimitives.ReadUInt32LittleEndian(source[36..]);
+        if (upperBound == uint.MaxValue) { return false; }
+        gate = new FormatGate(versionStoreId, dataStoreId, upperBound);
+        return true;
+    }
+
+    internal static bool TryWrite(FormatGate gate, Span<byte> destination) {
+        if (gate.VersionStoreId == default || gate.DataStoreId == default ||
+            gate.ReservedRefIdUpperBound == uint.MaxValue || destination.Length < EncodedSize) {
+            return false;
+        }
+
+        Span<byte> record = destination[..EncodedSize];
+        BinaryPrimitives.WriteUInt32LittleEndian(record, CurrentVersion);
+        gate.VersionStoreId.TryWrite(record.Slice(4, StoreIdentity.EncodedSize));
+        gate.DataStoreId.TryWrite(record.Slice(20, StoreIdentity.EncodedSize));
+        BinaryPrimitives.WriteUInt32LittleEndian(record[36..], gate.ReservedRefIdUpperBound);
+        RollingCrc.SealCodewordForward(record);
+        return true;
+    }
+}

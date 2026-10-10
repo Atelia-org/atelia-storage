@@ -1,6 +1,6 @@
 # S4：VersionStore 不透明根 payload 与单文件 ref 发布
 
-状态：**Draft；单文件 ref、身份/编号、创建/打开、ForkOrigin 与 PublicationOutcome 合同已定；公共借入 guard、VersionStore 项目及运行/平台验收尚未实施**。
+状态：**Draft；单文件 ref、身份/编号、创建/打开、ForkOrigin 与 PublicationOutcome 合同已定；V0 已实现公共借入 guard、项目骨架与关键局部；真实目录工厂及系统/平台验收尚缺（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。
 本文负责发布协议、身份与 ref envelope；时间编码见 [08 元信息专项](08-versionstore-record-metadata.md)，bytes API/所有权见 [11 公面专项](11-versionstore-root-payload-bytes-api.md)，可选 RootMap codec 见 [10 专项](10-versionstore-rootmap-payload.md)。首版版本为 1，不兼容未实施的旧草案。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)。历史与不可变 tag 见 [S5](05-versionstore-names-and-indexes.md)。
 
@@ -25,7 +25,7 @@ Create、Open、OpenReadOnly MUST 接收实际借入的非 null data FrameStore�
 
 只读 VersionStore 不修改、恢复或确认 data；调用方自行使用借入可写 data 仍受串行合同约束。模式准入不要求 data 零活跃 Builder、不确认输出、不完成或取消 Builder；发布时的完成依赖与 data barrier 继续按既有合同判断。VS 自身的根/锁、门建立和工作区另消费本篇已定合同。
 
-入口 guard 的异常原样传播，不签发 VersionStore owner，不产生本次 VS 持久化副作用；后续模式拒绝、门/绑定或 VS 初始化失败也不得 fault/Dispose 健康的借入 data。已打开 data 在借入前按自身合同执行的恢复或输出不属于本次 VS 入口检查。公共 guard 当前尚未实施，生产 VS 工厂消费它之前必须补齐该窄转发与对应验证，不能仅凭 `StoreId` / `IsReadOnly` 宣称已经完成生命周期检查。
+入口 guard 的异常原样传播，不签发 VersionStore owner，不产生本次 VS 持久化副作用；后续模式拒绝、门/绑定或 VS 初始化失败也不得 fault/Dispose 健康的借入 data。已打开 data 在借入前按自身合同执行的恢复或输出不属于本次 VS 入口检查。公共 guard 已在 V0 实施，生产 VS 工厂仍须按上述顺序消费它，不能仅凭 `StoreId` / `IsReadOnly` 宣称已经完成生命周期检查。
 
 调用方 MUST 在 VersionStore 借用期间保持同一 data owner 未 Dispose、未 fault，并将两层相关操作和 Dispose 串行化；不得在同步调用或其输入/visitor 回调中插入不受合同允许的借入 data 操作。入口检查不维持租借、不监控后续状态，不为所有纯发布目录查询新增 data 探测或违约诊断保证；真正的 data 读/屏障继续消费 FrameStore 自己的生命周期与 fault guard。data 后续 fault 时停止依赖它的 VS 流程，并按两层既有规则清理/重开；VS 操作已经触发 data/源确认异常时，仍按 `[A-VS-PUBLICATION-EVIDENCE]` 停用 VS，不改变 PublicationOutcome。
 
