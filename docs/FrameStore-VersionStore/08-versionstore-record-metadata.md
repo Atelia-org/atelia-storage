@@ -50,7 +50,7 @@ VersionStore 格式门/ref header 选择本层格式规则；记录形状由文�
 
 reader MUST 从经校验的实际 RbfFrameInfo 或完整 RBF 帧取得 TailMetaLength 判形，不能从“目前读到多少 bytes”、Ticket.Length 或带 padding 的长度猜 schema。本地扫描已提供 FrameInfo 的路径，先检查 kind/meta/tombstone 与宿主完整尺寸再租完整帧；CU peer 的 exact-first 路径按 wanted ticket 检查必要容量界，允许直接完整读取后取得实际 meta 长度，不额外调用 ReadFrameInfo(oldTicket)。最终须具备 framing/TrailerCRC、PayloadCRC、发布 envelope/实际 payload 长度与精确 meta 形状资格才交付自有结果。必要记录截短、未知长度或坏内容沿所属错误通道传播。
 
-本条只约束本次需要完整资格化的记录。CU 已以实际异长 ticket 与必要结构否定旧成员、已取得不完整见证而未访问的其他 peer，以及历史定位中的无关源后缀，均不因此增加 VersionStore meta 判形或内容审计；其已观察到的 RBF 结构/I/O 错误仍按既有路径传播。未知 meta 长度不能把本地/同 ticket 必要记录的解码错误降成 CU 不完整，也不能反向扩大已有结构定位的职责。
+本条只约束本次需要完整资格化的记录。CU 已以实际异长 ticket 与必要结构否定旧成员、已取得不完整见证而未访问的其他 peer，均不因此增加 VersionStore meta 判形或内容审计；S5 旧 fork 点采用精确读取/边界逆扫，不访问源在分叉点之后的后缀，CU 异长消歧仍可能结构扫描 peer 后缀。其已观察到的 RBF 结构/I/O 错误仍按既有路径传播。未知 meta 长度不能把本地/同 ticket 必要记录的解码错误降成 CU 不完整，也不能反向扩大已有结构定位的职责。
 
 RBF ReadTailMeta/ReadPooledTailMeta 仅提供 L2 预览：TrailerCRC 保护长度描述符，不保护 meta bytes；PayloadCRC 覆盖 payload、TailMeta 和 padding。预览不能签发 checked 时间/RefBytesSnapshot/RefRevision，也不能决定 CU 生效。正常 checked 读取已经完整验证整帧，不再为时间字段添加一份 CRC 或额外 I/O。
 
@@ -62,7 +62,7 @@ RBF ReadTailMeta/ReadPooledTailMeta 仅提供 L2 预览：TrailerCRC 保护长�
 
 （Informative）按当前 RBF3 的 4B 对齐，原 meta0 改为 meta8，任意合法相同 payload 的 FrameLength/AppendLength 均增加 8B。空 RootMap payload=1B 的 Snapshot 从 32B 增至 40B；9B 的 version+时间方案会增加 8B 或 12B，因此首版不保留该 version 字节。header/SourceSnapshotTicket 范围、完整 Snapshot 容量与初始化后界只在 S4 推导，不在本专项重复维护。
 
-首个安全实施片是普通 Snapshot 的 meta8 写入、完整读回与 RefBytesSnapshot 时间属性；随后历史/fork/rewind 复用同一 codec，CU 接纳时复用一次取时与固定 meta。实施向量须覆盖 `0`、`-1`、完整高位/极值、受控取时重复/回退、同值重发/子初始重新取时（允许同值）、必要记录未知/截短长度与坏内容不回退，以及 CU 尺寸预测/共享时间、异长替代与无关源后缀不增加 meta 审计。wire 极值测试不表示系统时钟能正常生成这些日期；时钟控制可由内部测试机制完成，不因此增加公开时钟 API。
+首个安全实施片是普通 Snapshot 的 meta8 写入、完整读回与 RefBytesSnapshot 时间属性；随后历史/fork/rewind 复用同一 codec，CU 接纳时复用一次取时与固定 meta。实施向量须覆盖 `0`、`-1`、完整高位/极值、受控取时重复/回退、同值重发/子初始重新取时（允许同值）、必要记录未知/截短长度与坏内容不回退，以及 CU 尺寸预测/共享时间、异长替代/消歧的无关 peer 后缀不增加 meta 审计，旧 fork 点不扫描源后续更新。wire 极值测试不表示系统时钟能正常生成这些日期；时钟控制可由内部测试机制完成，不因此增加公开时钟 API。
 
 时间字段独立 golden：`0` → `00 00 00 00 00 00 00 00`；`-1` → `FF FF FF FF FF FF FF FF`；`0x0102030405060708` → `08 07 06 05 04 03 02 01`；`long.MinValue` → `00 00 00 00 00 00 00 80`；`long.MaxValue` → `FF FF FF FF FF FF FF 7F`。不以相同 encoder round-trip 代替这些符号/端序向量。
 

@@ -6,7 +6,7 @@
 
 ## 本轮结论与需求来源
 
-将每 ref 的 Prepare/Commit 合并为一条 ConditionalUpdate 可以保持原子性，同时将一批 k 个 ref 的记录数从 2k 降为 k，去掉两帧邻接判定。最小条件是：**每份成员表包括自身并绑定其实际 ticket；全部指定成员均为完整合法 CU 且完整成员表相等；每次内部调用为所有成员写 fresh CU，不补写旧组**。读取统一采用“精确完整读；歧义失败时定位实际槽位”的窄函数，无需新 RBF API。
+将每 ref 的 Prepare/Commit 合并为一条 ConditionalUpdate 可以保持原子性，同时将一批 k 个 ref 的记录数从 2k 降为 k，去掉两帧邻接判定。最小条件是：**每份成员表包括自身并绑定其实际 ticket；全部指定成员均为完整合法 CU 且完整成员表相等；每次内部调用为所有成员写 fresh CU，不补写旧组**。CU 成员裁决采用“精确完整读；歧义失败时定位实际槽位”的窄函数，消费现有 RBF public API；S5 继承历史所需的指定边界逆扫是独立待实施增量，见[RBF 计划](../Rbf/rbf-reverse-boundary-plan.md)。
 
 事务资格只需“完整 / 不完整”布尔判据，读取失败沿现有错误通道传播，不增加第三种持久事务状态。未完成 peer 的位置可被新记录复用：**实际 ticket 不同且必要结构检查通过，就足以否定旧成员，不审计替换 payload**；实际 ticket 相同时，仍须完整校验必要记录，再判断普通 RootMap 或异表 CU。按旧 SizedPtr 读取失败不能直接当作损坏，也不能一律吞成不完整。
 
@@ -183,7 +183,7 @@ RBF `TailOffset` 属性本身不检查 Dispose/fault，必须保留扫描入口�
 
 ### 当前值、历史与观察稳定性
 
-ReadRef 从本地真实 RBF 逆向链读：合法普通 Snapshot 直接交付自有 bytes；CU 全组成立才返回，不成立则继续向前。任何实际发现的错误不回退。ReadRefHistory 复用同一判据；每条成立 CU 产生一次发布 revision，未成立 CU 不进入发布历史；同值发布与 rewind 仍是不同位置的 revision。CU 的 root payload 和发布证据就在同一帧，RefRevision 自然锚定其实际 ticket，只在接受后签发；owned、固定完成上界、预算与 owner mutation guard 保持。
+各入口仍先校验本地 header；ReadRef 不预读初始 payload，历史按 S5 逐项校验，ListForks 只检查 header 与声明图。CU 全组成员资格决定本次发布是否生效，仍须在读取时执行，不能移到独立完整校验中。ReadRef 从本地真实 RBF 逆向链读：合法普通 Snapshot 直接交付自有 bytes；CU 全组成立才返回，不成立则继续向前。任何实际发现的错误不回退。ReadRefHistory 复用同一判据；每条成立 CU 产生一次发布 revision，未成立 CU 不进入发布历史；同值发布与 rewind 仍是不同位置的 revision。CU 的 root payload 和发布证据就在同一帧，RefRevision 自然锚定其实际 ticket，只在接受后签发；owned、固定完成上界、预算与 owner mutation guard 保持。
 
 已完整组的资格对正常后续追加稳定。一个**已成功判为 Uncommitted**的旧组，也不能被未来 fresh 操作复活：缺席或合法替代的见证已经过底层结构裁决。延后打开的 peer 若还能 CompletedTail，说明旧组尚未被成功判作缺席；恢复原 body 可以作为崩溃前 Unknown 操作的接受结果，不能先成功返回“缺席”再采用同一原 body。无需为覆盖式 PublishRef 强制读取所有前一组成员；若增加新观察/并发模型，须另审这种恢复解释。
 
@@ -216,7 +216,7 @@ ReadRef 从本地真实 RBF 逆向链读：合法普通 Snapshot 直接交付自
 
 写入只触及本批 k 个 ref。每个组的精确 ticket 校验只访问它的成员与必要 bytes，不需要所有 N 个 Heads；全部 k 张完整表比较仍是 O(k²) 元数据工作，并需读取所选 peer 的完整帧 bytes/CRC；不解析其 RootMap 内容。已成立组的精确读取不扫描 peer 后续历史。连续失败后缀的本地逆扫会累积；异长消歧可能扫描 peer 后缀及真实前驱，再作一次结构后继查询，但不读替换 payload。一次 ReadRef 回退多个旧 CU 时，读取范围是这些被检查组成员集合的并集，不能宣称始终只读最终成立组的成员。
 
-ReadRefHistory 共用 S5 的 MaxSnapshots / MaxWorkSteps：只有向 visitor 交付成立的发布记录才计一项快照；每次进入 peer、forward/reverse MoveNext 尝试和完整帧读取均按既有规则计一步，包括无输出的组验证和失败定位。CU 异长消歧的 ReadFrameInfoImmediatelyAfter 结构后继查询另计一步，正式接纳时须补入 S5 的计费表；每个动作前检查并扣费。复用已读本地 CU 不重复计一次 peer 读取；peer 访问不加入 ForkOrigin 继承路径的 visited，也不递归另一组。
+ReadRefHistory 共用 S5 的 MaxSnapshots / MaxWorkSteps：只有向 visitor 交付成立的发布记录才计一项快照；每次进入 peer、forward/reverse MoveNext 尝试和完整帧读取均按既有规则计一步，包括无输出的组验证和失败定位。CU 异长消歧的 ReadFrameInfoImmediatelyAfter 结构后继查询另计一步，正式接纳时须补入 S5 的计费表；每个动作前检查并扣费。继承历史的 source anchor 完整读、GetScanBoundaryAfter 与指定边界 ScanReverse 的完整读也按 S5 计费；CU 异长槽位消歧仍保留自身的后缀定位路径，不能借这份历史优化省略。复用已读本地 CU 不重复计一次 peer 读取；peer 访问不加入 ForkOrigin 继承路径的 visited，也不递归另一组。
 
 预算耗尽或取消不是 Uncommitted 见证，不能继续回退并把旧值作为成功结果；历史按既有预算/结束合同报告未完成范围，不声称全历史已验证。bytes、底层物理 I/O 与文件工厂内部检查/恢复另作成本测量，不新增字节预算或 ReadRef/ForkRef 预算参数；工作步仍不是固定读取范围或时延保证。
 

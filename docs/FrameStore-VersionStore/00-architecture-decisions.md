@@ -215,7 +215,7 @@ RefId 是稳定对象身份；RefRevision 只表示已完成快照的位置，�
 RefId 完整上下文/default/内部 4B 字段见 S4 `[F-VS-REF-ID-4B]`；LocalId 导出与库上下文 checked 定位见 `[A-VS-LOCAL-REF-LOOKUP]`。RefRevision 保存完整 RefId/ticket，无 owner/epoch 或整体 codec。创建编号见 `[S-VS-REF-ID-DOMAINS]`：持久 L 划分手动低号/自动高号，冷开完整发现恢复 H，自动 H+1，低号不推进 H，无持久 next counter；已发布身份不复用，Max 仅拒绝自动创建。实际根/工作区/随机身份/初始化合同已定，具体窄平台复用与代码/中断资格留实施；ListRefs只发现正式路径身份，不审计快照。
 bytes 公面与所有权唯一见 [11专项](11-versionstore-root-payload-bytes-api.md)：同步 Span 输入、屏障前私有捕获，CreateRef/PublishRef/ForkRef 返回 RefRevision，ReadRef/历史交付 RefBytesSnapshot，ResolveTag 交付 RootPayload，CreateTag 成功返回 true。无结果 Dispose、公开可写 backing、codec callback 或猜格式。RootMapCodec 的输入/冻结解码、Unicode与wire独立见 [10专项](10-versionstore-rootmap-payload.md)，发布核心不调用它。ref header24/36、opaque Snapshot与meta、恢复后完整准入见 S4；tag 桶合同见09。方案定稿与既有探针不构成新库运行/平台/资源资格。
 
-CreateRef/PublishRef/CreateTag/ForkRef 在发布 root payload 前同步 data ConfirmDurable，无可复用 receipt；无关 Builder 不阻断，应用保证必要依赖完成。tag 每次完整校验目标桶、不保留跨调用索引，统一 header 版本与初始化/唯一性见 [S5-B 专项](09-versionstore-immutable-tags.md)，不保证名称查询 O(1)。payload/桶/文件容量由 bytes 长度、envelope 及公共尺寸 API 计算。
+CreateRef/PublishRef/CreateTag/ForkRef 在发布 root payload 前同步 data ConfirmDurable，无可复用 receipt；无关 Builder 不阻断，应用保证必要依赖完成。tag 每次沿目标桶可靠帧结构扫描，仅裁决请求名称，不保留全名集合或跨调用索引；名称上限、局部损坏隔离、header 初始化与唯一性见 [S5-B 专项](09-versionstore-immutable-tags.md)，不保证名称查询 O(1)。payload/桶/文件容量由 bytes 长度、envelope 及公共尺寸 API 计算。
 
 VersionStore 内部投影安装与消费者安装应用状态分别负责。发布已确认后前者失败仍保留 Confirmed 并停用库实例，完整受控teardown先失效、非锁owned资源单次逐一清理、锁最后；应用安装失败时，从实际已发布 bytes 自行解码重新加载，不撤销发布、不要求业务 callback。同步 mutation 的 Result/必选 out PublicationOutcome 及公开 Append/flush/rename 证据边界由 S4 `[A-VS-PUBLICATION-EVIDENCE]` 定稿；该证据不持久化，自动创建异常不保证交付丢失的 RefId。外部工具 exactly-once 和模拟确定性不是存储层保证。
 

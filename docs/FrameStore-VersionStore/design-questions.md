@@ -61,14 +61,14 @@ FrameStore 核心是不透明分配/随机读取；VersionStore 发布完整 opa
 | ref 是否首版分段/轮转 | 每 ref 一个 RBF3 文件，容量硬界显式拒绝；分段为后续局部片 |
 | 当前值是否必须 replay / checkpoint | 完整读取末快照即可；无差分和派生缓存前置 |
 | Gym 历史选点是否要求每帧 parent / 随机 revision 读 | 文件顺序 + 首帧 ForkOrigin 接续完整发布前缀；按 revision fork 内部重读，不开放随机 ReadRevision |
-| 是否需要持久反向分叉索引 | S5 已定 ListForks 单次完整首两帧/全图检查、自有只读边列表与全部正式节点计费的 maxRefs；不写源孩子表/持久索引，跨调用反向缓存延期 |
+| 是否需要持久反向分叉索引 | S5 已定 ListForks 单次完整 header/全图检查、自有只读边列表与全部正式节点计费的 maxRefs；不写源孩子表/持久索引，跨调用反向缓存延期 |
 | tool-loop 是否需要存储精确尝试 token / CAS | 单 driver + 应用 phase/operationId/generation；首版重开读实际状态 |
 | 发布失败证据和应用续跑如何衔接 | S4 已定 Result/必选 out 三态、公开尝试/确认边界及完整停用teardown/锁最后；重开恢复实际状态，不精确认领自动创建旧调用，S6 保留外部 uncertain 政策 |
 | 无关 Builder 是否阻断根发布 | 不阻断；应用保证本根新增依赖完成，data 先确认全部必要完成输出，根后发布 |
 | 活跃 Builder 是否阻断旧帧随机读取 | 不阻断已完成前缀内的指定地址读取；未完成/跨边界先拒绝，扫描相关资格未放宽 |
 | 读结果与物理检查如何交付 | S2 已定自有 FrameRead、纯值 inventory、完整 CRC audit 与同步 visitor guard；不外泄 reader/枚举器，不以部分回调或结构扫描称全库内容健康 |
 | 历史选点与遍历预算如何交付 | S5 已定同步 bool visitor、自有 RefBytesSnapshot、返回数/工作步预算与单次调用清理；正常 Complete/VisitorStopped，预算专用失败，不外泄 sequence/epoch/cursor |
-| tag 名称/容量/路由与桶协议 | [S5-B 专项](09-versionstore-immutable-tags.md)已定用户采用的 non-null/non-empty Ordinal 名称、BPV 普通 string、RBF 完整记录硬界/共享名称准入，以及固定 FNV64/fold/256桶/8hex 路径；既有初始化保护、完整扫描及 data-first/Outcome 迁入，靠后施工，不保留跨调用索引 |
+| tag 名称/容量/路由与桶协议 | [S5-B 专项](09-versionstore-immutable-tags.md)已定用户采用的 non-null/non-empty Ordinal 名称与1024 UTF-16 code units上限、BPV分配前限界，以及固定 FNV64/fold/256桶/8hex 路径；保留初始化保护及 data-first/Outcome，日常按请求名称裁决，健康命中隔离局部坏项，名称不确定时拒绝缺失/创建，靠后施工，不保留跨调用索引 |
 | ref 是否承担应用名称映射 | 不承担；应用常量使用预留号，动态目录保存 LocalId 并在正确库 checked 定位；命名 tag 独立保留 |
 | 指定编号是否影响自动发号 | 仅允许 1..L 指定，自动高号与其不交叠；低号不推进 H，L 创建时持久且不可变，不预创建对象 |
 | 基础地址是否保持 16B 或带 SmartPointer 见证 | 固定 12B 与显式变长 codec，完整 uint FileId + SizedPtr；无预留/内容 CRC，wire 与内存成本分离 |
@@ -77,14 +77,14 @@ FrameStore 核心是不透明分配/随机读取；VersionStore 发布完整 opa
 | VersionStore 建库/门/根锁/工作区 | S4 `[R-VS-STORE-CREATE]`、`[S-VS-ROOT-ADMISSION]`、`[S-VS-OWNER-LOCK]`、`[R-VS-STORE-OPEN]` 与 `[S-VS-CREATING-WORKSPACE]` 已定：直接44B门、随机非零VSID、永久空锁、唯一pending可写取消/只读保留；不续作半初始化，不做私有内容/目标对照。代码接线与平台/中断验收留实施 |
 | 借入 data 的入口可用性与持续责任 | S4 `[S-VS-DATA-BORROW]` 已定 VS 工厂先于自身 I/O 检查、模式配对及调用方持续责任；S2 `[A-FS-ENSURE-USABLE]` 仅转发现有内部 disposed/fault guard，公共转发与集成证据留实施，不重开健康查询框架 |
 | ref记录是否需要独立version/时间机制 | [S4元信息专项](08-versionstore-record-metadata.md)已定固定8B原始Unix毫秒、精确长度判形/末尾扩展、私有一次取时与完整内容资格；无独立version/时钟水位，S4/S5/CU分别消费，实施向量不重开设计 |
-| 可变初始 Snapshot 是否需要恢复前保护 | 2026-10-10 用户采用 S4 `[R-VS-LOCAL-COMPLETE]`：private 完整 flush/close→rename 发布与正式 ref 读取各自承担责任；先按现有 public RBF 恢复，再检查必要首两帧/内容，接受恢复后初始化完整，不增加前缀 API/初始化账本；原阻塞移出，运行时验收随实施 |
+| 可变初始 Snapshot 是否需要恢复前保护 | 2026-10-10 用户采用 S4 `[R-VS-LOCAL-COMPLETE]`：private 完整 flush/close→rename 发布与正式 ref 读取各自承担责任；先按现有 public RBF 恢复，再检查 header 与本次实际需要的记录；不以初始 payload 健康作为所有日常读取的准入。创建/实际到达初始节点/独立完整校验仍检查初始化，接受恢复后初始化完整，不增加前缀 API/初始化账本；原阻塞移出，运行时验收随实施 |
 | VersionStore 身份/定位/编号及集合发现 | 完整 RefId/LocalId、RefRevision/bytes 公面/ref envelope 格式、8hex/两域分配与目录生命周期已定；S4 `[A-VS-REFS-DISCOVERY]` 交付正式路径的自有 RefId 全集合，不审计内容或签 revision；精确 revision codec 延期 |
 
 以上各项统一见 [S0](00-architecture-decisions.md) 与相应 [S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。本表只导航，不建立第二套规范。
 
 ## 设计与关键实现方案待定
 
-当前为空。tag 的名称/容量/路由、完整扫描与发布合同已内聚于 [S5-B 专项](09-versionstore-immutable-tags.md)，原 D8 不再保留为待定问题。后续只在真实反例、底座机制不可行或明确新产品要求出现时，按上面的入队标准重开具体缺口；缺实现或验收证据本身不重建问题。
+当前为空。tag 的名称/容量/路由、请求范围损坏裁决与发布合同已内聚于 [S5-B 专项](09-versionstore-immutable-tags.md)，原 D8 不再保留为待定问题。后续只在真实反例、底座机制不可行或明确新产品要求出现时，按上面的入队标准重开具体缺口；缺实现或验收证据本身不重建问题。
 
 ## 其余定稿项与条件扩展
 
@@ -100,6 +100,7 @@ D6 已由 S2 `[S-FS-ROOT-ADMISSION]` 与真实目录工厂关闭：调用方根/
 | 范围 | 设计阶段聚焦 | 随实施决定或验证 |
 | --- | --- | --- |
 | S4 已定，交实施 | 初次建库/根锁/唯一pending/ListRefs/停用清理及恢复后完整性准入已定，不再有D3设计阻塞 | 先补公共EnsureUsable与VS窄平台入口，推进CreateRef→ReadRef→PublishRef→冷重开；验证门/锁/工作区、成员、屏障/Outcome/清理及两平台中断，保持VS未实施/Draft |
+| S5 历史已定，交实施 | 已签发 revision/不可变 ForkOrigin 直接精确读取；日常 header/逐项检查与声明图检查分离，详见 S4/S5 | 先补[RBF 指定边界逆扫公共重载](../Rbf/rbf-reverse-boundary-plan.md)及独立 public 验收，再接续旧 fork 点之前的历史；不把已定公共增量列为待定设计 |
 | S5-B 已定，靠后施工 | [09 专项](09-versionstore-immutable-tags.md)的名称/BPV/组合容量与稳定路由参数已定，不再有 D8 设计阻塞 | 先完成 ref、历史/fork，随后实施 CreateTag→ResolveTag→冷重开及桶/损坏/Outcome/资源/平台/组合验收 |
 | S2–S6 已定合同 | 仅在真实反例、机制不可行或明确新要求时重开 | 所属阶段的实施/验收要求、进程中断、平台及隔离包消费证据；条件优化另看实际需求 |
 

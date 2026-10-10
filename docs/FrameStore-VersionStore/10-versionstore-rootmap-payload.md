@@ -8,7 +8,7 @@
 
 key 原样映射为 JSON 对象属性名：空串合法，Ordinal 区分大小写，不做 Unicode normalize。JSON 导入须先解码转义再拒绝重复 key；例如 "a" 与 "\u0061" 是同一个名称。引号、反斜杠和控制字符由 JSON 工具转义，不能因此拒绝、改名或截断 key。JSON 对象的成员顺序不成为 RootMap 内容语义。
 
-该合同只规定名称的无损映射，不提供 JSON codec、JSON 文本规范化、地址的 JSON 表示或整个快照的导入导出 API。有效 Unicode 检查属于 RootMap；底层 BPV1 的任意 CLR code-unit 字符串合同不变，TagName 的独立接受域也不变。依据见 [RFC 8259 §4、§7、§8](https://www.rfc-editor.org/rfc/rfc8259.html#section-8.2)。
+该合同只规定名称的无损映射，不提供 JSON codec、JSON 文本规范化、地址的 JSON 表示或整个快照的导入导出 API。有效 Unicode 检查属于 RootMap；底层 BPV1 的任意 CLR code-unit 字符串合同不变，TagName 继续消费 [09 专项](09-versionstore-immutable-tags.md)的独立名称合同。依据见 [RFC 8259 §4、§7、§8](https://www.rfc-editor.org/rfc/rfc8259.html#section-8.2)。
 
 ## 应用 codec 公面与自有字典
 

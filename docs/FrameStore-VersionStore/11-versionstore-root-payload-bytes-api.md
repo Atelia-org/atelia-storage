@@ -54,7 +54,7 @@ AteliaResult<bool> CreateTag(
 AteliaResult<RootPayload> ResolveTag(string name);
 ~~~
 
-RootPayload 同样由库内部构造并持有自有 GC array；不新增 identity、version、equals/hash 或 Dispose。RefBytesSnapshot 的内部 buffer 表示由实现选择，不要求再分配 RootPayload 容器或重复 bytes。CreateTag 不回显输入，成功值恒为 true；同名拒绝为失败，不引入 false 成功、幂等或 no-op。ResolveTag 返回目标命中的自有值，健康 missing 仍是 TagNotFound。
+RootPayload 同样由库内部构造并持有自有 GC array；不新增 identity、version、equals/hash 或 Dispose。RefBytesSnapshot 的内部 buffer 表示由实现选择，不要求再分配 RootPayload 容器或重复 bytes。CreateTag 不回显输入，成功值恒为 true；同名拒绝为失败，不引入 false 成功、幂等或 no-op。ResolveTag 返回目标命中的自有值，健康 missing 仍是 TagNotFound；存在名称无法确认的坏记录且零命中时，按 [09 专项](09-versionstore-immutable-tags.md)报告缺失不确定，不返回 TagNotFound。
 
 ### spec [A-VS-BYTES-BATCH] 批量输入只增加可放入集合的视图
 
