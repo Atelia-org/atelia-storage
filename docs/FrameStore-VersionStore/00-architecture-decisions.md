@@ -201,6 +201,7 @@ FrameStore 核心为多个 active 文件的独占租借与目录归档，不提�
 
 VersionStore 借入一个 data FrameStore，拥有独立发布目录；44B 格式门绑定双身份与不可变预留上界。ref 直接位于 `refs/<8hex>.rbf`，tag 按稳定名称哈希分桶；应用语义不进入 ref 文件名。正式路径见 S4 `[F-VS-REF-PATHS]`，tag/private 路径在相应阶段定稿，旧参考库不进入依赖。
 2026-10-09 门内容与绑定检查已定于 S4 `[F-VS-OWN-FORMAT]`：独立普通定长记录，借入身份匹配且必要关闭成功后才进入本次 Open 的发布文件恢复/私有清理/输出。RBF3 约束用于发布帧文件；门内容不关闭初次 store 创建/发布、根/锁、身份生成或平台资格，不将两层格式版本合为一个版本。
+2026-10-10 借入准入定稿于 S4 `[S-VS-DATA-BORROW]`：工厂在本次 VS I/O 前消费 S2 `[A-FS-ENSURE-USABLE]` 的窄 guard，再核对模式与身份；调用方负责持续串行及 data 生命周期。该公共转发尚未实施，不能用纯身份/模式属性代替检查或从原 FrameStore Accepted 推定新增资格。
 
 完整字典使当前值无需 replay 历史或递归祖先；历史才沿本地帧链/ForkOrigin 遍历发布前缀，返回自有字典。自动/指定 ForkRef 在同一文件发布精确来源与完整初始快照；只传 roots 的 CreateRef 为无来源起点。全分叉图由全部正式首帧声明派生，应用名称映射不产生新边。
 

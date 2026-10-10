@@ -72,7 +72,8 @@ FrameStore 核心是不透明分配/随机读取；VersionStore 使用完整 Roo
 | 基础地址是否保持 16B 或带 SmartPointer 见证 | 固定 12B 与显式变长 codec，完整 uint FileId + SizedPtr；无预留/内容 CRC，wire 与内存成本分离 |
 | FrameAddress 公开值/codec 如何交付 | S2 已定 readonly 不透明值、固定 TryRead/TryWrite 与变长 MeasureVarInt/WriteVarInt/ReadVarInt、共同数值下界及 default/完整等值；变长读取失败不推进，无额外错误族/规范文本 |
 | FrameStore 格式门记录与初次建立 | S2 已定 framestore.format 普通24B记录/唯一CRC/共同只读校验；`[R-FS-STORE-CREATE]` 已定空store、正式门直接create-only写入及成立/返回/失败边界，无私有门或门rename；`[S-FS-OWNER-LOCK]` 已定永久0B控制设施/门前bootstrap与重检、writer独占/readers共享及最后关锁；私有data初始化残留语法/候选/全字节前缀、可写取消与只读保留已定，实际根准入已定于 `[S-FS-ROOT-ADMISSION]`，RBF纯入口/目录清理已实施，平台与系统资格按实施记录区分 |
-| VersionStore 格式门/data/预留区 | S4 普通 44B 门/双身份/持久 L/唯一 CRC 与共同只读资格已定；初次门/根锁/模式等仍待定 |
+| VersionStore 格式门/data/预留区 | S4 普通 44B 门/双身份/持久 L/唯一 CRC 与共同只读资格已定；初次门/根锁等仍待定 |
+| 借入 data 的入口可用性与持续责任 | S4 `[S-VS-DATA-BORROW]` 已定 VS 工厂先于自身 I/O 检查、模式配对及调用方持续责任；S2 `[A-FS-ENSURE-USABLE]` 仅转发现有内部 disposed/fault guard，公共转发与集成证据留实施，不重开健康查询框架 |
 | ref记录是否需要独立version/时间机制 | [S4元信息专项](08-versionstore-record-metadata.md)已定固定8B原始Unix毫秒、精确长度判形/末尾扩展、私有一次取时与完整内容资格；无独立version/时钟水位，S4/S5/CU分别消费，实施向量不重开设计 |
 | VersionStore 身份/定位/编号 | 完整 RefId、LocalId 导出与 checked 库内定位、RefRevision/RootMap/ref 格式、单文件 8hex 与两域分配已定；精确 revision codec 延期，实际准入/private/初始化待定 |
 
@@ -86,10 +87,11 @@ FrameStore 核心是不透明分配/随机读取；VersionStore 使用完整 Roo
 
 **已确认：** 字典按值保存，地址解释于一个绑定的 data FrameStore，复用 S2 变长地址 codec；固定 12B 入口继续服务预留回填。发布时应用保证全部必要对象已经完成，不能采用取消/未完成 ticket；data ConfirmDurable 不解析业务图，无关 Builder 未归还不阻断发布。屏障确认 leased 文件旧输出，不赋予其正在构建的新帧资格。旧 ref/tag 快照可以复用数据地址，不需要重新创建 Commit 或提交 parent。
 
-**设计 / 关键方案：** VersionStore 初次 store 创建/门发布、根独占与私有残留裁决，以及可变初始 Snapshot 的恢复前初始化保护；明确身份生成与访问模式所需的行为合同，保持实际借入 data 的绑定及资源责任。未定查询如 ListRefs 的结果范围/资格属于对应接口合同，CLR 包装与签名语法随实现定稿。基础地址值/codec、RootMap codeword、ref header/普通 Snapshot 组合格式及单文件发布单位/正式路径已确定，不再开放地址宽度、key/wire/限额、header 来源判别或应用名称映射层的选择。地址数值规则、default 预检及 RootMap 变长字段直接消费 S2，每条完整记录仍用 RBF 公共尺寸 API。
+**设计 / 关键方案：** VersionStore 初次 store 创建/门发布、根独占与私有残留裁决，以及可变初始 Snapshot 的恢复前初始化保护；明确身份生成与 VS 自身访问模式/独占所需的行为合同。实际借入 data 的入口可用性、模式配对及持续责任已定，不再作为待定选择。未定查询如 ListRefs 的结果范围/资格属于对应接口合同，CLR 包装与签名语法随实现定稿。基础地址值/codec、RootMap codeword、ref header/普通 Snapshot 组合格式及单文件发布单位/正式路径已确定，不再开放地址宽度、key/wire/限额、header 来源判别或应用名称映射层的选择。地址数值规则、default 预检及 RootMap 变长字段直接消费 S2，每条完整记录仍用 RBF 公共尺寸 API。
 
 **实现 / 验收：** 公开身份的 CLR 表示及满足既定身份合同的生成调用、内部 codec 组合、初始化/读取助手、具体私有路径/锁/平台入口，由对应实现片决定；在行为合同确定后，ReadRef/ListRefs、末帧成员/源成员、屏障和清理按合同编码并验收，不逐一展开辅助类型、属性或内部错误分支。文件发布和初始化保护所需入口若无可执行路径，仍作为关键方案问题处理。
 VersionStore 门记录/共同只读检查与 data 持久身份绑定已定于 S4 `[F-VS-OWN-FORMAT]`，不再作为待定 codec 或载体选择；16B canonical VersionStoreId 由下游直接消费。内容资格不关闭初次门发布、根/锁或平台协议，也不证明裸地址来源/应用闭包。
+借入消费 S4 `[S-VS-DATA-BORROW]` 与 S2 `[A-FS-ENSURE-USABLE]`；正常属性读取不证明可用，公共 guard 尚待实施，不借 data barrier 充当入口检查。实施所需窄机制和拒绝顺序已清楚，其补齐/测试直接交对应代码切片；不增加一个新的设计问题，也不关闭本 D3 的初始化保护或根/私有发布缺口。
 RefId/uint32 LocalRefId 与内部固定 4B LE 字段消费 S4 `[F-VS-REF-ID-4B]`，LocalId 保存与正确库 checked 查询消费 `[A-VS-LOCAL-REF-LOOKUP]`；单文件路径消费 `[F-VS-REF-PATHS]`，持久 L/两域创建/水位/不复用消费 `[S-VS-REF-ID-DOMAINS]`。这些不再待定；冷开 O(ref 数量)路径发现/private 独立资格继续 S4-Q3，指定残留不可统一要求 H+1。编号与查询不证明 Unknown 旧尝试 Confirmed，不重开整体身份或精确 revision codec 议题。
 
 RefRevision 自有公开值、完整等值/default/上下文前检、只读实际位置及同 VS 重开使用已定于 S4 `[A-VS-REF-REVISION-VALUE]`，不再作为待定表示或整体 codec 选择；未提供匿名精确 revision 的跨进程导入导出，出现消费者再立窄合同，tag 字典不能透明替代其精确来源书签。
