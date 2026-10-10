@@ -278,7 +278,7 @@ Windows / W: 真实 public RBF3 探针，初录 [结果](../../experiments/Versi
 
 **成熟度判断：可以正式选择 CU 作为跨 ref 事务协议。** 共同判据、位置复用与稳定性有明确论证，现有 public API 足以实现读取；本次删除替换内容审计不改变原子判据，并有源码和定向检查支持必要结构消歧。没有发现需要新增持久机制的失败轨迹；新读取路径的完整组合验收仍属于实施出口。对用户当前少量根、几个地址的目标，减少帧与阶段的收益明确；P+C 的诊断、分帧容量及拒绝未提交组时可少读 RootMap 的优势仍保留，不据此宣称 CU 在所有工作负载更快。
 
-该结论不等于整个 S4/S5 Ready。正式选型并入时，须同步替换 S0/S4/S5 及入口的“无跨 ref 事务/直接接受末 Snapshot/当前值与历史成本”旧合同，保留普通单 ref 路径与名称创建的独立范围；不能只在导航加一个链接便称主线支持。RefId 字段及 RootMap codec/上限直接消费 S4 已定合同，普通ref header/Snapshot格式消费 `[F-VS-REF-FRAMES]`；具体 Ready 项仍有可写初始化保护、CU kind/Members组合codec与完整容量、PublishRefs/批次结果类型、文件/枚举生命周期与真实错误载体。接纳CU作为fork源时须重审S4普通Snapshot的来源ticket上界与接受kind，不能因Members扩大payload而沿用普通上限。这些是阶段工程定稿及本协议的实施出口，不是新的事务身份或恢复日志。
+该结论不等于整个 S4/S5 Ready。正式选型并入时，须同步替换 S0/S4/S5 及入口的“无跨 ref 事务/直接接受末 Snapshot/当前值与历史成本”旧合同，保留普通单 ref 路径与 tag 创建的独立范围；不能只在导航加一个链接便称主线支持。RefId 字段及 RootMap codec/上限直接消费 S4 已定合同，普通 ref header/Snapshot 格式消费 `[F-VS-REF-FRAMES]`；具体 Ready 项仍有可写初始化保护、CU kind/Members 组合 codec 与完整容量、PublishRefs/批次结果类型、文件/枚举生命周期与真实错误载体。接纳 CU 作为 fork 源时须重审 S4 普通 Snapshot 的来源 ticket 上界与接受 kind，不能因 Members 扩大 payload 而沿用普通上限。这些是阶段工程定稿及本协议的实施出口，不是新的事务身份或恢复日志。
 
 最小安全纵向片是**两个已正式创建的 ref**：正式 codec/header + 绑定 data barrier + PublishRefs + 当前/历史共用判据 + owned revisions；随后在每个 Begin/End、输出、flush、确认后安装位置验证失败与冷重开。验收包含布尔资格与读取失败、坏身份/self/重复表/同 ticket 坏内容、异长坏 HeadLen、异长未读坏 payload 不影响否定旧成员及直接读取仍报错、缺前驱/后继不符、I/O/fault；失败旧 A/B 后新 B/C 且不递归；lazy CompletedTail；同值/rewind/预算；普通单 ref 不增加成员表；新 helper 全矩阵与 k 增长成本。Windows/Linux 与 public 包消费分别出证据，不为此片先实现名称事务、全局 Heads 或日志。
 
