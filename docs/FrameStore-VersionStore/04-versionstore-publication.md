@@ -60,7 +60,7 @@ CRC MUST 使用现成 `RollingCrc.SealCodewordForward` / `CheckCodewordForward`�
 
 调用方选择 root 及可信父路径；实现将路径绝对化，只检查根末组件的普通目录/no-follow 资格，不建立祖先句柄链、物理根别名表或硬链接去重。Create 可创建缺失末级根，父目录须已存在且合格，不递归创建祖先。根/父路径大小写不是持久格式；精确拼写要求只适用于本层受管组件。
 
-版本 1 的必要布局为 `versionstore.lock`、`versionstore.format`、普通目录 `refs` 与 `creating`。实际直接目录项须具有精确名称和 ordinary/no-follow 资格；拒绝受管 symlink、junction/reparse、设备、FIFO 等特殊项，不以宽容路径查找或过滤枚举认领名称。已从实际枚举取得 canonical 名称的项仅再检查类型，不为每个文件重扫父目录。其他 tag 受管路径由 S5 定义并按需取得相同资格，初次建库不预建 tag 桶。
+版本 1 的必要布局为 `versionstore.lock`、`versionstore.format`、普通目录 `refs` 与 `creating`。实际直接目录项须具有精确名称和 ordinary/no-follow 资格；拒绝受管 symlink、junction/reparse、设备、FIFO 等特殊项，不以宽容路径查找或过滤枚举认领名称。已从实际枚举取得 canonical 名称的项仅再检查类型，不为每个文件重扫父目录。根还允许精确小写的可选普通目录 `tags`；存在时取得相同 ordinary/no-follow 与同文件系统资格，不枚举或审计其桶内容。该目录与正式桶路径由 [S5-B 专项](09-versionstore-immutable-tags.md) 定义，初次建库不预建目录或桶；缺失不由 Open/OpenReadOnly 补造。
 
 VS 的 root、受管目录及其叶文件 MUST 取得同文件系统/mount 资格；private→formal MUST 使用原生同文件系统、不覆盖 file rename，不退回复制/删除或覆盖。平台采用 S2 `[S-FS-ROOT-ADMISSION]` 已有的严格机制：Windows 普通 disk/no-reparse 与 volume GUID，Linux statx 类型/device/mount identity 及 renameat2 RENAME_NOREPLACE；无法取得资格或未支持平台明确拒绝。VS 根与借入 data 根不要求同文件系统。
 
@@ -99,7 +99,7 @@ Create MUST 为 create-only。纯参数（含合法 L）及 `[S-VS-DATA-BORROW]`
 
 Open/OpenReadOnly MUST 依次完成纯参数与借入检查、实际根/既有 owner 锁、共同只读门及 data 绑定检查（含必要 close）、必要布局检查。随后可写 Open 按 `[S-VS-REF-ID-DOMAINS]` 完整发现正式 ref 并在枚举/清理成功后取得 H，再裁决/取消工作区，最后交付 owner。OpenReadOnly 检查工作区并保留合格 pending，不为发号或 pending 全扫正式 ref；ListRefs/ListForks 的完整发现由各查询自行承担。
 
-两种工厂都不默认打开/恢复全部 ref 或 tag 桶，不扫描历史/data 图。正式目标访问时才按 `[R-VS-LOCAL-COMPLETE]` 或 S5 的正式桶合同打开和检查。门/绑定、正式发现、工作区资格或取消及必要清理失败均不交付 owner；不安装 partial H、不恢复 pending、不 Dispose/fault 健康的借入 data。锁随失败工厂最后清理。
+两种工厂都不默认打开/恢复全部 ref 或 tag 桶，不扫描历史/data 图。正式目标访问时才按 `[R-VS-LOCAL-COMPLETE]` 或 [S5-B 专项](09-versionstore-immutable-tags.md)的正式桶合同打开和检查。门/绑定、正式发现、工作区资格或取消及必要清理失败均不交付 owner；不安装 partial H、不恢复 pending、不 Dispose/fault 健康的借入 data。锁随失败工厂最后清理。
 
 ### spec [S-VS-CREATING-WORKSPACE] 唯一 pending 仅承载可丢弃初始化
 
@@ -160,7 +160,7 @@ Key 的字符域 MUST 保留全部非 null CLR string 的 code units：empty、N
 
 容量及消费 MUST 按 reader 的真实 ConsumedCount 计，包括合法冗余 count/string header 与地址字段，不能用 Measure(decoded) 重新推算已消费长度。RootMap 是可组合的 prefix，不增加 map byte-length：宿主在自己的局部 cursor 上继续解析其余字段，整条 payload 完全消费及所需 CRC/kind/身份资格通过后才交付公开结果。Snapshot、tag、后续 CU 候选复用这份 codeword；当前 Snapshot body 若只含 RootMap 就必须 exact-consume，其他宿主由自己的 schema 确定前后字段，不忽略 trailing。
 
-1MiB 不是完整 tag/CU payload、物理 FrameLength 或文件容量上限。宿主 MUST 将自己的前后字段、RootMap 与 TailMeta 按 checked 尺寸组合，转换到 int 前验范围，再用公共 MeasureWriteSize 校验完整帧，追加起点另验；完整读取前按 RbfFrameInfo 检查该宿主上限，不先租超限全帧再拒绝。ref header/普通 Snapshot 消费 `[F-VS-REF-FRAMES]`；名称及 CU Members 的组合上限仍由各自 Ready 项定稿，不把本条解释为所有宿主已经成立。
+1MiB 不是完整 tag/CU payload、物理 FrameLength 或文件容量上限。宿主 MUST 将自己的前后字段、RootMap 与 TailMeta 按 checked 尺寸组合，转换到 int 前验范围，再用公共 MeasureWriteSize 校验完整帧，追加起点另验；完整读取前按 RbfFrameInfo 检查该宿主上限，不先租超限全帧再拒绝。ref header/普通 Snapshot 消费 `[F-VS-REF-FRAMES]`；tag 名称与完整记录容量见 [S5-B 专项](09-versionstore-immutable-tags.md)，CU Members 的组合上限仍由其候选定稿，不把本条解释为所有宿主已经成立。
 
 （Informative）1MiB 是限制单次完整快照工作规模的 MVP 工程选择，会拒绝仍可由 RBF 表示的更大 map；仅继承 RBF 硬界也可正确。没有现成大 map 消费者或峰值/吞吐测量证明这个数字最优、足够所有业务或不会 OOM；捕获、冻结、编码及读取仍有额外内存。实际需求超过此界或资源成本不合目标时再评估，不能在已发布版本中默改 accepted set。复用 Binary 减少自写规则，实际增加 Binary 与其精确 K4os `[1.3.8]` 依赖；固定逐 code-unit UTF16LE 也可正确，不声称此方案最快。BPV1 [已实施验收](../Binary/bare-primitive-value-acceptance.md)及[基元独立 golden](../../tests/Binary.Tests/SchemaCompositionTests.cs)是底座证据；[RootMapCodecProbe](../../experiments/RootMapCodecProbe/README.md)原 fixed12 synthetic 地址版本通过 47 项组合检查，含当时的 1MiB 边界、宽容/重复 key、截短与 12/13B suffix guard。该结果保留历史身份，不构成本次变长 RootMap、尚未实施的新库、发布/恢复、平台或包资格；本次 FrameAddress 新增能力的独立源码验证另见[变长地址实施记录](02-framestore-varint-address-implementation.md)。
 
@@ -407,7 +407,7 @@ Outcome 与实例健康是两个事实：NotAttempted 不表示零 I/O 或可直
 
 初始 Snapshot body 已完整而仅缺 RBF 可合法补齐的 Key/Fence 时，CompletedTail 后通过必要身份、kind/meta、CRC 与 RootMap codec 检查即可接受。完整合法的末 Snapshot 作为当前值；后续更新残尾被 Truncated 后，若首两帧仍完整，则检查并使用剩余末 Snapshot。若已无必要 header/初始 Snapshot，MUST 报错，不补造空字典。恢复后的完整坏内容 MUST 报错，不通过丢弃该记录或回退旧值消除错误。RBF 结构恢复可能已经修改文件，随后 VersionStore 才拒绝坏内容；不撤销这次底层恢复，也不承诺所有内容拒绝均保持原字节不变。只读访问使用 public `OpenReadOnlyExisting`，需要修尾时仍拒绝且不修改。
 
-tag 桶继续先执行 S5 的既定初始化长度前检，再执行允许的 RBF 恢复与目标桶全部记录/名称校验，不把 header 修尾认领为初始化；惰性访问不默认扫描全部桶。本条的 ref 政策不改变 tag 或 FrameStore 的初始化保护。
+tag 桶继续先执行 [S5-B 专项](09-versionstore-immutable-tags.md)的既定初始化长度前检，再执行允许的 RBF 恢复与目标桶全部记录/名称校验，不把 header 修尾认领为初始化；惰性访问不默认扫描全部桶。本条的 ref 政策不改变 tag 或 FrameStore 的初始化保护。
 新 ref 文件发现/private 消费 `[S-VS-REF-FILE-PUBLISH]`；没有正式文件时 private 完整 Snapshot 不建立 ref。fork 来源与初始 Snapshot 随同一文件发布，不从 private 推断或续作旧请求。
 完整坏 frame/未知版本/错误身份/非法 codec MUST 报错，不能当残尾、missing 或回退旧值。只读模式不隐式修尾。被引用 data 缺失/损坏在应用实际读取时报错，不据此改写已发布 RootMap。
 Open 不默认扫描所有 ref 历史或 data 图；按需打开/校验目标文件，不将成功 Open 宣称为全库审计或全部根图健康证明。所有必要错误传播显式；资源/I/O fault 不被吞成缺对象。

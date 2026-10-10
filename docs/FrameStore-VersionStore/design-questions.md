@@ -1,6 +1,6 @@
 # 设计阶段待定问题：FrameStore 与 VersionStore
 
-日期：2026-10-04–10；既有定稿移出设计队列；D3 的建库/根锁/唯一 pending/ListRefs 与停用清理已定于 S4。2026-10-10 复核后仅保留 D8 的 TagName 接受合同；名称 codec 与分桶参数交首个 tag 格式写入前工程定稿，已定稳定路由/碰撞合同不再研究。状态：**Informative / Derived；问题导航，不是新增实施阶段或规范输入**。
+日期：2026-10-04–10；既有定稿移出设计队列；D3 的建库/根锁/唯一 pending/ListRefs 与停用清理已定于 S4。2026-10-10 不可变 tag 的名称/接受容量及首版路由参数已定于 [S5-B 专项](09-versionstore-immutable-tags.md)，D8 移出待定队列；当前没有设计阶段待定项，后续转交相应实施片与验收。状态：**Informative / Derived；问题导航，不是新增实施阶段或规范输入**。
 输入为本轮会话及 S0–S6 合同；S2/S3 已完成[独立源码验收](02-framestore-final-acceptance.md)，本设计问题队列不重复展开其已关闭项。FrameStore 已实现[公开持久化闭环](02-framestore-persistence-implementation.md)，Inventory/Audit 已实施（见[源码验收](02-framestore-inspection-implementation.md)）；VersionStore 项目尚未创建；RBF 底座的活跃构建随机读取改进单独记录验收。S1 与 RBF1 参考隔离的已有 Accepted 资格保留原身份，不构成新模型已实施的证据。
 
 ## 设计阶段的研究边界
@@ -68,7 +68,7 @@ FrameStore 核心是不透明分配/随机读取；VersionStore 使用完整 Roo
 | 活跃 Builder 是否阻断旧帧随机读取 | 不阻断已完成前缀内的指定地址读取；未完成/跨边界先拒绝，扫描相关资格未放宽 |
 | 读结果与物理检查如何交付 | S2 已定自有 FrameRead、纯值 inventory、完整 CRC audit 与同步 visitor guard；不外泄 reader/枚举器，不以部分回调或结构扫描称全库内容健康 |
 | 历史选点与遍历预算如何交付 | S5 已定同步 bool visitor、自有 RefSnapshot、返回数/工作步预算与单次调用清理；正常 Complete/VisitorStopped，预算专用失败，不外泄 sequence/epoch/cursor |
-| tag 桶如何初始化/校验、是否需要索引 | S5 已定完整 header 初始化边界与恢复保护、统一版本组合 schema、每次全桶 checked 扫描及临时 fullname 集合；不保留跨调用索引，RootMap 原样消费 S4 已定 codeword，名称/组合容量仍在 S5-Q1 |
+| tag 名称/容量/路由与桶协议 | [S5-B 专项](09-versionstore-immutable-tags.md)已定用户采用的 non-null/non-empty Ordinal 名称、BPV 普通 string、RBF 完整记录硬界/共享名称准入，以及固定 FNV64/fold/256桶/8hex 路径；既有初始化保护、完整扫描及 data-first/Outcome 迁入，靠后施工，不保留跨调用索引 |
 | ref 是否承担应用名称映射 | 不承担；应用常量使用预留号，动态目录保存 LocalId 并在正确库 checked 定位；命名 tag 独立保留 |
 | 指定编号是否影响自动发号 | 仅允许 1..L 指定，自动高号与其不交叠；低号不推进 H，L 创建时持久且不可变，不预创建对象 |
 | 基础地址是否保持 16B 或带 SmartPointer 见证 | 固定 12B 与显式变长 codec，完整 uint FileId + SizedPtr；无预留/内容 CRC，wire 与内存成本分离 |
@@ -84,43 +84,26 @@ FrameStore 核心是不透明分配/随机读取；VersionStore 使用完整 Roo
 
 ## 设计与关键实现方案待定
 
-### D8：TagName 的相等与接受合同如何定稿？
-
-**阻塞范围：** 仅 S5-B 的 CreateTag/ResolveTag 与 TagRecord 格式落地，消费 S5-Q1/Q3、交 S6 对应验收；不阻塞 S4 的 `CreateRef → ReadRef → PublishRef → 冷重开`，也不阻塞 S5-A/C 的历史、fork 与 ListForks。branch 名称/绑定/全局查名已从范围移除，不再研究。
-
-**前提与来源：** S0 `[S-VS-REF-ID-ONLY]` 明确保留命名不可变 tag；移除 branch 名称不等于移除 tag 名称。S5 `[S-VS-TAG-ROOTS-IMMUTABLE]` 已定 tag 冻结完整 RootMap、同名 create-only、每桶一个 RBF3 文件及完整 checked 扫描。[旧栈书签消费者](../../../durable-graph/tests/DurableGraph.Persistence.Tests/RepositoryTagTests.cs)提供冷重开后读取固定书签的独立工作流证据；VersionStore 尚无实现、发布数据或实际接入，不继承旧栈 ASCII/128B/文件名限制或格式兼容义务。
-
-**真正待定的合同：**
-
-| 子题 | 不定稿的具体影响 | 最小定稿范围 |
-| --- | --- | --- |
-| 名称相等与有效输入域 | 大小写/归一化是否合并决定重名拒绝和查询结果；若允许两个名字分别创建后又改变比较规则，重开可能将合法记录判为重名或查向不同桶 | 明确相等、是否转换/归一化，以及 null/空串和允许字符；Ordinal 仍只是 S5 的默认候选，不能称已采用。tag 名字作为记录字段，不因使用文件分桶便需要合法文件名字符 |
-| 名称容量与整条记录接受边界 | S4 的 1MiB 仅限制 RootMap；名称与组合记录的接受边界尚未固定，tag 的输出前容量拒绝、读取前整帧尺寸检查和字符串分配前限额检查缺少统一判据 | 明确名称的计量/上限与实际消费字节规则；上限可由完整记录/RBF 硬界派生，不预设额外名称配额。组合完整 TagName codeword、已定 RootMap 上限及 RBF 公共尺寸，不另研究字典 codec 或重复建立资源账本 |
-
-**已定前提，移出开放研究：** 跨进程稳定路由、名称相等必同桶、安全规范路径、hash 碰撞按完整名字裁决，均已定于 S5；header 组合 schema/初始化前检、全桶唯一性与临时全名集合、自有结果/清理、data-first 及 PublicationOutcome 也直接消费已定合同。BPV1 已提供可复用的无损 string/Measure/Read 能力，但尚未替 TagName 选择名称 codec；同值的不同合法 codeword 不能导致不同名称或不同桶。
-
-**交 S5-B 的工程定稿：** 首次写入 tag 格式前固定名称 codec、hash 输入/算法、桶数与 BucketId 到规范路径的规则，绑定 VersionStoreFormatVersion 并回写 S5；它们是持久寻址/schema，不能在同一格式版本下随意更换。桶数/分布影响完整扫描的记录数与 bytes、文件/header 开销、单桶终身容量压力及坏记录连带范围：按已定全桶校验，坏 A 与健康 B 同桶时查询 B 也失败，分开则不受 A 影响。这些是真成本；目前没有新栈工作集或目标证明需要先寻找最优 hash/桶数，选可执行默认并说明取舍即可。
-
-**交实施验收：** 独立名称/路由向量、跨冷进程复现、同名先于 barrier/输出拒绝、合法碰撞、坏记录/枚举/关闭失败不当 absent、空桶初始化/private/file rename 与只读行为。重复同桶扫描/连续创建的规模成本随实现报告；只有实际扫描/文件数/容量或隔离目标出现时再评估优化，不新增索引前置。
+当前为空。tag 的名称/容量/路由、完整扫描与发布合同已内聚于 [S5-B 专项](09-versionstore-immutable-tags.md)，原 D8 不再保留为待定问题。后续只在真实反例、底座机制不可行或明确新产品要求出现时，按上面的入队标准重开具体缺口；缺实现或验收证据本身不重建问题。
 
 ## 其余定稿项与条件扩展
 
-FrameStore 初次空集合/直接门建立、owner锁/门前bootstrap/模式、私有data残留与实际根准入已定于 S2；VersionStore 初次空库/直接门、根/独立锁/自身模式、唯一pending与ListRefs/停用清理已定于 S4，D3关闭。当前只推进 D8 的 TagName 接受合同；具体名称/分桶格式参数交 S5-B 首写前工程定稿，不重开稳定路由/碰撞机制。身份 CLR 表示、具体平台调用及局部接口/codec 代码随对应实现定稿。基础地址、格式门记录/只读校验、资源、header、owned 生命周期、正式路径/编号、ref 恢复后完整性准入及历史/tag/ListForks 已定合同直接消费 S2/S4/S5；其测试向量、运行时成本和平台/包证据保留所属阶段，不转回新的字段、默认值或表示选择。
+FrameStore 初次空集合/直接门建立、owner锁/门前bootstrap/模式、私有data残留与实际根准入已定于 S2；VersionStore 初次空库/直接门、根/独立锁/自身模式、唯一pending与ListRefs/停用清理已定于 S4，D3关闭。tag 名称/接受容量与路由格式参数已定于 S5-B 专项，不重开稳定路由/碰撞机制；后续在 ref、历史/fork 后实施独立 tag 片。身份 CLR 表示、具体平台调用及局部接口/codec 代码随对应实现定稿。基础地址、格式门记录/只读校验、资源、header、owned 生命周期、正式路径/编号、ref 恢复后完整性准入及历史/tag/ListForks 已定合同直接消费 S2/S4/S5；其测试向量、运行时成本和平台/包证据保留所属阶段，不转回新的字段、默认值或表示选择。
 FrameAddress 不透明不等于支持帧重定位。目录归档只改变同一文件的位置；GC/compaction、逻辑 ID 映射、多线程执行、多个 data owner、跨实例 CAS 和更强断电模型在有需求时单独设计。多个 active 已是首版设计范围，不再列为未来条件扩展。
 地址见证的重评触发条件分别为：裸地址跨 store 流转且需要概率性误用检测时考虑 store/address fingerprint；要求库自动拒绝取消预约的旧引用时另设计每帧持久 token 与重开发号/碰撞规则；仅引用已完成对象且需要预期内容见证时考虑内容 CRC。最终内容 CRC 在 Begin 尚不可确定，A↔B 会引入 checksum 依赖，不能作为当前提前稳定地址字段。上述方案均无首版预留字段或实施前置；无碰撞的来源、完成或耐久保证不能由额外 4B 自行推出。
 ref 分段/轮转、随机 revision 读取、持久 cursor、差分/checkpoint、派生 tag 索引、跨 ref 事务和精确尝试追踪不作为核心前置。业务 merge/provenance 由应用决定；出现无法用 RootMap 表达的明确需求后再扩展，不能从旧草案恢复候选功能。
 
-## 下一轮研究顺序与实施交接
+## 实施交接与重开条件
 
-D6 已由 S2 `[S-FS-ROOT-ADMISSION]` 与真实目录工厂关闭：调用方根/可信父路径、受管精确组件、普通类型/no-follow、严格 owner 锁及同文件系统不覆盖移动已有具体机制。公开持久化闭环的实际验证见[实施记录](02-framestore-persistence-implementation.md)；Inventory/Audit、进程中断和资源/规模证据留实施验收。D3也已形成可执行最小合同；后续设计研究仅聚焦D8，不把已定机制的代码接线与测试细节重新放回设计队列。
+D6 已由 S2 `[S-FS-ROOT-ADMISSION]` 与真实目录工厂关闭：调用方根/可信父路径、受管精确组件、普通类型/no-follow、严格 owner 锁及同文件系统不覆盖移动已有具体机制。公开持久化闭环的实际验证见[实施记录](02-framestore-persistence-implementation.md)；Inventory/Audit、进程中断和资源/规模证据留实施验收。D3 与 tag 专项均已形成可执行最小合同；当前无待定设计阻塞，不把已定机制的代码接线、测试细节或无目标的参数最优研究重新放回设计队列。
 
 | 范围 | 设计阶段聚焦 | 随实施决定或验证 |
 | --- | --- | --- |
 | S4 已定，交实施 | 初次建库/根锁/唯一pending/ListRefs/停用清理及恢复后完整性准入已定，不再有D3设计阻塞 | 先补公共EnsureUsable与VS窄平台入口，推进CreateRef→ReadRef→PublishRef→冷重开；验证门/锁/工作区、成员、屏障/Outcome/清理及两平台中断，保持VS未实施/Draft |
-| D8 / S5-B | 仅 TagName 相等/接受域及名称/完整记录容量 | 名称 codec/hash 输入与算法/桶数/规范路径须首写前固定并回写 S5；桶发布/完整扫描/资源/规模验收，不先求最优参数 |
+| S5-B 已定，靠后施工 | [09 专项](09-versionstore-immutable-tags.md)的名称/BPV/组合容量与稳定路由参数已定，不再有 D8 设计阻塞 | 先完成 ref、历史/fork，随后实施 CreateTag→ResolveTag→冷重开及桶/损坏/Outcome/资源/平台/组合验收 |
 | S2–S6 已定合同 | 仅在真实反例、机制不可行或明确新要求时重开 | 各阶段 Ready 表的实现测试、进程中断、平台及隔离包消费证据；条件优化另看实际需求 |
 
-每轮结论写回所属阶段，只从本表移出已关闭的设计子题；D3本轮已移出，不因其实现尚缺而重建待定项。普通实现选择和已定合同验收交给对应实施片，允许少量导航，不建立越来越细的研究队列。关键方案若须实验，先用最小探针取证；若只缺完整实现/测量，说明证据缺口并结束设计轮，不用文档代替代码模型。
+每轮结论写回所属阶段，只从本表移出已关闭的设计子题；D3/D8 已移出，不因其实现尚缺而重建待定项。普通实现选择和已定合同验收交给对应实施片，允许少量导航，不建立越来越细的研究队列。关键方案若须实验，先用最小探针取证；若只缺完整实现/测量，说明证据缺口并结束设计轮，不用文档代替代码模型。
 
 涉及外部业务语义、接受风险或部署假设的未决取舍，列出具体选项交用户处理；符合既定合同的局部工程选择由实现者负责。FrameStore 分配器继续不理解应用 codec，不等待 Commit 或全局日志；不反向增加已延期的批量规划、索引或事务能力。
 

@@ -52,9 +52,9 @@ ListForks 消费 S5 `[A-VS-FORKS-CHECKED]`：每次扫描全部正式 ref 的 ch
 | 同一 ref 的快照追加顺序 | S4 单文件；S5 checked 历史枚举 | 选择当前值或旧快照；不建立跨 ref 全序 |
 | ref 创建来源与继承前缀 | S4 ForkOrigin；S5 跨文件历史及 ListForks | 固定分叉点、遍历发布历史、查询全部创建分叉；不按同值去重 |
 | 应用因果/实验谱系 | 应用数据 codec | 显式引用轨迹/来源，不由 ref 历史或 data 地址推算 |
-| tag 的名称唯一性 | S5 tag 名称政策与桶记录 | 冻结不可变字典，应用 ref 名称不进入此层 |
+| tag 的名称唯一性 | [S5-B 专项](09-versionstore-immutable-tags.md)的名称政策与桶记录 | 冻结不可变字典，应用 ref 名称不进入此层 |
 
-下一轮重点讨论见[设计难题汇总](design-questions.md)。该文是问题索引与推导说明，不是额外阶段或前序层的规范输入；正式合同仍在相应 S0–S6 及其引用的阶段内专项。
+设计阶段待定与实施交接见[设计问题导航](design-questions.md)；当前待定队列已清空。该文是问题索引与推导说明，不是额外阶段或前序层的规范输入；正式合同仍在相应 S0–S6 及其引用的阶段内专项。
 
 ## 阅读与状态规则
 
@@ -76,8 +76,10 @@ flowchart LR
     S1 --> S2["S2 FrameStore 核心"]
     S2 --> S3["S3 交错构建 / 同步屏障"]
     S3 --> S4["S4 完整字典 / 单文件 ref 发布"]
-    S4 --> S5["S5 历史选点 / fork / tag"]
+    S4 --> S5["S5 历史选点 / fork"]
+    S4 --> Tags["S5-B 不可变 tag 专项"]
     S5 --> S6["S6 集成与交付"]
+    Tags --> S6
 ```
 
 | 阶段文档 | 本阶段形成的合同 | 主要实施范围 | 出口 |
@@ -87,10 +89,11 @@ flowchart LR
 | [S2 FrameStore 核心](02-framestore-core.md) | 三种追加、不透明地址与固定/变长 codec、独占租借、软轮转、目录生命周期与基础耐久确认 | 新建 FrameStore 与其测试项目 | 分配器可独立使用，多个 active 恢复及重开 |
 | [S3 交错构建与耐久确认](03-framestore-interleaved-builders-and-durability.md) | 提前地址、跨文件互引、交错完成，消费 S2 核心屏障的组合资格 | FrameStore 与其测试项目 | 消费者无需管理文件 flush，预算内互引与完成可独立验收 |
 | [S4 VersionStore 字典与发布](04-versionstore-publication.md) | RootMap codec、单文件 ref、低号预留/两种创建、本地定位、屏障/恢复/证据 | 新建 VersionStore 及测试 | 当前值无 replay；文件发布/冷重开 |
-| [S5 历史、fork 与 tag](05-versionstore-names-and-indexes.md) | owned 跨文件历史、全分叉发现、来源 fork 与分桶 tag | VersionStore 及测试 | fork/rewind/tag 与历史生命周期验收 |
+| [S5 历史、fork 与施工导航](05-versionstore-names-and-indexes.md) | owned 跨文件历史、全分叉发现与来源 fork | VersionStore 及测试 | fork/rewind 与历史生命周期验收 |
+| [09：S5-B 不可变 tag](09-versionstore-immutable-tags.md) | 名称接受、桶路径/格式、完整扫描与 data-first 创建 | 同一 VersionStore 及测试；靠后施工 | tag 冷重开、结果/恢复与规模资格 |
 | [S6 集成与交付](06-integration-and-delivery.md) | 第二种状态模型、公共包消费、交付边界 | examples、eng、CI；消费者接入另有明确范围 | 源码、包及消费者证据分别齐备 |
 
-S4 当前值只检查本地必要首两帧/末快照，S5 历史才回溯。可写冷开发号仍完整枚举正式 ref 文件，直接 ID 访问无需映射表。tag 每次完整校验目标桶，以临时全名集合确认唯一性，无跨调用索引；稳定路由/碰撞合同已定，TagName 接受合同及首版名称/分桶参数只影响 S5-B，不阻塞 ref、历史或 fork 实施，不宣称 O(1)查名。
+S4 当前值只检查本地必要首两帧/末快照，S5 历史才回溯。可写冷开发号仍完整枚举正式 ref 文件，直接 ID 访问无需映射表。tag 每次完整校验目标桶，以临时全名集合确认唯一性，无跨调用索引；名称、容量与首版路由合同唯一见 [09 专项](09-versionstore-immutable-tags.md)，靠后实施，不阻塞 ref、历史或 fork，不宣称 O(1)查名。
 
 [08：ref记录元信息](08-versionstore-record-metadata.md)是S4时间语义、固定8B TailMeta与长度判形的唯一权威。S4定义RefSnapshot属性和普通宿主尺寸，S5定义历史/fork语义，07复用元信息组合CU；不重复定义时间编码，不给header/tag/data加时间，也不要求全库时间顺序。
 
@@ -115,7 +118,8 @@ S2–S6 的 MVP 定稿、实施和验收不等待上述候选扩展的需求确�
 | V1 | S2 owned 三种追加/嵌套租借与核心 barrier + S4 CreateRef/PublishRef/ReadRef；冷重开 | 单文件 ref，完整 RootMap；S3 验证交错构建组合，不引入分段或全局日志 |
 | V2 | S3 双文件 A↔B、self-reference 与乱序完成后同时发布多个根，取消/reuse/Unknown | 本根所需依赖完成并确认，无关 Builder 可继续构建，旧/新字典不能混搭 |
 | V3 | S2 creating/active/archive、软轮转/编号恢复 + S3 多 active barrier 组合验收与进程中断 | 完成后才声明完整多文件生命周期和恢复资格 |
-| V4 | S5 历史/ForkOrigin、自动/指定 fork、ListForks 与 rewind/tag | 复用 S4 单文件发布；分段/差分/随机 revision 后置 |
+| V4 | S5 历史/ForkOrigin、自动/指定 fork、ListForks 与 rewind | 复用 S4 单文件发布；分段/差分/随机 revision 后置 |
+| V4-tag | 随后实施 [S5-B 专项](09-versionstore-immutable-tags.md)及 tag 组合消费 | 独立创建/查询，留在同一 VersionStore，不成为 V1–V4 前置 |
 | V5 | S6 平台、公共包、真实消费者边界 | 包 smoke/消费者接入仍各自出证据 |
 
 FrameStore 及其测试项目已在 S2 创建；VersionStore 及其测试项目仍由 S4 创建。S6 汇总组合与交付，不垄断第一次 public API 纵向验证。

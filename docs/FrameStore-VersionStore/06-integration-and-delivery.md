@@ -4,7 +4,7 @@
 同日新增 FrameAddress 变长 API、FrameStore → Binary 依赖及 RootMap 变长地址字段；前轮 Accepted 保留原资格，新增地址源码验证见[实施记录](02-framestore-varint-address-implementation.md)，VersionStore 与本阶段集成/包资格另行验证。FrameStore 仍为 source-only。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。
 本阶段验证前序合同的组合，不作为前序层运行正确性的反向依赖。
-依赖 S5 历史选点/fork/tag 核心；首版不纳入 ref 分段/轮转、差分/checkpoint、branch 名称或精确发布尝试查询。
+依赖 S5 历史选点/fork 核心与 [S5-B 不可变 tag 专项](09-versionstore-immutable-tags.md)；ref/history/fork 组合可先验证，完整 tag 组合在靠后的 S5-B 实施后补齐；首版不纳入 ref 分段/轮转、差分/checkpoint、branch 名称或精确发布尝试查询。
 本阶段验证单文件 ref、自动/预留区指定创建、本地 ID 保存/定位与分桶 tag 的实际协议；LocalRefId 消费用户采用的固定 4B LE/uint32，SizedPtr 继续为完整 8B。
 
 ## 本阶段目标
@@ -72,8 +72,8 @@ ref 宿主 public 消费按 S4 `[F-VS-REF-FRAMES]` 的当前 header独立golden�
 ref元信息验收消费专项独立golden与S4 RecordedAtUnixMs属性：完整读取后交付原值、同毫秒/回退不改变身份与链顺序、fork/rewind重新取时、必要记录未知长度/坏CRC硬失败；CU独立接纳时验证meta8参与Measure/预测/Begin及一次共享取时，异长替代/历史无关后缀保持既有结构范围。不增加日期范围校验、单调水位、单独CRC或强制peer info-first读取。
 public 消费另验证 FrameRead 在 reader/owner 关闭后仍可用、独立 Dispose 与未移交结果失败清理。同步 Inventory/Audit 的纯值回调、header 报告、结构/完整 CRC 区别、mutation 准入先于维护、回调随机读/Dispose、取消及全部退出清理直接消费 S2；只有全部实际集合检查与必要关闭成功才有全库完成资格，不将它升级为业务图或未知历史文件存在证明。
 首次 tag 桶 header-only 初始化在同一个pending中完成，覆盖flush/close/空桶rename中断；未Append tag仍NotAttempted，重开允许合法空桶而不存在tag，不删除正式空桶。自动/指定fork同样共用pending，均消费完整data屏障与源flush，A完成而无关B Building仍可成功。
-tag public 消费按 S5 每次完整校验目标桶，不依赖跨调用缓存。覆盖首帧初始化 I 前检与重复打开不认领半 header、首 tag 两种合法残尾恢复、命中后坏非目标 RootMap/重复全名/错桶/墓碑/TerminationError 的失败、必要 close 失败，以及查询返回的自有 RootMap。统一 header 版本与两种 FrameTag 消费基础 codec，不增加 tag 专用版本/CRC；测量重复解析和连续同桶创建成本，故障与恢复测试不替代性能或平台 rename 资格。
-应用目录示例覆盖固定槽位与动态 LocalId 持久保存、正确库冷重开及缺坏目标；富元数据与业务根放同一 RootMap 共同生效。独立目录 ref 登记动态对象是第二次发布，中断可留未登记对象，ListRefs/业务身份核对由应用处理，不宣称跨 ref 原子或仅凭同值认领旧创建。tag 名称向量继续按 S5，branch 名称/绑定/alias 不属于库验收。
+tag public 消费按 [S5-B 专项](09-versionstore-immutable-tags.md)每次完整校验目标桶，不依赖跨调用缓存。覆盖首帧初始化 I 前检与重复打开不认领半 header、首 tag 两种合法残尾恢复、命中后坏非目标 RootMap/重复全名/错桶/墓碑/TerminationError 的失败、必要 close 失败，以及查询返回的自有 RootMap。统一 header 版本与两种 FrameTag 消费基础 codec，不增加 tag 专用版本/CRC；测量重复解析和连续同桶创建成本，故障与恢复测试不替代性能或平台 rename 资格。
+应用目录示例覆盖固定槽位与动态 LocalId 持久保存、正确库冷重开及缺坏目标；富元数据与业务根放同一 RootMap 共同生效。独立目录 ref 登记动态对象是第二次发布，中断可留未登记对象，ListRefs/业务身份核对由应用处理，不宣称跨 ref 原子或仅凭同值认领旧创建。tag 名称/容量/路由向量按 [S5-B 专项](09-versionstore-immutable-tags.md)，branch 名称/绑定/alias 不属于库验收。
 容量边界分别验证单帧尺寸与起始 offset：ref / tag 桶最后合法记录的末端和尾 Fence 可以越过 SizedPtr.MaxOffset，随后追加在输出和额外 data barrier 前确定拒绝；不拿末端越界当作既有记录损坏。FrameStore 同样遵守起点规则，成功追加后按软阈值停止分配并归档。裸 FrameAddress 的原始 store 来源由应用保证，错误 data owner 的格式门绑定则必须在恢复/写入前由库拒绝，二者不能合并成自动来源检测能力。
 软阈值 public 消费使用 S2 的唯一 Create/Open 参数，以小 T 验证 header-only、三种追加等于/越过、取消、实例固定及升降阈值重开；非法范围先于文件系统访问拒绝。分类必须消费恢复后的完成 tail，覆盖截短变小/补尾变大；尚未移档 active 可在提高阈值后继续，archive 不重新启用。默认 64GiB 仅为工程起点，参数不扩 Builder config、门/header 或地址字段；这些向量仍待新 FrameStore 实施，不由现有 RBF 测试代替。
 同步历史 visitor 向量 MUST 覆盖固定上界、递归/全部 mutation 的 pre-I/O 拒绝、调用后自有字典继续使用、重复相同字典的不同 revision、损坏与 TerminationError。覆盖第 k 项正常停止不再读取旧坏记录，MaxSnapshots/MaxWorkSteps 的资格/定位/完整读计费，恰好到无来源初始时 Complete、有来源而额度不足时专用预算失败。最后回调 Dispose owner、取消或抛异常及最后临时关闭失败不得返回正常终止；跳转/所有退出归还一次并清 guard。普通当前值读取不自动审计全部历史；显式历史传播已观察的必要错误，VisitorStopped/预算失败不称未访问前缀健康。

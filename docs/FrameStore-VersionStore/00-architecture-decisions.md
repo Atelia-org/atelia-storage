@@ -205,7 +205,7 @@ flowchart TD
 
 FrameStore 核心为多个 active 文件的独占租借与目录归档，不提供业务全局顺序。
 
-VersionStore 借入一个 data FrameStore，拥有独立发布目录；44B 格式门绑定双身份与不可变预留上界。ref 直接位于 `refs/<8hex>.rbf`，tag 按稳定名称哈希分桶；应用语义不进入 ref 文件名。正式路径见 S4 `[F-VS-REF-PATHS]`，唯一private工作文件见 `[S-VS-CREATING-WORKSPACE]`，tag正式路径仍由S5定稿，旧参考库不进入依赖。
+VersionStore 借入一个 data FrameStore，拥有独立发布目录；44B 格式门绑定双身份与不可变预留上界。ref 直接位于 `refs/<8hex>.rbf`，tag 按稳定名称哈希分桶；应用语义不进入 ref 文件名。正式路径见 S4 `[F-VS-REF-PATHS]`，唯一private工作文件见 `[S-VS-CREATING-WORKSPACE]`，tag正式路径由 [S5-B 专项](09-versionstore-immutable-tags.md) 定义，旧参考库不进入依赖。
 2026-10-09 门内容与绑定检查已定于 S4 `[F-VS-OWN-FORMAT]`：独立普通定长记录，借入身份匹配且必要关闭成功后才进入本次 Open 的发布文件恢复/私有清理/输出。2026-10-10 建库/根锁/随机VSID/工作区合同另已定稿，直接消费 `[S-VS-DIRECTORY-LIFECYCLE]` 与 S4；RBF3 约束用于发布帧文件，不将两层格式版本合为一个版本，协议闭合不证明VS平台或运行验收。
 2026-10-10 借入准入定稿于 S4 `[S-VS-DATA-BORROW]`：工厂在本次 VS I/O 前消费 S2 `[A-FS-ENSURE-USABLE]` 的窄 guard，再核对模式与身份；调用方负责持续串行及 data 生命周期。该公共转发尚未实施，不能用纯身份/模式属性代替检查或从原 FrameStore Accepted 推定新增资格。
 
@@ -213,9 +213,9 @@ VersionStore 借入一个 data FrameStore，拥有独立发布目录；44B 格�
 
 RefId 是稳定对象身份；RefRevision 只表示已完成快照的位置，不提前签发，不用作 Unknown 尝试 token。同步历史调用期间首版禁止 owner mutation，调用结束后可用所选自有快照 fork/tag/rewind。跨重开的 RootMap 字典书签可使用 tag；它不保存精确 ref 历史来源，也不要求先提供随机 revision 读取或持久扫描 cursor。
 RefId 完整上下文/default/内部 4B 字段见 S4 `[F-VS-REF-ID-4B]`；LocalId 导出与库上下文 checked 定位见 `[A-VS-LOCAL-REF-LOOKUP]`。RefRevision 保存完整 RefId/ticket，无 owner/epoch 或整体 codec。创建编号见 `[S-VS-REF-ID-DOMAINS]`：持久 L 划分手动低号/自动高号，冷开完整发现恢复 H，自动 H+1，低号不推进 H，无持久 next counter；已发布身份不复用，Max 仅拒绝自动创建。实际根/工作区/随机身份/初始化合同已定，具体窄平台复用与代码/中断资格留实施；ListRefs只发现正式路径身份，不审计快照。
-RootMap/RefSnapshot 表示已定于 S4 `[A-VS-ROOTS-OWNED]`：字典公面复用 IReadOnlyDictionary，逐项 Ordinal 拒重后冻结，普通 sealed RefSnapshot 复用 Revision/Roots；内容比较仅内部进行，不定义公开字典/快照结构等值。Key/wire/容量消费 `[F-VS-ROOTMAP-BPV1]` 的无损基元组合与单一 1MiB codeword 工程上限，无排序/独立 key 或 count 配额。ref header/普通 Snapshot 消费 `[F-VS-REF-FRAMES]`：header 精确24/36B判别来源，Snapshot仅RootMap，kind由RBF tag表达；ref 接受恢复后初始化完整，消费 S4 `[R-VS-LOCAL-COMPLETE]`，创建仍在 private 完整 flush/close 后 rename 发布；tag 名称政策仍待定。集合/codec/帧格式探针均不构成新库、运行时恢复、峰值或平台资格。
+RootMap/RefSnapshot 表示已定于 S4 `[A-VS-ROOTS-OWNED]`：字典公面复用 IReadOnlyDictionary，逐项 Ordinal 拒重后冻结，普通 sealed RefSnapshot 复用 Revision/Roots；内容比较仅内部进行，不定义公开字典/快照结构等值。Key/wire/容量消费 `[F-VS-ROOTMAP-BPV1]` 的无损基元组合与单一 1MiB codeword 工程上限，无排序/独立 key 或 count 配额。ref header/普通 Snapshot 消费 `[F-VS-REF-FRAMES]`：header 精确24/36B判别来源，Snapshot仅RootMap，kind由RBF tag表达；ref 接受恢复后初始化完整，消费 S4 `[R-VS-LOCAL-COMPLETE]`，创建仍在 private 完整 flush/close 后 rename 发布；tag 名称与桶合同内聚于 [S5-B 专项](09-versionstore-immutable-tags.md)。集合/codec/帧格式探针均不构成新库、运行时恢复、峰值或平台资格。
 
-CreateRef/PublishRef/CreateTag/ForkRef 在发布 RootMap 前同步 data ConfirmDurable，无可复用 receipt；无关 Builder 不阻断，应用保证必要依赖完成。tag 每次完整校验目标桶、不保留跨调用索引，统一 header 版本与初始化/唯一性见 S5，不保证名称查询 O(1)。字典/桶/文件容量由 codec 及公共尺寸 API 计算。
+CreateRef/PublishRef/CreateTag/ForkRef 在发布 RootMap 前同步 data ConfirmDurable，无可复用 receipt；无关 Builder 不阻断，应用保证必要依赖完成。tag 每次完整校验目标桶、不保留跨调用索引，统一 header 版本与初始化/唯一性见 [S5-B 专项](09-versionstore-immutable-tags.md)，不保证名称查询 O(1)。字典/桶/文件容量由 codec 及公共尺寸 API 计算。
 
 VersionStore 内部投影安装与消费者安装应用状态分别负责。发布已确认后前者失败仍保留 Confirmed 并停用库实例，完整受控teardown先失效、非锁owned资源单次逐一清理、锁最后；应用安装失败时，从实际已发布字典重新加载，不撤销发布、不要求业务 callback。同步 mutation 的 Result/必选 out PublicationOutcome 及公开 Append/flush/rename 证据边界由 S4 `[A-VS-PUBLICATION-EVIDENCE]` 定稿；该证据不持久化，自动创建异常不保证交付丢失的 RefId。外部工具 exactly-once 和模拟确定性不是存储层保证。
 
