@@ -1,6 +1,7 @@
 # S5：ref 历史、fork 与不可变 tag
 
 状态：**Draft；历史 visitor/预算/清理、ForkOrigin/ListForks 与 tag 桶合同已定；2026-10-10 移除 branch 名称层，fork 统一消费自动/预留区指定创建及单文件发布。tag 名称政策、相应实施/平台与验收仍待定；VersionStore 尚未创建**。
+2026-10-10 RefId 自身/来源字段与指定 fork 目标消费 S4 固定 4B LE LocalRefId/uint32 合同；SourceSnapshotTicket 仍保持完整 8B，历史与分叉语义不变。
 2026-10-10 tag、历史与 fork 的 RootMap 同步采用 S4 的变长地址字段；S2 fixed12 codec 原样保留，tag 层不另定义地址格式或兼容 fallback。VersionStore 尚未实施。
 前置：[S0](00-architecture-decisions.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)。扩展 S4 的完整根快照与局部发布协议，不增加全局事实日志。
 
@@ -61,7 +62,7 @@ AteliaResult<HistoryEnd> ReadRefHistory(
     CancellationToken cancellationToken = default);
 ```
 
-RefSnapshot 复用 S4 `[A-VS-ROOTS-OWNED]` 的普通自有结果类与集合公面，只读 Revision 与 Roots；不另立 history 专用快照、结果 Lease 或 Dispose。每项 MUST 完整校验 CRC、kind/version、身份与 RootMap codec，确认真实主链成员后才能交付。解码到自有值并释放临时 RbfPooledFrame 后再回调，不能外泄 Reader、RbfFrameInfo、pool Span 或依赖 reader 的字典。结果的 RootMap 不提供公开修改入口；方法结束、owner fault/Dispose 不撤销已交付值，内部初始字典比较不受 visitor 改写。RefId 消费 S4 `[F-VS-REF-ID-8B]` 的公开上下文值、前检与内部字段 codec；RefRevision 消费 `[A-VS-REF-REVISION-VALUE]` 的自有值、完整等值和只读实际位置，RootMap wire/限额消费 `[F-VS-ROOTMAP-BPV1]`，不开放任意裸 revision 的随机 ReadRevision。
+RefSnapshot 复用 S4 `[A-VS-ROOTS-OWNED]` 的普通自有结果类与集合公面，只读 Revision 与 Roots；不另立 history 专用快照、结果 Lease 或 Dispose。每项 MUST 完整校验 CRC、kind/version、身份与 RootMap codec，确认真实主链成员后才能交付。解码到自有值并释放临时 RbfPooledFrame 后再回调，不能外泄 Reader、RbfFrameInfo、pool Span 或依赖 reader 的字典。结果的 RootMap 不提供公开修改入口；方法结束、owner fault/Dispose 不撤销已交付值，内部初始字典比较不受 visitor 改写。RefId 消费 S4 `[F-VS-REF-ID-4B]` 的公开上下文值、前检与内部字段 codec；RefRevision 消费 `[A-VS-REF-REVISION-VALUE]` 的自有值、完整等值和只读实际位置，RootMap wire/限额消费 `[F-VS-ROOTMAP-BPV1]`，不开放任意裸 revision 的随机 ReadRevision。
 
 visitor 返回 true 表示继续，false 表示已接收当前项并正常选点停止。false 后 MUST 不再扫描旧帧或访问下一源；先完成健康/取消复检和必要清理，再返回 VisitorStopped，即使该项恰为起点也保持此结果。调用方可保存所选值，在方法返回后 fork/tag/rewind；需要列表时由调用方收集，不要求库保留整批历史。
 
