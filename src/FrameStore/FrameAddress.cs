@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using Atelia.Binary;
 using Atelia.Data;
 using Atelia.Rbf;
 
@@ -36,11 +37,7 @@ public readonly struct FrameAddress : IEquatable<FrameAddress> {
 
         uint fileId = BinaryPrimitives.ReadUInt32LittleEndian(source);
         SizedPtr ticket = SizedPtr.FromPacked(BinaryPrimitives.ReadUInt64LittleEndian(source[sizeof(uint)..]));
-        if (fileId == 0 ||
-            ticket.Offset < RbfScanBoundary.Empty.EndExclusive ||
-            ticket.Length < RbfFile.MeasureWriteSize(0, 0).Value.FrameLength) {
-            return false;
-        }
+        if (!IsValidNumericAddress(fileId, ticket)) { return false; }
 
         address = Create(fileId, ticket);
         return true;
@@ -53,6 +50,47 @@ public readonly struct FrameAddress : IEquatable<FrameAddress> {
         BinaryPrimitives.WriteUInt32LittleEndian(destination, _fileId);
         BinaryPrimitives.WriteUInt64LittleEndian(destination[sizeof(uint)..], _ticket.Packed);
         return true;
+    }
+
+    /// <summary>返回最短 VarUInt32 FileId + VarUInt64 交错 ticket 编码的字节数。</summary>
+    /// <exception cref="InvalidOperationException">地址为 default，不能持久编码。</exception>
+    public int MeasureVarInt() {
+        if (this == default) { throw new InvalidOperationException("A default address cannot be encoded."); }
+
+        return BareValueEncoding.MeasureVarUInt32(_fileId) + BareValueEncoding.MeasureVarUInt64(_ticket.Serialize());
+    }
+
+    /// <summary>按 FileId、交错 ticket 顺序写入最短 VarUInt 编码。</summary>
+    /// <remarks>输出故障直接传播，已写入的字段不回滚。</remarks>
+    /// <exception cref="InvalidOperationException">地址为 default；拒绝前不访问 writer 的 sink。</exception>
+    public void WriteVarInt(BareValueWriter writer) {
+        if (this == default) { throw new InvalidOperationException("A default address cannot be encoded."); }
+
+        writer.WriteVarUInt32(_fileId);
+        writer.WriteVarUInt64(_ticket.Serialize());
+    }
+
+    /// <summary>读取 VarUInt32 FileId + VarUInt64 交错 ticket；成功后才推进 reader。</summary>
+    /// <remarks>接受 Binary 支持的有界冗余表示，不消费地址后的字段。</remarks>
+    /// <exception cref="EndOfStreamException">地址字段截短；reader 保持不变。</exception>
+    /// <exception cref="InvalidDataException">整数溢出或地址数值不合法；reader 保持不变。</exception>
+    public static FrameAddress ReadVarInt(ref BareValueReader reader) {
+        BareValueReader copy = reader;
+        uint fileId = copy.ReadVarUInt32();
+        SizedPtr ticket = SizedPtr.Deserialize(copy.ReadVarUInt64());
+        if (!IsValidNumericAddress(fileId, ticket)) {
+            throw new InvalidDataException("The encoded address has invalid numeric coordinates.");
+        }
+
+        FrameAddress address = Create(fileId, ticket);
+        reader = copy;
+        return address;
+    }
+
+    private static bool IsValidNumericAddress(uint fileId, SizedPtr ticket) {
+        return fileId != 0 &&
+            ticket.Offset >= RbfScanBoundary.Empty.EndExclusive &&
+            ticket.Length >= RbfFile.MeasureWriteSize(0, 0).Value.FrameLength;
     }
 
     /// <summary>比较同一 store 中的完整地址数值。</summary>

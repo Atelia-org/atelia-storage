@@ -29,7 +29,11 @@ writer 的 `Length` 保留 RBF 已写/预留的逻辑累计长度，包含内部
 
 `StoreId` 是持久身份的 16 个 opaque bytes，`IsReadOnly` 表示访问模式。`RecoveryReports` 按 FileId 保留本次可写 Open 的物理恢复报告；Create/RO 为空。格式/布局不合格拒绝，真实 I/O 错误保持原异常；ReadFrame 的非法 default 地址和底座读取拒绝使用 Result，实际缺失路径仍抛文件缺失异常。owner 输出/清理故障后停止使用，Dispose 按单次释放规则先关数据、最后关锁，不隐式确认。
 
-成功的 `FrameRead` 独立拥有 buffer，需调用方 Dispose，可在 store 关闭后使用；已取得的 span 不得越过 FrameRead.Dispose。地址通过 `FrameAddress.TryWrite/TryRead` 的唯一 12B codec 保存，必须同时知道所属 store；不公开裸 RBF writer 或路径导入。
+成功的 `FrameRead` 独立拥有 buffer，需调用方 Dispose，可在 store 关闭后使用；已取得的 span 不得越过 FrameRead.Dispose。地址必须同时知道所属 store；不公开裸 RBF writer 或路径导入。
+
+`FrameAddress.TryWrite/TryRead` 保持固定 12B，适用于提前尺寸规划和地址预留回填。普通已知地址另可使用 `MeasureVarInt()`、`WriteVarInt(BareValueWriter)` 和 `ReadVarInt(ref BareValueReader)`：编码为 `VarUInt32(FileId) + VarUInt64(SizedPtr.Serialize())`，合法地址占 3～15B，不保证每个值都短于 12B。记录 schema 必须明确选择格式，不能自动探测或失败后切换。变长 writer 输出最短表示，reader 接受 Binary 规定的有界冗余表示；复合地址读取失败不推进 reader，实际消费不能用 Measure 反推。default 不能度量或输出，writer 下游异常不保证回滚。
+
+FrameStore 为变长地址 codec 引用 `Atelia.Binary`，间接引入其精确 K4os.Compression.LZ4 `[1.3.8]` 依赖；地址 codec 不调用压缩。格式/测试及真实 RootMap 地址组合证据见[变长编码实施记录](../../docs/FrameStore-VersionStore/02-framestore-varint-address-implementation.md)。
 
 `Inventory(visitor)` 同步返回实际正式集合的用户帧元信息，检查 framing/TrailerCRC；`Audit(visitor)` 额外完整检查每帧 CRC，逐文件报告 24B header 的独立副本和用户帧数。两者含用户 tag=0 与墓碑，只跳过经过检查的首帧 header；成功 Result 的 long 是用户帧总数。文件顺序不定义业务历史，实际集合审计不证明业务引用闭包或所有历史文件仍存在。
 

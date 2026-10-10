@@ -1,6 +1,6 @@
 # S0：总体边界与决策
 
-日期：2026-10-03；2026-10-04–05 确认 FrameStore 文件租借、目录与资源合同；2026-10-07 采用完整根地址字典、单文件 ref、活跃 Builder 期间的已完成输出资格，以及命名 fork 的目录共同发布；2026-10-08 确认 FrameAddress 固定 12B 编码；2026-10-09 明确 MVP 组合，并按完整历史/全分叉需求加入 ref 创建来源链接。状态：**会话方向已确认；S2–S6 剩余 wire/API 与工程选择仍为 Draft；参考依赖拆分 Accepted**。
+日期：2026-10-03；2026-10-04–05 确认 FrameStore 文件租借、目录与资源合同；2026-10-07 采用完整根地址字典、单文件 ref、活跃 Builder 期间的已完成输出资格，以及命名 fork 的目录共同发布；2026-10-08 确认 FrameAddress 固定 12B 编码；2026-10-09 明确 MVP 组合，并按完整历史/全分叉需求加入 ref 创建来源链接；2026-10-10 保留 fixed12 并新增 FrameAddress 变长 codec，RootMap 采用变长格式。状态：**会话方向已确认；S2/S3 前轮独立源码验收 Accepted，新增地址能力单独验证；S4–S6 剩余 wire/API 与工程选择仍为 Draft；参考依赖拆分 Accepted**。
 本文件记录本次用户已表达的决策。规范写法依 [规范约定](../spec-conventions.md)。API/wire 的具体选择由后续阶段细化。
 
 ## term `FrameStore` 中性的 Frame 存储库
@@ -59,7 +59,9 @@ RootMap MUST 用 @`Frame-Address` 表达中性根地址，不要求 EventFrame t
 ### decision [S-FS-ADDRESS-FIXED12] 基础地址固定编码为 12B
 
 2026-10-08 用户确认：**FrameAddress 首版固定编码为 12B，保持完整 uint FileId 与 SizedPtr；额外见证按明确需求引入，不把未来预留或内容 CRC 纳入基础定位合同。** 文件编号非零、不回绕，SizedPtr 的现有偏移与长度容量保持；已知尺寸 Begin 签发的完整地址在正常 End 后不改变。
-本决策锁定基础持久编码，不锁定 CLR struct 的内存尺寸或参数传递 ABI。StoreId 继续由上下文及上层持久绑定承载；地址不证明原始来源、完成、耐久或追加尝试身份。store fingerprint、generation 与内容见证若出现明确需求，单独定义保证及编码演化，不为它们在首版地址中预留字段。S2 `[F-FS-FRAME-ADDRESS-12B]` 已定不透明值及唯一两方向 bool codec、数值下界/默认/等值/失败规则；后序 RootMap 与互引直接消费，普通内部表示与无规范文本为工程默认，实施与运行时成本仍单独验证。
+本决策锁定 fixed12 持久编码，不锁定 CLR struct 的内存尺寸或参数传递 ABI。StoreId 继续由上下文及上层持久绑定承载；地址不证明原始来源、完成、耐久或追加尝试身份。store fingerprint、generation 与内容见证若出现明确需求，单独定义保证及编码演化，不为它们在首版地址中预留字段。S2 `[F-FS-FRAME-ADDRESS-12B]` 定义不透明值、两方向 bool codec、数值下界/默认/等值/失败规则；fixed12 的 EncodedSize/TryWrite/TryRead 原样保留，普通内部表示与无规范文本仍为工程默认。
+
+2026-10-10 用户确认：FrameAddress MUST 另提供 `MeasureVarInt()`、`WriteVarInt(BareValueWriter)`、`ReadVarInt(ref BareValueReader)`，依次编码 `VarUInt32(FileId) + VarUInt64(SizedPtr.Serialize())`。S2 `[F-FS-FRAME-ADDRESS-VARINT]` 唯一定义最短 writer、有界宽容 reader、共用数值 guard 与组合失败不推进规则；FrameStore 直接依赖 Binary 现有方法，不复制 VarUInt 或新增 Span Try API。RootMap MUST 采用这份变长地址格式，fixed12 仍可供明确选择它的业务记录消费；不增加旧 RootMap fallback，不修改 FrameStore 文件格式或版本。前轮 S2/S3 Accepted 仍保留其原验证范围，新增能力单独取证。
 
 ### decision [S-FS-CORE-INDEPENDENT] MVP 仅组合核心存储与发布能力
 
@@ -161,13 +163,14 @@ flowchart TD
     V --> F
     V --> R
     V --> B["Binary"]
+    F --> B
     F --> R["RBF"]
     R --> D["Data / Primitives"]
     F --> D
     V --> D
 ```
 
-箭头表示 C# 项目依赖；Primitives/Data 的直接引用按实际使用决定。S4 RootMap 复用 Binary 普通基元，Binary 当前另有精确 K4os.Compression.LZ4 `[1.3.8]` 依赖；不因本图省略它便声称纯 BCL 闭包。新生产库不得引用 atelia 业务项目、其 Analyzer 或旧存储库。旧栈依赖闭包保持独立。
+箭头表示 C# 项目依赖；Primitives/Data 的直接引用按实际使用决定。FrameStore 变长地址与 S4 RootMap 复用 Binary 普通基元；Binary 仍独立于 Primitives/Data/Rbf，当前另有精确 K4os.Compression.LZ4 `[1.3.8]` 依赖，不因本图省略它便声称纯 BCL 闭包。新生产库不得引用 atelia 业务项目、其 Analyzer 或旧存储库。旧栈依赖闭包保持独立。
 
 | 事实或资格 | 唯一负责层 | 其他层的使用方式 |
 | --- | --- | --- |
@@ -230,4 +233,4 @@ IO/发布尝试后结果可能 Unknown；完整记录可在重开后存在。首
 ## S0 出口
 
 会话已确认新项目、旧库维护边界、RBF 恢复方向、不透明分配、三种追加方式、嵌套文件租借、统一软轮转、目录生命周期、首帧 meta/header、成功 EndAppend 自动归还、数量上限配置文件，以及完整根字典最后发布、单文件 ref、历史选点与命名 fork 的目录共同发布。活跃 Builder 不再阻断对已完成输出的确认、随机读取或独立闭包的根发布。资源基线、文件 header、owned 租借/归档维护、读结果/同步 Inventory/Audit、编号恢复、正式路径、FrameAddress 值/公开 codec、格式门记录/只读校验、初次空 store 与直接门建立及软阈值参数/重开规则已由 S2 定稿；owner 生命周期锁/门前 bootstrap/模式互斥已由 S2 定稿；私有 data 初始化前缀/取消与只读保留已由 S2 定稿；实际根准入、所需 RBF 公共前缀入口、清理及平台资格仍须工程定稿或实施验证。
-S1 的单文件尺寸和 ticket 合同已实施并独立验收为 Accepted。S2–S6 仍是 Draft，具体 wire、类名、方法签名及性能预算按各阶段阻断项细化；本片不代表新库或下游适配已完成。
+S1 的单文件尺寸和 ticket 合同已实施并独立验收为 Accepted；S2/S3 前轮源码资格见[最终源码验收](02-framestore-final-acceptance.md)，新增 FrameAddress 变长 API 单独记录实施验证。S4–S6 仍是 Draft，具体 wire、类名、方法签名及性能预算按各阶段阻断项细化；本片不代表 VersionStore 或下游适配已完成。

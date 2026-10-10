@@ -6,6 +6,8 @@
 
 **当前已完成 R1–R3；S2/S3 独立源码资格已 Accepted。** 详细出口与证据见[最终源码验收](02-framestore-final-acceptance.md)。没有待处理的 R4 缺陷；后续相同自动任务只核对当前状态并结束，不继续扩展功能或重复取证。
 
+用户在收尾后另行批准的 FrameAddress 变长 codec 与 RootMap 格式调整，单独记录于[变长编码实施记录](02-framestore-varint-address-implementation.md)，不重新开启 R1–R4 自动队列。
+
 最初预计 3 轮主线及至多 1 轮修复余量。下文保留这三轮的范围与执行规则，供追溯；包交付和 VersionStore 仍需另行安排。
 
 终点是 FrameStore 独立源码能力和 S2 系统验收闭合，并取得直接相关的 S3 public 构建消费证据。Create/Open/RO、三种追加、交错 Builder、随机读取、确认、归档及 Inventory/Audit 已实施，不再预设还要增加一轮功能框架。后续允许修复验收发现的实际缺陷。

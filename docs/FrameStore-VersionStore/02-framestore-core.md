@@ -1,6 +1,7 @@
 # S2：FrameStore 核心、地址与文件生命周期
 
 状态：**Accepted（2026-10-10，独立源码与已验证 Windows/Linux 环境资格）**。公开持久化闭环、同步物理检查及完整验收映射见[最终源码验收](02-framestore-final-acceptance.md)；FrameStore 保持 source-only，包交付另行验收。
+2026-10-10 新增 `[F-FS-FRAME-ADDRESS-VARINT]` 变长 codec 合同；前轮 Accepted 仍对应原验收范围，新增 API 的源码与消费资格由本轮[独立实施验证](02-framestore-varint-address-implementation.md)另记，不从前轮结果推定。本新增能力不改变 FrameStore 文件格式、格式版本或 fixed12 codec。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)。本阶段独立于发布和命名层。
 
 当前代码与验证边界见[同步物理检查记录](02-framestore-inspection-implementation.md)及[公开持久化闭环记录](02-framestore-persistence-implementation.md)，前片格式/运行内核证据见[首个源码切片](02-framestore-core-implementation.md)；下文仍是完整 S2 合同，不以功能实现替代完整系统验收。
@@ -12,7 +13,7 @@
 创建 `src/FrameStore/FrameStore.csproj`、`tests/FrameStore.Tests/FrameStore.Tests.csproj`，采用 `Atelia.FrameStore` 身份。
 提供独立的多文件不可变 Frame 分配器：Create/Open/OpenReadOnly、申请并完成单帧、随机读取、不透明地址、恢复及同步耐久确认。普通分配不提供业务上的全局顺序。
 首版支持多个 active 文件、每文件独占租给一个 Builder，文件申请/归还串行且可嵌套；成功完成或健康取消后可以复用文件。普通帧可以交错构建、按不同于申请次序的顺序完成。达到软阈值后文件归档只读。
-按需引用 Rbf/Data/Primitives，不引用旧库或业务项目。本阶段的定稿、实施与验收只包含分配、读取、文件生命周期和耐久确认。
+按需引用 Rbf/Data/Primitives；地址变长 codec 直接复用 Binary，Binary 仍独立于前三包。不引用旧库或业务项目。本阶段的定稿、实施与验收只包含分配、读取、文件生命周期、耐久确认及地址 codec。
 
 ## 核心边界
 
@@ -25,7 +26,7 @@
 | 磁盘生命周期 | 私有 creating → active → 按编号分桶的 archive；不维护 active manifest/status |
 | 归档桶 | 固定 1024 个编号一个桶；版本 1 使用 6 位小写 hex 桶名与 8 位完整 FileId 文件名，active/archive 共用文件名 codec |
 | 编号恢复 | 完整流式检查正式目录名称，取 active/archive 实际文件最大 FileId；无持久计数器或全历史 ID 表，不填缺口；耗尽仅拒绝需新文件的请求 |
-| 地址编码 | 固定 12B，完整 uint FileId 与 SizedPtr；基础地址无预留或内容见证字段 |
+| 地址编码 | 保留固定 12B codec；另提供 VarUInt32(FileId) + VarUInt64(SizedPtr.Serialize()) 变长 codec，合法地址 3..15B；完整 uint FileId 与 SizedPtr，无预留或内容见证字段 |
 | 耐久 | 确认调用时全部必要已完成 active 输出，包括 leased 文件；未完成 Builder 不获得资格，archive 资格来自移动前 flush |
 | 活跃构建期间随机读取 | 同文件已完成前缀可以读；未完成新帧不可读，扫描相关入口仍遵循 RBF guard |
 | 读结果与物理检查 | ReadFrame 返回自有完整帧；Inventory/Audit 为同步 visitor，扫描期间禁止同 owner mutation，随机读仍合法；结构发现与完整内容校验分别报告 |
@@ -77,22 +78,22 @@ root、creating、active、archive 及实际归档桶 MUST 位于同一文件系
 
 FrameAddress 对外是不透明、可持久编码的局部地址；首版采用 `FileId + SizedPtr`，正整数 `uint` 文件编号、0/default 非法，ticket 的范围由 RBF/Data 公共 API 校验。不向普通调用方提供字段拆解、地址算术、大小排序或相邻帧推算合同。
 StoreId 属于上下文，不必重复塞进每个数据引用。地址相等只在同一个 store 中有意义；相同数值在另一个 store 可能恰好也合法，**裸地址无法检测调用方原始来源错误**。
-跨 owner 的 Builder 拒绝由实例生命周期负责；持久上层绑定负责选择正确 store。二进制格式、公开值/codec 与失败规则由下条锁定；S2-A 实施，不另建规范文本或地址错误族。
+跨 owner 的 Builder 拒绝由实例生命周期负责；持久上层绑定负责选择正确 store。二进制格式、公开值/codec 与失败规则由下面两个 codec 条款锁定；S2-A 实施，不另建规范文本或地址错误族。
 成功完成的帧在首版存续期间不重新分配、不改写、不删除。整个文件从 active 移到 archive 只改变容器路径，不改变 FileId、ticket 或帧字节，不属于帧重定位。地址不透明不等于已经提供可搬迁的逻辑对象 ID；未来改变定位编码必须另行处理兼容性。取消或截断的未完成预约没有稳定身份保证。
 
 ### spec [F-FS-FRAME-ADDRESS-12B] 基础地址使用固定 12B codec
 
-本条遵循 S0 `[S-FS-ADDRESS-FIXED12]`。首版 FrameAddress 的 canonical 二进制编码 MUST 恰为 12 bytes，字段布局如下：
+本条遵循 S0 `[S-FS-ADDRESS-FIXED12]`。FrameAddress 的固定 codec 编码 MUST 恰为 12 bytes，字段布局如下；新增变长格式由 `[F-FS-FRAME-ADDRESS-VARINT]` 独立定义，本条字段与公开 API 原样保留：
 
 | byte 范围（半开） | 字段 | 编码 |
 | --- | --- | --- |
 | `[0,4)` | FileId | 完整 uint32，LittleEndian，0 非法 |
 | `[4,12)` | Ticket | 完整 `SizedPtr.Packed` ulong，LittleEndian |
 
-MUST 按字段显式编码与解码，不转储 CLR struct 内存，不追加对齐 padding；Ticket 使用 Packed 的完整 64 bits，不改为 `SizedPtr.Serialize()` 的交错值或 varint，不将 offset/length 各压成 uint。解码须精确消费一条 12B 地址，拒绝截短/尾随输入、非法 FileId 及不满足下述数值下界的 ticket；容量与帧资格消费 RBF/Data 公共合同，恢复 Packed 本身不产生真实帧、主链成员或来源证明。FileId 与完整 Packed 决定同一上下文内的值相等。
+此固定 codec MUST 按字段显式编码与解码，不转储 CLR struct 内存，不追加对齐 padding；Ticket 使用 Packed 的完整 64 bits，不改为 `SizedPtr.Serialize()` 的交错值或 varint，不将 offset/length 各压成 uint。解码须精确消费一条 12B 地址，拒绝截短/尾随输入、非法 FileId 及不满足下述数值下界的 ticket；容量与帧资格消费 RBF/Data 公共合同，恢复 Packed 本身不产生真实帧、主链成员或来源证明。FileId 与完整 Packed 决定同一上下文内的值相等。
 MUST 保留 SizedPtr 当前完整可表示范围，不新增单文件 4GiB/16GiB 硬界，不因地址编码把 MaxOffset 改成帧末端上界。基础地址不编码 StoreId、预留字段、CRC、fingerprint 或 generation。已知尺寸 Begin 签发的 FileId、ticket 及其 12B 编码在正常 End 后 MUST 保持相同；健康取消或修尾后的地址复用仍按既有定位合同处理，不承诺取消尝试身份。
 
-**公开值与唯一 codec。** 首版入口如下；FrameAddress 已在首个源码切片实施：
+**公开值与固定 codec。** fixed12 入口如下；FrameAddress 值与这两个入口已在首个源码切片实施：
 
 ```csharp
 public readonly struct FrameAddress : IEquatable<FrameAddress> {
@@ -105,7 +106,7 @@ public readonly struct FrameAddress : IEquatable<FrameAddress> {
 
 类型 MUST 非 positional，不提供公开数值构造、FileId/Ticket 投影、Deconstruct、算术或排序。private uint FileId + private SizedPtr Ticket 为普通内部表示，不指定 Pack/Size 属性。default 是受支持公开构造/解码路径中唯一可取得的非法值；其自等、与其他值比较及哈希均合法，但不可编码或读取，也不自动解释为 nullable/空引用的持久表示。上层在 barrier/输出前可用 `address == default` 预检，不增加公有 IsValid 或第二份状态。Equals MUST 比较完整 FileId/Packed，equal 值有相同 hash；hash 不进入持久格式，不保证跨进程/版本稳定，也不证明两个值来自同一 store。
 
-TryRead MUST 要求 source.Length 恰为 EncodedSize。先设 out 为 default，再用局部值解码；只有全部检查成功才签发值。检查为 FileId != 0、ticket.Offset >= `RbfScanBoundary.Empty.EndExclusive`、ticket.Length >= `RbfFile.MeasureWriteSize(0, 0).Value.FrameLength`，消费公共值而不复制 RBF wire 常量。Packed 的表示已保证非负、对齐及 SizedPtr 上界；`FromPacked` 不提供非空帧票校验，`TryCreate` 也接受零长度，不能代替这些下界。不得额外要求 EndOffsetExclusive <= MaxOffset，或以 FrameStore 用户区初始化边界 I 排除 header 坐标。长度或数值拒绝返回 false、out 保持 default，不抛参数/格式异常、不执行 I/O。
+TryRead MUST 要求 source.Length 恰为 EncodedSize。先设 out 为 default，再用局部值解码；只有全部检查成功才签发值。检查为 FileId != 0、ticket.Offset >= `RbfScanBoundary.Empty.EndExclusive`、ticket.Length >= `RbfFile.MeasureWriteSize(0, 0).Value.FrameLength`，消费公共值而不复制 RBF wire 常量。该数值 guard MUST 由 fixed12 与变长 decoder 共用，不维护两份规则。Packed 的表示已保证非负、对齐及 SizedPtr 上界；`FromPacked` 不提供非空帧票校验，`TryCreate` 也接受零长度，不能代替这些下界。不得额外要求 EndOffsetExclusive <= MaxOffset，或以 FrameStore 用户区初始化边界 I 排除 header 坐标。长度或数值拒绝返回 false、out 保持 default，不抛参数/格式异常、不执行 I/O。
 复合记录 MUST 先保证剩余长度至少 EncodedSize，再传入恰好 12B 的 slice，成功才推进 12B；宿主 codec 负责完整记录的剩余字段/尾随检查。无需 bytesRead、ref cursor 或前缀解码重载。
 
 TryWrite MUST 先检查 default 和 destination.Length >= EncodedSize；拒绝返回 false，整个目标保持不变。成功只按上述 LE 格式写前 12B，剩余目标保持不变。输入精确宽度与输出容量是不同合同，不增加 TryWrite 的写入计数。两方向不分配输出 buffer、专用错误或 wrapper；调用层把 false 映射为所属 schema/字段错误。FrameStore ReadFrame 仍先检查 owner 生命周期/fault，再在 I/O 前拒绝 default；bool codec 失败不改变 owner 健康资格。
@@ -113,6 +114,24 @@ TryWrite MUST 先检查 default 和 destination.Length >= EncodedSize；拒绝�
 内部可信构造 MUST 仅保存已取得资格的 FileId/Ticket；Append/End 成功后不再调用公开 decoder、Measure 或可拒绝的构造校验，不引入新堆分配/I/O/回调。这保持 `[S-FS-END-AUTO-RETURN]` 的成功交付边界。纯 codec 数值成功不检查文件存在、真实帧、CRC、主链、原始 store、完成或耐久，也不签发取消尝试身份；提前地址同样可编码。
 首版不提供独立 FrameAddressCodec 类型、地址专用 Result/error、规范文本 Parse/Format 或自动序列化适配。若工具需要 roundtrip 文本，可由调用方显示成功编码的 12B hex 并恢复 bytes 后调用 TryRead；一般 ToString/日志不成为持久协议。出现真实调用需求再增加窄入口。
 （Informative）普通两字段表示是减少拆/拼及布局配置的工程默认，三 uint 等内存优化等实际成本证据出现后评估。内存大小、数组步长、嵌套容器及调用成本在目标运行时记录，不从 wire 推导固定 12B/16B 内存 ABI 或速度保证。独立数值来源见 [SizedPtr](../../src/Data/SizedPtr.cs)、[Data 测试](../../tests/Data.Tests/SizedPtrTests.cs)、[RBF 公共尺寸](../../src/Rbf/RbfFile.cs)与[尺寸向量](../../tests/Rbf.Tests/Internal/RbfWriteSizeTests.cs)；冻结 EventJournal 及兄弟仓的不同地址/Serialize wire 不产生新格式兼容义务。
+
+### spec [F-FS-FRAME-ADDRESS-VARINT] 变长地址复用 Binary 无符号基元
+
+2026-10-10 用户确认新增以下公开方法；`EncodedSize` 仍仅表示 fixed12 的 12B，不表示变长地址长度：
+
+```csharp
+public int MeasureVarInt();
+public void WriteVarInt(BareValueWriter writer);
+public static FrameAddress ReadVarInt(ref BareValueReader reader);
+```
+
+变长 codeword MUST 依次为 `VarUInt32(FileId) + VarUInt64(SizedPtr.Serialize())`。两个字段均为 BPV1 无符号 Base128，不使用 ZigZag；Serialized ticket 以 `SizedPtr.Deserialize()` 恢复，保留完整 FileId 与 SizedPtr 值域，不更改地址等值、身份或来源合同。MUST 直接复用 `BareValueEncoding.MeasureVarUInt32/MeasureVarUInt64`、`BareValueWriter.WriteVarUInt32/WriteVarUInt64` 与 `BareValueReader.ReadVarUInt32/ReadVarUInt64`；不复制 VarUInt 算法、不新增 Span Try overload、地址 wrapper 或另一份可配置 codec。
+
+writer MUST 输出最短表示；`MeasureVarInt()` 返回精确输出长度，即两个 Measure 的和。合法地址的最短长度为 3..15B；reader 接受 Binary 已定义的有界冗余表示，FileId 最多 5B、Serialized ticket 最多 10B。独立最小数值向量取 FileId=1、ticket offset=4/length=28，Serialize=0x107，地址 bytes 为 `01 87 02`；它证明数值 codec 的下界，不证明这个坐标是用户帧或属于某个 store。default 调用 MeasureVarInt 或 WriteVarInt MUST 在触及 writer/sink 前抛 `InvalidOperationException`，无输出；合法值输出的 sink/资源失败直接继承 Binary，不回滚已经写出或 Advance 的前缀，也不把写失败转为 bool。
+
+ReadVarInt MUST 先复制传入 reader，在副本上读取两个无符号字段，Deserialize 后执行与 `[F-FS-FRAME-ADDRESS-12B]` 共用的数值 guard；只有全部成功才把副本提交回原 reader 并交付值。任何失败原 cursor 不变，包括第二字段截短或数值检查失败。截短抛 `EndOfStreamException`；字段溢出/超过有界宽度及 FileId=0、ticket 起点或长度低于公共下界等非法数值抛 `InvalidDataException`。方法只消费一条地址，保留宿主后续 bytes，不要求整个 reader 已耗尽；宿主负责自身字段、预算与 exact-consume。
+
+公开 decoder 不执行文件 I/O、CRC、主链或业务闭包验证。可信内部 Create 与 Append/End 成功交付路径保持原样，不调用 Measure/公开 decoder，也不新增可拒绝的后验检查。FrameStore 格式门、文件 header、RBF profile 与格式版本不因新增地址 codec 改变；格式由外部宿主 schema 明确选择，不自动检测 fixed12/变长或接受旧地址兼容 fallback。
 
 ## term `Completed-Frame` 已完成帧
 
@@ -540,13 +559,14 @@ leased 文件成功 flush 可清除其此次已完成输出的未确认登记；
 ConfirmDurable 消费本阶段 `[A-FS-DURABLE-COMPLETED-OUTPUTS]` 的核心合同，不解析业务依赖闭包；交错构建与循环引用的消费资格在后续阶段独立验证。
 业务发布不在本阶段建立。
 
-1. S2-A：创建项目/solution；实施已定不透明 FrameAddress 值/两方向 12B bool codec、数值下界/失败产物和普通内部表示，记录目标运行时成本；实施已定格式门 24B codec/只读校验及空 store 直接门建立，实施 `[S-FS-OWNER-LOCK]` 的控制设施、门前 bootstrap、模式互斥与清理顺序，定稿实际根准入；实施本阶段已定的 StoreId/header codec、数量上限 config 及软阈值单参数/范围/实例固定。
+1. S2-A：创建项目/solution；实施已定不透明 FrameAddress 值/两方向 12B bool codec、数值下界/失败产物和普通内部表示，记录目标运行时成本；新增变长 codec 直接复用 Binary、共用数值 guard，并单独验证其精确 Measure、失败不推进及下游输出失败；实施已定格式门 24B codec/只读校验及空 store 直接门建立，实施 `[S-FS-OWNER-LOCK]` 的控制设施、门前 bootstrap、模式互斥与清理顺序，定稿实际根准入；实施本阶段已定的 StoreId/header codec、数量上限 config 及软阈值单参数/范围/实例固定。
 2. S2-B：实施已定 FrameBuilder/FramePayloadWriter、一次性共享 Lease、borrow 前检、无分配的完成/归还登记与保守共享 fault，以及 FrameRead、同步 Inventory/Audit；三种追加、交错完成、随机读、物理检查、基础确认与 Dispose 清理可独立验证。
 3. S2-C：实施统一 DrainStopped 及确认/写准入/Open 入口，结合编号恢复、creating/active/archive 中断状态与多个 active 的独立恢复取得资格。
 4. S2-D：进程中断/资源失败、只读、错误格式、规模和 public 指南资格。
 
 至少验证两种无 EventHeader 记录、三种追加、嵌套租借与乱序完成、取消后文件复用、旧地址跨归档稳定、FrameAddress 的 context 限制、archive RBF1 拒绝、创建/flush/close/rename 各窗口、多个 active 独立恢复及完整内容损坏。
 地址向量覆盖固定 12B/端序的独立 bytes、FileId 高位与 uint.MaxValue、Packed 高低 32 bits 的往返、SizedPtr 最大起点/长度且末端可越过起点上界、Begin/End 编码相等、归档和冷重开不改编码、编号耗尽不回绕。独立 bytes 取 FileId=0x89ABCDEF、Packed=0x123456789ABCDEF0，预期 `EF CD AB 89 | F0 DE BC 9A 78 56 34 12`；最大 FileId/Packed 的 12B 全 FF 仍数值合法。覆盖 FileId=0、ticket 起点 0、零长度（包括 Packed 非零）和低于公共 RBF3 minimum 的长度；header 坐标仍可编码。TryRead 的 0/11/13B 均 false 且覆盖先前有效 out 为 default；TryWrite 的 default/短目标 false 不修改任何 bytes，长目标仅前 12B 改变。复合 reader 先切 12B、成功才推进，失败不吞下字段；default 可比较/hash 但不能 ReadFrame，值比较包含 Packed 全部 bits且无排序合同。codec 验证与内部 struct/数组成本验证分开，不宣称格式解码能检测错 store、旧 Serialize wire 或取消预约复用。
+新增变长向量 MUST 独立验证 `01 87 02` 最小地址、完整 FileId/Serialized 高位及 15B 上界，Measure 等于实际最短输出；真实 public Append/提前 Begin/End、冷重开与 fixed12 round-trip 取得相同值。两字段的合法冗余表示也须读回并按实际消费推进，尾随后字段保持可读。覆盖任意截短、第一/第二字段溢出、超过宽度、FileId=0及与 fixed12 相同的数值下界拒绝，所有失败原 reader cursor 不变，包括已成功读完 FileId 后失败；default Measure/Write 在任何 sink 调用前抛 InvalidOperationException，下游第二字段输出失败保留 Binary 的已写前缀与原异常。新增向量另记验证身份，不改写前轮 fixed12 验收结果。
 覆盖阈值以下/等于/超过、最大帧超阈值仍成功、可纠正失败不归还、成功后不等 Dispose 即可重新申请/确认、重复 Dispose 不二次释放、不覆盖归档目标、1024 边界与 slot=0、编号耗尽/空桶、仅根文件 flush 不充分；首帧 header 覆盖初始化中断、缺失/损坏、未知版本、字段绑定和用户扫描规则。
 阈值参数覆盖省略时 64GiB、I/I+1/MaxOffset 合法且不要求对齐、I-1/MaxOffset+1/负数/long.MaxValue 在任何文件系统访问前拒绝且不留输出。以小 T 验证 header-only 可分配、三种追加的等于/越过、声明大尺寸后取消仍可复用；T=MaxOffset 的最后合法帧成功后停止而不后验拒绝。降低 T 后按恢复后的 tail 分类，分别覆盖 Truncated 变短与 CompletedTail 变长、全部 active/header 资格后才维护，以及维护失败不签发 owner。提高 T 时，尚未移档的超旧阈值 active 可重新分配，同内容已归档文件仍只读；归档/冷重开前后地址与 payload 不变。不增加生产测试开关或以内部比较测试代替 public 生命周期验收。
 header 独立 bytes 向量固定 version=1、StoreId 为 hex 01 至 10、FileId=0x89ABCDEF：decoded payload 为 `01 00 00 00 | 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 | EF CD AB 89`，不是原文件 escaped bytes。覆盖精确 24B、截短/多字节/meta/墓碑/错 tag、全零/错 StoreId、0/错 FileId、未知/门不一致版本、HeadLen/TrailerCRC/PayloadCRC/Fence 损坏；坏首帧后存在合法同 tag 帧仍拒绝，合法 header 后同 tag 用户帧仍读出。验证无用户帧的初始化文件合法、首用户 ticket 从 I 开始、原生 RBF 可见和用户 inventory/audit 分类。正式 active 的每个短于 I 的 header 字节前缀在可写 Open 前拒绝，重复打开仍不修改/接纳；尤其覆盖仅缺 Key/Fence 的完整 body。header 后用户帧残尾按 RBF 恢复，report 不得触及初始化区；长度足够但坏身份/header CRC 的文件仍拒绝，即使底层已先修用户尾。私有 creating 中断留给目录协议裁决，不把初始化校验当删除授权。
@@ -575,7 +595,7 @@ Dispose 向量覆盖取消资源异常不重租、全部 owned 文件逐一尝�
 
 | ID | 验收范围 |
 | --- | --- |
-| S2-Q1 | FrameAddress 值/两方向 12B bool codec、数值/默认/相等/失败、普通表示，以及 framestore.format 的 24B 记录/唯一 CRC/只读完整校验已定；实施相应 bytes/拒绝/关闭/无后验失败向量并记录地址运行时成本。初次空 store/直接 create-only 门建立与成立/返回/失败边界已定，实施对应中断、空集合和首次追加向量；owner 模式互斥消费 `[S-FS-OWNER-LOCK]`，实际上下文/根准入消费 `[S-FS-ROOT-ADMISSION]`，实际资格见持久化闭环记录，直接消费统一版本 1 / 16B StoreId |
+| S2-Q1 | FrameAddress 值/两方向 12B bool codec、数值/默认/相等/失败、普通表示，以及 framestore.format 的 24B 记录/唯一 CRC/只读完整校验已定；前轮资格保持。新增 `[F-FS-FRAME-ADDRESS-VARINT]` 三方法/Binary 依赖/共用 guard 已定，单独实施最短与冗余 bytes、精确 Measure、default pre-sink 拒绝、全失败不推进与下游失败向量；记录新增验证身份。初次空 store/直接 create-only 门建立与成立/返回/失败边界已定，实施对应中断、空集合和首次追加向量；owner 模式互斥消费 `[S-FS-OWNER-LOCK]`，实际上下文/根准入消费 `[S-FS-ROOT-ADMISSION]`，实际资格见持久化闭环记录，直接消费统一版本 1 / 16B StoreId |
 | S2-Q2 | 软阈值唯一 long 参数/64GiB 默认/范围/实例固定/恢复后重算与 archive 不解封已定，实施小阈值 public、非法参数、升降/修尾及维护失败向量；正式路径/单一 codec/全部直接项语法和编号恢复已定，实施文本/拒绝/定位向量并测量 O(A+B+H) 目录成本，不重新选择布局、计数器或最高桶快速路径 |
 | S2-Q3 | 初始输入消费 `[R-FS-STORE-CREATE]`，owner 锁/控制角色、门前 bootstrap 与获锁后重检、模式互斥及退出顺序消费 `[S-FS-OWNER-LOCK]`；实施同/跨进程冲突、锁前后竞争、kill/fault/关闭错误向量。私有 creating 语法/独立候选/全部前缀资格、可写取消及只读保留消费 `[R-FS-CREATION-PRIVATE]`；所需 RBF 公共纯前缀入口及取消/清理已实施。实际根与固定组件/普通类型/no-follow 消费 `[S-FS-ROOT-ADMISSION]`；两平台严格锁/data 同文件系统不覆盖 rename 的源码测试见实施记录，真实跨进程中断见 R1，内部失败/竞争窗口见 R3 |
 | S2-Q4 | Builder/Writer/Lease、borrow、完成/dirty、维护/fault/Dispose，以及 FrameRead、纯值 FrameInfo、FrameFileAudit、同步 Inventory/Audit 准入/重入/取消/终止合同已定；实施对应拒绝/资源清理/信任级别与 completed-prefix 随机读取向量，不再作为待定 API 设计 |

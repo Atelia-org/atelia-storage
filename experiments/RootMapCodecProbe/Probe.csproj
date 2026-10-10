@@ -8,6 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Binary/Binary.csproj" />
+    <ProjectReference Include="../../src/FrameStore/FrameStore.csproj" />
     <ProjectReference Include="../../src/Rbf/Rbf.csproj" />
   </ItemGroup>
 </Project>

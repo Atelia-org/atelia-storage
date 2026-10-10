@@ -1,0 +1,194 @@
+{
+  "date": "2026-10-10",
+  "baseline": "7f98782",
+  "sourceIdentity": "Baseline plus source changes committed together with this record; sourceInputs hashes cover the changed C# inputs and referenced codec primitives, not a full solution snapshot. SHA-256 records the Windows working-tree bytes used during validation; gitBlobSha256 additionally identifies normalized staged bytes where Git changes line endings.",
+  "environment": {
+    "os": "Microsoft Windows NT 10.0.22000.0",
+    "runtime": "10.0.5",
+    "sdk": "10.0.201",
+    "architecture": "x64"
+  },
+  "build": {
+    "configuration": "Release",
+    "errors": 0,
+    "warnings": 41,
+    "warningScope": "Pre-existing XML documentation warnings in Data/Rbf; no FrameStore warnings"
+  },
+  "solutionTests": {
+    "outcomes": {
+      "Passed": 2203,
+      "NotExecuted": 3
+    },
+    "newFrameAddressVarIntTests": {
+      "Passed": 25
+    },
+    "runs": [
+      {
+        "path": "artifacts/framestore-varint/tests/gdtutu_TUTU17_2026-10-10_08_57_48.trx",
+        "sha256": "05b81f4bd73e6a4fb084db711a5b73f6146c7dc128482840194505da6d0e0253",
+        "assembly": "atelia.primitives.tests.dll",
+        "outcomes": {
+          "Passed": 75
+        }
+      },
+      {
+        "path": "artifacts/framestore-varint/tests/gdtutu_TUTU17_2026-10-10_08_57_48[1].trx",
+        "sha256": "1c0a7916829b707715d8543be1361e86b6079f29c00f8c8a041e66901e2494c1",
+        "assembly": "atelia.data.tests.dll",
+        "outcomes": {
+          "Passed": 288
+        }
+      },
+      {
+        "path": "artifacts/framestore-varint/tests/gdtutu_TUTU17_2026-10-10_08_57_49.trx",
+        "sha256": "9519c6b4e01765b142cdc19b3fe7dd725de1588cb29f92335d60c99bce4a1781",
+        "assembly": "atelia.binary.tests.dll",
+        "outcomes": {
+          "Passed": 214
+        }
+      },
+      {
+        "path": "artifacts/framestore-varint/tests/gdtutu_TUTU17_2026-10-10_08_57_49[1].trx",
+        "sha256": "e645e8a7e7a00eb16d2ecccc8251f10ec34d298da814ee15c2a4ee32857aeceb",
+        "assembly": "atelia.rbfsegmentstore.tests.dll",
+        "outcomes": {
+          "Passed": 48
+        }
+      },
+      {
+        "path": "artifacts/framestore-varint/tests/gdtutu_TUTU17_2026-10-10_08_57_49[2].trx",
+        "sha256": "3aa6a15c3915974080848b6bbf786ddb93cf09f35b38c8e2843395f11eeb1801",
+        "assembly": "atelia.framestore.tests.dll",
+        "outcomes": {
+          "Passed": 417,
+          "NotExecuted": 3
+        }
+      },
+      {
+        "path": "artifacts/framestore-varint/tests/gdtutu_TUTU17_2026-10-10_08_57_49[3].trx",
+        "sha256": "9545712c2a7e25c06724164d4283a7c147f1fbbfd6c4abe178b5c2774e904a60",
+        "assembly": "atelia.rbf.tests.dll",
+        "outcomes": {
+          "Passed": 865
+        }
+      },
+      {
+        "path": "artifacts/framestore-varint/tests/gdtutu_TUTU17_2026-10-10_08_57_50.trx",
+        "sha256": "9c44c2310c1a659299ae8fbf389e3e7ab805e9d7d1a1a34f4ea0cca76341dfea",
+        "assembly": "atelia.eventjournal.tests.dll",
+        "outcomes": {
+          "Passed": 174
+        }
+      },
+      {
+        "path": "artifacts/framestore-varint/tests/gdtutu_TUTU17_2026-10-10_08_57_52.trx",
+        "sha256": "4d460508b6dfb5449e970b2a6fdc5eb88f2ff7fcfdc1671309c262a41ff2ceed",
+        "assembly": "atelia.eventjournal.toolkit.tests.dll",
+        "outcomes": {
+          "Passed": 122
+        }
+      }
+    ]
+  },
+  "rootMapProbe": {
+    "checks": 118,
+    "persistedFramesReadBack": 2,
+    "result": {
+      "path": "experiments/RootMapCodecProbe/evidence/2026-10-10-varint-result.json",
+      "sha256": "27b706362d7c3c9e0f931e7fde6d46c101de9d2e11b07e90fe3c57b71f7bbb97",
+      "gitBlobSha256": "859f0179c8a62e882a739c081b9bdc6074e43ce9ceb8e103623522d349af25c6"
+    }
+  },
+  "fixedConsumer": {
+    "passed": true,
+    "scenarios": 6,
+    "assertions": 304,
+    "result": {
+      "path": "artifacts/framestore-varint/fixed-consumer/result.json",
+      "sha256": "d2011c743c0f250ef9f94a6fd8b00eda587f2f8a92c20be8ef6b87f05cbb0973"
+    }
+  },
+  "dependencies": {
+    "frameStoreAssets": {
+      "K4os.Compression.LZ4/1.3.8": "package",
+      "Atelia.Binary/1.0.0": "project",
+      "Atelia.Data/1.0.0": "project",
+      "Atelia.Primitives/1.0.0": "project",
+      "Atelia.Rbf/1.0.0": "project"
+    },
+    "frozenRbf1ProjectsVerified": 7,
+    "rbf1Version": "0.2.0-rbf1-preview.1",
+    "rbf1Source": "3e9554e2ea70f769607e80b3fc11a85506050533"
+  },
+  "sourceInputs": [
+    {
+      "path": "src/FrameStore/FrameAddress.cs",
+      "sha256": "a43eb8936ecc9479fa1cf6cd590e8cb5bb54ea1ad46e73b61612d867cfe8223e"
+    },
+    {
+      "path": "src/FrameStore/FrameStore.csproj",
+      "sha256": "aca82646453ac8e7af46b474bae8fd65b3b1ceefda17386c24fe12e125158226"
+    },
+    {
+      "path": "tests/FrameStore.Tests/Format/FrameAddressVarIntTests.cs",
+      "sha256": "dc9a8c02a61c3771aa99513bec3ec0c5838214364ea30c172bf481d53384e877"
+    },
+    {
+      "path": "experiments/RootMapCodecProbe/Program.cs",
+      "sha256": "a4ff33025fb102f94b7d168a43c6b18b9d964c032da57878cdbfd1f78db527e8",
+      "gitBlobSha256": "b8e30756c49d5de33554b19900ce7463bf8a908bdd0e52f0ea76dfd6b19fb9d5"
+    },
+    {
+      "path": "experiments/RootMapCodecProbe/Probe.csproj",
+      "sha256": "1eb1ab51d5183428ab072c8a22b9016059ba2493732e89eeab743097604de4ca"
+    },
+    {
+      "path": "src/Binary/BareValueEncoding.cs",
+      "sha256": "a8f6493efda3cfd3f95244ee6835c86f5d2d6d1f5477f4f1a744d4a4d8072fdf"
+    },
+    {
+      "path": "src/Binary/BareValueReader.cs",
+      "sha256": "49f4fa51827e9232af95a561aa838c35ed9a5fc4d09fe232f2b1e836a4de58f5"
+    },
+    {
+      "path": "src/Binary/BareValueWriter.cs",
+      "sha256": "0f09c7cfd509b5a25d24e18bddc38ffadd347fd0e7b831a07d37f4d305228c7d"
+    },
+    {
+      "path": "src/Data/SizedPtr.cs",
+      "sha256": "072248792a0eca507090f3b4f07c372b8f0bb7ac299986538e776b9f5923228d"
+    }
+  ],
+  "localArtifacts": [
+    {
+      "path": "artifacts/framestore-varint/build.log",
+      "sha256": "6b1867ad6b19bce3ee106f93e80a1236915a127788c4691ff17a55487883e6c0"
+    },
+    {
+      "path": "artifacts/framestore-varint/tests.log",
+      "sha256": "2674af7674e5002061539a322072a0fbdfaf69457b0c890d54777fd6b84fb5d2"
+    },
+    {
+      "path": "artifacts/framestore-varint/rbf1-assets.log",
+      "sha256": "75997e0656849e10b55138a4500b10da8c61d34feca82a27c2e364995a4738d0"
+    },
+    {
+      "path": "artifacts/framestore-varint/consumer-build.log",
+      "sha256": "c3d8623a2e9d03bef2bd58220014937f09b3c3120648fc54736ef5e43cac6502"
+    },
+    {
+      "path": "artifacts/framestore-varint/consumer-run.log",
+      "sha256": "8ff4ef0abedd5278b02e912f46ff5382fad486b6173c1b0600b1d012ef41d3ff"
+    },
+    {
+      "path": "artifacts/framestore-varint/rootmap-build.log",
+      "sha256": "6ecac7ad91a5409411860b9147e11e952c604e7d43f325f7ee7c4d3b632a000e"
+    }
+  ],
+  "limits": [
+    "Source-only FrameStore, no package build/publication",
+    "RootMap implementation is an experiment, not production VersionStore",
+    "This increment was run on Windows only; prior Linux evidence retains its prior source identity",
+    "No new crash/power-loss/performance qualification"
+  ]
+}

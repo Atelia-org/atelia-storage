@@ -28,7 +28,7 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 2026-10-05 追加确认：采用首帧 meta/header，内容交由 Coding Agent 研究决定；成功 EndAppend 自动归还文件；只设可配置的未归还 Builder 数量上限、超限立即拒绝，并通过 config 文件提供设置。
 2026-10-07 追加确认：ConfirmDurable 确认调用时全部必要完成输出，未归还 Builder 不阻断屏障、不获得完成/耐久资格；本根依赖已完成时可独立发布。Builder 活跃期间同文件已完成前缀可随机读取，新帧仍不可读。串行、完整内容校验、生命周期与共享 fault 保持，扫描相关 guard 不变。
 同日追加确认：命名 fork 在私有 RefId 容器同时准备 ref 与初始 binding，flush/close 后一次目录 rename 共同发布；所有 branch aliases 放同一种 names 文件。无公开 Creating 名称或永久 branch gate，私有残留不可查询，普通 CreateRef 与手工两步仍保留。正式定义见 S0 `[S-VS-NAMED-FORK-ATOMIC]`、S4 `[S-VS-REF-DIRECTORY-PUBLISH]` 与 S5 `[S-VS-NAMED-FORK-PUBLISH]`。
-2026-10-08 用户确认：FrameAddress 首版固定编码为 12B，保持完整 uint FileId 与 SizedPtr；额外见证按明确需求引入，不把未来预留或内容 CRC 纳入基础定位合同。S0 `[S-FS-ADDRESS-FIXED12]` 与 S2 `[F-FS-FRAME-ADDRESS-12B]` 已关闭基础地址宽度和二进制字段布局；2026-10-09 已定公开值/两方向 bool codec、数值下界/默认/相等/失败规则和普通内部表示，不建立规范文本；实现向量与实际运行时成本保留 S2。
+2026-10-08 用户确认：FrameAddress 首版固定编码为 12B，保持完整 uint FileId 与 SizedPtr；额外见证按明确需求引入，不把未来预留或内容 CRC 纳入基础定位合同。S0 `[S-FS-ADDRESS-FIXED12]` 与 S2 `[F-FS-FRAME-ADDRESS-12B]` 已关闭基础地址宽度和二进制字段布局；2026-10-09 已定公开值/两方向 bool codec、数值下界/默认/相等/失败规则和普通内部表示，不建立规范文本；2026-10-10 用户批准增加变长地址 codec 并让 RootMap 使用；固定 12B 仍服务预留回填，新增变长格式及失败合同见 S2 `[F-FS-FRAME-ADDRESS-VARINT]`，不重新打开选型问题。实现向量与实际运行时成本保留 S2。
 2026-10-09 用户确认：[批量规划器与 API 设想](extensions/framestore-batch-planner-candidate.md)移至独立扩展草稿，需求与协议问题不列入 MVP 工程定稿或 Ready 条件。
 同日用户要求 fork 后仍能遍历完整历史并查询全部分叉。本轮设计在 ref 首帧增加不可变 ForkOrigin（源 RefId + 源 SizedPtr），文件内顺序继续表达发布编辑历史；来源感知创建按 revision 重读源字典，ListForks 从全部正式 ref 首帧声明派生图。来源字段见 S4，跨文件定位、预算与查询资格见 S5；业务因果/merge 仍由应用解释。
 旧单 active locator、全 owner 活跃期读取禁令已被替代。2026-10-07 按用户要求延期 ref 分段/轮转；Commit/Parent、全控制日志回放、Prepared token 和 checkpoint 不再是首版前置。历史逆序遍历仍是核心功能，经同步 visitor 交付调用结束后可继续使用的自有字典。
@@ -69,8 +69,8 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 | tag 桶如何初始化/校验、是否需要索引 | S5 已定完整 header 初始化边界与恢复保护、统一版本组合 schema、每次全桶 checked 扫描及临时 fullname 集合；不保留跨调用索引，RootMap 原样消费 S4 已定 codeword，名称/组合容量仍在 S5-Q1 |
 | 命名 fork 是否允许公开未绑定新 ref | 组合入口一次发布完整 RefId 目录，新 ref/初始名称一起可见；手工两步仍不是事务 |
 | 是否先持久占上 Creating 名称 | 不采用；全局名称预检至提交均串行，初始/alias 绑定使用统一 names 表示 |
-| 基础地址是否保持 16B 或带 SmartPointer 见证 | 固定 12B codec，完整 uint FileId + SizedPtr；无预留/内容 CRC，wire 与内存成本分离 |
-| FrameAddress 公开值/codec 如何交付 | S2 已定 readonly 不透明值、精确 TryRead/容量 TryWrite、公共数值下界、default/完整等值及失败 default/无写入；无额外错误族/规范文本，普通内部表示直接实施 |
+| 基础地址是否保持 16B 或带 SmartPointer 见证 | 固定 12B 与显式变长 codec，完整 uint FileId + SizedPtr；无预留/内容 CRC，wire 与内存成本分离 |
+| FrameAddress 公开值/codec 如何交付 | S2 已定 readonly 不透明值、固定 TryRead/TryWrite 与变长 MeasureVarInt/WriteVarInt/ReadVarInt、共同数值下界及 default/完整等值；变长读取失败不推进，无额外错误族/规范文本 |
 | FrameStore 格式门记录与初次建立 | S2 已定 framestore.format 普通24B记录/唯一CRC/共同只读校验；`[R-FS-STORE-CREATE]` 已定空store、正式门直接create-only写入及成立/返回/失败边界，无私有门或门rename；`[S-FS-OWNER-LOCK]` 已定永久0B控制设施/门前bootstrap与重检、writer独占/readers共享及最后关锁；私有data初始化残留语法/候选/全字节前缀、可写取消与只读保留已定，实际根准入已定于 `[S-FS-ROOT-ADMISSION]`，RBF纯入口/目录清理已实施，平台与系统资格按实施记录区分 |
 | VersionStore 格式门如何绑定 data | S4 已定 versionstore.format 普通 40B 记录、统一版本/双身份/唯一 CRC 与共同只读检查；按实际借入 owner 身份比较，必要关闭先于发布恢复/清理/输出；初次发布/根锁/身份生成/模式平台仍未定 |
 | VersionStore 身份与快照值如何交付 | S4 已定 RefId上下文/内部8B、RefRevision自有位置值、RootMap/RefSnapshot表示、RootMap BPV1/上限、ref header/普通Snapshot组合格式及正式RefId平面路径/内部16hex与max恢复/单调分配/不复用/耗尽；匿名外部身份导入导出仍延期，实际组件/私有残留、StoreId与可写恢复前初始化保护仍待定 |
@@ -83,18 +83,18 @@ FrameStore 核心合同为不透明分配和随机读取；文件顺序只服务
 
 **涉及阶段：** S2-Q1/Q4、S3-Q4；[S4](04-versionstore-publication.md) 的字典 codec / 身份 / 单文件创建；消费 [S5](05-versionstore-names-and-indexes.md) 已定历史合同。
 
-**已确认：** 字典按值保存，地址解释于一个绑定的 data FrameStore，复用 S2 固定 12B codec。发布时应用保证全部必要对象已经完成，不能采用取消/未完成 ticket；data ConfirmDurable 不解析业务图，无关 Builder 未归还不阻断发布。屏障确认 leased 文件旧输出，不赋予其正在构建的新帧资格。旧 ref/tag 快照可以复用数据地址，不需要重新创建 Commit 或提交 parent。
+**已确认：** 字典按值保存，地址解释于一个绑定的 data FrameStore，复用 S2 变长地址 codec；固定 12B 入口继续服务预留回填。发布时应用保证全部必要对象已经完成，不能采用取消/未完成 ticket；data ConfirmDurable 不解析业务图，无关 Builder 未归还不阻断发布。屏障确认 leased 文件旧输出，不赋予其正在构建的新帧资格。旧 ref/tag 快照可以复用数据地址，不需要重新创建 Commit 或提交 parent。
 
-**设计 / 关键方案：** VersionStore 初次 store 创建/门发布、根独占与私有残留裁决，以及可变初始 Snapshot 的恢复前初始化保护；明确身份生成与访问模式所需的行为合同，保持实际借入 data 的绑定及资源责任。未定查询如 ListRefs 的结果范围/资格属于对应接口合同，CLR 包装与签名语法随实现定稿。基础地址值/codec、RootMap codeword、ref header/普通 Snapshot 组合格式及发布目录单位/正式路径已确定，不再开放地址宽度、key/wire/限额、header 来源判别或“先文件后补名字”的选择。地址数值规则、default 预检及精确 12B 字段直接消费 S2，每条完整记录仍用 RBF 公共尺寸 API。
+**设计 / 关键方案：** VersionStore 初次 store 创建/门发布、根独占与私有残留裁决，以及可变初始 Snapshot 的恢复前初始化保护；明确身份生成与访问模式所需的行为合同，保持实际借入 data 的绑定及资源责任。未定查询如 ListRefs 的结果范围/资格属于对应接口合同，CLR 包装与签名语法随实现定稿。基础地址值/codec、RootMap codeword、ref header/普通 Snapshot 组合格式及发布目录单位/正式路径已确定，不再开放地址宽度、key/wire/限额、header 来源判别或“先文件后补名字”的选择。地址数值规则、default 预检及 RootMap 变长字段直接消费 S2，每条完整记录仍用 RBF 公共尺寸 API。
 
 **实现 / 验收：** 公开身份的 CLR 表示及满足既定身份合同的生成调用、内部 codec 组合、初始化/读取助手、具体私有路径/锁/平台入口，由对应实现片决定；在行为合同确定后，ReadRef/ListRefs、末帧成员/源成员、屏障和清理按合同编码并验收，不逐一展开辅助类型、属性或内部错误分支。目录 rename 和初始化保护所需入口若无可执行路径，仍作为关键方案问题处理。
 VersionStore 门记录/共同只读检查与 data 持久身份绑定已定于 S4 `[F-VS-OWN-FORMAT]`，不再作为待定 codec 或载体选择；16B canonical VersionStoreId 由下游直接消费。内容资格不关闭初次门发布、根/锁或平台协议，也不证明裸地址来源/应用闭包。
 RefId 自有公开值/完整上下文等值/default/不同 VSID 前检及内部唯一8B字段消费S4 `[F-VS-REF-ID-8B]`；正式集合max恢复、单调分配/正式身份不复用与耗尽消费 `[S-VS-REF-ID-ALLOCATION]`；正式容器/文件与names根路径消费 `[F-VS-REF-PATHS]` 的平面16位小写ASCII hex/内部codec，不再列为待定选择。可写冷开增加O(ref数量)名称发现，private不计max但未裁决残留仍阻断准入；根独占/实际组件/私有残留及平台资格继续在S4-Q3。暂不提供公开序列化，出现明确外部匿名身份持久化消费者时再立窄合同；编号规则不签发来源资格或精确认领匿名旧调用。
 
 RefRevision 自有公开值、完整等值/default/上下文前检、只读实际位置及同 VS 重开使用已定于 S4 `[A-VS-REF-REVISION-VALUE]`，不再作为待定表示或整体 codec 选择；未提供匿名精确 revision 的跨进程导入导出，出现消费者再立窄合同，tag 字典不能透明替代其精确来源书签。
-RootMap/RefSnapshot 表示直接消费 `[A-VS-ROOTS-OWNED]`；key/wire/容量直接消费 `[F-VS-ROOTMAP-BPV1]`，不再列为待定设计。tag/history/CU 候选原样复用；基元与组合探针不构成真实 FrameAddress、新库/宿主、峰值或性能资格。
+RootMap/RefSnapshot 表示直接消费 `[A-VS-ROOTS-OWNED]`；key/wire/容量直接消费 `[F-VS-ROOTMAP-BPV1]`，不再列为待定设计。tag/history/CU 候选原样复用；真实 FrameAddress 组合验证见[变长编码实施记录](02-framestore-varint-address-implementation.md)；探针不构成 VersionStore 新库/发布协议、峰值或性能资格。
 历史枚举固定起始完成上界，沿不可变 ForkOrigin 接续各源选中位置及其更早历史；活动期间禁止同 owner mutation，返回的完整 RootMap 自有。RefRevision 只从完成发布/真实成员 checked-read 取得；来源元数据不自动签发 checked revision。来源感知 fork 先重读源字典，在子输出前完成 data 屏障与源文件 flush；只传 roots 的创建无来源。
-ref header的28/44B来源判别、固定字段、Header/Snapshot的0/1 kind、普通Snapshot纯RootMap/完整容量及共同首两帧检查已定于S4 `[F-VS-REF-FRAMES]`，不再列为待定codec。剩余具体缺口是**可写恢复前的初始化准入**：[公面探针](../../experiments/RefFrameSchemaProbe/README.md)复现header28+初始15B完整112B，缺末8B仍为104B≥empty最小100B；RBF会CompletedTail补齐，事后拒绝后再次None可认领。现public只读工厂又会拒绝合法更新残尾，不能提供一般前缀预检；需单独选定可执行保护/底座入口或重审原有正式坏初始化的接受政策，不能将最小长度＋事后report宣称Ready。正常私有flush/close→目录发布不产生该半初始，反例不扩大ProcessCrashOnly模型。
+ref header的28/44B来源判别、固定字段、Header/Snapshot的0/1 kind、普通Snapshot纯RootMap/完整容量及共同首两帧检查已定于S4 `[F-VS-REF-FRAMES]`，不再列为待定codec。剩余具体缺口是**可写恢复前的初始化准入**：[公面探针](../../experiments/RefFrameSchemaProbe/README.md)在此前固定 12B 地址草案上复现 header28+初始15B完整112B，缺末8B仍为104B≥empty最小100B；RBF会CompletedTail补齐，事后拒绝后再次None可认领。现public只读工厂又会拒绝合法更新残尾，不能提供一般前缀预检；需单独选定可执行保护/底座入口或重审原有正式坏初始化的接受政策，不能将最小长度＋事后report宣称Ready。正常私有flush/close→目录发布不产生该半初始，反例不扩大ProcessCrashOnly模型。
 历史入口、自有值交付、跨文件资源/visited、返回/定位工作预算和终止已定于 S5 `[A-VS-REF-HISTORY-CHECKED]`，直接消费而非重新选择。现有 RBF 只有 EOF 逆扫，旧 fork 点的源后缀定位可能增长并支付工作步；无关后缀 payload 不作历史审计，已观察的结构错误仍传播。完整无来源起点、正常选点停止、预算失败、取消与错误按 S5 区分。
 
 **实现验收目标：** 选中非末快照，结束枚举后 fork/tag/rewind；源继续更新、fork-of-fork、同值初始与源不同 revision，完整继承前缀保持正确。覆盖源真实成员、错 length、缺源/循环/字典不符、源 flush 失败、定位预算/错误和跨文件释放；不自动读取全部应用图或从 data 地址大小推算历史。

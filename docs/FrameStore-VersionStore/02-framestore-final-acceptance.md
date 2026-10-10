@@ -4,7 +4,7 @@
 
 状态：**Accepted。S2/S3 独立源码出口、具名失败窗口、两平台受影响回归与成本记录已闭合；本次收尾队列完成。** 主线程已复核源码与实际运行结果，源码/测试输入及 TRX 身份见[机器记录](evidence/2026-10-10-framestore-r3.json)。
 
-本轮终点是 source-only FrameStore 的独立多文件分配、读取、恢复、确认、物理检查和 S3 public 交错构建消费资格。FrameStore 继续仅依赖 main Rbf/Data/Primitives；冻结旧栈继续消费精确 RBF1 package。包交付、消费仓切换、VersionStore、并行调用和断电资格分别处理。
+本轮终点是 source-only FrameStore 的独立多文件分配、读取、恢复、确认、物理检查和 S3 public 交错构建消费资格。当轮 FrameStore 仅依赖 main Rbf/Data/Primitives；冻结旧栈继续消费精确 RBF1 package。用户随后批准的变长地址 codec 新增 Binary 依赖，其独立增量验证见[实施记录](02-framestore-varint-address-implementation.md)，不将本记录的旧源码 hash/平台结果重标为新增能力的证据。包交付、消费仓切换、VersionStore、并行调用和断电资格分别处理。
 
 ## 证据的身份与复用
 

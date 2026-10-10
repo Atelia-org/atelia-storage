@@ -16,7 +16,7 @@
 | 用户确认的增量接入路线 | 先稳定 Prepare/plan/Write/Read API；.NET 11 正式发布后升级并接入 BCL zstd、DEFLATE | 当前实施公共包装与显式算法分派，记录后续 TODO；尚未实现的方法不成为有效 enum/control |
 | 用户授权的 LZ4 增量 | 可依赖轻量 NuGet 实现，现在接入 LZ4 并验证多算法支持 | 精确依赖 K4os.Compression.LZ4 `[1.3.8]`，新增标准独立 Lz4Block，不使用 Streams/Frame/Pickler |
 | 上轮讨论的设计建议，非已发布合同 | writer 输出默认紧凑表示；reader 可接受明确、无损、有界的其他表示 | 本文提出单一宽容 reader，不加严格/宽松模式矩阵 |
-| 已确认的 FrameStore 合同 | FrameAddress 固定 12B：uint32 LE FileId + uint64 LE Packed；提前地址稳定 | 消费层组合固定 LE 基元；不引入 varint 地址 |
+| 已确认的 FrameStore 合同 | FrameAddress 保留固定 12B，并提供 VarUInt32(FileId) + VarUInt64(SizedPtr.Serialize())；提前地址稳定 | 格式与数值资格由 FrameStore 定义；变长 codec 复用本层基元，RootMap 选择变长地址，预留回填选择固定地址 |
 | 当前代码证据 | DurableGraph 有纯 BCL reader/writer、VarInt、字符串；StateJournal 另有实现且错误/字符串规则不同 | 复用算法经验与独立 golden，不整份照搬领域 writer |
 | 当前存储边界 | RBF 解释物理帧；FrameStore 管分配/随机读；VersionStore 解释 RootMap | 本层不解释 frame、根、身份、发布、CRC、耐久与恢复 |
 
@@ -273,7 +273,7 @@ public static class BareValueEncoding {
 | VarUInt16 / VarUInt32 / VarUInt64 | ushort / uint / ulong | 对应 MeasureVarUIntX |
 | VarInt16 / VarInt32 / VarInt64 | short / int / long | 对应 MeasureVarIntX |
 
-示意消费（Informative）：FrameStore 的 address codec 调用 WriteUInt32LE 与 WriteUInt64LE，保持已确认 12B。VersionStore 可用 VarUInt32(count)、逐项 WriteString(key) 与该 address codec 组合 Snapshot；完整记录的字段/版本/限额仍在各自规范定稿，不能把该示意当已冻结 RootMap wire。
+示意消费（Informative）：FrameStore 的固定 address codec 使用 BCL LE 基元保持 12B；新增变长 codec 组合本层的 VarUInt32 与 VarUInt64，票据通过 SizedPtr.Serialize/Deserialize 转换。VersionStore 使用 VarUInt32(count)、逐项 WriteString(key) 与 FrameAddress 变长 codec 组合 RootMap；完整记录的字段/版本/限额以 [S4](../FrameStore-VersionStore/04-versionstore-publication.md) 为准。本层不引用 FrameStore，也不定义地址资格。
 受控使用（Informative）：PrepareControlledString(value, ValueCompression.Brotli) → 用 EncodedLength 预算 → WritePreparedValue(plan) → ReadControlledString。bytes 的 null 显式使用 ControlledValueEncodingPlan.Null；PrepareControlledBytes(span) 表示非 null bytes，empty span 不表示 null。调用方按 schema 选择 string/bytes reader；同一个 plan 类型不承诺自动识别内层类型。
 
 ## 独立 golden 与验收向量

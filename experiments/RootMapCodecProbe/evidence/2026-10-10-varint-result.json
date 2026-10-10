@@ -1,0 +1,19 @@
+{
+  "Runtime": "10.0.5",
+  "Platform": "Microsoft Windows NT 10.0.22000.0",
+  "Checks": 118,
+  "IndependentGolden": "010341018702",
+  "IndependentMinimumAddressGolden": "018702",
+  "IndependentMaximumAddressGolden": "FFFFFFFF0FFFFFFFFFFFFFFFFFFF01",
+  "KeysRoundTripped": 12,
+  "EncodedMapBytes": 71,
+  "IssuedAddressBytes": 3,
+  "PersistedMapBytes": 20,
+  "PersistedFramesReadBack": 2,
+  "DefaultUtf8Collision": true,
+  "DefaultUtf16ReplacesLoneSurrogate": true,
+  "RbfPayloadAndMetaMaximum": 268435424,
+  "RootMapCodewordLimit": 1048576,
+  "ConservativeEntryCountBound": 262143,
+  "Scope": "Public Binary/FrameAddress composition, real FrameStore issuance and Create/Append/known-size BeginAppend/EndAppend/ConfirmDurable/Dispose/RO RootMap address readback, actual 1MiB vectors; no VersionStore publication, crash, package or performance qualification"
+}

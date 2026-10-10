@@ -1,6 +1,7 @@
 # S5：ref 历史、不可变 tag 与 branch 名称
 
 状态：**Draft；2026-10-07 采用完整 RootMap、真实 ref 历史、单文件 tag 桶、统一 branch 绑定与命名 fork 的目录共同发布；2026-10-08 同步 S2 固定 12B 地址；2026-10-09 增加来源感知 fork、跨文件完整发布历史与全分叉查询，定稿同步历史 visitor、预算与清理，tag 桶初始化/组合 schema/每次完整扫描，以及 ListForks 完整自有结果/单项数量预算/迭代图校验与清理；其余 API、路径编码及基础 codec 尚未实施/冻结**。
+2026-10-10 tag、历史与 fork 的 RootMap 同步采用 S4 的变长地址字段；S2 fixed12 codec 原样保留，名称层不另定义地址格式或兼容 fallback。VersionStore 尚未实施。
 前置：[S0](00-architecture-decisions.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)。扩展 S4 的完整根快照与局部发布协议，不增加全局事实日志。
 
 ## 目标与最小公开操作
@@ -141,7 +142,7 @@ ForkInfo 是普通非 record readonly struct，仅有三个只读属性及内部
 ### spec [S-VS-TAG-ROOTS-IMMUTABLE] tag 一次冻结完整根字典
 
 每个 tag MUST 保存 `TagName + 完整 RootMap` 的一条 RBF3 record，使用 S4 `[S-VS-ROOTS-AFTER-DATA-CONFIRM]` 的私有拷贝、输入/容量 guard、data ConfirmDurable、Append 与 DurableFlush 协议；无关 data Builder 尚未归还不阻断 tag 创建，所需依赖仍必须由应用保证完成。tag 从某 ref/历史快照创建时复制当时字典，不持有可变 ref 间接绑定。同名再创建 MUST 在输出前拒绝，即使字典同值。
-tag 内容直接复用 S4 RootMap codec，包括其消费的 S2 固定 12B FrameAddress；名称 codec 属于本层，RefId 字段消费 S4，RefRevision 不另立整体 codec，均不从地址固定 12B 推导宽度。tag 不保存 RefRevision 或精确 ref 历史来源。
+tag 内容直接复用 S4 RootMap codec，包括其消费的 S2 `[F-FS-FRAME-ADDRESS-VARINT]` 与逐地址精确尺寸、实际消费含冗余表示的容量检查；名称 codec 属于本层，RefId 字段消费 S4，RefRevision 不另立整体 codec，不从地址格式推导它们的宽度。tag 不保存 RefRevision 或精确 ref 历史来源；历史与 fork 的字典重读/复制也复用同一变长 RootMap，不接受旧 fixed12 RootMap fallback。
 TagName 的比较采用明确稳定的名称政策；默认候选为 Ordinal。路由 MUST 使用固定、跨进程复现的字符串 hash 与固定桶规则，不使用进程随机化的 string.GetHashCode；名称政策下比较相等的两个名字 MUST 路由同一桶，不能因原始大小写或同值 codeword 表示不同而漏掉同名。记录保留完整原名；hash 相同但名称不同不是同名，MUST 按完整名字比较。
 首版每桶一个 RBF3 文件、不轮转。以下是已选的 tag 局部合同；统一版本与 16B canonical VersionStoreId 直接消费 S4 `[F-VS-OWN-FORMAT]`，RootMap wire/1MiB codeword 上限消费 `[F-VS-ROOTMAP-BPV1]`；名称编码/限额、固定 hash/桶数量/规范路径仍消费 S5-Q1，不能据此宣称其余依赖已经冻结。桶 header 使用同一身份编码，不另选宽度、不从 CLR struct 大小或被检查文件反推。
 
