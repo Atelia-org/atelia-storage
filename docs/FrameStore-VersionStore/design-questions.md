@@ -1,6 +1,6 @@
 # 设计阶段待定问题：FrameStore 与 VersionStore
 
-日期：2026-10-04–10；既有定稿移出设计队列；2026-10-10 采用无 branch 名称、持久预留低号区及自动/指定创建，相关合同写回 S0/S4/S5，D8 仅保留 tag 名称问题。状态：**Informative / Derived；问题导航，不是新增实施阶段或规范输入**。
+日期：2026-10-04–10；既有定稿移出设计队列；2026-10-10 采用无 branch 名称、持久预留低号区及自动/指定创建；D3 的建库/根锁/唯一 pending/ListRefs 与停用清理已定于 S4，移出待定队列；当前仅 D8 的 tag 名称与固定路由待定。状态：**Informative / Derived；问题导航，不是新增实施阶段或规范输入**。
 输入为本轮会话及 S0–S6 合同；S2/S3 已完成[独立源码验收](02-framestore-final-acceptance.md)，本设计问题队列不重复展开其已关闭项。FrameStore 已实现[公开持久化闭环](02-framestore-persistence-implementation.md)，Inventory/Audit 已实施（见[源码验收](02-framestore-inspection-implementation.md)）；VersionStore 项目尚未创建；RBF 底座的活跃构建随机读取改进单独记录验收。S1 与 RBF1 参考隔离的已有 Accepted 资格保留原身份，不构成新模型已实施的证据。
 
 ## 设计阶段的研究边界
@@ -61,7 +61,7 @@ FrameStore 核心是不透明分配/随机读取；VersionStore 使用完整 Roo
 | Gym 历史选点是否要求每帧 parent / 随机 revision 读 | 文件顺序 + 首帧 ForkOrigin 接续完整发布前缀；按 revision fork 内部重读，不开放随机 ReadRevision |
 | 是否需要持久反向分叉索引 | S5 已定 ListForks 单次完整首两帧/全图检查、自有只读边列表与全部正式节点计费的 maxRefs；不写源孩子表/持久索引，跨调用反向缓存延期 |
 | tool-loop 是否需要存储精确尝试 token / CAS | 单 driver + 应用 phase/operationId/generation；首版重开读实际状态 |
-| 发布失败证据和应用续跑如何衔接 | S4 已定 Result/必选 out 三态、公开尝试/确认边界及故障清理；重开恢复实际状态，不精确认领自动创建旧调用，S6 保留外部 uncertain 政策 |
+| 发布失败证据和应用续跑如何衔接 | S4 已定 Result/必选 out 三态、公开尝试/确认边界及完整停用teardown/锁最后；重开恢复实际状态，不精确认领自动创建旧调用，S6 保留外部 uncertain 政策 |
 | 无关 Builder 是否阻断根发布 | 不阻断；应用保证本根新增依赖完成，data 先确认全部必要完成输出，根后发布 |
 | 活跃 Builder 是否阻断旧帧随机读取 | 不阻断已完成前缀内的指定地址读取；未完成/跨边界先拒绝，扫描相关资格未放宽 |
 | 读结果与物理检查如何交付 | S2 已定自有 FrameRead、纯值 inventory、完整 CRC audit 与同步 visitor guard；不外泄 reader/枚举器，不以部分回调或结构扫描称全库内容健康 |
@@ -72,36 +72,15 @@ FrameStore 核心是不透明分配/随机读取；VersionStore 使用完整 Roo
 | 基础地址是否保持 16B 或带 SmartPointer 见证 | 固定 12B 与显式变长 codec，完整 uint FileId + SizedPtr；无预留/内容 CRC，wire 与内存成本分离 |
 | FrameAddress 公开值/codec 如何交付 | S2 已定 readonly 不透明值、固定 TryRead/TryWrite 与变长 MeasureVarInt/WriteVarInt/ReadVarInt、共同数值下界及 default/完整等值；变长读取失败不推进，无额外错误族/规范文本 |
 | FrameStore 格式门记录与初次建立 | S2 已定 framestore.format 普通24B记录/唯一CRC/共同只读校验；`[R-FS-STORE-CREATE]` 已定空store、正式门直接create-only写入及成立/返回/失败边界，无私有门或门rename；`[S-FS-OWNER-LOCK]` 已定永久0B控制设施/门前bootstrap与重检、writer独占/readers共享及最后关锁；私有data初始化残留语法/候选/全字节前缀、可写取消与只读保留已定，实际根准入已定于 `[S-FS-ROOT-ADMISSION]`，RBF纯入口/目录清理已实施，平台与系统资格按实施记录区分 |
-| VersionStore 格式门/data/预留区 | S4 普通 44B 门/双身份/持久 L/唯一 CRC 与共同只读资格已定；初次门/根锁等仍待定 |
+| VersionStore 建库/门/根锁/工作区 | S4 `[R-VS-STORE-CREATE]`、`[S-VS-ROOT-ADMISSION]`、`[S-VS-OWNER-LOCK]`、`[R-VS-STORE-OPEN]` 与 `[S-VS-CREATING-WORKSPACE]` 已定：直接44B门、随机非零VSID、永久空锁、唯一pending可写取消/只读保留；不续作半初始化，不做私有内容/目标对照。代码接线与平台/中断验收留实施 |
 | 借入 data 的入口可用性与持续责任 | S4 `[S-VS-DATA-BORROW]` 已定 VS 工厂先于自身 I/O 检查、模式配对及调用方持续责任；S2 `[A-FS-ENSURE-USABLE]` 仅转发现有内部 disposed/fault guard，公共转发与集成证据留实施，不重开健康查询框架 |
 | ref记录是否需要独立version/时间机制 | [S4元信息专项](08-versionstore-record-metadata.md)已定固定8B原始Unix毫秒、精确长度判形/末尾扩展、私有一次取时与完整内容资格；无独立version/时钟水位，S4/S5/CU分别消费，实施向量不重开设计 |
 | 可变初始 Snapshot 是否需要恢复前保护 | 2026-10-10 用户采用 S4 `[R-VS-LOCAL-COMPLETE]`：private 完整 flush/close→rename 发布与正式 ref 读取各自承担责任；先按现有 public RBF 恢复，再检查必要首两帧/内容，接受恢复后初始化完整，不增加前缀 API/初始化账本；原阻塞移出，运行时验收随实施 |
-| VersionStore 身份/定位/编号 | 完整 RefId、LocalId 导出与 checked 库内定位、RefRevision/RootMap/ref 格式、单文件 8hex 与两域分配已定；精确 revision codec 延期，实际准入/private/初次 store 创建待定 |
+| VersionStore 身份/定位/编号及集合发现 | 完整 RefId/LocalId、RefRevision/RootMap/ref 格式、8hex/两域分配与目录生命周期已定；S4 `[A-VS-REFS-DISCOVERY]` 交付正式路径的自有 RefId 全集合，不审计内容或签 revision；精确 revision codec 延期 |
 
 以上各项统一见 [S0](00-architecture-decisions.md) 与相应 [S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。本表只导航，不建立第二套规范。
 
 ## 设计与关键实现方案待定
-
-### D3：根地址与自有历史快照的最小合同如何定稿？
-
-**涉及阶段：** S2-Q1/Q4、S3-Q4；[S4](04-versionstore-publication.md) 的字典 codec / 身份 / 单文件创建；消费 [S5](05-versionstore-names-and-indexes.md) 已定历史合同。
-
-**已确认：** 字典按值保存，地址解释于一个绑定的 data FrameStore，复用 S2 变长地址 codec；固定 12B 入口继续服务预留回填。发布时应用保证全部必要对象已经完成，不能采用取消/未完成 ticket；data ConfirmDurable 不解析业务图，无关 Builder 未归还不阻断发布。屏障确认 leased 文件旧输出，不赋予其正在构建的新帧资格。旧 ref/tag 快照可以复用数据地址，不需要重新创建 Commit 或提交 parent。
-
-**设计 / 关键方案：** VersionStore 初次 store 创建/门发布、根独占与私有残留裁决；明确身份生成与 VS 自身访问模式/独占所需的行为合同。实际借入 data 的入口可用性、模式配对及持续责任、ref 恢复后完整性准入已定，不再作为待定选择。未定查询如 ListRefs 的结果范围/资格属于对应接口合同，CLR 包装与签名语法随实现定稿。基础地址值/codec、RootMap codeword、ref header/普通 Snapshot 组合格式及单文件发布单位/正式路径已确定，不再开放地址宽度、key/wire/限额、header 来源判别或应用名称映射层的选择。地址数值规则、default 预检及 RootMap 变长字段直接消费 S2，每条完整记录仍用 RBF 公共尺寸 API。
-
-**实现 / 验收：** 公开身份的 CLR 表示及满足既定身份合同的生成调用、内部 codec 组合、初始化/读取助手、具体私有路径/锁/平台入口，由对应实现片决定；在行为合同确定后，ReadRef/ListRefs、末帧成员/源成员、屏障和清理按合同编码并验收，不逐一展开辅助类型、属性或内部错误分支。文件发布所需入口若无可执行路径，仍作为关键方案问题处理。
-VersionStore 门记录/共同只读检查与 data 持久身份绑定已定于 S4 `[F-VS-OWN-FORMAT]`，不再作为待定 codec 或载体选择；16B canonical VersionStoreId 由下游直接消费。内容资格不关闭初次门发布、根/锁或平台协议，也不证明裸地址来源/应用闭包。
-借入消费 S4 `[S-VS-DATA-BORROW]` 与 S2 `[A-FS-ENSURE-USABLE]`；正常属性读取不证明可用，公共 guard 尚待实施，不借 data barrier 充当入口检查。实施所需窄机制和拒绝顺序已清楚，其补齐/测试直接交对应代码切片；不增加一个新的设计问题，也不关闭本 D3 的根/私有发布缺口。
-RefId/uint32 LocalRefId 与内部固定 4B LE 字段消费 S4 `[F-VS-REF-ID-4B]`，LocalId 保存与正确库 checked 查询消费 `[A-VS-LOCAL-REF-LOOKUP]`；单文件路径消费 `[F-VS-REF-PATHS]`，持久 L/两域创建/水位/不复用消费 `[S-VS-REF-ID-DOMAINS]`。这些不再待定；冷开 O(ref 数量)路径发现/private 独立资格继续 S4-Q3，指定残留不可统一要求 H+1。编号与查询不证明 Unknown 旧尝试 Confirmed，不重开整体身份或精确 revision codec 议题。
-
-RefRevision 自有公开值、完整等值/default/上下文前检、只读实际位置及同 VS 重开使用已定于 S4 `[A-VS-REF-REVISION-VALUE]`，不再作为待定表示或整体 codec 选择；未提供匿名精确 revision 的跨进程导入导出，出现消费者再立窄合同，tag 字典不能透明替代其精确来源书签。
-RootMap/RefSnapshot 表示直接消费 `[A-VS-ROOTS-OWNED]`，本帧时间/元信息形状消费 [S4元信息专项](08-versionstore-record-metadata.md)；key/wire/容量直接消费 `[F-VS-ROOTMAP-BPV1]`，不再列为待定设计。tag/history/CU 候选原样复用；真实 FrameAddress 组合验证见[变长编码实施记录](02-framestore-varint-address-implementation.md)；探针不构成 VersionStore 新库/发布协议、峰值或性能资格。
-历史枚举固定起始完成上界，沿不可变 ForkOrigin 接续各源选中位置及其更早历史；活动期间禁止同 owner mutation，返回的完整 RootMap 自有。RefRevision 只从完成发布/真实成员 checked-read 取得；来源元数据不自动签发 checked revision。来源感知 fork 先重读源字典，在子输出前完成 data 屏障与源文件 flush；只传 roots 的创建无来源。
-ref header 的 24/36B 来源判别、固定字段、Header/Snapshot 的 0/1 kind、普通 Snapshot 纯 RootMap payload/meta专项/完整容量及共同首两帧检查已定于 S4 `[F-VS-REF-FRAMES]`。恢复后完整性准入消费 `[R-VS-LOCAL-COMPLETE]`，不再要求恢复前的初始 Snapshot 已闭合；原“可变初始 Snapshot 的恢复前保护”阻塞已移出。ref 的发布点仍为 rename，重开检查合格正式 ref 即接受当前事实，无需追溯旧调用结果；首两帧缺坏、只读残尾及新格式恢复向量直接交实施验收。
-历史入口、自有值交付、跨文件资源/visited、返回/定位工作预算和终止已定于 S5 `[A-VS-REF-HISTORY-CHECKED]`，直接消费而非重新选择。现有 RBF 只有 EOF 逆扫，旧 fork 点的源后缀定位可能增长并支付工作步；无关后缀 payload 不作历史审计，已观察的结构错误仍传播。完整无来源起点、正常选点停止、预算失败、取消与错误按 S5 区分。
-
-**实现验收目标：** 选中非末快照，结束枚举后 fork/tag/rewind；源继续更新、fork-of-fork、同值初始与源不同 revision，完整继承前缀保持正确。覆盖源真实成员、错 length、缺源/循环/字典不符、源 flush 失败、定位预算/错误和跨文件释放；不自动读取全部应用图或从 data 地址大小推算历史。
 
 ### D8：不可变 tag 的名称与路由合同如何定稿？
 
@@ -115,22 +94,22 @@ ref header 的 24/36B 来源判别、固定字段、Header/Snapshot 的 0/1 kind
 
 ## 其余定稿项与条件扩展
 
-FrameStore 初次空集合/直接门建立合同已定；FrameStore owner锁/门前bootstrap/模式互斥已定；FrameStore私有data残留协议已定；FrameStore 实际根准入已定于 S2 `[S-FS-ROOT-ADMISSION]`；VersionStore 实际根准入与私有发布残留、VersionStore根独占、VersionStore 初次门建立及 tag 名称行为仍按上述设计问题推进；身份 CLR 表示、具体平台调用及局部接口/codec 代码随对应实现定稿。基础地址、格式门记录/只读校验、资源、header、owned 生命周期、正式路径/编号、ref 恢复后完整性准入及历史/tag/ListForks 已定合同直接消费 S2/S4/S5；其测试向量、运行时成本和平台/包证据保留所属阶段，不转回新的字段、默认值或表示选择。
+FrameStore 初次空集合/直接门建立、owner锁/门前bootstrap/模式、私有data残留与实际根准入已定于 S2；VersionStore 初次空库/直接门、根/独立锁/自身模式、唯一pending与ListRefs/停用清理已定于 S4，D3关闭。当前只推进 D8 的 tag 名称/路由合同；身份 CLR 表示、具体平台调用及局部接口/codec 代码随对应实现定稿。基础地址、格式门记录/只读校验、资源、header、owned 生命周期、正式路径/编号、ref 恢复后完整性准入及历史/tag/ListForks 已定合同直接消费 S2/S4/S5；其测试向量、运行时成本和平台/包证据保留所属阶段，不转回新的字段、默认值或表示选择。
 FrameAddress 不透明不等于支持帧重定位。目录归档只改变同一文件的位置；GC/compaction、逻辑 ID 映射、多线程执行、多个 data owner、跨实例 CAS 和更强断电模型在有需求时单独设计。多个 active 已是首版设计范围，不再列为未来条件扩展。
 地址见证的重评触发条件分别为：裸地址跨 store 流转且需要概率性误用检测时考虑 store/address fingerprint；要求库自动拒绝取消预约的旧引用时另设计每帧持久 token 与重开发号/碰撞规则；仅引用已完成对象且需要预期内容见证时考虑内容 CRC。最终内容 CRC 在 Begin 尚不可确定，A↔B 会引入 checksum 依赖，不能作为当前提前稳定地址字段。上述方案均无首版预留字段或实施前置；无碰撞的来源、完成或耐久保证不能由额外 4B 自行推出。
 ref 分段/轮转、随机 revision 读取、持久 cursor、差分/checkpoint、派生 tag 索引、跨 ref 事务和精确尝试追踪不作为核心前置。业务 merge/provenance 由应用决定；出现无法用 RootMap 表达的明确需求后再扩展，不能从旧草案恢复候选功能。
 
 ## 下一轮研究顺序与实施交接
 
-D6 已由 S2 `[S-FS-ROOT-ADMISSION]` 与真实目录工厂关闭：调用方根/可信父路径、受管精确组件、普通类型/no-follow、严格 owner 锁及同文件系统不覆盖移动已有具体机制。公开持久化闭环的实际验证见[实施记录](02-framestore-persistence-implementation.md)；Inventory/Audit、进程中断和资源/规模证据留实施验收。后续设计研究聚焦 D3、D8，不把这些已定机制的测试细节重新放回设计队列。
+D6 已由 S2 `[S-FS-ROOT-ADMISSION]` 与真实目录工厂关闭：调用方根/可信父路径、受管精确组件、普通类型/no-follow、严格 owner 锁及同文件系统不覆盖移动已有具体机制。公开持久化闭环的实际验证见[实施记录](02-framestore-persistence-implementation.md)；Inventory/Audit、进程中断和资源/规模证据留实施验收。D3也已形成可执行最小合同；后续设计研究仅聚焦D8，不把已定机制的代码接线与测试细节重新放回设计队列。
 
 | 范围 | 设计阶段聚焦 | 随实施决定或验证 |
 | --- | --- | --- |
-| D3 / S4 | 初次门发布/根独占/private 协议、身份/VS 自身模式和未定公开查询的必要行为 | CLR 表示/接口语法/助手及读取实现；已定 codec、恢复后完整性准入、成员、屏障/Outcome/清理与冷重开验收 |
+| S4 已定，交实施 | 初次建库/根锁/唯一pending/ListRefs/停用清理及恢复后完整性准入已定，不再有D3设计阻塞 | 先补公共EnsureUsable与VS窄平台入口，推进CreateRef→ReadRef→PublishRef→冷重开；验证门/锁/工作区、成员、屏障/Outcome/清理及两平台中断，保持VS未实施/Draft |
 | D8 / S5 | 仅 tag 名称相等/字符/容量、稳定表示与路由/碰撞 | 具体编码/hash/路径参数与代码；桶发布/完整扫描/资源/规模验收 |
 | S2–S6 已定合同 | 仅在真实反例、机制不可行或明确新要求时重开 | 各阶段 Ready 表的实现测试、进程中断、平台及隔离包消费证据；条件优化另看实际需求 |
 
-每轮结论写回所属阶段，只从本表移出已关闭的设计子题；普通实现选择和已定合同验收交给对应实施片，允许少量导航，不建立越来越细的研究队列。关键方案若须实验，先用最小探针取证；若只缺完整实现/测量，说明证据缺口并结束设计轮，不用文档代替代码模型。
+每轮结论写回所属阶段，只从本表移出已关闭的设计子题；D3本轮已移出，不因其实现尚缺而重建待定项。普通实现选择和已定合同验收交给对应实施片，允许少量导航，不建立越来越细的研究队列。关键方案若须实验，先用最小探针取证；若只缺完整实现/测量，说明证据缺口并结束设计轮，不用文档代替代码模型。
 
 涉及外部业务语义、接受风险或部署假设的未决取舍，列出具体选项交用户处理；符合既定合同的局部工程选择由实现者负责。FrameStore 分配器继续不理解应用 codec，不等待 Commit 或全局日志；不反向增加已延期的批量规划、索引或事务能力。
 

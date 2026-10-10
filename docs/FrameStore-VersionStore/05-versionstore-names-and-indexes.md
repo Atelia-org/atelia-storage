@@ -129,7 +129,7 @@ ForkInfo 是普通非 record readonly struct，仅有三个只读属性及内部
 列表内部使用唯一自有数组和只实现 IReadOnlyList/IEnumerable 的私有薄封装；不外露可变 array/List、IList 或能取得 backing 的 ICollection.SyncRoot，不复用下一调用 scratch 或长期缓存。ForkInfo 内的 RefId/SizedPtr 都是自有值，无需复制业务对象。查询结束、后续查询/创建及 owner fault/Dispose 不改变已交付列表；反射、Unsafe 等越过正常接口的改写不在此保证内。
 
 **句柄与失败。** 本查询无应用 callback，按既有串行前提执行，不新增 ListForksActive/busy 或改写 HistoryActive。历史 visitor 可调用它；匹配 RefId 时复用可用的既有 owner/历史当前句柄，不重复独占打开、不关闭借用句柄。其他 ref 逐个使用本方法局部临时句柄，绝不覆盖历史当前临时槽；关闭前取出并清空局部槽，finally 只清理仍登记的资源，每个句柄仅尝试一次。目录枚举器、当前 pooled 帧和全部临时句柄的正常/异常退出，消费 S4 的 owned 清理/主错误优先规则；最后关闭失败不能被空列表或预算错误掩盖。
-取消抛 OperationCanceledException；必要格式/CRC/codec/身份/图/预算失败返回所属失败，I/O/运行期异常原样传播，不跳过坏 ref。纯读取、预算、取消或结果分配失败本身不新增健康 writer fault；实际 owned 恢复/清理失败按 S4 停用并受控清理，不 Dispose 借入 data。访问模式及可写打开的恢复直接消费 S4，本查询不另行 flush、发布或清理 private；ref 恢复后完整性准入已定；实际组件/根准入及平台资格仍待定或实施，本条不以首两帧校验替代它们。
+取消抛 OperationCanceledException；必要格式/CRC/codec/身份/图/预算失败返回所属失败，I/O/运行期异常原样传播，不跳过坏 ref。纯读取、预算、取消或结果分配失败本身不新增健康 writer fault；实际 owned 恢复/清理失败按 S4 停用并完整受控清理，不 Dispose 借入 data。访问模式及可写打开的恢复直接消费 S4，本查询不另行 flush、发布或清理 pending；ref恢复后完整性、实际组件/根锁准入已定，VS平台与运行资格仍随实施取得，本条不以首两帧校验替代它们。
 
 该边集合是唯一来源的派生视图：按 SourceRefId 可找直接分叉，按 exact source ticket 可区分同一 ref 的不同分叉点，对 child/source 关系求传递闭包可找所有后代；不隐含跨 ref 时间全序。已有 RefSnapshot 可用 Revision.RefId/Ticket 与声明位置比较，关联 exact 点的分叉；匹配不签发源 revision 或证明源内容健康。应用映射不增加边，名称展示由应用管理；应用可从结果派生反向表。
 首版每次 ListForks 都执行上述完整 checked 扫描，不保留跨调用反向表、负缓存或图安装/更新相位，不写持久孩子列表、全局 catalog 或索引。实际重复查询成本超出目标后，再研究内存表及其完整建立/更新资格。
@@ -167,8 +167,8 @@ header 的统一格式版本选择整个桶的名称与 RootMap 组合 schema，
 每调用只管理一个本次桶句柄、当前临时完整帧/RootMap、所选自有值和 O(桶名称数) 临时 fullname 集合；集合随调用结束释放。临时句柄由方法局部 finally 按 S4 清理规则在 Dispose 前取出并置 null，所有退出只尝试归还一次，保留主异常。ResolveTag 不执行应用 callback；从历史 visitor 调用时不能覆盖/清空历史的当前临时 ref 槽位。普通读/codec 错误不自动 fault 健康 writer，实际恢复/owned 清理失败依 S4 停用；必要关闭失败不能返回查询成功或健康 TagNotFound。最终交付前复检 owner disposed/fault。该资格只覆盖本次目标桶，不证明其他桶或引用 data 图健康。
 
 **创建与三态。** 在同 owner/driver 串行准入下，先最早初始化 out NotAttempted，完成名字、重名扫描、RootMap 私有复制/编码与容量检查；确定拒绝先于 data barrier、私有初始化及 tag 输出。缺桶时预检完整 header 与首 tag 的尺寸、从 I 开始的追加起点；已有桶使用 checked 实际完成尾部，从查重至 Append 复用本次同一个 Idle 句柄。下一条起点超过 SizedPtr.MaxOffset 明确拒绝，不隐式分段；合法末记录可以越过起点上界。
-随后按 S4 调用 data ConfirmDurable。缺桶时仅在私有文件写 header、执行共同首帧检查并确认 TailOffset=I，再 DurableFlush/close、同文件系统 no-overwrite rename 公开合法空桶；本次 tag 仍 NotAttempted。打开并验证该正式空桶后，首条 tag 与后续 tag 均走普通正式 Append/flush：Append 调用前 Unknown，Append 成功且 DurableFlush 正常返回后立即 Confirmed，再必要关闭/交付成功值。公开 Append 异常不猜零输出，pre-I/O 失败 Result 的唯一降档例外消费 S4。空桶 rename 异常且尚未尝试 tag Append 时保持 NotAttempted，但停用 owner；flush 成功后的关闭/交付异常保留 Confirmed。无 tag 名称缓存安装相位。
-合法正式空桶保留，不删除、不自动补首 tag；私有残留不成为 tag、不自动续作，只读不清理。header 后未完成 tag body 由可写 RBF 截回其真实边界，完整 body 缺原 Key/Fence 可按 CompletedTail 成为完整 tag，仍不证明旧调用曾 Confirmed。恢复后必须重新取得全桶资格；完整坏记录不跳过、不回退、不改绑。
+随后按 S4 调用 data ConfirmDurable。缺桶时仅在 S4 唯一 `creating/pending.rbf` 写 header、执行共同首帧检查并确认 TailOffset=I，再 DurableFlush/close、同文件系统 no-overwrite rename 公开合法空桶；本次 tag 仍 NotAttempted。打开并验证该正式空桶后，首条 tag 与后续 tag 均走普通正式 Append/flush：Append 调用前 Unknown，Append 成功且 DurableFlush 正常返回后立即 Confirmed，再必要关闭/交付成功值。公开 Append 异常不猜零输出，pre-I/O 失败 Result 的唯一降档例外消费 S4。空桶 rename 异常且尚未尝试 tag Append 时保持 NotAttempted，但停用并完整受控teardown；flush 成功后的关闭/交付异常保留 Confirmed。无 tag 名称缓存安装相位。
+合法正式空桶保留，不删除、不自动补首 tag；pending 残留统一消费 S4 `[S-VS-CREATING-WORKSPACE]`，不成为 tag、不自动续作，W取消/RO保留且不检查私有内容或恢复角色/桶号。此取消规则不放宽本篇正式桶的初始化 I 前检/恢复保护。header 后未完成 tag body 由可写 RBF 截回其真实边界，完整 body 缺原 Key/Fence 可按 CompletedTail 成为完整 tag，仍不证明旧调用曾 Confirmed。恢复后必须重新取得全桶资格；完整坏记录不跳过、不回退、不改绑。
 
 （Informative）本合同直接消费 [RBF 公共正扫与 CRC 分层](../Rbf/rbf-interface.md)、[payload 损坏仍能结构正扫的测试](../../tests/Rbf.Tests/Internal/RbfScanForwardTests.cs)；旧 [重复/坏 tag 测试](../../tests/EventJournal.Tests/ImmutableTagTests.cs)和[书签冷重开后继续分叉的消费者](../../../durable-graph/tests/DurableGraph.Persistence.Tests/RepositoryTagTests.cs)只提供独立工作流证据，不引入旧栈 API/格式兼容，也不构成 VersionStore 实施验收。
 
@@ -189,7 +189,7 @@ ReadRef/ResolveTag MUST 返回 checked 发布记录里的 RootMap，ReadRef 同�
 Open MUST NOT 默认回放全部 ref 历史或扫描 data 图，也不因此宣称全库 O(1)。目录/格式门、tag 名称及文件枚举的实际成本须报告；惰性打开只把检查延后到目标访问，不把未检查对象说成健康。
 当前 ReadRef 成本为本地 header、初始 Snapshot 与完整末 Snapshot bytes（初始即末帧时复用），不随历史帧数或祖先深度增长。ReadRefHistory 成本含返回快照的完整读取、跨文件 header/初始边界和定位源 fork 点所跳过的后缀 framing，不能只按返回条数估算；预算未覆盖的历史不计作已验证。按 revision fork 的来源定位也可能扫描源后缀，并增加一次源文件 flush。tag 每次查找/重名检查均为 O(目标桶记录数 + checked bytes)，临时名称集合为 O(该桶名称数)，完整字典只保留当前/所选值；连续创建同桶 n 个 tag 可能累计 O(n²) 次记录检查。不承诺分桶即可 O(1) 查询或长期无限容量。出现实际桶规模、重复解析/批量创建成本不可接受的证据后再设计跨调用内存位置表及其资格/更新规则，磁盘索引仍为独立后续片。
 ListForks 每次执行完整 checked 扫描：令 N 为正式 ref 数、F 为有来源 ref 数，本层预期成本为 O(N + F + header/初始 Snapshot checked bytes)，含全部源存在和迭代环检查；哈希定位按通常成本估算。临时元数据 O(N)、自有结果 O(F)，另仅保留当前必要字典/pooled 帧，不保存全部初始 RootMap。数量参数包括无来源根；底座 factory 的尾部资格/恢复、实际 metadata/I/O 与内存成本另行报告，不能将 maxRefs 当硬时限/RSS 或历史规模无关的工厂保证。该查询不依赖应用映射，预留区与自动区 ref 都参与；实际重复扫描超出目标后再研究内存反向表。
-ListRefs 与可写冷开水位发现的成本均包含正式 ref 文件集合；按整数直接访问 ref 不需要全 ID 或应用名称映射表。自动/指定创建的编号算术、占用及耗尽消费 S4，不新增全局名称发现。
+ListRefs 与可写冷开水位发现均完整枚举正式 ref 文件集合，但不打开全部快照；ListRefs按S4 `[A-VS-REFS-DISCOVERY]` 交付自有路径身份集合，不等同本篇ListForks的checked首两帧/图查询。只读Open不因pending全扫ref；按整数直接访问ref不需要全ID或应用名称映射表。自动/指定创建的编号算术、占用及耗尽消费S4，不新增全局名称发现。
 不新增持久名称索引、control 全量投影、全部尝试账本或磁盘 catalog/checkpoint；tag 的每次桶内临时全名集合只服务其既有唯一性资格，不成为 branch 映射。实际句柄/枚举资源与查询成本随实施报告。
 
 ## 工程 codec 与后续扩展
