@@ -32,7 +32,7 @@ FrameStore 核心是不透明分配/随机读取；VersionStore 使用完整 Roo
 2026-10-10 用户采用：无 branch 名称；创建时持久 L，低号仅指定 create-only，高号仅自动；两个创建/fork 入口共用单文件发布。S0 `[S-VS-REF-ID-ONLY]` 与 S4 `[S-VS-REF-ID-DOMAINS]`、`[A-VS-LOCAL-REF-LOOKUP]`、`[S-VS-REF-FILE-PUBLISH]` 唯一定义；应用目录登记是独立发布，不扩成默认跨 ref 事务。
 2026-10-08 用户确认：FrameAddress 首版固定编码为 12B，保持完整 uint FileId 与 SizedPtr；额外见证按明确需求引入，不把未来预留或内容 CRC 纳入基础定位合同。S0 `[S-FS-ADDRESS-FIXED12]` 与 S2 `[F-FS-FRAME-ADDRESS-12B]` 已关闭基础地址宽度和二进制字段布局；2026-10-09 已定公开值/两方向 bool codec、数值下界/默认/相等/失败规则和普通内部表示，不建立规范文本；2026-10-10 用户批准增加变长地址 codec 并让 RootMap 使用；固定 12B 仍服务预留回填，新增变长格式及失败合同见 S2 `[F-FS-FRAME-ADDRESS-VARINT]`，不重新打开选型问题。实现向量与实际运行时成本保留 S2。
 2026-10-09 用户确认：[批量规划器与 API 设想](extensions/framestore-batch-planner-candidate.md)移至独立扩展草稿，需求与协议问题不列入 MVP 工程定稿或 Ready 条件。
-同日用户要求 fork 后仍能遍历完整历史并查询全部分叉。本轮设计在 ref 首帧增加不可变 ForkOrigin（源 RefId + 源 SizedPtr），文件内顺序继续表达发布编辑历史；来源感知创建按 revision 重读源字典，ListForks 从全部正式 ref 首帧声明派生图。来源字段见 S4，跨文件定位、预算与查询资格见 S5；业务因果/merge 仍由应用解释。
+同日用户要求 fork 后仍能遍历完整历史并查询全部分叉。本轮设计在 ref 首帧增加不可变 ForkOrigin（源 RefId + 源 SizedPtr），文件内顺序继续表达发布编辑历史；来源感知创建按 revision 重读源发布记录并原样 clone root-payload bytes，ListForks 从全部正式 ref 首帧声明派生图。来源字段见 S4，跨文件定位、预算与查询资格见 S5；业务因果/merge 仍由应用解释。
 旧单 active locator、全 owner 活跃期读取禁令已被替代。2026-10-07 按用户要求延期 ref 分段/轮转；Commit/Parent、全控制日志回放、Prepared token 和 checkpoint 不再是首版前置。历史逆序遍历仍是核心功能，经同步 visitor 交付调用结束后可继续使用的自有字典。
 
 ## 本轮已关闭的方向问题
@@ -108,3 +108,5 @@ D6 已由 S2 `[S-FS-ROOT-ADMISSION]` 与真实目录工厂关闭：调用方根/
 涉及外部业务语义、接受风险或部署假设的未决取舍，列出具体选项交用户处理；符合既定合同的局部工程选择由实现者负责。FrameStore 分配器继续不理解应用 codec，不等待 Commit 或全局日志；不反向增加已延期的批量规划、索引或事务能力。
 
 S2/S3 源码资格已 Accepted，S4–S6 仍为 Draft；FrameStore 已实施公开持久化闭环，Inventory/Audit 已实施（见[源码验收](02-framestore-inspection-implementation.md)），VersionStore 尚未创建。设计闭合支持实施交接；Ready/Accepted 及源码、恢复、性能、平台、包资格仍分别按所属阶段的实际证据报告。研究队列继续聚焦设计与关键方案；源码资格与剩余范围见[最终源码验收](02-framestore-final-acceptance.md)。
+
+2026-10-10 fork 化简已定于 S4 [A-VS-ROOT-PAYLOAD]：原样 clone bytes，源/子一致性按逐 byte 检查，ForkRef 返回 RefRevision，不解码 RootMap；CU 候选独立定位 payload。FrameStore 程序集依赖和通用 raw payload 公面为用户明确后续议题，不作为本轮既定 fork 的实施阻塞。

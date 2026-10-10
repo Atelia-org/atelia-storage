@@ -22,7 +22,7 @@
 
 RecordedAtUnixMs MUST 表示库在本次发布的私有准备阶段读取的 UTC Unix 毫秒时间，即自 `1970-01-01T00:00:00Z` 起的有符号毫秒数，不计闰秒。它不是业务事件时间、源数据创建时间、fsync 完成时间、调用正常返回时间或某个旧尝试已 Confirmed 的证明。
 
-CreateRef、ForkRef、PublishRef（含同值重发/rewind）MUST 为本次新记录重新取时；所得数值可以与来源或其他记录相同。库在必要输入/来源资格建立后、最终记录私有编码前取时；取时及编码 MUST 在本次 data/源确认和发布输出前完成。读回返回记录中保存的值，不重新取时；fork/rewind 复制 Roots，不复制来源记录的时间。
+CreateRef、ForkRef、PublishRef（含同值重发/rewind）MUST 为本次新记录重新取时；所得数值可以与来源或其他记录相同。库在必要输入/来源资格建立后、最终记录私有编码前取时；取时及编码 MUST 在本次 data/源确认和发布输出前完成。读回返回记录中保存的值，不重新取时；fork 原样复制 root-payload bytes，rewind 的 typed 入口复制 Roots；均不复制来源记录的时间。
 
 一次 CU 联合提交 MUST 只取时一次，全部 fresh 成员使用同一值；它须在最终元信息私有编码及 data barrier/发布输出前确定；固定 8B 尺寸允许先预测 tickets 再取时。时间既不进入 Members，也不充当事务标识；成员时间是否相等不取代或扩充共同发布判据。
 

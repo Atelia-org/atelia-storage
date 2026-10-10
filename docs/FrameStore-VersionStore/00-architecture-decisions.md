@@ -134,7 +134,7 @@ tag 创建后不改；ref rewind 追加旧字典的新快照，不能截掉已�
 
 2026-10-09 用户要求检验文件顺序的表达能力，并使 fork 后仍可遍历完整历史、查询全部分叉。本轮保留文件内发布顺序，在 ref 首帧采用不可变 `ForkOrigin = 源 RefId + 源快照 SizedPtr`；无来源表示独立起点，有来源只指向创建时选中的 exact 已接受快照，不追踪源 head。字段及初始化资格由 S4 `[S-VS-REF-FORK-ORIGIN]` 定义。
 
-S5 MUST 通过按 revision fork 内部重读源字典，保留子初始完整 Snapshot，并使历史沿来源接续源发布前缀；同值的源与子初始 revision 都保留。ListForks 从全部正式 ref 的 checked 首帧声明派生图，包括预留区/自动区 ref 与多层分叉；不写源孩子表或持久反向索引。ListForks 的单项正式 ref 数量预算、全成功后自有边结果及迭代图/清理合同由 S5 `[A-VS-FORKS-CHECKED]` 唯一定义；首版不保留跨调用反向缓存。声明边查询不等于源历史健康审计，实际跳转的成员/内容/循环校验和公共 RBF 后缀定位成本见 S5。
+S5 MUST 通过按 revision fork 内部校验源发布记录并原样 clone root-payload bytes，保留子初始完整 Snapshot，并使历史沿来源接续源发布前缀；同值的源与子初始 revision 都保留。ListForks 从全部正式 ref 的 checked 首帧声明派生图，包括预留区/自动区 ref 与多层分叉；不写源孩子表或持久反向索引。ListForks 的单项正式 ref 数量预算、全成功后自有边结果及迭代图/清理合同由 S5 `[A-VS-FORKS-CHECKED]` 唯一定义；首版不保留跨调用反向缓存。声明边查询不等于源历史健康审计，实际跳转的成员/内容/循环校验和公共 RBF 后缀定位成本见 S5。
 
 该结构表达发布编辑森林，不解释每次修改的业务意图、多父 merge 或应用状态因果；rewind 仍是新的发布，不删撤回前的记录。完整历史不删除/复用，未来 GC/分段需保留链接资格后另行审定。
 
@@ -213,7 +213,7 @@ VersionStore 借入一个 data FrameStore，拥有独立发布目录；44B 格�
 
 RefId 是稳定对象身份；RefRevision 只表示已完成快照的位置，不提前签发，不用作 Unknown 尝试 token。同步历史调用期间首版禁止 owner mutation，调用结束后可用所选自有快照 fork/tag/rewind。跨重开的 RootMap 字典书签可使用 tag；它不保存精确 ref 历史来源，也不要求先提供随机 revision 读取或持久扫描 cursor。
 RefId 完整上下文/default/内部 4B 字段见 S4 `[F-VS-REF-ID-4B]`；LocalId 导出与库上下文 checked 定位见 `[A-VS-LOCAL-REF-LOOKUP]`。RefRevision 保存完整 RefId/ticket，无 owner/epoch 或整体 codec。创建编号见 `[S-VS-REF-ID-DOMAINS]`：持久 L 划分手动低号/自动高号，冷开完整发现恢复 H，自动 H+1，低号不推进 H，无持久 next counter；已发布身份不复用，Max 仅拒绝自动创建。实际根/工作区/随机身份/初始化合同已定，具体窄平台复用与代码/中断资格留实施；ListRefs只发现正式路径身份，不审计快照。
-RootMap/RefSnapshot 表示已定于 S4 `[A-VS-ROOTS-OWNED]`：字典公面复用 IReadOnlyDictionary，逐项 Ordinal 拒重后冻结，普通 sealed RefSnapshot 复用 Revision/Roots；内容比较仅内部进行，不定义公开字典/快照结构等值。Key/wire/容量消费 `[F-VS-ROOTMAP-BPV1]` 的无损基元组合与单一 1MiB codeword 工程上限，无排序/独立 key 或 count 配额。ref header/普通 Snapshot 消费 `[F-VS-REF-FRAMES]`：header 精确24/36B判别来源，Snapshot仅RootMap，kind由RBF tag表达；ref 接受恢复后初始化完整，消费 S4 `[R-VS-LOCAL-COMPLETE]`，创建仍在 private 完整 flush/close 后 rename 发布；tag 名称与桶合同内聚于 [S5-B 专项](09-versionstore-immutable-tags.md)。集合/codec/帧格式探针均不构成新库、运行时恢复、峰值或平台资格。
+RootMap/RefSnapshot 表示已定于 S4 `[A-VS-ROOTS-OWNED]`：字典公面复用 IReadOnlyDictionary，逐项 Ordinal 拒重后冻结，普通 sealed RefSnapshot 复用 Revision/Roots；fork 来源按原始 root-payload bytes 比较，不定义公开字典/快照结构等值。Key/wire/容量消费 `[F-VS-ROOTMAP-BPV1]` 的无损基元组合与单一 1MiB codeword 工程上限，无排序/独立 key 或 count 配额。ref header/普通 Snapshot 消费 `[F-VS-REF-FRAMES]`：header 精确24/36B判别来源，Snapshot仅RootMap，kind由RBF tag表达；ref 接受恢复后初始化完整，消费 S4 `[R-VS-LOCAL-COMPLETE]`，创建仍在 private 完整 flush/close 后 rename 发布；tag 名称与桶合同内聚于 [S5-B 专项](09-versionstore-immutable-tags.md)。集合/codec/帧格式探针均不构成新库、运行时恢复、峰值或平台资格。
 
 CreateRef/PublishRef/CreateTag/ForkRef 在发布 RootMap 前同步 data ConfirmDurable，无可复用 receipt；无关 Builder 不阻断，应用保证必要依赖完成。tag 每次完整校验目标桶、不保留跨调用索引，统一 header 版本与初始化/唯一性见 [S5-B 专项](09-versionstore-immutable-tags.md)，不保证名称查询 O(1)。字典/桶/文件容量由 codec 及公共尺寸 API 计算。
 
@@ -252,3 +252,5 @@ IO/发布尝试后结果可能 Unknown；完整记录可在重开后存在。首
 
 会话已确认新项目/旧维护边界/RBF 恢复、FrameStore 分配/三种追加/嵌套 Builder/软轮转/目录生命周期/header/归还/config，以及完整字典最后发布、单文件 ref、历史与 ForkOrigin。VersionStore 采用无 branch 名称、持久预留低号区及自动/指定创建，指定只用预留号，单文件发布；tag 继续保留。S2/S3 已形成并取得独立源码资格，既有合同不因本轮应用范围化简而改变；VS 剩余关键机制与验证归所属阶段。
 S1 的单文件尺寸和 ticket 合同已实施并独立验收为 Accepted；S2/S3 前轮源码资格见[最终源码验收](02-framestore-final-acceptance.md)，新增 FrameAddress 变长 API 单独记录实施验证。S4–S6 仍是 Draft，具体 wire、类名、方法签名及性能预算按各阶段阻断项细化；本片不代表 VersionStore 或下游适配已完成。
+
+2026-10-10 用户采用：无变更 fork 不解码/重编码 RootMap，原样复制 exact 源发布记录的 root-payload bytes，来源一致性检查逐 byte 相同；成功返回子 RefRevision。规范见 S4 [A-VS-ROOT-PAYLOAD] 与 S5；CU 候选 Members-first 布局独立定位 root payload。FrameStore 依赖和 raw payload 公面另行设计，不在本轮移除借入 data/barrier。
