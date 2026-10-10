@@ -20,7 +20,7 @@
 | 无来源复制 / rewind 便利流程 | 旧字典新建独立 ref / 追加回原 ref | 调用 S4 CreateRef / PublishRef |
 
 历史入口/终止消费 `[A-VS-REF-HISTORY-CHECKED]`，ListForks 结果/限额消费 `[A-VS-FORKS-CHECKED]`；mutation 统一用 S4 AteliaResult/必选 out PublicationOutcome。fork 只接收 revision，不接受自由组合 roots/origin 或凭同值补链接；无来源复制仍用 CreateRef。首版不删除/复用 ref，不修改/删除 tag，不提供差分/checkpoint 或多个 ref 的事务；发布历史与应用因果谱系分别解释。
-ref header/普通 Snapshot 的字段、来源判别与完整记录容量唯一消费 S4 `[F-VS-REF-FRAMES]`；历史、fork 和 ListForks 不另选编码。可写恢复前的可变初始帧保护仍属 S4-Q2，不由本层的事后首两帧检查自动成立。
+ref header/普通 Snapshot 的字段、来源判别与完整记录容量唯一消费 S4 `[F-VS-REF-FRAMES]`；历史、fork 和 ListForks 不另选编码。正式 ref 的恢复与读取资格消费 S4 `[R-VS-LOCAL-COMPLETE]`：可写访问先恢复，再校验必要首两帧/内容；不追溯创建过程，不增加本层前缀保护。
 自动/指定 fork 共用 S4 `[S-VS-REF-ID-DOMAINS]` 的编号/目标前检，在 data/源 flush 及私有准备前拒绝本次确定失败；tag 不分配 RefId。file rename 正常返回后先 Confirmed，自动创建再登记水位，随后安装结果；编号不是跨 ref 时间全序或来源资格。
 正式 ref 文件/来源定位与全集发现消费 S4 `[F-VS-REF-PATHS]`；private 排除。tag 名称/内部路径仍在本层定稿，不缩减 ref 发现范围或新增全部历史审计。
 
@@ -129,7 +129,7 @@ ForkInfo 是普通非 record readonly struct，仅有三个只读属性及内部
 列表内部使用唯一自有数组和只实现 IReadOnlyList/IEnumerable 的私有薄封装；不外露可变 array/List、IList 或能取得 backing 的 ICollection.SyncRoot，不复用下一调用 scratch 或长期缓存。ForkInfo 内的 RefId/SizedPtr 都是自有值，无需复制业务对象。查询结束、后续查询/创建及 owner fault/Dispose 不改变已交付列表；反射、Unsafe 等越过正常接口的改写不在此保证内。
 
 **句柄与失败。** 本查询无应用 callback，按既有串行前提执行，不新增 ListForksActive/busy 或改写 HistoryActive。历史 visitor 可调用它；匹配 RefId 时复用可用的既有 owner/历史当前句柄，不重复独占打开、不关闭借用句柄。其他 ref 逐个使用本方法局部临时句柄，绝不覆盖历史当前临时槽；关闭前取出并清空局部槽，finally 只清理仍登记的资源，每个句柄仅尝试一次。目录枚举器、当前 pooled 帧和全部临时句柄的正常/异常退出，消费 S4 的 owned 清理/主错误优先规则；最后关闭失败不能被空列表或预算错误掩盖。
-取消抛 OperationCanceledException；必要格式/CRC/codec/身份/图/预算失败返回所属失败，I/O/运行期异常原样传播，不跳过坏 ref。纯读取、预算、取消或结果分配失败本身不新增健康 writer fault；实际 owned 恢复/清理失败按 S4 停用并受控清理，不 Dispose 借入 data。访问模式及可写打开的恢复直接消费 S4，本查询不另行 flush、发布或清理 private；S4 恢复前初始化保护、实际组件/根准入及平台资格仍待定，本条不把事后首两帧校验称为这些缺口已关闭。
+取消抛 OperationCanceledException；必要格式/CRC/codec/身份/图/预算失败返回所属失败，I/O/运行期异常原样传播，不跳过坏 ref。纯读取、预算、取消或结果分配失败本身不新增健康 writer fault；实际 owned 恢复/清理失败按 S4 停用并受控清理，不 Dispose 借入 data。访问模式及可写打开的恢复直接消费 S4，本查询不另行 flush、发布或清理 private；ref 恢复后完整性准入已定；实际组件/根准入及平台资格仍待定或实施，本条不以首两帧校验替代它们。
 
 该边集合是唯一来源的派生视图：按 SourceRefId 可找直接分叉，按 exact source ticket 可区分同一 ref 的不同分叉点，对 child/source 关系求传递闭包可找所有后代；不隐含跨 ref 时间全序。已有 RefSnapshot 可用 Revision.RefId/Ticket 与声明位置比较，关联 exact 点的分叉；匹配不签发源 revision 或证明源内容健康。应用映射不增加边，名称展示由应用管理；应用可从结果派生反向表。
 首版每次 ListForks 都执行上述完整 checked 扫描，不保留跨调用反向表、负缓存或图安装/更新相位，不写持久孩子列表、全局 catalog 或索引。实际重复查询成本超出目标后，再研究内存表及其完整建立/更新资格。
@@ -225,7 +225,7 @@ tag 向量另覆盖合法正式空桶与 missing、bare Fence/短 header/缺原 
 补无关 data Builder 活跃时以已完成闭包创建 tag 或自动/指定 fork，以及同文件历史随机读取构建新状态；历史期间 mutation guard 与无关 Builder 不阻断发布分别验收。
 
 链接验收覆盖当前/非末源快照、源后续追加不进入继承前缀、fork-of-fork、多孩子同一源位置、从继承快照再次 fork 时使用其实际 RefId、子初始与源同值但均返回、rewind 后完整发布历史仍含撤回记录。拒绝跨 store/header/伪成员/错 length 来源；实际跳转遇到缺源、坏身份/CRC/codec、初始字典不符或循环报错。覆盖后缀定位 framing 错误、工作预算先于下一项耗尽、取消与跨文件资源释放，不把定位失败当正常历史结束。
-ListForks 覆盖预留区与自动区孩子、多层/兄弟分叉、应用映射不产生新边、无来源同值复制不产生边、creating 排除、header-only/坏初始正式文件错误、未知项/枚举及必要关闭失败。预算向量含非法零/负数先于 I/O、无来源根也计费、恰好额度且 EOF 成功、超额 ref 不打开/读取/扩表而专用失败；全无来源仍可成功空边。覆盖缺源、自链接、独立分量中的环、深链迭代与大量兄弟共享祖先，不递归或逐节点重追；图错误或末关闭/取消/结果分配失败不交部分成功。验证结果三个自有字段/完整 length、无稳定顺序承诺、正常接口不能改写 backing、后续查询/创建/关 owner 后保存结果仍有效；历史 visitor 内调用借用匹配句柄、其他本地临时句柄归还一次，不覆盖历史槽。声明边不审计源 ticket payload，而实际历史访问该坏源快照必须报错；两种资格分开验证，factory 初始化保护及平台/规模成本仍另取证。来源 fork 的源 flush 失败不得输出子文件；正常确认与 rename 未知的冷重开仍只见完整子 header/初始快照，不补写源孩子表。
+ListForks 覆盖预留区与自动区孩子、多层/兄弟分叉、应用映射不产生新边、无来源同值复制不产生边、creating 排除、header-only/坏初始正式文件错误、未知项/枚举及必要关闭失败。预算向量含非法零/负数先于 I/O、无来源根也计费、恰好额度且 EOF 成功、超额 ref 不打开/读取/扩表而专用失败；全无来源仍可成功空边。覆盖缺源、自链接、独立分量中的环、深链迭代与大量兄弟共享祖先，不递归或逐节点重追；图错误或末关闭/取消/结果分配失败不交部分成功。验证结果三个自有字段/完整 length、无稳定顺序承诺、正常接口不能改写 backing、后续查询/创建/关 owner 后保存结果仍有效；历史 visitor 内调用借用匹配句柄、其他本地临时句柄归还一次，不覆盖历史槽。声明边不审计源 ticket payload，而实际历史访问该坏源快照必须报错；两种资格分开验证，ref 恢复后完整性准入及平台/规模成本随实施取证。来源 fork 的源 flush 失败不得输出子文件；正常确认与 rename 未知的冷重开仍只见完整子 header/初始快照，不补写源孩子表。
 
 时间验收直接复用元信息专项；另覆盖继承历史保留实际源记录时间、子初始/rewind重新取时但允许同值，时钟回退不改变真实链顺序，来源一致性仅比较Roots；tag桶/记录仍meta0，不因复用RootMap增加时间。
 

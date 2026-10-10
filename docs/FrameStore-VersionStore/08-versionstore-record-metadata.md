@@ -66,6 +66,6 @@ RBF ReadTailMeta/ReadPooledTailMeta 仅提供 L2 预览：TrailerCRC 保护长�
 
 时间字段独立 golden：`0` → `00 00 00 00 00 00 00 00`；`-1` → `FF FF FF FF FF FF FF FF`；`0x0102030405060708` → `08 07 06 05 04 03 02 01`；`long.MinValue` → `00 00 00 00 00 00 00 80`；`long.MaxValue` → `FF FF FF FF FF FF FF 7F`。不以相同 encoder round-trip 代替这些符号/端序向量。
 
-本合同不解决 S4 可变初始 Snapshot 的恢复前保护，不改变 ProcessCrashOnly 模型、PublicationOutcome、借入 data 所有权、tag 的独立范围或 CU 选型状态。编码/尺寸算术与历史探针不是 VersionStore 新库、平台、恢复或包消费验收。
+ref 恢复后完整性准入直接消费 S4 `[R-VS-LOCAL-COMPLETE]`，不另增元信息层的恢复前保护；本合同不改变 ProcessCrashOnly 模型、PublicationOutcome、借入 data 所有权、tag 的独立范围或 CU 选型状态。编码/尺寸算术与历史探针不是 VersionStore 新库、平台、恢复或包消费验收。
 
 两轮独立质询、反例与集成验证见[本次审阅记录](reviews/2026-10-10-record-metadata-review.md)。

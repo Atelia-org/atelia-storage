@@ -17,6 +17,8 @@ dotnet run --project experiments/RefFrameSchemaProbe/Probe.csproj -c Release --n
 | 最小长度前检的反例 | header28 + 初始15B body 完整文件112B；删末8B Key/Fence后为104B，仍≥空map最小初始化100B。只读工厂拒绝且不改bytes；可写CompletedTail在offset64补回112B，首两帧形状与完整CRC通过；再次打开Action=None |
 | 已完成初始化后的更新残尾 | header28 + 初始empty完整100B，再追加15B更新；删末8B后140B，CompletedTail在offset100恢复到148B，原初始化保持完整 |
 
-因此“空map的最小文件长度＋恢复后检查AffectedFrameOffset”不能可靠防止可变初始帧被认领：首次事后拒绝不会撤销底层补尾，第二次已无旧报告。当前public只读工厂要求整个尾部闭合，不能在合法更新残尾旁先取得只读首两帧资格；offline recovery scanner也不支持RBF3。该结果是需要继续设计恢复前初始化保护的实证，不是所需公共前缀能力已经存在或任何上层恢复方案已获资格。
+因此“空map的最小文件长度＋恢复后检查AffectedFrameOffset”不能可靠防止可变初始帧被认领：首次事后拒绝不会撤销底层补尾，第二次已无旧报告。当前public只读工厂要求整个尾部闭合，不能在合法更新残尾旁先取得只读首两帧资格；offline recovery scanner也不支持RBF3。该结果反驳的是此前“恢复前初始帧必须完整”的政策所用最小长度保护，不证明公共前缀能力或上层恢复方案已取得资格。
 
-正式目录应按协议只包含flush/close后的完整初始化；上述人为截短文件不是合法目录发布中断的证据。它专门检验设计中拒绝正式缺坏初始化的边界，不能被解释为正常rename会产生半初始化，亦不扩大ProcessCrashOnly故障模型。
+正式目录应按协议只包含flush/close后的完整初始化；上述人为截短文件不是合法目录发布中断的证据。它专门检验当时设计中拒绝正式缺坏初始化的边界，不能被解释为正常rename会产生半初始化，亦不扩大ProcessCrashOnly故障模型。
+
+2026-10-10 政策更新：用户采用 [S4 `[R-VS-LOCAL-COMPLETE]`](../../docs/FrameStore-VersionStore/04-versionstore-publication.md) 的“接受恢复后初始化完整”。创建仍在private完整flush/close后rename发布；正式ref先按现有public RBF恢复，再校验必要首两帧/内容，不再需要恢复前前缀保护。本探针的补尾现象因而不再构成设计阻塞；项目、原始JSON、75项断言及旧格式保持不变，当前4B LocalRefId/变长RootMap/meta8与真正VersionStore的运行时验收仍需随实施取得。
