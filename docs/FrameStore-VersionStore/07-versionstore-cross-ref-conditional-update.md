@@ -1,8 +1,6 @@
 # VersionStore：ConditionalUpdate 单帧跨 ref 事务候选
 
-日期：2026-10-08。状态：**Draft / 用户暂定的优先候选；独立质询与 public RBF3 研究支持协议已达到可正式选型的程度，推荐选用。尚未记为主线选型决策，S4/S5 尚未 Ready，VersionStore 尚未实施；生产事务、进程终止、跨平台及包消费资格另行取得**。
-记录时间与长度判形唯一消费 [S4 元信息专项](08-versionstore-record-metadata.md)；以下组合/流程计入meta8，不改变本候选的选型状态。
-2026-10-10 同步 RootMap 的 S2 变长地址字段与用户采用的固定 4B LE LocalRefId；Members 每项为 4B LocalRefId + 8B Packed ticket，共 12B。原研究探针及结果保留其当时的合成格式身份，不作为当前 codec 的验收。
+状态：**Draft / 用户暂定的优先候选；协议推荐可正式选型，尚未并入S4/S5；VersionStore未实施，生产事务/进程终止/平台及包资格另取证**。本文负责CU的记录、共同判据、位置复用与读取算法；身份字段消费S4，时间消费[08专项](08-versionstore-record-metadata.md)，批量bytes公面消费[11专项](11-versionstore-root-payload-bytes-api.md)。
 
 比较基线：[Prepare + Commit 历史方案](extensions/obsolete/versionstore-cross-ref-prepare-commit-candidate.md)。现行合同：[S0](00-architecture-decisions.md)、[S1 已知尺寸追加](01-rbf-sized-append.md)、[S4 发布](04-versionstore-publication.md)、[S5 历史](05-versionstore-names-and-indexes.md)、[RBF 接口](../Rbf/rbf-interface.md)。可重复研究探针见 [VersionStoreConditionalUpdateProbe](../../experiments/VersionStoreConditionalUpdateProbe/README.md)。
 
@@ -12,20 +10,9 @@
 
 事务资格只需“完整 / 不完整”布尔判据，读取失败沿现有错误通道传播，不增加第三种持久事务状态。未完成 peer 的位置可被新记录复用：**实际 ticket 不同且必要结构检查通过，就足以否定旧成员，不审计替换 payload**；实际 ticket 相同时，仍须完整校验必要记录，再判断普通 RootMap 或异表 CU。按旧 SizedPtr 读取失败不能直接当作损坏，也不能一律吞成不完整。
 
-| 约束 | 来源及处理 |
-| --- | --- |
-| RootMap + RefId → SizedPtr 合成一帧，提前确定所有 ticket，读时验证事务资格 | 用户提议；本轮暂定 CU 为优先发展方向，本文收敛最小执行算法 |
-| 同一 VersionStore、同一绑定 data、多个 distinct 既有 ref | 本轮最小范围；不包含创建、名称/tag 混合、删除或跨库事务 |
-| 普通单 ref RootMap 直接发布，批次只写参与 ref | 用户目标；不引入全量 Heads 或全局日志 |
-| 单 owner/driver 串行，无 callback/操作交错，排斥另一 writer | 现行 S0/S4；不提供并发事务或跨多次读取的快照隔离 |
-| ProcessCrashOnly；OS/FS 继续，完整前缀不丢失、不重排 | 当前 RBF 恢复模型；不扩大为断电、设备乱序或任意外部修改 |
-| data-first、完整坏记录报错、Unknown 停用重开、Confirmed 不降级 | 现行 S0/S4；按本候选共同判据解释 |
-| 完整历史不截断、已完整位置不复用；返回 owned 字典 | 现行 S4/S5；GC、删 ref、搬迁/截历史需另审 |
-| 完整 / 不完整判据与读取失败分离，异长替换只作必要结构消歧 | 用户进一步简化要求；错误传播与按需读取仍保留，不扩大为替换内容或全库审计 |
+本候选仅更新同一VersionStore/绑定data中的多个distinct既有ref，不覆盖创建、tag、删除或跨库事务。单owner/driver、data-first、ProcessCrashOnly、完整历史不复用及停用/清理沿用S0/S4；不提供跨调用快照隔离。RootMap只是可选内容codec，事务资格不解释payload语义。
 
-FrameStore 核心已取得前轮独立源码验收，保持 source-only；新增变长地址资格另见[实施记录](02-framestore-varint-address-implementation.md)。VersionStore 尚未创建，没有已发布的 VersionStore 格式或当前实现消费者。候选与 S4/S5 都是设计输入，不作为彼此的独立实现证据。本文给出选型建议及其证据，不把后续实施资格作为协议选型的前置条件。
-
-2026-10-09 S4/S5 增加首帧 ForkOrigin 与跨文件发布历史。本候选仍不覆盖 ref 创建；未来正式并入时，fork 来源与继承历史只能接受普通 Snapshot 或通过本候选共同判据的 CU，不能采用物理完整但事务不完整的 CU。来源定位 actual ref/SizedPtr，既不追踪参与 ref 当前 head，也不要求新增事务身份；读取资格与 peer 成本随并入同步验收。
+未来并入时，fork和继承历史只接受普通Snapshot或满足共同判据的CU；不完整CU不作为来源节点。ForkOrigin仍定位实际ref/ticket，不追踪参与ref的当前head。
 
 ## 记录与尺寸规划
 
@@ -49,7 +36,7 @@ ConditionalUpdate:
 
 Members 唯一、有界，跨 ref CU 至少两个成员。Count 解码后在集合分配前要求 12L × count <= 实际剩余 payload - 1，checked 地为 root payload 保留至少1B；表解码后剩余 root payload 必须在1..1MiB。不能用 count 直接分配未验规模的集合，不把 root bytes 当 Members 的尾部扩展。解码须检查 RefId 与每个 ticket 的坐标/合法帧尺寸约束，拒绝 default、零长度、截短和非法项；自定位检查不能代替整表 codec 校验。所有文件、身份、尺寸与追加起点均先检查。它是本次内部调用生成的私有值，不接受调用方提供旧表或任意 prepared tickets。
 
-最小公开入口只增加一个 `PublishRefs(changes)`：接收 distinct 既有 RefId 的 ReadOnlyMemory<byte> 新 payload，拒绝空批次；一个目标可复用普通 PublishRef，两项以上才写 CU。成功返回各 ref 的已发布 revision 自有只读字典，共用一次批次 Outcome；不交付部分成功结果、事务 Builder 或恢复句柄。输入/结果载体唯一消费 [11公面专项](11-versionstore-root-payload-bytes-api.md)的 [A-VS-BYTES-BATCH]。
+PublishRefs的输入捕获、空/单成员分流、自有revision字典与共用Outcome唯一消费[11公面专项](11-versionstore-root-payload-bytes-api.md) `[A-VS-BYTES-BATCH]`；本篇定义两个及以上既有ref的CU执行路径。
 
 ## 写入协议
 
@@ -272,23 +259,12 @@ Windows / W: 真实 public RBF3 探针，初录 [结果](../../experiments/Versi
 
 上述探针只使用生产 public Rbf API，未复制首部、Fence 或 CRC 算法。它们使用合成 payload，**不是本轮 Members-first 布局、最终 RefId 或 RootMap codec，也没有 data FrameStore barrier、生产 VersionStore/header/身份门、真实进程终止、输出/flush 异常或 Linux/包资格**。字节镜像是顺序输出前缀模拟，不是断电模拟；没有新增 RBF 入口。
 
-## 简化裁决与成熟度
+## 成熟度与实施出口
 
-| 裁决 | 本轮收敛 |
-| --- | --- |
-| merge | 每 ref 的数据与组证据合为一条 CU；k 帧而非 2k，revision 直接锚定本帧，去掉两帧邻接 |
-| delete | 异长替换 payload/RootMap/Members/self 审计；完整读的 CRC 消歧分支 |
-| keep | self、完整表相等、fresh/no 旧组补写、完整前缀、data-first、身份/模式、本地与同 ticket 必要内容及错误传播 |
-| simplify | bool 资格 + 失败传播；真实前驱 + 现有后继 API 作结构消歧；逐文件 Begin/End、共享预编码成员表、整批 Outcome 单调 |
-| defer | TxId/nonce、Prepared handle、builder group、新 RBF start 入口、Previous、持久索引、GC/搬迁；实际需求触发后另审 |
-| user-decision | 将推荐协议正式记入主线；若要求失败查询也有固定范围/时延，须重新选择成本承诺 |
+**协议可正式选择，尚未并入主线。** 共同判据、fresh 完整锚点与观察稳定性有明确论证，现有 public RBF API 足以执行结构消歧；少量根场景下减少帧和阶段的收益明确。P+C 仍有分帧容量、诊断以及拒绝未提交组时少读 root bytes 的优势，不宣称 CU 在所有工作负载更快。新读取路径完整组合验收仍缺，历史探针不代替生产资格。
 
-**成熟度判断：可以正式选择 CU 作为跨 ref 事务协议。** 共同判据、位置复用与稳定性有明确论证，现有 public API 足以实现读取；本次删除替换内容审计不改变原子判据，并有源码和定向检查支持必要结构消歧。没有发现需要新增持久机制的失败轨迹；新读取路径的完整组合验收仍属于实施出口。对用户当前少量根、几个地址的目标，减少帧与阶段的收益明确；P+C 的诊断、分帧容量及拒绝未提交组时可少读 RootMap 的优势仍保留，不据此宣称 CU 在所有工作负载更快。
+正式接纳须同步S0/S4/S5及入口的单ref范围、选尾/历史/fork资格与成本，而非只加导航链接。待工程定稿为CU FrameTag、完整CU容量/codec及其运行错误载体；接纳CU来源须重审S4普通Snapshot的SourceSnapshotTicket上界和接受kind。沿用既定身份、bytes/时间、恢复后完整性、生命周期与Outcome，不新增TxId/nonce、Prepared handle、持久索引或恢复日志。只有真实失败查询成本需求才重审窄start定位入口等优化。
 
-该结论不等于整个 S4/S5 Ready。正式选型并入时，须同步替换 S0/S4/S5 及入口的“无跨 ref 事务/直接接受末 Snapshot/当前值与历史成本”旧合同，保留普通单 ref 路径与 tag 创建的独立范围；不能只在导航加一个链接便称主线支持。RefId 字段及 root-payload bytes 范围直接消费 S4 已定合同；可选 RootMapCodec 消费应用专项，普通 ref header/Snapshot 格式消费 `[F-VS-REF-FRAMES]`；ref 恢复后完整性准入直接消费 S4 `[R-VS-LOCAL-COMPLETE]`，不增加恢复前初始化保护；具体 Ready 项仍有 CU FrameTag、已定 Members 布局的 codec 与含meta8的完整容量、已定 bytes 批输入/结果合同的实施、文件/枚举生命周期与真实错误载体。接纳 CU 作为 fork 源时须重审 S4 普通 Snapshot 的来源 ticket 上界与接受 kind，不能因 Members 扩大 payload 而沿用普通上限。这些是阶段工程定稿及本协议的实施出口，不是新的事务身份或恢复日志。
+最小实施片为两个正式既有ref：正式CU envelope/header+绑定data屏障+PublishRefs+当前/历史共用判据+自有revisions；随后验证每个Begin/End、最终输出、flush及确认后安装的失败/冷开。
 
-最小安全纵向片是**两个已正式创建的 ref**：正式 codec/header + 绑定 data barrier + PublishRefs + 当前/历史共用判据 + owned revisions；随后在每个 Begin/End、输出、flush、确认后安装位置验证失败与冷重开。验收包含布尔资格与读取失败、坏身份/self/重复表/同 ticket 坏内容、异长坏 HeadLen、异长未读坏 payload 不影响否定旧成员及直接读取仍报错、缺前驱/后继不符、I/O/fault；失败旧 A/B 后新 B/C 且不递归；lazy CompletedTail；同值/rewind/预算；普通单 ref 不增加成员表；新 helper 全矩阵与 k 增长成本。Windows/Linux 与 public 包消费分别出证据，不为此片先实现名称事务、全局 Heads 或日志。
-
-本次只修订独立 CU 候选；P+C、仓内研究探针、主线合同与生产源码保留原状。没有新的协议产品问题必须先向用户澄清。
-
-本轮不透明 fork 配套：CU 的事务资格只解释 envelope/CRC，不解释本地或 peer 的 RootMap。payload 语义损坏即便 CRC 合法，也不等于事务不完整；应用读取所选 bytes 后自行报告 codec 错误，不能因此回退或撤销组。ForkRef 在组成立后仅 clone root-payload bytes，不复制 Count/Members；JSON/UTF-8 payload 无需改变事务判据。验收须覆盖 Members-first 边界/count越界/截短、不同 opaque bytes 的一致组、peer 不调用字典 decoder、CU→普通子 Snapshot 的逐 byte clone。旧探针未验证本次布局或语义分层，不补称已通过。
+特有验收包括：Members-first边界/count越界/截短、self/完整表/坏身份/重复项、不同opaque payload的同组与禁用peer decoder；同ticket坏内容硬失败、异长坏HeadLen/缺前驱/后继不符失败、异长未读坏payload不妨碍否定旧ticket但直接读取仍报错；失败旧A/B后新B/C不递归另一组、lazy CompletedTail与观察稳定性、同值/rewind/预算/取消/I/O/fault。CU来源接纳时补CU→普通子Snapshot仅clone root bytes、排除Members的向量；普通单ref不增加表。新helper全矩阵与k增长成本、Windows/Linux及public包资格分别取证。

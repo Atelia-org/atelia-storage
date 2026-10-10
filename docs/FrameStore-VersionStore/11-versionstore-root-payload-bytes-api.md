@@ -66,7 +66,7 @@ ReadOnlyMemory 仅用于放入普通集合，不转移 ownership；调用方在�
 
 ## codec 与故障边界
 
-VersionStore 不注册或猜测 codec，既不校验 JSON/UTF-8，也不校验 RootMap key/地址；完整 bytes 发布不证明内容可被应用解码。应用在发布前完成编码；读取/历史 visitor 获得自有 bytes 后自行解码，失败明确处理，不要求库回退、撤销发布或改绑来源。RootMapCodec 是首个独立可选 helper，JSON 使用者可直接提供 UTF-8 bytes。FrameStore 依赖闭包仍由应用保证，barrier 不认证内容引用。
+内容解释与失败边界唯一消费 [S4](04-versionstore-publication.md) `[S-VS-ROOTS-OPAQUE]`；data 闭包与屏障责任消费 `[S-VS-ROOTS-AFTER-DATA-CONFIRM]`。可选 [RootMapCodec](10-versionstore-rootmap-payload.md)由应用显式调用，不进入本篇 API 的发布/读取资格。
 
 ## 验收与成本
 

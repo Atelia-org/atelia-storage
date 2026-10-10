@@ -53,13 +53,9 @@ Decode 入口先检查实际输入为1..1MiB，容量及消费 MUST 按 reader �
 
 （Informative）1MiB 是限制单项 root payload 的 MVP 工程选择，不保证合法输入不会 OOM；codec 捕获、编码、冻结解码与发布层复制仍有额外内存。实际工作集与峰值/吞吐留实施测量，不声称数字最优或方案最快。复用 Binary 增加其精确 K4os `[1.3.8]` 依赖。BPV1 [已实施验收](../Binary/bare-primitive-value-acceptance.md)及[基元独立 golden](../../tests/Binary.Tests/SchemaCompositionTests.cs)是底座证据；[RootMapCodecProbe](../../experiments/RootMapCodecProbe/README.md)原 fixed12 synthetic 地址版本的47项检查保留历史身份，不构成本次变长地址/Unicode接受域、独立公共codec、新库或发布恢复资格。新增 FrameAddress 能力见[实施记录](02-framestore-varint-address-implementation.md)。
 
-## 已采用的不透明 fork 边界
+## 与发布层的边界
 
-S4 [A-VS-ROOT-PAYLOAD] 与 S5 的无变更 ForkRef 直接检查源发布资格并原样 clone root-payload bytes。源定位、子初始写入、来源一致性及 ListForks 均不调用 RootMap decoder；成功返回子 RefRevision。RootMap 同字典可有不同合法 bytes，不妨碍普通更新，但 fork 必须保留指定源的 exact bytes，不重新编码。
-
-CU 候选将 Members 置于 root payload 前，以有界 count/固定字段定位剩余 payload；发布组判据只校验完整 CRC、发布 envelope 和成员，不解析 peer RootMap。codec 校验属于应用解码，不定义事务完整/不完整；codec 失败报错不回退，但不会撤销底层已完整事务或阻止 byte clone。RootMapCodec 对自己的输入/解码结果实施专项校验，VersionStore 的 bytes 入口不调用它。
-
-这是内部发布与 payload 解释的职责分离；[11 专项](11-versionstore-root-payload-bytes-api.md)已提供 bytes 公面，仍未移除 FrameStore 借入/barrier；内容 schema 由应用识别。应用自编码 JSON/UTF-8 的 bytes 在 fork/CU 协议层完全可行，公开 bytes API 已定，程序集分离留给后续设计。本文不增加 registry、泛型框架或试解码猜格式；不同 payload 的 schema 识别由应用负责；CU 仍保留候选身份。
+本codec只解释应用显式交付的完整codeword，不承担Snapshot/tag/CU定位、事务资格或fork来源比较。这些合同分别消费S4、S5及07候选；bytes公面消费[11专项](11-versionstore-root-payload-bytes-api.md)。调用链为Encode→发布bytes、读取自有bytes→Decode；fork原样复制bytes，内容schema由应用管理。
 
 ## 实施验证补充
 

@@ -1,11 +1,7 @@
 # S6：消费者验证、公共包与交付
 
-状态：**Draft；2026-10-10 同步无 branch 名称、持久预留低号区、自动/指定创建与单文件 ref 发布。FrameStore S2/S3 独立源码验收已 Accepted（见[最终源码验收](02-framestore-final-acceptance.md)）；本阶段端到端集成、包与消费者切换未执行**。
-同日新增 FrameAddress 变长 API、FrameStore → Binary 依赖及 RootMap 变长地址字段；前轮 Accepted 保留原资格，新增地址源码验证见[实施记录](02-framestore-varint-address-implementation.md)，VersionStore 与本阶段集成/包资格另行验证。FrameStore 仍为 source-only。
-前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。
-本阶段验证前序合同的组合，不作为前序层运行正确性的反向依赖。
-依赖 S5 历史选点/fork 核心与 [S5-B 不可变 tag 专项](09-versionstore-immutable-tags.md)；ref/history/fork 组合可先验证，完整 tag 组合在靠后的 S5-B 实施后补齐；首版不纳入 ref 分段/轮转、差分/checkpoint、branch 名称或精确发布尝试查询。
-本阶段验证单文件 ref、自动/预留区指定创建、本地 ID 保存/定位与分桶 tag 的实际协议；LocalRefId 消费用户采用的固定 4B LE/uint32，SizedPtr 继续为完整 8B。
+状态：**Draft；FrameStore S2/S3独立源码验收已Accepted并保持source-only；VersionStore、本阶段端到端集成、包与消费者切换尚未实施**。
+前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。本篇只负责组合、包与交付证据，不反向定义前序协议；ref/history/fork先验证，09 tag施工后补齐完整组合。FrameAddress变长增量资格见[实施记录](02-framestore-varint-address-implementation.md)。
 
 ## 本阶段目标
 
@@ -47,40 +43,31 @@ tool-loop 首次/新 attempt 外发之前 MUST 正常确认该 attempt 的冻结
 
 ### spec [R-INTEGRATION-CRASH-EVIDENCE] 进程中断验证真实组合
 
-资格 MUST 覆盖提前地址/交错构建、FrameStore 首帧与 active 发布/归档/多个 active 恢复、data barrier、ref private 初始化/单文件发布/快照追加、tag 桶初始化/追加，以及库内与应用安装窗口。ref 创建/fork 均覆盖自动/指定入口；Builder 归还/config 与当前串行范围不变，不测试不存在的 ref 轮转/Commit/control 日志。
-使用子进程中断/真实磁盘镜像验证冷重开，并保留源 commit、SDK、平台、阶段和预期/实际结果；单元 fault injection 不能冒充进程中断实证。
-恢复结果只能来自完整 checked 快照和正式发布的文件/名字。已有 ref 更新中断后只能得到完整旧字典或完整新字典，不混搭 Key；CreateRef 中断后则为未创建或已正式发布的完整初始 ref，不补造空字典。完整坏快照不回退。Unknown 重开读取实际状态，不承诺精确尝试的 Present/Absent，也不从同值字典倒推旧调用曾确认成功。
-自动/指定 ref 或 fork 覆盖 private 创建/flush/close、同文件系统 file rename 前后与 Confirmed 后安装失败：正式未创建或完整已创建，private 不公开、不续作，RO 不清理。正式缺/坏必要 header/初始快照报错，不当空槽删除；rename 不明仍 Unknown。Windows/Linux no-overwrite 与中断资格由 VS 真实入口取得，不以 FrameStore 移动通过代替。
-补确定 guard 先于 data IO 拒绝、data / VersionStore 身份混用与 fault 范围、发布屏障覆盖调用时最新完成 data，以及应用安装失败不撤销 Confirmed。无关 data Builder 活跃不构成拒绝；其声明、构建内容、epoch、租借和配额在屏障后不变。数据帧写出中断与根发布中断分开裁决；完整未发布数据不自行改变任何 ref/tag。新文件私有 flush 后、正式 no-overwrite rename 前不算对象成立；rename 后调用未返回可能留下已成立对象。
-public 消费另验证 out 证据在原异常/OOM 及内部助手转发后仍可观察，确认后成功值/投影安装异常仍为 Confirmed；正常失败 Result 为 NotAttempted，不混同健康资格。进程终止不留下调用证据，冷重开只读实际对象。自动创建丢失返回值不得按同值认领；tool-loop 的 Started 无结果、已完成外部操作但结果未发布、已发布结果和旧 generation 回包分别走应用路径，不由存储库盲重试或补发 Started。
-组合向量包含 A 的全部依赖完成而 B 不相关仍 Building 时 CreateRef/PublishRef/CreateTag 成功、A 已发布后 B 中断/取消不撤销 A、B 所租文件中旧 dirty 依赖被 flush、B 后续 EndAppend 重新登记并须新屏障、健康取消/位置复用不赋予旧地址完成来源、任一数据 flush 失败后所有 owned Builder/Writer 停用且根不输出。真正依赖未完成 B 的 RootMap 不能发布，这是应用闭包责任，不能从数值地址或屏障成功推导库已自动验证。
-同文件 Builder 活跃时，经普通指定地址随机读取此前已完成帧，配合嵌套构建验证应用行为不依赖文件分配；未完成提前地址和连同帧后 Fence 的跨边界范围先于读取拒绝。仍校验完整内容、生命周期与共享 fault，扫描/扫描边界/物理后继 guard 不变；不把本轮串行轨迹重标为并发资格。
-编号 public 消费覆盖低号仍 active/高号先 archive、空最高桶/全部已归档/缺口/uint 高位、双位置和非规范错桶拒绝。创建中断后以正式位置重算 max，私有 header 不认领编号；active header-only 文件也占号。uint 耗尽时仍可复用空闲低号、读/确认/结束既有 Builder，仅需新文件时在维护/创建前确定拒绝。冷 Open 测量全部正式名称枚举成本；它不构成 archive header/内容审计或两平台 rename 已取得资格。
-正式路径 public 消费按 S2 的独立文本向量验证 6/8 位小写 hex、1024 边界/slot=0、高位/最大编号和桶范围；发现与随机定位一致，归档保持 basename/header/地址不变。非规范大小写/宽度/后缀、错桶/层级、隐藏未知项和错误 entry 类型不得被过滤或规范化接纳。实际固定组件拼写、普通类型/no-follow 的两平台资格与 metadata 成本另取证，不以字符串 codec 检查替代根独占、同文件系统或 rename 验收。
-格式门 public 消费使用 S2 已定 raw 24B 独立向量，验证完整 CRC 后才认领统一版本/非零 StoreId，严格拒绝短/长/损坏/未知版/旧 marker/RBF 门；可写与只读 Open 均不改门，缺坏门即使旁边 data header 合法也不恢复/补造。必要 close 失败不继续 active 恢复或签发 owner。门记录的 CRC 不与数据 header 的 RBF CRC 重叠；初次建立消费 S2 `[R-FS-STORE-CREATE]`，验证空必要布局先于正式门写入、完整门出现在失败调用后仍可依实际资格重开，以及坏/短门重复拒绝；任何初始化/交付失败不删正式门或根作回滚。Create 无data文件，空扫描/确认不建文件，首个实际追加才建FileId=1；owner 生命周期锁与门前 bootstrap 消费 S2 `[S-FS-OWNER-LOCK]`：覆盖writer/reader互斥、reader共享、获锁后fresh重检、control-only复用、缺坏control拒绝、不删除/替换和fault至Dispose保留；清理全部其他owned资源后才单次关锁。Windows 28项原语探针不代替完整factory、实际根/type/no-follow或Linux严格锁资格；两平台初始化中断/资源资格另取证，不以文档闭合当实现通过。
-FrameStore 私有data残留消费 S2 `[R-FS-CREATION-PRIVATE]`：正式发现后独立max+1、唯一文件/完整枚举/0..I全byte前缀先于active恢复及删除；允许合法非默认Key，不认证短前缀作者。取得必要close成功后writer只删该文件，RO原样保留且不计正式集合；unknown/错号/多项/超长/CRC或identity矛盾保留拒绝，取消中断重新裁决，不恢复或补发布。先取得 [RBF公共纯前缀入口](../Rbf/rbf-initial-frame-prefix.md) 的源码/public消费资格，再验证完整Open/取消/关闭失败/ordinary/no-follow/两平台中断；内部有界探针不是这些资格。
-VersionStore 格式门消费 S4 `[F-VS-OWN-FORMAT]` 的当前独立向量：版本/双身份/不可变 L/CRC 与长度严格检查，CRC 后仍比对实际借入 data。错 data 或 close 失败先于 VS 恢复/pending 清理/输出，不签发 owner 或停用健康借入 data。覆盖同 data 不同 VS、两角色同值、L=0/256/Max−1、拒绝 Max/错长度，重开不覆盖 L/不改门；Create 非法 L 先于 I/O 拒绝，预留不创建 ref 文件。初次门/根/锁协议已定，真实VS平台证据另取。
-VS创建/打开消费S4 `[R-VS-STORE-CREATE]`、`[S-VS-ROOT-ADMISSION]`、`[S-VS-OWNER-LOCK]` 与 `[R-VS-STORE-OPEN]`：验证fresh输入/空锁bootstrap可重试、获锁重检、空布局先于直接44B门，布局/短坏门不resume、完整门已存在后的flush/close/交付失败可实际Open。独立永久0B锁覆盖writer排斥全部VSowner/RO共享、缺坏锁拒绝、不删除替换和非锁资源清理后最后关锁；VS/data跨FS可借入而VS受管项须同FS。停用类mutation先失效再完整受控teardown、资源单次尝试/重复Dispose不重关、out保留、不Dispose借入data；确定拒绝及普通读内容/预算失败不因新清理合同新增fault。
-VS工作区消费S4 `[S-VS-CREATING-WORKSPACE]`：ref/fork/tag空桶统一`creating/pending.rbf`，cold允许空或唯一普通同FS/no-follow pending，W正式发现H完成后取消、RO原样保留且不为pending全扫ref。验证0B/部分/完整任意内容均不读回、无Length/身份/role/H/正式目标对照，不续作或补发布；未知名/隐藏项/多项/特殊类型/资格/枚举/清理失败保留拒绝，删除失败不交owner。rename后正式ref/合法空桶保留，不因本次结果丢失而回滚；FS私有前缀和正式tag初始化保护不变。
-借入入口资格消费 S4 `[S-VS-DATA-BORROW]`，底座窄 guard 消费 S2 `[A-FS-ENSURE-USABLE]`：先取得新增公共转发及独立拒绝/无 I/O/活跃 Builder 不变的源码证据，再验证 VS 三个工厂先于自身 I/O 拒绝 disposed/faulted data、可写入口拒绝只读 data，RO 允许任一模式。确认失败初始化/VS Dispose 不关闭健康 data、失效 data 不妨碍 VS 自身清理；不将入口检查升级为持续健康或业务闭包证明。模式配对已定，VS 根/锁及两平台组合资格仍随实施取证。
-RefId 消费 S4 `[F-VS-REF-ID-4B]` 的完整上下文值、固定字段独立向量与 uint LocalId 纯值导出，不用反射/public 数值构造补 API。验证 default/完整等值/同库重开，以及完整 RefId 误传其他 VS 在 Read/Publish/History/Fork 的 I/O/barrier 前拒绝、NotAttempted；LocalId selector 由应用明确选库，保存动态号后 ReadRef(local)取得 checked 值，可查高号但不隐式创建。发号消费 `[S-VS-REF-ID-DOMAINS]`：全部正式文件恢复 H、首自动 L+1、指定仅 1..L 且 create-only、不推进 H；自动 Max 耗尽仍可用空闲低号。覆盖坏正式占号、pending不计H且共用取消资格、拒绝先于barrier/输出、Unknown与确认后丢失结果冷开。正式路径消费 `[F-VS-REF-PATHS]` 的平面canonical文件及独立拒绝/定位向量；冷开O(ref数量)成本与实际组件/no-follow/pending/中断/平台分别取证。
-ListRefs public消费S4 `[A-VS-REFS-DISCOVERY]`：完整正式路径资格后交自有只读RefId全集合，含预留/自动/高位/Max、坏内容占号文件，不含pending；checked门与路径产生bound定位值，不签Snapshot/RefRevision。未知项/类型/枚举/必要清理失败不交部分结果，不打开内容/恢复文件或执行data/private副作用；后续ReadRef可对所列坏文件报错，保存集合在关owner后仍有效。自动创建rename成立而返回值丢失可被发现，应用核对业务身份，不按同值认领旧attempt；测量完整枚举与集合存储成本。
-RefRevision public 消费只从正常发布/checked 当前与历史取得值，验证完整等值/hash、同字典重发/子初始与源不同 revision、default 属性/比较合法而输入前检拒绝、不同 VSID 拒绝先于 I/O/barrier 且 NotAttempted。保存值结束查询并关闭/重开同 VS 后仍可 fork，实际重读/确认不省略；继承源的 RefId/Ticket 可直接关联 ListForks 的 exact 声明点，位置匹配不等于源内容健康。无公开数值构造、反射或元数据转 revision 的绕行；不把只读投影称为完整 codec、跨进程导入、防伪或旧调用耐久证据，未来分段观察合同另审。
-bytes public 消费按 [11专项](11-versionstore-root-payload-bytes-api.md)：同步有效slice私有捕获，1..1MiB；ref写入返回revision、读取/历史返回自有RefBytesSnapshot，tag读取返回RootPayload。输入归池/修改及后续查询/关闭owner不改变旧结果，不外泄可写backing。输入捕获与枚举器清理失败先于barrier/output、NotAttempted且无新增fault；确认后结果构造/关闭失败保持Confirmed。fork exact bytes比较不使用CRC/hash或字典等值；JSON UTF-8及随机bytes无需RootMapdecoder，应用decode失败独立于已发布事实。
-可选 RootMapCodec public 消费按 [10专项](10-versionstore-rootmap-payload.md)独立验证：真实变长地址与golden、Unicode/Ordinal、冗余表示/拒重、分配前界、实际消费与1MiB、exact-consume和冻结解码。Encode无需冻结中间捕获字典，无owner/barrier/outcome。以应用Encode→发布Span、读取自有bytes→Decode组合，不把codec拒绝混入核心读取资格；合法非RootMap payload仍正常发布/读取/fork/tag。底座及历史探针不代替当前codec、新库、RSS/平台或包资格。
-ref 宿主 public 消费按 S4 `[F-VS-REF-FRAMES]` 的当前 header独立golden、0/1 kind、header meta0/非墓碑与Snapshot含完整 opaque root bytes；Snapshot元信息直接消费 [专项](08-versionstore-record-metadata.md)；验证期望版本/VSID/自身身份、来源Packed LE及必要坐标、首两帧物理成员/full CRC/exact-consume和整帧尺寸前检。来源元数据不签发revision，不借源健康保证本地当前值。恢复后完整性准入消费 `[R-VS-LOCAL-COMPLETE]`：当前4B LocalRefId/root bytes/meta8覆盖初始body完整但缺Key/Fence时补齐并接受、再次None仍接受、初始body未完成被截掉后缺帧拒绝，以及后续更新残尾补齐/截短；补尾后坏CRC/身份/envelope/长度仍拒绝，不撤销已发生的底层恢复。只读残尾拒绝且不改字节；private初始化/flush/close/rename的创建中断单独验证。旧8B LocalRefId/fixed12草案的112→104→112→再次None现象保留历史身份，不再要求恢复前保护，也不以旧synthetic探针冒充新库Ready。 本层 exact-consume 只用于 header/envelope，root 内容解码不参与恢复资格。
-ref元信息验收消费专项独立golden与S4 RecordedAtUnixMs属性：完整读取后交付原值、同毫秒/回退不改变身份与链顺序、fork/rewind重新取时、必要记录未知长度/坏CRC硬失败；CU独立接纳时验证meta8参与Measure/预测/Begin及一次共享取时，异长替代/历史无关后缀保持既有结构范围。不增加日期范围校验、单调水位、单独CRC或强制peer info-first读取。
-public 消费另验证 FrameRead 在 reader/owner 关闭后仍可用、独立 Dispose 与未移交结果失败清理。同步 Inventory/Audit 的纯值回调、header 报告、结构/完整 CRC 区别、mutation 准入先于维护、回调随机读/Dispose、取消及全部退出清理直接消费 S2；只有全部实际集合检查与必要关闭成功才有全库完成资格，不将它升级为业务图或未知历史文件存在证明。
-首次 tag 桶 header-only 初始化在同一个pending中完成，覆盖flush/close/空桶rename中断；未Append tag仍NotAttempted，重开允许合法空桶而不存在tag，不删除正式空桶。自动/指定fork同样共用pending，均消费完整data屏障与源flush，A完成而无关B Building仍可成功。
-tag public 消费按 [S5-B 专项](09-versionstore-immutable-tags.md)每次完整校验目标桶，不依赖跨调用缓存。覆盖首帧初始化 I 前检与重复打开不认领半 header、首 tag 两种合法残尾恢复、命中后坏非目标记录 CRC/长度/重复全名/错桶/墓碑/TerminationError 的失败、必要 close 失败，以及查询返回的自有 RootPayload。统一 header 版本与两种 FrameTag 消费基础 codec，不增加 tag 专用版本/CRC；测量重复解析和连续同桶创建成本，故障与恢复测试不替代性能或平台 rename 资格。
-应用目录示例覆盖固定槽位与动态 LocalId 持久保存、正确库冷重开及缺坏目标；富元数据与业务根放同一 RootMap 共同生效。独立目录 ref 登记动态对象是第二次发布，中断可留未登记对象，ListRefs/业务身份核对由应用处理，不宣称跨 ref 原子或仅凭同值认领旧创建。tag 名称/容量/路由向量按 [S5-B 专项](09-versionstore-immutable-tags.md)，branch 名称/绑定/alias 不属于库验收。
-容量边界分别验证单帧尺寸与起始 offset：ref / tag 桶最后合法记录的末端和尾 Fence 可以越过 SizedPtr.MaxOffset，随后追加在输出和额外 data barrier 前确定拒绝；不拿末端越界当作既有记录损坏。FrameStore 同样遵守起点规则，成功追加后按软阈值停止分配并归档。裸 FrameAddress 的原始 store 来源由应用保证，错误 data owner 的格式门绑定则必须在恢复/写入前由库拒绝，二者不能合并成自动来源检测能力。
-软阈值 public 消费使用 S2 的唯一 Create/Open 参数，以小 T 验证 header-only、三种追加等于/越过、取消、实例固定及升降阈值重开；非法范围先于文件系统访问拒绝。分类必须消费恢复后的完成 tail，覆盖截短变小/补尾变大；尚未移档 active 可在提高阈值后继续，archive 不重新启用。默认 64GiB 仅为工程起点，参数不扩 Builder config、门/header 或地址字段；这些向量仍待新 FrameStore 实施，不由现有 RBF 测试代替。
-同步历史 visitor 向量 MUST 覆盖固定上界、递归/全部 mutation 的 pre-I/O 拒绝、调用后自有 bytes 继续使用、重复相同字典的不同 revision、损坏与 TerminationError。覆盖第 k 项正常停止不再读取旧坏记录，MaxSnapshots/MaxWorkSteps 的资格/定位/完整读计费，恰好到无来源初始时 Complete、有来源而额度不足时专用预算失败。最后回调 Dispose owner、取消或抛异常及最后临时关闭失败不得返回正常终止；跳转/所有退出归还一次并清 guard。普通当前值读取不自动审计全部历史；显式历史传播已观察的必要错误，VisitorStopped/预算失败不称未访问前缀健康。
-来源感知 fork 另覆盖源真实成员重读、data 屏障后源 ref flush、私有 ForkOrigin/初始 Snapshot 单文件共同发布及每个中断窗口。源 flush 失败时不输出子文件，源 head 不增加孩子登记。跨文件历史包含子初始与 exact 源点的不同 revision，覆盖 fork-of-fork、源后续更新不混入、rewind 发布史、缺源/错 length/循环/初始 payload bytes 不符、后缀定位预算与错误、栈内扫描器切换与临时句柄清理。
-ListForks public 消费 `[A-VS-FORKS-CHECKED]` 的正 int maxRefs、自有 ForkInfo/只读列表及单次完整扫描：必须包含预留区与自动区、多层及兄弟分叉，应用名称映射不新增边、无来源同值复制不推断来源、creating 排除。全部正式节点包括无来源根计费；零/负限额先于 I/O 拒绝，恰好额度且正常 EOF 可成功，超额节点在打开/读取/扩表前专用失败。完整首两帧、集合及源存在/迭代环检查、必要关闭与最终检查成功后才交全部关系；缺源/坏末 ref/环/关闭失败/取消/分配失败不能交部分或空成功。深链/共享祖先不递归或二次方重走；验证正常集合接口不能改变保存结果，后续查询/owner 关闭仍有效，来源保留 full ticket 而不签发 checked revision，顺序无保证。历史 visitor 内查询复用匹配句柄且不覆盖历史临时槽，其他 owned 资源只清理一次。声明边不重验所有源 payload，实际历史跳转则必须校验，两种资格分别验证；数量预算不替代 S4 ref 恢复后完整性准入、平台或物理内存/时间资格。普通 ReadRef 仍只检查本地必要内容。
-public 消费分别验证 S2 的两份 FrameAddress 格式。fixed12 继续复用 EncodedSize/TryWrite/TryRead，在 Begin 前计算选择固定地址字段的自引用/双文件互引 stored 尺寸，核对 Begin/End 编码一致并冷重开读回；独立 bytes 验证完整 FileId/Packed 高位、公共数值下界与最大起点/长度、精确 slice、TryRead 失败 out=default 和 TryWrite 失败无写入/成功只改前 12B。新增变长消费复用 MeasureVarInt/WriteVarInt/ReadVarInt，验证最小 `01 87 02`、3..15B 与完整高位、最短 writer/有界冗余 reader、精确 Measure、default 在 sink 前 InvalidOperationException、截短 EndOfStreamException 及溢出/数值非法 InvalidDataException；全部 reader 失败原 cursor 不变，下游 writer 失败不承诺撤销前缀。可选 RootMapCodec 使用该变长格式，ref 历史与 tag 不解释地址格式，CU Members 仍固定 8B Packed，不能用尚未确定自身地址长度的记录预约自行制造尺寸循环。
-两个 decoder 共用数值 guard；header 坐标保持中性数值资格，裸值不证明真实帧。验证 default 可比较/哈希但在读取 I/O 前拒绝、成功追加后的可信构造无新增失败路径。不把内部 struct 大小或 native ABI 当成 wire 长度；目标运行时成本与 codec/包消费分别记录，不自动认领其他旧地址/Serialize 格式为兼容输入。新增 API 不改变 FrameStore 门/header/RBF 格式版本，前轮 fixed12 验收结果保留历史身份。
+各层字段、codec、局部恢复、错误/清理与独立golden的详细验收保持在所属文档；S6 MUST 引用实际来源/结果并验证跨层public接线，不再维护第二份逐字段测试清单：
+
+| 验收权威 | S6消费范围 |
+| --- | --- |
+| [S2/S3最终源码验收](02-framestore-final-acceptance.md)、[变长地址增量](02-framestore-varint-address-implementation.md) | 三种追加/交错Builder、两份地址codec、路径/发号、门/锁/私有data、轮转/恢复、FrameRead及Inventory/Audit；已Accepted结果保持其来源身份 |
+| [S4实施与验收](04-versionstore-publication.md#实施与验收) | VS借入guard/模式/绑定、建库/锁/唯一pending、ref身份/路径/两域发号/ListRefs、真实成员与恢复后完整性、data-first/Outcome及受控清理 |
+| [S5实施与验收](05-versionstore-names-and-indexes.md#实施与验收) | 固定历史上界/预算/停止/回调、精确fork来源及byte clone、ListForks完整声明图/额度/自有结果 |
+| [08时间](08-versionstore-record-metadata.md)、[09tag](09-versionstore-immutable-tags.md)、[10可选RootMap](10-versionstore-rootmap-payload.md)、[11bytes](11-versionstore-root-payload-bytes-api.md) | 所属格式向量、初始化/扫描、长度/捕获/结果生命周期与内容解释边界；组合时保持各自资格 |
+
+FrameStore既有资格不覆盖新增公共EnsureUsable或VS组合；先取得其新增源码/public证据再接入。public消费者不能借反射、internal入口或旧类型补能力；底座合成探针不代替新库/header/身份门或组合实证。
+
+**进程中断矩阵。** 使用子进程终止及真实文件冷重开，覆盖以下跨层窗口；保留源commit、SDK、平台、failpoint、预期/实际结果与证据路径。单元fault injection、字节前缀镜像与真实进程中断分别报告，不冒充断电资格。
+
+| 窗口 | 组合必须证明 |
+| --- | --- |
+| data构建/完成/barrier及active发布/归档/恢复 | 完整未发布data不改变ref/tag；A依赖完成而无关B Building仍可发布，leased文件旧dirty被确认，B后续完成需新屏障；B后来取消/中断不撤销A，data flush失败无根输出。跨文件/同文件历史随机读与交错构建只按实际地址取回，不依赖分配/完成次序 |
+| ref创建/fork的pending、flush/close、rename前后 | 两种编号入口均为未创建或完整正式ref；private不公开/不续作，RO保留。正式缺/坏必要帧报错；Windows/Linux严格不覆盖rename由VS真实入口取证，不用FrameStore移动结果替代。源确认失败无子输出，不向源登记孩子 |
+| 普通ref追加/flush与恢复 | 当前值为完整旧bytes或完整新bytes，RootMap例子不混搭Key；完整坏记录不回退。初始和后续残尾按S4接受恢复后完整性，RO需要修尾即拒绝；初始化中断与人为截短的格式恢复向量分开 |
+| tag目录/空桶/pending/rename及首条或后续Append | 正式合法空桶与未创建tag可共存，空桶rename不确认首tag；header初始化保护及全桶资格按09。截断首body保留空桶，CompletedTail后重新全桶检查；非目标坏记录/重复全名/close失败不成为命中或健康missing |
+| 发布确认前后、库内交付及应用安装 | public out在原异常/OOM/助手异常后可见，正常失败NotAttempted、未确认尝试Unknown、确认后结果/清理失败Confirmed。进程终止无out，重开只读实际事实；自动丢结果可发现而不能按同值认领，指定号码不证明旧attempt。健康借入data不因VS失败或Dispose被关闭 |
+| 应用外发与独立目录登记 | Started无结果、外部已执行但结果未发布、结果已发布、过期generation分别走应用策略；不由存储盲重试/补发Started。固定槽/动态LocalId与正确库关联，独立目录二次发布可留未登记ref，不声称跨ref事务或exactly-once |
+
+**public端到端组合。** 完成前述最小模型与应用场景，再验证Encode→bytes发布→自有读取→Decode、历史选点后fork/tag/rewind、旧结果跨查询/owner关闭保留及坏data的应用失败。禁用RootMap decoder验证核心路径，JSON/随机bytes同样可发布/读取/fork/tag；fork保留exact源bytes，历史实际校验来源一致性而ListForks只声明图资格。合法末帧越过MaxOffset的末端与下一次追加拒绝分别验证；库绑定拒错data与裸地址来源的应用责任分开。
+
+single-driver/HistoryActive、取消/回调Dispose及必要清理规则按所属阶段在public调用中复验；这些串行轨迹不改标为并发资格。实际Open/正式发现成本、history源后缀定位、ListForks规模、tag全桶/连续创建、bytes复制与资源峰值另测，不用codec算术或预算替代性能/平台证据。CU仅在正式接纳[07候选](07-versionstore-cross-ref-conditional-update.md)后另纳入组合矩阵，当前不验证或宣称主线支持。
 
 ### spec [S-DELIVERY-PACK-OWNER] 包入口有单一负责人
 
@@ -134,5 +121,3 @@ public 消费分别验证 S2 的两份 FrameAddress 格式。fixed12 继续复�
 
 最低出口：两个新库的 Accepted 源码闭包、组合恢复资格和隔离公共包消费证据。
 公开发布或真实消费者切换若未纳入当前工作，交付记录明确停在哪一层；不将库可用与已切换混为一个状态。
-
-fork 无解码验收：两种 ForkRef 返回子 RefRevision，使用禁用/计数 RootMap decoder 的 byte clone 路径；源以非最短合法 BPV/不同条目顺序编码时仍原样复制而非 re-encode，同字典但子 bytes 不同的错误链接拒绝。共同首两帧/源成员/CRC/尺寸/meta 及 CU 成立资格仍须校验，ReadRef/历史 bytes 由应用自行解码。CU peer 的 codec 语义不参与事务完整判据，完整 CRC/成员错误仍硬失败；CU→普通 Snapshot 不携带 Members，子取新时间。历史与 ListForks 分别验证字节一致性和声明图资格。

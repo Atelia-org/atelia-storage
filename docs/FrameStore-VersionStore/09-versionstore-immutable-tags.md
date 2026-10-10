@@ -104,17 +104,7 @@ CreateTag 直接消费 S4 `[S-VS-ROOTS-AFTER-DATA-CONFIRM]`、`[A-VS-PUBLICATION
 
 随后同步调用 `data.ConfirmDurable()`。无关 data Builder 仍 Building 不阻断创建，本根必要依赖仍由应用保证完成；屏障确认所有必要完成输出，不签发未完成依赖资格。屏障异常本次 tag 保持 NotAttempted、VersionStore 停用；data 按自身 fault，不 Dispose 借入 data。
 
-缺桶时在 S4 唯一 `creating/pending.rbf` 写 header、执行共同首帧检查并要求 TailOffset=I，再 DurableFlush/close，以同文件系统 no-overwrite file rename 公开合法空桶。该初始化包括可选 tags 目录建立均不推进本次 tag outcome；打开并验证正式空桶后才追加首条 tag。首 tag 与后续 tag 使用同一普通正式 Append/flush 协议：
-
-| 边界 | 本次 tag outcome | 失败/后续行为 |
-| --- | --- | --- |
-| 确定准入/查重/输入/容量拒绝 | NotAttempted | 无本次额外 data barrier/tag 输出，健康实例可继续 |
-| data barrier、私有 header/flush/close、空桶 rename，尚未尝试 tag Append | NotAttempted | 异常停用并完整受控 teardown；空桶 rename 不确认首 tag |
-| 正式 Append 调用之前 | 立即写回 Unknown | Append/flush 异常保留 Unknown，不按异常或旧 tail 猜零输出 |
-| Append 正常返回 pre-I/O 失败 Result，证明无本次公开 tag 输出 | 恢复 NotAttempted | S4 唯一降档例外；返回确定失败，不新增 fault |
-| Append 成功且 DurableFlush 正常返回 | 立即写回 Confirmed | 此后才关闭/交付；后置异常保持 Confirmed，停用 |
-
-正常成功 Result 对应 Confirmed，正常失败 Result 对应 NotAttempted；Unknown/Confirmed 后异常不伪装普通失败。内部助手直接更新同一 out，finally/清理不重置；Confirmed 之后无缓存安装相位，但关闭/交付仍可失败。停用先使 owner 失效，按 S4 完整清理全部 owned 资源、根锁最后，不 Dispose 健康借入 data。
+缺桶时在 S4 唯一 `creating/pending.rbf` 写 header、执行共同首帧检查并要求 TailOffset=I，再 DurableFlush/close，以同文件系统 no-overwrite file rename 公开合法空桶。该初始化包括可选 tags 目录建立均不推进本次 tag outcome；打开并验证正式空桶后才追加首条 tag。首 tag 与后续 tag 使用S4同一正式Append/flush证据协议，Confirmed后才关闭/交付，无缓存安装相位；关闭/交付异常仍保留Confirmed并停用。内部助手/清理、pre-I/O Result例外、完整teardown及borrowed data处理直接消费S4，不另定义。
 
 合法正式空桶保留，不删除或自动补首 tag；pending 残留按 S4 `[S-VS-CREATING-WORKSPACE]` 可写取消/只读保留，不读私有内容、不认领角色/桶号或续旧请求。该策略不放宽正式桶的 I 前检。header 后未完成 tag body 可由 RBF 截回真实边界；完整 body 缺原 Key/Fence 可 CompletedTail 成为完整记录，随后仍须全桶重验。完整坏记录不跳过、不回退、不改绑。
 
@@ -139,5 +129,3 @@ CreateTag 直接消费 S4 `[S-VS-ROOTS-AFTER-DATA-CONFIRM]`、`[A-VS-PUBLICATION
 **施工与成熟度：** 先在独立 tag 切片实现名称/容量/路由向量，再完成正式空桶初始化、CreateTag→ResolveTag→冷重开，随后补全部扫描/损坏/Outcome/资源与历史互操作验收。设计合同与现成底座接线已经足以开工，不需新的 RBF 公共能力或额外产品决定；D8 移出待定队列。尚缺 VersionStore 实现、真实冷进程/中断、平台、资源和包证据，不宣称 Ready/Accepted。`tags` 根准入资格应在 S4 工厂实现时认识，桶内容能力可以靠后加入；目录布局认识不等于 tag 已支持。
 
 依据：本篇既有 tag 合同从 `35d6c2d` 的 S5 迁入；[S5](05-versionstore-names-and-indexes.md)现只保留导航与历史互操作。[S4 下层契约](04-versionstore-publication.md)、[RBF 公共扫描/CRC/恢复](../Rbf/rbf-interface.md)、[RbfFile 公共容量与尺寸入口](../../src/Rbf/RbfFile.cs)、[BPV string 选择](../../src/Binary/BareValueEncoding.Strings.cs)、[分配前限制与 cursor 提交](../../src/Binary/BareValueReader.Strings.cs)、[轻量计划](../../src/Binary/StringEncodingPlan.cs)是本次机制依据。[RBF 正扫测试](../../tests/Rbf.Tests/Internal/RbfScanForwardTests.cs)是底座证据；冻结旧栈[不可变 tag 测试](../../tests/EventJournal.Tests/ImmutableTagTests.cs)与[书签消费者](../../../durable-graph/tests/DurableGraph.Persistence.Tests/RepositoryTagTests.cs)仅提供工作流背景，不引入旧 API/格式，也不构成本专项实施验收。
-
-bytes 公面修订：核心桶扫描只解释 TagName/envelope，不解释任一 root payload；JSON/UTF-8/random bytes 同样允许。RootMap 的 key/地址/default/重复等检查由用户显式 codec 承担。名称/路由/初始化 I 保护、全桶 CRC/拒同名、data-first 与 Outcome 保持，旧字典公面尚未实施，无兼容 fallback。

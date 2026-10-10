@@ -101,7 +101,7 @@ D6 已由 S2 `[S-FS-ROOT-ADMISSION]` 与真实目录工厂关闭：调用方根/
 | --- | --- | --- |
 | S4 已定，交实施 | 初次建库/根锁/唯一pending/ListRefs/停用清理及恢复后完整性准入已定，不再有D3设计阻塞 | 先补公共EnsureUsable与VS窄平台入口，推进CreateRef→ReadRef→PublishRef→冷重开；验证门/锁/工作区、成员、屏障/Outcome/清理及两平台中断，保持VS未实施/Draft |
 | S5-B 已定，靠后施工 | [09 专项](09-versionstore-immutable-tags.md)的名称/BPV/组合容量与稳定路由参数已定，不再有 D8 设计阻塞 | 先完成 ref、历史/fork，随后实施 CreateTag→ResolveTag→冷重开及桶/损坏/Outcome/资源/平台/组合验收 |
-| S2–S6 已定合同 | 仅在真实反例、机制不可行或明确新要求时重开 | 各阶段 Ready 表的实现测试、进程中断、平台及隔离包消费证据；条件优化另看实际需求 |
+| S2–S6 已定合同 | 仅在真实反例、机制不可行或明确新要求时重开 | 所属阶段的实施/验收要求、进程中断、平台及隔离包消费证据；条件优化另看实际需求 |
 
 每轮结论写回所属阶段，只从本表移出已关闭的设计子题；D3/D8 已移出，不因其实现尚缺而重建待定项。普通实现选择和已定合同验收交给对应实施片，允许少量导航，不建立越来越细的研究队列。关键方案若须实验，先用最小探针取证；若只缺完整实现/测量，说明证据缺口并结束设计轮，不用文档代替代码模型。
 
@@ -109,4 +109,4 @@ D6 已由 S2 `[S-FS-ROOT-ADMISSION]` 与真实目录工厂关闭：调用方根/
 
 S2/S3 源码资格已 Accepted，S4–S6 仍为 Draft；FrameStore 已实施公开持久化闭环，Inventory/Audit 已实施（见[源码验收](02-framestore-inspection-implementation.md)），VersionStore 尚未创建。设计闭合支持实施交接；Ready/Accepted 及源码、恢复、性能、平台、包资格仍分别按所属阶段的实际证据报告。研究队列继续聚焦设计与关键方案；源码资格与剩余范围见[最终源码验收](02-framestore-final-acceptance.md)。
 
-2026-10-10 fork 化简已定于 S4 [A-VS-ROOT-PAYLOAD]：原样 clone bytes，源/子一致性按逐 byte 检查，ForkRef 返回 RefRevision，不解码 RootMap；CU 候选独立定位 payload。通用 raw payload 公面已定于 [11专项](11-versionstore-root-payload-bytes-api.md)：同步Span输入、屏障前捕获、GC自有只读结果及1..1MiB；可选RootMapCodec内聚于10。FrameStore程序集依赖拆分仍为后续议题，不作为既定bytes/fork的实施阻塞。
+2026-10-10 fork 化简的操作与来源比较唯一见 S5 `[S-VS-FORK-FROM-REVISION]` / `[A-VS-REF-HISTORY-CHECKED]`，发布层边界见 S4 `[A-VS-ROOT-PAYLOAD]`；原样 clone bytes，ForkRef 返回 RefRevision，不解码 RootMap，CU 候选独立定位 payload。通用 raw payload 公面已定于 [11专项](11-versionstore-root-payload-bytes-api.md)：同步Span输入、屏障前捕获、GC自有只读结果及1..1MiB；可选RootMapCodec内聚于10。FrameStore程序集依赖拆分仍为后续议题，不作为既定bytes/fork的实施阻塞。

@@ -1,9 +1,7 @@
 # S5：ref 历史、fork 与 tag 施工导航
 
-状态：**Draft；历史 visitor/预算/清理与 ForkOrigin/ListForks 合同已定；2026-10-10 移除 branch 名称层，fork 统一消费自动/预留区指定创建及单文件发布。不可变 tag 内聚到 [09 专项](09-versionstore-immutable-tags.md)，安排在 ref、历史与 fork 之后施工；实施/平台与验收尚缺，VersionStore 尚未创建**。
-2026-10-10 RefId 自身/来源字段与指定 fork 目标消费 S4 固定 4B LE LocalRefId/uint32 合同；SourceSnapshotTicket 仍保持完整 8B，历史与分叉语义不变。
-2026-10-10 ref、历史与 tag 的 bytes 公面唯一见 [11专项](11-versionstore-root-payload-bytes-api.md)，核心不调用内容 codec。选择 RootMap 的应用按 [10专项](10-versionstore-rootmap-payload.md)使用变长地址；S2 fixed12 原样保留。VersionStore 尚未实施。
-记录时间与元信息形状直接消费 [S4 元信息专项](08-versionstore-record-metadata.md)；本阶段不另定义时间 codec、时钟或格式版本。
+状态：**Draft；历史 visitor/预算/清理与 ForkOrigin/ListForks 合同已定；VersionStore 尚未创建，实施/平台验收尚缺**。
+本文负责历史、fork 与声明图查询；ref 格式/身份/编号及发布协议消费 [S4](04-versionstore-publication.md)，记录时间见 [08 专项](08-versionstore-record-metadata.md)，bytes 结果见 [11 专项](11-versionstore-root-payload-bytes-api.md)。不可变 tag 由 [09 专项](09-versionstore-immutable-tags.md)定义，安排在 ref、历史与 fork 之后施工。
 前置：[S0](00-architecture-decisions.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)。扩展 S4 的完整根快照与局部发布协议，不增加全局事实日志。
 
 ## 目标与最小公开操作
@@ -40,13 +38,13 @@ ref header/普通 Snapshot 的字段、来源判别与完整记录容量唯一�
 
 ### spec [S-VS-FORK-FROM-REVISION] fork 在创建时建立精确来源资格
 
-ForkRef 两种入口 MUST 接收本 VersionStore 的已发布 RefRevision，先消费 S4 default/持久上下文前检，定位正式源 ref、checked header 与必要初始记录，从真实 RBF 主链确认 exact 源 SizedPtr；按 S4 `[A-VS-ROOT-PAYLOAD]` 完整校验发布记录 CRC、kind、meta、身份和尺寸，私有捕获 root-payload bytes，不解码 RootMap、不通过 ReadRef 取得源字典。若未来接纳 CU 来源，另验证共同事务判据并只截取 root-payload bytes。不得接受自由组合 payload/origin、header、残尾或仅随机 CRC 成功的伪成员；链接指向实际源 RefId。两种入口成功返回 RefRevision，保持批外单文件发布与必选 outcome，不为结果物化 Payload。
+ForkRef 两种入口 MUST 接收本 VersionStore 的已发布 RefRevision，先消费 S4 default/持久上下文前检，定位正式源 ref、checked header 与必要初始记录，从真实 RBF 主链确认 exact 源 SizedPtr；按 S4 `[A-VS-ROOT-PAYLOAD]` 完整校验发布记录 CRC、kind、meta、身份和尺寸，私有捕获 root-payload bytes，不解码 RootMap、不通过 ReadRef 替代 exact 来源定位。若未来接纳 CU 来源，另验证共同事务判据并只截取 root-payload bytes。不得接受自由组合 payload/origin、header、残尾或仅随机 CRC 成功的伪成员；链接指向实际源 RefId。两种入口均返回 AteliaResult<RefRevision>，成功值的 RefId 为新 ref，保持批外单文件发布与必选 out PublicationOutcome，不为结果物化 Payload。
 
 所有生命周期/历史 mutation guard、自动或指定目标及源 bytes 捕获/容量检查先完成；子初始 Snapshot 按 `[S-VS-RECORD-TIME]` 重新取时，允许与源同毫秒，不复制源时间。随后 data ConfirmDurable，再对 exact 源 ref DurableFlush，最后在单个 private 子文件写完整 header/ForkOrigin 与初始 Snapshot，flush/close 并按 S4 file rename 发布。源 flush 明确确认本次链接的发布记录耐久，checked-read 不能替代；无 receipt、不重刷全部祖先，仍限 ProcessCrashOnly。
 
 源 flush 失败时，本次 fork 尚未尝试公开事实，为 NotAttempted；源 RBF 按自身 fault，VersionStore 停用，不进入子输出。子私有文件/rename/内存安装的结果继续使用 S4 PublicationOutcome。只在子 header 写来源，不向源文件追加孩子列表、不改变源 head，避免源登记与子发布之间引入第二个一致性协议。
 
-新 ref 保留完整初始 Snapshot，而非 header-only 引用。B0 与源 A2 即使字典相同也都是实际发布节点；历史 MUST 保留二者及其不同 revision，不按 RootMap 同值去重。无来源的 CreateRef 两种入口仍可复制 payload，但不承诺继承来源历史；tag 也不因内容同值而变成可追溯的 fork 点。
+子初始 Snapshot MUST 原样复制 exact 源的完整 root-payload bytes，不重新编码、不复制源 RBF 包络、TailMeta 或 CU Members；保留完整初始 Snapshot 而非 header-only 引用。B0 与源 A2 即使内容相同也都是实际发布节点，历史保留二者及其不同 revision，不按内容去重。需要 bytes 时另行 ReadRef；无来源复制仍用 CreateRef，tag 同值不产生精确来源。
 
 ## ref 历史与反事实分支
 
@@ -63,7 +61,7 @@ AteliaResult<HistoryEnd> ReadRefHistory(
     CancellationToken cancellationToken = default);
 ```
 
-RefBytesSnapshot 唯一消费 [11 bytes 公面专项](11-versionstore-root-payload-bytes-api.md)，提供 Revision、RecordedAtUnixMs 与只读 Payload；每项完整校验发布 envelope/身份/meta/主链/CRC及长度后复制自有 bytes、释放 pooled 帧再回调。不调用 RootMap/JSON decoder，不外泄 reader、pooled bytes 或临时句柄，调用结束或 owner fault/Dispose 后已交付结果仍有效。来源一致性另按初始 root bytes 比较，不受 visitor 影响。应用在 visitor 内可自行解码；异常沿原 callback 异常路径传播，不撤销已发布事实。RefId/RefRevision 值与位置资格消费 S4。
+每项完成 S4 发布资格后，按 [11 bytes 公面专项](11-versionstore-root-payload-bytes-api.md)构造自有 RefBytesSnapshot、归还 pooled 帧，再调用 visitor。结果所有权与内容解码边界不另定义；来源一致性检查不受 visitor 影响。应用可在 visitor 内解码，异常沿 callback 路径传播。RefId/RefRevision 值与位置资格消费 S4。
 
 visitor 返回 true 表示继续，false 表示已接收当前项并正常选点停止。false 后 MUST 不再扫描旧帧或访问下一源；先完成健康/取消复检和必要清理，再返回 VisitorStopped，即使该项恰为起点也保持此结果。调用方可保存所选值，在方法返回后 fork/tag/rewind；需要列表时由调用方收集，不要求库保留整批历史。
 
@@ -152,55 +150,40 @@ tag 冻结所选 root payload，不记录精确 ref 来源。历史 visitor 可�
 
 ### spec [A-VS-ROOTS-QUERY-THEN-READ] 查询 root bytes 后由应用接受内容
 
-ReadRef/ResolveTag MUST 返回已校验发布记录的自有 root bytes，ReadRef 同时返回 revision/时间；应用用自选 codec 解码。采用 RootMap 时再按地址调用 data.ReadFrame，采用 JSON 时同样由应用解释内容及 data 引用。发布记录健康不证明 payload 语义或数据图健康，解码/数据失败不得要求库回退或改绑。
+查询与应用接受内容的边界直接消费 S4 `[S-VS-ROOTS-OPAQUE]` 与 [11 公面专项](11-versionstore-root-payload-bytes-api.md)；采用 RootMap 时，由应用 Decode 后按地址读取 data。
 
 ### spec [A-VS-QUERY-COSTS-EXPLICIT] 首版成本明确且无隐藏索引
 
-Open MUST NOT 默认回放全部 ref 历史或扫描 data 图，也不因此宣称全库 O(1)。目录/格式门、tag 名称及文件枚举的实际成本须报告；惰性打开只把检查延后到目标访问，不把未检查对象说成健康。
-当前 ReadRef 成本为本地 header、初始 Snapshot 与完整末 Snapshot bytes（初始即末帧时复用），不随历史帧数或祖先深度增长。ReadRefHistory 成本含返回快照的完整读取、跨文件 header/初始边界和定位源 fork 点所跳过的后缀 framing，不能只按返回条数估算；预算未覆盖的历史不计作已验证。按 revision fork 的来源定位也可能扫描源后缀，并增加一次源文件 flush。tag 的全桶扫描、临时名称集合、连续创建及文件/容量/坏记录连带成本见 [09 专项](09-versionstore-immutable-tags.md)，不以分桶宣称 O(1)查询。
-ListForks 每次执行完整 checked 扫描：令 N 为正式 ref 数、F 为有来源 ref 数，本层预期成本为 O(N + F + header/初始 Snapshot checked bytes)，含全部源存在和迭代环检查；哈希定位按通常成本估算。临时元数据 O(N)、自有结果 O(F)，另仅保留当前必要 payload bytes/pooled 帧，不保存全部初始 RootMap。数量参数包括无来源根；底座 factory 的尾部资格/恢复、实际 metadata/I/O 与内存成本另行报告，不能将 maxRefs 当硬时限/RSS 或历史规模无关的工厂保证。该查询不依赖应用映射，预留区与自动区 ref 都参与；实际重复扫描超出目标后再研究内存反向表。
-ListRefs 与可写冷开水位发现均完整枚举正式 ref 文件集合，但不打开全部快照；ListRefs按S4 `[A-VS-REFS-DISCOVERY]` 交付自有路径身份集合，不等同本篇ListForks的checked首两帧/图查询。只读Open不因pending全扫ref；按整数直接访问ref不需要全ID或应用名称映射表。自动/指定创建的编号算术、占用及耗尽消费S4，不新增全局名称发现。
-不新增持久名称索引、control 全量投影、全部尝试账本或磁盘 catalog/checkpoint；tag 的每次桶内临时全名集合只服务其既有唯一性资格，不成为 branch 映射。实际句柄/枚举资源与查询成本随实施报告。
+Open MUST NOT 默认回放历史/data 图；惰性打开只延后资格检查，不把未访问对象说成健康。实际目录/metadata、factory 尾部资格/恢复、I/O 与资源成本随实施报告，预算不成为硬时间/RSS 保证。各操作的算法与预算由所属条款定义，成本概览如下：
 
-## 工程 codec 与后续扩展
-
-| 单元 | 最小字段 | Ready 选择 |
-| --- | --- | --- |
-| tag 桶/record | 见 [09 专项](09-versionstore-immutable-tags.md) | 消费专项已定名称/路由/完整记录、初始化与扫描合同，取得对应实施验收 |
-| history 结果 | 复用 S4 RefBytesSnapshot；实际 RefRevision、自有 bytes 与本帧时间 | 同步 visitor、两项预算、Complete/VisitorStopped 与预算失败已定，实施所有权/终止/清理验证 |
-| fork 查询结果 | 自有 ForkInfo：ChildRefId、SourceRefId、完整 SourceSnapshotTicket | `[A-VS-FORKS-CHECKED]` 的 IReadOnlyList/私有只读封装、单项 maxRefs、完整集合/图及清理已定；不从元数据签发 checked revision |
-
-未来 ref 分段/轮转、tag 分片、差分与可重建索引均为独立后续片，需实际容量/工作集证据及自己的定位/恢复合同；不预建 segment manifest 或 checkpoint 缓存。业务 Parent/RNG/operationId 可放在应用已引用对象中，不扩展中立字典 codec。外部工具 exactly-once、跨 ref 事务和自动 merge 均无框架保证。
-
-## 实施片、Ready 工程定稿与验收
-
-建议顺序如下；S5-B 保留原切片标识，字母不代表强制施工顺序：
-
-1. S5-A：同步 history visitor、栈内逆扫/固定上界、ForkOrigin 逐文件接续、返回/工作步预算与终止、mutation guard 和 owned 清理；形成冷重开选点正常停止后再次 fork 的 public 例子，不公开跨调用枚举器。
-2. S5-C：来源感知自动/预留区指定 fork 与 ListForks，复用 S4 编号/目标前检与单文件发布；保留 CreateRef 无来源复制语义。
-3. S5-D：LLM tool-loop 多根状态与 Gym 旧快照反事实消费轨迹、进程终止 failpoint 及独立 public 验收；真实文件实验使用 W:。此时可先验证 ref/history/fork 路径。
-4. S5-B：随后按 [09 专项](09-versionstore-immutable-tags.md)实施独立 tag 能力及其组合消费，再汇入 S6 完整集成；无跨调用索引前置。
-
-| Ready 项 | 需定稿或实施验证 |
+| 操作 | 首版成本与边界 |
 | --- | --- |
-| S5-Q1 | 名称/codec/容量与路由参数唯一消费 [09 专项](09-versionstore-immutable-tags.md)，按其合同实施独立向量与冷进程验证 |
-| S5-Q2 | 同步 visitor、自有 RefBytesSnapshot、返回/工作步预算、两种正常结束与预算失败、visited/单临时句柄/HistoryActive 已定；实施跨文件资格、回调停止/重入/Dispose、取消及各退出清理，不再开放扫描器/epoch/预算载体设计 |
-| S5-Q3 | tag 初始化、完整扫描、首条/后续发布与 Outcome 的实施和验收唯一见 [09 专项](09-versionstore-immutable-tags.md) |
-| S5-Q4 | 自动/指定 fork 的来源重读/源 flush/单文件发布与 Outcome；ListForks 结果/数量/迭代图/清理已定，实施完整性/所有权/额度/规模向量 |
+| ReadRef | 本地 header、初始与末 Snapshot 的 checked bytes，初始即末复用；本层不随历史帧数/祖先深度增长，底座 factory 成本另计 |
+| ReadRefHistory / ForkRef | 必要完整帧及跨文件资格；源 fork 点后缀 framing 随后续历史增长，不能只按返回数估算；fork 另 flush 精确源文件 |
+| ListForks | N个正式 ref、F条边：通常哈希成本下 O(N+F+首两帧 checked bytes)，临时元数据 O(N)、结果 O(F)，仅保留当前必要 payload；maxRefs含无来源根 |
+| ListRefs / 可写冷开 H | 完整正式路径枚举，不打开全部快照；只读 Open 不因 pending 全扫 ref，直接整数定位无需 ID→path 或应用名称表 |
+| tag 查询/创建 | 目标桶完整扫描、名称集合与连续创建成本唯一见 [09专项](09-versionstore-immutable-tags.md)，分桶不构成 O(1)保证 |
 
-验收覆盖历史调用结束后字典仍可发布/创建 tag、R0→R1→R0 仍保留三个 revision、预算失败与损坏区分、tombstone/unknown/CRC/TerminationError 不跳过、调用期间 mutation 拒绝及结束后恢复、空字典与 missing、hash 碰撞/同名同值拒绝、tag 不随 ref 更新、fork 不改源/不复制 data、应用数据读取坏时不回退。故障证据沿用 S4；首版 Accepted 不要求分段、差分、checkpoint、业务谱系或精确历史尝试追踪。
-历史 visitor 向量另覆盖：选中第 k 项后 false 不读取更旧坏 payload 或源；首项即初始与重复同值 revision；返回额度恰好在无来源初始耗尽可 Complete，有来源则预算失败；forward 资格、每次 source 进入、无输出后缀/false 扫描及完整读都计 work，预算检查不隐含越额 I/O。覆盖递归历史及全部 mutation 的 pre-I/O 拒绝、回调当前值/data 读取、最后回调 false/true 时 owner Dispose/token 取消/异常、最后临时 close 失败、跳转/错误/取消每个句柄仅清理一次及 guard 释放；Result 失败后的已交付自有值有效，不把前缀或 VisitorStopped 称完整历史。
-tag 的专项向量与成本报告见 [09 专项](09-versionstore-immutable-tags.md)，本篇保留历史/fork 与它的互操作边界。
-自动/指定 fork 覆盖 private 初始化/flush/close、file rename 前后及确认后安装失败；private 不可查询或自动续作，RO 不清理，正式完整坏记录报错。指定 0/越界/已占目标先于 data/源 flush 与输出拒绝；自动耗尽不拒绝空闲预留目标，低号创建不推进水位。
-应用定位向量覆盖固定预留槽、自动 LocalId 保存/正确库冷重开、本地查询高号、零号与 missing/坏目标；已知指定号码不证明 Unknown 旧请求 Confirmed。元数据同一 RootMap 整体生效，独立目录两次发布的未登记对象窗口由应用示例明确。
-补无关 data Builder 活跃时以已完成闭包创建 tag 或自动/指定 fork，以及同文件历史随机读取构建新状态；历史期间 mutation guard 与无关 Builder 不阻断发布分别验收。
+不新增持久名称/孩子索引、control 全量投影或尝试账本；ListForks与tag不保留跨调用索引，消费各自首版合同。ref 分段/轮转、差分/checkpoint、tag 分片、可重建索引和业务 merge 等仅在出现实际需求与成本证据后另审，不作为首版前置。
 
-链接验收覆盖当前/非末源快照、源后续追加不进入继承前缀、fork-of-fork、多孩子同一源位置、从继承快照再次 fork 时使用其实际 RefId、子初始与源同值但均返回、rewind 后完整发布历史仍含撤回记录。拒绝跨 store/header/伪成员/错 length 来源；实际跳转遇到缺源、坏身份/CRC/envelope、初始 payload bytes 不符或循环报错。覆盖后缀定位 framing 错误、工作预算先于下一项耗尽、取消与跨文件资源释放，不把定位失败当正常历史结束。
-ListForks 覆盖预留区与自动区孩子、多层/兄弟分叉、应用映射不产生新边、无来源同值复制不产生边、creating 排除、header-only/坏初始正式文件错误、未知项/枚举及必要关闭失败。预算向量含非法零/负数先于 I/O、无来源根也计费、恰好额度且 EOF 成功、超额 ref 不打开/读取/扩表而专用失败；全无来源仍可成功空边。覆盖缺源、自链接、独立分量中的环、深链迭代与大量兄弟共享祖先，不递归或逐节点重追；图错误或末关闭/取消/结果分配失败不交部分成功。验证结果三个自有字段/完整 length、无稳定顺序承诺、正常接口不能改写 backing、后续查询/创建/关 owner 后保存结果仍有效；历史 visitor 内调用借用匹配句柄、其他本地临时句柄归还一次，不覆盖历史槽。声明边不审计源 ticket payload，而实际历史访问该坏源快照必须报错；两种资格分开验证，ref 恢复后完整性准入及平台/规模成本随实施取证。来源 fork 的源 flush 失败不得输出子文件；正常确认与 rename 未知的冷重开仍只见完整子 header/初始快照，不补写源孩子表。
+## 实施与验收
 
-时间验收直接复用元信息专项；另覆盖继承历史保留实际源记录时间、子初始/rewind重新取时但允许同值，时钟回退不改变真实链顺序，来源一致性仅比较 root-payload bytes；tag桶/记录仍meta0，不因复用RootMap增加时间。
+建议顺序为 S5-A 历史 visitor → S5-C 来源感知 fork/ListForks → S5-D 两类应用 public 消费及进程终止 → S5-B [独立 tag](09-versionstore-immutable-tags.md)。S5-B 保留原切片标识，字母不表示强制顺序；真实文件实验使用 W:，完整组合汇入 S6。
 
-07 的跨 ref CU 尚未并入本合同。未来接纳时，source revision 必须来自已接受的 Snapshot 或满足共同事务判据的 CU；物理完整但事务不完整的 CU 不得成为 fork 源或继承历史节点。ForkOrigin 继续指向该实际 ref/frame，不能改为跟踪其他参与 ref 的当前 head；相应读取资格与成本另随正式并入验收。
+前文历史/fork/声明图合同须逐项验证；S4 创建/编号/Outcome、08 时间、11 bytes 与09 tag 的详细向量从原权威引用，只在本篇补互操作和以下特有组合。
 
+| 验证组 | 特有向量 |
+| --- | --- |
+| 历史路径 | 当前/非末 fork 点、源后续追加排除、fork-of-fork、多孩子及继承快照再 fork；子初始/源均交付不同 revision，同值重发/rewind 不去重。缺源/错身份/成员/length/CRC/envelope/meta、墓碑/未知 kind/TerminationError、循环及子/源 bytes 不符失败，不作正常终止 |
+| 历史预算/停止 | 第k项 false 后不扫描旧坏内容或下一源；首项即初始；返回数恰在无来源起点耗尽为 Complete，有来源且需继续为预算失败。进入ref/forward资格/无输出后缀/false扫描/完整读全计work，额度检查先于下一动作；前缀/VisitorStopped/失败不称完整历史 |
+| 回调/资源 | 递归历史与全部 mutation 在 barrier/I/O 前拒绝，调用后 guard 释放；visitor可当前值/data读取及 ResolveTag/ListForks，复用匹配句柄。最后回调 false/true 时 Dispose/取消/异常，末 close失败，均不正常终止；跳转及所有退出资源单次归还，已交付自有值仍有效 |
+| fork byte clone | 两种目标均只从真实源重读并在data后确认源，再发布单个完整子文件，不写源孩子表。禁用/计数 decoder，使用同值不同条目顺序/合法冗余BPV及JSON/随机bytes，验证子保留exact root bytes；源flush失败无子输出。子重新取时，源/子时间不参与一致性比较 |
+| ListForks集合/图 | 两编号域、无来源根、多层/兄弟分叉，creating排除；无来源同值复制/应用映射不产生边。缺首两帧/未知项/坏初始/枚举、缺源/自链接/独立分量环均失败；深链与共享祖先不递归或二次方重追。不逐边审计源ticket，实际历史读取该坏来源另须失败 |
+| ListForks额度/结果 | 零/负限额先于I/O；全部正式节点含无来源根计费，恰额EOF成功，超额不打开/读内容/扩表；全无来源成功空边。末close/取消/分配/图错误不交部分成功；三个自有字段/full ticket而非源revision、无稳定顺序、正常接口不能改backing，关owner后仍有效；visitor内查询不覆盖历史临时槽 |
+| 应用互操作 | 历史停止后 fork/tag/rewind或无来源CreateRef，应用解码/数据失败不回退；无关data Builder活跃仍能基于完成闭包fork/tag。固定槽与动态LocalId/正确库冷重开，富元数据整体发布；独立目录登记的未登记窗口由应用核对，不声称跨ref原子 |
 
-无变更 fork 验收另覆盖同值但不同条目顺序/合法冗余 BPV 的源 payload，子 MUST 保留 exact bytes；用禁用/计数 decoder 证明 fork、ListForks 和来源 bytes 比较不调用 RootMap codec。源为 CU 时只复制 root payload，Members 不进入子 Snapshot；新时间/新 revision、源坏 CRC/成员/事务资格及源 flush 失败分别验证。历史直接交付 bytes，不调用内容 codec；应用解码的成本另行报告。
+时间与bytes验收按专项接线，继承项保留实际源时间，子初始/rewind重新取时但允许同值，时钟回退不改变链序。tag仍meta0；名称/hash/全桶损坏及独立发布详细向量由09负责。
+
+[07 CU](07-versionstore-cross-ref-conditional-update.md)尚未并入主线。正式接纳时再加入成立CU作为源/历史节点、跳过不完整组、只clone root bytes而不带Members的向量，并重审来源ticket上界与peer成本；ForkOrigin始终指向实际ref/frame。当前S5验收不借候选宣称已支持跨ref事务。
+
+以上支持实施交接；源码、进程中断、平台/规模与包资格仍须实际取证，不要求首版实现分段、checkpoint、业务谱系或精确尝试追踪。

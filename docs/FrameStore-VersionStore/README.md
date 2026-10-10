@@ -97,11 +97,18 @@ flowchart LR
 
 S4 当前值只检查本地必要首两帧/末快照，S5 历史才回溯。可写冷开发号仍完整枚举正式 ref 文件，直接 ID 访问无需映射表。tag 每次完整校验目标桶，以临时全名集合确认唯一性，无跨调用索引；名称、容量与首版路由合同唯一见 [09 专项](09-versionstore-immutable-tags.md)，靠后实施，不阻塞 ref、历史或 fork，不宣称 O(1)查名。
 
-[10：可选 RootMap codec](10-versionstore-rootmap-payload.md)与[11：root bytes API](11-versionstore-root-payload-bytes-api.md)是阶段内专项，不新增施工阶段；RootMap codec 可独立实现，不是 opaque ref 闭环的前置。
+VersionStore 文档按下表维护单一权威。修改合同与特有验收向量时更新对应篇，其他篇只引用；06 验证组合与交付，不复述各层详细清单。专项编号不新增施工阶段。
 
-[08：ref记录元信息](08-versionstore-record-metadata.md)是S4时间语义、固定8B TailMeta与长度判形的唯一权威。11定义RefBytesSnapshot属性，S4定义普通宿主尺寸，S5定义历史/fork语义，07复用元信息组合CU；不重复定义时间编码，不给header/tag/data加时间，也不要求全库时间顺序。
-
-[07：ConditionalUpdate 跨 ref 事务](07-versionstore-cross-ref-conditional-update.md)是单独的专题设计稿，作为多 ref 联合提交的优先发展方向。它细化完整成员表、精确读与实际槽位消歧、fresh/self 和整批 Outcome；协议审阅与 public RBF3 研究支持正式选型建议，但尚未并入 S4/S5 的实施合同，VersionStore 尚未实施。
+| 文档 | 唯一负责的内容 |
+| --- | --- |
+| [04 发布](04-versionstore-publication.md) | 身份/编号、目录/创建/打开、ref envelope、恢复、data-first、PublicationOutcome 与停用清理 |
+| [05 历史与 fork](05-versionstore-names-and-indexes.md) | fork 源资格/byte clone、继承历史/预算/回调、ListForks 声明图及成本导航 |
+| [06 集成与交付](06-integration-and-delivery.md) | public 跨层组合、进程中断矩阵、包与消费者交付证据 |
+| [07 CU 候选](07-versionstore-cross-ref-conditional-update.md) | 完整 Members、共同判据、位置复用/异长消歧及选型证据；尚未并入主线 |
+| [08 记录元信息](08-versionstore-record-metadata.md) | 取时语义、固定8B TailMeta、精确长度判形与演进 |
+| [09 不可变 tag](09-versionstore-immutable-tags.md) | 名称/容量/路由、桶格式/初始化保护、全桶扫描与创建 |
+| [10 可选 RootMap codec](10-versionstore-rootmap-payload.md) | key/Unicode/JSON名称映射、字典所有权与 binary codeword；可独立实施，不阻塞 bytes 发布 |
+| [11 bytes 公面](11-versionstore-root-payload-bytes-api.md) | 输入/结果类型、长度界、同步捕获与 GC 自有 buffer 生命周期；含 CU 批量载体 |
 
 | 候选扩展 | 内容 | 接纳与实施 |
 | --- | --- | --- |
