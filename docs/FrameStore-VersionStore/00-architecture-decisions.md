@@ -21,7 +21,7 @@ FrameStore 坐标系中定位一个 frame 的地址，候选代码名为 `FrameA
 
 ## term `Root-Map` 完整根地址字典
 
-候选代码名 RootMap，内容为 `string => FrameAddress`。字典按值保存，Key 唯一；空字典是合法快照，不等于对象不存在。所有地址解释于 VersionStore 绑定的一个 data FrameStore；应用状态、工具意图、随机状态、轨迹与业务谱系保存在其指向的数据中。
+候选代码名 RootMap，内容为 `string => FrameAddress`。 key 采用有效 Unicode 字符串与 Ordinal 比较，拒绝未配对 surrogate；空串及需 JSON 转义的字符仍合法，能无损映射为 JSON 对象属性名。wire/容量权威见 [RootMap 专项](10-versionstore-rootmap-payload.md)。字典按值保存，Key 唯一；空字典是合法快照，不等于对象不存在。所有地址解释于 VersionStore 绑定的一个 data FrameStore；应用状态、工具意图、随机状态、轨迹与业务谱系保存在其指向的数据中。
 
 ## 已确认决策
 

@@ -34,3 +34,5 @@ VersionStore 仍未创建。本片在 [RootMapCodecProbe](../../experiments/Root
 RootMap 探针覆盖 4B entry 下界、key/suffix 的分配前检查、全部 code-unit key 与 Ordinal 拒重、宿主 prefix/suffix/trailing、真实已知尺寸 Begin/End 的变长地址一致、1MiB 恰好/超限，以及地址增加合法冗余 byte 后的实际预算拒绝。复核中删除了一条未获需求支持的额外“地址窗口先扣除后续 suffix”文案：当前实现在 key 分配前检查下界，在总 RootMap 预算窗口中读地址，任一后续失败不提交整份字典；不增加第二层地址窗口来限定无产品要求的失败时点。
 
 本轮没有改变存储平台或恢复路径，因此没有重跑进程终止、资源规模和 Linux 矩阵；新增 codec 的运行证据限定为上述 Windows 验证。未取得新的包消费、生产 VersionStore、断电或性能资格，RootMap 的 1MiB 界也不被解释为峰值内存保证。
+
+2026-10-10 后续设计接受域调整：[RootMap 专项](10-versionstore-rootmap-payload.md)现要求 key 为有效 Unicode，拒绝未配对 surrogate。本记录的全部 code-unit key 向量及对应探针结果保留当时合同身份，不构成新接受域的验证；FrameAddress codec 的资格不受影响。

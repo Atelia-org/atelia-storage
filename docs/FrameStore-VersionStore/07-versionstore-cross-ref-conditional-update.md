@@ -40,7 +40,7 @@ ConditionalUpdate:
 
 各成员可以有不同 RootMap 和帧尺寸；相同的是完整 Members 表。RootMap 继续复用完整字典 codec 和 S2 `[F-FS-FRAME-ADDRESS-VARINT]` 的变长 FrameAddress。Members 的 ticket 是对应 ref 文件的 SizedPtr，不能替换为 data FrameStore 的 FrameAddress 或改为它的变长地址编码。
 
-本候选消费 S4 `[F-VS-REF-ID-4B]`：RefId 内部字段为固定 4B LocalRefId LittleEndian，公开值另携同一 VS 的持久上下文；Members 不为每项重复写 VSID，入口在 I/O/barrier 前拒绝错上下文。ticket 仍采用固定 8B `SizedPtr.Packed` LittleEndian，不使用 Serialize 或 VarUInt；RootMap 原样消费 `[F-VS-ROOTMAP-BPV1]` 的变长地址 codeword/1MiB 上限。Members 计数与字段顺序、CU FrameTag 取值、完整 CU 组合上限仍待工程定稿；不另存payload kind/version，元信息形状消费专项。两定位字段解码都不证明 frame 存在或完成，不从 CLR struct 内存布局推导 wire；fixed12 公共地址 codec 仍原样保留。
+本候选消费 S4 `[F-VS-REF-ID-4B]`：RefId 内部字段为固定 4B LocalRefId LittleEndian，公开值另携同一 VS 的持久上下文；Members 不为每项重复写 VSID，入口在 I/O/barrier 前拒绝错上下文。ticket 仍采用固定 8B `SizedPtr.Packed` LittleEndian，不使用 Serialize 或 VarUInt；RootMap 原样消费 [RootMap 专项](10-versionstore-rootmap-payload.md)的 `[F-VS-ROOTMAP-BPV1]` 的变长地址 codeword/1MiB 上限。Members 计数与字段顺序、CU FrameTag 取值、完整 CU 组合上限仍待工程定稿；不另存payload kind/version，元信息形状消费专项。两定位字段解码都不证明 frame 存在或完成，不从 CLR struct 内存布局推导 wire；fixed12 公共地址 codec 仍原样保留。
 
 各 RootMap 引用的是已知 data 地址，先逐项 MeasureVarInt 并编码，其字节数 rᵢ 在预测 CU 自身 tickets 前已经确定。设 RefId 字段宽度 w=4、成员数 k、payload 的固定字段与计数字节数 h，CU payload 长度仍可直接度量为 `h + rᵢ + k × (w + 8) = h + rᵢ + 12k`，不依赖 Members 中 tickets 的数值；不增加成员对齐 padding。每帧成员表相对原 8B RefId 草案少 4 × k bytes，全组 k 份表合计少 4 × k² bytes。TailMeta单独占8B，不计入h；由公共 `MeasureWriteSize(payloadLength,8)`、各文件可信 TailOffset 与 `SizedPtr.Create` 可先预测全部 tickets，再完成payload/meta私有编码；RootMap 采用变长地址不产生 CU 自身尺寸的循环求解。
 

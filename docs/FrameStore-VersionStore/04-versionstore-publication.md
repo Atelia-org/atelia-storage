@@ -122,7 +122,7 @@ Open/OpenReadOnly MUST 依次完成纯参数与借入检查、实际根/既有 o
 RootMap MUST 使用唯一的 Ordinal key，不做隐式大小写折叠或 Unicode 归一化。空字典合法，且不同于 missing ref/tag。发布 MUST 先私有复制输入并编码为完整快照，避免调用方后续修改输入改变本次请求或返回值。
 库校验字典、key 和地址的格式/容量，核对 VersionStore/data 格式门身份及 VS 自身生命周期；借入 data 的入口检查与持续使用前提消费 `[S-VS-DATA-BORROW]`。FrameAddress 继承 S2 的局部地址合同：裸地址不携带原始 StoreId，库不能识别来自另一 store 的恰巧合法坐标。应用 MUST 保证所有引用属于该 data，所需新增依赖已完成，闭包不含 provisional/canceled 地址。数字地址本身不能证明完成来源；库 MUST NOT 把合法坐标或 data barrier 当成整个业务图已成立的证明。读取物理完整 orphan 后采用它，仍需由应用重新建立闭包资格。
 读取返回自有 RootMap 值；不持有 RBF pooled frame、Span 或枚举器临时缓冲。地址背后的内容由应用按 FrameStore.ReadFrame 完整读取与解释，VersionStore 不预读/遍历业务图。
-ReadRef 的成功值称为 RefSnapshot，提供只读 Revision、Roots 与本帧 RecordedAtUnixMs；由库内部构造，不持有 owner/reader、不需要 Dispose，字典无公开修改入口。S5 历史读取复用同一自有结果，不另立历史快照或结果租借。RefRevision 消费 `[A-VS-REF-REVISION-VALUE]`；RootMap/RefSnapshot 表示与 RootMap codec 分别消费下面的自有值和 BPV1 组合合同。
+ReadRef 的成功值称为 RefSnapshot，提供只读 Revision、Roots 与本帧 RecordedAtUnixMs；由库内部构造，不持有 owner/reader、不需要 Dispose，字典无公开修改入口。S5 历史读取复用同一自有结果，不另立历史快照或结果租借。RefRevision 消费 `[A-VS-REF-REVISION-VALUE]`；RootMap/RefSnapshot 表示与 RootMap codec 分别消费下面的自有值及 [RootMap 专项](10-versionstore-rootmap-payload.md)的 BPV1 组合合同。
 
 ### spec [A-VS-ROOTS-OWNED] 公开复用集合接口，内部冻结完整内容
 
@@ -142,27 +142,7 @@ RefSnapshot MUST 为非 record 的 `public sealed class`，仅由库内部构造
 
 （Informative）[OwnedRootMapProbe](../../experiments/OwnedRootMapProbe/README.md)在 .NET 10.0.5/Windows 上验证 0/1/4/100 项：ReadOnlyDictionary 的 map/Keys/Values 均可通过 ICollection.SyncRoot 取出真正 Dictionary 并改变可见内容；FrozenDictionary 在探针列出的普通集合入口无该路径，直接冻结会覆盖重复 key。首版选择标准 BCL 冻结集合以减少自写封装，不声称最少分配或性能最优；捕获与冻结有临时内存/构建成本，仅实现只读接口且安全投影 Keys/Values 的私有封装或其他不可变集合也可正确。class/struct 都可满足自有结果，普通 class 避免另一套非法 default/生成等值合同，是工程取舍。不可变保证不认证反射、Unsafe 或违反 immutable marshal 所有权约定的改写；探针不构成 RootMap wire、新库发布/恢复或包消费资格。
 
-### spec [F-VS-ROOTMAP-BPV1] 字典复用无损基元，一个 codeword 容量上限
-
-VersionStoreFormatVersion=1 MUST 选择 [BPV1](../Binary/bare-primitive-value.md) 的普通 VarUInt32/string 规则，内部 RootMap codec 使用现成 Atelia.Binary，不新增公开 codec、类型 tag、nullable/control、压缩或另一套字符串算法。RootMap codeword 仅包含下列字段；宿主版本/kind 与完整 RBF CRC 不在每份字典中重复：
-
-| 顺序 | 字段 | 编码 |
-| --- | --- | --- |
-| 1 | 实际 entry count | BPV1 VarUInt32 |
-| 2，重复 count 次 | 非 null key | BPV1 ordinary BareString，原样保留 UTF-16 code units |
-| 3，每个 key 后 | FrameAddress | S2 `[F-FS-FRAME-ADDRESS-VARINT]`：VarUInt32(FileId) + VarUInt64(SizedPtr.Serialize())，无符号，合法地址 3..15B |
-
-Key 的字符域 MUST 保留全部非 null CLR string 的 code units：empty、NUL、控制符、路径分隔符、U+FEFF 及未配对 surrogate 均无额外字符拒绝，长度受下述 codeword 预算限制；不剔除 BOM、不归一化或折叠。这是应用 key，不继承 tag/path 政策。writer 使用 PrepareString 的最短无损选择及 FrameAddress.WriteVarInt 的最短地址表示；reader 接受 BPV1 指定的另一种合法字符串编码、字符串/count 有界冗余前缀及 S2 允许的冗余地址表示，非法 UTF8 明确拒绝而非 replacement。条目无排序要求，reader 按解码后的 Ordinal key 拒重；同 key 不同字符串表示也重复。wire bytes/枚举次序不替代 `[A-VS-ROOTS-OWNED]` 的内容比较，也不承诺同字典产生同 bytes。
-
-首版完整 RootMap codeword MUST 不超过 **1,048,576B（1MiB）**，包括 count、全部实际 string header/payload 与地址；读写使用同一固定上限，不增加独立 key/count 配额或配置。默认输出精确尺寸为 `M = MeasureVarUInt32(n) + Σ(StringEncodingPlan.EncodedLength + address.MeasureVarInt())`，逐项度量地址并用 checked long 累积，不能用 FrameAddress.EncodedSize 或固定变长宽度代替；捕获过程中按实际条目检查增长，不信任源 Count，超限不得先冻结/物化超限完整输出。过长 key 可用 code-unit 数的必然尺寸下界先拒绝，再用现成 plan 确认精确尺寸。全部确定拒绝在 data barrier/发布输出前、NotAttempted 且无新增 fault；不得截断 key、拆 map 或丢弃条目来适配。
-
-内部 decoder MUST 在局部 cursor 上组合读取。count 前缀读完后，在集合容量分配前要求 `4L × count <= min(实际剩余输入, RootMap 剩余预算)`；每项至少 1B empty string codeword 加 3B 地址。字符串分配前还须检查其**实际** header 长度与声明 payload，同时给本项地址保留至少 3B、给后续每项保留至少 4B；若尚余 n 项，必需 suffix 为 `3L + 4L × n`，不是地址实际长度的预测。可窥读至多 5B 的 BPV string header，或先截出扣除必需 suffix 的借入窗口交给现成 reader，不新增 public API。检查 int 范围、实际剩余和预算后才物化 key；地址在本次剩余输入/预算内调用 S2 ReadVarInt，消费长度可为 3..15B，包括合法冗余表示，失败时不提交消费，且不得改为 default 继续。全部条目/拒重/冻结成功才提交本次 RootMap 消费；损坏、超限及资源异常沿宿主现有错误通道传播，不交付部分字典。
-
-容量及消费 MUST 按 reader 的真实 ConsumedCount 计，包括合法冗余 count/string header 与地址字段，不能用 Measure(decoded) 重新推算已消费长度。RootMap 是可组合的 prefix，不增加 map byte-length：宿主在自己的局部 cursor 上继续解析其余字段，整条 payload 完全消费及所需 CRC/kind/身份资格通过后才交付公开结果。Snapshot、tag、后续 CU 候选复用这份 codeword；当前 Snapshot body 若只含 RootMap 就必须 exact-consume，其他宿主由自己的 schema 确定前后字段，不忽略 trailing。
-
-1MiB 不是完整 tag/CU payload、物理 FrameLength 或文件容量上限。宿主 MUST 将自己的前后字段、RootMap 与 TailMeta 按 checked 尺寸组合，转换到 int 前验范围，再用公共 MeasureWriteSize 校验完整帧，追加起点另验；完整读取前按 RbfFrameInfo 检查该宿主上限，不先租超限全帧再拒绝。ref header/普通 Snapshot 消费 `[F-VS-REF-FRAMES]`；tag 名称与完整记录容量见 [S5-B 专项](09-versionstore-immutable-tags.md)，CU Members 的组合上限仍由其候选定稿，不把本条解释为所有宿主已经成立。
-
-（Informative）1MiB 是限制单次完整快照工作规模的 MVP 工程选择，会拒绝仍可由 RBF 表示的更大 map；仅继承 RBF 硬界也可正确。没有现成大 map 消费者或峰值/吞吐测量证明这个数字最优、足够所有业务或不会 OOM；捕获、冻结、编码及读取仍有额外内存。实际需求超过此界或资源成本不合目标时再评估，不能在已发布版本中默改 accepted set。复用 Binary 减少自写规则，实际增加 Binary 与其精确 K4os `[1.3.8]` 依赖；固定逐 code-unit UTF16LE 也可正确，不声称此方案最快。BPV1 [已实施验收](../Binary/bare-primitive-value-acceptance.md)及[基元独立 golden](../../tests/Binary.Tests/SchemaCompositionTests.cs)是底座证据；[RootMapCodecProbe](../../experiments/RootMapCodecProbe/README.md)原 fixed12 synthetic 地址版本通过 47 项组合检查，含当时的 1MiB 边界、宽容/重复 key、截短与 12/13B suffix guard。该结果保留历史身份，不构成本次变长 RootMap、尚未实施的新库、发布/恢复、平台或包资格；本次 FrameAddress 新增能力的独立源码验证另见[变长地址实施记录](02-framestore-varint-address-implementation.md)。
+RootMap 的 key/wire/容量合同见 [Binary RootMap payload 专项](10-versionstore-rootmap-payload.md)的 `[F-VS-ROOTMAP-BPV1]`；S4 消费它，不另定义 codec。
 
 ## RefId 值与内部字段编码
 
@@ -447,7 +427,7 @@ Open 不默认扫描所有 ref 历史或 data 图；按需打开/校验目标文
 验收覆盖错误 DataStoreId 在写入/恢复前拒绝、空/重复/超限 key、多根原子更新、旧/新帧混合、Builder 未完成/取消地址的应用合同、末帧/tombstone/TerminationError、完整坏 CRC 不回退、create-only 冲突、正式创建前后进程终止、合法末帧末端越过 MaxOffset / 下一次追加确定拒绝，以及借用 data 不被 Dispose。裸地址原始来源错误是应用合同向量，不宣称能由数值格式检查自动检测。源码与包/平台 qualification 分开，阶段仍 Draft。
 借入准入验收覆盖三个工厂的 disposed/faulted data，以及两个可写入口的只读 data 拒绝：即使其纯属性可读也不签发 owner，VS 根/锁/门/发布文件无本次 I/O 或改动。OpenReadOnly 分别借入只读和可写 data；合法活跃 Builder 不阻止入口，借入检查不确认输出或改变 Builder。错绑定或 VS 初始化失败不关闭/停用健康 data；关闭 VS 后 data 仍可使用，先失效 data 后 VS 清理仍归还自身资源。持续串行/不提前 Dispose 是调用方前提，不以故意违约后的纯查询拒绝作为验收保证。
 格式门独立向量：version=1、VSID bytes=`01..10`、DataID bytes=`11..20`（十六进制）、L=256；L 为 `00 01 00 00`，44B 记录末 4B 为 `9E 31 2A 6A`（CRC32C=`0x6a2a319e`）。不用同一 encoder round-trip 替代。覆盖全部短前缀/尾随、身份/L/CRC 损坏、重新 seal 的未知版本/零身份/L=Max、错借入 data；所有拒绝/close 失败先于恢复/private 清理/输出。两角色身份可同值；两模式不改门，重开不覆盖 L，不按 header 补门；Create 非法 L 先于 I/O 拒绝，0/Max−1 合法，初次发布/模式/平台另取证。
-RootMap 独立 empty=`00`，一项 A 使用 FileId=1、ticket offset=4/length=28 的完整 codeword=`01 03 41 01 87 02`；地址复用 S2 独立变长向量，不由相同 encoder round-trip 代替 golden。覆盖多个不同长度地址、完整高位/15B 上界、非法/截短地址、全部 code-unit key、另一种合法 string 编码、count/string 及地址合法冗余表示、不同表示的重复 key、overflow/巨大声明在分配前拒绝、每个短前缀、实际 1MiB 等于/超过及冗余地址 byte 使超限、4B 最小 entry 与 `3 + 4 × 后续项数` suffix guard、组合宿主后字段与 trailing。确定输入超限先于 barrier/output，完整坏末 map 不回退；cold history/tag 复用同一格式。基元探针及原 fixed12 synthetic 地址证据不替代本次真实 public 变长地址、完整 RBF/宿主、新库或峰值内存验收。
+RootMap 独立 empty=`00`，一项 A 使用 FileId=1、ticket offset=4/length=28 的完整 codeword=`01 03 41 01 87 02`；地址复用 S2 独立变长向量，不由相同 encoder round-trip 代替 golden。覆盖多个不同长度地址、完整高位/15B 上界、非法/截短地址、有效 Unicode key、未配对 surrogate 拒绝、另一种合法 string 编码、count/string 及地址合法冗余表示、不同表示的重复 key、overflow/巨大声明在分配前拒绝、每个短前缀、实际 1MiB 等于/超过及冗余地址 byte 使超限、4B 最小 entry 与 `3 + 4 × 后续项数` suffix guard、组合宿主后字段与 trailing。确定输入超限先于 barrier/output，完整坏末 map 不回退；cold history/tag 复用同一格式。基元探针及原 fixed12 synthetic 地址证据不替代本次真实 public 变长地址、完整 RBF/宿主、新库或峰值内存验收。
 自有字典/结果向量从真实 public 地址构建输入：修改原字典不影响成功值；输入 comparer 不改变 Ordinal 语义，A/a 分别保留、不同插入顺序不影响来源内容资格。覆盖 null 字典/key、default 地址、实际枚举重复/超限、输入 Count 不可信及枚举/清理/冻结失败；确定拒绝或纯捕获失败先于 barrier/输出且 NotAttempted、无新增 fault。返回 map/Keys/Values 的常规接口不能改变保留初始字典；历史结束/后续失败/owner 关闭不撤销已保存项，旧项可交给合格的同 VS 重开 owner 作 tag/rewind。三操作成功都交付非 null RefSnapshot，新 RefId 从 Revision 取得，不以对象引用或字典内容判断同 revision。构造不重新校验/读回，确认后结果分配/安装失败仍 Confirmed；BCL 探针仅提供实现选择证据，不代替这些新库或宿主编码/容量验收。
 RefId 内部字段使用独立 local=0x89ABCDEF → `EF CD AB 89` 向量；覆盖 1、高位及全 FF 合法、零与 0/3/5B 拒绝、失败 default/不提交消费、encoder 短目标/错上下文/默认值失败无写入及长目标只改前 4B。公开等值/hash 覆盖同 VS 同 local、不同 VS 相同 local、同 VS 不同 local 与 default；旧自有值在同 VS 重开后可用，关 owner 不撤销值。两 VS 共借 data 且 local 相同，错误值在 ReadRef/PublishRef/History/Fork 的 I/O/barrier 前确定拒绝、不新增 fault，mutation 保持 NotAttempted。checked 来源元数据可产生 bound 值但不证明源存在；坏宿主字段不外泄值，无来源使用 `[F-VS-REF-FRAMES]` 的 24B 形状，不借零值代替来源判别。格式、public 类型与真实平台/发号资格分开验收，不拿现有 Binary 测试或候选算术称为新库通过。
 RefRevision 等值的内部独立向量覆盖完整 VSID/local/ticket、同 offset 不同 length、同 ref 同值重发及同值子初始/源不同 revision；default 的比较/hash/两属性合法，fork 准入拒绝 default/不同 VSID 先于 I/O/barrier 且 NotAttempted、不新增 fault。public 消费从正常发布/checked 当前与历史取得值，保存后结束查询/关闭并重开同 VS，再 fork 仍按现有协议重读与确认；继承快照的 RefId/Ticket 必须为实际源位置，能关联 ListForks 的 exact 来源边。缺源/坏内容/错成员不因持有旧值免检；ForkOrigin 元数据和提前 ticket 不签发 revision。确认后构造只保存值，后续交付异常保留 Confirmed；不以投影/default 或旧栈测试称为公开 codec、防伪、匿名跨进程书签或新库已实施。

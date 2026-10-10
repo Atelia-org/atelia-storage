@@ -12,7 +12,7 @@
 
 每个 tag MUST 保存 `TagName + 完整 RootMap` 的一条 RBF3 TagRecord。从当前或历史快照创建时，仅复制所选 Roots；后来 ref 更新不改变它。同名再次创建 MUST 在本次 data barrier/私有初始化/tag 输出前拒绝，即使字典同值。空 RootMap 合法，与缺失 tag 不同。
 
-RootMap 的公面、自有冻结、输入捕获、默认地址/重复 key 拒绝与 codec 唯一消费 S4 `[A-VS-ROOTS-OWNED]`、`[F-VS-ROOTMAP-BPV1]`；地址消费其中引用的 S2 变长 codec。tag 不另定地址、字典比较或旧 fixed12 fallback。应用仍负责地址来自绑定 data、必要新增依赖已完成且闭包不含 provisional/canceled 地址；库不遍历该图。
+RootMap 的公面、自有冻结、输入捕获、默认地址/重复 key 拒绝消费 S4 `[A-VS-ROOTS-OWNED]`；codec 消费 [RootMap 专项](10-versionstore-rootmap-payload.md)的 `[F-VS-ROOTMAP-BPV1]`；地址消费其中引用的 S2 变长 codec。tag 不另定地址、字典比较或旧 fixed12 fallback。应用仍负责地址来自绑定 data、必要新增依赖已完成且闭包不含 provisional/canceled 地址；库不遍历该图。
 
 首版候选公面如下；这是待实施合同，不是已存在的 API：
 
