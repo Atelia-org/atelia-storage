@@ -19,7 +19,7 @@
 
 若剩下的仅是实现细节、既定合同的验收，或依赖真实工作集的优化，结束本轮设计迭代并报告实施交接与缺失证据；不要为继续迭代制造新问题。必要探针只回答关键可行性/反例，未解决的问题保留具体阻碍。进入生产实现按具体任务授权，清单收缩本身不启动实现。
 
-本表继续是 Derived 导航，不替代 S0–S6 规范。已定合同保持原资格；移出设计待定不代表实现、Ready/Accepted、恢复、平台或包验收通过，必要证据仍由所属阶段承担。
+本表继续是 Derived 导航，不替代 S0–S6 及其阶段内专项规范。已定合同保持原资格；移出设计待定不代表实现、Ready/Accepted、恢复、平台或包验收通过，必要证据仍由所属阶段承担。
 
 ## 已形成的方向
 
@@ -73,6 +73,7 @@ FrameStore 核心是不透明分配/随机读取；VersionStore 使用完整 Roo
 | FrameAddress 公开值/codec 如何交付 | S2 已定 readonly 不透明值、固定 TryRead/TryWrite 与变长 MeasureVarInt/WriteVarInt/ReadVarInt、共同数值下界及 default/完整等值；变长读取失败不推进，无额外错误族/规范文本 |
 | FrameStore 格式门记录与初次建立 | S2 已定 framestore.format 普通24B记录/唯一CRC/共同只读校验；`[R-FS-STORE-CREATE]` 已定空store、正式门直接create-only写入及成立/返回/失败边界，无私有门或门rename；`[S-FS-OWNER-LOCK]` 已定永久0B控制设施/门前bootstrap与重检、writer独占/readers共享及最后关锁；私有data初始化残留语法/候选/全字节前缀、可写取消与只读保留已定，实际根准入已定于 `[S-FS-ROOT-ADMISSION]`，RBF纯入口/目录清理已实施，平台与系统资格按实施记录区分 |
 | VersionStore 格式门/data/预留区 | S4 普通 44B 门/双身份/持久 L/唯一 CRC 与共同只读资格已定；初次门/根锁/模式等仍待定 |
+| ref记录是否需要独立version/时间机制 | [S4元信息专项](08-versionstore-record-metadata.md)已定固定8B原始Unix毫秒、精确长度判形/末尾扩展、私有一次取时与完整内容资格；无独立version/时钟水位，S4/S5/CU分别消费，实施向量不重开设计 |
 | VersionStore 身份/定位/编号 | 完整 RefId、LocalId 导出与 checked 库内定位、RefRevision/RootMap/ref 格式、单文件 8hex 与两域分配已定；精确 revision codec 延期，实际准入/private/初始化待定 |
 
 以上各项统一见 [S0](00-architecture-decisions.md) 与相应 [S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。本表只导航，不建立第二套规范。
@@ -92,9 +93,9 @@ VersionStore 门记录/共同只读检查与 data 持久身份绑定已定于 S4
 RefId/uint32 LocalRefId 与内部固定 4B LE 字段消费 S4 `[F-VS-REF-ID-4B]`，LocalId 保存与正确库 checked 查询消费 `[A-VS-LOCAL-REF-LOOKUP]`；单文件路径消费 `[F-VS-REF-PATHS]`，持久 L/两域创建/水位/不复用消费 `[S-VS-REF-ID-DOMAINS]`。这些不再待定；冷开 O(ref 数量)路径发现/private 独立资格继续 S4-Q3，指定残留不可统一要求 H+1。编号与查询不证明 Unknown 旧尝试 Confirmed，不重开整体身份或精确 revision codec 议题。
 
 RefRevision 自有公开值、完整等值/default/上下文前检、只读实际位置及同 VS 重开使用已定于 S4 `[A-VS-REF-REVISION-VALUE]`，不再作为待定表示或整体 codec 选择；未提供匿名精确 revision 的跨进程导入导出，出现消费者再立窄合同，tag 字典不能透明替代其精确来源书签。
-RootMap/RefSnapshot 表示直接消费 `[A-VS-ROOTS-OWNED]`；key/wire/容量直接消费 `[F-VS-ROOTMAP-BPV1]`，不再列为待定设计。tag/history/CU 候选原样复用；真实 FrameAddress 组合验证见[变长编码实施记录](02-framestore-varint-address-implementation.md)；探针不构成 VersionStore 新库/发布协议、峰值或性能资格。
+RootMap/RefSnapshot 表示直接消费 `[A-VS-ROOTS-OWNED]`，本帧时间/元信息形状消费 [S4元信息专项](08-versionstore-record-metadata.md)；key/wire/容量直接消费 `[F-VS-ROOTMAP-BPV1]`，不再列为待定设计。tag/history/CU 候选原样复用；真实 FrameAddress 组合验证见[变长编码实施记录](02-framestore-varint-address-implementation.md)；探针不构成 VersionStore 新库/发布协议、峰值或性能资格。
 历史枚举固定起始完成上界，沿不可变 ForkOrigin 接续各源选中位置及其更早历史；活动期间禁止同 owner mutation，返回的完整 RootMap 自有。RefRevision 只从完成发布/真实成员 checked-read 取得；来源元数据不自动签发 checked revision。来源感知 fork 先重读源字典，在子输出前完成 data 屏障与源文件 flush；只传 roots 的创建无来源。
-ref header 的 24/36B 来源判别、固定字段、Header/Snapshot 的 0/1 kind、普通 Snapshot 纯 RootMap/完整容量及共同首两帧检查已定于 S4 `[F-VS-REF-FRAMES]`，不再列为待定 codec。剩余具体缺口是**可写恢复前的初始化准入**：[公面探针](../../experiments/RefFrameSchemaProbe/README.md)在此前 8B LocalRefId/固定 12B 地址草案上复现 header28+初始 15B 完整 112B，缺末 8B 仍为 104B≥empty 最小 100B；RBF 会 CompletedTail 补齐，事后拒绝后再次 None 可认领。现 public 只读工厂又会拒绝合法更新残尾，不能提供一般前缀预检；需单独选定可执行保护/底座入口或重审原有正式坏初始化的接受政策，不能将最小长度＋事后 report 宣称 Ready。正常私有 flush/close→文件发布不产生该半初始，反例不扩大 ProcessCrashOnly 模型。
+ref header 的 24/36B 来源判别、固定字段、Header/Snapshot 的 0/1 kind、普通 Snapshot 纯 RootMap payload/meta专项/完整容量及共同首两帧检查已定于 S4 `[F-VS-REF-FRAMES]`，不再列为待定 codec。剩余具体缺口是**可写恢复前的初始化准入**：[公面探针](../../experiments/RefFrameSchemaProbe/README.md)在此前 8B LocalRefId/固定 12B 地址草案上复现 header28+初始 15B 完整 112B，缺末 8B 仍为 104B≥empty 最小 100B；RBF 会 CompletedTail 补齐，事后拒绝后再次 None 可认领。现 public 只读工厂又会拒绝合法更新残尾，不能提供一般前缀预检；需单独选定可执行保护/底座入口或重审原有正式坏初始化的接受政策，不能将最小长度＋事后 report 宣称 Ready。正常私有 flush/close→文件发布不产生该半初始，反例不扩大 ProcessCrashOnly 模型。
 历史入口、自有值交付、跨文件资源/visited、返回/定位工作预算和终止已定于 S5 `[A-VS-REF-HISTORY-CHECKED]`，直接消费而非重新选择。现有 RBF 只有 EOF 逆扫，旧 fork 点的源后缀定位可能增长并支付工作步；无关后缀 payload 不作历史审计，已观察的结构错误仍传播。完整无来源起点、正常选点停止、预算失败、取消与错误按 S5 区分。
 
 **实现验收目标：** 选中非末快照，结束枚举后 fork/tag/rewind；源继续更新、fork-of-fork、同值初始与源不同 revision，完整继承前缀保持正确。覆盖源真实成员、错 length、缺源/循环/字典不符、源 flush 失败、定位预算/错误和跨文件释放；不自动读取全部应用图或从 data 地址大小推算历史。

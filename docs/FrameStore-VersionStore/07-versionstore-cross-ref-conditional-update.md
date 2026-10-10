@@ -1,6 +1,7 @@
 # VersionStore：ConditionalUpdate 单帧跨 ref 事务候选
 
 日期：2026-10-08。状态：**Draft / 用户暂定的优先候选；独立质询与 public RBF3 研究支持协议已达到可正式选型的程度，推荐选用。尚未记为主线选型决策，S4/S5 尚未 Ready，VersionStore 尚未实施；生产事务、进程终止、跨平台及包消费资格另行取得**。
+记录时间与长度判形唯一消费 [S4 元信息专项](08-versionstore-record-metadata.md)；以下组合/流程计入meta8，不改变本候选的选型状态。
 2026-10-10 同步 RootMap 的 S2 变长地址字段与用户采用的固定 4B LE LocalRefId；Members 每项为 4B LocalRefId + 8B Packed ticket，共 12B。原研究探针及结果保留其当时的合成格式身份，不作为当前 codec 的验收。
 
 比较基线：[Prepare + Commit 历史方案](extensions/obsolete/versionstore-cross-ref-prepare-commit-candidate.md)。现行合同：[S0](00-architecture-decisions.md)、[S1 已知尺寸追加](01-rbf-sized-append.md)、[S4 发布](04-versionstore-publication.md)、[S5 历史](05-versionstore-names-and-indexes.md)、[RBF 接口](../Rbf/rbf-interface.md)。可重复研究探针见 [VersionStoreConditionalUpdateProbe](../../experiments/VersionStoreConditionalUpdateProbe/README.md)。
@@ -30,16 +31,18 @@ FrameStore 核心已取得前轮独立源码验收，保持 source-only；新增
 
 ```text
 ConditionalUpdate:
-    kind / version
-    RootMap                        // 本 ref 的完整根字典
-    Members: RefId => SizedPtr      // 本批完整成员表，包含本 ref
+    FrameTag = ConditionalUpdate   // RBF kind；具体取值仍待定
+    Payload:
+      RootMap                        // 本 ref 的完整根字典
+      Members: RefId => SizedPtr    // 本批完整成员表，包含本 ref
+    TailMeta:                      // 专项规定的8B记录时间
 ```
 
 各成员可以有不同 RootMap 和帧尺寸；相同的是完整 Members 表。RootMap 继续复用完整字典 codec 和 S2 `[F-FS-FRAME-ADDRESS-VARINT]` 的变长 FrameAddress。Members 的 ticket 是对应 ref 文件的 SizedPtr，不能替换为 data FrameStore 的 FrameAddress 或改为它的变长地址编码。
 
-本候选消费 S4 `[F-VS-REF-ID-4B]`：RefId 内部字段为固定 4B LocalRefId LittleEndian，公开值另携同一 VS 的持久上下文；Members 不为每项重复写 VSID，入口在 I/O/barrier 前拒绝错上下文。ticket 仍采用固定 8B `SizedPtr.Packed` LittleEndian，不使用 Serialize 或 VarUInt；RootMap 原样消费 `[F-VS-ROOTMAP-BPV1]` 的变长地址 codeword/1MiB 上限。Members 计数与字段顺序、kind/version、完整 CU 组合上限仍待工程定稿。两定位字段解码都不证明 frame 存在或完成，不从 CLR struct 内存布局推导 wire；fixed12 公共地址 codec 仍原样保留。
+本候选消费 S4 `[F-VS-REF-ID-4B]`：RefId 内部字段为固定 4B LocalRefId LittleEndian，公开值另携同一 VS 的持久上下文；Members 不为每项重复写 VSID，入口在 I/O/barrier 前拒绝错上下文。ticket 仍采用固定 8B `SizedPtr.Packed` LittleEndian，不使用 Serialize 或 VarUInt；RootMap 原样消费 `[F-VS-ROOTMAP-BPV1]` 的变长地址 codeword/1MiB 上限。Members 计数与字段顺序、CU FrameTag 取值、完整 CU 组合上限仍待工程定稿；不另存payload kind/version，元信息形状消费专项。两定位字段解码都不证明 frame 存在或完成，不从 CLR struct 内存布局推导 wire；fixed12 公共地址 codec 仍原样保留。
 
-各 RootMap 引用的是已知 data 地址，先逐项 MeasureVarInt 并编码，其字节数 rᵢ 在预测 CU 自身 tickets 前已经确定。设 RefId 字段宽度 w=4、成员数 k、固定 schema 与计数字节数 h，CU payload 长度仍可直接度量为 `h + rᵢ + k × (w + 8) = h + rᵢ + 12k`，不依赖 Members 中 tickets 的数值；不增加成员对齐 padding。每帧成员表相对原 8B RefId 草案少 4 × k bytes，全组 k 份表合计少 4 × k² bytes。由公共 `MeasureWriteSize`、各文件可信 TailOffset 与 `SizedPtr.Create` 可先预测全部 tickets，再编码完整 payload；RootMap 采用变长地址不产生 CU 自身尺寸的循环求解。
+各 RootMap 引用的是已知 data 地址，先逐项 MeasureVarInt 并编码，其字节数 rᵢ 在预测 CU 自身 tickets 前已经确定。设 RefId 字段宽度 w=4、成员数 k、payload 的固定字段与计数字节数 h，CU payload 长度仍可直接度量为 `h + rᵢ + k × (w + 8) = h + rᵢ + 12k`，不依赖 Members 中 tickets 的数值；不增加成员对齐 padding。每帧成员表相对原 8B RefId 草案少 4 × k bytes，全组 k 份表合计少 4 × k² bytes。TailMeta单独占8B，不计入h；由公共 `MeasureWriteSize(payloadLength,8)`、各文件可信 TailOffset 与 `SizedPtr.Create` 可先预测全部 tickets，再完成payload/meta私有编码；RootMap 采用变长地址不产生 CU 自身尺寸的循环求解。
 
 准确说，消除循环只要求 ticket 的编码宽度不随值变化；已知 RefId 的编码长度也能事先度量。固定 RefId 是本候选按用户提议采用的方向，不是正确性额外要求。不得对包含待定 tickets 的整个 payload 做未经解决的变长压缩，再拿未确定的 stored 长度预约。
 
@@ -56,13 +59,14 @@ PublishRefs(changes):
     私有复制并编码全部 RootMap
     度量全部 CU payload / frame，检查每个追加起点
     由可信 TailOffset 预测全部 tickets
-    构造完整 Members，完成所有 CU 字段的私有编码
+    构造完整 Members；按专项为整批取时一次
+    完成所有 CU payload 字段与共享8B TailMeta的私有编码
 
     data.ConfirmDurable()
     对全部参与 ref:
-        builder, actualTicket = BeginAppend(payloadLength[ref], 0)
+        builder, actualTicket = BeginAppend(payloadLength[ref], 8)
         核对 actualTicket == predictedTicket[ref]
-        写入该 ref 的已编码 CU 字节
+        顺序写入该 ref 已编码payload及共享8B TailMeta
         核对 EndAppend(ConditionalUpdate) 成功 ticket == actualTicket
         结束该 Builder 生命周期
 
@@ -87,7 +91,7 @@ PublishRefs(changes):
 
 ## 共同发布判据
 
-令本地真实主链 CU 位于 ticket q，属于 ref a，完整成员表为 M。本地 CU 已通过完整 CRC、codec 与 self 检查；非法本地记录直接报错，不进入下面的布尔判据：
+令本地真实主链 CU 位于 ticket q，属于 ref a，完整成员表为 M。本地 CU 已通过完整 CRC、codec、专项meta形状与 self 检查；非法本地记录直接报错，不进入下面的布尔判据：
 
 ```text
 Committed(a, q, M) 当且仅当:
@@ -97,12 +101,12 @@ Committed(a, q, M) 当且仅当:
         指定 offset 的实际主链记录完整合法
         actualTicket == wantedTicket
         kind == ConditionalUpdate
-        RootMap 与 Members 的 codec / CRC / version 合法
+        RootMap 与 Members 的 codec、完整CRC及专项meta形状合法
         Members[ref] == actualTicket
         Members 的完整内容 == M
 ```
 
-比较完整解码成员表或规范编码的成员表 bytes；不能只比较 RefId 集合、某个相互指针、成员数量或 frame 存在性。RootMap 允许不同，不能比较整个 CU payload 相等；RBF EscapeKey 也可能不同，不能比较原始帧字节。
+比较完整解码成员表或规范编码的成员表 bytes；不能只比较 RefId 集合、某个相互指针、成员数量或 frame 存在性。RootMap 允许不同，不能比较整个 CU payload 相等；时间是诊断值，不比较它来判组，也不替代完整Members。RBF EscapeKey 也可能不同，不能比较原始帧字节。
 
 检查 peer 的固定历史位置，**不调用 peer 的 ReadRef 当前值，不要求 peer CU 仍为 EOF，不递归验证另一组**。相同成员表使每个成员对同一组的判据完全一致。因此全组共同成立，或本组不能发布；后续普通更新可以合法覆盖其中一个 ref 的当前值，旧组仍成立并保留在历史中。
 
@@ -137,7 +141,7 @@ Committed(a, q, M) 当且仅当:
 | --- | --- |
 | `true`：事务完整（Committed） | 全部指定 CU 的实际 ticket、self 和完整表匹配；接受本地 RootMap |
 | `false`：事务不完整（Uncommitted） | 正常结构打开后，必要 slot 正好在 EOF 尚无帧；或实际 ticket 不同且必要结构资格通过；或同 ticket 的完整合法记录是普通 RootMap / 异表 CU；跳过本地 CU |
-| 读取失败 | 必要正式 ref/header 缺失、身份错；本地或同 ticket 必要记录坏 CRC/codec/version/self；必要结构、已观察元信息中的未知或该位置不允许的 kind/tombstone、I/O、资源或 lifecycle/fault 错误；停止，不回退 |
+| 读取失败 | 必要正式 ref/header 缺失、身份错；本地或同 ticket 必要记录坏 CRC/codec/格式版/meta形状/self；必要结构、已观察元信息中的未知或该位置不允许的 kind/tombstone、I/O、资源或 lifecycle/fault 错误；停止，不回退 |
 
 这是查询返回 bool 或失败的行为说明，不定义持久事务状态枚举，也不替代调用证据 `NotAttempted / Unknown / Confirmed`。成员定位不必向上区分“缺席”和“被异长替换”；二者都表示没有指定成员。
 
@@ -161,7 +165,7 @@ ReadDesignatedMember(peer, wanted):
     wanted.offset > tail: 报 Error
 
     exact = peer.ReadPooledFrame(wanted)
-    exact 成功: 返回完整帧，继续统一检查 kind / codec / self / Members
+    exact 成功: 返回完整帧，继续统一检查 kind / codec / meta形状 / self / Members
     exact 的异常 / CRC / 其他非歧义错误: 直接传播
 
     // 当前完整读取仅 Rbf.ArgumentError / Rbf.FramingError 允许长度消歧
@@ -181,7 +185,7 @@ ReadDesignatedMember(peer, wanted):
 
 当前 `ReadPooledFrame(wanted)` 先检查短读及 HeadLen 与 wanted length 一致，再验证 TrailerCRC 和 PayloadCRC。因此正常异长替换只会产生范围或 framing 拒绝，**CRC 错误直接传播，不进入消歧**。不能把 `ReadFrameInfo(oldTicket)` 的错误 footer/CRC 行为套到这条完整读取路径。allowlist 不包括 state、buffer 或未知错误码，也不捕获异常；后续底层改变检查顺序时须重新核对。非法 Members 坐标不由消歧修复。
 
-逆扫只验证尾部元信息，**不读取 HeadLen**。若异长替换的历史 HeadLen 损坏而后面还有健康尾，Open 可以成功、exact 已报结构错误，逆扫仍能给出不同 actual ticket；直接返回不完整会吞掉该错误。继续逆扫得到真实前驱，再从前驱读取直接后继，才补上实际 HeadLen、长度、右 Fence 和 Trailer 资格。CU 仅追加到既有正式 ref，目标 slot 前至少已有初始 Snapshot/header；找不到前驱就是异常，不能伪造前驱或解释为缺席。
+逆扫只验证尾部元信息，**不读取 HeadLen**。若异长替换的历史 HeadLen 损坏而后面还有健康尾，Open 可以成功、exact 已报结构错误，逆扫仍能给出不同 actual ticket；直接返回不完整会吞掉该错误。继续逆扫得到真实前驱，再从前驱读取直接后继，才补上实际 HeadLen、长度、右 Fence 和 Trailer 资格。元信息专项只约束需要完整资格化的本地/同ticket记录；本分支的异长实际替代保持RBF必要结构检查，不增加VersionStore meta形状或bytes审计。CU 仅追加到既有正式 ref，目标 slot 前至少已有初始 Snapshot/header；找不到前驱就是异常，不能伪造前驱或解释为缺席。
 
 RBF `TailOffset` 属性本身不检查 Dispose/fault，必须保留扫描入口准入；即使 wanted 正好在 EOF，也不能绕过这一 guard。结构检查通过的异长替换即使有未读取的坏 payload，也已足以否定旧 ticket；此查询不宣称替换内容健康。
 
@@ -220,7 +224,7 @@ ReadRef 从本地真实 RBF 逆向链读：合法普通 RootMap 直接返回；C
 | 失败 peer 的异长复用 | 有完整 Prepare 锚点可定位其后继 | 需区分旧 SizedPtr 与实际替代帧；可能扫描消歧 |
 | 当前值与历史 | 跳过 Prepare/不成立 Commit | 跳过不成立 CU；revision 无两帧锚定选择 |
 
-纯 framing 比较，设保留的逻辑 bytes 分为 r/c：S1 当前 RBF3 追加占用 `B(x)=32+Align4(x)`，两帧合并节省 `B(r)+B(c)-B(r+c)`，为 **32 或 36B/ref**；c 为 4B 倍数时恰好 32B。schema 字段的新增/合并另计，实际代码一律使用公共 Measure，不复制公式作为执行逻辑。不据此宣称吞吐翻倍或总成本减半。
+纯 framing 比较，设保留的逻辑 bytes 分为 r/c：x 表示 payload 与 TailMeta 的合计逻辑长度，S1 当前 RBF3 追加占用 `B(x)=32+Align4(x)`，两帧合并节省 `B(r)+B(c)-B(r+c)`，为 **32 或 36B/ref**；c 为 4B 倍数时恰好 32B。schema 字段的新增/合并另计，实际代码一律使用公共 Measure，不复制公式作为执行逻辑。不据此宣称吞吐翻倍或总成本减半。
 
 写入只触及本批 k 个 ref。每个组的精确 ticket 校验只访问它的成员与必要 bytes，不需要所有 N 个 Heads；全部 k 张完整表比较仍是 O(k²) 元数据工作，并需读取所选 peer RootMap 内容。已成立组的精确读取不扫描 peer 后续历史。连续失败后缀的本地逆扫会累积；异长消歧可能扫描 peer 后缀及真实前驱，再作一次结构后继查询，但不读替换 payload。一次 ReadRef 回退多个旧 CU 时，读取范围是这些被检查组成员集合的并集，不能宣称始终只读最终成立组的成员。
 
@@ -250,6 +254,8 @@ Windows / W: 真实 public RBF3 探针，初录 [结果](../../experiments/Versi
 | 同/异长普通 RootMap、同/异长新 CU 复用未完成 peer 起点 | 四例旧组均不复活；同长度可经旧 ptr 读成功，异长度均报 Rbf.FramingError；真实链消歧正确 |
 | 完整组后单 ref 普通更新、复制旧表到新 self、peer 坏内容 CRC | 旧资格保持、错误 self 被拒、Rbf.CrcMismatch 显式传播 |
 
+上述历史探针也未使用本轮meta8时间合同，不作为当前尺寸/codec资格。
+
 此前补充探针先在仓外研究，再保存到同一实验项目；以仓内相对 ProjectReference 的 Release build / `run --no-build` 再验，0 warning / 0 error，[完善结果](../../experiments/VersionStoreConditionalUpdateProbe/evidence/2026-10-08-refinement-result.json)单独留存，不覆盖初录证据。**该版保守与精确路径均完整审计替换 payload，结果反映此前较强策略，不代表本次收窄后的读取路径已经通过同一全矩阵**：
 
 | 补充覆盖 | 结果 |
@@ -278,7 +284,7 @@ Windows / W: 真实 public RBF3 探针，初录 [结果](../../experiments/Versi
 
 **成熟度判断：可以正式选择 CU 作为跨 ref 事务协议。** 共同判据、位置复用与稳定性有明确论证，现有 public API 足以实现读取；本次删除替换内容审计不改变原子判据，并有源码和定向检查支持必要结构消歧。没有发现需要新增持久机制的失败轨迹；新读取路径的完整组合验收仍属于实施出口。对用户当前少量根、几个地址的目标，减少帧与阶段的收益明确；P+C 的诊断、分帧容量及拒绝未提交组时可少读 RootMap 的优势仍保留，不据此宣称 CU 在所有工作负载更快。
 
-该结论不等于整个 S4/S5 Ready。正式选型并入时，须同步替换 S0/S4/S5 及入口的“无跨 ref 事务/直接接受末 Snapshot/当前值与历史成本”旧合同，保留普通单 ref 路径与 tag 创建的独立范围；不能只在导航加一个链接便称主线支持。RefId 字段及 RootMap codec/上限直接消费 S4 已定合同，普通 ref header/Snapshot 格式消费 `[F-VS-REF-FRAMES]`；具体 Ready 项仍有可写初始化保护、CU kind/Members 组合 codec 与完整容量、PublishRefs/批次结果类型、文件/枚举生命周期与真实错误载体。接纳 CU 作为 fork 源时须重审 S4 普通 Snapshot 的来源 ticket 上界与接受 kind，不能因 Members 扩大 payload 而沿用普通上限。这些是阶段工程定稿及本协议的实施出口，不是新的事务身份或恢复日志。
+该结论不等于整个 S4/S5 Ready。正式选型并入时，须同步替换 S0/S4/S5 及入口的“无跨 ref 事务/直接接受末 Snapshot/当前值与历史成本”旧合同，保留普通单 ref 路径与 tag 创建的独立范围；不能只在导航加一个链接便称主线支持。RefId 字段及 RootMap codec/上限直接消费 S4 已定合同，普通 ref header/Snapshot 格式消费 `[F-VS-REF-FRAMES]`；具体 Ready 项仍有可写初始化保护、CU FrameTag/Members 组合 codec 与含meta8的完整容量、PublishRefs/批次结果类型、文件/枚举生命周期与真实错误载体。接纳 CU 作为 fork 源时须重审 S4 普通 Snapshot 的来源 ticket 上界与接受 kind，不能因 Members 扩大 payload 而沿用普通上限。这些是阶段工程定稿及本协议的实施出口，不是新的事务身份或恢复日志。
 
 最小安全纵向片是**两个已正式创建的 ref**：正式 codec/header + 绑定 data barrier + PublishRefs + 当前/历史共用判据 + owned revisions；随后在每个 Begin/End、输出、flush、确认后安装位置验证失败与冷重开。验收包含布尔资格与读取失败、坏身份/self/重复表/同 ticket 坏内容、异长坏 HeadLen、异长未读坏 payload 不影响否定旧成员及直接读取仍报错、缺前驱/后继不符、I/O/fault；失败旧 A/B 后新 B/C 且不递归；lazy CompletedTail；同值/rewind/预算；普通单 ref 不增加成员表；新 helper 全矩阵与 k 增长成本。Windows/Linux 与 public 包消费分别出证据，不为此片先实现名称事务、全局 Heads 或日志。
 

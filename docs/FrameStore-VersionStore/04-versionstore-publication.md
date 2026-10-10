@@ -3,6 +3,7 @@
 状态：**Draft；完整 RootMap、单文件 ref、ForkOrigin、值/codec 与 PublicationOutcome 合同已定；2026-10-10 采用无 branch 名称、创建时持久预留低号区、自动/预留区指定两种创建入口与单 ref 文件发布。初始化保护、初次 store 创建/根与模式准入、私有残留及平台资格仍待定或实施；项目尚未创建**。
 2026-10-10 用户采用固定 4B LittleEndian LocalRefId；新 `[F-VS-REF-ID-4B]` 替代旧 8B 编码条款。格式门上界、ref 自身/来源/CU 成员中的本地编号与公开入口统一使用 uint32，路径同步采用 8hex。VersionStore 尚未实施，首版统一格式版本仍为 1，不提供旧 8B 草案兼容或宽度探测。
 2026-10-10 RootMap 地址字段改为 S2 `[F-FS-FRAME-ADDRESS-VARINT]`，fixed12 公共 codec 保留；VersionStore 尚未实施，无旧 RootMap 格式兼容 fallback。本次变更不修改 FrameStore 文件格式或版本。
+记录元信息唯一消费 [S4 元信息专项](08-versionstore-record-metadata.md)：固定 8B 时间与长度判形；本文负责宿主和公开结果，不另定义时间规则。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)。历史与不可变 tag 见 [S5](05-versionstore-names-and-indexes.md)。
 
 ## 目标、归属与范围
@@ -21,7 +22,7 @@ VersionStore MUST 有独立、create-only 的格式门；普通 ref/tag 发布�
 
 | byte 范围（半开） | 字段 | 编码与校验 |
 | --- | --- | --- |
-| `[0,4)` | VersionStoreFormatVersion | uint32 LittleEndian，首版为 1，统一选择本层目录与记录 schema |
+| `[0,4)` | VersionStoreFormatVersion | uint32 LittleEndian，首版为 1，选择本层目录/header/payload schema 及允许的 TailMeta 形状 |
 | `[4,20)` | VersionStoreId | 16 个 canonical opaque bytes，非全零，发布库的稳定身份 |
 | `[20,36)` | DataStoreId | 16 个 canonical opaque bytes，逐字节复制借入 data 已资格化的持久 StoreId 编码 |
 | `[36,40)` | ReservedRefIdUpperBound | uint32 LittleEndian；记为 L，允许 0..uint.MaxValue−1，创建后不变 |
@@ -45,7 +46,7 @@ CRC MUST 使用现成 `RollingCrc.SealCodewordForward` / `CheckCodewordForward`�
 RootMap MUST 使用唯一的 Ordinal key，不做隐式大小写折叠或 Unicode 归一化。空字典合法，且不同于 missing ref/tag。发布 MUST 先私有复制输入并编码为完整快照，避免调用方后续修改输入改变本次请求或返回值。
 库校验字典、key 和地址的格式/容量，并核对 VersionStore/data 格式门的身份及实例生命周期。FrameAddress 继承 S2 的局部地址合同：裸地址不携带原始 StoreId，库不能识别来自另一 store 的恰巧合法坐标。应用 MUST 保证所有引用属于该 data，所需新增依赖已完成，闭包不含 provisional/canceled 地址。数字地址本身不能证明完成来源；库 MUST NOT 把合法坐标或 data barrier 当成整个业务图已成立的证明。读取物理完整 orphan 后采用它，仍需由应用重新建立闭包资格。
 读取返回自有 RootMap 值；不持有 RBF pooled frame、Span 或枚举器临时缓冲。地址背后的内容由应用按 FrameStore.ReadFrame 完整读取与解释，VersionStore 不预读/遍历业务图。
-ReadRef 的成功值称为 RefSnapshot，提供只读 Revision 与 Roots；由库内部构造，不持有 owner/reader、不需要 Dispose，字典无公开修改入口。S5 历史读取复用同一自有结果，不另立历史快照或结果租借。RefRevision 消费 `[A-VS-REF-REVISION-VALUE]`；RootMap/RefSnapshot 表示与 RootMap codec 分别消费下面的自有值和 BPV1 组合合同。
+ReadRef 的成功值称为 RefSnapshot，提供只读 Revision、Roots 与本帧 RecordedAtUnixMs；由库内部构造，不持有 owner/reader、不需要 Dispose，字典无公开修改入口。S5 历史读取复用同一自有结果，不另立历史快照或结果租借。RefRevision 消费 `[A-VS-REF-REVISION-VALUE]`；RootMap/RefSnapshot 表示与 RootMap codec 分别消费下面的自有值和 BPV1 组合合同。
 
 ### spec [A-VS-ROOTS-OWNED] 公开复用集合接口，内部冻结完整内容
 
@@ -57,9 +58,11 @@ ReadRef 的成功值称为 RefSnapshot，提供只读 Revision 与 Roots；由�
 
 返回的 Roots MUST 持有上述自有冻结内容，通过正常集合接口不能改写；map、Keys、Values 不得暴露可变 backing 集合。string 与 FrameAddress 自身不可变，浅捕获足够；不复制或预读地址背后的业务对象。内部已捕获/解码的冻结字典可共享给结果与初始字典资格检查，交付不再复制内容，合法空字典也可共享。返回值在查询结束/提前停止/后续失败及 owner fault/Dispose 后仍有效，不需要结果 Dispose。
 
-RefSnapshot MUST 为非 record 的 `public sealed class`，仅由库内部构造，公开 `RefRevision Revision { get; }` 与 `IReadOnlyDictionary<string, FrameAddress> Roots { get; }`，无 setter/init、owner/reader、结果租借或 Dispose。库成功交付的对象及 Roots 均非 null；default(RefSnapshot) 是 null，不作为 missing 或空快照。普通对象相等保持引用语义，不提供 IEquatable、结构 hash 或内容相等运算；重复读取的对象是否复用不作承诺。CreateRef、ReadRef、PublishRef 的成功值统一为 RefSnapshot（返回 `AteliaResult<RefSnapshot>`），新 RefId 由 `snapshot.Revision.RefId` 取得，不另设重复 pair/创建 DTO；S5 其余操作的返回表示仍由各入口定稿。
+RefSnapshot MUST 为非 record 的 `public sealed class`，仅由库内部构造，公开 `RefRevision Revision { get; }`、`IReadOnlyDictionary<string, FrameAddress> Roots { get; }` 与 `long RecordedAtUnixMs { get; }`，无 setter/init、owner/reader、结果租借或 Dispose。库成功交付的对象及 Roots 均非 null；default(RefSnapshot) 是 null，不作为 missing 或空快照。普通对象相等保持引用语义，不提供 IEquatable、结构 hash 或内容相等运算；重复读取的对象是否复用不作承诺。CreateRef、ReadRef、PublishRef 的成功值统一为 RefSnapshot（返回 `AteliaResult<RefSnapshot>`），新 RefId 由 `snapshot.Revision.RefId` 取得，不另设重复 pair/创建 DTO；S5 其余操作的返回表示仍由各入口定稿。
 
-库用于 ForkOrigin 字典一致性资格的内容比较 MUST 针对已经资格化的 Ordinal 自有字典执行：Count 相同，逐 key 查找并比较完整 FrameAddress 等值。不得用枚举顺序、Roots.Equals、Snapshot.Equals、编码 bytes、CRC 或 hash 代替；不因此合并同值 revision。首版只保留内部比较逻辑，不新增公开 ContentEquals 或结构 hash API，出现明确应用消费者再评估；应用仍可读取字典并自行比较。Snapshot 构造只保存已资格化 revision 和冻结引用，不再次验证、复制、编码或读回；正常发布仍先写 Confirmed 再交付。class 分配或后续安装可能失败，确认后异常依既有证据合同保留 Confirmed，不为免除一次分配引入可变占位壳或提前公开 revision。
+时间属性消费元信息专项 `[S-VS-RECORD-TIME]` 与 `[F-VS-RECORD-TAILMETA]` 的原始有符号毫秒标量，保存本帧值、不在访问时重新取时/转换日期；不另立元信息 DTO。
+
+库用于 ForkOrigin 字典一致性资格的内容比较 MUST 针对已经资格化的 Ordinal 自有字典执行：Count 相同，逐 key 查找并比较完整 FrameAddress 等值。不得用枚举顺序、Roots.Equals、Snapshot.Equals、编码 bytes、CRC 或 hash 代替；不因此合并同值 revision。首版只保留内部比较逻辑，不新增公开 ContentEquals 或结构 hash API，出现明确应用消费者再评估；应用仍可读取字典并自行比较。Snapshot 构造只保存已资格化 revision、冻结引用与时间标量，不再次验证、复制、编码或读回；正常发布仍先写 Confirmed 再交付。class 分配或后续安装可能失败，确认后异常依既有证据合同保留 Confirmed，不为免除一次分配引入可变占位壳或提前公开 revision。
 
 （Informative）[OwnedRootMapProbe](../../experiments/OwnedRootMapProbe/README.md)在 .NET 10.0.5/Windows 上验证 0/1/4/100 项：ReadOnlyDictionary 的 map/Keys/Values 均可通过 ICollection.SyncRoot 取出真正 Dictionary 并改变可见内容；FrozenDictionary 在探针列出的普通集合入口无该路径，直接冻结会覆盖重复 key。首版选择标准 BCL 冻结集合以减少自写封装，不声称最少分配或性能最优；捕获与冻结有临时内存/构建成本，仅实现只读接口且安全投影 Keys/Values 的私有封装或其他不可变集合也可正确。class/struct 都可满足自有结果，普通 class 避免另一套非法 default/生成等值合同，是工程取舍。不可变保证不认证反射、Unsafe 或违反 immutable marshal 所有权约定的改写；探针不构成 RootMap wire、新库发布/恢复或包消费资格。
 
@@ -132,7 +135,7 @@ revision 只从完成发布或实际 checked-read 且已确认真实主链成员
 ### spec [S-VS-REF-FILE-SINGLE] 每个 ref 保存一个完整快照序列
 
 每个 ref MUST 使用按唯一 RefId 命名的一个 RBF3 文件。首版不分段、轮转、差分或建立派生 checkpoint；每次更新追加一条完整 RootMap Snapshot。当前值校验本地 header、初始 Snapshot 及紧贴 EOF 的末 Snapshot，初始即末帧时复用读取；不扫描全部历史或递归祖先。
-选尾 MUST 使用真实 RBF 逆向主链和 `showTombstone: true`，检查末帧紧贴实际尾部，不能将过滤结果或随机 ticket 当成末快照成员证明。未知 kind/version、tombstone、非 Snapshot 尾帧、完整坏 CRC/codec 皆报错，不向前寻找旧快照替代。首帧为本层 header，第二帧为初始 Snapshot；两者都必须存在且 checked。ReadRef 只校验本地必要内容，不沿 ForkOrigin 递归读取祖先；声明的源历史缺/坏在实际历史访问中报错，不据此回退本 ref 的当前字典。
+选尾 MUST 使用真实 RBF 逆向主链和 `showTombstone: true`，检查末帧紧贴实际尾部，不能将过滤结果或随机 ticket 当成末快照成员证明。未知 kind/格式版/meta 形状、tombstone、非 Snapshot 尾帧、完整坏 CRC/codec 皆报错，不向前寻找旧快照替代。首帧为本层 header，第二帧为初始 Snapshot；两者都必须存在且 checked。ReadRef 只校验本地必要内容，不沿 ForkOrigin 递归读取祖先；声明的源历史缺/坏在实际历史访问中报错，不据此回退本 ref 的当前字典。
 单帧容量与下一帧起点硬界继承 RBF/SizedPtr；下一帧起点超过 SizedPtr.MaxOffset 时明确拒绝追加或要求维护，MUST NOT 隐式回绕、复用完整历史位置或自行拆成多帧发布。MaxOffset 只限制帧起点，最后一个合法帧的末端与尾 Fence 可以越过它，不额外要求文件总长度落在该起点上界内。容量预检使用 RBF 公共 Measure/追加预算 API，并分别检查追加起点；预算 API 不自行验证文件起点，不能把 MaxOffset - TailOffset 当作硬性追加字节预算。
 
 ### spec [S-VS-REF-FILE-PUBLISH] 新 ref 由完整单文件发布
@@ -202,9 +205,9 @@ CreateRef 与 ForkRef MUST 各有自动/指定入口，共用后续初始化/发
 
 （Informative）自动候选大于全部正式编号；指定只查确定路径并由 no-overwrite 发布保护，两域不相交，无需全 ID 表。L=256 仅为应用永久槽位示例，不规定默认值或必建 main。L 是固定容量，不支持后续扩区；编号大小不代表跨 ref 时间/来源顺序/成员资格。冷开 O(ref 数量)路径发现，健康候选计算/指定定位无需全扫；实际资源/I/O/规模资格仍随实施取得。
 
-### spec [F-VS-REF-FRAMES] 首帧用精确长度判别来源，普通快照只保存字典
+### spec [F-VS-REF-FRAMES] 首帧判别来源，普通快照组合字典与记录元信息
 
-VersionStoreFormatVersion=1 的 ref 文件 MUST 使用 RBF3；首物理帧 FrameTag=0（RefHeader），其后普通 Snapshot 的 FrameTag=1。两种帧均 MUST 非 tombstone、TailMetaLength=0。kind 由 RBF tag 表达，不在 payload 重复；本条不分配 CU kind，不把 07 候选并入核心。必要读取遇到未知 kind、后续 header 或非法组合报错，不能过滤或向前寻找可用替代帧。
+VersionStoreFormatVersion=1 的 ref 文件 MUST 使用 RBF3；首物理帧 FrameTag=0（RefHeader），其后普通 Snapshot 的 FrameTag=1。两种帧均 MUST 非 tombstone；RefHeader MUST TailMetaLength=0，Snapshot 的 TailMeta 消费 `[F-VS-RECORD-TAILMETA]`，首版恰为8B。kind 由 RBF tag 表达，不在 payload 重复；本条不分配 CU kind，不把 07 候选并入核心。必要读取遇到未知 kind、后续 header 或非法组合报错，不能过滤或向前寻找可用替代帧。
 
 RefHeader 的 RBF decoded payload MUST 恰为 **24B 或 36B**，字段如下：
 
@@ -216,19 +219,19 @@ RefHeader 的 RBF decoded payload MUST 恰为 **24B 或 36B**，字段如下：
 | `[24,28)`，仅36B形状 | SourceRefId | 同一内部4B codec，非零且不同于本ref，绑定期望VSID |
 | `[28,36)`，仅36B形状 | SourceSnapshotTicket | 完整 SizedPtr.Packed 的8B LE，不使用 Serialize/Deserialize 的交错表示 |
 
-**来源判别就是完整 payload 的精确长度：24B=无来源，36B=有来源。** 其余长度、截短来源及 trailing bytes 均拒绝；只在真实 RbfFrameInfo 形状与完整 CRC 通过后解码整个 payload，不能按“目前可读到多少 bytes”猜分支。无来源不写零 SourceRefId/ticket sentinel；不增 presence flag、预留空间、payload Magic/CRC、DataStoreId、HeaderSchemaVersion、初始位置或名称。DataStoreId 由格式门绑定；header 统一版本选择该文件全部记录 schema，Snapshot 不重复版本/身份或混合另一版本。
+**来源判别就是完整 payload 的精确长度：24B=无来源，36B=有来源。** 其余长度、截短来源及 trailing bytes 均拒绝；只在真实 RbfFrameInfo 形状与完整 CRC 通过后解码整个 payload，不能按“目前可读到多少 bytes”猜分支。无来源不写零 SourceRefId/ticket sentinel；不增 presence flag、预留空间、payload Magic/CRC、DataStoreId、HeaderSchemaVersion、初始位置或名称。DataStoreId 由格式门绑定；header 版本选择该文件的记录格式规则、payload schema 与允许的 kind/meta 形状；元信息扩展按专项的末尾追加规则定稿，当前 Snapshot 仅允许8B。Snapshot 不重复整库版本/身份，不以 meta 长度推断不兼容 payload。
 期望版本/VSID/自身 RefId 来自已 checked 的门和正式目标定位；创建时来自本次私有初始化预定值，随后正式门/目标须使用同值，不要求私有文件已发布。MUST NOT 从 header 自身反向认领期望身份。完整 RBF CRC 与全部字段通过后才交付自有元数据；来源元数据不签发 checked RefRevision，不递归检查源存在/内容。
 
-SourceSnapshotTicket 的纯数值检查 MUST 使用当前普通 Snapshot 的必要范围：`Offset >= Empty.EndExclusive + MeasureWriteSize(24,0).AppendLength`，且 `MeasureWriteSize(1,0).FrameLength <= Length <= MeasureWriteSize(1MiB,0).FrameLength`；当前为起点至少60、长度32..1MiB+28。Packed 已表达对齐/可表示范围，不额外要求末端或尾 Fence <= MaxOffset。实际源 header 可能使初始起点更大，数值合法仍不证明源存在、具体成员或字典一致；这些由 S5 实际访问建立。未来接纳 CU 时 MUST 重审可接受源 kind 和这份普通 Snapshot 上界，不能原样限制更大的 CU 宿主。
+SourceSnapshotTicket 的纯数值检查 MUST 使用当前普通 Snapshot 的必要范围：`Offset >= Empty.EndExclusive + MeasureWriteSize(24,0).AppendLength`，且 `MeasureWriteSize(1,8).FrameLength <= Length <= MeasureWriteSize(1MiB,8).FrameLength`；当前为起点至少60、长度40..1MiB+36。Packed 已表达对齐/可表示范围，不额外要求末端或尾 Fence <= MaxOffset。实际源 header 可能使初始起点更大，数值合法仍不证明源存在、具体成员或字典一致；这些由 S5 实际访问建立。未来接纳 CU 时 MUST 重审可接受源 kind 和这份普通 Snapshot 上界，不能原样限制更大的 CU 宿主。
 
-Snapshot decoded payload MUST **仅为 `[F-VS-ROOTMAP-BPV1]` 的完整 codeword**，actual payload长度为1..1,048,576B，exact-consume 后才交付；不加外层版本、身份、Parent、map byte-length 或 CRC。每个地址复用 S2 的变长 codec，tag/history复用同一RootMap；字典健康不赋予 data 来源/业务闭包资格。输出前用公共 `MeasureWriteSize(M,0)` 校验整帧及实际追加起点；读取前按 RbfFrameInfo 核对 kind/meta/tombstone、payload范围及与Measure对应的Ticket.Length，再租完整帧并执行完整CRC/codec。不将“少量根约64B”写成固定记录保证。
+Snapshot decoded payload MUST **仅为 `[F-VS-ROOTMAP-BPV1]` 的完整 codeword**，actual payload长度为1..1,048,576B，exact-consume 后才交付；不加外层版本、身份、Parent、map byte-length 或 CRC。每个地址复用 S2 的变长 codec，tag/history复用同一RootMap；字典健康不赋予 data 来源/业务闭包资格。输出前用公共 `MeasureWriteSize(M,8)` 校验整帧及实际追加起点；读取前按 RbfFrameInfo 核对 kind/meta/tombstone、payload范围及与Measure对应的Ticket.Length，再租完整帧并执行完整CRC/codec。不将“少量根约64B”写成固定记录保证。
 
 **共同首两帧检查。** 在已取得的 Idle RBF句柄上，按期望上下文要求 Format=Rbf3，用 `ScanForward(showTombstone:true)` 取首物理header，先检查首Offset=Empty.EndExclusive、上述形状和 `MeasureWriteSize(L,0).FrameLength`，再完整读/解码身份与来源。下一次MoveNext必须取得直接物理第二帧，按普通Snapshot全部形状/CRC/codec检查；其Offset须等于公共 `GetPhysicalOffsetImmediatelyAfter(headerTicket)`。两次MoveNext=false均先传播TerminationError，再报缺必需帧；不跳过墓碑、不用随机CRC成功代替顺序证明。保存实际初始ticket、checked ForkOrigin与自有初始字典；初始即末Snapshot时可复用，不递归源或审计本地全部历史。
-令 `H=MeasureWriteSize(L,0)`、`S=MeasureWriteSize(M,0)`，初始起点为 `Empty.EndExclusive+H.AppendLength`，初始化后界 `I=初始起点+S.AppendLength`，须与实际checked物理后界一致。当前header FrameLength=52/64B、初始起点60/72；空map最小Snapshot FrameLength=32B、初始化文件96/108B，最大普通Snapshot FrameLength=1MiB+28B。这些是公共尺寸推导，不复制wire开销，不证明预约、耐久或平台资格。
+令 `H=MeasureWriteSize(L,0)`、`S=MeasureWriteSize(M,8)`，初始起点为 `Empty.EndExclusive+H.AppendLength`，初始化后界 `I=初始起点+S.AppendLength`，须与实际checked物理后界一致。当前header FrameLength=52/64B、初始起点60/72；空map最小Snapshot FrameLength=40B、初始化文件104/116B，最大普通Snapshot FrameLength=1MiB+36B。这些是公共尺寸推导，不复制wire开销，不证明预约、耐久或平台资格。
 
 **可写初始化保护仍未定。** 上述schema与正常首两帧检查不关闭 S4-Q2 的恢复前准入：不能仅取empty map的最小I先调用可写工厂，再用恢复报告事后拒绝。长初始body缺Key/Fence可通过最小长度前检，被CompletedTail补齐后，再开Action=None丢失旧报告；一份持久长度字段本身也未提供恢复前读取header的公共资格。现有public只读工厂要求整个尾部闭合，不能在合法更新残尾旁先检查前缀；offline scanner不支持RBF3，不借internal candidate或手写wire绕过。Ready前还需选定可执行的恢复前初始化保护/公开底座准入，或明确重审原有正式坏初始化的接受政策；本轮不新增sidecar、初始化账本、填充帧或底座API。
 
-（Informative）专用1B presence flag（25/37B）同样可正确，但当前两种header会因对齐各多4B物理占用；复用已有精确形状省去一个字段。正常36B帧截短不会变成24B：原HeadLen/descriptor/CRC仍约束原形状，CompletedTail只补Key/Fence，不重写来源/长度。恶意重写并重新seal不属于格式认证能力，flag也不提供它。[RefFrameSchemaProbe](../../experiments/RefFrameSchemaProbe/README.md)原 8B LocalRefId/fixed12 synthetic RootMap 版本的75项检查在W:验证字段golden、真实RBF形状/CRC与112→104→112→再次None反例，结果及原始JSON保持历史身份，未按本次 4B LocalRefId/变长RootMap重跑；完整flush/close后的目录发布按协议不会产生半初始化，反例检验的是既有正式坏输入拒绝边界，不是正常发布的崩溃轨迹。探针使用synthetic数值身份/RootMap，不构成本次 4B LocalRefId/变长RootMap、新VersionStore、初始化保护、进程终止、rename、两平台或包资格。
+（Informative）专用1B presence flag（25/37B）同样可正确，但当前两种header会因对齐各多4B物理占用；复用已有精确形状省去一个字段。正常36B帧截短不会变成24B：原HeadLen/descriptor/CRC仍约束原形状，CompletedTail只补Key/Fence，不重写来源/长度。恶意重写并重新seal不属于格式认证能力，flag也不提供它。[RefFrameSchemaProbe](../../experiments/RefFrameSchemaProbe/README.md)原 8B LocalRefId/fixed12 synthetic RootMap/meta0 版本的75项检查在W:验证字段golden、真实RBF形状/CRC与112→104→112→再次None反例，结果及原始JSON保持历史身份，未按本次 4B LocalRefId/变长RootMap/meta8重跑；完整flush/close后的目录发布按协议不会产生半初始化，反例检验的是既有正式坏输入拒绝边界，不是正常发布的崩溃轨迹。探针使用synthetic数值身份/RootMap，不构成本次 4B LocalRefId/变长RootMap/meta8、新VersionStore、初始化保护、进程终止、rename、两平台或包资格。
 
 ### spec [S-VS-REF-FORK-ORIGIN] 首帧保存一次性的 ref 创建来源
 
@@ -347,7 +350,7 @@ Open 不默认扫描所有 ref 历史或 data 图；按需打开/校验目标文
 | Ready 项 | 需定稿或实施验证 |
 | --- | --- |
 | S4-Q1 | RefId 上下文/LocalId 导出与 checked 本地查询、RefRevision、冻结 RootMap/RefSnapshot 已定，实施向量；ListRefs 具体公开结果/范围仍待定 |
-| S4-Q2 | 格式门内容/只读绑定、RefId内部4B、RootMap BPV1/变长地址/1MiB及4B最小entry与3B地址suffix、ref header24/36与Header/Snapshot的0/1 kind、统一schema/完整宿主容量及共同首两帧检查已定，实施独立向量并按实际消费含冗余地址计预算；可变初始Snapshot的恢复前保护/公开底座准入仍需定稿，不能用最小I＋事后report宣称Ready |
+| S4-Q2 | 格式门内容/只读绑定、RefId内部4B、RootMap BPV1/变长地址/1MiB及4B最小entry与3B地址suffix、ref header24/36与Header/Snapshot的0/1 kind、payload schema/专项meta8与长度判形/完整宿主容量及共同首两帧检查已定，实施独立向量并按实际消费含冗余地址计预算；可变初始Snapshot的恢复前保护/公开底座准入仍需定稿，不能用最小I＋事后report宣称Ready |
 | S4-Q3 | 单文件路径/8hex、持久 L 与两域创建/不复用/耗尽已定；初次 store 创建/44B 门发布、根/组件/no-follow、VSID、private 路径及两类候选残留、file rename 两平台资格、独占/模式/Dispose/fault 仍需定稿或取证 |
 | S4-Q4 | Result/必选 out PublicationOutcome、入口初始化、公开尝试/确认写回、pre-I/O Result 例外、异常清理及自动/指定创建续跑边界已定；实施拒绝/部分与完整输出/确认后安装故障及冷重开向量，不再开放证据载体设计 |
 | S4-Q5 | checked 末读取实现、资源预算、错误分类、已完成输出屏障对接及有无关活跃 Builder 的 public 发布轨迹 |
@@ -363,7 +366,8 @@ RefRevision 等值的内部独立向量覆盖完整 VSID/local/ticket、同 offs
 路径向量消费 `[F-VS-REF-PATHS]`，覆盖零/高位/Max、大小写/宽度/Unicode/空白尾点/错后缀/层级、直接项类型/枚举失败。正式 refs/00000008.rbf 占 8，header 自称 9 报错而不改号；精确定位无 ID→path 表。codec 不替代根/组件/no-follow/private/rename/规模资格。
 编号向量消费 `[S-VS-REF-ID-DOMAINS]`：L=0/256/Max−1、首自动 L+1、指定 0/越界/已占拒绝、低号不推进 H、完整发现/高位/Max、坏内容占号/private 不计 H；自动耗尽仍可建空闲预留槽。两种创建/fork 都验证确定拒绝先于 barrier/输出、Unknown 及确认后交付失败冷开、不复用来源。LocalId 保存后同库重开 ReadRef(local)取得 checked 值；local 可查自动区而不隐式创建，本地 selector 选库责任与完整 RefId 跨 VSID 防错分别验证。
 证据向量覆盖 mutation 最早重置 out、正常成功/失败、助手异常直接写回、Append pre-I/O Result 恢复 NotAttempted 与 OOM/输出/flush 保持 Unknown；data/源 flush/tag 空桶维护为 NotAttempted 但停用。file rename 后立即 Confirmed，再注入结果/投影/清理异常，不降档或 Dispose 借入 data。自动丢失返回值后 ListRefs 可见但同值不能认领；指定重开可查号码，已占不证明旧尝试 Confirmed。真实进程终止无 out 的恢复与同步证据分别取证。
-header 独立golden：version=1、VSID=`01..10`、自身local=`0x89ABCDEF`的无来源payload为 `01 00 00 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 EF CD AB 89`；有来源追加source local=`0x76543210`与SizedPtr(offset60,length32)，suffix=`10 32 54 76 08 00 00 3C 00 00 00 00`。覆盖24/36之外长度、完整帧中的截短/尾随、零/错身份、未知版、Source=self及非法ticket；36B的前24B若人为另封为合法无来源帧属于另一份记录，不把未framed的切片当完整截短检验。
-宿主向量覆盖Rbf3/首两帧真实成员、meta/tombstone/重复header/未知kind、Snapshot exact-consume与1MiB尺寸前检、初始即末复用及两种header物理后界。普通 ReadRef不扫描源历史；来源范围不能签发revision。旧探针112→104→112→再次None的坏初始化反例保留原格式身份；当前4B LocalRefId/变长RootMap须重新构造长初始body及其补尾反例，与已完整初始化后的合法更新残尾分别验收；实际恢复前保护未定，不以事后拒绝或探针称为已闭合。正式缺坏内容仍报错，显式来源遍历缺/坏时报错且不改本地head。
+header 独立golden：version=1、VSID=`01..10`、自身local=`0x89ABCDEF`的无来源payload为 `01 00 00 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 EF CD AB 89`；有来源追加source local=`0x76543210`与SizedPtr(offset60,length40)，suffix=`10 32 54 76 0A 00 00 3C 00 00 00 00`。覆盖24/36之外长度、完整帧中的截短/尾随、零/错身份、未知版、Source=self及非法ticket；36B的前24B若人为另封为合法无来源帧属于另一份记录，不把未framed的切片当完整截短检验。
+宿主向量覆盖Rbf3/首两帧真实成员、header meta0/Snapshot meta8、tombstone/重复header/未知kind与必要记录未知meta形状、Snapshot exact-consume与1MiB尺寸前检、初始即末复用及两种header物理后界。普通 ReadRef不扫描源历史；来源范围不能签发revision。旧探针112→104→112→再次None的坏初始化反例保留原格式身份；当前4B LocalRefId/变长RootMap/meta8须重新构造长初始body及其补尾反例，与已完整初始化后的合法更新残尾分别验收；实际恢复前保护未定，不以事后拒绝或探针称为已闭合。正式缺坏内容仍报错，显式来源遍历缺/坏时报错且不改本地head。
+元信息向量直接消费专项的独立 golden、必要记录精确长度/完整CRC、受控时钟重复/回退及自有时间生命周期；时间不参与 revision 等值或来源 Roots 比较。旧 meta0 草案无兼容；增加8B未关闭恢复前初始化保护，不能把新最小初始化长度当作完整保护。
 CreateRef/PublishRef/CreateTag 各覆盖 A 依赖全部完成而无关 B 仍 Building 时成功发布、B 所租文件中的旧 dirty 依赖在根写出前被确认、B 后续完成必须重新确认，以及任一 data flush 失败后不尝试根输出并停用 data 的全部 Builder/Writer。根真正依赖未完成 B 的负例属于应用闭包责任，不能把“库自动识别并拒绝任意未完成图”写成单测承诺。
 

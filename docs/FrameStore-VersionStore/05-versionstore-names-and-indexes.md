@@ -3,6 +3,7 @@
 状态：**Draft；历史 visitor/预算/清理、ForkOrigin/ListForks 与 tag 桶合同已定；2026-10-10 移除 branch 名称层，fork 统一消费自动/预留区指定创建及单文件发布。tag 名称政策、相应实施/平台与验收仍待定；VersionStore 尚未创建**。
 2026-10-10 RefId 自身/来源字段与指定 fork 目标消费 S4 固定 4B LE LocalRefId/uint32 合同；SourceSnapshotTicket 仍保持完整 8B，历史与分叉语义不变。
 2026-10-10 tag、历史与 fork 的 RootMap 同步采用 S4 的变长地址字段；S2 fixed12 codec 原样保留，tag 层不另定义地址格式或兼容 fallback。VersionStore 尚未实施。
+记录时间与元信息形状直接消费 [S4 元信息专项](08-versionstore-record-metadata.md)；本阶段不另定义时间 codec、时钟或格式版本。
 前置：[S0](00-architecture-decisions.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)。扩展 S4 的完整根快照与局部发布协议，不增加全局事实日志。
 
 ## 目标与最小公开操作
@@ -41,7 +42,7 @@ ref header/普通 Snapshot 的字段、来源判别与完整记录容量唯一�
 
 ForkRef 两种入口 MUST 接收本 VersionStore 的已发布 RefRevision，先消费 S4 `[A-VS-REF-REVISION-VALUE]` 的 default/持久上下文前检，再由库定位正式源 ref、checked header，并从真实 RBF 主链确认 exact 源 SizedPtr；完整读取该 Snapshot 的 CRC、kind/version、身份与 RootMap codec，私有复制其字典。MUST NOT 接受调用方自由组合 roots 与 origin，不接受 header、残尾或仅随机 CRC 读成功的伪成员。源可以是当前或历史快照，也可以位于另一 ref 的继承历史；链接指向返回该快照的实际 RefId，不指向发起枚举的子 ref。
 
-所有生命周期/历史 mutation guard、自动或指定目标及输入/编码/容量检查先完成。随后 data ConfirmDurable，再对 exact 源 ref DurableFlush，最后在单个 private 子文件写完整 header/ForkOrigin 与初始 Snapshot，flush/close 并按 S4 file rename 发布。源 flush 明确确认本次链接的发布记录耐久，checked-read 不能替代；无 receipt、不重刷全部祖先，仍限 ProcessCrashOnly。
+所有生命周期/历史 mutation guard、自动或指定目标及输入/编码/容量检查先完成；子初始 Snapshot 按 `[S-VS-RECORD-TIME]` 重新取时，允许与源同毫秒，不复制源时间。随后 data ConfirmDurable，再对 exact 源 ref DurableFlush，最后在单个 private 子文件写完整 header/ForkOrigin 与初始 Snapshot，flush/close 并按 S4 file rename 发布。源 flush 明确确认本次链接的发布记录耐久，checked-read 不能替代；无 receipt、不重刷全部祖先，仍限 ProcessCrashOnly。
 
 源 flush 失败时，本次 fork 尚未尝试公开事实，为 NotAttempted；源 RBF 按自身 fault，VersionStore 停用，不进入子输出。子私有文件/rename/内存安装的结果继续使用 S4 PublicationOutcome。只在子 header 写来源，不向源文件追加孩子列表、不改变源 head，避免源登记与子发布之间引入第二个一致性协议。
 
@@ -62,19 +63,19 @@ AteliaResult<HistoryEnd> ReadRefHistory(
     CancellationToken cancellationToken = default);
 ```
 
-RefSnapshot 复用 S4 `[A-VS-ROOTS-OWNED]` 的普通自有结果类与集合公面，只读 Revision 与 Roots；不另立 history 专用快照、结果 Lease 或 Dispose。每项 MUST 完整校验 CRC、kind/version、身份与 RootMap codec，确认真实主链成员后才能交付。解码到自有值并释放临时 RbfPooledFrame 后再回调，不能外泄 Reader、RbfFrameInfo、pool Span 或依赖 reader 的字典。结果的 RootMap 不提供公开修改入口；方法结束、owner fault/Dispose 不撤销已交付值，内部初始字典比较不受 visitor 改写。RefId 消费 S4 `[F-VS-REF-ID-4B]` 的公开上下文值、前检与内部字段 codec；RefRevision 消费 `[A-VS-REF-REVISION-VALUE]` 的自有值、完整等值和只读实际位置，RootMap wire/限额消费 `[F-VS-ROOTMAP-BPV1]`，不开放任意裸 revision 的随机 ReadRevision。
+RefSnapshot 复用 S4 `[A-VS-ROOTS-OWNED]` 的普通自有结果类与集合公面，只读 Revision、Roots 与 RecordedAtUnixMs；不另立 history 专用快照、结果 Lease 或 Dispose。每项 MUST 完整校验 CRC、kind/格式版、身份、RootMap codec 与专项的 meta 形状，确认真实主链成员后才能交付。解码到自有值并释放临时 RbfPooledFrame 后再回调，不能外泄 Reader、RbfFrameInfo、pool Span 或依赖 reader 的字典。结果的 RootMap 不提供公开修改入口；方法结束、owner fault/Dispose 不撤销已交付值，内部初始字典比较不受 visitor 改写。RefId 消费 S4 `[F-VS-REF-ID-4B]` 的公开上下文值、前检与内部字段 codec；RefRevision 消费 `[A-VS-REF-REVISION-VALUE]` 的自有值、完整等值和只读实际位置，RootMap wire/限额消费 `[F-VS-ROOTMAP-BPV1]`，不开放任意裸 revision 的随机 ReadRevision。
 
 visitor 返回 true 表示继续，false 表示已接收当前项并正常选点停止。false 后 MUST 不再扫描旧帧或访问下一源；先完成健康/取消复检和必要清理，再返回 VisitorStopped，即使该项恰为起点也保持此结果。调用方可保存所选值，在方法返回后 fork/tag/rewind；需要列表时由调用方收集，不要求库保留整批历史。
 
 **准入与固定上界。** MUST 先检查 owner disposed/fault、RefId 参数、非 null visitor、两个预算均为正数及无其他活动历史读取，再做文件 I/O。无隐含预算默认值；long.MaxValue 可表示调用方不设置实际限额，default 的零预算无效。通过准入后设置一个 HistoryActive 位，整个同步调用拒绝递归 ReadRefHistory 及本 VersionStore 的所有 mutation，包括发布、自动/指定 ref 或 fork 创建和 tag 创建；mutation 按 S4 先初始化 out，guard 拒绝先于 barrier/输出且不新增 fault。visitor 可串行读取当前值及 data，保留自有结果；同文件查询复用当前可用的 RBF 句柄，不重复独占打开。owner Dispose 仍是受控清理，不作为发布 mutation 拒绝。首版无并发调用或外部改写，不建跨实例 snapshot 协议。
 进入本 ref 时 MUST 用公共正向扫描完整检查首 header 与物理第二帧初始 Snapshot，保存它们的 exact ticket、checked ForkOrigin 与自有初始字典。随后从实际完成尾部取得逆向扫描器，完整校验紧贴 EOF 的末 Snapshot，取得固定上界 revision，先交付它，再依次向前；初始即末帧时可复用本次已校验的字典。后续不得重读 head 替换这个上界，不能调用未计费的 ReadRef 助手完成隐含资格工作。
 
-**继承前缀。** 正反向枚举均使用 `showTombstone: true`。本地历史包含重复同值快照与 rewind，只省略已检查的首 header；必要节点的未知 kind/version、tombstone、损坏均报错。首版逐文件循环，直接消费 public RBF API：
+**继承前缀。** 正反向枚举均使用 `showTombstone: true`。本地历史包含重复同值快照与 rewind，只省略已检查的首 header；必要节点的未知 kind/格式版/meta 形状、tombstone、损坏均报错；历史按真实链交付记录原时间，不按时间排序或去重。首版逐文件循环，直接消费 public RBF API：
 
 1. 进入每个 ref 前加入路径 visited，重复 RefId 为循环错误。逆链到达该文件的 exact 初始 Snapshot 后，无 ForkOrigin 才是合法历史起点；有来源则保留当前初始字典与来源，放下局部扫描器并归还当前临时句柄，再进入源 ref。既有 owner 句柄不因跳转而关闭。
 2. 只定位正式 SourceRefId，按 S4 访问模式打开/复用文件并检查身份、首 header 与第二帧；不采用 creating。调用 `ScanReverse(showTombstone: true)` 从源实际完成尾部定位 exact SourceSnapshotTicket，同时匹配 offset/length；随机完整读取不是主链成员证明。
-3. 对源 fork 点之后的无关后缀只消费 framing/TrailerCRC，不读其 payload/RootMap codec。已观察到的结构错误、TerminationError、I/O 或 fault 仍传播；到 checked 初始边界仍未找到 exact 来源是非法来源，不是无来源起点。
-4. 找到后完整读取源 Snapshot，按 Ordinal key/FrameAddress 值比较它与子初始字典；不一致报错，不能只比较编码顺序或 CRC。交付源快照自己的 RefRevision，继续用该逆向扫描器读更早前缀；源后续 head 不进入历史，子初始与源同值也都保留。
+3. 对源 fork 点之后的无关后缀只消费 framing/TrailerCRC，不读其 payload/RootMap codec/meta bytes，也不新增 VersionStore meta 判形。已观察到的结构错误、TerminationError、I/O 或 fault 仍传播；到 checked 初始边界仍未找到 exact 来源是非法来源，不是无来源起点。
+4. 找到后完整读取源 Snapshot，按 Ordinal key/FrameAddress 值比较它与子初始字典，时间不参与该比较；不一致报错，不能只比较编码顺序或 CRC。交付源快照自己的 RefRevision，继续用该逆向扫描器读更早前缀；源后续 head 不进入历史，子初始与源同值也都保留。
 
 每个实际 MoveNext=false MUST 检查 TerminationError；非 null 传播底层失败，尚未到已 checked 初始边界的正常 false 也是非法序列/来源，不能伪装 Complete。无来源的 exact 初始 Snapshot 已完整校验，且其 visitor 返回 true 时，首两帧资格已证明没有更早快照，可直接 Complete，不必额外推进到 header/EOF。Complete 只证明本次继承发布前缀，既不审计被排除的源后缀 payload，也不证明应用图健康。
 
@@ -197,7 +198,7 @@ ListRefs 与可写冷开水位发现的成本均包含正式 ref 文件集合；
 | --- | --- | --- |
 | tag 桶 header | FrameTag=0；统一格式版本、S4 VersionStoreId、uint32 LE BucketId | 组合 schema、初始化 I 保护已定；版本/16B 身份消费 S4 `[F-VS-OWN-FORMAT]`，桶数量/hash/路径仍 S5-Q1 |
 | tag record | FrameTag=1；完整 TagName、原样 S4 RootMap | 无额外版本/CRC/身份；每次全桶 checked 扫描及 S4 RootMap codec/上限已定；名称与完整组合容量消费 S5-Q1 |
-| history 结果 | 复用 S4 RefSnapshot；实际 RefRevision、自有 RootMap | 同步 visitor、两项预算、Complete/VisitorStopped 与预算失败已定，实施所有权/终止/清理验证 |
+| history 结果 | 复用 S4 RefSnapshot；实际 RefRevision、自有 RootMap 与本帧时间 | 同步 visitor、两项预算、Complete/VisitorStopped 与预算失败已定，实施所有权/终止/清理验证 |
 | fork 查询结果 | 自有 ForkInfo：ChildRefId、SourceRefId、完整 SourceSnapshotTicket | `[A-VS-FORKS-CHECKED]` 的 IReadOnlyList/私有只读封装、单项 maxRefs、完整集合/图及清理已定；不从元数据签发 checked revision |
 
 未来 ref 分段/轮转、tag 分片、差分与可重建索引均为独立后续片，需实际容量/工作集证据及自己的定位/恢复合同；不预建 segment manifest 或 checkpoint 缓存。业务 Parent/RNG/operationId 可放在应用已引用对象中，不扩展中立字典 codec。外部工具 exactly-once、跨 ref 事务和自动 merge 均无框架保证。
@@ -225,6 +226,8 @@ tag 向量另覆盖合法正式空桶与 missing、bare Fence/短 header/缺原 
 
 链接验收覆盖当前/非末源快照、源后续追加不进入继承前缀、fork-of-fork、多孩子同一源位置、从继承快照再次 fork 时使用其实际 RefId、子初始与源同值但均返回、rewind 后完整发布历史仍含撤回记录。拒绝跨 store/header/伪成员/错 length 来源；实际跳转遇到缺源、坏身份/CRC/codec、初始字典不符或循环报错。覆盖后缀定位 framing 错误、工作预算先于下一项耗尽、取消与跨文件资源释放，不把定位失败当正常历史结束。
 ListForks 覆盖预留区与自动区孩子、多层/兄弟分叉、应用映射不产生新边、无来源同值复制不产生边、creating 排除、header-only/坏初始正式文件错误、未知项/枚举及必要关闭失败。预算向量含非法零/负数先于 I/O、无来源根也计费、恰好额度且 EOF 成功、超额 ref 不打开/读取/扩表而专用失败；全无来源仍可成功空边。覆盖缺源、自链接、独立分量中的环、深链迭代与大量兄弟共享祖先，不递归或逐节点重追；图错误或末关闭/取消/结果分配失败不交部分成功。验证结果三个自有字段/完整 length、无稳定顺序承诺、正常接口不能改写 backing、后续查询/创建/关 owner 后保存结果仍有效；历史 visitor 内调用借用匹配句柄、其他本地临时句柄归还一次，不覆盖历史槽。声明边不审计源 ticket payload，而实际历史访问该坏源快照必须报错；两种资格分开验证，factory 初始化保护及平台/规模成本仍另取证。来源 fork 的源 flush 失败不得输出子文件；正常确认与 rename 未知的冷重开仍只见完整子 header/初始快照，不补写源孩子表。
+
+时间验收直接复用元信息专项；另覆盖继承历史保留实际源记录时间、子初始/rewind重新取时但允许同值，时钟回退不改变真实链顺序，来源一致性仅比较Roots；tag桶/记录仍meta0，不因复用RootMap增加时间。
 
 07 的跨 ref CU 尚未并入本合同。未来接纳时，source revision 必须来自已接受的 Snapshot 或满足共同事务判据的 CU；物理完整但事务不完整的 CU 不得成为 fork 源或继承历史节点。ForkOrigin 继续指向该实际 ref/frame，不能改为跟踪其他参与 ref 的当前 head；相应读取资格与成本另随正式并入验收。
 
