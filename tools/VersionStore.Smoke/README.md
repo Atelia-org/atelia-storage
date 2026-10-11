@@ -20,7 +20,7 @@ Linux 命令相同，换成 Linux 文件系统上的 fresh 路径。每次成功
 
 冷读核对四个完整 RootMap、所有实际 node/self/peer 地址、完整继承历史、三条精确 ForkOrigin 声明、三份不可变 tag、`ReadTagInfo/ScanTags` 关联坐标及保存时间。独立只读 `VersionStore.Audit` 应得到4 refs、11个物理本地 snapshots、3 forks、3 tags；随后 FrameStore `Audit` 校验24个图帧。返回的快照、RootPayload、TagInfo 和解码字典在两个 owner Dispose 后再次使用。
 
-非 graph CLI 参数原样交给 `ProcessScenario.Run`；以下命令供父测试驱动，每行 JSON 都带真实 `pid`：
+除 graph/resource 外的 CLI 参数交给 `ProcessScenario.Run`；以下命令供父测试驱动，每行 JSON 都带真实 `pid`：
 
 | 命令 | 行为 |
 | --- | --- |
@@ -40,6 +40,19 @@ dotnet test tests/VersionStore.Tests/VersionStore.Tests.csproj -c Release --no-b
 
 设置 `VERSIONSTORE_PROCESS_EVIDENCE_DIRECTORY` 后，父调度器可保存每个 child 的 transcript；这与本 consumer 的普通 stdout JSON 分开。
 
-父测试一轮包含19项、71个子进程，其中10个在 READY 后实际 `Process.Kill()`；每个 child 都等待退出并核对结果。进程超时/失败也只清理自己持有的 Process。stdout/stderr、命令、PID、kill 与退出码可保留在上述证据目录；路径使用 fresh GUID 临时目录，父测试结束后清理夹具。具体一次运行的事实以实施计划的证据摘要为准。
+父测试含原有19项、71个子进程（10次 READY 后实际 `Process.Kill()`），以及下述两档资源向量的2项、6个正常子进程；每个 child 都等待退出并核对结果。进程超时/失败也只清理自己持有的 Process。stdout/stderr、命令、PID、kill 与退出码可保留在上述证据目录；路径使用 fresh GUID 临时目录，父测试结束后清理夹具。具体一次运行的事实以实施计划的证据摘要为准。
+
+## 有限资源探针
+
+`resource-write <root> <size>` 建立16、64或256个 ref 的有限夹具；root 必须缺失或为空。`resource-read <root>` 在另一个进程以只读 owner 验证并观察资源：
+
+```powershell
+dotnet run --project tools/VersionStore.Smoke -c Release --no-build -- resource-write E:/temp/versionstore-resource-64 64
+dotnet run --project tools/VersionStore.Smoke -c Release --no-build -- resource-read E:/temp/versionstore-resource-64
+```
+
+向量包括来源继续增长后的精确 fork 继承、同桶聚集的 tag、三次重复发现/历史/元信息/完整校验，以及独立 owner 上的全 ref 当前值缓存对照。 写进程另测关闭后的新 RW owner 打开与连续 CreateTag 批次（含 ReadRef 捕获）；ForkRef 创建本身未独立计时。输出单行 JSON 保留每次操作耗时、累计托管分配与区间外资源快照。Windows 的进程总 handle 和 Linux 的 fd 不具有相同口径；Linux 另检查指向夹具根的实际 fd。RSS、GC heap 与进程总句柄只作观察，不作为吞吐或任意规模无泄漏的保证；采样点不表示操作中的真实峰值。
+
+SystemIntegration 中16/64两档分别写一次、在两个新进程冷只读验证，并由父进程独立核对文件清单与SHA-256不变；256档可单独运行。具体测量范围、样本与平台结论见[实施计划](../../docs/FrameStore-VersionStore/12-versionstore-implementation-plan.md)。
 
 该模型只证明公开组合和应用自行解释的图。Audit 不替代应用引用闭包检查；tag 关联注记不授予 RefRevision/ForkRef 能力。真实进程终止、Windows/WSL2 Linux、资源规模、故障窗口、隔离包消费与断电资格分别取证，不能由普通图成功推定。

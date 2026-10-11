@@ -1,0 +1,3633 @@
+{
+  "date": "2026-10-11",
+  "scope": "VersionStore V4-C WSL2/ext4 source regression and finite public resource observations; source-only",
+  "productionBaseline": "1176bd2255577b5b626f1171647b170adb444795",
+  "sourceIdentity": "Production unchanged; baseline plus listed LF-normalized source delta committed with this record",
+  "sourceFiles": [
+    {
+      "path": "tools/VersionStore.Smoke/ResourceScenario.cs",
+      "sha256Lf": "7e16f9a0deebc5edf4dff584798e87693de8bf4dfcd1040cd7dd7c019da389ed"
+    },
+    {
+      "path": "tools/VersionStore.Smoke/Program.cs",
+      "sha256Lf": "98c0a2dd527cccf01c1de34d664d56dc3f2ded488756b5ac7d6d7581164afce4"
+    },
+    {
+      "path": "tests/VersionStore.Tests/SystemIntegration/PublicProcessTests.cs",
+      "sha256Lf": "29b84c2cbb0defc62b2e6489c4440fe988631788b074d99588645c41343c7fa7"
+    }
+  ],
+  "linuxBaseline": {
+    "tests": {
+      "total": {
+        "Passed": 3262,
+        "NotExecuted": 2
+      },
+      "runs": [
+        {
+          "path": "artifacts/versionstore-v4c/linux-baseline/trx/_Tutu17_2026-10-11_13_20_11.trx",
+          "sha256": "543f08a47ee7b7243bd85733d9274d5b1f8895fef029176d48e64aded87ab3cb",
+          "bytes": 102486,
+          "assembly": "/var/tmp/atelia-storage-v4c-1176bd2.3f2q07/repo/tests/Primitives.Tests/bin/Release/net10.0/Atelia.Primitives.Tests.dll",
+          "results": {
+            "Passed": 75
+          },
+          "skipped": []
+        },
+        {
+          "path": "artifacts/versionstore-v4c/linux-baseline/trx/_Tutu17_2026-10-11_13_20_11[1].trx",
+          "sha256": "ffbdc568a15c43b9099d1be026116a2d8b13f8dc6625cf1a9c6e0504175ac58f",
+          "bytes": 394508,
+          "assembly": "/var/tmp/atelia-storage-v4c-1176bd2.3f2q07/repo/tests/Data.Tests/bin/Release/net10.0/Atelia.Data.Tests.dll",
+          "results": {
+            "Passed": 288
+          },
+          "skipped": []
+        },
+        {
+          "path": "artifacts/versionstore-v4c/linux-baseline/trx/_Tutu17_2026-10-11_13_20_12.trx",
+          "sha256": "9b85bedec72edfa822f08bce298ba491c946c04c69d696fd3e08a6b7078c603f",
+          "bytes": 304397,
+          "assembly": "/var/tmp/atelia-storage-v4c-1176bd2.3f2q07/repo/tests/Binary.Tests/bin/Release/net10.0/Atelia.Binary.Tests.dll",
+          "results": {
+            "Passed": 214
+          },
+          "skipped": []
+        },
+        {
+          "path": "artifacts/versionstore-v4c/linux-baseline/trx/_Tutu17_2026-10-11_13_20_12[1].trx",
+          "sha256": "fea9d9a5b0c53311885ee8b3b037cd1e8376a45e5e8d6dc3205dc6015ce8a3e9",
+          "bytes": 72211,
+          "assembly": "/var/tmp/atelia-storage-v4c-1176bd2.3f2q07/repo/tests/RbfSegmentStore.Tests/bin/Release/net10.0/Atelia.RbfSegmentStore.Tests.dll",
+          "results": {
+            "Passed": 48
+          },
+          "skipped": []
+        },
+        {
+          "path": "artifacts/versionstore-v4c/linux-baseline/trx/_Tutu17_2026-10-11_13_20_12[2].trx",
+          "sha256": "f609f5d9ddc087293f3048e82a19146ef2ac7dd290a4c831fe94a20f275ad522",
+          "bytes": 638645,
+          "assembly": "/var/tmp/atelia-storage-v4c-1176bd2.3f2q07/repo/tests/FrameStore.Tests/bin/Release/net10.0/Atelia.FrameStore.Tests.dll",
+          "results": {
+            "Passed": 424,
+            "NotExecuted": 1
+          },
+          "skipped": [
+            "Atelia.FrameStore.Tests.Platform.FrameStorePlatformTests.WindowsCallerRootAndParentSpellingIsNotPersistentCanonicalName"
+          ]
+        },
+        {
+          "path": "artifacts/versionstore-v4c/linux-baseline/trx/_Tutu17_2026-10-11_13_20_12[3].trx",
+          "sha256": "699210dad4dc13d34aac4d025238f7f22ee992a34aacf80f84f83b71cafcab8a",
+          "bytes": 1309884,
+          "assembly": "/var/tmp/atelia-storage-v4c-1176bd2.3f2q07/repo/tests/Rbf.Tests/bin/Release/net10.0/Atelia.Rbf.Tests.dll",
+          "results": {
+            "Passed": 920
+          },
+          "skipped": []
+        },
+        {
+          "path": "artifacts/versionstore-v4c/linux-baseline/trx/_Tutu17_2026-10-11_13_20_12[4].trx",
+          "sha256": "5c62c5c80623e34e18306cebebee47c36d0fd166a52c8b6bb468e470ece8e07b",
+          "bytes": 1829846,
+          "assembly": "/var/tmp/atelia-storage-v4c-1176bd2.3f2q07/repo/tests/VersionStore.Tests/bin/Release/net10.0/Atelia.VersionStore.Tests.dll",
+          "results": {
+            "Passed": 1171,
+            "NotExecuted": 1
+          },
+          "skipped": [
+            "Atelia.VersionStore.Tests.Platform.VersionStorePlatformTests.WindowsCallerRootAndParentSpellingIsNotPersistentCanonicalName"
+          ]
+        },
+        {
+          "path": "artifacts/versionstore-v4c/linux-baseline/trx/_Tutu17_2026-10-11_13_20_14.trx",
+          "sha256": "5e531cacce2b8c06b6edfec9c8e2ac100cbfc974e98be46045814d84faa17afd",
+          "bytes": 187088,
+          "assembly": "/var/tmp/atelia-storage-v4c-1176bd2.3f2q07/repo/tests/EventJournal.Toolkit.Tests/bin/Release/net10.0/Atelia.EventJournal.Toolkit.Tests.dll",
+          "results": {
+            "Passed": 122
+          },
+          "skipped": []
+        }
+      ],
+      "skipped": [
+        "Atelia.FrameStore.Tests.Platform.FrameStorePlatformTests.WindowsCallerRootAndParentSpellingIsNotPersistentCanonicalName",
+        "Atelia.VersionStore.Tests.Platform.VersionStorePlatformTests.WindowsCallerRootAndParentSpellingIsNotPersistentCanonicalName"
+      ]
+    },
+    "processes": {
+      "count": 71,
+      "killed": 10,
+      "normal": 61,
+      "manifest": {
+        "path": "artifacts/versionstore-v4c/linux-baseline/processes-manifest.json",
+        "sha256": "3bcfa3d2f6de5c72b6657036f37e57a7c2f75e8e8e787d7236884531f3508ac7",
+        "bytes": 31962
+      },
+      "lockRejections": [
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 70396,
+          "mode": "vs-read",
+          "stage": "versions",
+          "dataOpened": true,
+          "nativeCode": 11,
+          "lockFile": "versionstore.lock",
+          "errorType": "System.IO.IOException"
+        },
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 70354,
+          "mode": "vs-write",
+          "stage": "versions",
+          "dataOpened": true,
+          "nativeCode": 11,
+          "lockFile": "versionstore.lock",
+          "errorType": "System.IO.IOException"
+        },
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 70229,
+          "mode": "write",
+          "stage": "data",
+          "dataOpened": false,
+          "nativeCode": 11,
+          "lockFile": "framestore.lock",
+          "errorType": "System.IO.IOException"
+        },
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 70314,
+          "mode": "write",
+          "stage": "data",
+          "dataOpened": false,
+          "nativeCode": 11,
+          "lockFile": "framestore.lock",
+          "errorType": "System.IO.IOException"
+        },
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 70476,
+          "mode": "read",
+          "stage": "data",
+          "dataOpened": false,
+          "nativeCode": 11,
+          "lockFile": "framestore.lock",
+          "errorType": "System.IO.IOException"
+        },
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 70186,
+          "mode": "vs-write",
+          "stage": "versions",
+          "dataOpened": true,
+          "nativeCode": 11,
+          "lockFile": "versionstore.lock",
+          "errorType": "System.IO.IOException"
+        }
+      ],
+      "recoveryMessages": [
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 70066,
+          "checkpoint": "create-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 2,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 69983,
+          "checkpoint": "fork-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 164,
+              "finalLength": 164,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 2,
+          "refCount": 2,
+          "snapshotCount": 2,
+          "forkCount": 1,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 70154,
+          "checkpoint": "tag-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 1,
+          "forkCount": 0,
+          "tagCount": 1,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 69943,
+          "checkpoint": "unpublished-data",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 1,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 69991,
+          "checkpoint": "fork-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 164,
+              "finalLength": 164,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 2,
+          "refCount": 2,
+          "snapshotCount": 2,
+          "forkCount": 1,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 70146,
+          "checkpoint": "tag-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 1,
+          "forkCount": 0,
+          "tagCount": 1,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 70114,
+          "checkpoint": "ref-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 70074,
+          "checkpoint": "create-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 2,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 69951,
+          "checkpoint": "unpublished-data",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 1,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 70026,
+          "checkpoint": "confirmed-a-active-b",
+          "roPasses": 2,
+          "recoveryReports": 2,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 216,
+              "finalLength": 216,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            },
+            {
+              "fileId": 2,
+              "action": "None",
+              "originalLength": 112,
+              "finalLength": 112,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 70106,
+          "checkpoint": "ref-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 70034,
+          "checkpoint": "confirmed-a-active-b",
+          "roPasses": 2,
+          "recoveryReports": 2,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 216,
+              "finalLength": 216,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            },
+            {
+              "fileId": 2,
+              "action": "None",
+              "originalLength": 112,
+              "finalLength": 112,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        }
+      ]
+    },
+    "status": "Interrupted solution command; eight completed ext4 groups only",
+    "interruption": {
+      "path": "artifacts/versionstore-v4c/linux-baseline/interruption.json",
+      "sha256": "802bc56683b6b5dcbc3d6eb667696af068392c0cacae8619214b09e074a89939",
+      "bytes": 6253
+    },
+    "eventJournalTmpfs": {
+      "tests": {
+        "total": {
+          "Passed": 174
+        },
+        "runs": [
+          {
+            "path": "artifacts/versionstore-v4c/linux-baseline/eventjournal-tmpfs/trx/_Tutu17_2026-10-11_13_35_26.trx",
+            "sha256": "80c47549f7e8832b6ad6ac6c95ec52c48fe235e356cd08720a02911da533bb44",
+            "bytes": 246557,
+            "assembly": "/var/tmp/atelia-storage-v4c-1176bd2.3f2q07/repo/tests/EventJournal.Tests/bin/Release/net10.0/Atelia.EventJournal.Tests.dll",
+            "results": {
+              "Passed": 174
+            },
+            "skipped": []
+          }
+        ],
+        "skipped": []
+      },
+      "environment": {
+        "path": "artifacts/versionstore-v4c/linux-baseline/eventjournal-tmpfs/environment.json",
+        "sha256": "ce0c7965ff78da51224fe33ec4bdf4e3b18f9a4d628417754afceb0dac17e87d",
+        "bytes": 622
+      },
+      "result": {
+        "path": "artifacts/versionstore-v4c/linux-baseline/eventjournal-tmpfs/result.json",
+        "sha256": "96f40c23d62f8fcf5871d4b1cfd42b69e68f3b041882a585254dad6678035f9d",
+        "bytes": 571
+      }
+    },
+    "environment.json": {
+      "path": "artifacts/versionstore-v4c/linux-baseline/environment.json",
+      "sha256": "b3bb94295c9af7ded96e8ab06d9ea18219fe094acdcaa49432b5945afdf7b2a8",
+      "bytes": 2082
+    },
+    "summary.json": {
+      "path": "artifacts/versionstore-v4c/linux-baseline/summary.json",
+      "sha256": "232bb74e0f537ce247eac5f47dd70d582da4697e73efafc7f1f2d988c8b515f3",
+      "bytes": 68083
+    },
+    "commands.jsonl": {
+      "path": "artifacts/versionstore-v4c/linux-baseline/commands.jsonl",
+      "sha256": "773674cbd49ace2b26c2ea07f879eaefdbad2c23e331dcfa9925956ebcbd6cfc",
+      "bytes": 1381
+    },
+    "source-identity.json": {
+      "path": "artifacts/versionstore-v4c/linux-baseline/source-identity.json",
+      "sha256": "b12468268022e91c5a06e6d46fcab9f4626bf26565265b63d69b173f681f7edc",
+      "bytes": 414
+    },
+    "source-files.json": {
+      "path": "artifacts/versionstore-v4c/linux-baseline/source-files.json",
+      "sha256": "7bd66e83d1feae987b9916ad1a74d64af0cd118eb5e3dc7667fc13ccc5da7e0f",
+      "bytes": 140613
+    },
+    "evidence-files.json": {
+      "path": "artifacts/versionstore-v4c/linux-baseline/evidence-files.json",
+      "sha256": "ebdbb9b2aae2c6aa80fd4e234d7fb01297f792d0b42c05e620a43955f3fb169b",
+      "bytes": 19274
+    },
+    "resourceSamples": {}
+  },
+  "linuxDelta": {
+    "tests": {
+      "total": {
+        "Passed": 21
+      },
+      "runs": [
+        {
+          "path": "artifacts/versionstore-v4c/linux-delta/trx/_Tutu17_2026-10-11_13_43_57.trx",
+          "sha256": "81e69d6cdafd4050d7e97248f0c49a38516f368622369b9b505401bdc211dda6",
+          "bytes": 166753,
+          "assembly": "/var/tmp/atelia-storage-v4c-1176bd2.3f2q07/repo/tests/VersionStore.Tests/bin/Release/net10.0/Atelia.VersionStore.Tests.dll",
+          "results": {
+            "Passed": 21
+          },
+          "skipped": []
+        }
+      ],
+      "skipped": []
+    },
+    "processes": {
+      "count": 77,
+      "killed": 10,
+      "normal": 67,
+      "manifest": {
+        "path": "artifacts/versionstore-v4c/linux-delta/processes-manifest.json",
+        "sha256": "01886600fad5fcf4ca403f69f27ce8ce79b91472f634760732fe96aa4e5e0ee5",
+        "bytes": 34889
+      },
+      "lockRejections": [
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 72403,
+          "mode": "vs-read",
+          "stage": "versions",
+          "dataOpened": true,
+          "nativeCode": 11,
+          "lockFile": "versionstore.lock",
+          "errorType": "System.IO.IOException"
+        },
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 72487,
+          "mode": "read",
+          "stage": "data",
+          "dataOpened": false,
+          "nativeCode": 11,
+          "lockFile": "framestore.lock",
+          "errorType": "System.IO.IOException"
+        },
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 72240,
+          "mode": "write",
+          "stage": "data",
+          "dataOpened": false,
+          "nativeCode": 11,
+          "lockFile": "framestore.lock",
+          "errorType": "System.IO.IOException"
+        },
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 72323,
+          "mode": "write",
+          "stage": "data",
+          "dataOpened": false,
+          "nativeCode": 11,
+          "lockFile": "framestore.lock",
+          "errorType": "System.IO.IOException"
+        },
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 72363,
+          "mode": "vs-write",
+          "stage": "versions",
+          "dataOpened": true,
+          "nativeCode": 11,
+          "lockFile": "versionstore.lock",
+          "errorType": "System.IO.IOException"
+        },
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 72200,
+          "mode": "vs-write",
+          "stage": "versions",
+          "dataOpened": true,
+          "nativeCode": 11,
+          "lockFile": "versionstore.lock",
+          "errorType": "System.IO.IOException"
+        }
+      ],
+      "recoveryMessages": [
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 72120,
+          "checkpoint": "ref-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 72088,
+          "checkpoint": "create-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 2,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 72040,
+          "checkpoint": "confirmed-a-active-b",
+          "roPasses": 2,
+          "recoveryReports": 2,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 216,
+              "finalLength": 216,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            },
+            {
+              "fileId": 2,
+              "action": "None",
+              "originalLength": 112,
+              "finalLength": 112,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 71960,
+          "checkpoint": "unpublished-data",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 1,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 71968,
+          "checkpoint": "unpublished-data",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 1,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 72048,
+          "checkpoint": "confirmed-a-active-b",
+          "roPasses": 2,
+          "recoveryReports": 2,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 216,
+              "finalLength": 216,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            },
+            {
+              "fileId": 2,
+              "action": "None",
+              "originalLength": 112,
+              "finalLength": 112,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 72168,
+          "checkpoint": "tag-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 1,
+          "forkCount": 0,
+          "tagCount": 1,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 72080,
+          "checkpoint": "create-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 2,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 72000,
+          "checkpoint": "fork-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 164,
+              "finalLength": 164,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 2,
+          "refCount": 2,
+          "snapshotCount": 2,
+          "forkCount": 1,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 72128,
+          "checkpoint": "ref-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 72160,
+          "checkpoint": "tag-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 1,
+          "forkCount": 0,
+          "tagCount": 1,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 72008,
+          "checkpoint": "fork-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 164,
+              "finalLength": 164,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 2,
+          "refCount": 2,
+          "snapshotCount": 2,
+          "forkCount": 1,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        }
+      ]
+    },
+    "environment.json": {
+      "path": "artifacts/versionstore-v4c/linux-delta/environment.json",
+      "sha256": "0d2790b003524a3ca9f98b8361c85f60b2421eef1af3e8d24200881a1b531e73",
+      "bytes": 1573
+    },
+    "summary.json": {
+      "path": "artifacts/versionstore-v4c/linux-delta/summary.json",
+      "sha256": "0bfa21265265779cda1865683e9778ecf84f2f67c00d8e5271151cc23033386b",
+      "bytes": 135821
+    },
+    "commands.jsonl": {
+      "path": "artifacts/versionstore-v4c/linux-delta/commands.jsonl",
+      "sha256": "dc30f3d897890e2d473a7aa1f72fc9b7f13e370965ece69a8b9e661e5a2fb0e5",
+      "bytes": 1260
+    },
+    "source-delta.json": {
+      "path": "artifacts/versionstore-v4c/linux-delta/source-delta.json",
+      "sha256": "a6b45c46509d1cc586526d057ce7c9c1805f17ee85fb9a0f69350d41dcb97f04",
+      "bytes": 2896
+    },
+    "source-files.json": {
+      "path": "artifacts/versionstore-v4c/linux-delta/source-files.json",
+      "sha256": "9a1a649e4f2934cee58ff37662db52d03a0cf75615049bd3d5392fbaf531a06d",
+      "bytes": 308600
+    },
+    "evidence-files.json": {
+      "path": "artifacts/versionstore-v4c/linux-delta/evidence-files.json",
+      "sha256": "1b0fcdebc47f27b6657a70b553273f55ce34fc34ca3772151a32be811c52c849",
+      "bytes": 16698
+    },
+    "standalone256": {
+      "path": "artifacts/versionstore-v4c/linux-delta/resource-256/summary.json",
+      "sha256": "95aa24bc665191d48950f1cbd1e975c6ac61b62bd1d2e9890852ea5af5b116b4",
+      "bytes": 122785,
+      "root": "/var/tmp/atelia-storage-v4c-1176bd2.3f2q07/tmp-delta/resource-256",
+      "readOnlyUnchanged": true,
+      "processes": [
+        {
+          "pid": 72704,
+          "exitCode": 0,
+          "elapsedSeconds": 132.89526915550232,
+          "command": [
+            "dotnet",
+            "/var/tmp/atelia-storage-v4c-1176bd2.3f2q07/repo/tools/VersionStore.Smoke/bin/Release/net10.0/Atelia.VersionStore.Smoke.dll",
+            "resource-write",
+            "/var/tmp/atelia-storage-v4c-1176bd2.3f2q07/tmp-delta/resource-256",
+            "256"
+          ]
+        },
+        {
+          "pid": 72770,
+          "exitCode": 0,
+          "elapsedSeconds": 2.3609206676483154,
+          "command": [
+            "dotnet",
+            "/var/tmp/atelia-storage-v4c-1176bd2.3f2q07/repo/tools/VersionStore.Smoke/bin/Release/net10.0/Atelia.VersionStore.Smoke.dll",
+            "resource-read",
+            "/var/tmp/atelia-storage-v4c-1176bd2.3f2q07/tmp-delta/resource-256"
+          ]
+        },
+        {
+          "pid": 72778,
+          "exitCode": 0,
+          "elapsedSeconds": 2.40541410446167,
+          "command": [
+            "dotnet",
+            "/var/tmp/atelia-storage-v4c-1176bd2.3f2q07/repo/tools/VersionStore.Smoke/bin/Release/net10.0/Atelia.VersionStore.Smoke.dll",
+            "resource-read",
+            "/var/tmp/atelia-storage-v4c-1176bd2.3f2q07/tmp-delta/resource-256"
+          ]
+        }
+      ]
+    },
+    "resourceSamples": {
+      "64": {
+        "counts": {
+          "refs": 64,
+          "localSnapshots": 213,
+          "forks": 42,
+          "tags": 64,
+          "historySnapshots": 339,
+          "dataFrames": 171,
+          "actualTagBuckets": 32,
+          "maxTagRecordsPerBucket": 32
+        },
+        "operations": {
+          "traversal.dataOpenReadOnly": {
+            "samples": 2,
+            "medianMs": 40.2947,
+            "rangeMs": [
+              39.6123,
+              40.9771
+            ],
+            "medianAllocatedBytes": 26016.0
+          },
+          "traversal.versionOpenReadOnly": {
+            "samples": 2,
+            "medianMs": 8.8911,
+            "rangeMs": [
+              8.7403,
+              9.0419
+            ],
+            "medianAllocatedBytes": 21736.0
+          },
+          "ListRefs": {
+            "samples": 6,
+            "medianMs": 1.33365,
+            "rangeMs": [
+              1.1851,
+              10.9395
+            ],
+            "medianAllocatedBytes": 65024.0
+          },
+          "ListForks": {
+            "samples": 6,
+            "medianMs": 4.34265,
+            "rangeMs": [
+              4.1964,
+              15.8148
+            ],
+            "medianAllocatedBytes": 186120.0
+          },
+          "ReadRefHistory.all": {
+            "samples": 6,
+            "medianMs": 73.7071,
+            "rangeMs": [
+              64.0683,
+              100.8275
+            ],
+            "medianAllocatedBytes": 6197560.0
+          },
+          "ScanTags": {
+            "samples": 6,
+            "medianMs": 4.5558499999999995,
+            "rangeMs": [
+              3.75,
+              16.4371
+            ],
+            "medianAllocatedBytes": 192928.0
+          },
+          "Audit": {
+            "samples": 6,
+            "medianMs": 19.53385,
+            "rangeMs": [
+              16.0946,
+              26.1815
+            ],
+            "medianAllocatedBytes": 578496.0
+          },
+          "ReadTagInfo.ref-2": {
+            "samples": 6,
+            "medianMs": 1.0560999999999998,
+            "rangeMs": [
+              0.9386,
+              4.3276
+            ],
+            "medianAllocatedBytes": 41240.0
+          },
+          "ResolveTag.ref-2": {
+            "samples": 6,
+            "medianMs": 1.2304,
+            "rangeMs": [
+              1.1025,
+              3.7722
+            ],
+            "medianAllocatedBytes": 48496.0
+          },
+          "ReadTagInfo.ref-64": {
+            "samples": 6,
+            "medianMs": 0.9756,
+            "rangeMs": [
+              0.9485,
+              1.0186
+            ],
+            "medianAllocatedBytes": 41240.0
+          },
+          "ResolveTag.ref-64": {
+            "samples": 6,
+            "medianMs": 1.1392,
+            "rangeMs": [
+              1.0355,
+              1.2384
+            ],
+            "medianAllocatedBytes": 48752.0
+          },
+          "ReadTagInfo.ref-1": {
+            "samples": 6,
+            "medianMs": 0.7945,
+            "rangeMs": [
+              0.6988,
+              1.0632
+            ],
+            "medianAllocatedBytes": 37864.0
+          },
+          "ResolveTag.ref-1": {
+            "samples": 6,
+            "medianMs": 0.9471499999999999,
+            "rangeMs": [
+              0.9239,
+              0.9634
+            ],
+            "medianAllocatedBytes": 46360.0
+          },
+          "FrameStore.Audit": {
+            "samples": 2,
+            "medianMs": 6.72685,
+            "rangeMs": [
+              6.6571,
+              6.7966
+            ],
+            "medianAllocatedBytes": 16992.0
+          },
+          "cache.dataOpenReadOnly": {
+            "samples": 2,
+            "medianMs": 0.39255,
+            "rangeMs": [
+              0.3768,
+              0.4083
+            ],
+            "medianAllocatedBytes": 25240.0
+          },
+          "cache.versionOpenReadOnly": {
+            "samples": 2,
+            "medianMs": 0.4687,
+            "rangeMs": [
+              0.3541,
+              0.5833
+            ],
+            "medianAllocatedBytes": 21568.0
+          },
+          "ReadRef.all.ownerCache": {
+            "samples": 6,
+            "medianMs": 10.94735,
+            "rangeMs": [
+              10.6345,
+              24.9004
+            ],
+            "medianAllocatedBytes": 488968.0
+          },
+          "CreateTag.all.hotAndOrdinary": {
+            "samples": 1,
+            "medianMs": 5610.6534,
+            "rangeMs": [
+              5610.6534,
+              5610.6534
+            ],
+            "medianAllocatedBytes": 3655784
+          },
+          "writer.dataOpen": {
+            "samples": 1,
+            "medianMs": 6.0192,
+            "rangeMs": [
+              6.0192,
+              6.0192
+            ],
+            "medianAllocatedBytes": 28528
+          },
+          "writer.versionOpen": {
+            "samples": 1,
+            "medianMs": 3.2919,
+            "rangeMs": [
+              3.2919,
+              3.2919
+            ],
+            "medianAllocatedBytes": 84656
+          },
+          "writer.ListRefs": {
+            "samples": 1,
+            "medianMs": 1.2565,
+            "rangeMs": [
+              1.2565,
+              1.2565
+            ],
+            "medianAllocatedBytes": 64544
+          }
+        },
+        "checkpoints": [
+          {
+            "pid": 71917,
+            "versionFileDescriptors": {
+              "beforeOpen": 0,
+              "afterDataOpen": 0,
+              "afterVersionOpen": 1,
+              "afterTemporaryTraversal1": 1,
+              "afterTemporaryTraversal2": 1,
+              "afterTemporaryTraversal3": 1,
+              "afterTraversalVersionDispose": 0,
+              "afterTraversalDataDispose": 0,
+              "beforeReadRefCache": 1,
+              "afterReadRefCache1": 65,
+              "afterReadRefCache2": 65,
+              "afterReadRefCache3": 65,
+              "afterCacheVersionDispose": 0,
+              "afterCacheDataDispose": 0
+            },
+            "processHandles": {
+              "beforeOpen": null,
+              "afterDataOpen": null,
+              "afterVersionOpen": null,
+              "afterTemporaryTraversal1": null,
+              "afterTemporaryTraversal2": null,
+              "afterTemporaryTraversal3": null,
+              "afterTraversalVersionDispose": null,
+              "afterTraversalDataDispose": null,
+              "beforeReadRefCache": null,
+              "afterReadRefCache1": null,
+              "afterReadRefCache2": null,
+              "afterReadRefCache3": null,
+              "afterCacheVersionDispose": null,
+              "afterCacheDataDispose": null
+            },
+            "workingSetRangeBytes": [
+              47525888,
+              52764672
+            ],
+            "finalRootFileDescriptors": 0
+          },
+          {
+            "pid": 71925,
+            "versionFileDescriptors": {
+              "beforeOpen": 0,
+              "afterDataOpen": 0,
+              "afterVersionOpen": 1,
+              "afterTemporaryTraversal1": 1,
+              "afterTemporaryTraversal2": 1,
+              "afterTemporaryTraversal3": 1,
+              "afterTraversalVersionDispose": 0,
+              "afterTraversalDataDispose": 0,
+              "beforeReadRefCache": 1,
+              "afterReadRefCache1": 65,
+              "afterReadRefCache2": 65,
+              "afterReadRefCache3": 65,
+              "afterCacheVersionDispose": 0,
+              "afterCacheDataDispose": 0
+            },
+            "processHandles": {
+              "beforeOpen": null,
+              "afterDataOpen": null,
+              "afterVersionOpen": null,
+              "afterTemporaryTraversal1": null,
+              "afterTemporaryTraversal2": null,
+              "afterTemporaryTraversal3": null,
+              "afterTraversalVersionDispose": null,
+              "afterTraversalDataDispose": null,
+              "beforeReadRefCache": null,
+              "afterReadRefCache1": null,
+              "afterReadRefCache2": null,
+              "afterReadRefCache3": null,
+              "afterCacheVersionDispose": null,
+              "afterCacheDataDispose": null
+            },
+            "workingSetRangeBytes": [
+              47566848,
+              51613696
+            ],
+            "finalRootFileDescriptors": 0
+          }
+        ]
+      },
+      "16": {
+        "counts": {
+          "refs": 16,
+          "localSnapshots": 53,
+          "forks": 10,
+          "tags": 16,
+          "historySnapshots": 83,
+          "dataFrames": 43,
+          "actualTagBuckets": 8,
+          "maxTagRecordsPerBucket": 8
+        },
+        "operations": {
+          "traversal.dataOpenReadOnly": {
+            "samples": 2,
+            "medianMs": 39.77165,
+            "rangeMs": [
+              39.4804,
+              40.0629
+            ],
+            "medianAllocatedBytes": 32184.0
+          },
+          "traversal.versionOpenReadOnly": {
+            "samples": 2,
+            "medianMs": 9.3454,
+            "rangeMs": [
+              8.6779,
+              10.0129
+            ],
+            "medianAllocatedBytes": 21736.0
+          },
+          "ListRefs": {
+            "samples": 6,
+            "medianMs": 0.4536,
+            "rangeMs": [
+              0.3807,
+              11.5297
+            ],
+            "medianAllocatedBytes": 19472.0
+          },
+          "ListForks": {
+            "samples": 6,
+            "medianMs": 1.2737500000000002,
+            "rangeMs": [
+              1.0207,
+              11.9981
+            ],
+            "medianAllocatedBytes": 49272.0
+          },
+          "ReadRefHistory.all": {
+            "samples": 6,
+            "medianMs": 15.46845,
+            "rangeMs": [
+              15.1346,
+              54.3885
+            ],
+            "medianAllocatedBytes": 999304.0
+          },
+          "ScanTags": {
+            "samples": 6,
+            "medianMs": 1.27135,
+            "rangeMs": [
+              1.0159,
+              13.6963
+            ],
+            "medianAllocatedBytes": 51656.0
+          },
+          "Audit": {
+            "samples": 6,
+            "medianMs": 4.38345,
+            "rangeMs": [
+              3.9408,
+              14.6866
+            ],
+            "medianAllocatedBytes": 146992.0
+          },
+          "ReadTagInfo.ref-2": {
+            "samples": 6,
+            "medianMs": 0.4027,
+            "rangeMs": [
+              0.3077,
+              4.018
+            ],
+            "medianAllocatedBytes": 16664.0
+          },
+          "ResolveTag.ref-2": {
+            "samples": 6,
+            "medianMs": 0.76935,
+            "rangeMs": [
+              0.5194,
+              3.3273
+            ],
+            "medianAllocatedBytes": 23920.0
+          },
+          "ReadTagInfo.ref-16": {
+            "samples": 6,
+            "medianMs": 0.354,
+            "rangeMs": [
+              0.3177,
+              0.4031
+            ],
+            "medianAllocatedBytes": 16664.0
+          },
+          "ResolveTag.ref-16": {
+            "samples": 6,
+            "medianMs": 0.5697,
+            "rangeMs": [
+              0.4988,
+              0.5951
+            ],
+            "medianAllocatedBytes": 24176.0
+          },
+          "ReadTagInfo.ref-1": {
+            "samples": 6,
+            "medianMs": 0.3361,
+            "rangeMs": [
+              0.2962,
+              0.4686
+            ],
+            "medianAllocatedBytes": 15976.0
+          },
+          "ResolveTag.ref-1": {
+            "samples": 6,
+            "medianMs": 0.4726,
+            "rangeMs": [
+              0.3704,
+              0.5665
+            ],
+            "medianAllocatedBytes": 23704.0
+          },
+          "FrameStore.Audit": {
+            "samples": 2,
+            "medianMs": 5.34835,
+            "rangeMs": [
+              5.2241,
+              5.4726
+            ],
+            "medianAllocatedBytes": 9824.0
+          },
+          "cache.dataOpenReadOnly": {
+            "samples": 2,
+            "medianMs": 0.41759999999999997,
+            "rangeMs": [
+              0.3823,
+              0.4529
+            ],
+            "medianAllocatedBytes": 25240.0
+          },
+          "cache.versionOpenReadOnly": {
+            "samples": 2,
+            "medianMs": 0.2628,
+            "rangeMs": [
+              0.2406,
+              0.285
+            ],
+            "medianAllocatedBytes": 21568.0
+          },
+          "ReadRef.all.ownerCache": {
+            "samples": 6,
+            "medianMs": 2.39885,
+            "rangeMs": [
+              2.1085,
+              5.8846
+            ],
+            "medianAllocatedBytes": 119712.0
+          },
+          "CreateTag.all.hotAndOrdinary": {
+            "samples": 1,
+            "medianMs": 1465.5422,
+            "rangeMs": [
+              1465.5422,
+              1465.5422
+            ],
+            "medianAllocatedBytes": 516768
+          },
+          "writer.dataOpen": {
+            "samples": 1,
+            "medianMs": 7.7174,
+            "rangeMs": [
+              7.7174,
+              7.7174
+            ],
+            "medianAllocatedBytes": 28528
+          },
+          "writer.versionOpen": {
+            "samples": 1,
+            "medianMs": 2.4623,
+            "rangeMs": [
+              2.4623,
+              2.4623
+            ],
+            "medianAllocatedBytes": 40448
+          },
+          "writer.ListRefs": {
+            "samples": 1,
+            "medianMs": 0.4117,
+            "rangeMs": [
+              0.4117,
+              0.4117
+            ],
+            "medianAllocatedBytes": 19184
+          }
+        },
+        "checkpoints": [
+          {
+            "pid": 71866,
+            "versionFileDescriptors": {
+              "beforeOpen": 0,
+              "afterDataOpen": 0,
+              "afterVersionOpen": 1,
+              "afterTemporaryTraversal1": 1,
+              "afterTemporaryTraversal2": 1,
+              "afterTemporaryTraversal3": 1,
+              "afterTraversalVersionDispose": 0,
+              "afterTraversalDataDispose": 0,
+              "beforeReadRefCache": 1,
+              "afterReadRefCache1": 17,
+              "afterReadRefCache2": 17,
+              "afterReadRefCache3": 17,
+              "afterCacheVersionDispose": 0,
+              "afterCacheDataDispose": 0
+            },
+            "processHandles": {
+              "beforeOpen": null,
+              "afterDataOpen": null,
+              "afterVersionOpen": null,
+              "afterTemporaryTraversal1": null,
+              "afterTemporaryTraversal2": null,
+              "afterTemporaryTraversal3": null,
+              "afterTraversalVersionDispose": null,
+              "afterTraversalDataDispose": null,
+              "beforeReadRefCache": null,
+              "afterReadRefCache1": null,
+              "afterReadRefCache2": null,
+              "afterReadRefCache3": null,
+              "afterCacheVersionDispose": null,
+              "afterCacheDataDispose": null
+            },
+            "workingSetRangeBytes": [
+              43659264,
+              50298880
+            ],
+            "finalRootFileDescriptors": 0
+          },
+          {
+            "pid": 71856,
+            "versionFileDescriptors": {
+              "beforeOpen": 0,
+              "afterDataOpen": 0,
+              "afterVersionOpen": 1,
+              "afterTemporaryTraversal1": 1,
+              "afterTemporaryTraversal2": 1,
+              "afterTemporaryTraversal3": 1,
+              "afterTraversalVersionDispose": 0,
+              "afterTraversalDataDispose": 0,
+              "beforeReadRefCache": 1,
+              "afterReadRefCache1": 17,
+              "afterReadRefCache2": 17,
+              "afterReadRefCache3": 17,
+              "afterCacheVersionDispose": 0,
+              "afterCacheDataDispose": 0
+            },
+            "processHandles": {
+              "beforeOpen": null,
+              "afterDataOpen": null,
+              "afterVersionOpen": null,
+              "afterTemporaryTraversal1": null,
+              "afterTemporaryTraversal2": null,
+              "afterTemporaryTraversal3": null,
+              "afterTraversalVersionDispose": null,
+              "afterTraversalDataDispose": null,
+              "beforeReadRefCache": null,
+              "afterReadRefCache1": null,
+              "afterReadRefCache2": null,
+              "afterReadRefCache3": null,
+              "afterCacheVersionDispose": null,
+              "afterCacheDataDispose": null
+            },
+            "workingSetRangeBytes": [
+              43651072,
+              50139136
+            ],
+            "finalRootFileDescriptors": 0
+          }
+        ]
+      },
+      "256": {
+        "counts": {
+          "refs": 256,
+          "localSnapshots": 853,
+          "forks": 170,
+          "tags": 256,
+          "historySnapshots": 1363,
+          "dataFrames": 683,
+          "actualTagBuckets": 122,
+          "maxTagRecordsPerBucket": 128
+        },
+        "operations": {
+          "traversal.dataOpenReadOnly": {
+            "samples": 2,
+            "medianMs": 44.1528,
+            "rangeMs": [
+              43.2353,
+              45.0703
+            ],
+            "medianAllocatedBytes": 21408.0
+          },
+          "traversal.versionOpenReadOnly": {
+            "samples": 2,
+            "medianMs": 9.8163,
+            "rangeMs": [
+              9.4314,
+              10.2012
+            ],
+            "medianAllocatedBytes": 17608.0
+          },
+          "ListRefs": {
+            "samples": 6,
+            "medianMs": 5.48865,
+            "rangeMs": [
+              4.6545,
+              16.3755
+            ],
+            "medianAllocatedBytes": 172400.0
+          },
+          "ListForks": {
+            "samples": 6,
+            "medianMs": 19.899,
+            "rangeMs": [
+              16.3707,
+              29.0945
+            ],
+            "medianAllocatedBytes": 635400.0
+          },
+          "ReadRefHistory.all": {
+            "samples": 6,
+            "medianMs": 418.34995000000004,
+            "rangeMs": [
+              399.9735,
+              427.5411
+            ],
+            "medianAllocatedBytes": 45354432.0
+          },
+          "ScanTags": {
+            "samples": 6,
+            "medianMs": 17.4598,
+            "rangeMs": [
+              13.2953,
+              31.0307
+            ],
+            "medianAllocatedBytes": 577416.0
+          },
+          "Audit": {
+            "samples": 6,
+            "medianMs": 77.1567,
+            "rangeMs": [
+              59.5709,
+              81.0543
+            ],
+            "medianAllocatedBytes": 1889288.0
+          },
+          "ReadTagInfo.ref-2": {
+            "samples": 6,
+            "medianMs": 3.88025,
+            "rangeMs": [
+              2.8872,
+              11.7808
+            ],
+            "medianAllocatedBytes": 97112.0
+          },
+          "ResolveTag.ref-2": {
+            "samples": 6,
+            "medianMs": 3.92475,
+            "rangeMs": [
+              3.0157,
+              6.7101
+            ],
+            "medianAllocatedBytes": 103696.0
+          },
+          "ReadTagInfo.ref-256": {
+            "samples": 6,
+            "medianMs": 3.3522499999999997,
+            "rangeMs": [
+              3.1411,
+              4.0629
+            ],
+            "medianAllocatedBytes": 97112.0
+          },
+          "ResolveTag.ref-256": {
+            "samples": 6,
+            "medianMs": 3.9896,
+            "rangeMs": [
+              3.2823,
+              4.4092
+            ],
+            "medianAllocatedBytes": 103952.0
+          },
+          "ReadTagInfo.ref-1": {
+            "samples": 6,
+            "medianMs": 2.7462,
+            "rangeMs": [
+              2.1804,
+              3.0908
+            ],
+            "medianAllocatedBytes": 82984.0
+          },
+          "ResolveTag.ref-1": {
+            "samples": 6,
+            "medianMs": 2.69705,
+            "rangeMs": [
+              2.1919,
+              2.9953
+            ],
+            "medianAllocatedBytes": 93880.0
+          },
+          "FrameStore.Audit": {
+            "samples": 2,
+            "medianMs": 10.0557,
+            "rangeMs": [
+              9.6411,
+              10.4703
+            ],
+            "medianAllocatedBytes": 44608.0
+          },
+          "cache.dataOpenReadOnly": {
+            "samples": 2,
+            "medianMs": 0.50525,
+            "rangeMs": [
+              0.4055,
+              0.605
+            ],
+            "medianAllocatedBytes": 20632.0
+          },
+          "cache.versionOpenReadOnly": {
+            "samples": 2,
+            "medianMs": 0.348,
+            "rangeMs": [
+              0.292,
+              0.404
+            ],
+            "medianAllocatedBytes": 17440.0
+          },
+          "ReadRef.all.ownerCache": {
+            "samples": 6,
+            "medianMs": 36.516949999999994,
+            "rangeMs": [
+              29.282,
+              130.4004
+            ],
+            "medianAllocatedBytes": 1752644.0
+          },
+          "CreateTag.all.hotAndOrdinary": {
+            "samples": 1,
+            "medianMs": 23412.8173,
+            "rangeMs": [
+              23412.8173,
+              23412.8173
+            ],
+            "medianAllocatedBytes": 27815616
+          },
+          "writer.dataOpen": {
+            "samples": 1,
+            "medianMs": 7.1276,
+            "rangeMs": [
+              7.1276,
+              7.1276
+            ],
+            "medianAllocatedBytes": 23248
+          },
+          "writer.versionOpen": {
+            "samples": 1,
+            "medianMs": 6.0984,
+            "rangeMs": [
+              6.0984,
+              6.0984
+            ],
+            "medianAllocatedBytes": 182528
+          },
+          "writer.ListRefs": {
+            "samples": 1,
+            "medianMs": 4.3089,
+            "rangeMs": [
+              4.3089,
+              4.3089
+            ],
+            "medianAllocatedBytes": 171152
+          }
+        },
+        "checkpoints": [
+          {
+            "pid": 72770,
+            "versionFileDescriptors": {
+              "beforeOpen": 0,
+              "afterDataOpen": 0,
+              "afterVersionOpen": 1,
+              "afterTemporaryTraversal1": 1,
+              "afterTemporaryTraversal2": 1,
+              "afterTemporaryTraversal3": 1,
+              "afterTraversalVersionDispose": 0,
+              "afterTraversalDataDispose": 0,
+              "beforeReadRefCache": 1,
+              "afterReadRefCache1": 257,
+              "afterReadRefCache2": 257,
+              "afterReadRefCache3": 257,
+              "afterCacheVersionDispose": 0,
+              "afterCacheDataDispose": 0
+            },
+            "processHandles": {
+              "beforeOpen": null,
+              "afterDataOpen": null,
+              "afterVersionOpen": null,
+              "afterTemporaryTraversal1": null,
+              "afterTemporaryTraversal2": null,
+              "afterTemporaryTraversal3": null,
+              "afterTraversalVersionDispose": null,
+              "afterTraversalDataDispose": null,
+              "beforeReadRefCache": null,
+              "afterReadRefCache1": null,
+              "afterReadRefCache2": null,
+              "afterReadRefCache3": null,
+              "afterCacheVersionDispose": null,
+              "afterCacheDataDispose": null
+            },
+            "workingSetRangeBytes": [
+              47644672,
+              58236928
+            ],
+            "finalRootFileDescriptors": 0
+          },
+          {
+            "pid": 72778,
+            "versionFileDescriptors": {
+              "beforeOpen": 0,
+              "afterDataOpen": 0,
+              "afterVersionOpen": 1,
+              "afterTemporaryTraversal1": 1,
+              "afterTemporaryTraversal2": 1,
+              "afterTemporaryTraversal3": 1,
+              "afterTraversalVersionDispose": 0,
+              "afterTraversalDataDispose": 0,
+              "beforeReadRefCache": 1,
+              "afterReadRefCache1": 257,
+              "afterReadRefCache2": 257,
+              "afterReadRefCache3": 257,
+              "afterCacheVersionDispose": 0,
+              "afterCacheDataDispose": 0
+            },
+            "processHandles": {
+              "beforeOpen": null,
+              "afterDataOpen": null,
+              "afterVersionOpen": null,
+              "afterTemporaryTraversal1": null,
+              "afterTemporaryTraversal2": null,
+              "afterTemporaryTraversal3": null,
+              "afterTraversalVersionDispose": null,
+              "afterTraversalDataDispose": null,
+              "beforeReadRefCache": null,
+              "afterReadRefCache1": null,
+              "afterReadRefCache2": null,
+              "afterReadRefCache3": null,
+              "afterCacheVersionDispose": null,
+              "afterCacheDataDispose": null
+            },
+            "workingSetRangeBytes": [
+              47734784,
+              56958976
+            ],
+            "finalRootFileDescriptors": 0
+          }
+        ]
+      }
+    }
+  },
+  "windows": {
+    "tests": {
+      "total": {
+        "Passed": 3431,
+        "NotExecuted": 9
+      },
+      "runs": [
+        {
+          "path": "artifacts/versionstore-v4c/windows/trx/gdtutu_TUTU17_2026-10-11_13_38_09.trx",
+          "sha256": "8c4ce64431cfe54076fd75e1eddff8e429c31862cde9482b1af7d21ca06ac333",
+          "bytes": 101081,
+          "assembly": "E:\\repos\\Atelia-org\\atelia-storage\\tests\\Primitives.Tests\\bin\\Release\\net10.0\\Atelia.Primitives.Tests.dll",
+          "results": {
+            "Passed": 75
+          },
+          "skipped": []
+        },
+        {
+          "path": "artifacts/versionstore-v4c/windows/trx/gdtutu_TUTU17_2026-10-11_13_38_10.trx",
+          "sha256": "7c3dcd472fe4e38f7bcc5eecb018eb8629ead8cf438f3c88e762c0f8304d2d12",
+          "bytes": 389195,
+          "assembly": "E:\\repos\\Atelia-org\\atelia-storage\\tests\\Data.Tests\\bin\\Release\\net10.0\\Atelia.Data.Tests.dll",
+          "results": {
+            "Passed": 288
+          },
+          "skipped": []
+        },
+        {
+          "path": "artifacts/versionstore-v4c/windows/trx/gdtutu_TUTU17_2026-10-11_13_38_10[1].trx",
+          "sha256": "7a43ca9acb563271c13019761a1e0a17d7e6985166c7d7983912a3f2af452430",
+          "bytes": 71346,
+          "assembly": "E:\\repos\\Atelia-org\\atelia-storage\\tests\\RbfSegmentStore.Tests\\bin\\Release\\net10.0\\Atelia.RbfSegmentStore.Tests.dll",
+          "results": {
+            "Passed": 48
+          },
+          "skipped": []
+        },
+        {
+          "path": "artifacts/versionstore-v4c/windows/trx/gdtutu_TUTU17_2026-10-11_13_38_10[2].trx",
+          "sha256": "be340236c31c3209181ba2cac03156bc78ad87c7847d2231c978c732fa68dad4",
+          "bytes": 631534,
+          "assembly": "E:\\repos\\Atelia-org\\atelia-storage\\tests\\FrameStore.Tests\\bin\\Release\\net10.0\\Atelia.FrameStore.Tests.dll",
+          "results": {
+            "Passed": 422,
+            "NotExecuted": 3
+          },
+          "skipped": [
+            "Atelia.FrameStore.Tests.Platform.FrameStorePlatformTests.LinuxFifoIsRejectedWithoutBlockingOrWriting",
+            "Atelia.FrameStore.Tests.Platform.FrameStorePlatformTests.LinuxDifferentMountIsRejectedBeforeMutation",
+            "Atelia.FrameStore.Tests.Platform.FrameStorePlatformTests.LinuxFileSymlinkIncludingDanglingLinkIsRejected"
+          ]
+        },
+        {
+          "path": "artifacts/versionstore-v4c/windows/trx/gdtutu_TUTU17_2026-10-11_13_38_10[3].trx",
+          "sha256": "c5daa4aa9c5ae75662deccd54ad2fed7da2fcce4b8c2f89f709cec3406366011",
+          "bytes": 243458,
+          "assembly": "E:\\repos\\Atelia-org\\atelia-storage\\tests\\EventJournal.Tests\\bin\\Release\\net10.0\\Atelia.EventJournal.Tests.dll",
+          "results": {
+            "Passed": 174
+          },
+          "skipped": []
+        },
+        {
+          "path": "artifacts/versionstore-v4c/windows/trx/gdtutu_TUTU17_2026-10-11_13_38_11.trx",
+          "sha256": "b944402aa191ab63872ba5c52162731589498d0a82ebedc9b55c807d36ec894a",
+          "bytes": 300212,
+          "assembly": "E:\\repos\\Atelia-org\\atelia-storage\\tests\\Binary.Tests\\bin\\Release\\net10.0\\Atelia.Binary.Tests.dll",
+          "results": {
+            "Passed": 214
+          },
+          "skipped": []
+        },
+        {
+          "path": "artifacts/versionstore-v4c/windows/trx/gdtutu_TUTU17_2026-10-11_13_38_11[1].trx",
+          "sha256": "1d3ac93f2165395bec464dd6b6068ae4b065fc5e9d7d0946e45b94966ff3ecb5",
+          "bytes": 184743,
+          "assembly": "E:\\repos\\Atelia-org\\atelia-storage\\tests\\EventJournal.Toolkit.Tests\\bin\\Release\\net10.0\\Atelia.EventJournal.Toolkit.Tests.dll",
+          "results": {
+            "Passed": 122
+          },
+          "skipped": []
+        },
+        {
+          "path": "artifacts/versionstore-v4c/windows/trx/gdtutu_TUTU17_2026-10-11_13_38_11[2].trx",
+          "sha256": "db8ac6f49dcecba63ab23fcaa4b6bc15b3cc6f5e14f6e433cd04c73f40e20083",
+          "bytes": 1291599,
+          "assembly": "E:\\repos\\Atelia-org\\atelia-storage\\tests\\Rbf.Tests\\bin\\Release\\net10.0\\Atelia.Rbf.Tests.dll",
+          "results": {
+            "Passed": 920
+          },
+          "skipped": []
+        },
+        {
+          "path": "artifacts/versionstore-v4c/windows/trx/gdtutu_TUTU17_2026-10-11_13_38_11[3].trx",
+          "sha256": "c7aff1a14d8f6725f1a19ac01e1aea9ad78027254cf8a2a143345d8605ba3647",
+          "bytes": 1919538,
+          "assembly": "E:\\repos\\Atelia-org\\atelia-storage\\tests\\VersionStore.Tests\\bin\\Release\\net10.0\\Atelia.VersionStore.Tests.dll",
+          "results": {
+            "Passed": 1168,
+            "NotExecuted": 6
+          },
+          "skipped": [
+            "Atelia.VersionStore.Tests.Platform.VersionStorePlatformTests.LinuxFifoIsRejectedWithoutBlockingOrWriting",
+            "Atelia.VersionStore.Tests.Public.PublicPathAdmissionTests.FileSymlinkAtNecessaryRefTargetIsRejectedWithoutFollowingOrRepairingIt",
+            "Atelia.VersionStore.Tests.Platform.VersionStorePlatformTests.LinuxDifferentMountIsRejectedBeforeMutation",
+            "Atelia.VersionStore.Tests.Public.PublicPathAdmissionTests.PendingFifoIsRejectedWithoutOpeningBlockingOrDeletingIt",
+            "Atelia.VersionStore.Tests.Platform.VersionStorePlatformTests.LinuxCanonicalManagedComponentAndCaseAliasCannotCoexist",
+            "Atelia.VersionStore.Tests.Platform.VersionStorePlatformTests.LinuxFileSymlinkIncludingDanglingLinkIsRejected"
+          ]
+        }
+      ],
+      "skipped": [
+        "Atelia.FrameStore.Tests.Platform.FrameStorePlatformTests.LinuxFifoIsRejectedWithoutBlockingOrWriting",
+        "Atelia.FrameStore.Tests.Platform.FrameStorePlatformTests.LinuxDifferentMountIsRejectedBeforeMutation",
+        "Atelia.FrameStore.Tests.Platform.FrameStorePlatformTests.LinuxFileSymlinkIncludingDanglingLinkIsRejected",
+        "Atelia.VersionStore.Tests.Platform.VersionStorePlatformTests.LinuxFifoIsRejectedWithoutBlockingOrWriting",
+        "Atelia.VersionStore.Tests.Public.PublicPathAdmissionTests.FileSymlinkAtNecessaryRefTargetIsRejectedWithoutFollowingOrRepairingIt",
+        "Atelia.VersionStore.Tests.Platform.VersionStorePlatformTests.LinuxDifferentMountIsRejectedBeforeMutation",
+        "Atelia.VersionStore.Tests.Public.PublicPathAdmissionTests.PendingFifoIsRejectedWithoutOpeningBlockingOrDeletingIt",
+        "Atelia.VersionStore.Tests.Platform.VersionStorePlatformTests.LinuxCanonicalManagedComponentAndCaseAliasCannotCoexist",
+        "Atelia.VersionStore.Tests.Platform.VersionStorePlatformTests.LinuxFileSymlinkIncludingDanglingLinkIsRejected"
+      ]
+    },
+    "processes": {
+      "count": 77,
+      "killed": 10,
+      "normal": 67,
+      "manifest": {
+        "path": "artifacts/versionstore-v4c/windows/processes-manifest.json",
+        "sha256": "0cbfb44c2502946994b557730be074913a724784c3736a5f4b843173f97ed5ca",
+        "bytes": 31326
+      },
+      "lockRejections": [
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 16284,
+          "mode": "vs-write",
+          "stage": "versions",
+          "dataOpened": true,
+          "nativeCode": 32,
+          "lockFile": "versionstore.lock",
+          "errorType": "System.IO.IOException"
+        },
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 29352,
+          "mode": "read",
+          "stage": "data",
+          "dataOpened": false,
+          "nativeCode": 32,
+          "lockFile": "framestore.lock",
+          "errorType": "System.IO.IOException"
+        },
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 37252,
+          "mode": "write",
+          "stage": "data",
+          "dataOpened": false,
+          "nativeCode": 32,
+          "lockFile": "framestore.lock",
+          "errorType": "System.IO.IOException"
+        },
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 23532,
+          "mode": "vs-read",
+          "stage": "versions",
+          "dataOpened": true,
+          "nativeCode": 32,
+          "lockFile": "versionstore.lock",
+          "errorType": "System.IO.IOException"
+        },
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 19304,
+          "mode": "vs-write",
+          "stage": "versions",
+          "dataOpened": true,
+          "nativeCode": 32,
+          "lockFile": "versionstore.lock",
+          "errorType": "System.IO.IOException"
+        },
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 35560,
+          "mode": "write",
+          "stage": "data",
+          "dataOpened": false,
+          "nativeCode": 32,
+          "lockFile": "framestore.lock",
+          "errorType": "System.IO.IOException"
+        }
+      ],
+      "recoveryMessages": [
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 30308,
+          "checkpoint": "ref-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 29452,
+          "checkpoint": "confirmed-a-active-b",
+          "roPasses": 2,
+          "recoveryReports": 2,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 216,
+              "finalLength": 216,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            },
+            {
+              "fileId": 2,
+              "action": "None",
+              "originalLength": 112,
+              "finalLength": 112,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 7932,
+          "checkpoint": "create-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 2,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 33472,
+          "checkpoint": "fork-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 164,
+              "finalLength": 164,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 2,
+          "refCount": 2,
+          "snapshotCount": 2,
+          "forkCount": 1,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 21244,
+          "checkpoint": "confirmed-a-active-b",
+          "roPasses": 2,
+          "recoveryReports": 2,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 216,
+              "finalLength": 216,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            },
+            {
+              "fileId": 2,
+              "action": "None",
+              "originalLength": 112,
+              "finalLength": 112,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 29076,
+          "checkpoint": "unpublished-data",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 1,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 14800,
+          "checkpoint": "unpublished-data",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 1,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 35280,
+          "checkpoint": "create-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 2,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 34212,
+          "checkpoint": "tag-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 1,
+          "forkCount": 0,
+          "tagCount": 1,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 34536,
+          "checkpoint": "tag-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 1,
+          "forkCount": 0,
+          "tagCount": 1,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 35636,
+          "checkpoint": "ref-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 36276,
+          "checkpoint": "fork-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 164,
+              "finalLength": 164,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 2,
+          "refCount": 2,
+          "snapshotCount": 2,
+          "forkCount": 1,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        }
+      ]
+    },
+    "environment.json": {
+      "path": "artifacts/versionstore-v4c/windows/environment.json",
+      "sha256": "402e83e8d7275f5b08f07703a2dbf099c2222f60ebe411add43f7b49f2829d5c",
+      "bytes": 465
+    },
+    "commands.jsonl": {
+      "path": "artifacts/versionstore-v4c/windows/commands.jsonl",
+      "sha256": "ca5e2b2c36ac0e7785565154dae248d8083fdb7256f2f544c2973edd058542fb",
+      "bytes": 1076
+    },
+    "standalone256": {
+      "path": "artifacts/versionstore-v4c/windows/resource-256/summary.json",
+      "sha256": "211913a5c6edb27e72faf67eb5f47fe896bf5ab69260b294c8e3c5a51b1ccccf",
+      "bytes": 128526,
+      "root": "W:\\temp\\atelia-versionstore-v4c-resource256-d7099bdff1ce4c19851fb4454388195d",
+      "readOnlyUnchanged": true,
+      "processes": [
+        {
+          "pid": 35508,
+          "exitCode": 0,
+          "elapsedSeconds": 20.047616004943848,
+          "command": [
+            "dotnet",
+            "E:\\repos\\Atelia-org\\atelia-storage\\tools\\VersionStore.Smoke\\bin\\Release\\net10.0\\Atelia.VersionStore.Smoke.dll",
+            "resource-write",
+            "W:\\temp\\atelia-versionstore-v4c-resource256-d7099bdff1ce4c19851fb4454388195d",
+            "256"
+          ]
+        },
+        {
+          "pid": 23508,
+          "exitCode": 0,
+          "elapsedSeconds": 14.293270349502563,
+          "command": [
+            "dotnet",
+            "E:\\repos\\Atelia-org\\atelia-storage\\tools\\VersionStore.Smoke\\bin\\Release\\net10.0\\Atelia.VersionStore.Smoke.dll",
+            "resource-read",
+            "W:\\temp\\atelia-versionstore-v4c-resource256-d7099bdff1ce4c19851fb4454388195d"
+          ]
+        },
+        {
+          "pid": 25352,
+          "exitCode": 0,
+          "elapsedSeconds": 13.2194344997406,
+          "command": [
+            "dotnet",
+            "E:\\repos\\Atelia-org\\atelia-storage\\tools\\VersionStore.Smoke\\bin\\Release\\net10.0\\Atelia.VersionStore.Smoke.dll",
+            "resource-read",
+            "W:\\temp\\atelia-versionstore-v4c-resource256-d7099bdff1ce4c19851fb4454388195d"
+          ]
+        }
+      ]
+    },
+    "resourceSamples": {
+      "64": {
+        "counts": {
+          "refs": 64,
+          "localSnapshots": 213,
+          "forks": 42,
+          "tags": 64,
+          "historySnapshots": 339,
+          "dataFrames": 171,
+          "actualTagBuckets": 32,
+          "maxTagRecordsPerBucket": 32
+        },
+        "operations": {
+          "traversal.dataOpenReadOnly": {
+            "samples": 2,
+            "medianMs": 54.720200000000006,
+            "rangeMs": [
+              53.8718,
+              55.5686
+            ],
+            "medianAllocatedBytes": 54792.0
+          },
+          "traversal.versionOpenReadOnly": {
+            "samples": 2,
+            "medianMs": 15.87585,
+            "rangeMs": [
+              15.3546,
+              16.3971
+            ],
+            "medianAllocatedBytes": 46152.0
+          },
+          "ListRefs": {
+            "samples": 6,
+            "medianMs": 50.733149999999995,
+            "rangeMs": [
+              46.4925,
+              56.9175
+            ],
+            "medianAllocatedBytes": 557816.0
+          },
+          "ListForks": {
+            "samples": 6,
+            "medianMs": 108.38435,
+            "rangeMs": [
+              105.7529,
+              113.7847
+            ],
+            "medianAllocatedBytes": 1172704.0
+          },
+          "ReadRefHistory.all": {
+            "samples": 6,
+            "medianMs": 501.7121,
+            "rangeMs": [
+              415.0523,
+              550.6704
+            ],
+            "medianAllocatedBytes": 8401592.0
+          },
+          "ScanTags": {
+            "samples": 6,
+            "medianMs": 77.5566,
+            "rangeMs": [
+              67.3003,
+              84.235
+            ],
+            "medianAllocatedBytes": 816248.0
+          },
+          "Audit": {
+            "samples": 6,
+            "medianMs": 279.9246,
+            "rangeMs": [
+              252.4074,
+              366.402
+            ],
+            "medianAllocatedBytes": 3005648.0
+          },
+          "ReadTagInfo.ref-2": {
+            "samples": 6,
+            "medianMs": 28.008,
+            "rangeMs": [
+              25.2315,
+              31.8725
+            ],
+            "medianAllocatedBytes": 302096.0
+          },
+          "ResolveTag.ref-2": {
+            "samples": 6,
+            "medianMs": 27.944000000000003,
+            "rangeMs": [
+              26.441,
+              31.7827
+            ],
+            "medianAllocatedBytes": 311816.0
+          },
+          "ReadTagInfo.ref-64": {
+            "samples": 6,
+            "medianMs": 25.990000000000002,
+            "rangeMs": [
+              23.067,
+              29.9829
+            ],
+            "medianAllocatedBytes": 302096.0
+          },
+          "ResolveTag.ref-64": {
+            "samples": 6,
+            "medianMs": 25.9649,
+            "rangeMs": [
+              23.6885,
+              29.6275
+            ],
+            "medianAllocatedBytes": 312072.0
+          },
+          "ReadTagInfo.ref-1": {
+            "samples": 6,
+            "medianMs": 23.104,
+            "rangeMs": [
+              22.3412,
+              28.2281
+            ],
+            "medianAllocatedBytes": 298720.0
+          },
+          "ResolveTag.ref-1": {
+            "samples": 6,
+            "medianMs": 24.8296,
+            "rangeMs": [
+              23.1528,
+              28.7905
+            ],
+            "medianAllocatedBytes": 309128.0
+          },
+          "FrameStore.Audit": {
+            "samples": 2,
+            "medianMs": 10.9229,
+            "rangeMs": [
+              10.7346,
+              11.1112
+            ],
+            "medianAllocatedBytes": 33312.0
+          },
+          "cache.dataOpenReadOnly": {
+            "samples": 2,
+            "medianMs": 4.1800999999999995,
+            "rangeMs": [
+              4.042,
+              4.3182
+            ],
+            "medianAllocatedBytes": 53696.0
+          },
+          "cache.versionOpenReadOnly": {
+            "samples": 2,
+            "medianMs": 3.4105999999999996,
+            "rangeMs": [
+              3.3457,
+              3.4755
+            ],
+            "medianAllocatedBytes": 45888.0
+          },
+          "ReadRef.all.ownerCache": {
+            "samples": 6,
+            "medianMs": 38.90565,
+            "rangeMs": [
+              36.5716,
+              150.9552
+            ],
+            "medianAllocatedBytes": 600992.0
+          },
+          "CreateTag.all.hotAndOrdinary": {
+            "samples": 1,
+            "medianMs": 1535.6296,
+            "rangeMs": [
+              1535.6296,
+              1535.6296
+            ],
+            "medianAllocatedBytes": 17456400
+          },
+          "writer.dataOpen": {
+            "samples": 1,
+            "medianMs": 17.5918,
+            "rangeMs": [
+              17.5918,
+              17.5918
+            ],
+            "medianAllocatedBytes": 57976
+          },
+          "writer.versionOpen": {
+            "samples": 1,
+            "medianMs": 48.7334,
+            "rangeMs": [
+              48.7334,
+              48.7334
+            ],
+            "medianAllocatedBytes": 601768
+          },
+          "writer.ListRefs": {
+            "samples": 1,
+            "medianMs": 41.7947,
+            "rangeMs": [
+              41.7947,
+              41.7947
+            ],
+            "medianAllocatedBytes": 557336
+          }
+        },
+        "checkpoints": [
+          {
+            "pid": 24696,
+            "versionFileDescriptors": {
+              "beforeOpen": null,
+              "afterDataOpen": null,
+              "afterVersionOpen": null,
+              "afterTemporaryTraversal1": null,
+              "afterTemporaryTraversal2": null,
+              "afterTemporaryTraversal3": null,
+              "afterTraversalVersionDispose": null,
+              "afterTraversalDataDispose": null,
+              "beforeReadRefCache": null,
+              "afterReadRefCache1": null,
+              "afterReadRefCache2": null,
+              "afterReadRefCache3": null,
+              "afterCacheVersionDispose": null,
+              "afterCacheDataDispose": null
+            },
+            "processHandles": {
+              "beforeOpen": 201,
+              "afterDataOpen": 204,
+              "afterVersionOpen": 205,
+              "afterTemporaryTraversal1": 206,
+              "afterTemporaryTraversal2": 207,
+              "afterTemporaryTraversal3": 208,
+              "afterTraversalVersionDispose": 207,
+              "afterTraversalDataDispose": 206,
+              "beforeReadRefCache": 208,
+              "afterReadRefCache1": 272,
+              "afterReadRefCache2": 272,
+              "afterReadRefCache3": 272,
+              "afterCacheVersionDispose": 207,
+              "afterCacheDataDispose": 206
+            },
+            "workingSetRangeBytes": [
+              32608256,
+              50454528
+            ],
+            "finalRootFileDescriptors": null
+          },
+          {
+            "pid": 11732,
+            "versionFileDescriptors": {
+              "beforeOpen": null,
+              "afterDataOpen": null,
+              "afterVersionOpen": null,
+              "afterTemporaryTraversal1": null,
+              "afterTemporaryTraversal2": null,
+              "afterTemporaryTraversal3": null,
+              "afterTraversalVersionDispose": null,
+              "afterTraversalDataDispose": null,
+              "beforeReadRefCache": null,
+              "afterReadRefCache1": null,
+              "afterReadRefCache2": null,
+              "afterReadRefCache3": null,
+              "afterCacheVersionDispose": null,
+              "afterCacheDataDispose": null
+            },
+            "processHandles": {
+              "beforeOpen": 201,
+              "afterDataOpen": 204,
+              "afterVersionOpen": 205,
+              "afterTemporaryTraversal1": 206,
+              "afterTemporaryTraversal2": 207,
+              "afterTemporaryTraversal3": 208,
+              "afterTraversalVersionDispose": 207,
+              "afterTraversalDataDispose": 206,
+              "beforeReadRefCache": 208,
+              "afterReadRefCache1": 272,
+              "afterReadRefCache2": 272,
+              "afterReadRefCache3": 272,
+              "afterCacheVersionDispose": 207,
+              "afterCacheDataDispose": 206
+            },
+            "workingSetRangeBytes": [
+              32620544,
+              50671616
+            ],
+            "finalRootFileDescriptors": null
+          }
+        ]
+      },
+      "16": {
+        "counts": {
+          "refs": 16,
+          "localSnapshots": 53,
+          "forks": 10,
+          "tags": 16,
+          "historySnapshots": 83,
+          "dataFrames": 43,
+          "actualTagBuckets": 8,
+          "maxTagRecordsPerBucket": 8
+        },
+        "operations": {
+          "traversal.dataOpenReadOnly": {
+            "samples": 2,
+            "medianMs": 72.04285,
+            "rangeMs": [
+              55.8978,
+              88.1879
+            ],
+            "medianAllocatedBytes": 60736.0
+          },
+          "traversal.versionOpenReadOnly": {
+            "samples": 2,
+            "medianMs": 19.7145,
+            "rangeMs": [
+              14.4979,
+              24.9311
+            ],
+            "medianAllocatedBytes": 46152.0
+          },
+          "ListRefs": {
+            "samples": 6,
+            "medianMs": 17.01905,
+            "rangeMs": [
+              14.1068,
+              36.1195
+            ],
+            "medianAllocatedBytes": 146696.0
+          },
+          "ListForks": {
+            "samples": 6,
+            "medianMs": 39.14655,
+            "rangeMs": [
+              27.9238,
+              59.3839
+            ],
+            "medianAllocatedBytes": 299888.0
+          },
+          "ReadRefHistory.all": {
+            "samples": 6,
+            "medianMs": 163.0367,
+            "rangeMs": [
+              136.3896,
+              243.3079
+            ],
+            "medianAllocatedBytes": 1667128.0
+          },
+          "ScanTags": {
+            "samples": 6,
+            "medianMs": 23.29605,
+            "rangeMs": [
+              20.3787,
+              56.288
+            ],
+            "medianAllocatedBytes": 211456.0
+          },
+          "Audit": {
+            "samples": 6,
+            "medianMs": 85.81895,
+            "rangeMs": [
+              74.4175,
+              126.0403
+            ],
+            "medianAllocatedBytes": 757920.0
+          },
+          "ReadTagInfo.ref-2": {
+            "samples": 6,
+            "medianMs": 11.64985,
+            "rangeMs": [
+              9.247,
+              18.0892
+            ],
+            "medianAllocatedBytes": 94736.0
+          },
+          "ResolveTag.ref-2": {
+            "samples": 6,
+            "medianMs": 13.0654,
+            "rangeMs": [
+              11.3897,
+              17.6648
+            ],
+            "medianAllocatedBytes": 104584.0
+          },
+          "ReadTagInfo.ref-16": {
+            "samples": 6,
+            "medianMs": 11.487449999999999,
+            "rangeMs": [
+              9.0823,
+              12.8509
+            ],
+            "medianAllocatedBytes": 94736.0
+          },
+          "ResolveTag.ref-16": {
+            "samples": 6,
+            "medianMs": 11.97495,
+            "rangeMs": [
+              9.8524,
+              19.5666
+            ],
+            "medianAllocatedBytes": 104840.0
+          },
+          "ReadTagInfo.ref-1": {
+            "samples": 6,
+            "medianMs": 11.6843,
+            "rangeMs": [
+              9.6176,
+              13.7482
+            ],
+            "medianAllocatedBytes": 94048.0
+          },
+          "ResolveTag.ref-1": {
+            "samples": 6,
+            "medianMs": 12.0186,
+            "rangeMs": [
+              9.6735,
+              13.3955
+            ],
+            "medianAllocatedBytes": 104368.0
+          },
+          "FrameStore.Audit": {
+            "samples": 2,
+            "medianMs": 13.3037,
+            "rangeMs": [
+              13.0019,
+              13.6055
+            ],
+            "medianAllocatedBytes": 26144.0
+          },
+          "cache.dataOpenReadOnly": {
+            "samples": 2,
+            "medianMs": 5.3302499999999995,
+            "rangeMs": [
+              4.6156,
+              6.0449
+            ],
+            "medianAllocatedBytes": 53696.0
+          },
+          "cache.versionOpenReadOnly": {
+            "samples": 2,
+            "medianMs": 4.377,
+            "rangeMs": [
+              3.9118,
+              4.8422
+            ],
+            "medianAllocatedBytes": 45888.0
+          },
+          "ReadRef.all.ownerCache": {
+            "samples": 6,
+            "medianMs": 17.317050000000002,
+            "rangeMs": [
+              10.7535,
+              62.0268
+            ],
+            "medianAllocatedBytes": 169480.0
+          },
+          "CreateTag.all.hotAndOrdinary": {
+            "samples": 1,
+            "medianMs": 315.1816,
+            "rangeMs": [
+              315.1816,
+              315.1816
+            ],
+            "medianAllocatedBytes": 1801280
+          },
+          "writer.dataOpen": {
+            "samples": 1,
+            "medianMs": 25.9025,
+            "rangeMs": [
+              25.9025,
+              25.9025
+            ],
+            "medianAllocatedBytes": 57976
+          },
+          "writer.versionOpen": {
+            "samples": 1,
+            "medianMs": 24.4968,
+            "rangeMs": [
+              24.4968,
+              24.4968
+            ],
+            "medianAllocatedBytes": 191992
+          },
+          "writer.ListRefs": {
+            "samples": 1,
+            "medianMs": 17.3628,
+            "rangeMs": [
+              17.3628,
+              17.3628
+            ],
+            "medianAllocatedBytes": 146408
+          }
+        },
+        "checkpoints": [
+          {
+            "pid": 33784,
+            "versionFileDescriptors": {
+              "beforeOpen": null,
+              "afterDataOpen": null,
+              "afterVersionOpen": null,
+              "afterTemporaryTraversal1": null,
+              "afterTemporaryTraversal2": null,
+              "afterTemporaryTraversal3": null,
+              "afterTraversalVersionDispose": null,
+              "afterTraversalDataDispose": null,
+              "beforeReadRefCache": null,
+              "afterReadRefCache1": null,
+              "afterReadRefCache2": null,
+              "afterReadRefCache3": null,
+              "afterCacheVersionDispose": null,
+              "afterCacheDataDispose": null
+            },
+            "processHandles": {
+              "beforeOpen": 201,
+              "afterDataOpen": 204,
+              "afterVersionOpen": 205,
+              "afterTemporaryTraversal1": 206,
+              "afterTemporaryTraversal2": 206,
+              "afterTemporaryTraversal3": 206,
+              "afterTraversalVersionDispose": 205,
+              "afterTraversalDataDispose": 204,
+              "beforeReadRefCache": 206,
+              "afterReadRefCache1": 222,
+              "afterReadRefCache2": 222,
+              "afterReadRefCache3": 222,
+              "afterCacheVersionDispose": 205,
+              "afterCacheDataDispose": 204
+            },
+            "workingSetRangeBytes": [
+              29446144,
+              40984576
+            ],
+            "finalRootFileDescriptors": null
+          },
+          {
+            "pid": 5228,
+            "versionFileDescriptors": {
+              "beforeOpen": null,
+              "afterDataOpen": null,
+              "afterVersionOpen": null,
+              "afterTemporaryTraversal1": null,
+              "afterTemporaryTraversal2": null,
+              "afterTemporaryTraversal3": null,
+              "afterTraversalVersionDispose": null,
+              "afterTraversalDataDispose": null,
+              "beforeReadRefCache": null,
+              "afterReadRefCache1": null,
+              "afterReadRefCache2": null,
+              "afterReadRefCache3": null,
+              "afterCacheVersionDispose": null,
+              "afterCacheDataDispose": null
+            },
+            "processHandles": {
+              "beforeOpen": 201,
+              "afterDataOpen": 204,
+              "afterVersionOpen": 205,
+              "afterTemporaryTraversal1": 206,
+              "afterTemporaryTraversal2": 206,
+              "afterTemporaryTraversal3": 206,
+              "afterTraversalVersionDispose": 205,
+              "afterTraversalDataDispose": 204,
+              "beforeReadRefCache": 206,
+              "afterReadRefCache1": 222,
+              "afterReadRefCache2": 223,
+              "afterReadRefCache3": 223,
+              "afterCacheVersionDispose": 206,
+              "afterCacheDataDispose": 205
+            },
+            "workingSetRangeBytes": [
+              29454336,
+              41975808
+            ],
+            "finalRootFileDescriptors": null
+          }
+        ]
+      },
+      "256": {
+        "counts": {
+          "refs": 256,
+          "localSnapshots": 853,
+          "forks": 170,
+          "tags": 256,
+          "historySnapshots": 1363,
+          "dataFrames": 683,
+          "actualTagBuckets": 122,
+          "maxTagRecordsPerBucket": 128
+        },
+        "operations": {
+          "traversal.dataOpenReadOnly": {
+            "samples": 2,
+            "medianMs": 57.13055,
+            "rangeMs": [
+              55.1493,
+              59.1118
+            ],
+            "medianAllocatedBytes": 55896.0
+          },
+          "traversal.versionOpenReadOnly": {
+            "samples": 2,
+            "medianMs": 15.05705,
+            "rangeMs": [
+              14.3938,
+              15.7203
+            ],
+            "medianAllocatedBytes": 47128.0
+          },
+          "ListRefs": {
+            "samples": 6,
+            "medianMs": 163.9776,
+            "rangeMs": [
+              158.9306,
+              198.4856
+            ],
+            "medianAllocatedBytes": 2235144.0
+          },
+          "ListForks": {
+            "samples": 6,
+            "medianMs": 346.59285,
+            "rangeMs": [
+              328.8661,
+              517.0387
+            ],
+            "medianAllocatedBytes": 4740448.0
+          },
+          "ReadRefHistory.all": {
+            "samples": 6,
+            "medianMs": 1634.1385500000001,
+            "rangeMs": [
+              1569.5221,
+              2271.4869
+            ],
+            "medianAllocatedBytes": 61323616.0
+          },
+          "ScanTags": {
+            "samples": 6,
+            "medianMs": 226.41205,
+            "rangeMs": [
+              216.0837,
+              282.2663
+            ],
+            "medianAllocatedBytes": 3142408.0
+          },
+          "Audit": {
+            "samples": 6,
+            "medianMs": 915.1196,
+            "rangeMs": [
+              851.6999,
+              1110.6936
+            ],
+            "medianAllocatedBytes": 11987724.0
+          },
+          "ReadTagInfo.ref-2": {
+            "samples": 6,
+            "medianMs": 78.10785,
+            "rangeMs": [
+              72.3107,
+              90.1041
+            ],
+            "medianAllocatedBytes": 1096480.0
+          },
+          "ResolveTag.ref-2": {
+            "samples": 6,
+            "medianMs": 80.41435000000001,
+            "rangeMs": [
+              77.7992,
+              90.6311
+            ],
+            "medianAllocatedBytes": 1106016.0
+          },
+          "ReadTagInfo.ref-256": {
+            "samples": 6,
+            "medianMs": 81.87095,
+            "rangeMs": [
+              74.363,
+              83.7512
+            ],
+            "medianAllocatedBytes": 1096480.0
+          },
+          "ResolveTag.ref-256": {
+            "samples": 6,
+            "medianMs": 81.2338,
+            "rangeMs": [
+              73.9552,
+              89.2618
+            ],
+            "medianAllocatedBytes": 1106048.0
+          },
+          "ReadTagInfo.ref-1": {
+            "samples": 6,
+            "medianMs": 77.5763,
+            "rangeMs": [
+              70.8349,
+              81.9074
+            ],
+            "medianAllocatedBytes": 1082352.0
+          },
+          "ResolveTag.ref-1": {
+            "samples": 6,
+            "medianMs": 77.14805000000001,
+            "rangeMs": [
+              72.7189,
+              89.9426
+            ],
+            "medianAllocatedBytes": 1096200.0
+          },
+          "FrameStore.Audit": {
+            "samples": 2,
+            "medianMs": 16.849700000000002,
+            "rangeMs": [
+              15.726,
+              17.9734
+            ],
+            "medianAllocatedBytes": 67508.0
+          },
+          "cache.dataOpenReadOnly": {
+            "samples": 2,
+            "medianMs": 4.133900000000001,
+            "rangeMs": [
+              4.0437,
+              4.2241
+            ],
+            "medianAllocatedBytes": 54800.0
+          },
+          "cache.versionOpenReadOnly": {
+            "samples": 2,
+            "medianMs": 3.2346,
+            "rangeMs": [
+              3.1231,
+              3.3461
+            ],
+            "medianAllocatedBytes": 46864.0
+          },
+          "ReadRef.all.ownerCache": {
+            "samples": 6,
+            "medianMs": 143.71735,
+            "rangeMs": [
+              137.4251,
+              623.2261
+            ],
+            "medianAllocatedBytes": 2461356.0
+          },
+          "CreateTag.all.hotAndOrdinary": {
+            "samples": 1,
+            "medianMs": 16282.1899,
+            "rangeMs": [
+              16282.1899,
+              16282.1899
+            ],
+            "medianAllocatedBytes": 226861752
+          },
+          "writer.dataOpen": {
+            "samples": 1,
+            "medianMs": 32.4787,
+            "rangeMs": [
+              32.4787,
+              32.4787
+            ],
+            "medianAllocatedBytes": 59208
+          },
+          "writer.versionOpen": {
+            "samples": 1,
+            "medianMs": 207.1513,
+            "rangeMs": [
+              207.1513,
+              207.1513
+            ],
+            "medianAllocatedBytes": 2274696
+          },
+          "writer.ListRefs": {
+            "samples": 1,
+            "medianMs": 158.1521,
+            "rangeMs": [
+              158.1521,
+              158.1521
+            ],
+            "medianAllocatedBytes": 2233896
+          }
+        },
+        "checkpoints": [
+          {
+            "pid": 23508,
+            "versionFileDescriptors": {
+              "beforeOpen": null,
+              "afterDataOpen": null,
+              "afterVersionOpen": null,
+              "afterTemporaryTraversal1": null,
+              "afterTemporaryTraversal2": null,
+              "afterTemporaryTraversal3": null,
+              "afterTraversalVersionDispose": null,
+              "afterTraversalDataDispose": null,
+              "beforeReadRefCache": null,
+              "afterReadRefCache1": null,
+              "afterReadRefCache2": null,
+              "afterReadRefCache3": null,
+              "afterCacheVersionDispose": null,
+              "afterCacheDataDispose": null
+            },
+            "processHandles": {
+              "beforeOpen": 193,
+              "afterDataOpen": 196,
+              "afterVersionOpen": 197,
+              "afterTemporaryTraversal1": 199,
+              "afterTemporaryTraversal2": 200,
+              "afterTemporaryTraversal3": 200,
+              "afterTraversalVersionDispose": 199,
+              "afterTraversalDataDispose": 198,
+              "beforeReadRefCache": 200,
+              "afterReadRefCache1": 456,
+              "afterReadRefCache2": 456,
+              "afterReadRefCache3": 456,
+              "afterCacheVersionDispose": 199,
+              "afterCacheDataDispose": 198
+            },
+            "workingSetRangeBytes": [
+              35041280,
+              50405376
+            ],
+            "finalRootFileDescriptors": null
+          },
+          {
+            "pid": 25352,
+            "versionFileDescriptors": {
+              "beforeOpen": null,
+              "afterDataOpen": null,
+              "afterVersionOpen": null,
+              "afterTemporaryTraversal1": null,
+              "afterTemporaryTraversal2": null,
+              "afterTemporaryTraversal3": null,
+              "afterTraversalVersionDispose": null,
+              "afterTraversalDataDispose": null,
+              "beforeReadRefCache": null,
+              "afterReadRefCache1": null,
+              "afterReadRefCache2": null,
+              "afterReadRefCache3": null,
+              "afterCacheVersionDispose": null,
+              "afterCacheDataDispose": null
+            },
+            "processHandles": {
+              "beforeOpen": 193,
+              "afterDataOpen": 196,
+              "afterVersionOpen": 197,
+              "afterTemporaryTraversal1": 199,
+              "afterTemporaryTraversal2": 200,
+              "afterTemporaryTraversal3": 200,
+              "afterTraversalVersionDispose": 199,
+              "afterTraversalDataDispose": 198,
+              "beforeReadRefCache": 200,
+              "afterReadRefCache1": 456,
+              "afterReadRefCache2": 456,
+              "afterReadRefCache3": 456,
+              "afterCacheVersionDispose": 199,
+              "afterCacheDataDispose": 198
+            },
+            "workingSetRangeBytes": [
+              35049472,
+              50548736
+            ],
+            "finalRootFileDescriptors": null
+          }
+        ]
+      }
+    }
+  },
+  "builds": {
+    "windows": {
+      "errors": 0,
+      "warnings": 41,
+      "warningScope": "existing Data/Rbf XML documentation"
+    },
+    "linuxBaseline": {
+      "errors": 0,
+      "warnings": 41,
+      "warningScope": "existing Data/Rbf XML documentation"
+    },
+    "linuxDelta": {
+      "errors": 0,
+      "warnings": 0
+    }
+  },
+  "windowsResourceTargeted": {
+    "tests": {
+      "total": {
+        "Passed": 2
+      },
+      "runs": [
+        {
+          "path": "artifacts/versionstore-v4c/windows-resource-targeted/trx/gdtutu_TUTU17_2026-10-11_13_37_38.trx",
+          "sha256": "78194531f2d1a86c9f9e38b97d03f847d5aff400d6468650ce7711fe45ba0d31",
+          "bytes": 112934,
+          "assembly": "E:\\repos\\Atelia-org\\atelia-storage\\tests\\VersionStore.Tests\\bin\\Release\\net10.0\\Atelia.VersionStore.Tests.dll",
+          "results": {
+            "Passed": 2
+          },
+          "skipped": []
+        }
+      ],
+      "skipped": []
+    },
+    "processes": {
+      "count": 6,
+      "killed": 0,
+      "normal": 6,
+      "manifest": {
+        "path": "artifacts/versionstore-v4c/windows-resource-targeted/processes-manifest.json",
+        "sha256": "c78aac0278db6d6aa8dcc5b27c6f08943045e6fdf642fcd42953eece6b37a1da",
+        "bytes": 2551
+      }
+    },
+    "note": "Two new cases also run in full solution; not added to full solution count"
+  },
+  "limitations": [
+    "No production changes or package delivery",
+    "Linux baseline solution command interrupted after eight assemblies completed on ext4; frozen EventJournal separately rerun on tmpfs; final source delta tested by SystemIntegration only",
+    "Windows native vs WSL2 ext4 are not a controlled performance comparison",
+    "New process/owner does not clear OS file cache",
+    "Timings include consumer validation; RSS/handle samples are not exact peaks or arbitrary workload bounds",
+    "Public crash checkpoints do not cover internal pending/rename/flush windows or power loss",
+    "Application tool-loop/generation scenarios and final clause review remain subsequent slices"
+  ],
+  "artifacts": [
+    {
+      "path": "artifacts/versionstore-v4c/linux-baseline/assess-stop.py",
+      "sha256": "fa00ad2d63b78c6f875b3e2d3e8c64c53725b9e9c41af13a60406ed92cc7f2ae",
+      "bytes": 1571
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-baseline/build.command.txt",
+      "sha256": "b153ba72663ae553926e493ea580c9ae75c755c44f659275d4d515b52f422389",
+      "bytes": 45
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-baseline/build.log",
+      "sha256": "fe9fced81b9f100c2a369b13471e4bf1536586a9c87566453301e79f61bfcc4f",
+      "bytes": 28388
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-baseline/environment.log",
+      "sha256": "a6128d957ca706521c8d0a4e254cda3a93ddffdb9546e24f877b568a86386b93",
+      "bytes": 3344
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-baseline/eventjournal-tmpfs/command.txt",
+      "sha256": "e17e53274e8c1f2949430b1b0e959ee762ef1c45bff5f0e70a3b0ddfec40a051",
+      "bytes": 194
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-baseline/eventjournal-tmpfs/environment.log",
+      "sha256": "74cddcf065e240443e46bb87895a6d088cc2133708a371f6c40205a6c4d4bc50",
+      "bytes": 495
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-baseline/eventjournal-tmpfs/run-status.txt",
+      "sha256": "c50619d9ef9e4de34597bc4f20b811d62e162e012677209e0f7a5eeec286b722",
+      "bytes": 26
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-baseline/eventjournal-tmpfs/test.log",
+      "sha256": "bec1388d8525e6a44317cb7ebb1933833b0ff02997e2131ffdbdb1a4e4d9046b",
+      "bytes": 468
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-baseline/finalize-baseline.py",
+      "sha256": "107fd0545008c386a066e4efe67f646426ee78baca0f60c4f72d2eb221316992",
+      "bytes": 3842
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-baseline/inspect-progress.py",
+      "sha256": "57bb716979bbf4482d9a54a7ecb69b43a754eae0345a7f19bb80c2f093c9284c",
+      "bytes": 2013
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-baseline/inspect-system.py",
+      "sha256": "88edf05bb689cc722dad498f70d8d1299275c7039047a03062288f412a933ddf",
+      "bytes": 559
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-baseline/linux-repository.txt",
+      "sha256": "b60ae51caa9d7c650f904bcece0f7ee734aaea07447e2c74e288dea09a0634b4",
+      "bytes": 48
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-baseline/linux-workspace.txt",
+      "sha256": "f4efb765dc5a6b464bd720c6cdfd51f2b318063e242f3a2d9e42ba819c7893d9",
+      "bytes": 43
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-baseline/raw-wrapper-status.txt",
+      "sha256": "d3be030801b90ea8057d3997d9845c7f850cc7b784450645d5ec2811cc927d7a",
+      "bytes": 10
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-baseline/rbf1-assets.command.txt",
+      "sha256": "89c6c69cda8ffa3f94d79b682f6521e17a191341d6d694314fbb6c7a18a2d90a",
+      "bytes": 66
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-baseline/rbf1-assets.log",
+      "sha256": "72dd0c8b778ba6022ee2c85f49f27c345d3978992182ce1bc4f4c0caca74fc6b",
+      "bytes": 686
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-baseline/run-baseline.sh",
+      "sha256": "c37c7532b94a7b36e5364c38130906f6cc57f740f6c968cb3d0a4a7ef4b34576",
+      "bytes": 4178
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-baseline/run-eventjournal-tmpfs.sh",
+      "sha256": "f095703e29e9ae70c5b18020273b65d478809b41306ca4680e0b45c9cec45993",
+      "bytes": 3031
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-baseline/run-status.txt",
+      "sha256": "d48693c237f74e6cd505ed7f41339754736f5c8c3df25e6704ba6ac19045fd9b",
+      "bytes": 91
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-baseline/stop-owned-test-tree.py",
+      "sha256": "f1f4decec74edba5871bd78f2678ee57fabc2a93682a87be6168a5686efd20c5",
+      "bytes": 3758
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-baseline/summarize-baseline.py",
+      "sha256": "dbff3bd5c73733ebfe60acaec2f3faee56f9a6c8b23dcd2a84944ff9f1c16579",
+      "bytes": 9507
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-baseline/test.command.txt",
+      "sha256": "90ef0cc9cb40cfd950cec0de53e09522ca7db0d37ea07b6e9e78b510274c1b4a",
+      "bytes": 144
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-baseline/test.log",
+      "sha256": "7b9839ca709b22d1ac8a5322f65587236b6050a4729f1f56d6333f64171500f5",
+      "bytes": 8142
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-delta/build.command.txt",
+      "sha256": "b153ba72663ae553926e493ea580c9ae75c755c44f659275d4d515b52f422389",
+      "bytes": 45
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-delta/build.log",
+      "sha256": "4769c54200d5dc67258dea14b91b64d2f556b8f39cb1e4d14f29ddf7e474a95f",
+      "bytes": 3106
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-delta/environment.log",
+      "sha256": "be2d253c2a52d395ad81f908b0012ee98ee5d649444373184a32e9a038221488",
+      "bytes": 3010
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-delta/finalize-evidence.py",
+      "sha256": "671aba7aa00479991391219ed76bc9bc2dd9c89d1e3f8059070f8fe6dcdac5bc",
+      "bytes": 979
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-delta/run-delta.sh",
+      "sha256": "203114a09728f446df4852833fc22b9c6118202018e2f2a24fbf5feaf279b379",
+      "bytes": 3557
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-delta/run-resource.py",
+      "sha256": "b2ce1c80580907505ce8ca4f599de5588938e77e4e6f0942570dcc7b619502c7",
+      "bytes": 2393
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-delta/run-status.txt",
+      "sha256": "d3be030801b90ea8057d3997d9845c7f850cc7b784450645d5ec2811cc927d7a",
+      "bytes": 10
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-delta/summarize-delta.py",
+      "sha256": "c6cff70bd677046cc53c410af7cb929b525bc3d167ccc6091e69c089add7111c",
+      "bytes": 12751
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-delta/sync-source.py",
+      "sha256": "eab3f924ec4c71b220486c166d5155b476d6da929bfc4ecd789c7811d4bce107",
+      "bytes": 3170
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-delta/system-integration.command.txt",
+      "sha256": "2eb12d96c8d74eb8ed63885acfbe735e78bffea757e52fd7f14fb91a346a3640",
+      "bytes": 229
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-delta/system-integration.log",
+      "sha256": "934b2de47279aefb0584aea07ba0aeeaddf7fdd68f8c5f812c5869835e9aba32",
+      "bytes": 459
+    },
+    {
+      "path": "artifacts/versionstore-v4c/linux-delta/verify-baseline-preserved.py",
+      "sha256": "a603be4a6fede9ddf98be66fae8e0b0fc0288d5b3be00a68f6358679a6e135cd",
+      "bytes": 862
+    },
+    {
+      "path": "artifacts/versionstore-v4c/run-resource.py",
+      "sha256": "b2ce1c80580907505ce8ca4f599de5588938e77e4e6f0942570dcc7b619502c7",
+      "bytes": 2393
+    },
+    {
+      "path": "artifacts/versionstore-v4c/summarize.py",
+      "sha256": "19202bcc4b975b2c0f71e52fdd183905ea1db552c50dacdebb6ea998b44f6a47",
+      "bytes": 7325
+    },
+    {
+      "path": "artifacts/versionstore-v4c/windows/build.log",
+      "sha256": "875a782c292719a407c9b58361a8c4ef6923e0001146f109a07c5a9c6320433f",
+      "bytes": 22987
+    },
+    {
+      "path": "artifacts/versionstore-v4c/windows/dotnet-info.log",
+      "sha256": "583c33d0b09a1d6e1f7a440e844a2c161c83339790628ab627ec967823b579f7",
+      "bytes": 2510
+    },
+    {
+      "path": "artifacts/versionstore-v4c/windows/tests.log",
+      "sha256": "63405c6d62f2bf729d78c7787768c13cc2a8996e039d43d28e0b2a2315489cda",
+      "bytes": 6757
+    },
+    {
+      "path": "artifacts/versionstore-v4c/windows-rbf1-assets.log",
+      "sha256": "75997e0656849e10b55138a4500b10da8c61d34feca82a27c2e364995a4738d0",
+      "bytes": 694
+    },
+    {
+      "path": "artifacts/versionstore-v4c/windows-resource-targeted/tests.log",
+      "sha256": "4334ca9d6a78e3b5f934efb547acf0c9782143529099cb12d1897ce6bf1eb86d",
+      "bytes": 496
+    }
+  ],
+  "review": {
+    "sourceAndEvidence": "Independent gpt-6.1-sol / xhigh review plus coordinator source, raw TRX, process and hash checks",
+    "unresolvedP1P2": 0,
+    "hashesCheckedByCoordinator": 85,
+    "memoryAndHistoricalEvidence": "Historical qualification not substituted for current runtime results"
+  }
+}

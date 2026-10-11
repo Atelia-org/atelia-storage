@@ -3,6 +3,9 @@ namespace Atelia.VersionStore.Smoke;
 internal static class Program {
     private static int Main(string[] args) {
         try {
+            if (args.Length > 0 && args[0] is "resource-write" or "resource-read") {
+                return ResourceScenario.Run(args);
+            }
             if (args.Length > 0 && args[0] is "graph-write" or "graph-read") {
                 if (args.Length != 2) {
                     throw new ArgumentException("Usage: graph-write <root> | graph-read <root>");

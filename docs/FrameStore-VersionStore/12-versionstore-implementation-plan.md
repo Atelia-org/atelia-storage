@@ -143,6 +143,14 @@ VersionStore 与 FrameStore 均保持 source-only，新栈只引用 main 项目�
 
 实际命令、平台、运行结果与审查记录见下方 V4-B 验证记录。
 
+## V4-C：Linux 与有限资源取证（2026-10-11）
+
+本轮沿用 `1176bd2` 的生产源码，只增加独立 public consumer 的 resource-write/resource-read 和两档跨进程只读不变测试。支持16/64/256个 ref、长来源后缀下的固定继承历史、同桶 tag 聚集、发现/历史/元信息/完整校验重复调用，以及 fresh owner 的 ReadRef 缓存对照。RW重开、连续tag创建和RO查询分别记录实际计时/分配，资源样本与性能承诺分开。
+
+WSL2 使用固定源码归档及最终三个源码增量，在独立 ext4 的 repo/bin/obj/TMPDIR 中执行；新栈 Linux 专属路径与真实进程组合已取得实测。冻结旧栈 EventJournal 的大规模 fsync 回归单独放在 tmpfs 完成，原整套 ext4 命令明确保留 Interrupted，不能宣称单次完整 ext4 通过。Windows 完整回归与最终 Linux 增量各自记录。
+
+具体平台、命令、结果、测量限制与成本观察集中在 [V4-C验收记录](12-versionstore-linux-resource-acceptance.md)，原始工件摘要见其证据链接。本轮不改变生产格式/API，不开启包注册或业务仓迁移；S4/S5/S6仍待最终条款复核。
+
 ## 后续顺序与验收出口
 
 | 分片 | 可审查交付物 | 必须保留的边界与验收 |
@@ -156,15 +164,17 @@ VersionStore 与 FrameStore 均保持 source-only，新栈只引用 main 项目�
 | V3-C：已接通 tag 关联注记与元信息公面 | Related CreateTag overload；09 的自有 TagInfo、ReadTagInfo、ScanTags/TagScanEnd 与同步 callback | Related 不触发源重读/flush或签发revision；元信息成功不证明 root 健康；逐全已建桶、无 fullname 集合或整体重复证明；Complete/VisitorStopped、坏meta失败、取消/异常/Dispose/关闭及 TagScanActive 互操作；复用 V3-B 发布与 named 读取内核 |
 | V4-A：已接通独立完整校验 | Audit/VersionStoreAudit；只读全 ref/tag 与 fork 一致性 | 完整帧、真实主链 ticket、名称重复、失败/取消/清理及无恢复；不审 data 或 pending 内容 |
 | V4-B：公开组合与公开停点进程验收 | 独立 public 消费者、跨进程两层锁、六个明确停点的强杀/冷开 | 只证明已执行的 Windows public 停点；内部写入窗口、应用策略和两平台资格分别取证 |
-| V4-C 及后续：系统验收收尾 | WSL2、有限资源、S6 应用场景与 S4/S5/S6 条款映射 | 按已有证据裁决剩余缺口，不重做核心功能；内部模拟、字节镜像、真实 kill、断电和包资格分开 |
+| V4-C：Linux 与有限资源取证 | 独立 ext4 快照的新栈回归/进程验证、16/64/256有限资源消费者、Windows完整回归 | ext4与旧栈tmpfs分组回归分别记录；临时遍历与owner缓存分开，资源/成本不推广为任意负载承诺 |
+| V4-D：应用策略最小示例 | S6 tool-loop Started/结果/uncertain 与 generation 串行合并 | 复用public consumer，冻结请求正常确认后才外发；恢复不盲重试，过期回包不覆盖当前状态；不引入应用框架或通用CAS |
+| V4-E：最终独立源码验收 | S4/S5/S6条款与实际来源映射、必要缺口补证、明确source-only出口 | 内部模拟、字节镜像、public真实kill、内部写入窗口、断电和包资格分别裁决；缺口具体到条款/反例，不重新扩功能清单 |
 
-V1 至 V4-A 已完成相应源码接线，V4-B 已补公开图消费者与 Windows 真实进程边界。下一轮优先 **V4-C：WSL2 Linux 与有限资源验收**：在独立 ext4 源码快照中运行固定 SDK 的 Release 构建、完整测试和本轮 SystemIntegration；记录实际文件系统、源码身份与进程结果。用有限向量观察 Open/发现、历史/fork、tag 扫描和 Audit 的成本与资源，不把一次测量泛化为吞吐承诺。
+V1 至 V4-A 已完成相应源码接线，V4-B 已补公开图消费者与 Windows 真实进程边界，V4-C 补 Linux 与有限资源取证。下一轮优先 **V4-D：应用策略最小示例**，复用现有 public consumer 建立可冷重开的 tool-loop 与 generation 模型。核心能力已具备，重点是应用如何正确消费既定发布证据。
 
-S6 尚余的 tool-loop Started/结果/uncertain 与 generation 串行合并，可复用本轮独立消费者作最小应用示例；若超出下一片容量，独立收尾，不引入应用框架。最终按条款逐项映射 V0–V4 的 public、内部受控故障与真实进程证据，明确是否还需补特定内部窗口，不能由 public 停点自动宣布整张中断矩阵完成。
+V4-D 保留 Started 无结果、外部已执行但结果未发布、结果已发布与过期 generation 的不同应用裁决。随后 V4-E 按条款逐项映射 V0–V4 的 public、内部受控故障与真实进程证据，明确是否还需补特定内部窗口，不能由 public 停点自动宣布整张中断矩阵完成。包注册/隔离包消费仍在 source-only 之后另行处理。
 
 V3 续接只需保持现有窄分层：`Internal/Tags` 独立管理 codec/checked header/named 名称裁决；匿名与关联写入共用发布路径。元信息读取不需要完整 root 资格，ScanTags 严格传播记录错误；named 路径的 unknownName 隔离不能搬到完整校验。`_tagOperationFile` 为 named 查询短期 owned 槽；扫描桶、checked header 与目录 cursor 另持独立状态，以便同桶 callback 借用、跨桶查询独立关闭及 callback Dispose 时锁最后。不要以日常 ScanTags 成功代替完整校验。
 
-V4-C 继续有限规模/资源观察、WSL2 Linux 执行，以及最终独立条款复核；可按实际风险拆片，平台发现的问题优先修正。核心公开能力与完整检查已经齐备，剩余缺口是系统证据与最终验收，不应扩展功能清单或重开已定设计。
+V4-C 的有限观察未提出新的性能SLO或缓存机制。后续不重复这批向量来凑轮次；若实际应用暴露容量/延迟要求，再据具体负载立项。剩余工作是上述应用示例和最终条款复核，出现具体反例时才调整范围。
 
 V2 的底座增量已由 [RBF 边界逆扫记录](../Rbf/rbf-reverse-boundary-plan.md)接入公共接口合同。普通当前值与普通 PublishRef 不依赖它，V1 证据保持原身份。ForkOrigin 元数据可在 V0 编解码，V2-A 读取既有声明并检验 exact 源/bytes；V2-B 已用正式源读取/确认与子发布建立公开 fork 创建闭环。
 
@@ -172,11 +182,13 @@ CU 在正式选型同步 S0/S4/S5 前不进入上述默认队列；尤其不能�
 
 ## 后续自动队列与 Linux 验证入口
 
-2026-10-11 用户明确可使用本机 WSL2 完成 Linux 验证，纳入 V4 默认范围。现场只读确认：`wsl.exe --list --verbose` 中 Ubuntu 正在运行且为版本2；`wsl.exe -d Ubuntu -- dotnet --list-sdks` 包含仓库固定的 **10.0.201**；`df -T / /tmp` 显示 WSL 根与 /tmp 为 ext4。以上只证明环境入口可用，尚未在该环境运行本轮构建或测试，不追认此前跳过的 Linux 用例。
+2026-10-11 用户明确授权本机 WSL2 验证。V4-C 已实际使用 Ubuntu 24.04.4 / kernel 6.18.33.2-microsoft-standard-WSL2 / SDK **10.0.201**，源码、构建与新栈测试位于 `/var/tmp` 的 ext4，执行用户为 root。此前仅环境探测的状态已被本轮实际证据接续，历史Windows跳过项仍保留其原记录。
 
 后续在 WSL 的 Linux 文件系统上建立独立、对应明确源码 revision 的检出或源码副本，并在其中还原、Release 构建和测试；bin/obj、日志及测试临时目录与 Windows 隔离。Linux 文件语义验收的测试文件放在 ext4 等 Linux 文件系统，不以 `/mnt/e` 上的 Windows 挂载目录代替；如专测挂载边界，分别记录两侧实际文件系统。保留发行版、内核、SDK、源码身份、实际测试路径/文件系统、TRX与进程实验结果，区分 WSL2/Linux 执行与 Windows 原生执行；不将 WSL2 结果外推为全部 Linux 部署环境、断电或物理设备故障资格。
 
-V4-B 完成后，按当前剩余范围暂估 **2–3轮**：WSL2/有限资源及剩余应用场景约1–2轮，最终条款复核与必要补证约1轮。此前建议的5轮加1轮余量队列可继续使用，按实际反例和验证结果调整，不将轮数作为必须用满的任务量。既定范围完成后停止；若出现具体环境或产品决策阻碍，记录事实与剩余项后结束本轮。打包发布、业务仓接入和CU不随该队列自动启动。
+后续Linux功能回归沿用分组执行：新栈及本轮其他完成组保留ext4；冻结EventJournal使用单独tmpfs TMPDIR运行原始完整用例，保存各组TRX及实际文件系统。若要取得旧栈ext4大量fsync的资格，再单独安排有明确目标的运行。Windows仍使用完整solution回归入口。
+
+V4-C 后暂估 **2轮**：V4-D应用示例1轮，V4-E条款复核与必要补证1轮；若最终发现必须新增的内部进程停点，可再拆1轮，不能预先宣称整张中断矩阵已完成。此前建议的5轮加1轮余量队列可继续使用，按实际反例和验证结果调整，不将轮数作为必须用满的任务量。既定范围完成后停止；若出现具体环境或产品决策阻碍，记录事实与剩余项后结束本轮。打包发布、业务仓接入和CU不随该队列自动启动。
 
 ## 每轮结束时的交接要求
 
@@ -315,3 +327,12 @@ W: 真实公开工厂覆盖关联实际 slice、输入归池后的冻结值、�
 独立源码复核无未解决P1/P2。运行前修正父进程构造失败后的child回收责任、锁异常必须排除Aggregate并按OS精确识别、活跃Builder不能只靠场景标记。构建/定向/完整运行均无失败；首次底座重新构建出现41项既有Data/Rbf XML warning，最终增量构建零warning，未作范围外清理。生产库源码未变。
 
 `eng/Test-Rbf1ReferenceAssets.ps1`确认7个冻结参考项目仍消费精确RBF1包与来源；独立consumer仅直接ProjectReference VersionStore，实际六个Atelia依赖均为main project，唯一外部runtime codec依赖K4os.Compression.LZ4保持1.3.8。没有打包、发布、push或业务仓迁移；S4/S5/S6保持Draft/source-only。没有产品决策阻碍；下一轮V4-C按上文完成WSL2/有限资源，并保持剩余应用场景和最终条款复核可见。
+
+
+## V4-C 验证记录（2026-10-11）
+
+Windows Release build 0 error/41项既有XML warning；完整solution **3431通过、9项Linux专属跳过、0失败**。固定HEAD的WSL2基线有8组在ext4完成：**3262通过、2项Windows专属跳过**；冻结EventJournal因大量实际fsync改在独立tmpfs完成174项，原整套ext4命令保留Interrupted，不改标为单次完整通过。9项Linux专属均已实际通过。最终三个源码增量经Linux Release build零warning/error与SystemIntegration **21/21** 验证，未重复未改生产库的完整测试。
+
+Windows与最终Linux进程集成各77个child、10次实际强杀；16/64/256资源向量两平台全部成功，每档两个新进程只读验证前后文件清单/hash不变。Linux按路径fd证明临时遍历不累积、ReadRef缓存为N且重复稳定、Dispose归零；Windows总handle变化未归因。单次/有限样本成本及重复目录资格/同桶查重机制单列，不新增SLO或优化任务。完整口径、执行分组、原始工件摘要与局限见 [V4-C记录](12-versionstore-linux-resource-acceptance.md)。
+
+本轮只新增消费者、2项跨进程资源检查及文档；没有生产源码修正或未解决的确定功能反例。保持source-only，下一片V4-D，随后V4-E按条款裁决最终源码资格与具体缺口。

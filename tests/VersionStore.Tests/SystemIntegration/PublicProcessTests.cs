@@ -24,6 +24,25 @@ public sealed class PublicProcessTests(ITestOutputHelper output) : IDisposable {
     }
 
     [Theory]
+    [InlineData(16)]
+    [InlineData(64)]
+    public async Task ResourceQueriesRemainReadOnlyAcrossColdProcesses(int size) {
+        var write = await Run("resource-write", _root, size.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal("ok", write.GetProperty("status").GetString());
+        Assert.Equal(size, write.GetProperty("size").GetInt32());
+        var before = Snapshot();
+        for (int i = 0; i < 2; i++) {
+            var read = await Run("resource-read", _root);
+            Assert.Equal("ok", read.GetProperty("status").GetString());
+            Assert.Equal(size, read.GetProperty("size").GetInt32());
+            Assert.NotEmpty(read.GetProperty("measurements").EnumerateArray());
+            // The child validates the graph/counts and resource ownership. The parent independently
+            // proves a fresh process consumed the files without altering their names or bytes.
+            Assert.Equal(before, Snapshot());
+        }
+    }
+
+    [Theory]
     [InlineData("read", "read", false)]
     [InlineData("read", "write", true)]
     [InlineData("write", "read", true)]
