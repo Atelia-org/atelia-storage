@@ -20,7 +20,7 @@
 | `Internal/Storage` / `Internal/Platform` | 根准入/锁/门 I/O/发现/唯一 pending/原生不覆盖发布/按模式打开；不解释应用 bytes |
 | `RootMapCodec` | 独立可选应用 codec，使用 Binary 和 FrameAddress 公共 codec；不进入 owner 的调用链 |
 
-VersionStore 与 FrameStore 均保持 source-only，新栈只引用 main 项目。现有 RBF1 冻结参考及 pack 清单不变。FrameStore 的 S2/S3 Accepted 不自动覆盖新的借入 guard 或 VS 实现。
+源码构建中新栈只引用 main 项目，现有 RBF1 冻结参考不变。2026-10-11 用户明确转入 S6-C/D 本地包交付，FrameStore/VersionStore 纳入六包 pack 清单；当前交付状态及消费证据见[本地包记录](13-local-package-delivery.md)。历史 source-only 验收保持其原有身份。FrameStore 的 S2/S3 Accepted 不自动覆盖新的借入 guard 或 VS 实现。
 
 ## V0：已完成骨架和关键局部（2026-10-10）
 
@@ -189,7 +189,7 @@ CU 在正式选型同步 S0/S4/S5 前不进入上述默认队列；尤其不能�
 
 后续Linux功能回归沿用分组执行：新栈及本轮其他完成组保留ext4；冻结EventJournal使用单独tmpfs TMPDIR运行原始完整用例，保存各组TRX及实际文件系统。若要取得旧栈ext4大量fsync的资格，再单独安排有明确目标的运行。Windows仍使用完整solution回归入口。
 
-**V4-F 已完成，本 source-only 队列到此收束。** 具名窗口和剩余组合的两平台验收见下方；不再自动安排V4-G或重新展开设计问题。若后续指令仍只是“继续实现”，先复核当前状态并报告源码队列已完成；下一项实质目标是S6-C/D包注册及隔离PackageReference消费，需要明确转入交付范围。公开发布、业务仓接入和CU各自独立，不由本队列自动开启。
+**V4-F 已完成，本 source-only 队列到此收束。** 具名窗口和剩余组合的两平台验收见下方；不再自动安排V4-G或重新展开设计问题。2026-10-11 用户已明确转入 S6-C/D 包注册及隔离 PackageReference 消费，并选择保留 Atelia.Rbf 名称，先供下游本地试用。当前分片和实际结果见[本地交付记录](13-local-package-delivery.md)。后续先收集下游反馈，按具体问题调整 API 并生成新候选；公开发布、业务仓迁移和 CU 各自独立。
 
 ## 每轮结束时的交接要求
 

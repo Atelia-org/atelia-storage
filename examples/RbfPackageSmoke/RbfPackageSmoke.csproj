@@ -7,6 +7,6 @@
     <AssemblyName>RbfPackageSmoke</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Atelia.Rbf" Version="$(StoragePackageVersion)" />
+    <PackageReference Include="Atelia.Rbf" Version="[$(StoragePackageVersion)]" />
   </ItemGroup>
 </Project>

@@ -3,7 +3,7 @@
 FrameStore 的 R1–R3 收尾已完成，S2/S3 的[独立源码验收](02-framestore-final-acceptance.md)已 Accepted。[收尾计划与自动队列入口](02-framestore-completion-plan.md)现处完成状态，不自动扩展到包交付或 VersionStore。
 2026-10-10 为 VS 借入补充 S2 `[A-FS-ENSURE-USABLE]` 与 S4 `[S-VS-DATA-BORROW]`：入口 guard、模式配对及持续责任已定；新增公共转发和 VS 局部内核已进入 [骨架与后续实施计划](12-versionstore-implementation-plan.md) 的 V0；V1 已补普通 ref 真实工厂组合验证，原 Accepted 不覆盖此增量。
 
-日期：2026-10-03–11 逐步确认核心/历史合同；2026-10-10 采用无 branch 名称、持久预留低号区、自动/预留区指定创建与单文件发布，并采用 uint32 LocalRefId；2026-10-11 更新tag桶及独立元信息合同。状态：**S1–S3 Accepted（各自源码资格）；S4/S5及已实施专项取得[独立源码验收](12-versionstore-final-acceptance.md)，S6 Draft；FrameStore/VersionStore source-only，VersionStore 已接通普通 ref 公开闭环、有界历史、精确 fork 与声明分叉图查询，tag 公开持久化闭环、关联注记及元信息公面已接通；参考依赖拆分 Accepted**。
+日期：2026-10-03–11 逐步确认核心/历史合同；2026-10-10 采用无 branch 名称、持久预留低号区、自动/预留区指定创建与单文件发布，并采用 uint32 LocalRefId；2026-10-11 更新tag桶及独立元信息合同。状态：**S1–S3 Accepted（各自源码资格）；S4/S5及已实施专项取得[独立源码验收](12-versionstore-final-acceptance.md)，S6 Draft；FrameStore/VersionStore 已注册本地候选包（[交付记录](13-local-package-delivery.md)），VersionStore 已接通普通 ref 公开闭环、有界历史、精确 fork 与声明分叉图查询，tag 公开持久化闭环、关联注记及元信息公面已接通；参考依赖拆分 Accepted**。
 初始设计源码观察基线：`main @ 70d1009e78a73342a0c0fdc8ffed7731dec58173`；S1 验收记录的核对基线为 `f6f1eb38557863ba5ea1634844a90f0cbe5774cf`；前轮设计阅读基线为 `4175a46`，本轮租借/目录修订核对 `50e8e28`。本文档集供逐阶段细化、审阅和实施，不把文档修订视为新实现或验收。
 
 目标：**以 RBF3 的帧原子性为基础，让中层构建新状态，再发布完整 root payload 使状态生效。**
@@ -12,7 +12,7 @@ MVP 设计组合由 RBF3、FrameStore 核心与 VersionStore 的 ref 发布、�
 
 基础编码见已 Accepted 的 [BPV1 规范](../Binary/bare-primitive-value.md)及[实施验收](../Binary/bare-primitive-value-acceptance.md)：独立 `Atelia.Binary` 提供 FixedLE/VarInt、无损自适应 string、宽容 reader 与精确 Measure，当前依赖 BCL 与精确 K4os.Compression.LZ4 `[1.3.8]`。可选 RootMapCodec 已选择复用普通基元；底座资格不替代各阶段的记录 schema、版本、限额与新库验收，FrameAddress 由 S2 同时定义固定 12B 与变长 codec；RootMap 采用变长地址，预留回填继续采用固定地址。[Tagged Value](../Binary/tagged-value-intent.md) 仅记录意向，不是本栈前置。
 
-main 当前演进主线为 RBF3 / FrameStore / VersionStore。旧 EventJournal/RbfSegmentStore、toolkit 及测试保留为冻结参考，底层精确 PackageReference `[0.2.0-rbf1-preview.1]`；维护和公开交付归 RBF1 分支。依赖隔离、solution 共存与本轮仅三包交付的实施及证据见[过渡方案](../rbf1-reference-transition.md)。旧目录继续保留；FrameStore 源码切片不改变 main 的 RBF1 只读兼容或旧栈依赖。
+main 当前演进主线为 RBF3 / FrameStore / VersionStore。旧 EventJournal/RbfSegmentStore、toolkit 及测试保留为冻结参考，底层精确 PackageReference `[0.2.0-rbf1-preview.1]`；维护和公开交付归 RBF1 分支。依赖隔离、solution 共存与当时仅三包交付的实施及证据见[过渡方案](../rbf1-reference-transition.md)。旧目录继续保留；FrameStore 源码切片不改变 main 的 RBF1 只读兼容或旧栈依赖。
 
 ## 当前最小模型
 

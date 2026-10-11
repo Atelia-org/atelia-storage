@@ -8,9 +8,11 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 if ($PSBoundParameters.ContainsKey('AdditionalSegmentSmoke')) {
-    throw [ArgumentException]::new('Main delivers only Primitives/Data/Rbf/Binary. AdditionalSegmentSmoke is maintained on the RBF1 branch.', 'AdditionalSegmentSmoke')
+    throw [ArgumentException]::new('Main delivers only Primitives/Data/Rbf/Binary/FrameStore/VersionStore. AdditionalSegmentSmoke is maintained on the RBF1 branch.', 'AdditionalSegmentSmoke')
 }
 $repo = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'PackageMetadataCheck/ConsumerContracts.ps1')
+$consumers = @(Get-PackageSmokeContracts)
 $feed = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($FeedDirectory)
 $work = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($WorkDirectory)
 if (Test-Path -LiteralPath $work) { throw 'WorkDirectory must be a fresh directory (private NuGet cache and new RBF files).' }
@@ -19,16 +21,7 @@ if ($work -eq $repo -or $work.StartsWith($repo + [IO.Path]::DirectorySeparatorCh
 }
 $manifestPath = Join-Path $feed "manifest.$Version.json"
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-$ids = @('Atelia.Primitives', 'Atelia.Data', 'Atelia.Rbf', 'Atelia.Binary')
-if ($manifest.schemaVersion -ne 1 -or $manifest.version -cne $Version -or @($manifest.packages).Count -ne $ids.Count) {
-    throw 'All manifest must describe the requested four-package schema 1 candidate.'
-}
-foreach ($id in $ids) {
-    $records = @($manifest.packages | Where-Object id -CEQ $id)
-    if ($records.Count -ne 1 -or $records[0].file -cne "$id.$Version.nupkg") {
-        throw "All manifest does not contain the expected candidate: $id/$Version"
-    }
-}
+[void](Assert-PackageSmokeManifest $manifest $Version $feed)
 $revision = & git -C $repo rev-parse HEAD
 if ($LASTEXITCODE -ne 0 -or $revision -ne $manifest.sourceRevision) { throw 'Checkout does not match package source revision.' }
 $status = & git -C $repo status --porcelain --untracked-files=normal
@@ -39,10 +32,10 @@ foreach ($file in @('Directory.Build.props', 'Directory.Build.targets', 'Directo
     '<Project />' | Set-Content -LiteralPath (Join-Path $work $file) -Encoding utf8NoBOM
 }
 Copy-Item -LiteralPath (Join-Path $repo 'global.json') -Destination $work
-foreach ($smokeProject in @('RbfPackageSmoke', 'BinaryPackageSmoke')) {
-    Copy-Item -LiteralPath (Join-Path $repo "examples/$smokeProject") -Destination $work -Recurse
+foreach ($consumer in $consumers) {
+    Copy-PackageSmokeSources (Join-Path $repo "examples/$($consumer.Name)") $work
 }
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'PackageMetadataCheck') -Destination $work -Recurse
+Copy-PackageSmokeSources (Join-Path $PSScriptRoot 'PackageMetadataCheck') $work
 $escapedFeed = [Security.SecurityElement]::Escape($feed)
 @"
 <?xml version="1.0" encoding="utf-8"?>
@@ -58,33 +51,6 @@ function Invoke-LoggedDotnet([string[]]$Arguments, [string]$LogName) {
     & dotnet @Arguments 2>&1 | Tee-Object -FilePath (Join-Path $logs $LogName) | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "dotnet failed; see $logs/$LogName" }
 }
-function Assert-ConsumerAssets([string]$smokeProject, [string]$directId, [string[]]$closureIds, [string]$logName) {
-    $assets = Get-Content -LiteralPath (Join-Path $work "$smokeProject/obj/project.assets.json") -Raw | ConvertFrom-Json
-    $libraries = @($assets.libraries.PSObject.Properties)
-    if (@($libraries | Where-Object { $_.Value.type -cne 'package' }).Count -ne 0) {
-        throw "$smokeProject consumer assets contain a non-package reference."
-    }
-    $expected = @($closureIds | ForEach-Object { "$_/$Version" })
-    if ($directId -ceq 'Atelia.Binary') { $expected += 'K4os.Compression.LZ4/1.3.8' }
-    $actual = @($libraries | ForEach-Object { $_.Name })
-    if ($actual.Count -ne $expected.Count -or @($actual | Where-Object { $expected -cnotcontains $_ }).Count -ne 0) {
-        throw "$smokeProject restored package closure differs from the expected All subset."
-    }
-    $target = $assets.targets.PSObject.Properties['net10.0'].Value
-    if ($null -eq $target) { throw "$smokeProject consumer assets lack net10.0 target." }
-    $targetIds = @($target.PSObject.Properties | ForEach-Object { $_.Name })
-    if ($targetIds.Count -ne $expected.Count -or @($targetIds | Where-Object { $expected -cnotcontains $_ }).Count -ne 0) {
-        throw "$smokeProject target closure differs from the expected All subset."
-    }
-    $frameworks = @($assets.project.frameworks.PSObject.Properties)
-    if ($frameworks.Count -ne 1) { throw "$smokeProject smoke must have one target framework." }
-    $direct = @($frameworks[0].Value.dependencies.PSObject.Properties | ForEach-Object { $_.Name })
-    if ($direct.Count -ne 1 -or $direct[0] -cne $directId) {
-        throw "$smokeProject smoke must PackageReference only $directId."
-    }
-    "Verified $directId direct reference and $($expected.Count)-package assets ($($closureIds.Count) Atelia) against the approved closure." |
-        Set-Content -LiteralPath (Join-Path $logs $logName) -Encoding utf8NoBOM
-}
 $previousPackages = $env:NUGET_PACKAGES
 $previousHttpCache = $env:NUGET_HTTP_CACHE_PATH
 try {
@@ -92,14 +58,21 @@ try {
     $env:NUGET_HTTP_CACHE_PATH = Join-Path $work 'http-cache'
     Push-Location $work
     try {
-        Invoke-LoggedDotnet @('restore', 'RbfPackageSmoke/RbfPackageSmoke.csproj', '--configfile', 'NuGet.Config', "-p:StoragePackageVersion=$Version") 'primary-restore.log'
-        Assert-ConsumerAssets 'RbfPackageSmoke' 'Atelia.Rbf' @('Atelia.Primitives', 'Atelia.Data', 'Atelia.Rbf') 'rbf-assets.log'
-        Invoke-LoggedDotnet @('run', '--project', 'RbfPackageSmoke/RbfPackageSmoke.csproj', '-c', 'Release', '--no-restore', "-p:StoragePackageVersion=$Version", '--', (Join-Path $work 'rbf-files')) 'primary-smoke.log'
-        Invoke-LoggedDotnet @('restore', 'BinaryPackageSmoke/BinaryPackageSmoke.csproj', '--configfile', 'NuGet.Config', "-p:StoragePackageVersion=$Version") 'binary-restore.log'
-        Assert-ConsumerAssets 'BinaryPackageSmoke' 'Atelia.Binary' @('Atelia.Binary') 'binary-assets.log'
-        Invoke-LoggedDotnet @('run', '--project', 'BinaryPackageSmoke/BinaryPackageSmoke.csproj', '-c', 'Release', '--no-restore', "-p:StoragePackageVersion=$Version") 'binary-smoke.log'
+        foreach ($consumer in $consumers) {
+            $projectPath = "$($consumer.Name)/$($consumer.Name).csproj"
+            Invoke-LoggedDotnet @('restore', $projectPath, '--configfile', 'NuGet.Config', "-p:StoragePackageVersion=$Version") "$($consumer.LogPrefix)-restore.log"
+            $resolved = @(Assert-PackageSmokeAssets $consumer $work $Version)
+            "Verified $($consumer.DirectId) exact direct reference and $($resolved.Count)-package assets ($($consumer.Closure.Count) Atelia) against the approved closure." |
+                Set-Content -LiteralPath (Join-Path $logs $consumer.AssetsLog) -Encoding utf8NoBOM
+            $runArguments = @('run', '--project', $projectPath, '-c', 'Release', '--no-restore', "-p:StoragePackageVersion=$Version")
+            if ($consumer.DataDirectory) { $runArguments += @('--', (Join-Path $work $consumer.DataDirectory)) }
+            Invoke-LoggedDotnet $runArguments "$($consumer.LogPrefix)-smoke.log"
+        }
         Invoke-LoggedDotnet @('restore', 'PackageMetadataCheck/PackageMetadataCheck.csproj', '--configfile', 'NuGet.Config') 'metadata-restore.log'
-        Invoke-LoggedDotnet @('run', '--project', 'PackageMetadataCheck/PackageMetadataCheck.csproj', '-c', 'Release', '--no-restore', '--', $manifestPath, $repo, (Join-Path $work 'RbfPackageSmoke/obj/project.assets.json'), (Join-Path $work 'BinaryPackageSmoke/obj/project.assets.json'), $Version) 'metadata-check.log'
+        $metadataArguments = @('run', '--project', 'PackageMetadataCheck/PackageMetadataCheck.csproj', '-c', 'Release', '--no-restore', '--', $manifestPath, $repo)
+        $metadataArguments += @($consumers | ForEach-Object { Join-Path $work "$($_.Name)/obj/project.assets.json" })
+        $metadataArguments += $Version
+        Invoke-LoggedDotnet $metadataArguments 'metadata-check.log'
     }
     finally { Pop-Location }
     Copy-Item -LiteralPath $manifestPath -Destination (Join-Path $work 'verified-packages.json')

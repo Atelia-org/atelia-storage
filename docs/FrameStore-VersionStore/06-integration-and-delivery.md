@@ -1,6 +1,6 @@
 # S6：消费者验证、公共包与交付
 
-状态：**Draft；FrameStore S2/S3 与 VersionStore S4/S5 已分别取得独立 source-only 源码验收；V4-F已补具名内部进程与剩余组合，S6尚缺隔离包消费资格。** V4-B/C/D 的公开组合、Windows/WSL2、有限资源及应用策略保留各自身份；V4-E 修复 ListRefs 的只读集合逃逸并补坏 data 应用反例，逐条裁决见[VersionStore 源码验收](12-versionstore-final-acceptance.md)。V4-F的有限补证及源码队列出口见[实施计划](12-versionstore-implementation-plan.md)；真实消费者切换另行确定范围。
+状态：**Draft；FrameStore S2/S3 与 VersionStore S4/S5 已分别取得独立 source-only 源码验收；V4-F已补具名内部进程与剩余组合，S6-C/D已获用户授权进入本地候选及隔离消费，实际资格见[本地交付记录](13-local-package-delivery.md)。** V4-B/C/D 的公开组合、Windows/WSL2、有限资源及应用策略保留各自身份；V4-E 修复 ListRefs 的只读集合逃逸并补坏 data 应用反例，逐条裁决见[VersionStore 源码验收](12-versionstore-final-acceptance.md)。V4-F的有限补证及源码队列出口见[实施计划](12-versionstore-implementation-plan.md)；真实消费者切换另行确定范围。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。本篇只负责组合、包与交付证据，不反向定义前序协议；ref/history/fork先验证，09 tag施工后补齐完整组合。FrameAddress变长增量资格见[实施记录](02-framestore-varint-address-implementation.md)。
 
 ## 本阶段目标
@@ -75,7 +75,7 @@ single-driver/HistoryActive/TagScanActive、取消/回调Dispose及必要清理�
 
 ### spec [S-DELIVERY-PACK-OWNER] 包入口有单一负责人
 
-新增生产包清单及 pack 顺序 MUST 只在 `eng/Pack.ps1` 注册。当前 main 为 Primitives/Data/Rbf/Binary；Binary 独立于前三包，FrameStore 因变长地址直接依赖 Binary，VersionStore 继续依赖 FrameStore/Rbf/Binary。FrameStore/VersionStore 的包注册另行实施，当前 FrameStore 仍 source-only。不得重新将冻结参考 EventJournal/RbfSegmentStore 加入 main pack。
+新增生产包清单及 pack 顺序 MUST 只在 `eng/Pack.ps1` 注册。当前 main 为 Primitives/Data/Rbf/Binary/FrameStore/VersionStore；Binary 独立于前三包，FrameStore 因变长地址直接依赖 Binary，VersionStore 继续依赖 FrameStore/Rbf/Binary。2026-10-11 用户明确进入本地包交付，两库包注册与候选资格见[交付记录](13-local-package-delivery.md)。不得重新将冻结参考 EventJournal/RbfSegmentStore 加入 main pack。
 同时适配 package-mode 依赖、smoke、metadata/assets/Source Link 校验与 CI。按 main 实际 All/manifest 入口审查扩展，不沿用历史五包/selective 选择假设，也不能只增加项目名字就声称完成。
 旧栈维护与公开发布使用 RBF1 分支；main 参考项目的固定包回归与新栈源码/包资格分别报告。
 
@@ -100,7 +100,7 @@ single-driver/HistoryActive/TagScanActive、取消/回调Dispose及必要清理�
 | `eng/Pack.ps1` | S6 注册包和明确选择/版本算法 |
 | `eng/Test-Package.ps1`、metadata helper | S6 在当前纯 Rbf 三包及纯 Binary 两包隔离验证基础上增加新闭包 smoke，不削弱来源/资产校验 |
 | `eng/Verify-Published.ps1`、发布 workflow/CI | 若纳入公开交付，按实际授权和新 manifest 形态适配 |
-| 根 README / AGENTS.md | 项目实际存在、交付事实变化后更新；FrameStore/VersionStore 与测试项目均已创建、保持 source-only；VersionStore 已接通普通 ref 真实目录闭环，历史读取、精确 ForkRef 与 ListForks 已接通，tag 公开持久化闭环、关联注记及元信息公面已接通，V4-A 已补只读完整校验 Audit |
+| 根 README / AGENTS.md | 项目实际存在、交付事实变化后更新；FrameStore/VersionStore 与测试项目均已创建，两库已纳入本地候选包清单；VersionStore 已接通普通 ref 真实目录闭环，历史读取、精确 ForkRef 与 ListForks 已接通，tag 公开持久化闭环、关联注记及元信息公面已接通，V4-A 已补只读完整校验 Audit |
 | 旧库维护 | RBF1 分支工作包；main 冻结参考及固定包合同不得为新栈改写 |
 
 ## 实施片
@@ -126,4 +126,4 @@ single-driver/HistoryActive/TagScanActive、取消/回调Dispose及必要清理�
 最低出口：两个新库的 Accepted 源码闭包、组合恢复资格和隔离公共包消费证据。
 公开发布或真实消费者切换若未纳入当前工作，交付记录明确停在哪一层；不将库可用与已切换混为一个状态。
 
-V4-E取得两个新库的独立源码出口；V4-F补充8个内部发布停点、4个真实物理残尾停点、VS发布路径冲突、独立目录登记窗口和tag六个名称/路由golden冷进程回读。限定范围、两平台运行与证据身份见[验收记录](12-versionstore-final-acceptance.md#s6-组合资格与后续最小分片)及[实施计划](12-versionstore-implementation-plan.md)。源级既定施工队列到此收束；后续S6-C/D包注册/隔离包消费另立交付片，仍不满足本篇全部最低出口。TOCTOU原生rename冲突、任意字节切点、设备故障与断电不在本轮实测范围。
+V4-E取得两个新库的独立源码出口；V4-F补充8个内部发布停点、4个真实物理残尾停点、VS发布路径冲突、独立目录登记窗口和tag六个名称/路由golden冷进程回读。限定范围、两平台运行与证据身份见[验收记录](12-versionstore-final-acceptance.md#s6-组合资格与后续最小分片)及[实施计划](12-versionstore-implementation-plan.md)。源级既定施工队列到此收束；S6-C/D包注册/隔离包消费现按明确授权进入[本地交付片](13-local-package-delivery.md)，实际出口资格以该记录为准。TOCTOU原生rename冲突、任意字节切点、设备故障与断电不在本轮实测范围。

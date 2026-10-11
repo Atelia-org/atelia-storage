@@ -7,6 +7,6 @@
     <AssemblyName>BinaryPackageSmoke</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Atelia.Binary" Version="$(StoragePackageVersion)" />
+    <PackageReference Include="Atelia.Binary" Version="[$(StoragePackageVersion)]" />
   </ItemGroup>
 </Project>
