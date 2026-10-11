@@ -51,7 +51,8 @@ using (writer) {
     FrameAddress unknownAddress = unknown.EndAppend(103, unknownMeta.Length).Unwrap();
     expected.Add(unknownAddress, new(103, unknownPayload.Concat(unknownMeta).ToArray(), unknownMeta.Length));
     writer.ConfirmDurable();
-    Require(Directory.EnumerateFiles(Path.Combine(storePath, "archive")).Any(), "The small rotation threshold did not archive a completed file.");
+    Require(Directory.EnumerateFiles(Path.Combine(storePath, "archive"), "*.rbf", SearchOption.AllDirectories).Any(),
+        "The small rotation threshold did not archive a completed file.");
     foreach (var entry in expected) { VerifyFrame(writer, entry.Key, entry.Value); }
     retained = writer.ReadFrame(buffer).Unwrap();
     addresses = [buffer, firstAddress, secondAddress, unknownAddress];
