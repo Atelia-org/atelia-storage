@@ -1,142 +1,188 @@
 # S5-B 专项：不可变 tag
 
-日期：2026-10-10。状态：**Draft；用户已批准固定名称长度上限与请求范围的坏记录隔离，本次修订保留名称 codec、256 桶路由、初始化保护、data-first 与 PublicationOutcome。VersionStore 已接通普通 ref、历史、fork 与声明分叉图，但 tag 尚未实施、无 tag 运行或验收证据（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。
+日期：2026-10-11。状态：**Draft；用户已批准 1024 个惰性桶、独立校验的可变长 TailMeta、可选关联注记及元信息读取/扫描。VersionStore 普通 ref、历史、fork 与声明分叉图已接通；tag 尚未实施，无 tag 运行或验收证据（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。本次取代未实施的 tag 草案，无旧 tag 数据迁移，不改 ref/CU 布局；CU 仍为候选。
 
-本文属于 [S5](05-versionstore-names-and-indexes.md) 的 S5-B，不是新增项目或阶段。建议先完成 S4 ref 闭环与 S5 历史/fork，再施工本文 tag，最后补齐 S6 tag 组合消费；tag 的机制依赖 S4，历史回调互操作另消费 S5，不将这份施工建议变成新增依赖。执行保持单 owner/driver 串行与 ProcessCrashOnly，不增加并发或断电保证。统一版本、持久身份、root-payload envelope、借入 data、根/锁、唯一 pending 及停用清理由 [S4](04-versionstore-publication.md) 唯一定义；本篇是 tag 名称、桶及其操作的唯一权威，不复制下层格式或尺寸算法。
+本文属于 [S5](05-versionstore-names-and-indexes.md) 的 S5-B，不新增项目或阶段。统一版本、持久身份、借入 data、根/锁、唯一 pending、single-driver、ProcessCrashOnly、PublicationOutcome 与停用清理由 [S4](04-versionstore-publication.md)定义；bytes 输入与自有结果由 [11 专项](11-versionstore-root-payload-bytes-api.md)定义。本篇独立拥有 tag 名称、桶、TailMeta、关联注记与元信息公面，不复制下层尺寸算法，不增加并发或断电保证。
 
 ## 需求、边界与公开结果
 
-用户移除 branch 名称层后仍保留命名不可变 tag：名字标识创建时的一份完整 root-payload bytes。这里的“只读 tag”指已创建内容不可变，仍提供 CreateTag 与 ResolveTag。tag 不分配 RefId，不绑定 ref，不随 ref 更新，不保存精确 RefRevision/来源，也不提供删除、改名、覆盖或同值幂等创建。应用需要历史选点与来源时使用 S5 的 RefRevision/ForkRef，不能从 tag 内容同值推出来源资格。
+名字标识创建时的一份完整 root-payload bytes，create-only，不分配 RefId，不随 ref 更新，不提供删除、改名、覆盖或同值幂等创建。可选关联只是创建时记录的 ref 坐标注记；应用需要精确历史选点与来源复制时使用 S5 的 RefRevision/ForkRef，不能从 tag 内容同值或关联坐标推出来源资格。
 
 ### spec [S-VS-TAG-PAYLOAD-IMMUTABLE] tag 一次冻结完整 root bytes
 
-每个 tag MUST 保存 TagName + 完整 root-payload bytes 的一条 TagRecord，name prefix 后全部余 bytes 为 root payload，长度1..1MiB。tag 不分配 RefId/revision，不随 ref 更新，不保存精确来源，create-only 同名即拒绝，即使 payload 同值。应用 codec 与 data 依赖闭包由应用负责，tag 不解码 RootMap/JSON。
+每个 tag MUST 保存一条 TagRecord：Payload 仅为原样 root-payload bytes，长度 1..1MiB；TagName、记录时间与可选关联放在 TailMeta。应用 codec 与 data 依赖闭包由应用负责，tag 不解码 RootMap/JSON。同名拒绝，即使 bytes 同值；关联注记不改变内容不可变性。
 
-CreateTag(name, ReadOnlySpan<byte> payload, out outcome) 返回 AteliaResult<bool>，成功值恒为 true；ResolveTag(name) 返回 AteliaResult<RootPayload>，唯一消费 [11 bytes 公面专项](11-versionstore-root-payload-bytes-api.md)的捕获、自有 GC array 和只读 Span 合同；没有假 revision、TagSnapshot、结果租借或 Dispose。CreateTag 不回显输入，ResolveTag 仅保留命中自有 bytes；健康 missing 仍为 TagNotFound，不返回空/default 成功。应用取得 bytes 后自行解码与读取 data，失败不得要求回退、改绑或撤销 tag。
+CreateTag 的两个 bytes 入口与 ResolveTag 唯一消费11：CreateTag 返回 `AteliaResult<bool>`，成功恒为 true，不回显输入；ResolveTag 返回自有 GC array 支撑的 `AteliaResult<RootPayload>`，只交 bytes，不携带假 revision、时间或关联坐标，不需要 Dispose。健康 missing 为 TagNotFound，不返回空/default 成功。应用取得 bytes 后自行解码与读取 data，失败不触发回退、改绑或撤销 tag。
+
+### spec [A-VS-TAG-RELATED] 可选关联不授予来源资格
+
+原 CreateTag(name, payload, out outcome) 创建匿名 tag；新 CreateTag(name, payload, relatedRevision, out outcome) 在 I/O 前要求 relatedRevision 为 nondefault、同一 VersionStoreId、库签发的 RefRevision。两个入口都捕获实际传入的 bytes；新入口不从源取 bytes、不比较 bytes、不重读或 flush 源，也不承诺源以后存在、健康或持久可读。注记不是精确 clone、ForkOrigin、恢复依赖或发布证明。
+
+落盘只保存 RelatedLocalRefId 与 RelatedTicket；本桶 checked header 绑定 VersionStoreId，不重复保存 VSID。读取仅恢复 RefId 和 SizedPtr 值，不签发 RefRevision，不探源文件或核验主链成员。声明字段检查非零 local id、可解码的非default ticket 与非零长度等公共值域，不附加 Snapshot 尺寸或来源生效资格。匿名值不带 ticket。
 
 ## 名称接受合同与 codec
 
 ### spec [S-VS-TAG-NAME] 非空名称按 Ordinal 原样比较
 
-TagName MUST 为 non-null .NET string，按 `string.Length` 接受 **1..1024 个 UTF-16 code units**。首版 VersionStore 提供 `public const int MaxTagNameCodeUnits = 1024`，不提供实例配置；两个入口在文件 I/O 前共用该准入，超长查询不能探桶后报 TagNotFound。相等使用 `StringComparer.Ordinal`，区分大小写；`Release` 与 `release` 可以分别创建并解析。MUST 原样保留 code-unit 序列，不 trim、不做 Unicode normalize、大小写转换或 replacement。空串被拒绝，非空空白名合法；NUL、控制符、路径分隔符、U+FEFF 与未配对 surrogate 均无额外字符拒绝。长度单位不是 Unicode scalar、grapheme 或编码字节数。
+TagName MUST 为 non-null .NET string，按 `string.Length` 接受 **1..1024 个 UTF-16 code units**。VersionStore 提供 `public const int MaxTagNameCodeUnits = 1024`，不提供实例配置；两个 CreateTag 入口、ResolveTag 与 ReadTagInfo 在文件 I/O 前共用准入，超长查询不能探桶后报 TagNotFound。相等使用 StringComparer.Ordinal；Release 与 release 可以分别创建。MUST 原样保留 code units，不 trim、normalize、大小写转换或 replacement。空串被拒绝；非空空白、NUL、控制符、路径分隔符、U+FEFF 与未配对 surrogate 均合法。长度单位不是 scalar、grapheme 或编码字节数。
 
-名称是 record 字段，不成为文件路径组件，不继承 branch 或冻结旧栈的 ASCII、128B、文件名字符限制。当前 VersionStore 无实现、已发布数据或新栈消费者，不增加旧 tag 格式兼容义务。
+名称是字段，不成为路径组件，不继承 branch 或冻结旧栈的 ASCII、128B、文件名字符限制。tag 尚未实施，无已发布 tag 格式或新栈 tag 消费验收，不增加旧 tag 兼容义务。
 
 ### spec [F-VS-TAG-NAME-BPV1] 名称复用普通无损字符串
 
-VersionStoreFormatVersion=1 MUST 选择 [BPV1 ordinary BareString](../Binary/bare-primitive-value.md)；writer 使用 `BareValueEncoding.PrepareString` 与 `BareValueWriter.WriteString(in plan)`，reader 使用现成 `BareValueReader.ReadString`。不使用 nullable/control、压缩、独立名称版本或手写 UTF 编码。
+VersionStoreFormatVersion=1 MUST 选择 [BPV1 ordinary BareString](../Binary/bare-primitive-value.md)。writer 使用 BareValueEncoding.PrepareString 与 BareValueWriter.WriteString(in plan)；reader 使用现成 BareValueReader.ReadString(3072)。不使用 nullable/control、压缩、独立名称版本或手写 UTF 编码。
 
-BPV 普通字符串保留完整 UTF-16 code units，未配对 surrogate 可走 UTF-16LE；默认 writer 选择较短的无损 payload，持平选 UTF-16LE。reader 接受 BPV 规定的另一种合法字符串表示与有界冗余前缀，非法 UTF-8 明确拒绝。TagName 的相等、重复检测和路由 MUST 基于解码后的 code units；不能以 wire bytes、默认编码重算或 hash 相同代替 fullname 等值。
+BPV 保留完整 UTF-16 code units，未配对 surrogate 可走 UTF-16LE；默认 writer 选择较短无损 payload，持平选 UTF-16LE。reader 接受另一种合法字符串表示及有界冗余前缀，非法 UTF-8 拒绝。相等、重复与路由基于解码 code units，不能以 wire bytes、默认编码重算或 hash 相同代替 fullname 等值。
 
-## 名称与完整记录容量
+## TailMeta schema 与容量
 
-### spec [F-VS-TAG-CAPACITY] 名称与完整记录的固定接受界
+### spec [F-VS-TAG-METADATA] 独立 CRC 的可变长元信息
 
-记 `N` 为完整 TagName codeword 的实际字节数，`M` 为 S4 root-payload bytes 字节数。合法 UTF-8 表示至多使用每 code unit 3B，UTF-16LE 使用每 code unit 2B；BPV VarUInt32 header 至多5B。因此接受域的 name payload 上界为 `3 * MaxTagNameCodeUnits = 3072B`，完整 name codeword 上界为 `3077B`，整条 TagRecord payload 上界为 `1MiB + 3077 = 1,051,653B`。这些界由固定名称接受域推导，不增加第二套名称配置；TailMeta 仍为0，完整记录还 MUST 满足公共 RBF3 硬界。CreateTag 在名称准入后用 BPV plan 取得默认输出的精确 N，再按请求的实际 M 检查：
+checked 格式门、桶 header 的 VersionStoreFormatVersion 与 FrameTag 共同选择 schema。TagRecord 的 TailMeta 依次编码以下字段；不能以可变 TailMetaLength 猜 schema 版本，不给 ref 的固定 meta8/CU 规则增加例外：
+
+| 字段 | 编码与资格 |
+| --- | --- |
+| RecordedAtUnixMs | 完整 int64 LE；本次创建私有准备时一次取 UTC Unix 毫秒，允许负值、重复与回退 |
+| RelatedLocalRefId | BPV VarUInt32；0 表示匿名；非0表示同库关联 |
+| RelatedTicket | 仅非0 id 时出现；BPV VarUInt64(ticket.Serialize())，读回 SizedPtr.Deserialize |
+| TagName | 完整 ordinary BareString codeword |
+| MetaCRC | CRC32C，4B LE，覆盖前面全部 decoded meta bytes，不含自身 |
+
+时间的单位、完整 long 值域与非单调语义复用 [08](08-versionstore-record-metadata.md) [S-VS-RECORD-TIME]；tag 在通过输入/关联准入后、最终 meta 编码及 data barrier/输出前取时，不复制相关 ref 时间，不表示源事件或 flush 完成时间。它不参与路由、名称等值或来源生效判据。08 的固定 meta8、按唯一长度演进与仅靠完整帧确认时间的规则只用于 ref/CU；本篇独立 CRC 资格用于 tag。
+
+writer MUST 直接复用 RollingCrc.SealCodewordForward(meta)，reader MUST 复用 RollingCrc.CheckCodewordForward(meta)，均使用默认参数；不手写另一份 CRC 或使用 rolling scanner。writer 在 RBF escape 前对逻辑 meta 封口；reader 对 ReadTailMeta/ReadPooledTailMeta 已解 escape 的 meta 校验。RBF TrailerCRC 仅保护结构描述符；这份 MetaCRC 允许独立确认元信息，不能替代完整 RBF PayloadCRC 对 root、meta 与 padding 的检查。
+
+MetaCRC 通过后从其前缀顺序解码时间、id、条件 ticket 与名字，要求 **exact-consume**；多余字段/尾随 bytes 拒绝，不按名字的默认编码长度定位。ReadVarUInt32 至多5B、ReadVarUInt64 至多10B，接受 BPV 有界冗余编码；匿名0也可能使用冗余 id 前缀。字符串按实际 ConsumedCount 消费，声明 payload 在分配前用 ReadString(3072) 限界，解码后再检查 1..1024 code units。字节界仍可能先产生3072个 ASCII chars 的临时字符串，不能声称分配前已保证逻辑1024上界；超长逻辑名随后拒绝。
+
+逻辑 meta golden（RBF escape 前，尚非实现验收）：time=0/id=0/Name=A → `00 00 00 00 00 00 00 00 00 03 41 DE 80 26 2D`，15B；time=0/id=1/ticket=(60,40)，Serialize=574、VarUInt64=`BE 04`/Name=A → `00 00 00 00 00 00 00 00 01 BE 04 03 41 69 45 83 C3`，17B。checksum 分别为 0x2D2680DE 与 0xC3834569，按 LE 保存。
+
+### spec [F-VS-TAG-CAPACITY] 名称、元信息与完整记录的接受界
+
+记 N 为实际 name codeword 字节数、M 为 root 字节数、T 为完整 TailMeta 字节数。合法 UTF-8 最多每 code unit 3B，UTF-16LE 最多2B；name string data 至多3072B，含最多5B header 的 codeword 至多3077B。meta 最少 `8+1+2+4=15B`，最多 `8+5+10+3077+4=3104B`；匿名与关联字段的长度都不是固定值。CreateTag 必须在本次 barrier/输出前完成如下确定检查：
 
 ```text
-名称符合 [S-VS-TAG-NAME]
-1 <= M <= S4 的 root-payload 上限
-N <= 3077
-P = checked(N + M) <= 1051653
-P <= RbfFile.MaxPayloadAndMetaLength
-RbfFile.MeasureWriteSize((int)P, 0) 成功
+名称符合 [S-VS-TAG-NAME]；关联符合 [A-VS-TAG-RELATED]
+1 <= M <= VersionStore.MaxRootPayloadLength = 1048576
+N <= 3077；15 <= T <= 3104
+checked(M + T) <= 1051680 <= RbfFile.MaxPayloadAndMetaLength
+RbfFile.MeasureWriteSize(M, T) 成功
 本次实际追加起点符合 SizedPtr 的公开范围
 ```
 
-N 包含实际字符串 header 与 payload；M 的限额及计量原样消费 S4。reader 接受另一种合法编码及有界冗余 header，不能用 writer 默认编码长度作磁盘 N 的上界。全部算术先用 checked long，在已验范围后转 int；物理 FrameLength/AppendLength 只由公共 MeasureWriteSize 取得，不复制 RBF padding/footer 公式。这里只限制单记录，文件的下一次起点另检查；合法末帧可越过 SizedPtr.MaxOffset 的末端，下一次追加再拒绝，不隐式轮转或缩小末帧。
+输出准备先做名称准入与轻量 StringEncodingPlan、关联准入、私有 root 捕获、实际 meta 度量和完整帧/起点检查，再物化最终 meta；不得先分配超界完整帧再拒绝、截断或拆记录。时间固定8B，id/ticket 宽度按实际输出取值计量。reader 的另一合法编码及冗余前缀计入实际 N/T，不用 writer 默认 Measure(decodedName) 代替。算术先 checked long，确认范围后转 int；FrameLength/AppendLength 只由公共 MeasureWriteSize 取得，不复制 padding/footer 公式。合法末帧可越过 SizedPtr.MaxOffset 的末端，下一次追加再拒绝，不隐式轮转。
 
-**输出前。** 先完成名称准入和 BPV plan，捕获/度量实际 root bytes，组合 P 并检查完整帧与实际起点；通过后才物化最终组合输出，全部在本次 data barrier 与输出前。StringEncodingPlan 只保留不可变 string 与编码选择，不物化完整名称 payload；`EncodedLength` 是默认输出的精确 N。不能先分配超限完整记录再拒绝、截断名字、截断 payload 或拆记录。输入字符串已由调用方提供；这些检查不撤销调用方先前分配，也不保证合法请求必然分配成功。
+**小 meta 租用前。** 真实主链 RbfFrameInfo 已具备 RBF 结构资格；先检查 Rbf3、TagRecord kind、非 tombstone 与15..3104的T，再只读小 TailMeta。不得因 M=0 或 M>1MiB 跳过可读元信息，也不为这些记录租完整帧。MetaCRC/精确解码/名称/路由/关联声明字段通过后身份可信，root 长度是否合法不改变占名资格。结构可靠但 kind/meta/tombstone 不合格的记录，按 named 查询的 unknownName 或 ScanTags 的必要错误处理；首 header 不按局部记录跳过。
 
-**完整帧租用前。** 从真实主链取得 RbfFrameInfo 后先检查 Rbf3、kind/meta/tombstone、PayloadLength 上界与公共 `MeasureWriteSize(PayloadLength, 0)` 对应的 FrameLength。合法 TagRecord 的 payload 范围为3..1,051,653B：非空名 codeword 最少2B，root payload 最少1B；扫描为识别零 root 的目标坏记录，可读取形状合格且 payload 恰为2B的记录，解码后仍拒绝零 root，不放宽接受域。结构可遍历但 info 形状不合格、payload 小于2B或超过上界时，按下文记为未知名称坏记录并跳过，不租用超界完整帧；不能用已读名称的默认 Measure 代替接受界。首 header 的必要资格仍完整执行，不按局部坏 TagRecord 跳过。
+**完整 root 租用前。** 仅 ResolveTag 在元信息扫描正常结束且确认唯一目标后读取该帧：先检查M的1..1MiB界、公共 MeasureWriteSize(M,T) 与实际 FrameLength 对应，再租完整帧、验证完整 RBF CRC、kind/meta 形状和本篇元信息及 root envelope，复制实际 Payload 为自有结果。root 内容末尾所有 bytes 都属于 opaque payload，不另检查 RootMap trailing。超界或零 root 明确为目标损坏，不租超界完整帧；不能回退另一同名项。
 
-**字符串分配前。** 仅对完整 CRC 已通过的记录，从完整 payload 借入长度为 `min(PayloadLength, 3077)` 的名称窗口，调用现成 `BareValueReader.ReadString(3072)`；它在分配前验证声明字节数、int 与实际剩余，不复制窗口或手写另一套 decoder。解码成功后再检查 `1 <= name.Length <= MaxTagNameCodeUnits`。3072B 的字节界可能先分配最多3072个 ASCII chars 的临时字符串，不能称为分配前已保证逻辑1024 code units；随后拒绝超长名字。按 reader 实际 ConsumedCount 在原完整 payload 定位后续所有 bytes，即 root payload；要求其实际长度1..1MiB，不调用内容 decoder。名称窗口可含部分 root bytes，不要求局部窗口完全消费，也不预留 suffix 字节以免把零 root 的可信名称截短。
-
-容量计量 MUST 按实际 name prefix 消费和后续 root bytes 长度计算；合法冗余 name header/另一种字符串表示也计入 N，不能用 Measure(decodedName) 代替磁盘 N。root bytes 原样保存，内容末尾任何 bytes 都属于 payload，不另检查 RootMap trailing。命中记录的完整 CRC、name合法/路由、root 长度及下文目标唯一性通过才交自有结果。
-
-（Informative）固定1024 code units 是用户批准的首版工程上限，不是实测工作集最优值。它将单次完整记录请求限制在约1MiB、名称解码字节限制在3KiB；完整帧、当前临时字符串、命中自有 root bytes、输入与输出缓冲仍可同时存在，ArrayPool 的实际租借数组也可能更大，不构成精确 RSS 或总内存保证。合法输入仍可能 OOM，运行期 OOM 不能作为局部坏记录吞掉。实施需报告峰值与连续同桶创建成本，不建立总内存账本、通用预算、租借 API 或流式 tag 格式。
+（Informative）固定1024 code units 为批准的首版工程上限，未声称工作集最优。元信息检查最多请求约3KiB，ResolveTag 仍需约1MiB完整帧与命中自有 bytes；pool 实际数组、输入副本、临时字符串与应用持有值另计，不保证精确 RSS 或合法请求不 OOM。运行期 OOM 不能作为局部坏记录吞掉，不建立总内存账本、预算或租借公面。
 
 ## 稳定路由与正式路径
 
 ### spec [F-VS-TAG-ROUTING] 按原 code units 固定分桶
 
-名称相等必同桶、跨进程稳定路由与 fullname 碰撞裁决是已有合同。MUST 使用固定 hash 输入/算法与桶规则，不能使用进程随机化的 `string.GetHashCode()`；hash 相同而完整名字不同可以共存。具体参数是 VersionStoreFormatVersion 选择的持久寻址/schema，不能在同一格式版本下随运行配置或进程改变。
+VersionStoreFormatVersion=1 MUST 固定 FNV-1a 64-bit：逐个原 UTF-16 code unit 按 low byte、high byte 输入，不加 BOM、terminator 或长度前缀；U+FEFF/NUL 原样参与。初值14695981039346656037，每 byte 先 XOR 再乘1099511628211，算术取模2^64。固定 `B=1024`，`BucketId=(hash ^ (hash >> 10)) & 1023`，范围0..1023。路径为 `tags/<BucketId 的8位小写 ASCII hex>.rbf`，如 `tags/00000174.rbf`；BPV codeword 不参与 hash，不保存 hash/B/算法名，不使用 string.GetHashCode 或 replacement surrogate 的文本编码入口。
 
-VersionStoreFormatVersion=1 MUST 固定以下工程参数：BPV codeword 不参与 hash；逐个 UTF-16 code unit 按 low byte、high byte 的顺序输入 FNV-1a 64-bit，不额外插入 BOM、terminator 或长度前缀；名字中的 U+FEFF/NUL 原样参与。初值 `14695981039346656037`，每 byte 先 XOR 再乘 `1099511628211`，算术取模 2^64。固定 `B = 256`，`BucketId = (hash XOR (hash >> 8)) & 255`，合法桶号为 0..255。正式路径为 `tags/<BucketId 的 8 位小写 ASCII hex>.rbf`，如 `tags/00000025.rbf`；不直接插入名字，不保存 hash、B、算法名或新版本字段。hash 输入必须保留每个原 code unit，不能使用会 replacement 未配对 surrogate 的文本编码入口。
+相等名称必同桶、跨进程稳定，hash/桶碰撞仍按 Ordinal fullname 区分。这些参数绑定统一格式版本，不能随运行配置或实现更换。FNV 常量与 XOR folding 形式见 [RFC 9923 §2–§3](https://datatracker.ietf.org/doc/html/rfc9923#section-3)；这里固定一次折叠，不宣称全64-bit折叠或分布最优。1024桶限制潜在文件数，每个实际创建桶增加一个 header，仍不轮转。
 
-（Informative）FNV 步骤与常量、缩小 hash 的折叠形式见 [RFC 9923 §2–§3](https://datatracker.ietf.org/doc/html/rfc9923#section-3)。本篇固定上述一次 XOR folding，桶值取 hash 的低两个 byte，不宣称全 64-bit 折叠、分布最优或无碰撞；没有新栈工作集时不寻找最优 hash/B。固定 256 桶限制潜在桶文件数，每个已创建桶增加一个 header，单桶仍不轮转。这组参数已经绑定统一版本，落盘后不能通过运行配置或实现替换使同名改路由。
+独立向量（脚本复算，尚非实现验收）：A → hash 0908a207b5a15704 / bucket 00000351；Release → c5566333f1504164 / 00000174；release → bc7f822919cbbb44 / 000001aa；单个 code unit U+D800 → 0831b007b4ea00e5 / 00000265。tag-48 与 tag-65 都为00000106，须分别创建/解析。BPV `03 41`、`02 41 00`、`83 00 41` 均为 A，必须得到同一 hash/桶，不把宽容读取改成 wire 规范化。
 
-独立向量（脚本复算，尚非实现验收）：`A` → hash `0908a207b5a15704` / bucket `00000053`；`Release` → `c5566333f1504164` / `00000025`；`release` → `bc7f822919cbbb44` / `000000ff`；单个 code unit U+D800 → `0831b007b4ea00e5` / `000000e5`。`tag-17` 与 `tag-50` 的桶号均为 `00000041`，仍须分别创建/解析。BPV 的 `03 41`、`02 41 00`、`83 00 41` 均表示 `A`，必须得到同一 hash/桶；不将这种宽容读取改为同值同 bytes 的规范化要求。
+tags 是 S4 根准入认识的**可选普通目录**，初次建库不预建；只读 Open/ResolveTag/ReadTagInfo/ScanTags 不创建。首次合法 CreateTag 在确定准入与 data barrier 后、私有初始化前 create-only 建立它，取得 ordinary/no-follow 与同文件系统资格；已存在组件须精确小写且合格。目录存在不表示已发布 tag。
 
-`tags` 是 S4 根准入认识的**可选普通目录**，初次建库不预建。缺失可表示尚无桶；只读 Open/ResolveTag 不创建。首次合法 CreateTag 在已完成确定准入与 data barrier 后、私有初始化前 create-only 建立它，并取得 ordinary/no-follow 与同文件系统资格。已存在的组件必须精确小写且合格；目录存在本身不表示任何 tag 已发布。
-
-`tags` 的直接项只允许上述 8hex、桶号 0..255 的普通 `.rbf` 文件，不允许子目录；零号桶合法，不继承 ref 的非零编号限制。取得目标路径时沿用 S4 的精确组件、全部直接项名称/类型及 no-follow 机制，拒绝大小写别名、未知层级/名称/后缀、特殊类型和枚举错误；不能由 File.Exists=false 吞掉权限/I/O/资格失败。此处只做目录/path 资格，不要求 Open 或 ResolveTag 扫描全部桶内容。只打开目标规范桶，其他桶的内容健康不由本次查询证明。缺失目录或确定缺失目标桶才可作为健康缺失；合法 header-only 桶为空，bare RBF Fence/坏 header 不是空桶。
+直接项只允许上述8hex、桶号0..1023的普通 .rbf 文件，不允许子目录；零号桶合法。沿用 S4 精确组件、全部直接项名称/类型与 no-follow 资格，拒绝别名、未知名称/后缀、特殊类型及枚举错误，不能以 File.Exists=false 吞权限/I/O错误。named 请求只打开目标桶；其他桶内容不由本次证明。确定缺失目录/目标桶才是健康缺失；header-only 桶为空，bare Fence/坏 header 不是空桶。ScanTags 另遍历实际已建桶，不打开1024个不存在的桶。
 
 ## 桶组合 schema 与初始化保护
 
-### spec [F-VS-TAG-BUCKET] 首帧 header 与后续完整记录
+### spec [F-VS-TAG-BUCKET] 首帧 header 与后续记录
 
-首版每桶一个 RBF3 文件、不轮转；统一版本与 16B canonical VersionStoreId 直接消费 S4 `[F-VS-OWN-FORMAT]`。所有帧非 tombstone、TailMetaLength=0；[元信息专项](08-versionstore-record-metadata.md) 不给 tag 增加时间。两种 FrameTag 固定为 0（BucketHeader）与 1（TagRecord）：
+每桶一个 RBF3 文件、不轮转；统一版本与16B canonical VersionStoreId 消费 S4 [F-VS-OWN-FORMAT]。FrameTag 固定0（BucketHeader）与1（TagRecord），均非 tombstone：
 
-| 帧 | payload，依次编码 | 必要资格 |
+| 帧 | Payload | TailMeta 与必要资格 |
 | --- | --- | --- |
-| 首物理帧 BucketHeader | uint32 LE VersionStoreFormatVersion；S4 canonical VersionStoreId；uint32 LE BucketId | 版本等于 checked 门，身份逐字节匹配门，桶号合法且等于本次路径期望值；exact-consume |
-| 后续 TagRecord | 完整 TagName codeword；原样 S4 root-payload bytes | 名称合法且重新路由到本桶；完整 CRC；名称实际消费后的全部余 bytes 为 root payload，检查1..1MiB长度 |
+| 首物理 BucketHeader | uint32 LE VersionStoreFormatVersion；canonical VersionStoreId；uint32 LE BucketId，共24B | meta0；完整 CRC；版本、身份、桶号匹配 checked 门与路径，exact-consume |
+| 后续 TagRecord | 原样 root-payload bytes | 本篇可变 meta；独立 MetaCRC、exact-consume、合法 name/本桶路由/关联字段；ResolveTag 另需 root envelope 与完整 CRC |
 
-统一格式版本选择桶 header、名称 codec、TagRecord envelope 与 meta 形状，不选择 root 内容 codec。首 header 的版本/身份/形状或尾随错误拒绝桶；后续帧未知 kind、重复 header、tombstone、未知 meta、非法 name/root 长度属于局部坏记录，按下文请求范围裁决，完整校验仍判坏。name prefix 后全部余 bytes 都是应用 payload，不按 RootMap trailing 判坏。首版不增加独立桶/记录版本、名称 CRC 或内容 CRC。
+统一版本选择桶 header、记录与 meta schema，不选择 root 内容 codec；可变T只是尺寸。首 header 版本/身份/形状或尾随错误拒绝桶。后续未知 kind、重复 header、tombstone 或坏 meta 在 named 查询中属于未知名记录，在 ScanTags 中属于必要错误；不增加独立桶/记录版本、名称 CRC、索引或泛用 audit API。
 
-以 checked 门版本、本次期望 VSID/BucketId 编码 canonical header，得确定 payload 长度 L；令 `H = RbfFile.MeasureWriteSize(L, 0)`、`I = RbfScanBoundary.Empty.EndExclusive + H.AppendLength`。共同首帧检查使用 `ScanForward(showTombstone: true)`：要求 Rbf3，首物理帧 offset、H.FrameLength、payload L、kind/meta/tombstone 匹配，再完整读取 CRC、精确解码并比对期望身份；checked 后界必须为 I。缺首帧先检查 TerminationError，再报错，不找后续替代 header。
+以 checked 门、本次 VSID/BucketId 编码 header，令 H=RbfFile.MeasureWriteSize(24,0)，I=RbfScanBoundary.Empty.EndExclusive+H.AppendLength。共同首帧检查使用 ScanForward(showTombstone:true)：要求 Rbf3、首物理 offset、H.FrameLength、payload24、kind/meta/tombstone 匹配，再完整 CRC、精确解码比对；checked 后界须为I。缺首帧先查 TerminationError，不找后续替代。
 
-可写访问正式桶 MUST 在 public `RbfFile.OpenExisting` 前用公共文件长度入口拒绝实际长度 < I，并先关闭探测句柄再进入独占 RBF 工厂。非 None 恢复须有 `AffectedFrameOffset >= I`；随后执行共同首帧资格，只允许 header 后的 tag 残尾恢复，不补造/认领 header。header body 完整但缺 Key/Fence 时也应在 I 前检拒绝，不能先 CompletedTail，再于下次 Action=None 收养。长度足够但 header 内容坏仍拒绝；不承诺底层 tag 尾恢复前完全不修改坏文件。只读使用 public `OpenReadOnlyExisting`，残尾拒绝且不修复。
+可写正式桶在 public RbfFile.OpenExisting 前用公共文件长度入口拒绝实际长度<I，先关闭探测句柄再进独占工厂。非 None 恢复须有 AffectedFrameOffset>=I，随后仍共同检查 header；只允许 header 后残尾恢复，不补造/认领 header。header body 完整但缺原 Key/Fence 也须在I前检拒绝，不能先 CompletedTail、下次 Action=None 收养。长度足够但 header 内容坏仍拒绝，不承诺底层尾恢复前完全不修改坏文件。只读用 OpenReadOnlyExisting，残尾拒绝且不修复。所有成功资格均消费公共工厂正常EOF/恢复边界，不另绕过工厂。
 
-## 每次目标桶扫描与请求范围的完整性裁决
+## named 查询：元信息优先与坏项隔离
 
-ResolveTag 与 CreateTag 查重复用一个内部同步扫描流程，扫描至正常 EOF，仅对请求名称裁决命中、损坏及重复；成功不证明整桶内容健康。不保留跨调用 name→ticket/payload 表、负缓存或持久名称索引，不外泄 sequence/info/reader，不增加 visitor、扫描预算、partial-result 或缓存 API。
+ResolveTag、ReadTagInfo 与 CreateTag 查重共用内部同步元信息扫描，扫描到正常EOF，仅裁决请求名；不保留跨调用 name→ticket表、负缓存或索引，不外泄 sequence/info/reader，不加预算或 partial-result API。
 
-1. CreateTag 第一条语句初始化 outcome=NotAttempted；两个入口均在文件 I/O 前检查 owner disposed/fault 与共用名称准入。CreateTag 再检查可写模式及 S5 HistoryActive mutation guard。借入 data 与 single-driver 的持续责任消费 S4，不为纯 tag 查询另建 data 健康探测。
-2. 只取得该名字的正式规范桶，按访问模式打开并完成 header/恢复资格，沿 `ScanForward(showTombstone: true)` 推进真实链。结构可靠时，逐条执行上述 info 与完整帧租用前检查及完整读取；局部 PayloadCRC、名称 codec/接受域/路由或记录 envelope 失败允许跳过。完整 CRC 失败时不得从未认证的 name prefix 猜非目标；info 形状/尺寸不合格、无法取得可信合法名称等情形置 `unknownName`。完整 CRC、记录形状及名称/路由通过后，名称身份才可信；若其恰为目标则计一次目标匹配，root 长度坏另置 `knownTargetDamaged`。可信其他名的 root 长度坏不使目标缺失变成未知。
-3. 仅按 Ordinal 计数请求名称的可信匹配，计数饱和于2（表示重复），payload 同值也冲突；不建立整桶 fullname 集合，其他名称的重复不阻断目标查询，由独立完整校验负责。逐帧释放 RbfPooledFrame，仅保留唯一健康目标的自有 root bytes，不收集所有 payload/ticket。命中后仍继续扫描，未知名称坏项不计为目标或非目标。每次 MoveNext=false 都检查 TerminationError。
-4. 以下裁决要求结构扫描正常 EOF、必要清理成功及最终 owner 健康；已有桶允许创建时从查重至 Append 复用同一 Idle 句柄，Append 后仍按 S4 flush/close 才交付，不关闭后重新查重，不建立并发快照协议。
+1. CreateTag 第一条语句初始化 outcome=NotAttempted。named 入口均 pre-I/O 检查 owner disposed/fault 与名称；mutation 再检查可写、HistoryActive/TagScanActive 与可选关联。借入 data 与 single-driver 责任消费S4，纯查询不另建 data 健康探测。
+2. 只取得规范目标桶，完成工厂/header/恢复资格，沿 ScanForward(showTombstone:true) 真实主链读取小 meta。MetaCRC、codec、接受域、路由或关联声明失败可局部隔离并置 unknownName；身份未可信时不能猜它是其他名。可信非目标不读 root，root CRC或长度坏不改变其非目标身份。
+3. 对可信目标按 Ordinal 计数，饱和于2；只保存唯一目标 TagInfo 与内部定位，不收集全部 fullname/ticket/root。目标元信息即证明名字已占，CreateTag 不读 root；ReadTagInfo 也不读 root。逐条归还meta，命中后仍扫描以排除同名重复，每次 MoveNext=false 都查 TerminationError。
+4. 正常EOF后依下表裁决；ResolveTag 的唯一目标再执行完整 root 资格。所有成功/健康缺失还需必要清理成功、最终 owner 健康。CreateTag 从查重到 Append 复用同一 Idle 句柄，不关闭重查，不建立并发快照协议。
 
-| 扫描结论 | ResolveTag | CreateTag |
-| --- | --- | --- |
-| 目标重复或 knownTargetDamaged | 明确目标重复/损坏失败，不采用健康副本替代 | 同名已占/损坏拒绝，NotAttempted |
-| 唯一完整健康目标，无已知目标损坏或重复 | 交付其自有 bytes，即使 unknownName=true | 同名已占拒绝，NotAttempted |
-| 零目标且 unknownName=true | 缺失不确定的失败 Result，不能 TagNotFound | 查重不确定拒绝，NotAttempted，不进入 barrier/输出 |
-| 零目标且 unknownName=false | 健康 TagNotFound | 允许进入后续创建协议 |
+| 元信息扫描结论 | ReadTagInfo | ResolveTag | CreateTag |
+| --- | --- | --- | --- |
+| 可信目标重复 | 明确重复失败 | 明确重复失败，不用健康副本替代 | 同名已占/重复拒绝，NotAttempted |
+| 唯一可信目标，即使 unknownName=true | 返回自有 TagInfo，不证明 root 健康 | 完整 root 通过才交自有 bytes；零/超界 root、完整 CRC/envelope 坏明确目标损坏 | 同名已占拒绝，NotAttempted，不读取 root |
+| 零目标且 unknownName=true | 缺失不确定失败 | 缺失不确定失败，不能 TagNotFound | 查重不确定拒绝，NotAttempted，无 barrier/输出 |
+| 零目标且 unknownName=false | 健康 TagNotFound | 健康 TagNotFound | 允许后续创建 |
 
-只有记录层的局部内容错误可隔离；扫描 framing/TrailerCRC/Fence/TerminationError、真实 I/O、OOM、生命周期/模式 guard 及必要 close 失败 MUST 传播，不能统一 catch 后继续。名称解码的截短/非法编码只在已经完整读取的 buffer 解码阶段映射为局部错误，不能按异常基类吞掉文件读取失败。结构损坏时不能猜下一个帧边界或搜索 resync，可能仍影响同桶健康目标；首 header 坏也不能跳过。正向扫描自身已完成的边界资格是继续推进的前提。完整校验另检查全桶名称重复与记录内容；本专项不新增泛用 audit API。
+局部隔离仅限已取得可靠结构、完成读取后的记录内容错误。framing/TrailerCRC/Fence/TerminationError、真实I/O（含meta short read）、OOM、生命周期/模式guard与必要close失败 MUST 传播；不能按异常基类统一catch继续。buffer内codec截短/非法编码可隔离，文件读取截短不能冒充codec错误。结构坏不猜边界或resync，首header坏不跳过。目标完整root CRC坏不影响健康元信息，但ResolveTag仍失败；其他名称重复不堵目标，由独立完整审计负责。
 
-每调用只有一个本次桶句柄、当前完整帧与临时名称、命中自有值、目标计数和上述两个布尔标志，临时状态不随桶名称总量增长。局部 finally 在 public Dispose 前先取出并清空句柄槽，所有退出只归还一次，主错误优先。ResolveTag 无应用 callback；从历史 visitor 调用时不覆盖历史当前临时 ref 槽。普通局部 CRC/envelope/名称/长度或缺失不确定失败不自动 fault 健康 writer，实际恢复/owned 清理失败依 S4 停用；必要 close 失败不能返回成功或健康缺失。最终交付前复检 owner disposed/fault。
+每 named 调用只有本次桶句柄、当前小 meta/临时名字、唯一目标值/内部定位与常数状态；ResolveTag 另有一份当前完整帧与命中自有 bytes。局部 finally 在 Dispose 前取出并清空句柄槽，主错误优先、资源只归还一次。从历史或 tag 扫描 visitor 调用时不覆盖它们的临时槽；访问当前扫描桶 MUST 借用已有合格句柄，不另开同文件、不关闭 borrowed 句柄，其他桶读用独立局部句柄。局部坏记录/缺失不确定本身不新增 fault，实际恢复或 owned 清理失败仍按 S4 停用；必要 close 失败不能交成功/健康缺失，交付前复检 disposed/fault。
+
+## 元信息公面与全桶扫描
+
+### spec [A-VS-TAG-INFO] 自有元信息不授予 root/revision 能力
+
+```csharp
+public sealed class TagInfo {
+    public string Name { get; }
+    public long RecordedAtUnixMs { get; }
+    public RefId? RelatedRefId { get; }
+    public SizedPtr? RelatedTicket { get; }
+}
+AteliaResult<TagInfo> ReadTagInfo(string name);
+public enum TagScanEnd { Complete, VisitorStopped }
+AteliaResult<TagScanEnd> ScanTags(
+    Func<TagInfo, bool> visitor, CancellationToken cancellationToken = default);
+```
+
+代码块省略内部构造。TagInfo 为普通sealed class，库内部构造，无public setter/init、owner、lease、Dispose、root或revision能力；RelatedRefId/RelatedTicket同时有或同时无。Name是自有不可变string，时间与坐标为自有值，callback结束、owner关闭后仍可用。ReadTagInfo按上面的named唯一性/缺失表返回；元信息健康而root CRC坏或长度非法也可成功，不承诺关联源可用。
+
+### spec [A-VS-TAG-SCAN] 物理元信息遍历与窄重入 guard
+
+ScanTags 在文件 I/O 前检查 owner disposed/fault、非 null visitor、取消与无其他活动 tag 扫描，再流式遍历全部实际已建桶，校验每桶 header，并对每条后续记录执行本篇小 meta 完整资格；不读 root、不做完整 PayloadCRC、不排序、不建立全 names 集合或索引。Complete 只表示所有所需物理记录元信息已遍历、各桶正常 EOF 与必要清理成功，**不证明名字全局唯一、root 健康或关联源有效**；重复声明逐条交付，完整审计另判重复。桶打开仍消费公共工厂的 EOF 结构资格，callback 早停不消除这项既有成本。
+
+与 named 隔离不同，ScanTags 所到坏 meta、未知 kind、tombstone、路由/声明错误等必要记录错误直接失败，不跳过后返回 Complete；结构/I/O/OOM/清理同样传播。每项构造自有 TagInfo、归还当前 pooled meta 后才调用 visitor。已有 callback 结果不回滚，最终失败仍是失败，不叫 partial success。visitor 当前收到 TagInfo 后返回 false 即正常 VisitorStopped，不推进后续帧/桶；取消、visitor 抛出、callback 中 Dispose、owner fault 或必要清理失败优先于正常 Complete/VisitorStopped。每个 callback 前后、继续文件工作前及最终交付检查所需 guard/cancellation；先复检 callback 后状态，再解释 false，不能吞关闭错误。取消抛 OperationCanceledException，visitor/I/O 运行期异常原样传播；纯读/取消/visitor 异常本身不 fault 健康 writer，实际 owned 恢复/清理失败仍按 S4 停用。
+
+只增加 TagScanActive guard：拒绝递归 ScanTags、进入 ReadRefHistory 与全部 mutation；允许日常 ReadRef、ReadTagInfo、ResolveTag、ListForks。history callback 可以调用 ScanTags；扫描持有独立临时桶槽，不覆盖 history 的临时 ref 槽。callback 读当前桶借用扫描句柄，其他桶用独立局部句柄。owner Dispose 先失效实例、取出并清空槽再关闭；方法 finally 只关闭仍在槽中的 owned 句柄，不重复关闭 callback 已清理的资源。全库仍单 driver 串行，不增加并发、跨调用缓存、全量名称表或扫描预算。所有退出清除 TagScanActive；主异常优先且继续必要清理，不能以正常停止遮蔽清理失败。
 
 ## 创建、空桶发布与三态证据
 
-CreateTag 直接消费 S4 `[S-VS-ROOTS-AFTER-DATA-CONFIRM]`、`[A-VS-PUBLICATION-EVIDENCE]` 与 `[R-VS-PUBLICATION-UNKNOWN]`，不调用其他公开 mutation 拼成本次操作。入口第一条语句初始化必选 out 为 NotAttempted；完成名称、请求名查重与确定缺失裁决、root bytes 私有捕获、完整记录尺寸与实际起点检查。缺桶时另预检 header 与首 tag 尺寸、从 I 起的追加资格。同名/损坏/查重不确定及确定容量拒绝均先于 data barrier、私有初始化/tag 输出。纯输入捕获/分配失败不新增 fault；同一流程的 owned 清理失败仍按 S4 停用，out 不变。
+CreateTag消费S4 [S-VS-ROOTS-AFTER-DATA-CONFIRM]、[A-VS-PUBLICATION-EVIDENCE]与[R-VS-PUBLICATION-UNKNOWN]，不调用其他公开mutation拼操作。第一条语句设必选out=NotAttempted；先完成名称/关联准入、元信息查重与确定缺失、私有root捕获、取时/封口、完整尺寸及实际起点检查。缺桶另预检header、从I追加首tag的资格。同名、查重不确定、容量与非法关联拒绝先于barrier/私有初始化/输出。纯捕获/分配失败不新增fault；同次owned清理失败仍按S4停用，out不变。
 
-随后同步调用 `data.ConfirmDurable()`。无关 data Builder 仍 Building 不阻断创建，本根必要依赖仍由应用保证完成；屏障确认所有必要完成输出，不签发未完成依赖资格。屏障异常本次 tag 保持 NotAttempted、VersionStore 停用；data 按自身 fault，不 Dispose 借入 data。
+随后同步data.ConfirmDurable()；无关data Builder仍Building不阻断，root必要依赖由应用保证完成。屏障失败保持NotAttempted、VersionStore停用，data按自身fault且不被Dispose。关联注记不增加源ConfirmDurable/flush，也不证明关联位置与传入bytes有关系。
 
-缺桶时在 S4 唯一 `creating/pending.rbf` 写 header、执行共同首帧检查并要求 TailOffset=I，再 DurableFlush/close，以同文件系统 no-overwrite file rename 公开合法空桶。该初始化包括可选 tags 目录建立均不推进本次 tag outcome；打开并验证正式空桶后才追加首条 tag。首 tag 与后续 tag 使用S4同一正式Append/flush证据协议，Confirmed后才关闭/交付，无缓存安装相位；关闭/交付异常仍保留Confirmed并停用。内部助手/清理、pre-I/O Result例外、完整teardown及borrowed data处理直接消费S4，不另定义。
+缺桶时在唯一creating/pending.rbf写header、共同检查并要求TailOffset=I，DurableFlush/close后以同文件系统no-overwrite rename公开合法空桶。目录建立/空桶初始化不推进本次tag outcome；验证正式桶后才Append(payload,tailMeta)。正式Append/flush原样采用S4：尝试后未确认Unknown，确认后Confirmed，再close/交付；确认后关闭/交付异常保留Confirmed并停用。无缓存安装相位，内部助手/teardown/borrowed data规则消费S4。
 
-合法正式空桶保留，不删除或自动补首 tag；pending 残留按 S4 `[S-VS-CREATING-WORKSPACE]` 可写取消/只读保留，不读私有内容、不认领角色/桶号或续旧请求。该策略不放宽正式桶的 I 前检。header 后未完成 tag body 可由 RBF 截回真实边界；完整 body 缺原 Key/Fence 可 CompletedTail 成为完整记录，随后仍须扫描至正常 EOF 并执行请求范围裁决。局部坏记录可在查询中隔离，但不删除、修写、回退或改绑；不能把它当健康不存在后重建同名项。
+合法空桶保留，不删除或自动补首tag；pending按S4 [S-VS-CREATING-WORKSPACE]可写取消/只读保留，不读私有内容、不认领角色或续旧请求。I前检不放宽。header后未完成body可被RBF截回真实边界；完整body缺原Key/Fence可CompletedTail，随后仍执行正常EOF、独立元信息及请求范围裁决。坏记录不删除/修写/改绑，不能当健康不存在后重建。
 
-重开以实际 checked ResolveTag 接受当前内容，不重建旧 outcome；完整 tag 不证明旧同步调用曾 Confirmed，同名/同值也不成为旧尝试身份。未知结果后由应用检查实际名称与业务内容并决定续行，不机械重复 create-only，不新增 receipt、尝试 token 或 exactly-once 账本。
+重开用实际checked ResolveTag接受bytes，ReadTagInfo仅确认元信息，均不重建旧outcome。完整记录不证明旧调用曾Confirmed，同名/同值不成为旧尝试身份。未知结果后应用检查实际名称与业务内容决定续行，不机械重试create-only，不增加receipt、token或exactly-once账本。
 
 ## 成本、施工与实施验证
 
-每次查询/重名检查包含有界输入名称度量/hash、规范路径的目录名称/类型发现与 O(目标桶记录数 + checked bytes) 的扫描；固定桶数不意味着只需一次 metadata 调用。日常查询不保存整桶 fullname 集合，只保留当前帧/名称、命中 root bytes 与常数个判定状态；单帧请求有上述界，实际 pool/RSS 与应用持有值另计。连续创建同桶 n 个 tag 仍可累计 O(n²) 记录检查。局部内容坏 A 可与同桶完整健康 B 隔离；未知名称坏项会阻止健康缺失/创建，结构坏或必要 I/O/关闭失败仍可能阻断同桶查询。其他桶内容不由本次证明。惰性 Open 不审计全部桶，不承诺 O(1) 查询、长期无限容量或性能目标已经满足。
+named请求仍做路径资格与O(目标桶记录数+checked meta bytes)扫描，CreateTag/ReadTagInfo不读旧root，ResolveTag仅对唯一目标追加完整root读取；固定桶数不等于O(1)。连续同桶创建n条仍可能O(n²)。1024桶相对256在均匀分布假设下减小平均桶负载，但增加潜在目录项、桶header与全库扫描的开关文件成本；不承诺文件系统甜点、实际分布或实测四倍性能。ScanTags遍历全部已建桶元信息，时间段/ref筛选仍为全库元信息扫描，callback持有值由应用另计；临时状态不随全部名称数增长。
 
-实际成本超出目标后再设计跨调用位置表、其更新/资格与持久索引；首版不预建 catalog、checkpoint、轮转 manifest 或通用预算。tag 查询与创建实现需与 S4/S5 原有生命周期、历史回调和根锁共同接受评审，源码、真实进程中断、平台、性能与包资格分别取证。
+坏meta的未知名称会阻止零命中的健康缺失/创建，但唯一健康目标隔离它；可信其他名的root CRC/长度坏不影响目标，可信目标的坏root只使ResolveTag失败；结构/I/O/关闭坏仍可能影响同桶目标。查询/ScanTags成功不替代独立完整审计。容量或性能证据超出目标后再评估位置表、更新资格与索引，不预建catalog/checkpoint/轮转/预算。
 
 | 验证组 | 必须覆盖 |
 | --- | --- |
-| 名称/codec/路由 | public 固定 MaxTagNameCodeUnits=1024；null/0/1025拒绝，1/1024接受且先于 I/O；原 UTF-16 计量，surrogate pair计2、未配对surrogate计1；非空空白、NUL/控制符/分隔符/U+FEFF原样；Release/release；同名不同合法BPV codeword与冗余header；跨冷进程同桶；hash碰撞按fullname区分 |
-| 容量/分配前检 | ReadString(3072)、name窗口/codeword 3077、整payload 1051653及公共Measure配套；另一合法UTF-8表示按actual consumed，不能用默认Measure定位suffix；巨大声明/overflow/截短在名称分配前拒绝；3072 ASCII chars可能临时分配但随后按1024逻辑界拒绝；info已知超界不租完整帧、置unknown；root独立1..1MiB、输出前确定拒绝；合法末帧越过起点上界后的下一次拒绝 |
-| 桶/路径 | missing 与合法空桶；可选 tags 缺失/首次建立/RO 不创建；未知名/别名/特殊类型/同文件系统/枚举失败；bare Fence/短 header/缺原 Key/Fence 重复可写打开均拒绝；首header错版/身份/桶号 |
-| 请求范围隔离 | 坏A与健康B同桶、坏项前后顺序及unknownName仍可返回唯一健康B；零hit且unknown拒绝健康缺失与Create，out=NotAttempted且无barrier/输出；有界完整读取后CRC与目标name可信但root为0或超1MiB时判目标损坏、拒Create，不用另一健康同名记录替代，含2B name+零root边界；可信其他名root坏不阻断目标；同名冗余编码及命中后方目标重复（同值/不同值）拒绝，其他名重复不堵目标且完整校验判坏；后续header/未知kind/meta/tombstone及局部codec/CRC/envelope隔离，与结构/framing/TrailerCRC/TerminationError、普通I/O/OOM/guard/close传播分别取证 |
-| 自有值/资源 | 输入后续变化不改变 tag；结果在查询/owner 关闭后有效；pooled 帧及时归还、句柄一次清理；历史 visitor 中 ResolveTag 不损害历史槽；历史期间 CreateTag pre-I/O 拒绝 |
-| 发布/恢复/Outcome | 同名/目标损坏/缺失不确定/容量拒绝先于barrier；无关Builder不阻断；data失败无tag输出；pending中断/取消/RO保留；空桶rename仍NotAttempted；首body截断保留空桶、CompletedTail后请求范围重验；Append/flush Unknown、flush后close/交付失败Confirmed；冷开不认领旧尝试 |
-| 组合消费 | 历史选点后创建 tag，ref 后续更新不影响它；应用按地址读取坏 data 时明确失败、不回退；冷重开取 tag bytes 可作无来源 CreateRef，不能由 tag 直接取得精确 fork 来源 |
+| 名称/路由 | MaxTagNameCodeUnits=1024、1/1024接受，null/0/1025 pre-I/O拒绝；pair计2/unpaired计1；空白/NUL/控制符/分隔符/U+FEFF；Release/release；BPV另一合法表示/冗余前缀；上述冷进程hash/1024桶向量与碰撞fullname裁决 |
+| meta/容量 | 逻辑meta golden、Seal/Check默认参数、escape前seal/解escape后check；0匿名/条件ticket/冗余VarUInt32与VarUInt64、exact-consume、ticket声明值域；N3077/T15..3104/M+T1051680与Measure(M,T)；巨大声明分配前拒绝，3072临时ASCII chars后按1024拒绝；非法M仍小读meta不租整帧、另一编码actual-consumed；末帧越界后下一起点拒绝 |
+| 桶/路径/初始化 | missing与header-only；可选目录RO不创建/首次创建；别名/未知项/特殊类型/枚举错误；bareFence/短header/缺原KeyFence反复可写均拒；错版/身份/桶号；仅header后残尾恢复、工厂EOF与close失败 |
+| named隔离 | 坏meta A与健康B、unknown在前/后且唯一B成功；zero+unknown拒TagNotFound/Create且无barrier；可信其他名root坏不阻断；可信目标M=0/超界或rootCRC坏：ReadTagInfo成功/Create已占/Resolve失败；meta坏不能借root猜name；同名不同合法编码/同值重复拒，其他名重复不堵目标；I/O/shortread/OOM/framing/close不吞 |
+| 关联与自有值 | 默认/异库/非法关联pre-I/O拒，匿名无ticket；不源读取/flush/bytes比较，不因源随后不可用拒TagInfo或Resolve；读坐标不能签发RefRevision；输入变化/归池后tag不变，TagInfo/RootPayload在owner关闭后有效，pooled资源一次清理 |
+| ScanTags/互操作 | missing返回Complete；元信息声明逐条交付含重复及坏root；后续坏meta失败不回滚已交值且不称partial success；false不读后续，取消/throw/Dispose/close优先；递归scan/进入history/全部mutation拒，read/info/resolve/ListForks允许；history callback可scan，双临时槽与当前桶读复用 |
+| 发布/恢复/组合 | data失败无tag输出/无关Builder不堵；pending取消/RO保留，空桶rename仍NotAttempted；Append/flush Unknown与确认后close失败Confirmed；CompletedTail后meta重验；冷开不认领旧尝试；ref后续更新不改tag，应用坏data明确失败，无精确来源能力 |
 
-**施工与成熟度：** 本次名称上限与请求范围隔离已获用户批准，修订取代未实施的旧容量/全桶资格草案，无旧数据迁移。先在独立 tag 切片实现名称/容量/路由及损坏裁决，再完成正式空桶初始化、CreateTag→ResolveTag→冷重开，补扫描EOF/Outcome/资源与历史互操作验收。所需tag底座能力已公开，不新增路径、索引或RBF prefix接口；D8设计关闭。独立完整校验仍承担全桶健康与重复检查，不由日常成功替代，本专项不另立泛用audit API。尚缺tag实现、VS真实冷进程/中断、平台、资源和包证据，不宣称Ready/Accepted。`tags`根准入应在S4工厂实现时认识，桶内容能力可后续施工；目录布局认识不等于tag已支持。
+**施工与成熟度：** 本次为批准的未实施合同修订。V3-A 实施名称/1024路由、可变 TailMeta/独立 CRC、named 元信息隔离与完整 Resolve；V3-B 完成惰性空桶初始化、CreateTag→ResolveTag→冷重开及 Outcome/恢复/资源验收。V3-C 可随后独立实施关联 overload、TagInfo/ReadTagInfo/ScanTags 与回调 guard，不阻断 V3-A/B；核心匿名 writer 仍按同一 schema 写id0。现有公开 RBF TailMeta 读取及 RollingCrc 已够，不新增底层路径/CRC scanner/索引接口。尚缺 tag 源码、真实冷进程/中断、平台、资源与包证据，不宣称 Ready/Accepted；根准入认识 tags 目录不等于已支持 tag。
 
-依据：本篇既有 tag 合同从 `35d6c2d` 的 S5 迁入；[S5](05-versionstore-names-and-indexes.md)现只保留导航与历史互操作。[S4 下层契约](04-versionstore-publication.md)、[RBF 公共扫描/CRC/恢复](../Rbf/rbf-interface.md)、[RbfFile 公共容量与尺寸入口](../../src/Rbf/RbfFile.cs)、[BPV string 选择](../../src/Binary/BareValueEncoding.Strings.cs)、[分配前限制与 cursor 提交](../../src/Binary/BareValueReader.Strings.cs)、[轻量计划](../../src/Binary/StringEncodingPlan.cs)是本次机制依据。[RBF 正扫测试](../../tests/Rbf.Tests/Internal/RbfScanForwardTests.cs)是底座证据；冻结旧栈[不可变 tag 测试](../../tests/EventJournal.Tests/ImmutableTagTests.cs)与[书签消费者](../../../durable-graph/tests/DurableGraph.Persistence.Tests/RepositoryTagTests.cs)仅提供工作流背景，不引入旧 API/格式，也不构成本专项实施验收。
+依据：既有tag合同从35d6c2d的S5迁入；[S5](05-versionstore-names-and-indexes.md)保留导航与历史互操作。[S4](04-versionstore-publication.md)、[RBF接口](../Rbf/rbf-interface.md)、[公共尺寸](../../src/Rbf/RbfFile.cs)、[小TailMeta读取与解escape](../../src/Rbf/RbfFrameInfo.cs)、[RollingCrc封口/检查](../../src/Data/Hashing/RollingCrc.cs)、[BPV字符串选择](../../src/Binary/BareValueEncoding.Strings.cs)、[分配前限制](../../src/Binary/BareValueReader.Strings.cs)、[VarInt](../../src/Binary/BareValueReader.cs)、[SizedPtr](../../src/Data/SizedPtr.cs)为机制依据。[RBF正扫测试](../../tests/Rbf.Tests/Internal/RbfScanForwardTests.cs)为底座证据；冻结旧栈[不可变tag测试](../../tests/EventJournal.Tests/ImmutableTagTests.cs)与[书签消费者](../../../durable-graph/tests/DurableGraph.Persistence.Tests/RepositoryTagTests.cs)仅作工作流背景，不引入旧API/格式，不构成本专项验收。

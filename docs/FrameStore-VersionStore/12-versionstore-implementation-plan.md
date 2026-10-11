@@ -93,15 +93,18 @@ VersionStore 与 FrameStore 均保持 source-only，新栈只引用 main 项目�
 | V2-A：已接通有界历史读取 | RBF 指定边界逆扫公共重载；ReadRefHistory、HistoryBudget、HistoryEnd | 固定上界、实际工作计费、早停/回调 Dispose、临时句柄复用/单次清理；受控 ForkOrigin 继承读取与 exact bytes 检查，不代表 fork 创建协议已实施 |
 | V2-B：已接通精确 fork 创建 | 自动/预留号两种 ForkRef；复用现有新 ref 单文件发布路径 | 已签发旧 revision exact 定位/尾 Fence、捕获源 bytes；所有确定拒绝先于 barrier，data 后源 flush，子重新取时并 exact clone；各失败窗口的 Outcome 与停用；public fork-of-fork/历史冷重开闭环 |
 | V2-C：已接通声明分叉图 | ListForks、ForkInfo 与全正式 ref header 扫描 | 仅读 header、单数量预算、缺源/自链接/迭代环检查、自有完整边集合；历史 callback 内同文件复用且不覆盖历史临时槽；不逐边完整审计源 ticket |
-| V3-A：tag 记录与扫描内核（下一片） | 09 的名称/容量/路由、BucketHeader/TagRecord codec、必要 header 与请求范围扫描裁决；11 的自有 RootPayload 值 | 原 UTF-16/Ordinal 与宽容 BPV，尺寸前检；unknownName、knownTargetDamaged、重复目标与结构错误分离；真实 RBF 文件验收，内部能力不冒称公开 tag 闭环 |
-| V3-B：tag 公开持久化闭环 | 可选 tags 目录及目标桶 backend、空桶发布、CreateTag/ResolveTag、公开冷重开 | 正式桶长度 I 前检保护初始化，不继承 ref 的初始化恢复资格；空桶 rename 不推进 tag outcome；同柄查重到 Append；借入/history/清理/Outcome 与 bytes 结果互操作 |
+| V3-A：tag 记录与扫描内核（下一片） | 09 的名称/容量/1024桶路由、BucketHeader/TagRecord codec、必要 header、独立 meta CRC 与请求范围扫描裁决；11 的自有 RootPayload 值 | 原 UTF-16/Ordinal 与宽容 BPV，尺寸前检；元信息资格与 root 完整CRC分离，可信非目标不读 root；unknownName、目标重复/损坏与结构错误分离；真实 RBF 文件验收，内部能力不冒称公开 tag 闭环 |
+| V3-B：tag 公开持久化闭环 | 可选 tags 目录及目标桶 backend、空桶发布、匿名 CreateTag/ResolveTag、公开冷重开 | 正式桶长度 I 前检保护初始化；空桶 rename 不推进 tag outcome；同柄元信息查重到 Append；同一 schema 写匿名 id0；借入/history/清理/Outcome 与 bytes 结果互操作 |
+| V3-C：tag 关联注记与元信息公面 | Related CreateTag overload；09 的自有 TagInfo、ReadTagInfo、ScanTags/TagScanEnd 与同步 callback | Related 不触发源重读/flush或签发revision；元信息成功不证明 root 健康；逐全已建桶、无 fullname 集合或整体重复证明；Complete/VisitorStopped、坏meta失败、取消/异常/Dispose/关闭及 TagScanActive 互操作；在 V3-B 后独立实施，不阻断 V3-A/B |
 | V4：独立完整校验与系统验收 | 只读完整检查入口、public 消费例子、进程终止/资源与两平台矩阵、S4/S5/S6 条款映射 | 日常必要读取与完整校验分别取证；新旧/循环图、坏初始健康 head、应用解码失败、所有发布与清理窗口；不得将内部模拟、字节镜像或源码测试标成 public factory、真实 kill、断电或包资格 |
 
 V1 至 V2-C 已完成源码接线，后续不重做 ref 工厂、历史、fork 或声明图。下一轮优先 V3-A：按 [09 tag 专项](09-versionstore-immutable-tags.md) 先实现名称/路由/容量及单桶请求范围扫描内核，再由 V3-B 接通真实目录和公开发布。拆分依据是 tag 有独立的局部损坏隔离及初始化保护，不能简单套用 ref 当前值检查；这沿用既定 tag 施工顺序，不新增设计问题。
 
-V3-A 应用现有 Binary 字符串 plan/reader，保持 1..1024 UTF-16 code units、3077B name codeword 与 1,051,653B 记录 payload 的既定界。使用真实 RBF 文件覆盖两种合法字符串表示/冗余前缀、同桶碰撞、可信非目标坏 root、未知名称坏项、目标重复/损坏，以及 framing/I/O/OOM/close 不可吞掉。只保留请求名计数、两个坏项标志及命中自有 bytes，不建立全名集合。`RootPayload` 与任何对外常量只按已定公面接入，不添加尚不能工作的 CreateTag/ResolveTag 占位。
+V3-A 应用现有 Binary 字符串 plan/reader，消费09的 1..1024 UTF-16 code units、3077B name codeword、纯 root payload 1..1MiB、meta 最大3104B及 payload+meta 最大1,051,680B接受界；路由固定1024桶，具体公式/布局只在09维护。meta CRC 使用现有 `RollingCrc.SealCodewordForward/CheckCodewordForward` 默认参数，作用于 RBF decoded meta codeword；底座 ReadTailMeta 自身不认证其 bytes，独立CRC、exact-consume、名称/Related语义及路由资格通过后才可信。真实 RBF 向量须覆盖两种合法字符串表示/冗余前缀、同桶碰撞、CRC独立golden、各meta字段及末CRC损坏、变长Related/名称边界和尺寸租用前检查。以读取日志证明可信非目标不读root，root/PayloadCRC坏但meta健康仍占同名，Resolve命中才完整校验root；meta坏置unknownName，不猜健康缺失。目标重复与必要结构/I/O/OOM/close错误仍拒绝，不建全名集合或跨调用索引。`RootPayload` 与任何对外常量只按已定公面接入，不添加尚不能工作的 tag 公开占位。
 
-V3-B 消费该内核，另实现正式桶 I 长度前检、缺桶 data-first 初始化与空桶 rename、同一正式句柄查重/Append/flush/close、HistoryActive guard 和完整失败证据。若下一轮现场证据表明两片能可靠合并，可由调度者明确扩至完整 tag 闭环；不能将局部扫描测试提前写成公开资格。后续真实文件实验按 S4/S5 使用 W:；Linux 验证另留身份与结果。
+V3-B 消费该内核，另实现正式桶 I 长度前检、缺桶 data-first 初始化与空桶 rename、同一正式句柄元信息查重/Append/flush/close、HistoryActive guard 和完整失败证据。接通原匿名 Span 入口，仍按09的完整 schema 写 RelatedLocalRefId=0。验证独立一次取时、匿名不带ticket、同名root坏仍不能创建，以及冷重开元信息/opaque bytes与Outcome。若现场证据表明两片能可靠合并，可由调度者明确扩至完整 tag 闭环；不能将局部扫描测试提前写成公开资格。后续真实文件实验按 S4/S5 使用 W:；Linux 验证另留身份与结果。
+
+V3-C 在 V3-B 后接入 Related CreateTag overload、`TagInfo`、`ReadTagInfo(name)` 与 `ScanTags(visitor, CancellationToken)`；字段、签名及 `TagScanEnd.Complete/VisitorStopped` 唯一见09。Related overload 仅接收同 VS、非default、库已签发的 RefRevision，拒绝先于I/O/barrier，不解释输入bytes、不重读或flush相关ref、不签发新revision；验证Related同有同无、关联点与payload可以不相等、关联源随后不可用不影响tag自身资格。ReadTagInfo 检查请求名重复，只依赖独立checked meta，root损坏时仍可返回info；ScanTags逐全已建桶交付自有info，不读root、不建fullname集合或证明全库唯一，所到坏meta失败而不silent skip后Complete。验证false立即停且不访问后缀、callback已发生副作用不回滚、取消/异常/Dispose/必要关闭失败不能正常终止，已交付info在失败及owner关闭后仍有效。TagScanActive 拒绝全部mutation、递归ScanTags与进入历史，mutation必选out仍首句NotAttempted；允许日常读、ResolveTag、ReadTagInfo及ListForks。历史callback允许ScanTags，使用独立临时桶槽；同桶callback查询复用合格句柄，所有退出清guard并单次清理。时间段/ref反查由visitor按字段筛选，总成本包含全部已建桶名称资格、header及meta，不增加时间/来源索引或查询框架。
 
 V2 的底座增量已由 [RBF 边界逆扫记录](../Rbf/rbf-reverse-boundary-plan.md)接入公共接口合同。普通当前值与普通 PublishRef 不依赖它，V1 证据保持原身份。ForkOrigin 元数据可在 V0 编解码，V2-A 读取既有声明并检验 exact 源/bytes；V2-B 已用正式源读取/确认与子发布建立公开 fork 创建闭环。
 

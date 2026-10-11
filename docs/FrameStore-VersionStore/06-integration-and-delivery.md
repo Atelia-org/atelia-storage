@@ -50,7 +50,7 @@ tool-loop 首次/新 attempt 外发之前 MUST 正常确认该 attempt 的冻结
 | [S2/S3最终源码验收](02-framestore-final-acceptance.md)、[变长地址增量](02-framestore-varint-address-implementation.md) | 三种追加/交错Builder、两份地址codec、路径/发号、门/锁/私有data、轮转/恢复、FrameRead及Inventory/Audit；已Accepted结果保持其来源身份 |
 | [S4实施与验收](04-versionstore-publication.md#实施与验收) | VS借入guard/模式/绑定、建库/锁/唯一pending、ref身份/路径/两域发号/ListRefs、实际需要的 header/head 与恢复后完整性、检查范围、data-first/Outcome及受控清理 |
 | [S5实施与验收](05-versionstore-names-and-indexes.md#实施与验收) | 固定历史上界/预算/停止/回调、直接精确fork来源及byte clone、指定边界继承历史、ListForks header/完整声明图/额度/自有结果 |
-| [08时间](08-versionstore-record-metadata.md)、[09tag](09-versionstore-immutable-tags.md)、[10可选RootMap](10-versionstore-rootmap-payload.md)、[11bytes](11-versionstore-root-payload-bytes-api.md) | 所属格式向量、初始化/扫描、长度/捕获/结果生命周期与内容解释边界；组合时保持各自资格 |
+| [08时间](08-versionstore-record-metadata.md)、[09tag](09-versionstore-immutable-tags.md)、[10可选RootMap](10-versionstore-rootmap-payload.md)、[11bytes](11-versionstore-root-payload-bytes-api.md) | 所属格式向量、初始化/扫描、长度/捕获/结果生命周期与内容解释边界；ref固定meta与tag独立meta资格分别保持，tag元信息成功不证明root健康或精确来源 |
 
 FrameStore既有资格不覆盖新增公共EnsureUsable或VS组合；先取得其新增源码/public证据再接入。S5继承历史使用已实施的[RBF 指定边界逆扫公共重载](../Rbf/rbf-reverse-boundary-plan.md)，V2-A 源码验证单独记录；既有Accepted不自动包含此增量，S6须补充其包消费与组合资格。public消费者不能借反射、internal入口或旧类型补能力；底座合成探针不代替新库/header/身份门或组合实证。
 
@@ -61,13 +61,15 @@ FrameStore既有资格不覆盖新增公共EnsureUsable或VS组合；先取得�
 | data构建/完成/barrier及active发布/归档/恢复 | 完整未发布data不改变ref/tag；A依赖完成而无关B Building仍可发布，leased文件旧dirty被确认，B后续完成需新屏障；B后来取消/中断不撤销A，data flush失败无根输出。跨文件/同文件历史随机读与交错构建只按实际地址取回，不依赖分配/完成次序 |
 | ref创建/fork的pending、flush/close、rename前后 | 两种编号入口均为未创建或完整正式ref；private不公开/不续作，RO保留。正式缺/坏必要帧报错；Windows/Linux严格不覆盖rename由VS真实入口取证，不用FrameStore移动结果替代。源确认失败无子输出，不向源登记孩子 |
 | 普通ref追加/flush与恢复 | 当前值为完整旧bytes或完整新bytes，RootMap例子不混搭Key；最新必要head坏时不回退；未访问的坏初始/旧记录不阻断健康head，独立完整校验仍报告。初始和后续残尾按S4接受恢复后完整性，RO需要修尾即拒绝；初始化中断与人为截短的格式恢复向量分开 |
-| tag目录/空桶/pending/rename及首条或后续Append | 正式合法空桶与未创建tag可共存，空桶rename不确认首tag；header初始化保护及请求名称裁决按09。截断首body保留空桶，CompletedTail后重新扫描裁决；局部坏A不阻断健康B，目标重复/损坏拒绝，零命中且名称不确定时拒绝missing/Create；结构、I/O及close失败仍传播 |
+| tag目录/空桶/pending/rename及首条或后续Append | 正式合法空桶与未创建tag可共存，空桶rename不确认首tag；header初始化保护、独立meta CRC及请求名称裁决按09。截断首body保留空桶，CompletedTail后重新扫描裁决；坏root的可信非目标不阻断健康目标，可信同名仍已占，Resolve命中才完整校验root；meta名称不确定时拒绝missing/Create，结构、I/O及close失败仍传播 |
 | 发布确认前后、库内交付及应用安装 | public out在原异常/OOM/助手异常后可见，正常失败NotAttempted、未确认尝试Unknown、确认后结果/清理失败Confirmed。进程终止无out，重开只读实际事实；自动丢结果可发现而不能按同值认领，指定号码不证明旧attempt。健康借入data不因VS失败或Dispose被关闭 |
 | 应用外发与独立目录登记 | Started无结果、外部已执行但结果未发布、结果已发布、过期generation分别走应用策略；不由存储盲重试/补发Started。固定槽/动态LocalId与正确库关联，独立目录二次发布可留未登记ref，不声称跨ref事务或exactly-once |
 
 **public端到端组合。** 完成前述最小模型与应用场景，再验证Encode→bytes发布→自有读取→Decode、历史选点后fork/tag/rewind、旧结果跨查询/owner关闭保留及坏data的应用失败。禁用RootMap decoder验证核心路径，JSON/随机bytes同样可发布/读取/fork/tag；fork保留exact源bytes，历史实际校验来源一致性而ListForks只检查header与声明图。坏初始/健康head的ReadRef成功与历史提前停止、实际走到坏节点失败分别验证；源大量后续更新不增加旧fork点定位/历史接续的扫描步骤。合法末帧越过MaxOffset的末端与下一次追加拒绝分别验证；库绑定拒错data与裸地址来源的应用责任分开。
 
-single-driver/HistoryActive、取消/回调Dispose及必要清理规则按所属阶段在public调用中复验；这些串行轨迹不改标为并发资格。实际Open/正式发现成本、history源anchor及必要前缀读取、ListForks规模、tag请求范围桶扫描/连续创建、bytes复制与资源峰值另测，不用codec算术或预算替代性能/平台证据。CU仅在正式接纳[07候选](07-versionstore-cross-ref-conditional-update.md)后另纳入组合矩阵，当前不验证或宣称主线支持。
+tag 元信息组合在[实施计划](12-versionstore-implementation-plan.md)的V3-C接通后补齐：ReadTagInfo可读取root损坏但meta健康的记录；ScanTags以visitor完成名称枚举、时间段及Related ref筛选，不读root、不签发来源revision或证明bytes一致，也不证明整体名称唯一。所到坏meta失败，false立即VisitorStopped，不访问后缀；回调副作用不因后来失败回滚。Related创建仍只执行既定data-first发布，不重读/flush注记ref。
+
+single-driver/HistoryActive/TagScanActive、取消/回调Dispose及必要清理规则按所属阶段在public调用中复验；历史callback可进入ScanTags并使用独立临时桶槽，tag扫描callback拒绝mutation、递归扫描与进入历史，允许的日常读取按09执行。这些串行轨迹不改标为并发资格。实际Open/正式发现成本、history源anchor及必要前缀读取、ListForks规模、tag请求范围桶扫描/连续创建、全桶元信息扫描、bytes复制与资源峰值另测，不把增桶预计记录下降称为端到端提速，也不用codec算术或预算替代性能/平台证据。CU仅在正式接纳[07候选](07-versionstore-cross-ref-conditional-update.md)后另纳入组合矩阵，当前不验证或宣称主线支持。
 
 ### spec [S-DELIVERY-PACK-OWNER] 包入口有单一负责人
 

@@ -1,6 +1,6 @@
 # VersionStore：root payload bytes 公面与所有权
 
-日期：2026-10-10。状态：**Draft / 用户采用同步 bytes 输入、自有 GC buffer 结果和发布前捕获；V1 已接通工厂与普通 ref 创建/读取/发布，V2-A 已接通自有历史快照，V2-B 已接通精确 fork 的原样 bytes 复制；tag/CU尚缺（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。本篇是 S4/S5/tag/CU 的 bytes API 与长度/生命周期唯一权威；不改变身份、根锁、单 driver、ProcessCrashOnly、data-first 或三态证据。CU 仍为候选，程序集拆分另行设计。
+日期：2026-10-11。状态：**Draft / 用户采用同步 bytes 输入、自有 GC buffer 结果和发布前捕获；V1 已接通工厂与普通 ref 创建/读取/发布，V2-A 已接通自有历史快照，V2-B 已接通精确 fork 的原样 bytes 复制；本次补齐 tag 的可选关联输入，tag/CU仍未实施（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。本篇是 S4/S5/tag/CU 的 bytes API 与长度/生命周期唯一权威；不改变身份、根锁、单 driver、ProcessCrashOnly、data-first 或三态证据。CU 仍为候选，程序集拆分另行设计。
 
 ## 最小公面
 
@@ -40,7 +40,7 @@ owner/mutation/参数准入后先按实际 Span.Length 检查 1..1,048,576B；�
 
 读取时先完成必要 framing/CRC/尺寸/发布资格，再从 pooled 帧复制实际 root bytes，并在交付前归还 pooled 帧。结果在调用结束、后续查询、owner fault/Dispose 后有效，不需要 Dispose；对象/Span 正常引用保持数组存活，最终由 GC 回收。只读 Span 是访问视图，GC 自有 buffer 才是生命周期来源。应用要放入需要 ReadOnlyMemory/Stream 的处理链时可自行 ToArray，不为这类未来接口提前增加租借结果。
 
-tag 读取无 ref revision/时间，因此返回一个窄共享 payload 容器，不造假的 default revision：
+ResolveTag 只交付 root bytes，使用窄共享 payload 容器，不造假的 default revision。tag 的时间、可选关联坐标及只读取元信息的 TagInfo / ReadTagInfo / ScanTags 公面由 [09 专项](09-versionstore-immutable-tags.md)定义，不加入 RootPayload：
 
 ~~~csharp
 public sealed class RootPayload {
@@ -51,10 +51,15 @@ public sealed class RootPayload {
 AteliaResult<bool> CreateTag(
     string name, ReadOnlySpan<byte> payload,
     out PublicationOutcome outcome);
+AteliaResult<bool> CreateTag(
+    string name, ReadOnlySpan<byte> payload,
+    RefRevision relatedRevision, out PublicationOutcome outcome);
 AteliaResult<RootPayload> ResolveTag(string name);
 ~~~
 
-RootPayload 同样由库内部构造并持有自有 GC array；不新增 identity、version、equals/hash 或 Dispose。RefBytesSnapshot 的内部 buffer 表示由实现选择，不要求再分配 RootPayload 容器或重复 bytes。CreateTag 不回显输入，成功值恒为 true；同名拒绝为失败，不引入 false 成功、幂等或 no-op。ResolveTag 返回目标命中的自有值，健康 missing 仍是 TagNotFound；存在名称无法确认的坏记录且零命中时，按 [09 专项](09-versionstore-immutable-tags.md)报告缺失不确定，不返回 TagNotFound。
+RootPayload 同样由库内部构造并持有自有 GC array；不新增 identity、version、equals/hash 或 Dispose。RefBytesSnapshot 的内部 buffer 表示由实现选择，不要求再分配 RootPayload 容器或重复 bytes。两个 CreateTag 入口均捕获调用方传入的实际 bytes，不回显输入，成功值恒为 true；同名拒绝为失败，不引入 false 成功、幂等或 no-op。原入口产生无关联 tag；新入口只记录同库、nondefault、库签发 relatedRevision 的关联注记，在 I/O 前拒绝非法关联值。它不从源帧取 bytes、不比较 payload、不重读或确认源文件；名称、关联及读取资格唯一消费09，不能由相同 bytes 推出精确来源。
+
+ResolveTag 交付前仍完整校验命中记录的 RBF 内容 CRC 与 root-payload envelope；仅通过独立元信息 CRC 的 TagInfo 不能替代这份 bytes 资格。健康 missing 仍是 TagNotFound；存在名称无法确认的坏记录且零命中时，按09报告缺失不确定，不返回 TagNotFound。
 
 ### spec [A-VS-BYTES-BATCH] 批量输入只增加可放入集合的视图
 
@@ -72,4 +77,4 @@ ReadOnlyMemory 仅用于放入普通集合，不转移 ownership；调用方在�
 
 覆盖1B/1MiB/0B/超限、只复制 slice、输入修改与归池、stackalloc/数组/池来源；read/历史/tag 结果在 pooled 归还与 owner Dispose 后仍有效，后续读取不改变旧结果。证明所有核心路径不调用 RootMap decoder，并覆盖 JSON UTF-8、有界随机 bytes 与内容 codec 失败独立于 CRC/事务资格。批次实际重复/错上下文、同一 buffer 多个slice、捕获失败先于输出、整批 Outcome/确认后结果安装异常与 CU 元数据独立定位均须验证；纯输入失败与同时发生 owned 清理失败的停用差异也须覆盖。
 
-小根对象下选择捕获/交付复制以换取简单 ownership；没有零复制、公开 Builder、streaming、Lease/Dispose、codec callback 或通用预算框架。测量发现复制/RSS成为实际瓶颈后再单独评估。V0 普通 ref 局部实施与验证见实施计划；历史读取已由 V2-A 接线；fork 创建/tag/CU仍待施工。RBF pooled 生命周期与 FrameStore FrameRead 是底座参考，不替代本结果模型的实际证据。
+小根对象下选择捕获/交付复制以换取简单 ownership；没有零复制、公开 Builder、streaming、Lease/Dispose、codec callback 或通用预算框架。测量发现复制/RSS成为实际瓶颈后再单独评估。V0 普通 ref 局部实施与验证见实施计划；历史读取与精确 fork 已由 V2-A/V2-B 接线；tag/CU仍待施工。RBF pooled 生命周期与 FrameStore FrameRead 是底座参考，不替代本结果模型的实际证据。

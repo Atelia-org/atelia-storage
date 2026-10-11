@@ -14,7 +14,8 @@
 | ForkRef(sourceRevision) | 自动编号，从精确源快照创建 fork | header/ForkOrigin 与完整初始 Snapshot，一次文件发布 |
 | ForkRef(destLocalRefId, sourceRevision) | 在空闲预留号创建 fork | 同上，指定目标 create-only |
 | ListForks(maxRefs, cancellationToken) | 查询全部正式 ref 声明的创建来源边 | checked header 与完整图；单次自有只读结果，无跨调用缓存 |
-| CreateTag(name, payload) / ResolveTag(name) | 创建/读取不可变完整 bytes | 目标桶的一条完整 tag record |
+| CreateTag / ResolveTag | 创建/读取不可变完整 bytes；可选 Related 仅作关联注记 | 09 的目标桶元信息裁决与必要完整 root 读取 |
+| ReadTagInfo / ScanTags | 按名读取或同步逐项交付 tag 元信息 | 09 的独立 checked 元信息；不证明 root 健康或签发 revision |
 | 无来源复制 / rewind 便利流程 | 旧 payload 新建独立 ref / 追加回原 ref | 调用 S4 CreateRef / PublishRef |
 
 历史入口/终止消费 `[A-VS-REF-HISTORY-CHECKED]`，ListForks 结果/限额消费 `[A-VS-FORKS-CHECKED]`；mutation 统一用 S4 AteliaResult/必选 out PublicationOutcome。fork 只接收 revision，不接受自由组合 roots/origin 或凭同值补链接；无来源复制仍用 CreateRef。首版不删除/复用 ref，不修改/删除 tag，不提供差分/checkpoint 或多个 ref 的事务；发布历史与应用因果谱系分别解释。
@@ -65,7 +66,7 @@ AteliaResult<HistoryEnd> ReadRefHistory(
 
 visitor 返回 true 表示继续，false 表示已接收当前项并正常选点停止。false 后 MUST 不再扫描旧帧或访问下一源；先完成健康/取消复检和必要清理，再返回 VisitorStopped，即使该项恰为起点也保持此结果。调用方可保存所选值，在方法返回后 fork/tag/rewind；需要列表时由调用方收集，不要求库保留整批历史。
 
-**准入与固定上界。** MUST 先检查 owner disposed/fault、RefId 参数、非 null visitor、两个预算均为正数及无其他活动历史读取，再做文件 I/O。无隐含预算默认值；long.MaxValue 可表示调用方不设置实际限额，default 的零预算无效。通过准入后设置一个 HistoryActive 位，整个同步调用拒绝递归 ReadRefHistory 及本 VersionStore 的所有 mutation，包括发布、自动/指定 ref 或 fork 创建和 tag 创建；mutation 按 S4 先初始化 out，guard 拒绝先于 barrier/输出且不新增 fault。visitor 可串行读取当前值及 data，保留自有结果；同文件查询复用当前可用的 RBF 句柄，不重复独占打开。owner Dispose 仍是受控清理，不作为发布 mutation 拒绝。首版无并发调用或外部改写，不建跨实例 snapshot 协议。
+**准入与固定上界。** MUST 先检查 owner disposed/fault、RefId 参数、非 null visitor、两个预算均为正数及无其他活动历史读取，再做文件 I/O；09 的 TagScanActive 期间亦不得进入历史。无隐含预算默认值；long.MaxValue 可表示调用方不设置实际限额，default 的零预算无效。通过准入后设置一个 HistoryActive 位，整个同步调用拒绝递归 ReadRefHistory 及本 VersionStore 的所有 mutation，包括发布、自动/指定 ref 或 fork 创建和 tag 创建；mutation 按 S4 先初始化 out，guard 拒绝先于 barrier/输出且不新增 fault。visitor 可串行读取当前值及 data，亦可按09调用 ResolveTag、ReadTagInfo 或 ScanTags，保留自有结果；历史与 tag 扫描使用独立临时槽。同文件 ref 查询复用当前可用的 RBF 句柄，不重复独占打开。owner Dispose 仍是受控清理，不作为发布 mutation 拒绝。首版无并发调用或外部改写，不建跨实例 snapshot 协议。
 进入本 ref 时 MUST 用公共正向扫描只完整检查首 header，保存 exact header ticket、checked ForkOrigin 与 header 物理后界给出的预期初始起点，不预读第二帧 payload。随后从实际完成尾部取得逆向扫描器，完整校验紧贴 EOF 的末 Snapshot，取得固定上界 revision，先交付它，再依次向前；只有逆扫实际到达预期初始起点时才完整读取该节点。初始即末时只复制一次自有结果。后续不得重读 head 替换这个上界，不能调用未计费的 ReadRef 助手完成隐含资格工作；初始坏而 head 健康不阻断前面的健康交付或 visitor false 停止。
 
 **继承前缀。** 正反向枚举均使用 `showTombstone: true`。本地历史包含重复同值快照与 rewind，只省略已检查的首 header；必要节点的未知 kind/格式版/meta 形状、tombstone、损坏均报错；历史按真实链交付记录原时间，不按时间排序或去重。首版逐文件循环，直接消费 public RBF API：
@@ -136,9 +137,9 @@ ForkInfo 是普通非 record readonly struct，仅有三个只读属性及内部
 
 ## 不可变 tag 的独立施工片
 
-[S5-B：不可变 tag 专项](09-versionstore-immutable-tags.md)是名称、桶路径/格式、初始化保护、请求范围损坏裁决、CreateTag/ResolveTag 与对应验收的唯一权威；原 `[S-VS-TAG-PAYLOAD-IMMUTABLE]` Clause-ID 随合同迁入，本文不保留第二份定义。
+[S5-B：不可变 tag 专项](09-versionstore-immutable-tags.md)是名称、桶路径/格式、初始化保护、独立元信息资格、请求范围损坏裁决、CreateTag/ResolveTag/ReadTagInfo/ScanTags 与对应验收的唯一权威；原 `[S-VS-TAG-PAYLOAD-IMMUTABLE]` Clause-ID 随合同迁入，本文不保留第二份定义。
 
-tag 冻结所选 root payload，不记录精确 ref 来源。历史 visitor 可在调用期间 ResolveTag，创建必须等历史调用结束；共享 HistoryActive 与结果所有权消费本阶段和 S4 既定合同。该施工片建议在 ref 闭环及历史/fork 后实施，未完成 tag 不阻塞这些路径。
+tag 冻结所选 root payload，可选 Related 只是关联注记，不证明精确来源或内容相等。历史 visitor 可在调用期间 ResolveTag、ReadTagInfo 或 ScanTags，创建必须等历史调用结束；tag 扫描的反向重入限制与临时桶槽唯一见09。该施工片建议在 ref 闭环及历史/fork 后实施；元信息公面安排在 tag 发布闭环后，未完成 tag 不阻塞前面的路径。
 
 ## 应用映射与固定槽位
 
@@ -176,13 +177,13 @@ Open MUST NOT 默认回放历史/data 图；惰性打开只延后资格检查，
 | --- | --- |
 | 历史路径 | 当前/非末 fork 点、源后续追加排除、fork-of-fork、多孩子及继承快照再 fork；子初始/源均交付不同 revision，同值重发/rewind 不去重。缺源/错身份/成员/length/CRC/envelope/meta、墓碑/未知 kind/TerminationError、循环及子/源 bytes 不符失败，不作正常终止 |
 | 历史预算/停止 | 第k项 false 后不扫描旧坏内容或下一源；初始 CRC 坏/head 好时首项 false 成功，继续到坏初始失败。初始 visitor false 不验证其来源，true 后才跳源。返回数恰在无来源起点耗尽为 Complete，有来源且需继续为预算失败；进入ref/header资格/anchor及内部重复完整读/false扫描全计work，先扣费再动作；前缀/VisitorStopped/失败不称完整历史 |
-| 回调/资源 | 递归历史与全部 mutation 在 barrier/I/O 前拒绝，调用后 guard 释放；visitor可当前值/data读取及 ResolveTag/ListForks，复用匹配句柄。最后回调 false/true 时 Dispose/取消/异常，末 close失败，均不正常终止；跳转及所有退出资源单次归还，已交付自有值仍有效 |
+| 回调/资源 | 递归历史与全部 mutation 在 barrier/I/O 前拒绝，调用后 guard 释放；visitor可当前值/data读取及 ResolveTag/ReadTagInfo/ScanTags/ListForks，复用匹配 ref 句柄且 tag 使用独立槽；活动 ScanTags 拒绝进入历史。最后回调 false/true 时 Dispose/取消/异常，末 close失败，均不正常终止；跳转及所有退出资源单次归还，已交付自有值仍有效 |
 | fork byte clone | 两种目标均直接重读已签发 exact 源并在data后确认源，再发布单个完整子文件；源后来追加大量更新不增加本层定位扫描，源初始 payload 坏不妨碍健康旧点，但目标 CRC/envelope 或尾 Fence 坏必须失败，factory EOF 结构资格仍需通过。禁用/计数 decoder，用同值不同顺序/合法冗余BPV及JSON/随机bytes验证exact clone，不写源孩子表；源flush失败无子输出。子重新取时，源/子时间不参与比较 |
 | ListForks集合/图 | 两编号域、无来源根、多层/兄弟分叉，creating排除；无来源同值复制/应用映射不产生边。初始/head 的 payload CRC 或 envelope 坏而 header 好、factory EOF 结构合格时仍能查询；缺/坏header、未知项/枚举、缺源/自链接/独立分量环失败，header-only不证明初始化。深链/共享祖先不递归或二次方重追；不逐边审计源ticket，实际历史访问坏来源另须失败 |
 | ListForks额度/结果 | 零/负限额先于I/O；全部正式节点含无来源根计费，恰额EOF成功，超额不打开/读内容/扩表；全无来源成功空边。末close/取消/分配/图错误不交部分成功；三个自有字段/full ticket而非源revision、无稳定顺序、正常接口不能改backing，关owner后仍有效；visitor内查询不覆盖历史临时槽 |
 | 应用互操作 | 历史停止后 fork/tag/rewind或无来源CreateRef，应用解码/数据失败不回退；无关data Builder活跃仍能基于完成闭包fork/tag。固定槽与动态LocalId/正确库冷重开，富元数据整体发布；独立目录登记的未登记窗口由应用核对，不声称跨ref原子 |
 
-时间与bytes验收按专项接线，继承项保留实际源时间，子初始/rewind重新取时但允许同值，时钟回退不改变链序。tag仍meta0；名称/hash/请求范围损坏隔离及独立发布详细向量由09负责。
+时间与bytes验收按专项接线，继承项保留实际源时间，子初始/rewind重新取时但允许同值，时钟回退不改变链序。tag 复用08时间意义，独立元信息 schema/CRC、Related注记、名称/hash/请求范围损坏隔离及发布/元信息公面详细向量由09负责。
 
 [07 CU](07-versionstore-cross-ref-conditional-update.md)尚未并入主线。正式接纳时再加入成立CU作为源/历史节点、跳过不完整组、只clone root bytes而不带Members的向量，并重审来源ticket上界与peer成本；ForkOrigin始终指向实际ref/frame。当前S5验收不借候选宣称已支持跨ref事务。
 

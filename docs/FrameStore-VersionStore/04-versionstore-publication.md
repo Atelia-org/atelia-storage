@@ -10,6 +10,8 @@
 发布目录格式门持久绑定格式版本、VersionStoreId、DataStoreId 与不可变 ReservedRefIdUpperBound。Create/Open/OpenReadOnly 先消费 `[S-VS-DATA-BORROW]` 的入口可用性与模式检查；Open 再在任何发布文件恢复/写入前核对借入 data 的持久身份。发布位置不解释为 data FrameAddress，data 地址也不解释为 ref revision。
 单 owner/driver 串行操作，包括借入 data 的相关操作；发布目录独立消费 `[S-VS-OWNER-LOCK]`，writer 排斥其他全部 VS owner，只读 owner 可共享。VersionStore Dispose 释放 owned 文件、当前遍历资源和锁，不 Dispose 借入 data。根、创建/打开、工作区与停用清理按下面条款执行，实际资源及平台资格随实施验收。
 
+活动历史读取及活动 tag 元信息扫描期间的 mutation/reentry guard 分别消费 [S5](05-versionstore-names-and-indexes.md) 与 [09 专项](09-versionstore-immutable-tags.md)。mutation 仍先初始化 outcome=NotAttempted，拒绝须先于目标 I/O、barrier 与输出；允许的同步 callback 读取和独立临时资源槽不在本篇复制定义。
+
 首版不创建独立 Commit 对象，不为每条 Snapshot 保存 Parent，不采用 Prepared handle、nonce 账本、默认 CAS 或精确 InspectPublication。ref 的创建来源由首帧 ForkOrigin 表达，文件内发布顺序仍由实际帧链表达。不提供跨 ref 原子事务；业务谱系、随机数状态、tool-loop 阶段、operationId 和外部副作用协议由应用保存和解释。
 
 ## VersionStore 格式门与 data 绑定
@@ -132,7 +134,8 @@ VersionStore 接收/返回完整、不透明的 root-payload bytes，整体替�
 | ReadRef | checked header 身份与实际最新 head 的完整资格；不预读初始/中间 payload |
 | ReadRefHistory / ForkRef | S5 的按需历史节点、精确源与必要来源 bytes 比较；历史早停不访问更旧节点 |
 | ListForks | 全部 header 声明与来源集合/环检查；不读初始或末 payload |
-| ResolveTag / CreateTag | 09 的请求名称裁决；健康命中、目标损坏、缺失不确定与健康缺失分别处理 |
+| ResolveTag / CreateTag / ReadTagInfo | 09 的独立 checked 元信息与请求名称裁决；Resolve 命中另需完整 root CRC，元信息成功不证明 root 健康 |
+| ScanTags | 09 的逐桶元信息扫描、Complete/VisitorStopped 与回调合同；不读 root 或证明全部名称唯一 |
 | 独立完整校验 | 只读检查初始化、全部帧 CRC/envelope、全桶名称重复与 fork 来源 bytes 一致性；不解释应用 payload/data 业务闭包 |
 
 独立完整校验安排在核心读写/历史与 tag 闭环之后；具体入口和报告载体随该实施片确定，不新增本轮通用审计框架。日常成功不得宣称未访问内容健康；完整校验也不自动修复、丢坏帧、回退 head 或改变发布事实。结构不可安全推进、权限/I/O、必要恢复/清理及生命周期错误继续走各操作的失败合同。未来 CU 的完整成员判据决定发布生效，仍须在实际读取时执行，不能推迟到独立校验。
@@ -146,7 +149,7 @@ VersionStore 接收/返回完整、不透明的 root-payload bytes，整体替�
 
 接受 RefId 的入口 MUST 在既有 owner disposed/fault 检查之后、任何目标发现 I/O 或 data barrier 之前，拒绝 default 及与本 owner 持久 VSID 不符的值。它们是确定参数拒绝，不新增 fault；mutation 仍先初始化 outcome=NotAttempted。MUST 比较持久身份，不以 owner 引用代替；先前取得的自有值可以交给同一 VS 的重开 owner。此检查仅拒绝不同 VSID 的误传，不证明目标存在、物理根唯一、身份生成无冲突或记录完成。
 
-**唯一内部字段 codec。** header、自身/来源身份与后续 CU 成员表中的 RefId 字段 MUST 恰为 4B，按完整 LocalRefId 的 uint32 LittleEndian 编码；不在每个字段重复 VSID，不追加版本、CRC、flags 或预留。所有非零 32bit 位模式均数值合法，包括 1、高位及 uint.MaxValue；它不是 SizedPtr 或 FrameAddress，数值合法性不证明时间或分配顺序，不检查票据对齐/坐标或 UUID 位模式。
+**ref 内部字段 codec。** ref header、自身/ForkOrigin 来源身份与后续 CU 成员表中的 RefId 字段 MUST 恰为 4B，按完整 LocalRefId 的 uint32 LittleEndian 编码；不在每个字段重复 VSID，不追加版本、CRC、flags 或预留。所有非零 32bit 位模式均数值合法，包括 1、高位及 uint.MaxValue；它不是 SizedPtr 或 FrameAddress，数值合法性不证明时间或分配顺序，不检查票据对齐/坐标或 UUID 位模式。tag Related 注记的独立字段 codec 由09定义，不改变这里的 ref/CU 格式。
 内部 decoder MUST 要求字段输入恰为 4B，失败输出 default；只在非零检查通过后，结合宿主的预期 VSID 构造值。普通打开/读取的预期身份来自已 checked 的门上下文，记录内的身份须与之比较，不能从被检查记录反向认领期望身份；创建阶段可使用私有初始化已预定的非零 VSID，不要求初次 Create 先读取已发布门。从持久记录字段解码并交付值时，磁盘字段与整个宿主的必要身份/CRC/codec 校验须全部通过；ListRefs 的路径身份另消费 `[A-VS-REFS-DISCOVERY]`，不据此绕过记录校验。
 内部 encoder MUST 先检查值非 default、VSID 与宿主预期身份相符及目标容量至少 4B；失败不改变任何目标 bytes，成功只写前 4B，剩余目标不变。复合 reader 先保证剩余至少 4B、切出精确字段，成功才提交消费；截短/零字段失败不提交，宿主负责全部记录的剩余字段及 trailing bytes。两方向不执行 I/O、不新增堆 buffer 或专用错误族，宿主映射为自己的字段错误；可信私有构造只保存已资格化身份值，不在发布确认后的成功值交付中重新解码、读回自身文件或引入可拒绝校验。
 
@@ -175,7 +178,7 @@ revision 只从完成发布或实际 checked-read 且已确认真实主链成员
 
 已交付值在历史调用结束/提前停止/后续失败及 owner fault/Dispose 后仍可比较和保存；同一 VS 的重开 owner 可接受它，不按实例引用或 epoch 拒绝。实际 fork 消费 S5 `[S-VS-FORK-FROM-REVISION]` 的正式源/header 资格及 exact offset/length 完整内容重读与尾 Fence 检查，再执行本次 data/源确认。成员来源由已签发 revision 与完整位置不删除/复用、无外部改写的协议保证，不从源 EOF 再定位旧点；持有旧值仍不保证源存在/内容健康、当前 head 相同、本次耐久或旧调用曾 Confirmed。此规则不接受裸 SizedPtr 或增另一份成员见证；持久身份也不证明物理根唯一或认证同 VSID 拷贝。
 
-不提供公开位置构造/转换、setter/init、Deconstruct、IsValid、算术/排序、规范文本或整个 RefRevision 的公开/持久 codec。ForkOrigin 仍组合宿主上下文、4B RefId 字段与 8B Packed LE ticket；不能从这些元数据直接构造 checked revision，也不新增完整 revision 记录、版本或预留字段。暂不支持匿名精确 revision 独立外存后跨进程直接导入；tag 仅保存 root bytes，不能透明替代其精确 ref 历史来源。出现明确消费者时再立带完整上下文的窄导入/导出合同。
+不提供公开位置构造/转换、setter/init、Deconstruct、IsValid、算术/排序、规范文本或整个 RefRevision 的公开/持久 codec。ForkOrigin 仍组合宿主上下文、4B RefId 字段与 8B Packed LE ticket；不能从这些元数据直接构造 checked revision，也不新增完整 revision 记录、版本或预留字段。暂不支持匿名精确 revision 独立外存后跨进程直接导入；tag 可保存09定义的 Related 关联注记，但不签发 revision、不证明 root bytes 与该点一致，不能透明替代精确 ref 历史来源。出现明确消费者时再立带完整上下文的窄导入/导出合同。
 
 （Informative）只读投影是使现有历史与 ListForks 来源边直接关联的工程选择，不是用户另行规定的 API；全私有值也能正确完成选点后 fork，声明边本身也能按 ticket 分组。A1/A2 同字典而分别分出 B/C 时，只比较 RefId 或 RootMap 不能识别选中点的孩子，两属性允许直接比较已有 source 字段，无专用 MatchesLocation API。它们只观察首版单文件位置，未来分段需重审定位/观察合同，不承诺此 tuple 永远足够。无公开构造是窄签发表面，不是不可伪造安全机制；公开构造加严格 fork 校验也可正确，但当前没有裸位置请求消费者。旧 [CheckpointAddress](../../../durable-graph/src/DurableGraph.Persistence/CheckpointAddress.cs)及[重开失效测试](../../../durable-graph/tests/DurableGraph.Persistence.Tests/DB078EventQueryTests.cs)是实例绑定的另一模型，不成为本栈兼容义务；[结构扫描仍返回坏 payload 的测试](../../tests/Rbf.Tests/Internal/RbfScanReverseTests.cs)佐证内容资格不能只由 framing 代替，不构成新值类型或 VersionStore 实施资格。
 

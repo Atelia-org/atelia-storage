@@ -1,8 +1,8 @@
 # VersionStore：ref 记录时间与 TailMeta 格式
 
-日期：2026-10-10。状态：**Draft；用户采用固定 8B Unix 毫秒时间、以 TailMeta 长度判别元信息格式；meta codec 与普通 ref 局部接线已进入 [骨架与后续实施计划](12-versionstore-implementation-plan.md) 的 V0，真实目录/历史/fork尚缺**。
+日期：2026-10-10–11。状态：**Draft；用户采用 ref/CU 的固定 8B Unix 毫秒时间、以 TailMeta 长度判别其元信息格式；普通 ref 目录、历史与 fork 已接通，实际资格见 [骨架与后续实施计划](12-versionstore-implementation-plan.md)。tag 复用时间意义，但独立 schema/CRC 与元信息公面由09定义，尚未实施**。
 
-本文是 S4 的公共记录元信息子合同，不是新增实施阶段。规范底座为 [RBF 接口](../Rbf/rbf-interface.md)与[RBF 格式](../Rbf/rbf-format.md)。[S4](04-versionstore-publication.md)负责普通 ref 的 kind、header、root-payload envelope、结果定位及完整宿主尺寸；[S5](05-versionstore-names-and-indexes.md)负责历史/fork；[CU 候选](07-versionstore-cross-ref-conditional-update.md)负责联合提交资格。它们引用本合同，不各自定义时间编码。
+本文是 S4 的 ref/CU 记录元信息子合同，不是新增实施阶段。规范底座为 [RBF 接口](../Rbf/rbf-interface.md)与[RBF 格式](../Rbf/rbf-format.md)。[S4](04-versionstore-publication.md)负责普通 ref 的 kind、header、root-payload envelope、结果定位及完整宿主尺寸；[S5](05-versionstore-names-and-indexes.md)负责历史/fork；[CU 候选](07-versionstore-cross-ref-conditional-update.md)负责联合提交资格。它们引用本合同，不各自定义时间编码。[09 tag 专项](09-versionstore-immutable-tags.md)仅复用 RecordedAtUnixMs 的意义、取时及8B编码；其变长元信息、独立CRC资格和TagInfo/扫描合同不受本文固定形状规则约束。
 
 ## 需求与范围
 
@@ -12,9 +12,9 @@
 | 固定 8B 时间，不另加 record version 字节 | 本轮用户确认；TailMetaLength 已由 RBF 描述符提供并受 TrailerCRC 保护 |
 | 元信息格式只在尾部追加固定字段 | 本轮用户确认的演进方向；既有字段偏移、宽度、单位与语义不变 |
 | 保留实际主链历史、位置身份与原子发布资格 | 现行设计；时间不能代替 ref/SizedPtr 或 CU Members |
-| 不提供旧草案兼容、时间索引、单调时钟或通用元信息框架 | VersionStore 无实现/已发布消费者；无本轮需求 |
+| 不提供旧草案兼容、时间索引、单调时钟或通用元信息框架 | 没有已发布格式兼容义务；tag 元信息查询由09独立定义，不增加持久时间索引 |
 
-范围仅为普通 Snapshot 和未来接纳的 ConditionalUpdate；RefHeader、tag 桶 header/TagRecord、data 帧不因此增加时间字段。CU 仍是独立优先候选，本文不将其并入 S4/S5 核心。
+本文固定形状及完整读取规则仅适用于普通 Snapshot 和未来接纳的 ConditionalUpdate；RefHeader、tag 桶 header、data 帧不因此增加时间字段。TagRecord 的时间由09单独采用，不以变长 meta 长度判别 schema；CU 仍是独立优先候选，本文不将其并入 S4/S5 核心。
 
 ## term `RecordedAtUnixMs` 本次发布记录的生成时间
 
@@ -44,7 +44,7 @@ VersionStore 格式门/ref header 选择本层格式规则；记录形状由文�
 
 对本次需要完整资格化的 Snapshot/CU，reader MUST 精确接受 8B；0B、短/长形状与其他未知长度报错，不回退旧 head、不当 CU 事务不完整、不自动截出已知前缀接受未知扩展。RefHeader 的 0B 由其 kind 合同另行允许，不表示无时间 Snapshot。首版 VersionStoreFormatVersion 为 1，不增加旧无时间草案兼容。
 
-**以后扩展的约束。** 同一记录 kind 的新 meta schema 只可在现有末尾追加确定宽度字段，每种已定义形状具有唯一长度，先前字段保持不变。当前不分配未来长度/字段，也不实现注册表、版本协商或动态可选字段。新 reader 接受哪些旧长度需在届时 schema 中列明；旧 reader 对未知长度仍拒绝。改变既有字段意义或不兼容 payload 时，须另作 FrameTag/所属格式版本决策，不能复用相同 meta 长度冒充同一形状。
+**ref/CU 以后扩展的约束。** 同一记录 kind 的新 meta schema 只可在现有末尾追加确定宽度字段，每种已定义形状具有唯一长度，先前字段保持不变。当前不分配未来长度/字段，也不实现注册表、版本协商或动态可选字段。新 reader 接受哪些旧长度需在届时 schema 中列明；旧 reader 对未知长度仍拒绝。改变既有字段意义或不兼容 payload 时，须另作 FrameTag/所属格式版本决策，不能复用相同 meta 长度冒充同一形状。tag 的独立变长 schema 不消费本条长度判形/演进规则。
 
 ## spec [R-VS-RECORD-META-READ] 结构判形，完整内容资格后交付
 
@@ -52,7 +52,7 @@ reader MUST 从经校验的实际 RbfFrameInfo 或完整 RBF 帧取得 TailMetaL
 
 本条只约束本次需要完整资格化的记录。CU 已以实际异长 ticket 与必要结构否定旧成员、已取得不完整见证而未访问的其他 peer，均不因此增加 VersionStore meta 判形或内容审计；S5 旧 fork 点采用精确读取/边界逆扫，不访问源在分叉点之后的后缀，CU 异长消歧仍可能结构扫描 peer 后缀。其已观察到的 RBF 结构/I/O 错误仍按既有路径传播。未知 meta 长度不能把本地/同 ticket 必要记录的解码错误降成 CU 不完整，也不能反向扩大已有结构定位的职责。
 
-RBF ReadTailMeta/ReadPooledTailMeta 仅提供 L2 预览：TrailerCRC 保护长度描述符，不保护 meta bytes；PayloadCRC 覆盖 payload、TailMeta 和 padding。预览不能签发 checked 时间/RefBytesSnapshot/RefRevision，也不能决定 CU 生效。正常 checked 读取已经完整验证整帧，不再为时间字段添加一份 CRC 或额外 I/O。
+RBF ReadTailMeta/ReadPooledTailMeta 自身仅提供 L2 预览：TrailerCRC 保护长度描述符，不保护 meta bytes；PayloadCRC 覆盖 payload、TailMeta 和 padding。仅凭 RBF 预览不能签发 checked 时间/RefBytesSnapshot/RefRevision，也不能决定 CU 生效。普通 ref/CU 的 checked 读取已经完整验证整帧，不再为时间字段添加一份 CRC 或额外 I/O。09 对 tag decoded meta 定义独立CRC及语义资格，允许权威元信息读取/名称裁决而延迟 root 读取；这不改变 RBF 自身的信任级别，也不把元信息成功变成 root 内容资格。
 
 ## 尺寸与实施出口
 

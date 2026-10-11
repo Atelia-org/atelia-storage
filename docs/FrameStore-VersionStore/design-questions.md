@@ -1,6 +1,6 @@
 # 设计阶段待定问题：FrameStore 与 VersionStore
 
-日期：2026-10-04–10；既有定稿移出设计队列；D3 的建库/根锁/唯一 pending/ListRefs 与停用清理已定于 S4。2026-10-10 不可变 tag 的名称/接受容量及首版路由参数已定于 [S5-B 专项](09-versionstore-immutable-tags.md)，D8 移出待定队列；当前没有设计阶段待定项，后续转交相应实施片与验收。状态：**Informative / Derived；问题导航，不是新增实施阶段或规范输入**。
+日期：2026-10-04–11；既有定稿移出设计队列；D3 的建库/根锁/唯一 pending/ListRefs 与停用清理已定于 S4。不可变 tag 的名称/容量、1024桶路由、独立元信息CRC、时间/Related注记及元信息公面已定于 [S5-B 专项](09-versionstore-immutable-tags.md)，D8 不回到待定队列；当前没有设计阶段待定项，后续转交相应实施片与验收。状态：**Informative / Derived；问题导航，不是新增实施阶段或规范输入**。
 输入为本轮会话及 S0–S6 合同；S2/S3 已完成[独立源码验收](02-framestore-final-acceptance.md)，本设计问题队列不重复展开其已关闭项。FrameStore 已实现[公开持久化闭环](02-framestore-persistence-implementation.md)，Inventory/Audit 已实施（见[源码验收](02-framestore-inspection-implementation.md)）；VersionStore 已接通 source-only 的普通 ref 公开闭环（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）；RBF 底座的活跃构建随机读取改进单独记录验收。S1 与 RBF1 参考隔离的已有 Accepted 资格保留原身份，不构成新模型已实施的证据。
 
 ## 设计阶段的研究边界
@@ -68,7 +68,8 @@ FrameStore 核心是不透明分配/随机读取；VersionStore 发布完整 opa
 | 活跃 Builder 是否阻断旧帧随机读取 | 不阻断已完成前缀内的指定地址读取；未完成/跨边界先拒绝，扫描相关资格未放宽 |
 | 读结果与物理检查如何交付 | S2 已定自有 FrameRead、纯值 inventory、完整 CRC audit 与同步 visitor guard；不外泄 reader/枚举器，不以部分回调或结构扫描称全库内容健康 |
 | 历史选点与遍历预算如何交付 | S5 已定同步 bool visitor、自有 RefBytesSnapshot、返回数/工作步预算与单次调用清理；正常 Complete/VisitorStopped，预算专用失败，不外泄 sequence/epoch/cursor |
-| tag 名称/容量/路由与桶协议 | [S5-B 专项](09-versionstore-immutable-tags.md)已定用户采用的 non-null/non-empty Ordinal 名称与1024 UTF-16 code units上限、BPV分配前限界，以及固定 FNV64/fold/256桶/8hex 路径；保留初始化保护及 data-first/Outcome，日常按请求名称裁决，健康命中隔离局部坏项，名称不确定时拒绝缺失/创建，靠后施工，不保留跨调用索引 |
+| tag 名称/容量/路由与桶协议 | [S5-B 专项](09-versionstore-immutable-tags.md)已定 non-null/non-empty Ordinal 名称与1024 UTF-16 code units上限、BPV分配前限界及固定1024桶路由；保留初始化保护、data-first/Outcome与请求名裁决。独立meta CRC允许可信非目标跳过root，名称不确定时拒绝缺失/创建；时间及Related仅为元信息/关联注记，不签发来源revision；无跨调用索引 |
+| tag 元信息查询/枚举 | TagInfo、ReadTagInfo与同步ScanTags唯一见09；时间段/ref反查由visitor筛选，自有结果及Complete/VisitorStopped不等于root健康或全库名称唯一。坏meta所到失败而非静默缺项；V3-C在V3-B发布闭环后独立实施，不阻断V3-A/B |
 | ref 是否承担应用名称映射 | 不承担；应用常量使用预留号，动态目录保存 LocalId 并在正确库 checked 定位；命名 tag 独立保留 |
 | 指定编号是否影响自动发号 | 仅允许 1..L 指定，自动高号与其不交叠；低号不推进 H，L 创建时持久且不可变，不预创建对象 |
 | 基础地址是否保持 16B 或带 SmartPointer 见证 | 固定 12B 与显式变长 codec，完整 uint FileId + SizedPtr；无预留/内容 CRC，wire 与内存成本分离 |
@@ -76,7 +77,7 @@ FrameStore 核心是不透明分配/随机读取；VersionStore 发布完整 opa
 | FrameStore 格式门记录与初次建立 | S2 已定 framestore.format 普通24B记录/唯一CRC/共同只读校验；`[R-FS-STORE-CREATE]` 已定空store、正式门直接create-only写入及成立/返回/失败边界，无私有门或门rename；`[S-FS-OWNER-LOCK]` 已定永久0B控制设施/门前bootstrap与重检、writer独占/readers共享及最后关锁；私有data初始化残留语法/候选/全字节前缀、可写取消与只读保留已定，实际根准入已定于 `[S-FS-ROOT-ADMISSION]`，RBF纯入口/目录清理已实施，平台与系统资格按实施记录区分 |
 | VersionStore 建库/门/根锁/工作区 | S4 `[R-VS-STORE-CREATE]`、`[S-VS-ROOT-ADMISSION]`、`[S-VS-OWNER-LOCK]`、`[R-VS-STORE-OPEN]` 与 `[S-VS-CREATING-WORKSPACE]` 已定：直接44B门、随机非零VSID、永久空锁、唯一pending可写取消/只读保留；不续作半初始化，不做私有内容/目标对照。代码接线与平台/中断验收留实施 |
 | 借入 data 的入口可用性与持续责任 | S4 `[S-VS-DATA-BORROW]` 已定 VS 工厂先于自身 I/O 检查、模式配对及调用方持续责任；S2 `[A-FS-ENSURE-USABLE]` 仅转发现有内部 disposed/fault guard，公共转发与集成证据留实施，不重开健康查询框架 |
-| ref记录是否需要独立version/时间机制 | [S4元信息专项](08-versionstore-record-metadata.md)已定固定8B原始Unix毫秒、精确长度判形/末尾扩展、私有一次取时与完整内容资格；无独立version/时钟水位，S4/S5/CU分别消费，实施向量不重开设计 |
+| ref记录是否需要独立version/时间机制 | [S4元信息专项](08-versionstore-record-metadata.md)已定ref/CU固定8B原始Unix毫秒、精确长度判形/末尾扩展、私有一次取时与完整内容资格；无独立version/时钟水位。tag只复用时间意义/编码，独立变长schema及CRC由09定义，不套用固定8B规则 |
 | 可变初始 Snapshot 是否需要恢复前保护 | 2026-10-10 用户采用 S4 `[R-VS-LOCAL-COMPLETE]`：private 完整 flush/close→rename 发布与正式 ref 读取各自承担责任；先按现有 public RBF 恢复，再检查 header 与本次实际需要的记录；不以初始 payload 健康作为所有日常读取的准入。创建/实际到达初始节点/独立完整校验仍检查初始化，接受恢复后初始化完整，不增加前缀 API/初始化账本；原阻塞移出，运行时验收随实施 |
 | VersionStore 身份/定位/编号及集合发现 | 完整 RefId/LocalId、RefRevision/bytes 公面/ref envelope 格式、8hex/两域分配与目录生命周期已定；S4 `[A-VS-REFS-DISCOVERY]` 交付正式路径的自有 RefId 全集合，不审计内容或签 revision；精确 revision codec 延期 |
 
@@ -84,7 +85,7 @@ FrameStore 核心是不透明分配/随机读取；VersionStore 发布完整 opa
 
 ## 设计与关键实现方案待定
 
-当前为空。tag 的名称/容量/路由、请求范围损坏裁决与发布合同已内聚于 [S5-B 专项](09-versionstore-immutable-tags.md)，原 D8 不再保留为待定问题。后续只在真实反例、底座机制不可行或明确新产品要求出现时，按上面的入队标准重开具体缺口；缺实现或验收证据本身不重建问题。
+当前为空。tag 的名称/容量/路由、独立元信息资格、Related注记、请求范围损坏裁决、发布与元信息公面已内聚于 [S5-B 专项](09-versionstore-immutable-tags.md)，原 D8 不再保留为待定问题。后续只在真实反例、底座机制不可行或明确新产品要求出现时，按上面的入队标准重开具体缺口；缺实现或验收证据本身不重建问题。
 
 ## 其余定稿项与条件扩展
 
@@ -101,7 +102,7 @@ D6 已由 S2 `[S-FS-ROOT-ADMISSION]` 与真实目录工厂关闭：调用方根/
 | --- | --- | --- |
 | S4 已定，交实施 | 初次建库/根锁/唯一pending/ListRefs/停用清理及恢复后完整性准入已定，不再有D3设计阻塞 | V1已接通CreateRef→ReadRef→PublishRef→冷重开及Windows局部验证；V2-A 已接通历史读取，V2-B 已接通精确 fork，V2-C 已接通 ListForks；后续补 tag、完整检查与两平台进程中断，保持VS整体Draft，局部验证与系统资格分开 |
 | S5 历史已定，交实施 | 已签发 revision/不可变 ForkOrigin 直接精确读取；日常 header/逐项检查与声明图检查分离，详见 S4/S5 | V2-A 已实施[RBF 指定边界逆扫公共重载](../Rbf/rbf-reverse-boundary-plan.md)与旧 fork 点之前的历史读取，源码证据见实施计划；V2-B 已接通 ForkRef，V2-C 已接通 ListForks；继续 tag 与系统验收，不重开已定设计 |
-| S5-B 已定，靠后施工 | [09 专项](09-versionstore-immutable-tags.md)的名称/BPV/组合容量与稳定路由参数已定，不再有 D8 设计阻塞 | 先完成 ref、历史/fork，随后实施 CreateTag→ResolveTag→冷重开及桶/损坏/Outcome/资源/平台/组合验收 |
+| S5-B 已定，靠后施工 | [09 专项](09-versionstore-immutable-tags.md)的名称/BPV/容量、1024桶与独立meta资格、Related注记及元信息公面已定，不再有 D8 设计阻塞 | V3-A/B先完成内核及CreateTag→ResolveTag→冷重开；V3-C随后补ReadTagInfo/ScanTags、guard/callback互操作与元信息筛选验收，系统/资源/平台/组合资格另取证 |
 | S2–S6 已定合同 | 仅在真实反例、机制不可行或明确新要求时重开 | 所属阶段的实施/验收要求、进程中断、平台及隔离包消费证据；条件优化另看实际需求 |
 
 每轮结论写回所属阶段，只从本表移出已关闭的设计子题；D3/D8 已移出，不因其实现尚缺而重建待定项。普通实现选择和已定合同验收交给对应实施片，允许少量导航，不建立越来越细的研究队列。关键方案若须实验，先用最小探针取证；若只缺完整实现/测量，说明证据缺口并结束设计轮，不用文档代替代码模型。
