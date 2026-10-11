@@ -1,0 +1,218 @@
+{
+  "date": "2026-10-11",
+  "scope": "VersionStore V4-A synchronous read-only complete Audit; source-only",
+  "baseline": "752ab154b92df7492144492fed913f1399cd7df8",
+  "sourceIdentity": "Baseline plus changed/new C# files below, committed with this record; source hashes normalize UTF-8 text to LF.",
+  "platform": "Windows-11-10.0.22000-SP0",
+  "fixtureDrive": "W:",
+  "commands": [
+    "dotnet build Atelia.Storage.slnx -c Release --nologo -v minimal",
+    "dotnet test tests/VersionStore.Tests/VersionStore.Tests.csproj -c Release --no-build --filter 'FullyQualifiedName~.AuditPublic.|FullyQualifiedName~.AuditFaults.' --logger trx --results-directory artifacts/versionstore-v4a/accepted-targeted",
+    "dotnet test Atelia.Storage.slnx -c Release --no-build --logger trx --results-directory artifacts/versionstore-v4a/accepted-tests",
+    "./eng/Test-Rbf1ReferenceAssets.ps1"
+  ],
+  "build": {
+    "succeeded": true,
+    "warnings": 0,
+    "errors": 0
+  },
+  "newCases": {
+    "AuditPublic": 40,
+    "AuditFaults": 52
+  },
+  "targeted": {
+    "assembly": "atelia.versionstore.tests.dll",
+    "results": {
+      "Passed": 92
+    },
+    "trx": "artifacts/versionstore-v4a/accepted-targeted/gdtutu_TUTU17_2026-10-11_12_52_55.trx",
+    "sha256": "b4c8a59600c90e9c5e3fccbd5e996829c377b9aa23f67bd7086ed14245c6c86d"
+  },
+  "testOutcomes": {
+    "Passed": 3410,
+    "NotExecuted": 9
+  },
+  "testRuns": [
+    {
+      "assembly": "atelia.versionstore.tests.dll",
+      "results": {
+        "Passed": 1147,
+        "NotExecuted": 6
+      },
+      "trx": "artifacts/versionstore-v4a/accepted-tests/gdtutu_TUTU17_2026-10-11_12_53_13.trx",
+      "sha256": "d46bedcba313f0185c241c8303f05a253a07940c26a36167039040efb07e1e0e"
+    },
+    {
+      "assembly": "atelia.framestore.tests.dll",
+      "results": {
+        "Passed": 422,
+        "NotExecuted": 3
+      },
+      "trx": "artifacts/versionstore-v4a/accepted-tests/gdtutu_TUTU17_2026-10-11_12_53_18.trx",
+      "sha256": "45e1817dc5f9135c66f410a54aa68541f648b565c0666d137ef5a4efd0f081ef"
+    },
+    {
+      "assembly": "atelia.primitives.tests.dll",
+      "results": {
+        "Passed": 75
+      },
+      "trx": "artifacts/versionstore-v4a/accepted-tests/gdtutu_TUTU17_2026-10-11_12_53_21.trx",
+      "sha256": "a88ad882d08f3e9de2477d716ea51060f409a0d6a501a7f6ca281f69763f11cf"
+    },
+    {
+      "assembly": "atelia.data.tests.dll",
+      "results": {
+        "Passed": 288
+      },
+      "trx": "artifacts/versionstore-v4a/accepted-tests/gdtutu_TUTU17_2026-10-11_12_53_21[1].trx",
+      "sha256": "011d1a451135b627f37e307690c58a5ea7cb2a04a4b97c8884f4735b6cafb029"
+    },
+    {
+      "assembly": "atelia.binary.tests.dll",
+      "results": {
+        "Passed": 214
+      },
+      "trx": "artifacts/versionstore-v4a/accepted-tests/gdtutu_TUTU17_2026-10-11_12_53_22.trx",
+      "sha256": "1c6b1a759efb48320913959db24be66d028b99a790d21dbda8d5937b4e718792"
+    },
+    {
+      "assembly": "atelia.rbfsegmentstore.tests.dll",
+      "results": {
+        "Passed": 48
+      },
+      "trx": "artifacts/versionstore-v4a/accepted-tests/gdtutu_TUTU17_2026-10-11_12_53_22[1].trx",
+      "sha256": "a3b47bdd13525fb88f9e99fd9b8a7a8f08f37556d9c8a87ea9527ac2229725e2"
+    },
+    {
+      "assembly": "atelia.rbf.tests.dll",
+      "results": {
+        "Passed": 920
+      },
+      "trx": "artifacts/versionstore-v4a/accepted-tests/gdtutu_TUTU17_2026-10-11_12_53_22[2].trx",
+      "sha256": "6e47526fab9d06abf1737539a4301b8b4b676839c897ff14f8998779c7e00867"
+    },
+    {
+      "assembly": "atelia.eventjournal.toolkit.tests.dll",
+      "results": {
+        "Passed": 122
+      },
+      "trx": "artifacts/versionstore-v4a/accepted-tests/gdtutu_TUTU17_2026-10-11_12_53_24.trx",
+      "sha256": "37c3bc22c41c0ef54a6a33bee11953f0112feedd78bead09fa4f17dd4a15eda1"
+    },
+    {
+      "assembly": "atelia.eventjournal.tests.dll",
+      "results": {
+        "Passed": 174
+      },
+      "trx": "artifacts/versionstore-v4a/accepted-tests/gdtutu_TUTU17_2026-10-11_12_53_25.trx",
+      "sha256": "36abc549451e355d7edeb6df722b39a98314428f6a6b569e7d0bc66957175d5d"
+    }
+  ],
+  "versionStoreDependencies": {
+    "K4os.Compression.LZ4/1.3.8": "package",
+    "Atelia.Binary/1.0.0": "project",
+    "Atelia.Data/1.0.0": "project",
+    "Atelia.FrameStore/1.0.0": "project",
+    "Atelia.Primitives/1.0.0": "project",
+    "Atelia.Rbf/1.0.0": "project"
+  },
+  "frozenReferenceAssets": "7 projects verified exact RBF1 package 0.2.0-rbf1-preview.1, source 3e9554e2ea70f769607e80b3fc11a85506050533",
+  "independentReview": "No unresolved P1/P2 after source, test assertions, and targeted logs review. Main thread ran all build/test commands.",
+  "firstPassFindings": [
+    "Production-only build found one OptionalRbfFrameInfo pattern compilation error, fixed to HasValue/Value; 41 pre-existing Data/Rbf XML warnings were not changed.",
+    "First targeted run: 90 passed / 2 failed; both test exception ordering assertions incorrectly used AggregateException.Flatten breadth-first order. Fixture now traverses original exception tree depth-first, matching existing tests. Production aggregation unchanged; final targeted and full suite pass."
+  ],
+  "coverage": [
+    "Public cold owner cycles and self-owned exact counts; no opaque decoding or data closure traversal; tag Related remains metadata-only declaration.",
+    "All ref initialization/physical frames, exact source offset+length, graph missing/cycles, clone bytes/length, all tag root/meta and decoded Ordinal duplicates.",
+    "Embedded frame adversarial image first proves valid local full CRC and boundary witness plus containing-frame CRC; Audit rejects because source ticket is not a physical-chain member.",
+    "RO short-tail/header rejection and qualified arbitrary private pending preservation; VS/data directory snapshots unchanged.",
+    "Real directory and RBF observer seams verify cancellation/read/rent/close failures, nested primary exception preservation, two live clone slots, single cleanup and lock last.",
+    "80-ref finite vector verifies at most two new simultaneous readers and no owner-cache population; pre-existing cache remains independently owned."
+  ],
+  "notCovered": [
+    "Linux runtime (9 dedicated tests skipped on Windows); WSL2 ext4 execution remains planned.",
+    "Real process kill/cross-process locks, native device failures, actual system OOM, power loss, large-scale/RSS qualification.",
+    "Package registration/pack/publication, downstream migration, cross-ref CU."
+  ],
+  "logs": [
+    {
+      "path": "artifacts/versionstore-v4a/accepted-build.log",
+      "sha256": "baab767ac82b967e26821ed160933bf41c4b221f56879918c530ba04ce48511f"
+    },
+    {
+      "path": "artifacts/versionstore-v4a/accepted-targeted.log",
+      "sha256": "8a162d53c473c2ce9ba47351d7cf305504f3a2dd1feff778418fc1713debf6e9"
+    },
+    {
+      "path": "artifacts/versionstore-v4a/accepted-tests.log",
+      "sha256": "050390de0c2001051e49d5a09ce1b507dee78575e4589bf49d046a2b476e8e52"
+    },
+    {
+      "path": "artifacts/versionstore-v4a/build.log",
+      "sha256": "dfa7ac2f87df25a71e652bd10f677162959ba3deeaa45411f733a83f93d4c5d2"
+    },
+    {
+      "path": "artifacts/versionstore-v4a/production-build.log",
+      "sha256": "7bc951ba98d943273b53eff2c08abc1365d20b9fac820eab8d2a1ce633d9ed27"
+    },
+    {
+      "path": "artifacts/versionstore-v4a/rbf1-assets.log",
+      "sha256": "75997e0656849e10b55138a4500b10da8c61d34feca82a27c2e364995a4738d0"
+    },
+    {
+      "path": "artifacts/versionstore-v4a/targeted.log",
+      "sha256": "9a4638a103c61793392008bf22a4ce21b179778f719a7d85aad5f1b3bf22a9ad"
+    }
+  ],
+  "sourceFiles": [
+    {
+      "path": "src/VersionStore/Internal/Records/RefRecordReader.cs",
+      "sha256Lf": "04a44d877fd65081fc1c717b3405ca5b8ede0296fb5ee96ce176c3f7230553f9"
+    },
+    {
+      "path": "src/VersionStore/Internal/Tags/TagRecordReader.cs",
+      "sha256Lf": "d3ebdd40f93c80795cd2e31b64fe63341c784998b48f387456a21537f1db645a"
+    },
+    {
+      "path": "src/VersionStore/VersionStore.Audit.cs",
+      "sha256Lf": "57f4da9f91d25726152e55e331505563596bc4fcbe7ae318f46f2e103f887677"
+    },
+    {
+      "path": "src/VersionStore/VersionStoreAudit.cs",
+      "sha256Lf": "2e0993138791a41c3552b069c0c9ee6ab06427d946afb02d44f9e86d6cfe4adc"
+    },
+    {
+      "path": "tests/VersionStore.Tests/AuditFaults/AuditActiveGuardTests.cs",
+      "sha256Lf": "782a1e423cafd5e56fb500663f16e78fc2572c6db862e5879acff612bbfdfd7b"
+    },
+    {
+      "path": "tests/VersionStore.Tests/AuditFaults/AuditCancellationTests.cs",
+      "sha256Lf": "425320f7b62ef0f4b6809d1441d502aaaf6a5237c08a2306a9f1903d437b8f92"
+    },
+    {
+      "path": "tests/VersionStore.Tests/AuditFaults/AuditFaultFixture.cs",
+      "sha256Lf": "8fe4891c93daf81349d2bc7e580f7247b4e90069ece7ca9b7a52b31e89d9c269"
+    },
+    {
+      "path": "tests/VersionStore.Tests/AuditFaults/AuditResourceTests.cs",
+      "sha256Lf": "bece021494c0fc9ec1f0555be56d6740d213c10ace99596a9a5cb1ef5f6d1493"
+    },
+    {
+      "path": "tests/VersionStore.Tests/AuditPublic/AuditPublicFixture.cs",
+      "sha256Lf": "ffbed542624e07b8148efc20721c4f0b7dbb25a4e566bfcc2b0eca2ef6922c8e"
+    },
+    {
+      "path": "tests/VersionStore.Tests/AuditPublic/PublicAuditBehaviorTests.cs",
+      "sha256Lf": "690c3b17d57d5839fc5b307a842c9fca88bd1ceb4833a8dfc40541e87398d987"
+    },
+    {
+      "path": "tests/VersionStore.Tests/AuditPublic/PublicRefAuditTests.cs",
+      "sha256Lf": "382e6d7f8f8732f59cb059c16e7caaf38c08f8d1a5305c80b64cce9abc506979"
+    },
+    {
+      "path": "tests/VersionStore.Tests/AuditPublic/PublicTagAuditTests.cs",
+      "sha256Lf": "69c23e2477468112086091befe4eaf3708612cdbcc7a304959b499faae4455b2"
+    }
+  ]
+}

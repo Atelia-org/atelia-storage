@@ -138,7 +138,30 @@ VersionStore 接收/返回完整、不透明的 root-payload bytes，整体替�
 | ScanTags | 09 的逐桶元信息扫描、Complete/VisitorStopped 与回调合同；不读 root 或证明全部名称唯一 |
 | 独立完整校验 | 只读检查初始化、全部帧 CRC/envelope、全桶名称重复与 fork 来源 bytes 一致性；不解释应用 payload/data 业务闭包 |
 
-独立完整校验安排在核心读写/历史与 tag 闭环之后；具体入口和报告载体随该实施片确定，不新增本轮通用审计框架。日常成功不得宣称未访问内容健康；完整校验也不自动修复、丢坏帧、回退 head 或改变发布事实。结构不可安全推进、权限/I/O、必要恢复/清理及生命周期错误继续走各操作的失败合同。未来 CU 的完整成员判据决定发布生效，仍须在实际读取时执行，不能推迟到独立校验。
+独立完整校验使用下述同步 Audit 入口，不建立通用审计框架。日常成功不得宣称未访问内容健康；完整校验也不自动修复、丢坏帧、回退 head 或改变发布事实。结构不可安全推进、权限/I/O、必要恢复/清理及生命周期错误继续走各操作的失败合同。未来 CU 的完整成员判据决定发布生效，仍须在实际读取时执行，不能推迟到独立校验。
+
+### spec [A-VS-AUDIT] 独立只读完整检查
+
+```csharp
+AteliaResult<VersionStoreAudit> Audit(CancellationToken cancellationToken = default);
+public sealed class VersionStoreAudit {
+    public long RefCount { get; }
+    public long SnapshotCount { get; }
+    public long ForkCount { get; }
+    public long TagBucketCount { get; }
+    public long TagCount { get; }
+}
+```
+
+结果由库内部构造，只含自有计数，无 setter、owner、lease 或修复能力。Audit MUST 在 `OpenReadOnly` 获得的 owner 上调用；可写 owner 在任何本次 I/O 前返回 `VersionStore.ReadOnlyRequired`。这使完整检查不会经可写惰性打开触发 RBF 恢复。已有 history/tag 扫描 callback 内调用分别返回 HistoryActive/TagScanActive；本操作没有 visitor、递归入口或部分成功报告。owner disposed/fault 先检查，取消抛 OperationCanceledException。
+
+检查覆盖全部正式 ref 的合格 header、直接第二帧初始 Snapshot、每条后续 Snapshot 的完整 CRC/envelope，以及每个文件的正常 EOF；拒绝未知 kind、tombstone、重复 header 和坏尺寸。检查完整声明图的缺源与环；每条 ForkOrigin 的 exact SizedPtr（offset 和 length）MUST 命中源文件真实主链中的 Snapshot，再比较子初始与源 payload 的全部 bytes。局部随机读 CRC 或尾 Fence 合格不证明主链成员，不接受嵌在其他 payload 内的伪帧。记录时间不参与 clone 比较，应用 payload 不解码。
+
+全部实际 tag 桶都检查 header、每条记录的完整 CRC/root envelope 和独立 meta（含名称路由），按解码后的 Ordinal 名称拒绝重复；不能采用 named 查询的 unknownName 隔离。相同名字必须路由到同桶，因此去重集合可以逐桶释放。Related 坐标仅按09检查声明格式，不成为必须存在或 bytes 相等的来源依赖；tag 不是 fork。
+
+RefCount 包含所有正式 ref，SnapshotCount 按各文件物理记录计数（含每个 ref 的初始记录，不重复展开继承历史），ForkCount 为来源边数；TagBucketCount 包含合法空桶，TagCount 为实际 TagRecord 数。只有所有检查、正常 EOF 与必要清理均成功才交付统计。首次内容失败返回失败 Result；结构无法打开、权限/I/O、OOM 等按既有异常合同传播，不汇总为健康计数。纯读或取消不新增 fault，owned 清理失败仍停用并确保锁最后释放。取消可中断检查，但不承诺时间或内存配额。
+
+检查从工厂已准入的身份/布局出发，只审正式 ref/tag 内容；private pending 仍由既有只读打开规则保留，不解释或收养。它不遍历 FrameStore data，也不证明应用依赖闭包、关联源有效、旧调用曾 Confirmed 或断电耐久性。实现应使用短期只读句柄，避免将全库句柄或所有 payload 留存在 owner 中；不增加修复、索引或后台工作。
 
 ## RefId 值与内部字段编码
 

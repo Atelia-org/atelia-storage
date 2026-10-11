@@ -162,6 +162,31 @@ internal static class TagRecordReader {
         return ReadRoot(lookup.Value.UniqueTarget, header, unique.Value, checkState);
     }
 
+    /// <summary>完整检查一条实际主链 TagRecord 的 root 包络与独立元信息，不复制 opaque root bytes。</summary>
+    internal static AteliaResult<TagMetadata> CheckCompleteRecord(
+        RbfFrameInfo info, CheckedTagBucketHeader header, Action? checkState = null
+    ) {
+        checkState?.Invoke();
+        if (info.Ticket.Offset < header.RecordsOffset || !TagRecordCodec.IsRootShape(info)) {
+            return new TagRootError("The physical TagRecord has an invalid root length, kind, metadata size, or frame size.");
+        }
+        var read = info.ReadPooledFrame();
+        if (read.IsFailure) {
+            checkState?.Invoke();
+            return read.Error;
+        }
+        using RbfPooledFrame frame = read.Value!;
+        checkState?.Invoke();
+        int payloadLength = frame.PayloadAndMeta.Length - frame.TailMetaLength;
+        if (frame.Ticket != info.Ticket || frame.Tag != TagRecordCodec.RecordTag || frame.IsTombstone
+            || frame.TailMetaLength != info.TailMetaLength || payloadLength != info.PayloadLength
+            || !TagMetadataCodec.TryRead(frame.PayloadAndMeta[payloadLength..], header.Identity, header.BucketId,
+                out TagMetadata metadata)) {
+            return new TagRecordError("The completely checked tag envelope or independent metadata is invalid.");
+        }
+        return metadata;
+    }
+
     private static AteliaResult<RootPayload> ReadRoot(
         RbfFrameInfo info, CheckedTagBucketHeader header, TagMetadata expectedMetadata, Action? checkState
     ) {

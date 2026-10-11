@@ -95,7 +95,7 @@ flowchart LR
 | [09：S5-B 不可变 tag](09-versionstore-immutable-tags.md) | 名称接受、桶路径/格式、独立元信息资格、请求范围裁决、data-first 创建与元信息公面 | 同一 VersionStore 及测试；发布闭环后独立补元信息公面 | tag 冷重开、结果/恢复、callback与规模资格 |
 | [S6 集成与交付](06-integration-and-delivery.md) | 第二种状态模型、公共包消费、交付边界 | examples、eng、CI；消费者接入另有明确范围 | 源码、包及消费者证据分别齐备 |
 
-各操作检查范围唯一见 S4 `[A-VS-VALIDATION-SCOPE]`：当前值只检查 header/最新 head，历史逐项检查，ListForks 只检查 header 与声明图；初始/全部历史和来源 bytes 一致性的独立完整校验靠后施工。可写冷开发号仍完整枚举正式 ref 文件，直接 ID 访问无需映射表。tag 按名扫描目标桶至正常 EOF，以独立CRC保护的meta裁决名称，仅Resolve命中读取完整root；元信息坏项导致缺失不确定，不能判健康缺失或创建。ReadTagInfo只证明元信息；ScanTags逐全已建桶，不读root，所到坏meta失败，正常Complete不证明全库名称唯一。名称上限、1024桶、容量、Related注记、信任边界及回调guard唯一见 [09 专项](09-versionstore-immutable-tags.md)；实施按V3-A/B发布闭环、V3-C元信息公面拆分，不阻塞 ref、历史或 fork，不宣称 O(1)查名或时间查询免全库扫描。
+各操作检查范围唯一见 S4 `[A-VS-VALIDATION-SCOPE]`：当前值只检查 header/最新 head，历史逐项检查，ListForks 只检查 header 与声明图；初始/全部历史和来源 bytes 一致性由 V4-A 的只读 Audit 独立检查，合同见 S4 `[A-VS-AUDIT]`。可写冷开发号仍完整枚举正式 ref 文件，直接 ID 访问无需映射表。tag 按名扫描目标桶至正常 EOF，以独立CRC保护的meta裁决名称，仅Resolve命中读取完整root；元信息坏项导致缺失不确定，不能判健康缺失或创建。ReadTagInfo只证明元信息；ScanTags逐全已建桶，不读root，所到坏meta失败，正常Complete不证明全库名称唯一。名称上限、1024桶、容量、Related注记、信任边界及回调guard唯一见 [09 专项](09-versionstore-immutable-tags.md)；实施按V3-A/B发布闭环、V3-C元信息公面拆分，不阻塞 ref、历史或 fork，不宣称 O(1)查名或时间查询免全库扫描。
 
 VersionStore 文档按下表维护单一权威。修改合同与特有验收向量时更新对应篇，其他篇只引用；06 验证组合与交付，不复述各层详细清单。专项编号不新增施工阶段。
 

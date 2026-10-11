@@ -100,6 +100,31 @@ internal static class RefRecordReader {
         return new RefBytesSnapshot(RefRevision.Create(refId, info.Ticket), recordedAtUnixMs, ownedBytes);
     }
 
+    /// <summary>完整检查实际主链 Snapshot 并移交 pooled 帧；调用方负责单次归还，不复制 opaque bytes。</summary>
+    internal static AteliaResult<RbfPooledFrame> ReadCheckedSnapshotFrame(RbfFrameInfo info, Action? checkState = null) {
+        checkState?.Invoke();
+        if (!RefRecordCodec.IsSnapshotShape(info)) { return new RefRecordError("The physical record has an invalid Snapshot shape."); }
+        var read = info.ReadPooledFrame();
+        if (read.IsFailure) {
+            checkState?.Invoke();
+            return read.Error;
+        }
+        RbfPooledFrame? pending = read.Value!;
+        try {
+            checkState?.Invoke();
+            int payloadLength = pending.PayloadAndMeta.Length - pending.TailMetaLength;
+            if (pending.Ticket != info.Ticket || pending.Tag != RefRecordCodec.SnapshotTag || pending.IsTombstone
+                || pending.TailMetaLength != RecordMetadataCodec.EncodedSize || payloadLength != info.PayloadLength
+                || !RecordMetadataCodec.TryRead(pending.PayloadAndMeta[payloadLength..], out _)) {
+                return new RefRecordError("The completely checked Snapshot has an invalid envelope or metadata.");
+            }
+            RbfPooledFrame output = pending;
+            pending = null;
+            return output;
+        }
+        finally { pending?.Dispose(); }
+    }
+
     /// <summary>为已签发 revision 捕获 exact Snapshot bytes，并重验指定 anchor 的尾 Fence。</summary>
     /// <remarks>只检查本次源 header 后的指定记录，不读取初始内容或扫描源后缀。</remarks>
     internal static AteliaResult<byte[]> CaptureExactSnapshot(IRbfFile file, CheckedRefHeader header, SizedPtr ticket) {
