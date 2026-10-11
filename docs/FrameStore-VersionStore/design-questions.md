@@ -100,15 +100,15 @@ D6 已由 S2 `[S-FS-ROOT-ADMISSION]` 与真实目录工厂关闭：调用方根/
 
 | 范围 | 设计阶段聚焦 | 随实施决定或验证 |
 | --- | --- | --- |
-| S4 已定，交实施 | 初次建库/根锁/唯一pending/ListRefs/停用清理及恢复后完整性准入已定，不再有D3设计阻塞 | V1已接通CreateRef→ReadRef→PublishRef→冷重开及Windows局部验证；V2-A 已接通历史读取，V2-B 已接通精确 fork，V2-C 已接通 ListForks；后续补 tag、完整检查与两平台进程中断，保持VS整体Draft，局部验证与系统资格分开 |
-| S5 历史已定，交实施 | 已签发 revision/不可变 ForkOrigin 直接精确读取；日常 header/逐项检查与声明图检查分离，详见 S4/S5 | V2-A 已实施[RBF 指定边界逆扫公共重载](../Rbf/rbf-reverse-boundary-plan.md)与旧 fork 点之前的历史读取，源码证据见实施计划；V2-B 已接通 ForkRef，V2-C 已接通 ListForks；继续 tag 与系统验收，不重开已定设计 |
-| S5-B 已定，靠后施工 | [09 专项](09-versionstore-immutable-tags.md)的名称/BPV/容量、1024桶与独立meta资格、Related注记及元信息公面已定，不再有 D8 设计阻塞 | V3-A/B/C已完成codec、CreateTag→ResolveTag→冷重开、关联与ReadTagInfo/ScanTags及guard/callback互操作；独立完整校验与系统/资源/平台/组合资格按实施计划另取证 |
+| S4 独立源码已验收 | 初次建库/根锁/唯一pending/ListRefs/停用清理及恢复后完整性准入已定，不再有D3设计阻塞 | V1已接通CreateRef→ReadRef→PublishRef→冷重开及Windows局部验证；V2-A 已接通历史读取，V2-B 已接通精确 fork，V2-C 已接通 ListForks；ref/tag/完整检查及限定两平台组合已完成，S4/S5取得[独立源码验收](12-versionstore-final-acceptance.md)；S6内部窗口及包资格另行补齐 |
+| S5 历史源码已验收 | 已签发 revision/不可变 ForkOrigin 直接精确读取；日常 header/逐项检查与声明图检查分离，详见 S4/S5 | V2-A 已实施[RBF 指定边界逆扫公共重载](../Rbf/rbf-reverse-boundary-plan.md)与旧 fork 点之前的历史读取，源码证据见实施计划；V2-B 已接通 ForkRef，V2-C 已接通 ListForks；tag与独立源码验收已完成；继续S6具名组合补证，不重开已定设计 |
+| S5-B tag源码已验收 | [09 专项](09-versionstore-immutable-tags.md)的名称/BPV/容量、1024桶与独立meta资格、Related注记及元信息公面已定，不再有 D8 设计阻塞 | V3-A/B/C已完成codec、CreateTag→ResolveTag→冷重开、关联与ReadTagInfo/ScanTags及guard/callback互操作；独立完整校验与限定系统/资源/平台证据已取得；S6剩余具名窗口按实施计划补证 |
 | S2–S6 已定合同 | 仅在真实反例、机制不可行或明确新要求时重开 | 所属阶段的实施/验收要求、进程中断、平台及隔离包消费证据；条件优化另看实际需求 |
 
 每轮结论写回所属阶段，只从本表移出已关闭的设计子题；D3/D8 已移出，不因其实现尚缺而重建待定项。普通实现选择和已定合同验收交给对应实施片，允许少量导航，不建立越来越细的研究队列。关键方案若须实验，先用最小探针取证；若只缺完整实现/测量，说明证据缺口并结束设计轮，不用文档代替代码模型。
 
 涉及外部业务语义、接受风险或部署假设的未决取舍，列出具体选项交用户处理；符合既定合同的局部工程选择由实现者负责。FrameStore 分配器继续不理解应用 codec，不等待 Commit 或全局日志；不反向增加已延期的批量规划、索引或事务能力。
 
-S2/S3 源码资格已 Accepted，S4–S6 仍为 Draft；FrameStore 已实施公开持久化闭环，Inventory/Audit 已实施（见[源码验收](02-framestore-inspection-implementation.md)），VersionStore 已接通普通 ref 公开闭环。设计闭合支持实施交接；Ready/Accepted 及源码、恢复、性能、平台、包资格仍分别按所属阶段的实际证据报告。研究队列继续聚焦设计与关键方案；源码资格与剩余范围见[最终源码验收](02-framestore-final-acceptance.md)。
+S2/S3与S4/S5各自的独立源码资格已Accepted，S6仍为Draft；FrameStore 已实施公开持久化闭环，Inventory/Audit 已实施（见[源码验收](02-framestore-inspection-implementation.md)），VersionStore 已接通普通 ref 公开闭环。设计闭合支持实施交接；Ready/Accepted 及源码、恢复、性能、平台、包资格仍分别按所属阶段的实际证据报告。研究队列继续聚焦设计与关键方案；源码资格与剩余范围分别见[FrameStore验收](02-framestore-final-acceptance.md)和[VersionStore验收](12-versionstore-final-acceptance.md)。
 
 2026-10-10 fork 化简的操作与来源比较唯一见 S5 `[S-VS-FORK-FROM-REVISION]` / `[A-VS-REF-HISTORY-CHECKED]`，发布层边界见 S4 `[A-VS-ROOT-PAYLOAD]`；原样 clone bytes，ForkRef 返回 RefRevision，不解码 RootMap，CU 候选独立定位 payload。通用 raw payload 公面已定于 [11专项](11-versionstore-root-payload-bytes-api.md)：同步Span输入、屏障前捕获、GC自有只读结果及1..1MiB；可选RootMapCodec内聚于10。FrameStore程序集依赖拆分仍为后续议题，不作为既定bytes/fork的实施阻塞。

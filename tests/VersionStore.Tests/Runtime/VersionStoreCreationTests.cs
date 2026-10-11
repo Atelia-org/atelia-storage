@@ -386,9 +386,14 @@ public class VersionStoreCreationTests {
         Assert.Equal(new[] { "list" }, f.Operations);
         Assert.Equal(0, f.Files.OpenCalls);
         Assert.Equal(0, f.Files.PendingCreateCalls);
-        var mutableProjection = Assert.IsAssignableFrom<IList<RefId>>(listed);
-        Assert.True(mutableProjection.IsReadOnly);
-        Assert.Throws<NotSupportedException>(() => { mutableProjection[0] = default; });
+        Assert.False(listed is RefId[]);
+        if (listed is IList<RefId> mutableProjection) {
+            Assert.True(mutableProjection.IsReadOnly);
+            Assert.Throws<NotSupportedException>(() => { mutableProjection[0] = default; });
+        }
+        if (listed is System.Collections.ICollection collection) {
+            Assert.False(collection.SyncRoot is RefId[]);
+        }
         f.Files.Paths.Clear();
         f.Store.Dispose();
         Assert.Equal(3, listed.Count);

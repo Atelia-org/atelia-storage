@@ -110,7 +110,7 @@ public sealed partial class VersionStore : IDisposable {
         for (int index = 0; index < refs.Length; index++) {
             refs[index] = RefId.Create(_identity, locals[index]);
         }
-        return AteliaResult<IReadOnlyList<RefId>>.Success(Array.AsReadOnly(refs));
+        return AteliaResult<IReadOnlyList<RefId>>.Success(new RefIdList(refs));
     }
 
     /// <summary>在自动区用 H+1 创建无来源 ref，初始化完整 payload 后一次发布整个文件。</summary>
@@ -397,5 +397,16 @@ public sealed partial class VersionStore : IDisposable {
 
     private sealed class OwnedRef(IRbfFile file) {
         internal IRbfFile? File = file;
+    }
+
+    // Expose only read interfaces; ICollection.SyncRoot must not reveal the owned backing array.
+    private sealed class RefIdList(RefId[] entries) : IReadOnlyList<RefId> {
+        private readonly RefId[] _entries = entries;
+        public int Count => _entries.Length;
+        public RefId this[int index] => _entries[index];
+        public IEnumerator<RefId> GetEnumerator() {
+            for (int index = 0; index < _entries.Length; index++) { yield return _entries[index]; }
+        }
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
     }
 }

@@ -3,7 +3,7 @@
 FrameStore 的 R1–R3 收尾已完成，S2/S3 的[独立源码验收](02-framestore-final-acceptance.md)已 Accepted。[收尾计划与自动队列入口](02-framestore-completion-plan.md)现处完成状态，不自动扩展到包交付或 VersionStore。
 2026-10-10 为 VS 借入补充 S2 `[A-FS-ENSURE-USABLE]` 与 S4 `[S-VS-DATA-BORROW]`：入口 guard、模式配对及持续责任已定；新增公共转发和 VS 局部内核已进入 [骨架与后续实施计划](12-versionstore-implementation-plan.md) 的 V0；V1 已补普通 ref 真实工厂组合验证，原 Accepted 不覆盖此增量。
 
-日期：2026-10-03–11 逐步确认核心/历史合同；2026-10-10 采用无 branch 名称、持久预留低号区、自动/预留区指定创建与单文件发布，并采用 uint32 LocalRefId；2026-10-11 更新tag桶及独立元信息合同。状态：**S1–S3 Accepted（各自源码资格）；S4–S6 Draft；FrameStore/VersionStore source-only，VersionStore 已接通普通 ref 公开闭环、有界历史、精确 fork 与声明分叉图查询，tag 公开持久化闭环、关联注记及元信息公面已接通；参考依赖拆分 Accepted**。
+日期：2026-10-03–11 逐步确认核心/历史合同；2026-10-10 采用无 branch 名称、持久预留低号区、自动/预留区指定创建与单文件发布，并采用 uint32 LocalRefId；2026-10-11 更新tag桶及独立元信息合同。状态：**S1–S3 Accepted（各自源码资格）；S4/S5及已实施专项取得[独立源码验收](12-versionstore-final-acceptance.md)，S6 Draft；FrameStore/VersionStore source-only，VersionStore 已接通普通 ref 公开闭环、有界历史、精确 fork 与声明分叉图查询，tag 公开持久化闭环、关联注记及元信息公面已接通；参考依赖拆分 Accepted**。
 初始设计源码观察基线：`main @ 70d1009e78a73342a0c0fdc8ffed7731dec58173`；S1 验收记录的核对基线为 `f6f1eb38557863ba5ea1634844a90f0cbe5774cf`；前轮设计阅读基线为 `4175a46`，本轮租借/目录修订核对 `50e8e28`。本文档集供逐阶段细化、审阅和实施，不把文档修订视为新实现或验收。
 
 目标：**以 RBF3 的帧原子性为基础，让中层构建新状态，再发布完整 root payload 使状态生效。**
@@ -42,7 +42,7 @@ ListRefs消费S4 `[A-VS-REFS-DISCOVERY]`：完整正式路径资格后一次交�
 ListForks 消费 S5 `[A-VS-FORKS-CHECKED]`：每次扫描全部正式 ref 的 checked header，包括预留区/自动区与无来源根，完整源存在/迭代环检查后一次性交付自有只读 ForkInfo 边列表。只设正 int maxRefs 数量参数，计全部正式节点，预算失败不当无分叉或部分成功；首版不保留跨调用反向缓存或持久孩子表。来源字段仅为声明位置，不签发 checked 源 revision 或宣称全部源历史健康；实际历史跳转再校验源 root-payload bytes 与子初始 bytes 一致。数量不是硬内存/时限，实际成本与 S4 初次 store 创建/平台资格仍另验；历史实际到达初始节点才检查其 payload；继续继承历史采用[RBF 指定边界逆扫增量](../Rbf/rbf-reverse-boundary-plan.md)，该公共重载与历史接线已在 V2-A 实施，源码与后续平台/包资格分别记录。
 停用类mutation异常先使实例失效，再一次完整受控teardown：非锁owned资源单次逐一尝试、根锁最后，不Dispose借入data，不降低out；旧实例终止，再次Dispose不重关。确定前置拒绝及普通读内容/codec/预算失败不据此新增fault。完整快照损坏报错，不回退旧值；重开读取实际状态。同步mutation的Result/必选out PublicationOutcome与公开尝试/确认边界已在S4定稿，异常路径不依赖新建证据包装；NotAttempted/Confirmed均不代替实例健康。自动创建丢失返回值后不按同值精确认领，首版不提供通用CAS或精确Unknown查询。数据闭包、工具operationId、外部uncertain策略、模拟器RNG和应用谱系由应用负责；VersionStore当前实施边界与下一片见[骨架与后续实施计划](12-versionstore-implementation-plan.md)；D3设计闭合不替代系统验收。
 
-2026-10-03 的初始裁决及失败轨迹见[历史设计审阅](reviews/2026-10-03-dialectical-review.md)；旧单流、单 active/locator、纯 batch planner，以及后来 Commit/control 草案均已被后续会话修订，不作为当前模型的实现证据。S1–S3 已取得各自源码 Accepted；已确认方向见 S0，S4–S6 的剩余工程选择仍是 Draft。
+2026-10-03 的初始裁决及失败轨迹见[历史设计审阅](reviews/2026-10-03-dialectical-review.md)；旧单流、单 active/locator、纯 batch planner，以及后来 Commit/control 草案均已被后续会话修订，不作为当前模型的实现证据。S1–S3 已取得各自源码 Accepted；已确认方向见 S0，S4/S5的已实施闭包现已取得独立源码资格；S6仍待具名组合补证与隔离包消费。
 
 RootMap key 已采用有效 Unicode/Ordinal 与无损 JSON 名称映射，拒绝未配对 surrogate，允许空串和需转义字符；规则内聚于 [10专项](10-versionstore-rootmap-payload.md)。不透明发布层的输入/自有输出见 [11专项](11-versionstore-root-payload-bytes-api.md)，fork exact byte clone 与 CU Members-first 不依赖内容 decoder；FrameStore 程序集分离另行设计。
 

@@ -158,4 +158,30 @@ public sealed class PublicRefDiscoveryTests {
         using var readOnly = Store.OpenReadOnly(fixture.Root, fixture.Data);
         Assert.Equal(result.OrderBy(id => id.LocalId), readOnly.ListRefs().Unwrap().OrderBy(id => id.LocalId));
     }
+
+    [Fact]
+    public void ListRefsCannotExposeBackingArrayThroughCollectionSyncRoot() {
+        using var fixture = new PublicVersionStoreFixture();
+        IReadOnlyList<RefId> result;
+        RefId first;
+        RefId second;
+        using (var store = Store.Create(fixture.Root, fixture.Data)) {
+            first = store.CreateRef([1], out _).Unwrap().RefId;
+            second = store.CreateRef([2], out _).Unwrap().RefId;
+            result = store.ListRefs().Unwrap();
+            Assert.False(result is RefId[]);
+            if (result is System.Collections.ICollection collection) {
+                // Array.AsReadOnly exposes the actual array here despite rejecting IList writes.
+                Assert.False(collection.SyncRoot is RefId[]);
+            }
+            if (result is IList<RefId> mutableProjection) {
+                Assert.True(mutableProjection.IsReadOnly);
+                Assert.Throws<NotSupportedException>(() => { mutableProjection[0] = default; });
+            }
+            Assert.True(new HashSet<RefId> { first, second }.SetEquals(result));
+        }
+        Assert.True(new HashSet<RefId> { first, second }.SetEquals(result));
+        Assert.True(new HashSet<RefId> { first, second }.SetEquals(
+            ((System.Collections.IEnumerable)result).Cast<RefId>()));
+    }
 }

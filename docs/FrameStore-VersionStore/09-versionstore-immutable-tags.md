@@ -1,6 +1,6 @@
 # S5-B 专项：不可变 tag
 
-日期：2026-10-11。状态：**Draft；用户已批准 1024 个惰性桶、独立校验的可变长 TailMeta、可选关联注记及元信息读取/扫描。VersionStore 普通 ref、历史、fork 与声明分叉图已接通；V3-B 已接通匿名 CreateTag/ResolveTag、惰性桶发布与冷重开；V3-C 已接通关联注记及元信息公面（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。本次取代未实施的 tag 草案，无旧 tag 数据迁移，不改 ref/CU 布局；CU 仍为候选。
+日期：2026-10-11。状态：**Accepted（独立 source-only 源码资格）**。1024个惰性桶、独立元信息CRC、匿名/关联 CreateTag、ResolveTag、ReadTagInfo/ScanTags及完整检查的证据见[最终源码验收](12-versionstore-final-acceptance.md)。内部进程窗口、独立名称/路由 golden 的冷进程补证及包消费仍见[后续计划](12-versionstore-implementation-plan.md)，不随本状态宣称完成。该设计取代未实施的 tag 草案，无旧 tag 数据迁移，不改 ref/CU 布局；CU 仍为候选。
 
 本文属于 [S5](05-versionstore-names-and-indexes.md) 的 S5-B，不新增项目或阶段。统一版本、持久身份、借入 data、根/锁、唯一 pending、single-driver、ProcessCrashOnly、PublicationOutcome 与停用清理由 [S4](04-versionstore-publication.md)定义；bytes 输入与自有结果由 [11 专项](11-versionstore-root-payload-bytes-api.md)定义。本篇独立拥有 tag 名称、桶、TailMeta、关联注记与元信息公面，不复制下层尺寸算法，不增加并发或断电保证。
 

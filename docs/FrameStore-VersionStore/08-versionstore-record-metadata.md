@@ -1,6 +1,6 @@
 # VersionStore：ref 记录时间与 TailMeta 格式
 
-日期：2026-10-10–11。状态：**Draft；用户采用 ref/CU 的固定 8B Unix 毫秒时间、以 TailMeta 长度判别其元信息格式；普通 ref 目录、历史与 fork 已接通，实际资格见 [骨架与后续实施计划](12-versionstore-implementation-plan.md)。tag 复用时间意义，但独立 schema/CRC 与元信息公面由09定义，尚未实施**。
+日期：2026-10-10–11。状态：**Accepted（已实施 ref/tag 的 source-only 源码资格；CU 接线除外）**，映射见[最终源码验收](12-versionstore-final-acceptance.md)。ref 使用固定8B Unix毫秒时间及精确 TailMeta 长度判形；tag 已实施并复用时间意义，其独立 schema/CRC 与元信息公面由09定义。CU仍为候选，后续组合/包资格见[实施计划](12-versionstore-implementation-plan.md)。
 
 本文是 S4 的 ref/CU 记录元信息子合同，不是新增实施阶段。规范底座为 [RBF 接口](../Rbf/rbf-interface.md)与[RBF 格式](../Rbf/rbf-format.md)。[S4](04-versionstore-publication.md)负责普通 ref 的 kind、header、root-payload envelope、结果定位及完整宿主尺寸；[S5](05-versionstore-names-and-indexes.md)负责历史/fork；[CU 候选](07-versionstore-cross-ref-conditional-update.md)负责联合提交资格。它们引用本合同，不各自定义时间编码。[09 tag 专项](09-versionstore-immutable-tags.md)仅复用 RecordedAtUnixMs 的意义、取时及8B编码；其变长元信息、独立CRC资格和TagInfo/扫描合同不受本文固定形状规则约束。
 

@@ -183,7 +183,13 @@ public sealed class DirectoryVersionStoreFilesTests {
             Assert.Throws<InvalidDataException>(() => owner.ReadRef(listed[0]));
         }
         Assert.Equal(5, listed.Count);
-        Assert.Throws<NotSupportedException>(() => ((IList<RefId>)listed).Add(default));
+        if (listed is IList<RefId> mutableProjection) {
+            Assert.True(mutableProjection.IsReadOnly);
+            Assert.Throws<NotSupportedException>(() => mutableProjection.Add(default));
+        }
+        if (listed is System.Collections.ICollection collection) {
+            Assert.False(collection.SyncRoot is RefId[]);
+        }
         using var reopened = VersionStore.Open(fixture.Root, fixture.Data);
         Assert.Equal("VersionStore.RefIdExhausted", reopened.CreateRef([1], out _).Error!.ErrorCode);
         Assert.Equal(5, reopened.ListRefs().Unwrap().Count);

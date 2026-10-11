@@ -1,0 +1,978 @@
+{
+  "schema": 1,
+  "date": "2026-10-11",
+  "baselineHead": "9e751d48865f3ea14e41e1dda923e555a6876882",
+  "scope": "V4-E source-only acceptance; ListRefs collection ownership repair and public bad-data counterexample",
+  "sourceInput": "Fixed baseline plus the five source/test files below; documentation changes do not alter test inputs",
+  "sources": [
+    {
+      "path": "src/VersionStore/VersionStore.cs",
+      "bytes": 20191,
+      "sha256": "bec002a75d6f4774049bd6ef632fbee27965ac49a5f424fccfff4209e685fa0e"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Public/PublicRefDiscoveryTests.cs",
+      "bytes": 10526,
+      "sha256": "5ef06168e383bee33812aa2d482ae533e2bbb3666b9ee27f256b4fd7e16dcef0"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Runtime/VersionStoreCreationTests.cs",
+      "bytes": 21646,
+      "sha256": "f7b68b9ca46aaac9540ea9832ddcfa1545f29fa20c1ba3fae9201722a974f45c"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Storage/DirectoryVersionStoreFilesTests.cs",
+      "bytes": 12586,
+      "sha256": "b48fad50834df9799d8f06d2808ef8e6eb5be195116174161b4fa869e1abf50a"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Public/PublicDataClosureTests.cs",
+      "bytes": 5138,
+      "sha256": "0a34e03322e7ec7ca75216a446752c4ac460c25b184aca271bdb86c2c4e5ed8e"
+    }
+  ],
+  "baselineEvidence": {
+    "path": "artifacts/versionstore-v4e/baseline-evidence.json",
+    "bytes": 39007,
+    "sha256": "af76ac0af43f9b31492e219a2327b71fd93ab65ac72793e54da0ad56983daf87",
+    "qualification": "Usable baseline with two explicitly recorded derived-artifact descriptor drifts. This is not qualification of the new V4-E production change.",
+    "hashAudit": {
+      "uniqueFiles": 594,
+      "failureCount": 2,
+      "manifests": [
+        {
+          "path": "artifacts/versionstore-v4c/linux-baseline/evidence-files.json",
+          "sha256": "ebdbb9b2aae2c6aa80fd4e234d7fb01297f792d0b42c05e620a43955f3fb169b",
+          "entries": 117,
+          "failures": 0
+        },
+        {
+          "path": "artifacts/versionstore-v4c/linux-delta/evidence-files.json",
+          "sha256": "7fcac3cf38e5058202e4b32b74feb8d2c48a65ad5ea2337af760e7f6eaf33f11",
+          "entries": 102,
+          "failures": 0
+        },
+        {
+          "path": "artifacts/versionstore-v4d/linux/evidence-files.json",
+          "sha256": "a1c64f185209c1296b677ccd54699c6dddd2774259ad49f8a2a34c00e35f44b9",
+          "entries": 49,
+          "failures": 0
+        },
+        {
+          "path": "artifacts/versionstore-v4d/windows-artifacts.json",
+          "sha256": "1dd70f2e56877289cae161568e3ba94040713514dea8dc76136cc7f5e457f1b7",
+          "entries": 143,
+          "failures": 0
+        }
+      ],
+      "drifts": [
+        {
+          "expected": {
+            "path": "artifacts/versionstore-v4c/linux-delta/evidence-files.json",
+            "sha256": "1b0fcdebc47f27b6657a70b553273f55ce34fc34ca3772151a32be811c52c849",
+            "bytes": 16698
+          },
+          "actual": {
+            "path": "artifacts/versionstore-v4c/linux-delta/evidence-files.json",
+            "bytes": 16854,
+            "sha256": "7fcac3cf38e5058202e4b32b74feb8d2c48a65ad5ea2337af760e7f6eaf33f11"
+          },
+          "reconstructionBytes": 16698,
+          "reconstructionSha256": "1b0fcdebc47f27b6657a70b553273f55ce34fc34ca3772151a32be811c52c849",
+          "matchesExpectedWhenOnlyPreservationAdditionRemoved": true,
+          "explanation": "Current manifest contains one added baseline-preservation-check.json descriptor. Removing only that descriptor reproduces the committed old bytes/hash.",
+          "qualification": "Reconstruction explains descriptor drift; it does not claim possession of an untouched old file. Old records and raw artifacts were not modified."
+        },
+        {
+          "expected": {
+            "path": "artifacts/versionstore-v4c/linux-delta/finalize-evidence.py",
+            "sha256": "671aba7aa00479991391219ed76bc9bc2dd9c89d1e3f8059070f8fe6dcdac5bc",
+            "bytes": 979
+          },
+          "actual": {
+            "path": "artifacts/versionstore-v4c/linux-delta/finalize-evidence.py",
+            "bytes": 1080,
+            "sha256": "12887567f9a74704f376ff269414b0193ee0c6ec62af6c4688c6c99378b0d95b"
+          },
+          "reconstructionBytes": 979,
+          "reconstructionSha256": "671aba7aa00479991391219ed76bc9bc2dd9c89d1e3f8059070f8fe6dcdac5bc",
+          "matchesExpectedWhenOnlyPreservationAdditionRemoved": true,
+          "explanation": "Current helper contains one added baseline-preservation-check.json copy statement. Removing only that statement reproduces the committed old bytes/hash.",
+          "qualification": "Reconstruction explains descriptor drift; it does not claim possession of an untouched old file. Old records and raw artifacts were not modified."
+        }
+      ]
+    },
+    "limitations": [
+      "Linux is WSL2 Ubuntu/ext4 source evidence; not universal Linux distribution or power-loss qualification.",
+      "V4-C ext4 solution was Interrupted. Eight completed ext4 groups plus an unchanged frozen EventJournal tmpfs rerun are separate groups, not one full ext4 pass.",
+      "V4-C/D Linux final source consisted of fixed committed archives plus exactly three/five listed LF source overrides; not a clean final committed-HEAD run.",
+      "The two descriptor drifts concern a derived manifest and helper. Direct TRX/process/source hashes remain verified; no statement that every committed V4-C hash matches is allowed.",
+      "Windows xUnit TRX Counters.notExecuted is zero for skipped cases. Outcomes were counted from UnitTestResult, preserving nine actual NotExecuted cases.",
+      "New production changes after 9e751d4 require new source identity and affected Windows/Linux verification, recorded separately by the coordinator.",
+      "Public/application kill checkpoints do not cover internal pending/rename/Append/flush windows, native device failure or power loss.",
+      "Finite resource observations do not establish SLOs, resource peaks or universal leak absence. Windows total handles are not Linux path fd counts.",
+      "No FrameStore/VersionStore PackageReference smoke, pack/publish, migration or CU qualification is established."
+    ]
+  },
+  "independentReviews": [
+    {
+      "path": "artifacts/versionstore-v4e/ref-review.md",
+      "bytes": 37768,
+      "sha256": "5859826181c5047714be6f50c53ec0ed510afde5b70ebdbb8be11eedaab12e27"
+    },
+    {
+      "path": "artifacts/versionstore-v4e/tag-audit-review.md",
+      "bytes": 31128,
+      "sha256": "70a335ecb265c958d555dfca0c1c0d9f5e817c0e7b656183a8e6d64bf671f2f7"
+    },
+    {
+      "path": "artifacts/versionstore-v4e/process-review.md",
+      "bytes": 16427,
+      "sha256": "40e5c513b6226f9fb501f581e33f2439465535755392e4693594ff2c4fc09e82"
+    },
+    {
+      "path": "artifacts/versionstore-v4e/evidence-review.md",
+      "bytes": 8110,
+      "sha256": "cfc065a8ff5b3960784e26ab161d2a79c2272cd090d110d53c1a22592e36da0f"
+    },
+    {
+      "path": "artifacts/versionstore-v4e/final-review.md",
+      "bytes": 9033,
+      "sha256": "5f6d4a058bcc217265587d63ca9c7f6b77629f555846a58adddf1f03fda46a09"
+    }
+  ],
+  "windows": {
+    "os": "Windows-11-10.0.22000-SP0",
+    "sdk": "10.0.201",
+    "workspaceFileSystem": "ReFS",
+    "testFileSystem": "NTFS (W:)",
+    "commands": [
+      "dotnet build Atelia.Storage.slnx -c Release --nologo -v minimal",
+      "dotnet test tests/VersionStore.Tests/VersionStore.Tests.csproj -c Release --no-build --filter 'FullyQualifiedName~ListRefs|FullyQualifiedName~PublicDataClosureTests' --logger trx --results-directory artifacts/versionstore-v4e/windows/targeted/trx",
+      "dotnet test Atelia.Storage.slnx -c Release --no-build --logger trx --results-directory artifacts/versionstore-v4e/windows/full/trx",
+      "dotnet build Atelia.Storage.slnx -c Release --nologo -v minimal",
+      "dotnet test Atelia.Storage.slnx -c Release --no-build --logger trx --results-directory artifacts/versionstore-v4e/windows/final/trx",
+      "./eng/Test-Rbf1ReferenceAssets.ps1"
+    ],
+    "initialBuild": {
+      "exitCode": 0,
+      "errors": 0,
+      "warnings": 41,
+      "path": "artifacts/versionstore-v4e/windows/build.log",
+      "bytes": 22987,
+      "sha256": "c0282c51f49ed445ca2b0739aff816c4d79e85b1fcb0615fa1ce8b7bca4db1a6"
+    },
+    "targeted": {
+      "assemblies": [
+        {
+          "path": "artifacts/versionstore-v4e/windows/targeted/trx/gdtutu_TUTU17_2026-10-11_14_53_54.trx",
+          "bytes": 10540,
+          "sha256": "9d02fcfdc5759aca6306c83598237ba45a412d13084ddc46642ffb28f2d82827",
+          "outcomes": {
+            "Passed": 6,
+            "Failed": 0,
+            "NotExecuted": 0
+          },
+          "failures": [],
+          "skips": []
+        }
+      ],
+      "totals": {
+        "Passed": 6,
+        "Failed": 0,
+        "NotExecuted": 0
+      }
+    },
+    "initialFull": {
+      "assemblies": [
+        {
+          "path": "artifacts/versionstore-v4e/windows/full/trx/gdtutu_TUTU17_2026-10-11_14_54_07.trx",
+          "bytes": 101081,
+          "sha256": "a6bb86d86a6e009f5fbb7d5edc8a885ee8ac6e491c15bb2fd2b45acea6e45695",
+          "outcomes": {
+            "Passed": 75,
+            "Failed": 0,
+            "NotExecuted": 0
+          },
+          "failures": [],
+          "skips": []
+        },
+        {
+          "path": "artifacts/versionstore-v4e/windows/full/trx/gdtutu_TUTU17_2026-10-11_14_54_08.trx",
+          "bytes": 71346,
+          "sha256": "8f97d6ba9f8de629281e517fab31bbd6cd7909618b2bbc4474f2b25a6aae2909",
+          "outcomes": {
+            "Passed": 48,
+            "Failed": 0,
+            "NotExecuted": 0
+          },
+          "failures": [],
+          "skips": []
+        },
+        {
+          "path": "artifacts/versionstore-v4e/windows/full/trx/gdtutu_TUTU17_2026-10-11_14_54_08[1].trx",
+          "bytes": 389195,
+          "sha256": "b205275a48cd53d74e13e4b09136320f6d9a54b10914ef5c0df78e9e3c94acdd",
+          "outcomes": {
+            "Passed": 288,
+            "Failed": 0,
+            "NotExecuted": 0
+          },
+          "failures": [],
+          "skips": []
+        },
+        {
+          "path": "artifacts/versionstore-v4e/windows/full/trx/gdtutu_TUTU17_2026-10-11_14_54_08[2].trx",
+          "bytes": 300212,
+          "sha256": "bebf8dc7d48b597181424e8ab9b68da6bfabc820fa03ea0e463475f2c8cc7804",
+          "outcomes": {
+            "Passed": 214,
+            "Failed": 0,
+            "NotExecuted": 0
+          },
+          "failures": [],
+          "skips": []
+        },
+        {
+          "path": "artifacts/versionstore-v4e/windows/full/trx/gdtutu_TUTU17_2026-10-11_14_54_08[3].trx",
+          "bytes": 1981098,
+          "sha256": "b605473e5a91c3786e8e1df1dc7515f9167c17b5531adf6307e2849628373ec8",
+          "outcomes": {
+            "Passed": 1176,
+            "Failed": 1,
+            "NotExecuted": 6
+          },
+          "failures": [
+            "Atelia.VersionStore.Tests.Storage.DirectoryVersionStoreFilesTests.ListIsPathOnlyOwnedAndIncludesBothNumberDomainsAndDamagedFiles"
+          ],
+          "skips": [
+            "Atelia.VersionStore.Tests.Platform.VersionStorePlatformTests.LinuxCanonicalManagedComponentAndCaseAliasCannotCoexist",
+            "Atelia.VersionStore.Tests.Platform.VersionStorePlatformTests.LinuxDifferentMountIsRejectedBeforeMutation",
+            "Atelia.VersionStore.Tests.Platform.VersionStorePlatformTests.LinuxFileSymlinkIncludingDanglingLinkIsRejected",
+            "Atelia.VersionStore.Tests.Public.PublicPathAdmissionTests.FileSymlinkAtNecessaryRefTargetIsRejectedWithoutFollowingOrRepairingIt",
+            "Atelia.VersionStore.Tests.Public.PublicPathAdmissionTests.PendingFifoIsRejectedWithoutOpeningBlockingOrDeletingIt",
+            "Atelia.VersionStore.Tests.Platform.VersionStorePlatformTests.LinuxFifoIsRejectedWithoutBlockingOrWriting"
+          ]
+        },
+        {
+          "path": "artifacts/versionstore-v4e/windows/full/trx/gdtutu_TUTU17_2026-10-11_14_54_09.trx",
+          "bytes": 1291598,
+          "sha256": "e14b936b2f482306df687cbc954af8dff92de0b72093ed480b3465774b716c78",
+          "outcomes": {
+            "Passed": 920,
+            "Failed": 0,
+            "NotExecuted": 0
+          },
+          "failures": [],
+          "skips": []
+        },
+        {
+          "path": "artifacts/versionstore-v4e/windows/full/trx/gdtutu_TUTU17_2026-10-11_14_54_10.trx",
+          "bytes": 243458,
+          "sha256": "631a5e54b1401960104a8df7dce5c5a128fb4b886224d5ce14de9705f188a80d",
+          "outcomes": {
+            "Passed": 174,
+            "Failed": 0,
+            "NotExecuted": 0
+          },
+          "failures": [],
+          "skips": []
+        },
+        {
+          "path": "artifacts/versionstore-v4e/windows/full/trx/gdtutu_TUTU17_2026-10-11_14_54_11.trx",
+          "bytes": 631534,
+          "sha256": "d39ba05a59a43cb50bad309e6243c4a82c0bd0a29aef597cd070012064d78fbe",
+          "outcomes": {
+            "Passed": 422,
+            "Failed": 0,
+            "NotExecuted": 3
+          },
+          "failures": [],
+          "skips": [
+            "Atelia.FrameStore.Tests.Platform.FrameStorePlatformTests.LinuxFifoIsRejectedWithoutBlockingOrWriting",
+            "Atelia.FrameStore.Tests.Platform.FrameStorePlatformTests.LinuxFileSymlinkIncludingDanglingLinkIsRejected",
+            "Atelia.FrameStore.Tests.Platform.FrameStorePlatformTests.LinuxDifferentMountIsRejectedBeforeMutation"
+          ]
+        },
+        {
+          "path": "artifacts/versionstore-v4e/windows/full/trx/gdtutu_TUTU17_2026-10-11_14_54_13.trx",
+          "bytes": 184743,
+          "sha256": "d9f67bb2fc73ed40eadabbbf73cbe79177988a9ae27842b9105f820e589d9240",
+          "outcomes": {
+            "Passed": 122,
+            "Failed": 0,
+            "NotExecuted": 0
+          },
+          "failures": [],
+          "skips": []
+        }
+      ],
+      "totals": {
+        "Passed": 3439,
+        "Failed": 1,
+        "NotExecuted": 9
+      }
+    },
+    "initialFailure": "Old test forced IList<RefId>; changed Storage/DirectoryVersionStoreFilesTests to accept the public read-only contract. Failure retained, not reclassified.",
+    "finalBuild": {
+      "exitCode": 0,
+      "errors": 0,
+      "warnings": 0,
+      "path": "artifacts/versionstore-v4e/windows/build-final.log",
+      "bytes": 2856,
+      "sha256": "a5425481cbab1d8a00a9caefac164ce827b75989d3f4338ca5e08d1f169e7cc7"
+    },
+    "finalFull": {
+      "assemblies": [
+        {
+          "path": "artifacts/versionstore-v4e/windows/final/trx/gdtutu_TUTU17_2026-10-11_14_56_56.trx",
+          "bytes": 101081,
+          "sha256": "966e28ba079ae6ce1735faac3e4f20d57ae9059699f10860162a93cde9007f55",
+          "outcomes": {
+            "Passed": 75,
+            "Failed": 0,
+            "NotExecuted": 0
+          },
+          "failures": [],
+          "skips": []
+        },
+        {
+          "path": "artifacts/versionstore-v4e/windows/final/trx/gdtutu_TUTU17_2026-10-11_14_56_56[1].trx",
+          "bytes": 389195,
+          "sha256": "bdd582e83cebc3e2ca486302363c72357d5564ca4477ccae729926e6ac9c69d4",
+          "outcomes": {
+            "Passed": 288,
+            "Failed": 0,
+            "NotExecuted": 0
+          },
+          "failures": [],
+          "skips": []
+        },
+        {
+          "path": "artifacts/versionstore-v4e/windows/final/trx/gdtutu_TUTU17_2026-10-11_14_56_57.trx",
+          "bytes": 71346,
+          "sha256": "45578beacfb57dd025a274aa457cfe72a4f0cc84a28459270de3f20b5efa5a4f",
+          "outcomes": {
+            "Passed": 48,
+            "Failed": 0,
+            "NotExecuted": 0
+          },
+          "failures": [],
+          "skips": []
+        },
+        {
+          "path": "artifacts/versionstore-v4e/windows/final/trx/gdtutu_TUTU17_2026-10-11_14_56_57[1].trx",
+          "bytes": 184743,
+          "sha256": "c67f6fdedc68e1ac10e061d35f847e6fbdb6cfd5aa61f969e2fcd473b2228468",
+          "outcomes": {
+            "Passed": 122,
+            "Failed": 0,
+            "NotExecuted": 0
+          },
+          "failures": [],
+          "skips": []
+        },
+        {
+          "path": "artifacts/versionstore-v4e/windows/final/trx/gdtutu_TUTU17_2026-10-11_14_56_57[2].trx",
+          "bytes": 243458,
+          "sha256": "37bdf91f045060a6e11c94839cbf7711e93dd8598d1f921029b92051bcb35523",
+          "outcomes": {
+            "Passed": 174,
+            "Failed": 0,
+            "NotExecuted": 0
+          },
+          "failures": [],
+          "skips": []
+        },
+        {
+          "path": "artifacts/versionstore-v4e/windows/final/trx/gdtutu_TUTU17_2026-10-11_14_56_57[3].trx",
+          "bytes": 1978139,
+          "sha256": "36f8c1662b84bc18b89755682cd87bab3b7e1f7f2e09fbfbe0f3665585a2c96d",
+          "outcomes": {
+            "Passed": 1177,
+            "Failed": 0,
+            "NotExecuted": 6
+          },
+          "failures": [],
+          "skips": [
+            "Atelia.VersionStore.Tests.Platform.VersionStorePlatformTests.LinuxFileSymlinkIncludingDanglingLinkIsRejected",
+            "Atelia.VersionStore.Tests.Public.PublicPathAdmissionTests.PendingFifoIsRejectedWithoutOpeningBlockingOrDeletingIt",
+            "Atelia.VersionStore.Tests.Public.PublicPathAdmissionTests.FileSymlinkAtNecessaryRefTargetIsRejectedWithoutFollowingOrRepairingIt",
+            "Atelia.VersionStore.Tests.Platform.VersionStorePlatformTests.LinuxDifferentMountIsRejectedBeforeMutation",
+            "Atelia.VersionStore.Tests.Platform.VersionStorePlatformTests.LinuxCanonicalManagedComponentAndCaseAliasCannotCoexist",
+            "Atelia.VersionStore.Tests.Platform.VersionStorePlatformTests.LinuxFifoIsRejectedWithoutBlockingOrWriting"
+          ]
+        },
+        {
+          "path": "artifacts/versionstore-v4e/windows/final/trx/gdtutu_TUTU17_2026-10-11_14_56_58.trx",
+          "bytes": 1291598,
+          "sha256": "ac2d332512ba5df1e00d9ec748210252c3dc78a230fa283d363ea49a91e4129c",
+          "outcomes": {
+            "Passed": 920,
+            "Failed": 0,
+            "NotExecuted": 0
+          },
+          "failures": [],
+          "skips": []
+        },
+        {
+          "path": "artifacts/versionstore-v4e/windows/final/trx/gdtutu_TUTU17_2026-10-11_14_56_59.trx",
+          "bytes": 300212,
+          "sha256": "38efb37161bcc6c67845700c11af440094aa10e20303dae89834d0be07868031",
+          "outcomes": {
+            "Passed": 214,
+            "Failed": 0,
+            "NotExecuted": 0
+          },
+          "failures": [],
+          "skips": []
+        },
+        {
+          "path": "artifacts/versionstore-v4e/windows/final/trx/gdtutu_TUTU17_2026-10-11_14_56_59[1].trx",
+          "bytes": 631534,
+          "sha256": "c9300e3ad787a34a3a5f5a433d3e3779c824b647656b4e1e4b2244d877298f3c",
+          "outcomes": {
+            "Passed": 422,
+            "Failed": 0,
+            "NotExecuted": 3
+          },
+          "failures": [],
+          "skips": [
+            "Atelia.FrameStore.Tests.Platform.FrameStorePlatformTests.LinuxFifoIsRejectedWithoutBlockingOrWriting",
+            "Atelia.FrameStore.Tests.Platform.FrameStorePlatformTests.LinuxDifferentMountIsRejectedBeforeMutation",
+            "Atelia.FrameStore.Tests.Platform.FrameStorePlatformTests.LinuxFileSymlinkIncludingDanglingLinkIsRejected"
+          ]
+        }
+      ],
+      "totals": {
+        "Passed": 3440,
+        "Failed": 0,
+        "NotExecuted": 9
+      }
+    },
+    "referenceAssets": {
+      "exitCode": 0,
+      "projects": 7,
+      "path": "artifacts/versionstore-v4e/windows/reference-assets.log",
+      "bytes": 694,
+      "sha256": "75997e0656849e10b55138a4500b10da8c61d34feca82a27c2e364995a4738d0"
+    },
+    "consumerAssets": {
+      "path": "tools/VersionStore.Smoke/obj/project.assets.json",
+      "bytes": 26241,
+      "sha256": "c31de2d7ffded87253cd208e2730e996b8629fd59b7fee40ae4045f791f99870",
+      "libraries": {
+        "K4os.Compression.LZ4/1.3.8": "package",
+        "Atelia.Binary/1.0.0": "project",
+        "Atelia.Data/1.0.0": "project",
+        "Atelia.FrameStore/1.0.0": "project",
+        "Atelia.Primitives/1.0.0": "project",
+        "Atelia.Rbf/1.0.0": "project",
+        "Atelia.VersionStore/1.0.0": "project"
+      }
+    },
+    "artifactManifest": {
+      "path": "artifacts/versionstore-v4e/windows-artifacts.json",
+      "bytes": 49432,
+      "sha256": "d9625835aab664ccb7ce317023464d98277ac09b4e6165fb174272651a23632f"
+    },
+    "artifactCount": 232
+  },
+  "remaining": [
+    "V4-F real internal pending/rename/Append/flush state-transition process tests",
+    "V4-F VS entry native no-overwrite conflict, unregistered dynamic ref application window, tag name/routing golden cold process",
+    "Package registration and isolated PackageReference qualification remain separately scoped"
+  ],
+  "exclusions": [
+    "CU",
+    "power loss",
+    "native device failures",
+    "production consumer migration",
+    "pack/publish"
+  ],
+  "linux": {
+    "summary": {
+      "path": "artifacts/versionstore-v4e/linux/summary.json",
+      "bytes": 20245,
+      "sha256": "7dd388801e17facddf6aac8afdf1054dc48e49d196546bbe874c3a0c8315741a"
+    },
+    "qualification": {
+      "schemaVersion": 1,
+      "status": "passed-three-project-regression",
+      "sourceQualification": {
+        "capturedUtc": "2026-10-11T06:56:54.162597+00:00",
+        "baselineRevision": "9e751d48865f3ea14e41e1dda923e555a6876882",
+        "baselineArchiveSha256": "e2fca0ca124a250a89dee6785f82d883b24d2571073e111704a860a57462d984",
+        "windowsHeadAtCapture": "9e751d48865f3ea14e41e1dda923e555a6876882",
+        "repository": "/var/tmp/atelia-storage-v4e-9e751d4.y7wj3epf/repo",
+        "evidence": "/var/tmp/atelia-storage-v4e-9e751d4.y7wj3epf/evidence",
+        "TMPDIR": "/var/tmp/atelia-storage-v4e-9e751d4.y7wj3epf/tmp",
+        "baselineFileCount": 739,
+        "preSyncMismatches": [],
+        "postSyncMismatches": [
+          "src/VersionStore/VersionStore.cs",
+          "tests/VersionStore.Tests/Public/PublicRefDiscoveryTests.cs",
+          "tests/VersionStore.Tests/Runtime/VersionStoreCreationTests.cs",
+          "tests/VersionStore.Tests/Storage/DirectoryVersionStoreFilesTests.cs"
+        ],
+        "addedFiles": [
+          "tests/VersionStore.Tests/Public/PublicDataClosureTests.cs"
+        ],
+        "unchangedArchivedFileCount": 735,
+        "files": [
+          {
+            "path": "src/VersionStore/VersionStore.cs",
+            "baselineSha256": "7bfc11fe2d52e8935c2a8beb77fbca5364055709618ecfa54cedcc23649709a8",
+            "baselinePresent": true,
+            "windowsRawSha256": "bec002a75d6f4774049bd6ef632fbee27965ac49a5f424fccfff4209e685fa0e",
+            "linuxLfSha256": "bec002a75d6f4774049bd6ef632fbee27965ac49a5f424fccfff4209e685fa0e",
+            "windowsRawBytes": 20191,
+            "linuxLfBytes": 20191,
+            "crlfSequences": 0,
+            "normalization": "CRLF byte sequences replaced by LF; all other bytes retained"
+          },
+          {
+            "path": "tests/VersionStore.Tests/Public/PublicRefDiscoveryTests.cs",
+            "baselineSha256": "f5a409b40e7959ac6c5036ea472282ab3d80bdcc84442f524a303c30efdc00b5",
+            "baselinePresent": true,
+            "windowsRawSha256": "5ef06168e383bee33812aa2d482ae533e2bbb3666b9ee27f256b4fd7e16dcef0",
+            "linuxLfSha256": "5ef06168e383bee33812aa2d482ae533e2bbb3666b9ee27f256b4fd7e16dcef0",
+            "windowsRawBytes": 10526,
+            "linuxLfBytes": 10526,
+            "crlfSequences": 0,
+            "normalization": "CRLF byte sequences replaced by LF; all other bytes retained"
+          },
+          {
+            "path": "tests/VersionStore.Tests/Runtime/VersionStoreCreationTests.cs",
+            "baselineSha256": "9cf16391e8fbdba162ac649e74a16ae6a9a1cfb3776eb7577bb25e5fa4da170f",
+            "baselinePresent": true,
+            "windowsRawSha256": "f7b68b9ca46aaac9540ea9832ddcfa1545f29fa20c1ba3fae9201722a974f45c",
+            "linuxLfSha256": "f7b68b9ca46aaac9540ea9832ddcfa1545f29fa20c1ba3fae9201722a974f45c",
+            "windowsRawBytes": 21646,
+            "linuxLfBytes": 21646,
+            "crlfSequences": 0,
+            "normalization": "CRLF byte sequences replaced by LF; all other bytes retained"
+          },
+          {
+            "path": "tests/VersionStore.Tests/Public/PublicDataClosureTests.cs",
+            "baselineSha256": null,
+            "baselinePresent": false,
+            "windowsRawSha256": "0a34e03322e7ec7ca75216a446752c4ac460c25b184aca271bdb86c2c4e5ed8e",
+            "linuxLfSha256": "0a34e03322e7ec7ca75216a446752c4ac460c25b184aca271bdb86c2c4e5ed8e",
+            "windowsRawBytes": 5138,
+            "linuxLfBytes": 5138,
+            "crlfSequences": 0,
+            "normalization": "CRLF byte sequences replaced by LF; all other bytes retained"
+          },
+          {
+            "path": "tests/VersionStore.Tests/Storage/DirectoryVersionStoreFilesTests.cs",
+            "baselineSha256": "3e74e960bcede2385f5599baf2885d477056ec374fd988ae7fe5b12c313d1a07",
+            "baselinePresent": true,
+            "windowsRawSha256": "b48fad50834df9799d8f06d2808ef8e6eb5be195116174161b4fa869e1abf50a",
+            "linuxLfSha256": "b48fad50834df9799d8f06d2808ef8e6eb5be195116174161b4fa869e1abf50a",
+            "windowsRawBytes": 12586,
+            "linuxLfBytes": 12586,
+            "crlfSequences": 0,
+            "normalization": "CRLF byte sequences replaced by LF; all other bytes retained"
+          }
+        ],
+        "qualification": "Fixed committed HEAD plus exactly five explicit production/test files. An initial four-file snapshot was preserved before adding the fifth test assertion correction. All other archive files unchanged; no .NET ran between snapshots. Source-only, not a clean committed final HEAD snapshot.",
+        "initialFourFileSnapshot": "source-delta-four-initial.json"
+      },
+      "sourceVerification": {
+        "count": 740,
+        "unexpectedChanges": [],
+        "windowsDeltaStillMatches": true,
+        "details": "source-files.json"
+      },
+      "priorSourceComparison": {
+        "priorEvidence": "/mnt/e/repos/Atelia-org/atelia-storage/artifacts/versionstore-v4d/linux",
+        "baselineRevision": "9e751d48865f3ea14e41e1dda923e555a6876882",
+        "changedFiles": [
+          {
+            "path": "docs/FrameStore-VersionStore/06-integration-and-delivery.md",
+            "priorSha256": "6070faab2c66ef812bfcb7838939f556a29fae956ca86d3ecadadfedfb08b369",
+            "baselineSha256": "822b4e872e76f593b5ea28d11ad5f8b106598f1bf54060605908d31d9ac3f9aa"
+          },
+          {
+            "path": "docs/FrameStore-VersionStore/12-versionstore-implementation-plan.md",
+            "priorSha256": "08552003c3f425203efc49e9c7f2a026596c0ea974910833149d427e6e2f8471",
+            "baselineSha256": "78fed10a3ab54a164a78eafbaf04c5fcfb3493e9f7c17d5db02d30181db9b29b"
+          },
+          {
+            "path": "src/VersionStore/README.md",
+            "priorSha256": "764ad4bc0df66615463a20c731d9e09f2da1c3cc45eb763f7b3a63a44ff765fd",
+            "baselineSha256": "580ddb32b492ce8a896de0ccdf1165f8be05dd175d3ef405a7abc089914d6bc1"
+          },
+          {
+            "path": "tools/VersionStore.Smoke/README.md",
+            "priorSha256": "ead56a91a9130768e7608caf4d054b435110221f59b81e3b2043b8c5e61d8abd",
+            "baselineSha256": "9e9cfc2a90e9f98c118a11ca86204050e0a0a4903cb07522792e768ba6e8d555"
+          }
+        ],
+        "addedFiles": [
+          "docs/FrameStore-VersionStore/evidence/2026-10-11-versionstore-v4d.json"
+        ],
+        "removedFiles": [],
+        "changedCSharpFiles": [],
+        "qualification": "Comparison of archived HEAD before the final four-file delta with the actual V4-D Linux verified source set."
+      },
+      "environment": {
+        "capturedUtc": "2026-10-11T06:59:04.917958+00:00",
+        "repository": "/var/tmp/atelia-storage-v4e-9e751d4.y7wj3epf/repo",
+        "uid": "uid=0(root) gid=0(root) groups=0(root),989(docker)",
+        "uname": "Linux Tutu17 6.18.33.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun 18 21:54:43 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux",
+        "osRelease": "PRETTY_NAME=\"Ubuntu 24.04.4 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"24.04\"\nVERSION=\"24.04.4 LTS (Noble Numbat)\"\nVERSION_CODENAME=noble\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=noble\nLOGO=ubuntu-logo\n",
+        "sdk": "10.0.201",
+        "dotnetInfo": ".NET SDK:\n Version:           10.0.201\n Commit:            4d3023de60\n Workload version:  10.0.200-manifests.0793c108\n MSBuild version:   18.3.0-release-26153-122+4d3023de6\n\nRuntime Environment:\n OS Name:     ubuntu\n OS Version:  24.04\n OS Platform: Linux\n RID:         linux-x64\n Base Path:   /usr/lib/dotnet/sdk/10.0.201/\n\n.NET workloads installed:\nThere are no installed workloads to display.\nConfigured to use workload sets when installing new manifests.\nNo workload sets are installed. Run \"dotnet workload restore\" to install a workload set.\n\nHost:\n  Version:      10.0.5\n  Architecture: x64\n  Commit:       a612c2a105\n\n.NET SDKs installed:\n  8.0.131 [/usr/lib/dotnet/sdk]\n  9.0.115 [/usr/lib/dotnet/sdk]\n  10.0.201 [/usr/lib/dotnet/sdk]\n\n.NET runtimes installed:\n  Microsoft.AspNetCore.App 8.0.31 [/usr/lib/dotnet/shared/Microsoft.AspNetCore.App]\n  Microsoft.AspNetCore.App 9.0.14 [/usr/lib/dotnet/shared/Microsoft.AspNetCore.App]\n  Microsoft.AspNetCore.App 10.0.5 [/usr/lib/dotnet/shared/Microsoft.AspNetCore.App]\n  Microsoft.NETCore.App 8.0.31 [/usr/lib/dotnet/shared/Microsoft.NETCore.App]\n  Microsoft.NETCore.App 9.0.14 [/usr/lib/dotnet/shared/Microsoft.NETCore.App]\n  Microsoft.NETCore.App 10.0.5 [/usr/lib/dotnet/shared/Microsoft.NETCore.App]\n\nOther architectures found:\n  None\n\nEnvironment variables:\n  DOTNET_CLI_HOME                          [/var/tmp/atelia-storage-v4e-9e751d4.y7wj3epf/dotnet-home]\n  DOTNET_CLI_TELEMETRY_OPTOUT              [1]\n  DOTNET_NOLOGO                            [1]\n\nglobal.json file:\n  /var/tmp/atelia-storage-v4e-9e751d4.y7wj3epf/repo/global.json\n\nLearn more:\n  https://aka.ms/dotnet/info\n\nDownload .NET:\n  https://aka.ms/dotnet/download",
+        "variables": {
+          "TMPDIR": "/var/tmp/atelia-storage-v4e-9e751d4.y7wj3epf/tmp",
+          "DOTNET_CLI_HOME": "/var/tmp/atelia-storage-v4e-9e751d4.y7wj3epf/dotnet-home",
+          "NUGET_PACKAGES": "/var/tmp/atelia-storage-v4e-9e751d4.y7wj3epf/nuget-packages",
+          "VERSIONSTORE_PROCESS_EVIDENCE_DIRECTORY": "/var/tmp/atelia-storage-v4e-9e751d4.y7wj3epf/evidence/processes"
+        },
+        "filesystems": {
+          "repository": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "TMPDIR": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "cache": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "evidence": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          }
+        }
+      },
+      "commands": [
+        {
+          "name": "build",
+          "cwd": "/var/tmp/atelia-storage-v4e-9e751d4.y7wj3epf/repo",
+          "argv": [
+            "dotnet",
+            "build",
+            "Atelia.Storage.slnx",
+            "-c",
+            "Release"
+          ],
+          "startedUtc": "2026-10-11T06:59:09.538572+00:00",
+          "endedUtc": "2026-10-11T06:59:35.411478+00:00",
+          "elapsedSeconds": 25.872906,
+          "exitCode": 0
+        },
+        {
+          "name": "framestore",
+          "cwd": "/var/tmp/atelia-storage-v4e-9e751d4.y7wj3epf/repo",
+          "argv": [
+            "dotnet",
+            "test",
+            "tests/FrameStore.Tests/FrameStore.Tests.csproj",
+            "-c",
+            "Release",
+            "--no-build",
+            "--logger",
+            "trx;LogFileName=framestore.trx",
+            "--results-directory",
+            "/var/tmp/atelia-storage-v4e-9e751d4.y7wj3epf/evidence/trx"
+          ],
+          "startedUtc": "2026-10-11T06:59:36.061689+00:00",
+          "endedUtc": "2026-10-11T07:00:20.840667+00:00",
+          "elapsedSeconds": 44.778978,
+          "exitCode": 0
+        },
+        {
+          "name": "rbf",
+          "cwd": "/var/tmp/atelia-storage-v4e-9e751d4.y7wj3epf/repo",
+          "argv": [
+            "dotnet",
+            "test",
+            "tests/Rbf.Tests/Rbf.Tests.csproj",
+            "-c",
+            "Release",
+            "--no-build",
+            "--logger",
+            "trx;LogFileName=rbf.trx",
+            "--results-directory",
+            "/var/tmp/atelia-storage-v4e-9e751d4.y7wj3epf/evidence/trx"
+          ],
+          "startedUtc": "2026-10-11T07:00:21.542540+00:00",
+          "endedUtc": "2026-10-11T07:01:36.014503+00:00",
+          "elapsedSeconds": 74.471963,
+          "exitCode": 0
+        },
+        {
+          "name": "versionstore",
+          "cwd": "/var/tmp/atelia-storage-v4e-9e751d4.y7wj3epf/repo",
+          "argv": [
+            "dotnet",
+            "test",
+            "tests/VersionStore.Tests/VersionStore.Tests.csproj",
+            "-c",
+            "Release",
+            "--no-build",
+            "--logger",
+            "trx;LogFileName=versionstore.trx",
+            "--results-directory",
+            "/var/tmp/atelia-storage-v4e-9e751d4.y7wj3epf/evidence/trx"
+          ],
+          "startedUtc": "2026-10-11T07:01:36.892404+00:00",
+          "endedUtc": "2026-10-11T07:05:35.705774+00:00",
+          "elapsedSeconds": 238.81337,
+          "exitCode": 0
+        }
+      ],
+      "build": {
+        "warnings": 41,
+        "errors": 0
+      },
+      "tests": {
+        "count": 2528,
+        "passed": 2526,
+        "failed": 0,
+        "skipped": 2,
+        "trx": [
+          {
+            "path": "trx/framestore.trx",
+            "sha256": "b591da8dc2e3cac139606f08a8eb17850083e4b50761fc94dcb20b02363d1f85",
+            "counters": {
+              "total": 425,
+              "executed": 424,
+              "passed": 424,
+              "failed": 0,
+              "error": 0,
+              "timeout": 0,
+              "aborted": 0,
+              "inconclusive": 0,
+              "passedButRunAborted": 0,
+              "notRunnable": 0,
+              "notExecuted": 0,
+              "disconnected": 0,
+              "warning": 0,
+              "completed": 0,
+              "inProgress": 0,
+              "pending": 0
+            },
+            "runOutcome": "Completed"
+          },
+          {
+            "path": "trx/rbf.trx",
+            "sha256": "ae8cd22897e97bf682b48f1a1c76d8eb01ff832c418386fff931a1f0ae256b5b",
+            "counters": {
+              "total": 920,
+              "executed": 920,
+              "passed": 920,
+              "failed": 0,
+              "error": 0,
+              "timeout": 0,
+              "aborted": 0,
+              "inconclusive": 0,
+              "passedButRunAborted": 0,
+              "notRunnable": 0,
+              "notExecuted": 0,
+              "disconnected": 0,
+              "warning": 0,
+              "completed": 0,
+              "inProgress": 0,
+              "pending": 0
+            },
+            "runOutcome": "Completed"
+          },
+          {
+            "path": "trx/versionstore.trx",
+            "sha256": "c9fb4ad6cef2710805a60f8daa91a2c549119ecbc1e4b4831b91c57a6dadfdd2",
+            "counters": {
+              "total": 1183,
+              "executed": 1182,
+              "passed": 1182,
+              "failed": 0,
+              "error": 0,
+              "timeout": 0,
+              "aborted": 0,
+              "inconclusive": 0,
+              "passedButRunAborted": 0,
+              "notRunnable": 0,
+              "notExecuted": 0,
+              "disconnected": 0,
+              "warning": 0,
+              "completed": 0,
+              "inProgress": 0,
+              "pending": 0
+            },
+            "runOutcome": "Completed"
+          }
+        ],
+        "details": "test-results.json",
+        "newDataClosureTests": [
+          {
+            "testName": "Atelia.VersionStore.Tests.Public.PublicDataClosureTests.ColdHealthyRootRetainsLatestRevisionWhileItsDamagedDataFailsApplicationRead",
+            "outcome": "Passed",
+            "duration": "00:00:03.0549179",
+            "trx": "trx/versionstore.trx"
+          }
+        ],
+        "refDiscoveryTests": [
+          {
+            "testName": "Atelia.VersionStore.Tests.Public.PublicRefDiscoveryTests.WorkspaceUnknownItemsAreRetainedAndRejectedInBothModes(name: \"other.rbf\")",
+            "outcome": "Passed",
+            "duration": "00:00:01.0162855",
+            "trx": "trx/versionstore.trx"
+          },
+          {
+            "testName": "Atelia.VersionStore.Tests.Public.PublicRefDiscoveryTests.LastAutomaticIdDoesNotWrapAndExhaustionLeavesReservedSlotsUsableAfterColdOpen",
+            "outcome": "Passed",
+            "duration": "00:00:03.0080852",
+            "trx": "trx/versionstore.trx"
+          },
+          {
+            "testName": "Atelia.VersionStore.Tests.Public.PublicRefDiscoveryTests.PendingBytesAreNeverAdoptedReadOnlyKeepsThemAndWriterOnlyCancels(length: -1)",
+            "outcome": "Passed",
+            "duration": "00:00:00.7033245",
+            "trx": "trx/versionstore.trx"
+          },
+          {
+            "testName": "Atelia.VersionStore.Tests.Public.PublicRefDiscoveryTests.ListRefsCannotExposeBackingArrayThroughCollectionSyncRoot",
+            "outcome": "Passed",
+            "duration": "00:00:00.5912925",
+            "trx": "trx/versionstore.trx"
+          },
+          {
+            "testName": "Atelia.VersionStore.Tests.Public.PublicRefDiscoveryTests.ReservedDomainIsNotPrecreatedAndSpecifiedCreationNeverAdvancesAutomaticNumber",
+            "outcome": "Passed",
+            "duration": "00:00:01.0969912",
+            "trx": "trx/versionstore.trx"
+          },
+          {
+            "testName": "Atelia.VersionStore.Tests.Public.PublicRefDiscoveryTests.PendingBytesAreNeverAdoptedReadOnlyKeepsThemAndWriterOnlyCancels(length: 1)",
+            "outcome": "Passed",
+            "duration": "00:00:00.6367081",
+            "trx": "trx/versionstore.trx"
+          },
+          {
+            "testName": "Atelia.VersionStore.Tests.Public.PublicRefDiscoveryTests.WorkspaceUnknownItemsAreRetainedAndRejectedInBothModes(name: \".pending.rbf\")",
+            "outcome": "Passed",
+            "duration": "00:00:00.4953442",
+            "trx": "trx/versionstore.trx"
+          },
+          {
+            "testName": "Atelia.VersionStore.Tests.Public.PublicRefDiscoveryTests.BadCanonicalContentsStillOccupyHighWatermarkWithoutBeingOpened",
+            "outcome": "Passed",
+            "duration": "00:00:00.8838098",
+            "trx": "trx/versionstore.trx"
+          },
+          {
+            "testName": "Atelia.VersionStore.Tests.Public.PublicRefDiscoveryTests.PendingBytesAreNeverAdoptedReadOnlyKeepsThemAndWriterOnlyCancels(length: 4096)",
+            "outcome": "Passed",
+            "duration": "00:00:00.6310767",
+            "trx": "trx/versionstore.trx"
+          },
+          {
+            "testName": "Atelia.VersionStore.Tests.Public.PublicRefDiscoveryTests.PendingBytesAreNeverAdoptedReadOnlyKeepsThemAndWriterOnlyCancels(length: 0)",
+            "outcome": "Passed",
+            "duration": "00:00:00.5711091",
+            "trx": "trx/versionstore.trx"
+          },
+          {
+            "testName": "Atelia.VersionStore.Tests.Public.PublicRefDiscoveryTests.WorkspaceUnknownItemsAreRetainedAndRejectedInBothModes(name: \"Pending.rbf\")",
+            "outcome": "Passed",
+            "duration": "00:00:00.4840577",
+            "trx": "trx/versionstore.trx"
+          },
+          {
+            "testName": "Atelia.VersionStore.Tests.Public.PublicRefDiscoveryTests.ReadOnlyColdOpenDoesNotDiscoverUnrelatedInvalidRefNamesOrCancelPending",
+            "outcome": "Passed",
+            "duration": "00:00:00.4474646",
+            "trx": "trx/versionstore.trx"
+          },
+          {
+            "testName": "Atelia.VersionStore.Tests.Public.PublicRefDiscoveryTests.ZeroReservationAllowsAutomaticOneAndRejectsAllSpecifiedCreation",
+            "outcome": "Passed",
+            "duration": "00:00:00.5249580",
+            "trx": "trx/versionstore.trx"
+          },
+          {
+            "testName": "Atelia.VersionStore.Tests.Public.PublicRefDiscoveryTests.ListRefsReturnsOwnedReadOnlyUnsignedPathIdentitiesWithoutReadingContents",
+            "outcome": "Passed",
+            "duration": "00:00:00.3338410",
+            "trx": "trx/versionstore.trx"
+          }
+        ]
+      },
+      "processes": {
+        "count": 102,
+        "distinctPids": 102,
+        "normalExitCount": 84,
+        "expectedFailureCount": 2,
+        "killedCount": 16,
+        "exitCodes": {
+          "0": 84,
+          "137": 16,
+          "1": 2
+        },
+        "commands": {
+          "seed": 18,
+          "tool-worker": 6,
+          "probe": 20,
+          "hold": 12,
+          "tool-recover": 9,
+          "tool-read": 7,
+          "verify": 12,
+          "resource-read": 4,
+          "graph-write": 1,
+          "generation-read": 2,
+          "crash-worker": 6,
+          "graph-read": 2,
+          "resource-write": 2,
+          "generation-write": 1
+        },
+        "details": "process-summary.json"
+      },
+      "priorEvidence": {
+        "unchanged": true,
+        "fileCount": 321,
+        "details": "prior-evidence-preservation.json"
+      },
+      "assetsDetails": "assets.json",
+      "rawTranscript": "raw-transcript.log",
+      "evidenceDirectoryLinux": "/var/tmp/atelia-storage-v4e-9e751d4.y7wj3epf/evidence",
+      "evidenceDirectoryWindows": "/mnt/e/repos/Atelia-org/atelia-storage/artifacts/versionstore-v4e/linux",
+      "limits": [
+        "Fixed committed HEAD archive plus exactly five production/test files; not a clean final committed HEAD snapshot.",
+        "Complete Release solution build followed by full FrameStore, Rbf and VersionStore project tests; frozen EventJournal tests not repeated.",
+        "WSL2 Ubuntu/root with actual ext4 source/bin/obj/TMPDIR/evidence and a separate copied NuGet cache.",
+        "Controlled process stops and existing finite resource cases retain their explicit source-only scope.",
+        "No package smoke, packaging, publishing, internal write-window power-loss or business migration qualification."
+      ]
+    }
+  },
+  "sourceAcceptance": "Accepted; scope and remaining S6 qualifications are defined by 12-versionstore-final-acceptance.md"
+}

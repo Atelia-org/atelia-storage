@@ -1,6 +1,6 @@
 # S4：VersionStore 不透明根 payload 与单文件 ref 发布
 
-状态：**Draft；单文件 ref、身份/编号、创建/打开、ForkOrigin 与 PublicationOutcome 合同已定；V1 已接通公开工厂、普通 ref 创建/发布/发现与冷重开，V2-B 已复用单文件发布接通精确 fork；完整系统及 Linux 平台验收尚缺（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。
+状态：**Accepted（独立 source-only 源码资格）**。普通 ref、身份/编号、创建/打开、ForkOrigin、PublicationOutcome 与只读 Audit 的实现及限定证据见[最终源码验收](12-versionstore-final-acceptance.md)。Windows/WSL2 和公开停点进程证据已取得；S6 的内部写入窗口与隔离包消费仍待补，不随本状态取得完整组合/交付资格。后续见[实施计划](12-versionstore-implementation-plan.md)。
 本文负责发布协议、身份与 ref envelope；时间编码见 [08 元信息专项](08-versionstore-record-metadata.md)，bytes API/所有权见 [11 公面专项](11-versionstore-root-payload-bytes-api.md)，可选 RootMap codec 见 [10 专项](10-versionstore-rootmap-payload.md)。首版版本为 1，不兼容未实施的旧草案。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)。历史与不可变 tag 见 [S5](05-versionstore-names-and-indexes.md)。
 

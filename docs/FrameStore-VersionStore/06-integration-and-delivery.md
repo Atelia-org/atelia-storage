@@ -1,6 +1,6 @@
 # S6：消费者验证、公共包与交付
 
-状态：**Draft；FrameStore S2/S3独立源码验收已Accepted并保持source-only；VersionStore 已接通普通 ref 公开闭环、有界历史读取、精确 fork 创建与声明分叉图查询；V4-B 已补仓内 public 图消费者及公开停点真实进程验收，V4-C 补 Linux 与有限资源取证，V4-D 补 tool-loop/generation 应用策略示例；最终条款复核、包与消费者切换仍待完成（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。
+状态：**Draft；FrameStore S2/S3 与 VersionStore S4/S5 已分别取得独立 source-only 源码验收；S6 尚缺内部进程窗口与隔离包消费资格。** V4-B/C/D 的公开组合、Windows/WSL2、有限资源及应用策略保留各自身份；V4-E 修复 ListRefs 的只读集合逃逸并补坏 data 应用反例，逐条裁决见[VersionStore 源码验收](12-versionstore-final-acceptance.md)。下一片 V4-F 的有限补证范围见[实施计划](12-versionstore-implementation-plan.md)；真实消费者切换另行确定范围。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。本篇只负责组合、包与交付证据，不反向定义前序协议；ref/history/fork先验证，09 tag施工后补齐完整组合。FrameAddress变长增量资格见[实施记录](02-framestore-varint-address-implementation.md)。
 
 ## 本阶段目标
@@ -125,3 +125,5 @@ single-driver/HistoryActive/TagScanActive、取消/回调Dispose及必要清理�
 
 最低出口：两个新库的 Accepted 源码闭包、组合恢复资格和隔离公共包消费证据。
 公开发布或真实消费者切换若未纳入当前工作，交付记录明确停在哪一层；不将库可用与已切换混为一个状态。
+
+V4-E 已取得两个新库的独立源码出口。当前缺口具体为内部 pending/rename/Append/flush 状态转折的 Process 证据、VS 创建入口不覆盖冲突、独立目录登记窗口和 tag 独立名称/路由 golden 的冷进程回读；范围与预期裁决统一维护于[验收记录](12-versionstore-final-acceptance.md#s6-组合资格与后续最小分片)，由 V4-F 补齐。09 的普通冷 owner 测试、平台 helper 的移动测试及离线残尾镜像保留原资格，不替代这些特定组合。包注册/隔离包消费仍独立交付；源码 Accepted 不关闭本篇最低出口。
