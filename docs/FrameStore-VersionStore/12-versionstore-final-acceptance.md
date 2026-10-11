@@ -2,7 +2,7 @@
 
 日期：2026-10-11。V4-E审查基线：`9e751d4`；V4-F组合增量基线：`3274558`。本记录消费 [S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)、[08](08-versionstore-record-metadata.md)–[11](11-versionstore-root-payload-bytes-api.md) 的已实施合同及 [S6](06-integration-and-delivery.md) 的分层取证要求；不增加协议或重标历史运行结果。
 
-状态：**Accepted（独立 source-only 源码资格）。** S4/S5及08–11的已实施 ref/历史/fork/tag/Audit/可选 RootMap 合同取得本记录限定的资格；V4-E发现的P2已修复并通过两平台回归。V4-F的具名内部窗口和组合增量单列在末节；S6仍为Draft，包交付与应用迁移各自保留出口；未来批量/CU不在本次Accepted范围。
+状态：**Accepted（独立 source-only 源码资格）。** S4/S5及08–11的已实施 ref/历史/fork/tag/Audit/可选 RootMap 合同取得本记录限定的资格；V4-E发现的P2已修复并通过两平台回归。V4-F的具名内部窗口和组合增量单列在末节；后续 S6-C/D 本地候选资格另见[包交付记录](13-local-package-delivery.md)，不重标本次源码证据；应用迁移保留独立出口；未来批量/CU不在本次Accepted范围。
 
 ## 证据层次与来源
 

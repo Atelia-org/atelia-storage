@@ -168,6 +168,7 @@ WSL2 使用固定源码归档及最终三个源码增量，在独立 ext4 的 re
 | V4-D：已接通应用策略最小示例 | S6 tool-loop Started/结果/uncertain 与 generation 串行合并 | public consumer 在三个应用边界真实kill后冷恢复，外部receipt严格匹配、Result不依赖backend；单driver拒绝错operation/旧generation/重复结果，保留同代A/B合并 |
 | V4-E：已完成独立源码验收与反例修正 | S4/S5及08–11的已实施源码条款映射，ListRefs只读结果修复及坏data应用反例 | [独立验收记录](12-versionstore-final-acceptance.md)统一记录Accepted裁决、当前回归与历史证据差异；不把源码Accepted扩为S6全部完成 |
 | V4-F：已完成内部进程窗口与剩余组合补证 | 8个发布停点、4个真实物理残尾停点、VS入口冲突拒绝、独立目录登记窗口、tag golden冷进程 | Windows完整回归、WSL2/ext4的RBF/VS完整回归及独立复核通过；source-only队列收束，包交付另立范围 |
+| S6-C/D：已完成本地候选交付 | 六包 All、四个精确 PackageReference consumer、脚本/来源/闭包验证 | Windows完整源码回归和Windows/WSL2同候选隔离消费通过；保留 Atelia.Rbf 名称；实际版本/来源与反馈续接见[交付记录](13-local-package-delivery.md) |
 
 V1 至 V4-D 已完成相应源码、公开组合、两平台有限资源与应用策略。V4-E 按实际源码/测试和证据独立复核，发现并修正 ListRefs 的 `ICollection.SyncRoot` 可变 backing 逃逸，补充健康发布根指向损坏 data 时的 public 冷读反例。V4-F 接续具名内部窗口及剩余组合，实际范围和运行见下方记录；不重做已经闭合的源码实施片。
 

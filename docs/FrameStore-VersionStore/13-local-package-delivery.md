@@ -46,4 +46,25 @@ FrameStore consumer 验证三种追加、提前地址、交错 Builder、确认/
 
 ## 本轮结果
 
-待主线程实际构建、源码回归、mock 入口反例、提交后六包打包及隔离消费完成后填写；本段不提前授予包资格。
+**S6-C/D Accepted（本地候选及限定两平台隔离消费）。** 候选版本 `0.3.0-rbf3-local.20261011081109`，包来源 commit `72d32709bb15ae2f7984f3f42632269d5ffca7b2`；后续记录提交不是该候选的来源，也不覆盖或重新生成这一版本。
+
+- 本地 feed：`E:/repos/Atelia-org/atelia-storage/artifacts/feeds/0.3.0-rbf3-local.20261011081109`。包含六个 nupkg、六个 snupkg、hash/source manifest。
+- 可转交的 zip：`artifacts/feeds/storage-trial-0.3.0-rbf3-local.20261011081109.zip`，包含同一六包及 symbols/manifest、可搬迁 NuGet.Config 和试用说明。
+- Windows Release solution 构建 0 error、41 项既有 XML warning；完整源码回归 **3455 passed / 9 platform skips / 0 failed**，7 个冻结参考项目仍使用精确 RBF1 包。metadata helper 单独构建 0 error、0 warning。
+- 四个 consumer 消费入口的纯 mock 通过 102 个错误 assets、18 个错误 manifest、10 个旧参数拒绝及 source-only 复制、不变复用、失败清理/环境恢复等守卫。这是脚本控制流证据，与实际包消费分开。
+- Windows 在 `W:/storage-package-smoke-0.3.0-rbf3-local.20261011081109` 的新隔离 workspace/cache 实际消费六包；四个 consumer 全通过，源码 checksum 总计 **164**。FrameStore 为 4 用户帧/3 文件；VersionStore 为 4 refs/7 snapshots/2 forks/2 tags/5 data 帧。
+- WSL2 Ubuntu 24.04.4 在 ext4 的全新检出与仓外 cache 消费**同一份 Windows 候选**，四个 consumer、六包 metadata、164 源码 checksum 与 3/2/6/7 个包的实际闭包均通过；未做 Linux 重打包或同平台确定性重打包。Linux 源文件使用对应 Windows 构建的原始 bytes 并验证 Git tree/clean 状态，三份既有 CRLF 文件保留在准备 receipt 中。
+
+首次候选 `0.3.0-rbf3-local.20261011080835`（来源 `bdd544f`）的 FrameStore smoke 失败：归档真实位于 `archive/000000/*.rbf`，fixture 只枚举直接文件。修正 consumer 的递归检查后新提交、新版本，生产存储实现未改；旧候选和失败日志保留，不能用它们冒充最终通过。最终候选由主线程与独立 reviewer 核对，实际 hash、日志、assets 和来源见[机器证据](evidence/2026-10-11-local-package-delivery.json)。
+
+下游直接引用示例：
+
+```xml
+<PackageReference Include="Atelia.VersionStore" Version="[0.3.0-rbf3-local.20261011081109]" />
+```
+
+feed 中另附可通过 `dotnet restore --configfile <feed>/NuGet.Config` 使用的源配置；同目录路径可搬迁，六个确切 Atelia ID 映射到该 feed，其余包保留 nuget.org。该交接配置另在全新私有 cache 做过真实 VersionStore restore，实际七包闭包及六个 Atelia 包的 hash 与 manifest 相符。它适用于独立试用，合并进已有多源配置时保留下游自己的源约束。
+
+若从源码仓复验既有候选，`Test-Package.ps1` 要求干净 checkout 与 manifest 的来源 revision 完全一致，应使用对应 commit 的隔离检出。下游直接消费 feed 不需要源码仓 checkout；后续文档提交不改变已有包的 provenance。
+
+下一步是收集 storage-2 的真实 API/错误/恢复用法反馈，再决定是否修改 API 并生成新的本地版本。公开 nuget.org 上传、六包 Trusted Publisher policy、签名包回读、远端 Source Link checksum/下载以及真实消费者切换均未执行；本地 Accepted 不授予这些资格。三份既有 CRLF 工作树文件还需在公开交付前规范化并重新打包验证远端源码 bytes，当前本地 Source Link 检查不能替代该步骤。

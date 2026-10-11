@@ -1,6 +1,6 @@
 # S6：消费者验证、公共包与交付
 
-状态：**Draft；FrameStore S2/S3 与 VersionStore S4/S5 已分别取得独立 source-only 源码验收；V4-F已补具名内部进程与剩余组合，S6-C/D已获用户授权进入本地候选及隔离消费，实际资格见[本地交付记录](13-local-package-delivery.md)。** V4-B/C/D 的公开组合、Windows/WSL2、有限资源及应用策略保留各自身份；V4-E 修复 ListRefs 的只读集合逃逸并补坏 data 应用反例，逐条裁决见[VersionStore 源码验收](12-versionstore-final-acceptance.md)。V4-F的有限补证及源码队列出口见[实施计划](12-versionstore-implementation-plan.md)；真实消费者切换另行确定范围。
+状态：**S6-C/D Accepted（本地候选；Windows 与 WSL2/ext4 隔离包消费）；公开交付与真实接入未取得资格。** 实际候选版本、来源及限定平台见[本地交付记录](13-local-package-delivery.md)。FrameStore S2/S3 与 VersionStore S4/S5 的独立源码验收、V4-B/C/D 的组合/有限资源/应用策略、V4-F 的具名内部进程证据保留各自身份；V4-E 的反例修正及逐条裁决见[VersionStore 源码验收](12-versionstore-final-acceptance.md)。后续先收集下游试用反馈，公开发布与真实消费者切换另行确定范围。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。本篇只负责组合、包与交付证据，不反向定义前序协议；ref/history/fork先验证，09 tag施工后补齐完整组合。FrameAddress变长增量资格见[实施记录](02-framestore-varint-address-implementation.md)。
 
 ## 本阶段目标

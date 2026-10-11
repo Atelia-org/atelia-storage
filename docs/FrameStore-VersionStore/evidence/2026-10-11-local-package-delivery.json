@@ -1,0 +1,697 @@
+{
+  "schemaVersion": 1,
+  "scope": "S6-C/D local candidate, no remote publication or downstream migration",
+  "implementationBaseline": "252ba77",
+  "packageSourceRevision": "72d32709bb15ae2f7984f3f42632269d5ffca7b2",
+  "candidate": {
+    "version": "0.3.0-rbf3-local.20261011081109",
+    "feed": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\feeds\\0.3.0-rbf3-local.20261011081109",
+    "sourceRevision": "72d32709bb15ae2f7984f3f42632269d5ffca7b2",
+    "windowsWork": "W:/storage-package-smoke-0.3.0-rbf3-local.20261011081109"
+  },
+  "manifest": {
+    "schemaVersion": 1,
+    "version": "0.3.0-rbf3-local.20261011081109",
+    "sourceRevision": "72d32709bb15ae2f7984f3f42632269d5ffca7b2",
+    "repositoryUrl": "https://github.com/Atelia-org/atelia-storage",
+    "sdkVersion": "10.0.201",
+    "packages": [
+      {
+        "id": "Atelia.Primitives",
+        "file": "Atelia.Primitives.0.3.0-rbf3-local.20261011081109.nupkg",
+        "sha256": "baa268a4e1f0fa901f6e0931c53fd1c172b13178204f92dc48ae81f965e464b6",
+        "symbolsFile": "Atelia.Primitives.0.3.0-rbf3-local.20261011081109.snupkg",
+        "symbolsSha256": "53c1cc8fe52d6a7e37b9043705585e84255cdddadd00f2d6e254c2f93dd13e2c"
+      },
+      {
+        "id": "Atelia.Data",
+        "file": "Atelia.Data.0.3.0-rbf3-local.20261011081109.nupkg",
+        "sha256": "0fabc71260af664a6ec151dd4d29e6df823a495d4b5f2e329bb2707a6748e159",
+        "symbolsFile": "Atelia.Data.0.3.0-rbf3-local.20261011081109.snupkg",
+        "symbolsSha256": "7ef793d09a2830645f47f313a2042249315918ef137024e734eb7312656e9678"
+      },
+      {
+        "id": "Atelia.Rbf",
+        "file": "Atelia.Rbf.0.3.0-rbf3-local.20261011081109.nupkg",
+        "sha256": "6f1d0d4f64c9ade85485758f6beb343279aa3474aa644a37597f57bae601127c",
+        "symbolsFile": "Atelia.Rbf.0.3.0-rbf3-local.20261011081109.snupkg",
+        "symbolsSha256": "86feb47b28145e9da2ec343bf8277112a3f2d93dad7fbc3d087ae4d9a74c113e"
+      },
+      {
+        "id": "Atelia.Binary",
+        "file": "Atelia.Binary.0.3.0-rbf3-local.20261011081109.nupkg",
+        "sha256": "d09152570d9c16c2218c962cdb708e2e2ca0f3cb038d0a5d41d975cdfacf600d",
+        "symbolsFile": "Atelia.Binary.0.3.0-rbf3-local.20261011081109.snupkg",
+        "symbolsSha256": "68d224c6059f7ccfebcd0061e346a6dc267211234fb807343496dff929b55852"
+      },
+      {
+        "id": "Atelia.FrameStore",
+        "file": "Atelia.FrameStore.0.3.0-rbf3-local.20261011081109.nupkg",
+        "sha256": "7b92cfc9831d20027459781ff22dd1a8cd7a172bbf34ee39d771a57dfa5a0478",
+        "symbolsFile": "Atelia.FrameStore.0.3.0-rbf3-local.20261011081109.snupkg",
+        "symbolsSha256": "541f64b45b1979838ad8c57ad23d51f8517c2f104c1552d8bb113db2b5c43227"
+      },
+      {
+        "id": "Atelia.VersionStore",
+        "file": "Atelia.VersionStore.0.3.0-rbf3-local.20261011081109.nupkg",
+        "sha256": "1f59b613d2faa2801d2a742592839b82217103841a3018183d0b5ce37e59662c",
+        "symbolsFile": "Atelia.VersionStore.0.3.0-rbf3-local.20261011081109.snupkg",
+        "symbolsSha256": "2bd0c27e2cac7f49eb4a02884b77bdcf37e4824a1c7538bd4acfbbe6972a6708"
+      }
+    ]
+  },
+  "manifestReceipt": {
+    "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\feeds\\0.3.0-rbf3-local.20261011081109\\manifest.0.3.0-rbf3-local.20261011081109.json",
+    "bytes": 2502,
+    "sha256": "e789d894c91b95abacf016578d4d81afca08d7a3506629a624600df0682b1990"
+  },
+  "artifacts": [
+    {
+      "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\feeds\\0.3.0-rbf3-local.20261011081109\\Atelia.Primitives.0.3.0-rbf3-local.20261011081109.nupkg",
+      "bytes": 50425,
+      "sha256": "baa268a4e1f0fa901f6e0931c53fd1c172b13178204f92dc48ae81f965e464b6"
+    },
+    {
+      "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\feeds\\0.3.0-rbf3-local.20261011081109\\Atelia.Primitives.0.3.0-rbf3-local.20261011081109.snupkg",
+      "bytes": 17039,
+      "sha256": "53c1cc8fe52d6a7e37b9043705585e84255cdddadd00f2d6e254c2f93dd13e2c"
+    },
+    {
+      "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\feeds\\0.3.0-rbf3-local.20261011081109\\Atelia.Data.0.3.0-rbf3-local.20261011081109.nupkg",
+      "bytes": 113278,
+      "sha256": "0fabc71260af664a6ec151dd4d29e6df823a495d4b5f2e329bb2707a6748e159"
+    },
+    {
+      "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\feeds\\0.3.0-rbf3-local.20261011081109\\Atelia.Data.0.3.0-rbf3-local.20261011081109.snupkg",
+      "bytes": 32145,
+      "sha256": "7ef793d09a2830645f47f313a2042249315918ef137024e734eb7312656e9678"
+    },
+    {
+      "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\feeds\\0.3.0-rbf3-local.20261011081109\\Atelia.Rbf.0.3.0-rbf3-local.20261011081109.nupkg",
+      "bytes": 257920,
+      "sha256": "6f1d0d4f64c9ade85485758f6beb343279aa3474aa644a37597f57bae601127c"
+    },
+    {
+      "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\feeds\\0.3.0-rbf3-local.20261011081109\\Atelia.Rbf.0.3.0-rbf3-local.20261011081109.snupkg",
+      "bytes": 50566,
+      "sha256": "86feb47b28145e9da2ec343bf8277112a3f2d93dad7fbc3d087ae4d9a74c113e"
+    },
+    {
+      "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\feeds\\0.3.0-rbf3-local.20261011081109\\Atelia.Binary.0.3.0-rbf3-local.20261011081109.nupkg",
+      "bytes": 46354,
+      "sha256": "d09152570d9c16c2218c962cdb708e2e2ca0f3cb038d0a5d41d975cdfacf600d"
+    },
+    {
+      "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\feeds\\0.3.0-rbf3-local.20261011081109\\Atelia.Binary.0.3.0-rbf3-local.20261011081109.snupkg",
+      "bytes": 22417,
+      "sha256": "68d224c6059f7ccfebcd0061e346a6dc267211234fb807343496dff929b55852"
+    },
+    {
+      "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\feeds\\0.3.0-rbf3-local.20261011081109\\Atelia.FrameStore.0.3.0-rbf3-local.20261011081109.nupkg",
+      "bytes": 102061,
+      "sha256": "7b92cfc9831d20027459781ff22dd1a8cd7a172bbf34ee39d771a57dfa5a0478"
+    },
+    {
+      "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\feeds\\0.3.0-rbf3-local.20261011081109\\Atelia.FrameStore.0.3.0-rbf3-local.20261011081109.snupkg",
+      "bytes": 35240,
+      "sha256": "541f64b45b1979838ad8c57ad23d51f8517c2f104c1552d8bb113db2b5c43227"
+    },
+    {
+      "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\feeds\\0.3.0-rbf3-local.20261011081109\\Atelia.VersionStore.0.3.0-rbf3-local.20261011081109.nupkg",
+      "bytes": 178365,
+      "sha256": "1f59b613d2faa2801d2a742592839b82217103841a3018183d0b5ce37e59662c"
+    },
+    {
+      "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\feeds\\0.3.0-rbf3-local.20261011081109\\Atelia.VersionStore.0.3.0-rbf3-local.20261011081109.snupkg",
+      "bytes": 52947,
+      "sha256": "2bd0c27e2cac7f49eb4a02884b77bdcf37e4824a1c7538bd4acfbbe6972a6708"
+    }
+  ],
+  "windows": {
+    "sdk": "10.0.201",
+    "os": "Windows-11-10.0.22000-SP0",
+    "solutionTestTotals": {
+      "Passed": 3455,
+      "Failed": 0,
+      "NotExecuted": 9
+    },
+    "testSourceNote": "Production source and csproj markers match candidate; subsequent 72d3270 changes only package smoke archive assertion.",
+    "trx": [
+      {
+        "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\versionstore-s6\\windows-tests\\gdtutu_TUTU17_2026-10-11_16_02_46.trx",
+        "bytes": 101081,
+        "sha256": "3f94d21e4d5b8a31e4d11c5d96d473d48734da1b7154da09fb45819529294f79",
+        "Passed": 75,
+        "Failed": 0,
+        "NotExecuted": 0
+      },
+      {
+        "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\versionstore-s6\\windows-tests\\gdtutu_TUTU17_2026-10-11_16_02_46[1].trx",
+        "bytes": 184743,
+        "sha256": "07eaf6ebc43acf925f26ec64e68eeb007ca73c373123367605c34caab8030e60",
+        "Passed": 122,
+        "Failed": 0,
+        "NotExecuted": 0
+      },
+      {
+        "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\versionstore-s6\\windows-tests\\gdtutu_TUTU17_2026-10-11_16_02_47.trx",
+        "bytes": 389195,
+        "sha256": "d2efa117c5af7ec9a2070329170b8c4ba1184a9d3609d7623684d4eb63ad4d1d",
+        "Passed": 288,
+        "Failed": 0,
+        "NotExecuted": 0
+      },
+      {
+        "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\versionstore-s6\\windows-tests\\gdtutu_TUTU17_2026-10-11_16_02_47[1].trx",
+        "bytes": 71346,
+        "sha256": "b6b3823604adf2979852175063ea190e19ef5d449162f549183663fc5bf010a8",
+        "Passed": 48,
+        "Failed": 0,
+        "NotExecuted": 0
+      },
+      {
+        "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\versionstore-s6\\windows-tests\\gdtutu_TUTU17_2026-10-11_16_02_47[2].trx",
+        "bytes": 1291598,
+        "sha256": "f077f91befccc2c59da51207aeb8cdf5a601cf1dcadaf7ef960a9e3d09d22497",
+        "Passed": 920,
+        "Failed": 0,
+        "NotExecuted": 0
+      },
+      {
+        "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\versionstore-s6\\windows-tests\\gdtutu_TUTU17_2026-10-11_16_02_47[3].trx",
+        "bytes": 243458,
+        "sha256": "4c7e10667f406296fe6ec87f80f12c20dfd013c60b82f164f1c9734e1c45a247",
+        "Passed": 174,
+        "Failed": 0,
+        "NotExecuted": 0
+      },
+      {
+        "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\versionstore-s6\\windows-tests\\gdtutu_TUTU17_2026-10-11_16_02_48.trx",
+        "bytes": 300212,
+        "sha256": "2d939f0f36b1cf56a913cd55b2367d942b1d3a0b7f602ea574d861e8c3866985",
+        "Passed": 214,
+        "Failed": 0,
+        "NotExecuted": 0
+      },
+      {
+        "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\versionstore-s6\\windows-tests\\gdtutu_TUTU17_2026-10-11_16_02_50.trx",
+        "bytes": 631534,
+        "sha256": "a732ca24a4837b1ea88ba4cb454f1b896a7efaab96bfdafc736454b8405d7991",
+        "Passed": 422,
+        "Failed": 0,
+        "NotExecuted": 3
+      },
+      {
+        "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\versionstore-s6\\windows-tests\\gdtutu_TUTU17_2026-10-11_16_02_51.trx",
+        "bytes": 2087209,
+        "sha256": "37edbe9670c137b80349d26b7708c8cad8d9f435807677e98b6190bcc2d06545",
+        "Passed": 1192,
+        "Failed": 0,
+        "NotExecuted": 6
+      }
+    ],
+    "consumers": [
+      {
+        "name": "RbfPackageSmoke",
+        "assets": {
+          "path": "W:\\storage-package-smoke-0.3.0-rbf3-local.20261011081109\\RbfPackageSmoke\\obj\\project.assets.json",
+          "bytes": 24156,
+          "sha256": "19e5dc2412651f75fe988d6f76bb2d472c90aa0794aa999fdc2596014400cc5f"
+        },
+        "packages": [
+          "Atelia.Data/0.3.0-rbf3-local.20261011081109",
+          "Atelia.Primitives/0.3.0-rbf3-local.20261011081109",
+          "Atelia.Rbf/0.3.0-rbf3-local.20261011081109"
+        ],
+        "direct": {
+          "Atelia.Rbf": {
+            "target": "Package",
+            "version": "[0.3.0-rbf3-local.20261011081109, 0.3.0-rbf3-local.20261011081109]"
+          }
+        },
+        "packageFolders": [
+          "W:\\storage-package-smoke-0.3.0-rbf3-local.20261011081109\\packages"
+        ]
+      },
+      {
+        "name": "BinaryPackageSmoke",
+        "assets": {
+          "path": "W:\\storage-package-smoke-0.3.0-rbf3-local.20261011081109\\BinaryPackageSmoke\\obj\\project.assets.json",
+          "bytes": 23573,
+          "sha256": "59f3a82e7bb92fecdbe5162b1b9fc812487af1e5f86b06b70c6cb30319871cf7"
+        },
+        "packages": [
+          "Atelia.Binary/0.3.0-rbf3-local.20261011081109",
+          "K4os.Compression.LZ4/1.3.8"
+        ],
+        "direct": {
+          "Atelia.Binary": {
+            "target": "Package",
+            "version": "[0.3.0-rbf3-local.20261011081109, 0.3.0-rbf3-local.20261011081109]"
+          }
+        },
+        "packageFolders": [
+          "W:\\storage-package-smoke-0.3.0-rbf3-local.20261011081109\\packages"
+        ]
+      },
+      {
+        "name": "FrameStorePackageSmoke",
+        "assets": {
+          "path": "W:\\storage-package-smoke-0.3.0-rbf3-local.20261011081109\\FrameStorePackageSmoke\\obj\\project.assets.json",
+          "bytes": 27647,
+          "sha256": "3e08d98c3ca22a0cb6f7ed0d3b439154b1188cb4a29e2f1b26877f43c253c54f"
+        },
+        "packages": [
+          "Atelia.Binary/0.3.0-rbf3-local.20261011081109",
+          "Atelia.Data/0.3.0-rbf3-local.20261011081109",
+          "Atelia.FrameStore/0.3.0-rbf3-local.20261011081109",
+          "Atelia.Primitives/0.3.0-rbf3-local.20261011081109",
+          "Atelia.Rbf/0.3.0-rbf3-local.20261011081109",
+          "K4os.Compression.LZ4/1.3.8"
+        ],
+        "direct": {
+          "Atelia.FrameStore": {
+            "target": "Package",
+            "version": "[0.3.0-rbf3-local.20261011081109, 0.3.0-rbf3-local.20261011081109]"
+          }
+        },
+        "packageFolders": [
+          "W:\\storage-package-smoke-0.3.0-rbf3-local.20261011081109\\packages"
+        ]
+      },
+      {
+        "name": "VersionStorePackageSmoke",
+        "assets": {
+          "path": "W:\\storage-package-smoke-0.3.0-rbf3-local.20261011081109\\VersionStorePackageSmoke\\obj\\project.assets.json",
+          "bytes": 28963,
+          "sha256": "3328fd50a878e3ebdcfd0340b7115e36d27ffa86ae920412eb10a6f45b85f14c"
+        },
+        "packages": [
+          "Atelia.Binary/0.3.0-rbf3-local.20261011081109",
+          "Atelia.Data/0.3.0-rbf3-local.20261011081109",
+          "Atelia.FrameStore/0.3.0-rbf3-local.20261011081109",
+          "Atelia.Primitives/0.3.0-rbf3-local.20261011081109",
+          "Atelia.Rbf/0.3.0-rbf3-local.20261011081109",
+          "Atelia.VersionStore/0.3.0-rbf3-local.20261011081109",
+          "K4os.Compression.LZ4/1.3.8"
+        ],
+        "direct": {
+          "Atelia.VersionStore": {
+            "target": "Package",
+            "version": "[0.3.0-rbf3-local.20261011081109, 0.3.0-rbf3-local.20261011081109]"
+          }
+        },
+        "packageFolders": [
+          "W:\\storage-package-smoke-0.3.0-rbf3-local.20261011081109\\packages"
+        ]
+      }
+    ],
+    "localSourceChecksums": 164,
+    "logs": [
+      {
+        "path": "W:\\storage-package-smoke-0.3.0-rbf3-local.20261011081109\\logs\\binary-assets.log",
+        "bytes": 109,
+        "sha256": "10e19e7b494384e03463f4c3a6db3a148272a46f41099e31eeac3cd3ceb5832e"
+      },
+      {
+        "path": "W:\\storage-package-smoke-0.3.0-rbf3-local.20261011081109\\logs\\binary-restore.log",
+        "bytes": 173,
+        "sha256": "6ce410efe677d5757639c308ca187e885d2486cc03be9c6973d15e89c96cdd1e"
+      },
+      {
+        "path": "W:\\storage-package-smoke-0.3.0-rbf3-local.20261011081109\\logs\\binary-smoke.log",
+        "bytes": 164,
+        "sha256": "cce2e6a607ff59c0c82a56e978c6e30995f66c468333466dd6bfe37d54aa6e0c"
+      },
+      {
+        "path": "W:\\storage-package-smoke-0.3.0-rbf3-local.20261011081109\\logs\\frame-store-assets.log",
+        "bytes": 113,
+        "sha256": "5373dec51f70eb80faa884613233118ecf7daf0cdbe945b563a38cefd0d07939"
+      },
+      {
+        "path": "W:\\storage-package-smoke-0.3.0-rbf3-local.20261011081109\\logs\\frame-store-restore.log",
+        "bytes": 183,
+        "sha256": "b40e1496fc0a438fa8dd0e2fc627259ce7a91d6122d5143250a8c0c8b57a84ce"
+      },
+      {
+        "path": "W:\\storage-package-smoke-0.3.0-rbf3-local.20261011081109\\logs\\frame-store-smoke.log",
+        "bytes": 257,
+        "sha256": "03b3157540feb467850b3dd1fb5eb3f2aa5c81227d0feb7d3be66caeda712e41"
+      },
+      {
+        "path": "W:\\storage-package-smoke-0.3.0-rbf3-local.20261011081109\\logs\\metadata-check.log",
+        "bytes": 1406,
+        "sha256": "c12a8a8e860d58c675a3a5a6d9ccab736ee1e5715b69ad3ba4e4d00eb4151b66"
+      },
+      {
+        "path": "W:\\storage-package-smoke-0.3.0-rbf3-local.20261011081109\\logs\\metadata-restore.log",
+        "bytes": 179,
+        "sha256": "067d947c0ba7e5929d3c6ba2757a1d6bf07f908c8f981258eedf3551b2968300"
+      },
+      {
+        "path": "W:\\storage-package-smoke-0.3.0-rbf3-local.20261011081109\\logs\\primary-restore.log",
+        "bytes": 167,
+        "sha256": "7f62f1d99a4bec793cf476bd688eeb329ccc827c4a6cefb9bf8dd79963760180"
+      },
+      {
+        "path": "W:\\storage-package-smoke-0.3.0-rbf3-local.20261011081109\\logs\\primary-smoke.log",
+        "bytes": 221,
+        "sha256": "0b396840fa571d0969ae09f30aa06c391782dc3fd6b9ac407bc3d780fc7f4535"
+      },
+      {
+        "path": "W:\\storage-package-smoke-0.3.0-rbf3-local.20261011081109\\logs\\rbf-assets.log",
+        "bytes": 106,
+        "sha256": "0f506bca06b6b1d34abe76dfd0a5faa6376433553c02e27861324865708678bc"
+      },
+      {
+        "path": "W:\\storage-package-smoke-0.3.0-rbf3-local.20261011081109\\logs\\version-store-assets.log",
+        "bytes": 115,
+        "sha256": "113651bde05f109e84773f11e1be7c6346408fdec7b27ae8c9f017c129a1f058"
+      },
+      {
+        "path": "W:\\storage-package-smoke-0.3.0-rbf3-local.20261011081109\\logs\\version-store-restore.log",
+        "bytes": 187,
+        "sha256": "013ef7c39c3e07431e34143159533d6c53ed61fcb484d94e4522f1af4cd42998"
+      },
+      {
+        "path": "W:\\storage-package-smoke-0.3.0-rbf3-local.20261011081109\\logs\\version-store-smoke.log",
+        "bytes": 276,
+        "sha256": "c5bbf645a774324ce02028efa3de926e356799dd9b01d4cd99a2f86f3019cd0b"
+      }
+    ],
+    "validation": [
+      {
+        "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\versionstore-s6\\build.log",
+        "bytes": 22987,
+        "sha256": "472e47e452a1504eb28ef3a1914a5ecb4d7bb954b73f54a6a354430fa2d78d17"
+      },
+      {
+        "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\versionstore-s6\\tests.log",
+        "bytes": 6760,
+        "sha256": "0be06159639f4c00e43952246c1094e69d61549d98d087263b10d4fa9f0daf0d"
+      },
+      {
+        "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\versionstore-s6\\metadata-build.log",
+        "bytes": 377,
+        "sha256": "315b0be958350f1a236d41079fa17f2e74cd7d629d6ad817f786fbcf73403723"
+      },
+      {
+        "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\versionstore-s6\\rbf1-assets.log",
+        "bytes": 694,
+        "sha256": "75997e0656849e10b55138a4500b10da8c61d34feca82a27c2e364995a4738d0"
+      },
+      {
+        "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\versionstore-s6\\mock-result.txt",
+        "bytes": 508,
+        "sha256": "af141d2c6b88ad2477ad97917711c98567023a1ac6de2516a1f14583e737f162"
+      },
+      {
+        "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\versionstore-s6\\final-pack.log",
+        "bytes": 41596,
+        "sha256": "0b384c9a0c5be7bab25e196adc80e2825fa038c1ada86859e8cbe934eec74d04"
+      },
+      {
+        "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\versionstore-s6\\windows-package.log",
+        "bytes": 3323,
+        "sha256": "01c3c675a1da5d0a87681ded1d98e0020488e1e6528835ca88728be1b10ff16d"
+      }
+    ]
+  },
+  "firstCandidate": {
+    "candidate": {
+      "version": "0.3.0-rbf3-local.20261011080835",
+      "feed": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\feeds\\0.3.0-rbf3-local.20261011080835",
+      "sourceRevision": "bdd544f30f00aa6bab37e4c79b0570300406ed28",
+      "windowsWork": "W:/storage-package-smoke-0.3.0-rbf3-local.20261011080835"
+    },
+    "failedStage": "FrameStore smoke looked only at archive direct files; two sharded archive files already existed",
+    "change": "SearchOption.AllDirectories in consumer only; new commit and version; original feed/workspace retained",
+    "log": {
+      "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\versionstore-s6\\first-windows-package.log",
+      "bytes": 1694,
+      "sha256": "2a464d095d6516fc097a047b201d376ab0788af107be22e9b5fa60ebaafe8f9c"
+    }
+  },
+  "linux": {
+    "summary": {
+      "frozenUtc": "2026-10-11T08:15:35.562430+00:00",
+      "passed": true,
+      "exitCode": 0,
+      "sourceRevision": "72d32709bb15ae2f7984f3f42632269d5ffca7b2",
+      "version": "0.3.0-rbf3-local.20261011081109",
+      "sourceOrigin": "https://github.com/Atelia-org/atelia-storage.git",
+      "sourceIndexTree": "873c1aeaac198a9279361146b51c963f67881eac",
+      "sourceCommitTree": "873c1aeaac198a9279361146b51c963f67881eac",
+      "sourceClean": true,
+      "noStagedDiff": true,
+      "noWorktreeDiff": true,
+      "sourceCopyTrackedCsCount": 191,
+      "localPdbChecksumDocumentCount": 164,
+      "pdbChecksumCountByPackage": {
+        "Atelia.Primitives": 7,
+        "Atelia.Data": 21,
+        "Atelia.Rbf": 49,
+        "Atelia.Binary": 15,
+        "Atelia.FrameStore": 26,
+        "Atelia.VersionStore": 46
+      },
+      "consumerExactPackageClosures": {
+        "Atelia.Rbf": 3,
+        "Atelia.Binary": 2,
+        "Atelia.FrameStore": 6,
+        "Atelia.VersionStore": 7
+      },
+      "environment": {
+        "kernel": "Linux Tutu17 6.18.33.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun 18 21:54:43 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux",
+        "osRelease": "PRETTY_NAME=\"Ubuntu 24.04.4 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"24.04\"\nVERSION=\"24.04.4 LTS (Noble Numbat)\"\nVERSION_CODENAME=noble\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=noble\nLOGO=ubuntu-logo\n",
+        "filesystem": "/      /dev/sde ext4   rw,relatime,discard,errors=remount-ro,data=ordered",
+        "sdkDirectories": [
+          "10.0.201",
+          "8.0.131",
+          "9.0.115"
+        ],
+        "dotnetPath": "/usr/bin/dotnet",
+        "pwshPath": "/usr/bin/pwsh",
+        "sdkVersion": "10.0.201",
+        "dotnetHostVersion": "10.0.5",
+        "powerShellVersion": "7.5.4"
+      },
+      "candidateArtifacts": [
+        {
+          "file": "Atelia.Primitives.0.3.0-rbf3-local.20261011081109.nupkg",
+          "bytes": 50425,
+          "sha256": "baa268a4e1f0fa901f6e0931c53fd1c172b13178204f92dc48ae81f965e464b6",
+          "manifestMatched": true
+        },
+        {
+          "file": "Atelia.Primitives.0.3.0-rbf3-local.20261011081109.snupkg",
+          "bytes": 17039,
+          "sha256": "53c1cc8fe52d6a7e37b9043705585e84255cdddadd00f2d6e254c2f93dd13e2c",
+          "manifestMatched": true
+        },
+        {
+          "file": "Atelia.Data.0.3.0-rbf3-local.20261011081109.nupkg",
+          "bytes": 113278,
+          "sha256": "0fabc71260af664a6ec151dd4d29e6df823a495d4b5f2e329bb2707a6748e159",
+          "manifestMatched": true
+        },
+        {
+          "file": "Atelia.Data.0.3.0-rbf3-local.20261011081109.snupkg",
+          "bytes": 32145,
+          "sha256": "7ef793d09a2830645f47f313a2042249315918ef137024e734eb7312656e9678",
+          "manifestMatched": true
+        },
+        {
+          "file": "Atelia.Rbf.0.3.0-rbf3-local.20261011081109.nupkg",
+          "bytes": 257920,
+          "sha256": "6f1d0d4f64c9ade85485758f6beb343279aa3474aa644a37597f57bae601127c",
+          "manifestMatched": true
+        },
+        {
+          "file": "Atelia.Rbf.0.3.0-rbf3-local.20261011081109.snupkg",
+          "bytes": 50566,
+          "sha256": "86feb47b28145e9da2ec343bf8277112a3f2d93dad7fbc3d087ae4d9a74c113e",
+          "manifestMatched": true
+        },
+        {
+          "file": "Atelia.Binary.0.3.0-rbf3-local.20261011081109.nupkg",
+          "bytes": 46354,
+          "sha256": "d09152570d9c16c2218c962cdb708e2e2ca0f3cb038d0a5d41d975cdfacf600d",
+          "manifestMatched": true
+        },
+        {
+          "file": "Atelia.Binary.0.3.0-rbf3-local.20261011081109.snupkg",
+          "bytes": 22417,
+          "sha256": "68d224c6059f7ccfebcd0061e346a6dc267211234fb807343496dff929b55852",
+          "manifestMatched": true
+        },
+        {
+          "file": "Atelia.FrameStore.0.3.0-rbf3-local.20261011081109.nupkg",
+          "bytes": 102061,
+          "sha256": "7b92cfc9831d20027459781ff22dd1a8cd7a172bbf34ee39d771a57dfa5a0478",
+          "manifestMatched": true
+        },
+        {
+          "file": "Atelia.FrameStore.0.3.0-rbf3-local.20261011081109.snupkg",
+          "bytes": 35240,
+          "sha256": "541f64b45b1979838ad8c57ad23d51f8517c2f104c1552d8bb113db2b5c43227",
+          "manifestMatched": true
+        },
+        {
+          "file": "Atelia.VersionStore.0.3.0-rbf3-local.20261011081109.nupkg",
+          "bytes": 178365,
+          "sha256": "1f59b613d2faa2801d2a742592839b82217103841a3018183d0b5ce37e59662c",
+          "manifestMatched": true
+        },
+        {
+          "file": "Atelia.VersionStore.0.3.0-rbf3-local.20261011081109.snupkg",
+          "bytes": 52947,
+          "sha256": "2bd0c27e2cac7f49eb4a02884b77bdcf37e4824a1c7538bd4acfbbe6972a6708",
+          "manifestMatched": true
+        },
+        {
+          "file": "manifest.0.3.0-rbf3-local.20261011081109.json",
+          "bytes": 2502,
+          "sha256": "e789d894c91b95abacf016578d4d81afca08d7a3506629a624600df0682b1990",
+          "identicalWindowsLinuxBytes": true
+        }
+      ],
+      "rawCrLfSourceDocuments": [
+        {
+          "path": "src/FrameStore/Internal/Storage/DirectoryFrameStoreFiles.cs",
+          "gitBlob": "d83f134e9c32af308226341460eea6efac81f3aa",
+          "windowsSha256": "7e912ad20cb1f7c56b55da6949419c61f6e312044a6b94546126bc9d428e58bc",
+          "linuxSha256": "7e912ad20cb1f7c56b55da6949419c61f6e312044a6b94546126bc9d428e58bc",
+          "freshCheckoutSha256": "c0e4d8c13e6227bbfd9596fd36ab3142496628a86b2fb45b82a44294a32d4d96",
+          "changedRawBytesFromFreshCheckout": true,
+          "crlfCount": 446,
+          "lfCount": 446
+        },
+        {
+          "path": "src/FrameStore/Internal/Storage/FrameStoreFactory.cs",
+          "gitBlob": "d447b2ca357ec727b099de352c6a479c17c86bf8",
+          "windowsSha256": "1016ec4905999a1db9a3b32cc76176ae69de932c34fef5529589029d58ff648d",
+          "linuxSha256": "1016ec4905999a1db9a3b32cc76176ae69de932c34fef5529589029d58ff648d",
+          "freshCheckoutSha256": "20b45cbe37e47d99f8ac9d0dc6e133513ab330cbd4beb772e8305343af6d3bd8",
+          "changedRawBytesFromFreshCheckout": true,
+          "crlfCount": 111,
+          "lfCount": 111
+        },
+        {
+          "path": "src/VersionStore/VersionStore.Audit.cs",
+          "gitBlob": "b9ae0f781a6a085ff12d3b87825b0d4630f4ff83",
+          "windowsSha256": "ba184c296d458fea90cc4bdb0c051afdf047a509ef0832c01a1058c7a5134a2d",
+          "linuxSha256": "ba184c296d458fea90cc4bdb0c051afdf047a509ef0832c01a1058c7a5134a2d",
+          "freshCheckoutSha256": "57f4da9f91d25726152e55e331505563596bc4fcbe7ae318f46f2e103f887677",
+          "changedRawBytesFromFreshCheckout": true,
+          "crlfCount": 298,
+          "lfCount": 298
+        }
+      ],
+      "linuxPaths": {
+        "root": "/var/tmp/atelia-storage-s6-linux-20261011081109",
+        "source": "/var/tmp/atelia-storage-s6-linux-20261011081109/source",
+        "feed": "/var/tmp/atelia-storage-s6-linux-20261011081109/feed",
+        "work": "/var/tmp/atelia-storage-s6-linux-20261011081109/consumer"
+      },
+      "windowsEvidence": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\versionstore-s6\\linux",
+      "startedUtc": "2026-10-11T08:13:05.618257+00:00",
+      "finishedUtc": "2026-10-11T08:13:48.884393+00:00",
+      "limitations": [
+        "Same frozen Windows candidates; no Linux repack",
+        "Local source checksums and static Source Link only; no remote Source Link download",
+        "Four public PackageReference smokes; no repeated complete source regression",
+        "No publish or downstream migration",
+        "Three Windows source working-tree files retain CRLF; canonical Git blobs/index tree match the commit, but remote Source Link checksum compatibility remains unverified"
+      ],
+      "earlierAttempt": "Initial candidate .20261011080835 was not consumed on Linux; original fresh-clone source-clean failure retained at /var/tmp/atelia-storage-s6-linux-20261011080835"
+    },
+    "receipts": [
+      {
+        "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\versionstore-s6\\linux\\summary.json",
+        "bytes": 7644,
+        "sha256": "2a2bb6cff3ae0c6611316d8e93cd7c915b408b4a015a5c652f35618429b36ad4"
+      },
+      {
+        "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\versionstore-s6\\linux\\result.json",
+        "bytes": 1165,
+        "sha256": "48b5558b92941d9ccbd7e253a883c6c3b2bef939ae8a631fe1463fc3b17a0c74"
+      },
+      {
+        "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\versionstore-s6\\linux\\preparation.json",
+        "bytes": 100117,
+        "sha256": "1a1da4dcc0d90f6965d31b22366ece39043497160ec4be738518ae1f3f2ec5f9"
+      },
+      {
+        "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\versionstore-s6\\linux\\smoke.log",
+        "bytes": 3252,
+        "sha256": "2b4328e9eb39485fe4e9f9438694e7f3238a0399ecfacd429c385f359f1bd7d5"
+      },
+      {
+        "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\versionstore-s6\\linux\\evidence-sha256.json",
+        "bytes": 60142,
+        "sha256": "3e5a376ddbcd8d57a093aa4d686f3eae365e927c3466d65947a8581d0085919d"
+      }
+    ]
+  },
+  "trialBundle": {
+    "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\feeds\\storage-trial-0.3.0-rbf3-local.20261011081109.zip",
+    "bytes": 380642,
+    "sha256": "79199ad9336ad338849efdb3796945a3851b12103e2ebe651db3d935f550dd0d",
+    "files": [
+      "Atelia.Primitives.0.3.0-rbf3-local.20261011081109.nupkg",
+      "Atelia.Primitives.0.3.0-rbf3-local.20261011081109.snupkg",
+      "Atelia.Data.0.3.0-rbf3-local.20261011081109.nupkg",
+      "Atelia.Data.0.3.0-rbf3-local.20261011081109.snupkg",
+      "Atelia.Rbf.0.3.0-rbf3-local.20261011081109.nupkg",
+      "Atelia.Rbf.0.3.0-rbf3-local.20261011081109.snupkg",
+      "Atelia.Binary.0.3.0-rbf3-local.20261011081109.nupkg",
+      "Atelia.Binary.0.3.0-rbf3-local.20261011081109.snupkg",
+      "Atelia.FrameStore.0.3.0-rbf3-local.20261011081109.nupkg",
+      "Atelia.FrameStore.0.3.0-rbf3-local.20261011081109.snupkg",
+      "Atelia.VersionStore.0.3.0-rbf3-local.20261011081109.nupkg",
+      "Atelia.VersionStore.0.3.0-rbf3-local.20261011081109.snupkg",
+      "manifest.0.3.0-rbf3-local.20261011081109.json",
+      "NuGet.Config",
+      "README.trial.md"
+    ]
+  },
+  "trialConfig": {
+    "config": {
+      "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\feeds\\0.3.0-rbf3-local.20261011081109\\NuGet.Config",
+      "bytes": 739,
+      "sha256": "6debc4e58aada48f0990403bc31e0b18d4326bde697b8551028e5da39c5daf34"
+    },
+    "restoreLog": {
+      "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\versionstore-s6\\trial-config-restore.log",
+      "bytes": 159,
+      "sha256": "7ed7a20e02f171079407cc0f6b8bf031ef9f6f105ec4c4353b9c5d0734cd8e4a"
+    },
+    "assets": {
+      "path": "W:\\storage-trial-config-0.3.0-rbf3-local.20261011081109\\obj\\project.assets.json",
+      "bytes": 28911,
+      "sha256": "2b0329b21eebfc7460b9d22d463e27cbcefa0538a5dee58c1ffd0b0abb4a5dfc"
+    },
+    "packages": [
+      "Atelia.Binary/0.3.0-rbf3-local.20261011081109",
+      "Atelia.Data/0.3.0-rbf3-local.20261011081109",
+      "Atelia.FrameStore/0.3.0-rbf3-local.20261011081109",
+      "Atelia.Primitives/0.3.0-rbf3-local.20261011081109",
+      "Atelia.Rbf/0.3.0-rbf3-local.20261011081109",
+      "Atelia.VersionStore/0.3.0-rbf3-local.20261011081109",
+      "K4os.Compression.LZ4/1.3.8"
+    ],
+    "result": "Separate fresh private-cache restore using the relocatable handoff config succeeded; six Atelia cache bytes match the manifest."
+  },
+  "independentReview": {
+    "path": "E:\\repos\\Atelia-org\\atelia-storage\\artifacts\\versionstore-s6\\review.md",
+    "bytes": 10293,
+    "sha256": "3dffdb3b9bdc67140dc3ff0f74ed46bfb49f277288a93fdd4987be7baf372867"
+  },
+  "limits": [
+    "No nuget.org upload/verification, Trusted Publisher registration, remote Source Link download or storage-2 migration.",
+    "Linux consumes the same Windows-produced packages; no Linux repack or same-platform reproducibility rerun.",
+    "Old source-only/process evidence retains original identities; this round does not rerun process kills or pressure workloads.",
+    "ProjectReference-generated nuspec dependencies are SDK standard minimum ranges; exact tested closures do not establish future mixed-version compatibility."
+  ]
+}
