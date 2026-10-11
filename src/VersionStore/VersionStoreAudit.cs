@@ -13,7 +13,7 @@ public sealed class VersionStoreAudit {
     /// <summary>已完整校验的正式 ref 数。</summary>
     public long RefCount { get; }
 
-    /// <summary>全部正式 ref 的本地 Snapshot 数，包含各自初始节点。</summary>
+    /// <summary>全部正式 ref 的本地已发布快照数：普通 Snapshot 与成立 CU，包含初始节点，不含未成立 CU。</summary>
     public long SnapshotCount { get; }
 
     /// <summary>已证明 exact 主链来源与初始 bytes 一致的 fork 数。</summary>

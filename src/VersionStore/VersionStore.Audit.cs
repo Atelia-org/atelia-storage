@@ -11,6 +11,7 @@ public sealed partial class VersionStore {
     /// <summary>在只读 owner 上完整校验全部正式 ref、fork 来源及实际 tag 桶，成功后交付自有统计。</summary>
     /// <remarks>
     /// 首个错误停止；不恢复、修复、发布、解码 opaque payload 或检查应用 data 闭包。
+    /// 完整检查所有普通 Snapshot 与 CU；合法未成立 CU 不计发布快照，也不能满足 fork 来源。
     /// 可写 owner 返回 ReadOnlyRequired，活动 history/tag visitor 返回相应 Active 失败，均不执行 I/O。
     /// </remarks>
     public AteliaResult<VersionStoreAudit> Audit(CancellationToken cancellationToken = default) {
@@ -34,6 +35,7 @@ public sealed partial class VersionStore {
         try { result = AuditCore(resources, CheckState); }
         catch (Exception error) { errors.Add(error); }
         finally {
+            CloseConditionalPeer(ref errors);
             CloseAuditResource(ref resources.Child, ref errors);
             CloseAuditResource(ref resources.File, ref errors);
             CloseAuditResource(ref resources.Buckets, ref errors);
@@ -181,31 +183,59 @@ public sealed partial class VersionStore {
                 if (forward.TerminationError is { } error) { return error; }
                 if (!hasInitial) { return new RefRecordError("The direct second physical initial Snapshot is missing."); }
                 if (node.Children is { Count: > 0 }) {
-                    return InvalidHistoryOrigin("A declared exact source ticket is not a Snapshot member of its formal ref's physical chain.");
+                    return InvalidHistoryOrigin("A declared exact source ticket is not a published snapshot member of its formal ref's physical chain.");
                 }
                 return null;
             }
             RbfFrameInfo info = forward.Current;
-            if (!hasInitial && info.Ticket.Offset != header.InitialSnapshotOffset) {
-                return new RefRecordError("The initial Snapshot is not the direct second physical frame.");
+            if (!hasInitial && (info.Ticket.Offset != header.InitialSnapshotOffset || !RefRecordCodec.IsSnapshotShape(info))) {
+                return new RefRecordError("The ordinary initial Snapshot is not the direct second physical frame.");
             }
+            hasInitial = true;
+            if (!RefRecordCodec.IsPublicationShape(info)) {
+                return new RefRecordError("The physical ref chain contains an invalid publication record.");
+            }
+            if (info.Tag == RefRecordCodec.ConditionalUpdateTag) {
+                var published = ReadPublication(file, header, info, checkState: checkState, deferOwnedCleanup: true);
+                checkState();
+                if (published.IsFailure) { return published.Error!; }
+                RefBytesSnapshot? snapshot = published.Value.Snapshot;
+                if (snapshot is null) {
+                    if (node.Children is not null && node.Children.ContainsKey(info.Ticket)) {
+                        return InvalidHistoryOrigin("A declared exact source CU is not a published snapshot.");
+                    }
+                    continue;
+                }
+                resources.SnapshotCount = checked(resources.SnapshotCount + 1);
+                AteliaError? sourceError = AuditSourceChildren(resources, node, info.Ticket, snapshot.Payload, checkState);
+                if (sourceError is not null) { return sourceError; }
+                continue;
+            }
+
             var read = RefRecordReader.ReadCheckedSnapshotFrame(info, checkState);
             if (read.IsFailure) { return read.Error!; }
             using RbfPooledFrame frame = read.Value!;
             checkState();
-            hasInitial = true;
             resources.SnapshotCount = checked(resources.SnapshotCount + 1);
-            if (node.Children is null || !node.Children.TryGetValue(info.Ticket, out List<AuditRefNode>? children)) { continue; }
-            foreach (AuditRefNode child in children) {
-                AteliaError? cloneError = AuditForkClone(resources, child, frame, checkState);
-                if (cloneError is not null) { return cloneError; }
-            }
-            node.Children.Remove(info.Ticket);
+            AteliaError? cloneError = AuditSourceChildren(resources, node, info.Ticket,
+                frame.PayloadAndMeta[..^frame.TailMetaLength], checkState);
+            if (cloneError is not null) { return cloneError; }
         }
     }
 
+    private AteliaError? AuditSourceChildren(AuditResources resources, AuditRefNode node, SizedPtr ticket,
+        ReadOnlySpan<byte> sourcePayload, Action checkState) {
+        if (node.Children is null || !node.Children.TryGetValue(ticket, out List<AuditRefNode>? children)) { return null; }
+        foreach (AuditRefNode child in children) {
+            AteliaError? cloneError = AuditForkClone(resources, child, sourcePayload, checkState);
+            if (cloneError is not null) { return cloneError; }
+        }
+        node.Children.Remove(ticket);
+        return null;
+    }
+
     private AteliaError? AuditForkClone(AuditResources resources, AuditRefNode child,
-        RbfPooledFrame sourceFrame, Action checkState) {
+        ReadOnlySpan<byte> sourcePayload, Action checkState) {
         checkState();
         resources.Child = _files.OpenRef(child.Target, readOnly: true, _markOwnedCleanupFault);
         checkState();
@@ -222,8 +252,7 @@ public sealed partial class VersionStore {
         if (read.IsFailure) { return read.Error!; }
         using (RbfPooledFrame initial = read.Value!) {
             checkState();
-            if (!sourceFrame.PayloadAndMeta[..^sourceFrame.TailMetaLength]
-                .SequenceEqual(initial.PayloadAndMeta[..^initial.TailMetaLength])) {
+            if (!sourcePayload.SequenceEqual(initial.PayloadAndMeta[..^initial.TailMetaLength])) {
                 return InvalidHistoryOrigin("The fork's initial root bytes differ from its exact main-chain source Snapshot.");
             }
         }

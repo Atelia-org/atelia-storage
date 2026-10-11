@@ -1,6 +1,6 @@
-# S4：VersionStore 不透明根 payload 与单文件 ref 发布
+# S4：VersionStore 不透明根 payload 与 ref 发布
 
-状态：**Accepted（独立 source-only 源码资格）**。普通 ref、身份/编号、创建/打开、ForkOrigin、PublicationOutcome 与只读 Audit 的实现及限定证据见[最终源码验收](12-versionstore-final-acceptance.md)。Windows/WSL2 和公开停点进程证据已取得；S6 的内部写入窗口与隔离包消费仍待补，不随本状态取得完整组合/交付资格。后续见[实施计划](12-versionstore-implementation-plan.md)。
+状态：**既有普通 ref 等范围的独立 source-only 源码资格 Accepted；CU 已正式接纳并取得本轮独立源码验收 Accepted**。普通 ref、身份/编号、创建/打开、ForkOrigin、PublicationOutcome 与只读 Audit 的既有实现及限定证据见[最终源码验收](12-versionstore-final-acceptance.md)；CU 增量见[07 验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。V4-F 与 S6-C/D 的既有进程/本地候选资格各自保留，旧六包候选不含 CU。后续见[实施计划](12-versionstore-implementation-plan.md)。
 本文负责发布协议、身份与 ref envelope；时间编码见 [08 元信息专项](08-versionstore-record-metadata.md)，bytes API/所有权见 [11 公面专项](11-versionstore-root-payload-bytes-api.md)，可选 RootMap codec 见 [10 专项](10-versionstore-rootmap-payload.md)。首版版本为 1，不兼容未实施的旧草案。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)。历史与不可变 tag 见 [S5](05-versionstore-names-and-indexes.md)。
 
@@ -12,7 +12,7 @@
 
 活动历史读取及活动 tag 元信息扫描期间的 mutation/reentry guard 分别消费 [S5](05-versionstore-names-and-indexes.md) 与 [09 专项](09-versionstore-immutable-tags.md)。mutation 仍先初始化 outcome=NotAttempted，拒绝须先于目标 I/O、barrier 与输出；允许的同步 callback 读取和独立临时资源槽不在本篇复制定义。
 
-首版不创建独立 Commit 对象，不为每条 Snapshot 保存 Parent，不采用 Prepared handle、nonce 账本、默认 CAS 或精确 InspectPublication。ref 的创建来源由首帧 ForkOrigin 表达，文件内发布顺序仍由实际帧链表达。不提供跨 ref 原子事务；业务谱系、随机数状态、tool-loop 阶段、operationId 和外部副作用协议由应用保存和解释。
+首版不创建独立 Commit 对象，不为每条 Snapshot 保存 Parent，不采用 Prepared handle、nonce 账本、默认 CAS 或精确 InspectPublication。ref 的创建来源由首帧 ForkOrigin 表达，文件内发布顺序仍由实际帧链表达。多个同库既有 ref 的共同发布由 [07 CU](07-versionstore-cross-ref-conditional-update.md) 定义；单 ref 普通发布保持 Snapshot，不创建/命名/tag/跨库事务，也不提供跨调用快照隔离。业务谱系、随机数状态、tool-loop 阶段、operationId 和外部副作用协议由应用保存和解释。
 
 ## VersionStore 格式门与 data 绑定
 
@@ -123,7 +123,7 @@ VersionStore 接收/返回完整、不透明的 root-payload bytes，整体替�
 
 ### spec [A-VS-ROOT-PAYLOAD] 发布记录的 root payload 与 codec 分离
 
-普通 Snapshot 的整个 RBF payload 是 root-payload bytes；[CU 候选](07-versionstore-cross-ref-conditional-update.md)由自身 envelope 定位 root bytes，排除 Members。发布资格仅检查格式/身份、kind、meta、真实主链位置、完整 CRC、11 专项的长度界及必要 CU 成员判据，不解码内容。无变更 fork 的 exact byte clone 与返回值由 S5 `[S-VS-FORK-FROM-REVISION]` 定义；继承历史的逐 byte 来源比较由 S5 `[A-VS-REF-HISTORY-CHECKED]` 定义。
+普通 Snapshot 的整个 RBF payload 是 root-payload bytes；[CU](07-versionstore-cross-ref-conditional-update.md)由自身 envelope 定位 root bytes，排除 Members。发布资格仅检查格式/身份、kind、meta、真实主链位置、完整 CRC、11 专项的长度界及必要 CU 成员判据，不解码内容。无变更 fork 的 exact byte clone 与返回值由 S5 `[S-VS-FORK-FROM-REVISION]` 定义；继承历史的逐 byte 来源比较由 S5 `[A-VS-REF-HISTORY-CHECKED]` 定义。
 
 ### spec [A-VS-VALIDATION-SCOPE] 按操作依赖校验，完整检查独立施工
 
@@ -131,14 +131,14 @@ VersionStore 接收/返回完整、不透明的 root-payload bytes，整体替�
 
 | 操作 | 必要内容与保证 |
 | --- | --- |
-| ReadRef | checked header 身份与实际最新 head 的完整资格；不预读初始/中间 payload |
+| ReadRef | checked header 身份与逆向所访问 head 的完整资格；普通 Snapshot 直接交付，CU 按07共同判据成立才交付，未成立继续向前；不预读无关初始/中间 payload |
 | ReadRefHistory / ForkRef | S5 的按需历史节点、精确源与必要来源 bytes 比较；历史早停不访问更旧节点 |
 | ListForks | 全部 header 声明与来源集合/环检查；不读初始或末 payload |
 | ResolveTag / CreateTag / ReadTagInfo | 09 的独立 checked 元信息与请求名称裁决；Resolve 命中另需完整 root CRC，元信息成功不证明 root 健康 |
 | ScanTags | 09 的逐桶元信息扫描、Complete/VisitorStopped 与回调合同；不读 root 或证明全部名称唯一 |
 | 独立完整校验 | 只读检查初始化、全部帧 CRC/envelope、全桶名称重复与 fork 来源 bytes 一致性；不解释应用 payload/data 业务闭包 |
 
-独立完整校验使用下述同步 Audit 入口，不建立通用审计框架。日常成功不得宣称未访问内容健康；完整校验也不自动修复、丢坏帧、回退 head 或改变发布事实。结构不可安全推进、权限/I/O、必要恢复/清理及生命周期错误继续走各操作的失败合同。未来 CU 的完整成员判据决定发布生效，仍须在实际读取时执行，不能推迟到独立校验。
+独立完整校验使用下述同步 Audit 入口，不建立通用审计框架。日常成功不得宣称未访问内容健康；完整校验也不自动修复、丢坏帧、回退 head 或改变发布事实。结构不可安全推进、权限/I/O、必要恢复/清理及生命周期错误继续走各操作的失败合同。CU 的完整成员判据决定发布生效，当前值、历史、fork 和 Audit 共用07判据，不能推迟到独立校验。
 
 ### spec [A-VS-AUDIT] 独立只读完整检查
 
@@ -155,11 +155,11 @@ public sealed class VersionStoreAudit {
 
 结果由库内部构造，只含自有计数，无 setter、owner、lease 或修复能力。Audit MUST 在 `OpenReadOnly` 获得的 owner 上调用；可写 owner 在任何本次 I/O 前返回 `VersionStore.ReadOnlyRequired`。这使完整检查不会经可写惰性打开触发 RBF 恢复。已有 history/tag 扫描 callback 内调用分别返回 HistoryActive/TagScanActive；本操作没有 visitor、递归入口或部分成功报告。owner disposed/fault 先检查，取消抛 OperationCanceledException。
 
-检查覆盖全部正式 ref 的合格 header、直接第二帧初始 Snapshot、每条后续 Snapshot 的完整 CRC/envelope，以及每个文件的正常 EOF；拒绝未知 kind、tombstone、重复 header 和坏尺寸。检查完整声明图的缺源与环；每条 ForkOrigin 的 exact SizedPtr（offset 和 length）MUST 命中源文件真实主链中的 Snapshot，再比较子初始与源 payload 的全部 bytes。局部随机读 CRC 或尾 Fence 合格不证明主链成员，不接受嵌在其他 payload 内的伪帧。记录时间不参与 clone 比较，应用 payload 不解码。
+检查覆盖全部正式 ref 的合格 header、直接第二帧普通初始 Snapshot、每条后续 Snapshot/CU 的完整 CRC/envelope，以及每个文件的正常 EOF；拒绝未知 kind、tombstone、重复 header 和坏尺寸。物理完整 CU 无论其组是否成立都必须完整检查，合法未提交 CU 可通过但不计作发布快照。检查完整声明图的缺源与环；每条 ForkOrigin 的 exact SizedPtr（offset 和 length）MUST 命中源文件真实主链中的普通 Snapshot 或共同判据成立 CU，再比较子初始与源 root bytes 的全部 bytes；未提交 CU 来源直接失败。局部随机读 CRC 或尾 Fence 合格不证明主链成员，不接受嵌在其他 payload 内的伪帧。记录时间及 CU Members 不参与 clone 比较，应用 payload 不解码。
 
 全部实际 tag 桶都检查 header、每条记录的完整 CRC/root envelope 和独立 meta（含名称路由），按解码后的 Ordinal 名称拒绝重复；不能采用 named 查询的 unknownName 隔离。相同名字必须路由到同桶，因此去重集合可以逐桶释放。Related 坐标仅按09检查声明格式，不成为必须存在或 bytes 相等的来源依赖；tag 不是 fork。
 
-RefCount 包含所有正式 ref，SnapshotCount 按各文件物理记录计数（含每个 ref 的初始记录，不重复展开继承历史），ForkCount 为来源边数；TagBucketCount 包含合法空桶，TagCount 为实际 TagRecord 数。只有所有检查、正常 EOF 与必要清理均成功才交付统计。首次内容失败返回失败 Result；结构无法打开、权限/I/O、OOM 等按既有异常合同传播，不汇总为健康计数。纯读或取消不新增 fault，owned 清理失败仍停用并确保锁最后释放。取消可中断检查，但不承诺时间或内存配额。
+RefCount 包含所有正式 ref，SnapshotCount 按各文件本地已发布记录计数，即普通 Snapshot（含每个 ref 的初始记录）加共同判据成立 CU，未提交 CU 不计，不重复展开继承历史；ForkCount 为来源边数，TagBucketCount 包含合法空桶，TagCount 为实际 TagRecord 数。不新增 CU 专用公开计数。只有所有检查、正常 EOF 与必要清理均成功才交付统计。首次内容失败返回失败 Result；结构无法打开、权限/I/O、OOM 等按既有异常合同传播，不汇总为健康计数。纯读或取消不新增 fault，owned 清理失败仍停用并确保锁最后释放。取消可中断检查，但不承诺时间或内存配额。
 
 检查从工厂已准入的身份/布局出发，只审正式 ref/tag 内容；private pending 仍由既有只读打开规则保留，不解释或收养。它不遍历 FrameStore data，也不证明应用依赖闭包、关联源有效、旧调用曾 Confirmed 或断电耐久性。实现应使用短期只读句柄，避免将全库句柄或所有 payload 留存在 owner 中；不增加修复、索引或后台工作。
 
@@ -209,8 +209,9 @@ revision 只从完成发布或实际 checked-read 且已确认真实主链成员
 
 ### spec [S-VS-REF-FILE-SINGLE] 每个 ref 保存一个完整快照序列
 
-每个 ref MUST 使用按唯一 RefId 命名的一个 RBF3 文件。首版不分段、轮转、差分或建立派生 checkpoint；每次更新追加一条完整 root-payload Snapshot。当前值只完整校验本地 header 与紧贴 EOF 的末 Snapshot，不预读初始 Snapshot、扫描全部历史或递归祖先；初始即末帧时自然校验该记录。
-选尾 MUST 使用真实 RBF 逆向主链和 `showTombstone: true`，检查末帧紧贴实际尾部且位于 checked header 后界之后或正好从该后界开始，不能将过滤结果或随机 ticket 当成末快照成员证明。本次所需 header/head 的未知 kind/格式版/meta 形状、tombstone、非 Snapshot 尾帧、完整坏 CRC/发布 envelope 皆报错，不向前寻找旧快照替代；header-only 文件不能提供当前值。第二帧为初始 Snapshot 是创建格式要求，不是每次 ReadRef 的内容前检。未访问初始或中间记录的损坏不撤销健康当前 head；声明的源历史缺/坏在实际历史访问中报错，不据此回退本 ref 的当前 payload。
+每个 ref MUST 使用按唯一 RefId 命名的一个 RBF3 文件。首版不分段、轮转、差分或建立派生 checkpoint；普通更新追加一条完整 root-payload Snapshot，多个既有 ref 的批量更新分别追加一条07定义的 CU。当前值完整校验本地 header 与本次逆向所需记录，不预读无关初始 Snapshot、扫描全部历史或递归祖先；初始即末帧时自然校验该记录。
+选尾 MUST 使用真实 RBF 逆向主链和 `showTombstone: true`，检查物理末帧紧贴实际尾部且所访问记录位于 checked header 后界之后或正好从该后界开始，不能将过滤结果或随机 ticket 当成发布成员证明。普通 Snapshot 直接接受；完整合法 CU 的共同判据成立才接受，未成立跳过并继续向前。只有07的明确不完整见证允许跳过；本次必要 header/record/peer 的未知 kind/格式版/meta 形状、tombstone、坏 CRC/envelope、结构或 I/O 错误皆报错，不以错误回退。header-only 文件不能提供当前值，直接第二帧永远为普通 Snapshot。第二帧初始化资格不作为每次 ReadRef 的内容前检。未访问初始或中间记录的损坏不撤销健康当前 head；声明的源历史缺/坏在实际历史访问中报错，不据此回退本 ref 的当前 payload。
+普通 PublishRef 的覆盖前检只检查本地物理 head 的合法形状/完整内容，不强制读取上一组 CU 的全部 peer；后续 lazy CompletedTail 的观察解释按07执行。批量 PublishRefs 的输入与结果由11定义，所有目标/确定容量检查及私有捕获先于 data barrier。
 单帧容量与下一帧起点硬界继承 RBF/SizedPtr；下一帧起点超过 SizedPtr.MaxOffset 时明确拒绝追加或要求维护，MUST NOT 隐式回绕、复用完整历史位置或自行拆成多帧发布。MaxOffset 只限制帧起点，最后一个合法帧的末端与尾 Fence 可以越过它，不额外要求文件总长度落在该起点上界内。容量预检使用 RBF 公共 Measure/追加预算 API，并分别检查追加起点；预算 API 不自行验证文件起点，不能把 MaxOffset - TailOffset 当作硬性追加字节预算。
 
 ### spec [S-VS-REF-FILE-PUBLISH] 新 ref 由完整单文件发布
@@ -219,7 +220,7 @@ revision 只从完成发布或实际 checked-read 且已确认真实主链成员
 
 | 路径角色 | 内容与资格 |
 | --- | --- |
-| `refs/<R>.rbf` | 唯一正式 ref 文件，含 header 与 Snapshot 序列 |
+| `refs/<R>.rbf` | 唯一正式 ref 文件，含 header、普通初始 Snapshot 与后续 Snapshot/CU 序列 |
 | `creating/pending.rbf` | 全部初始化共用的唯一未发布工作文件；冷开裁决消费 `[S-VS-CREATING-WORKSPACE]`，路径不编码 R |
 
 自动/指定创建 MUST 在 `creating/pending.rbf` 完成 header 与完整初始 Snapshot，flush/close 后，以同文件系统、不覆盖的一次 file rename 发布。不得直接在正式路径写初始化、先公开 header-only、跨卷复制/删除或覆盖既有 ref。fork 的 ForkOrigin 在同一 header 内，不增加第二发布单元；私有 flush 不建立对象或提前交付已发布 RefId/revision。
@@ -280,9 +281,9 @@ CreateRef 与 ForkRef MUST 各有自动/指定入口，共用后续初始化/发
 
 （Informative）自动候选大于全部正式编号；指定只查确定路径并由 no-overwrite 发布保护，两域不相交，无需全 ID 表。L=256 仅为应用永久槽位示例，不规定默认值或必建 main。L 是固定容量，不支持后续扩区；编号大小不代表跨 ref 时间/来源顺序/成员资格。冷开 O(ref 数量)路径发现，健康候选计算/指定定位无需全扫；实际资源/I/O/规模资格仍随实施取得。
 
-### spec [F-VS-REF-FRAMES] 首帧判别来源，普通快照组合不透明 payload 与记录元信息
+### spec [F-VS-REF-FRAMES] 首帧判别来源，发布帧组合不透明 payload 与记录元信息
 
-VersionStoreFormatVersion=1 的 ref 文件 MUST 使用 RBF3；首物理帧 FrameTag=0（RefHeader），其后普通 Snapshot 的 FrameTag=1。两种帧均 MUST 非 tombstone；RefHeader MUST TailMetaLength=0，Snapshot 的 TailMeta 消费 `[F-VS-RECORD-TAILMETA]`，首版恰为8B。kind 由 RBF tag 表达，不在 payload 重复；本条不分配 CU kind，不把 07 候选并入核心。必要读取遇到未知 kind、后续 header 或非法组合报错，不能过滤或向前寻找可用替代帧。
+VersionStoreFormatVersion=1 的 ref 文件 MUST 使用 RBF3；首物理帧 FrameTag=0（RefHeader），普通 Snapshot 的 FrameTag=1，ConditionalUpdate 的 FrameTag=2。全部帧 MUST 非 tombstone；RefHeader MUST TailMetaLength=0，Snapshot/CU 的 TailMeta 消费 `[F-VS-RECORD-TAILMETA]`，首版恰为8B。直接第二帧 MUST 为普通 Snapshot，CU 只用于既有 ref 的后续追加。kind 由 RBF tag 表达，不在 payload 重复；CU payload/capacity/共同判据唯一见07。格式门版本仍为1，旧 Snapshot/header 编码不变，旧 reader 对新增 kind 拒绝。必要读取遇到未知 kind、后续 header 或非法组合报错，不能过滤或向前寻找可用替代帧。
 
 RefHeader 的 RBF decoded payload MUST 恰为 **24B 或 36B**，字段如下：
 
@@ -297,7 +298,7 @@ RefHeader 的 RBF decoded payload MUST 恰为 **24B 或 36B**，字段如下：
 **来源判别就是完整 payload 的精确长度：24B=无来源，36B=有来源。** 其余长度、截短来源及 trailing bytes 均拒绝；只在真实 RbfFrameInfo 形状与完整 CRC 通过后解码整个 payload，不能按“目前可读到多少 bytes”猜分支。无来源不写零 SourceRefId/ticket sentinel；不增 presence flag、预留空间、payload Magic/CRC、DataStoreId、HeaderSchemaVersion、初始位置或名称。DataStoreId 由格式门绑定；header 版本选择该文件的记录格式规则、payload schema 与允许的 kind/meta 形状；元信息扩展按专项的末尾追加规则定稿，当前 Snapshot 仅允许8B。Snapshot 不重复整库版本/身份，不以 meta 长度推断不兼容 payload。
 期望版本/VSID/自身 RefId 来自已 checked 的门和正式目标定位；创建时来自本次私有初始化预定值，随后正式门/目标须使用同值，不要求私有文件已发布。MUST NOT 从 header 自身反向认领期望身份。完整 RBF CRC 与全部字段通过后才交付自有元数据；来源元数据不签发 checked RefRevision，不递归检查源存在/内容。
 
-SourceSnapshotTicket 的纯数值检查 MUST 使用当前普通 Snapshot 的必要范围：`Offset >= Empty.EndExclusive + MeasureWriteSize(24,0).AppendLength`，且 `MeasureWriteSize(1,8).FrameLength <= Length <= MeasureWriteSize(1MiB,8).FrameLength`；当前为起点至少60、长度40..1MiB+36。Packed 已表达对齐/可表示范围，不额外要求末端或尾 Fence <= MaxOffset。实际源 header 可能使初始起点更大，数值合法仍不证明源存在、具体成员或原样复制一致；这些由 S5 实际访问建立。未来接纳 CU 时 MUST 重审可接受源 kind 和这份普通 Snapshot 上界，不能原样限制更大的 CU 宿主。
+SourceSnapshotTicket 保留字段名，其纯数值检查 MUST 覆盖普通 Snapshot 与完整 CU frame：`Offset >= Empty.EndExclusive + MeasureWriteSize(24,0).AppendLength`，且 `MeasureWriteSize(1,8).FrameLength <= Length <= SizedPtr.MaxLength`；当前为起点至少60、长度40..268435452。Packed 已表达对齐/可表示范围，不额外要求末端或尾 Fence <= MaxOffset。实际源 header 可能使初始起点更大，数值合法仍不证明源存在、具体成员、CU 共同资格或原样复制一致；这些由 S5 实际访问建立。普通 Snapshot 自身仍受1MiB root 的宿主尺寸界，CU 的成员 ticket 尺寸由07按实际 count 检查。
 
 Snapshot 的 RBF payload MUST 为完整 root-payload bytes，actual 长度为1..1,048,576B，无外层版本/身份/Parent/map byte-length/CRC。发布层按 `[A-VS-ROOT-PAYLOAD]`检查边界、kind/meta、实际主链及完整 CRC，不解释 bytes。采用 RootMap 的应用使用专项完整 codeword 并 exact-consume；发布记录健康不赋予 payload 语义或 data 来源/业务闭包资格。输出前用公共 MeasureWriteSize(M,8) 校验整帧及实际追加起点，完整帧租用前先验 RbfFrameInfo 形状和范围。
 
@@ -342,11 +343,11 @@ ListRefs MUST 在 owner disposed/fault guard 后，完整执行 `[F-VS-REF-PATHS
 
 ### spec [S-VS-SINGLE-RECORD] 一次 ref 变更由一个 frame 生效
 
-一次 ref 创建/更新 MUST 由一条完整 Snapshot 表达全部根值，不分成多个根的独立更新。data 构建/确认、私有初始化或纯容量试算均不改变已发布 ref。新 ref 另有正式文件的发现边界，遵循下面的创建协议。
+一次 ref 创建 MUST 由一条普通初始 Snapshot 表达全部根值；普通更新由一条完整 Snapshot 表达全部根值，批量更新则由07的一条本地 CU 加共同成员判据表达，不分成同 ref 多个根的独立更新。data 构建/确认、私有初始化或纯容量试算均不改变已发布 ref。新 ref 另有正式文件的发现边界，遵循下面的创建协议，不加入 CU。
 
 ### spec [S-VS-ROOTS-AFTER-DATA-CONFIRM] 根发布在必要完成数据确认之后
 
-PublishRef 及 S5 CreateTag MUST 先完成确定输入、目标/名称及 owner 生命周期准入、私有拷贝与编码、记录/文件容量检查，再同步调用 `data.ConfirmDurable()`，然后向发布 RBF 追加完整记录并 `DurableFlush()`，最后安装内存状态/正常返回。MUST NOT 仅因 data 有未归还 Builder 而拒绝；未完成 Builder 不获完成或耐久资格。确定拒绝不追加、不调用 data barrier，也不因 guard fault。
+PublishRef、PublishRefs 及 S5 CreateTag MUST 先完成确定输入、目标/名称及 owner 生命周期准入、私有拷贝与编码、记录/文件容量检查，再同步调用 `data.ConfirmDurable()`，然后向发布 RBF 追加完整记录并 `DurableFlush()`，最后安装内存状态/正常返回。PublishRefs 的 CU 路径先预测全部实际 tickets、私有编码完整 canonical Members 并为整批取时一次，再进入一轮 data barrier、逐成员 Begin/End 和逐文件 flush；详细顺序唯一见07。MUST NOT 仅因 data 有未归还 Builder 而拒绝；未完成 Builder 不获完成或耐久资格。确定拒绝不追加、不调用 data barrier，也不因 guard fault。
 data 屏障消费 S2 `[A-FS-DURABLE-COMPLETED-OUTPUTS]`，覆盖 leased 文件内旧完成输出。应用仍 MUST 保证本次 root payload 所需新增依赖全部已完成、属于绑定 data 且闭包不含 provisional/canceled 地址；屏障成功不证明该闭包，库不遍历业务图验证依赖闭包。无关 B 仍 Building 时，已完成的独立 A 可以发布；A 真正依赖未完成 B 时不能发布。
 库不接受“以前已 flush”标志代替本次 barrier；旧 root payload、历史 rewind、fork 初始快照和 tag 同样走屏障，无需复制 data。库不提供发布 callback，不允许同 driver 的其他应用操作交错；输入访问消费 `[A-VS-BYTES-INPUT]` 的稳定/不重入前提。data flush 失败不得进入本次发布输出；发生异常按所涉 owner/fault 合同停用 VersionStore，不虚称未输出的另一个 owner 同样故障。
 CreateRef 两种入口 MUST 先完成编号/目标、输入/编码/容量及 owner 准入，调用 `data.ConfirmDurable()`，再按 `[S-VS-REF-FILE-PUBLISH]` 初始化/发布完整文件；无关 Builder 不阻断。S5 两种 fork 入口同样 data-first，另确认源 ref 耐久，不先公开 CreateRef 再补来源；清理不补造 ref，不另写 allocation/Init 账本。
@@ -357,7 +358,7 @@ CreateRef 两种入口 MUST 先完成编号/目标、输入/编码/容量及 own
 
 ### spec [A-VS-PUBLICATION-EVIDENCE] 同步 mutation 通过 out 保留调用证据
 
-首版所有公开的同步发布 mutation（完整 roots 发布、ref 创建或 tag 创建）MUST 返回相应成功值的 AteliaResult，并接受必选的 `out PublicationOutcome outcome`；包括两种 CreateRef、PublishRef 及 S5 的 tag 与两种 ForkRef。成功值类型由所属 API 定义，不增加通用 Mutation 方法、receipt 或恢复句柄。公开枚举如下，不是持久记录字段：
+首版所有公开的同步发布 mutation（完整 roots 发布、ref 创建或 tag 创建）MUST 返回相应成功值的 AteliaResult，并接受必选的 `out PublicationOutcome outcome`；包括两种 CreateRef、PublishRef、PublishRefs 及 S5 的 tag 与两种 ForkRef。成功值类型由所属 API 定义；PublishRefs 全体共享一个 Outcome，不增加通用 Mutation 方法、receipt 或恢复句柄。公开枚举如下，不是持久记录字段：
 
 ```csharp
 public enum PublicationOutcome {
@@ -394,19 +395,20 @@ Outcome 与实例健康是两个事实：NotAttempted 不表示零 I/O 或可直
 | 操作 | 写回 Unknown 的位置 | 写回 Confirmed 的位置 |
 | --- | --- | --- |
 | PublishRef（含 rewind）/CreateTag | 调用正式发布文件 Append 之前 | 该记录 Append 成功且发布文件 DurableFlush 正常返回后，立即写回 |
+| PublishRefs（至少两个成员） | 首次 CU 最终输出调用之前；后续局部 pre-I/O 拒绝不能降低整批证据 | 全部 CU 完成且全部参与 ref 的 DurableFlush 正常返回后，立即写回；再安装全部结果 |
 | CreateRef/ForkRef（自动或指定） | 私有 ref 文件 flush/close 后，调用正式 file rename 之前 | 同一次 no-overwrite file rename 正常返回后立即写回 |
 | data ConfirmDurable / fork 源 ref DurableFlush | 不推进，保持 NotAttempted | 不确认本次发布 |
 | tag 桶 header-only 初始化、flush/close/空桶 rename | 不推进本次 tag，保持 NotAttempted | 只建立桶 metadata，不确认首条 tag |
 
-更新/tag 进入公开 Append 调用后的异常 MUST 保守保留 Unknown，即使该异常可能发生于内部准备阶段；不依据异常类型/消息、旧 TailOffset 或私有 flush 推断没有公开输出。公共 RBF `[S-RBF-APPEND-RESULTPATTERN]` 正常返回的失败 Result 则有 pre-I/O 合同：若它证明本次全部公开发布输出均未发生，MUST 在返回失败 Result 前恢复 NotAttempted。这是唯一的已知拒绝例外，不是输出相位猜测；已有公开输出尝试时，后续局部 pre-I/O 拒绝不能给整个调用降档。未来多 ref 扩展消费同一原则，不为此引入通用输出计数框架。
+更新/tag 进入公开 Append 调用后的异常 MUST 保守保留 Unknown，即使该异常可能发生于内部准备阶段；不依据异常类型/消息、旧 TailOffset 或私有 flush 推断没有公开输出。公共 RBF `[S-RBF-APPEND-RESULTPATTERN]` 正常返回的失败 Result 则有 pre-I/O 合同：若它证明本次全部公开发布输出均未发生，MUST 在返回失败 Result 前恢复 NotAttempted。这是唯一的已知拒绝例外，不是输出相位猜测；已有公开输出尝试时，后续局部 pre-I/O 拒绝不能给整个调用降档。多 ref CU 消费同一原则，不为此引入通用输出计数框架。
 私有 ref 准备阶段失败为 NotAttempted；正式 rename 调用后的异常保守为 Unknown，不以事后 Exists 检查或清理回滚猜该调用是否确认。tag 空桶 rename 结果不明但尚未 Append tag 时仍为本次 tag 的 NotAttempted，实例停用，重开裁决桶 metadata。所有 Confirmed 必须先于可能失败的内存安装、清理与返回值交付；后续异常只能保留该证据。停用后重开 checked-read，不盲目重试、不回滚正式对象。
 不承诺崩溃后查询某个旧尝试的 Present/Absent；out 保留此次同步调用返回/抛出时的证据，库不持久化或跨调用自动追踪它。Unknown 后同值 RootMap 不能证明该次调用曾 flush，RefRevision 也不是旧尝试身份。
 
 ### spec [R-VS-LOCAL-COMPLETE] 重开接受局部完整发布事实
 
-**正式 ref 接受恢复后的局部完整事实。** 通过门/data 绑定、正式路径/类型及访问模式/独占准入后，可写访问 MUST 先用 public `RbfFile.OpenExisting` 按 RBF3 单尾合同执行结构恢复，再按 `[F-VS-REF-FRAMES]` 校验 header 及本次实际需要的发布记录。ReadRef 只完整读取最新 head；精确 fork、历史和 ListForks 分别消费 S5 的访问范围，不把初始内容或完整历史校验放在共同打开前置中。初始化与后续更新统一消费这份恢复合同；MUST NOT 仅因恢复作用于初始 Snapshot、Action 非 None 或旧恢复报告已不存在而拒绝。无需恢复前初始前缀资格；S5 所需的公共边界逆扫及历史接线已在 V2-A 实施，源码资格见[实施计划](12-versionstore-implementation-plan.md)。
+**正式 ref 接受恢复后的必要完整事实。** 通过门/data 绑定、正式路径/类型及访问模式/独占准入后，可写访问 MUST 先用 public `RbfFile.OpenExisting` 按 RBF3 单尾合同执行结构恢复，再按 `[F-VS-REF-FRAMES]` 校验 header 及本次实际需要的发布记录。ReadRef 按前述选尾合同处理普通 Snapshot/成立 CU/未成立 CU；精确 fork、历史和 ListForks 分别消费 S5 的访问范围，不把初始内容或完整历史校验放在共同打开前置中。CU 的本地完整不单独建立发布，成员共同资格由07判断；物理恢复不补写旧业务成员。初始化与后续更新统一消费这份恢复合同；MUST NOT 仅因恢复作用于初始 Snapshot、Action 非 None 或旧恢复报告已不存在而拒绝。无需恢复前初始前缀资格；S5 所需的公共边界逆扫及历史接线已在 V2-A 实施，源码资格见[实施计划](12-versionstore-implementation-plan.md)。
 
-初始 Snapshot body 已完整而仅缺 RBF 可合法补齐的 Key/Fence 时，CompletedTail 后通过必要身份、kind/meta、CRC 与 payload 边界检查即可建立发布资格；应用取得 bytes 后自行解码。后续残尾被 Truncated 后，检查并使用剩余实际末 Snapshot，不另预读初始 payload。若缺必要 header 或已无当前 Snapshot，MUST 报错，不补造空字典。当前 head 自己损坏 MUST 报错，不丢弃它或回退旧值；未访问历史的坏内容不连带拒绝健康 head。RBF 结构恢复可能已经修改文件，随后 VersionStore 才拒绝本次必要记录；不撤销底层恢复。校验本身不修内容，独立完整校验使用只读路径且不承担修复。只读访问使用 public `OpenReadOnlyExisting`，需要修尾时仍拒绝且不修改；旧点直接读取也不能绕过底座工厂对当前 EOF 的结构准入。
+初始 Snapshot body 已完整而仅缺 RBF 可合法补齐的 Key/Fence 时，CompletedTail 后通过必要身份、kind/meta、CRC 与 payload 边界检查即可建立发布资格；应用取得 bytes 后自行解码。后续残尾被 Truncated 后，从剩余实际完成尾按前述普通 Snapshot/CU 选值规则检查，不另预读无关初始 payload。若缺必要 header 或已无当前 Snapshot，MUST 报错，不补造空字典。当前 head 自己损坏 MUST 报错，不丢弃它或回退旧值；未访问历史的坏内容不连带拒绝健康 head。RBF 结构恢复可能已经修改文件，随后 VersionStore 才拒绝本次必要记录；不撤销底层恢复。校验本身不修内容，独立完整校验使用只读路径且不承担修复。只读访问使用 public `OpenReadOnlyExisting`，需要修尾时仍拒绝且不修改；旧点直接读取也不能绕过底座工厂对当前 EOF 的结构准入。
 
 tag 桶继续先执行 [S5-B 专项](09-versionstore-immutable-tags.md)的初始化长度前检，再执行允许的 RBF 恢复与请求名称的损坏裁决，不把 header 修尾认领为初始化；惰性访问不默认扫描全部桶。本条的 ref 政策不改变 tag 或 FrameStore 的初始化保护。
 新 ref 文件发现/private 消费 `[S-VS-REF-FILE-PUBLISH]`；没有正式文件时 private 完整 Snapshot 不建立 ref。fork 来源与初始 Snapshot 随同一文件发布，不从 private 推断或续作旧请求。

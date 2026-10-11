@@ -3,7 +3,7 @@
 FrameStore 的 R1–R3 收尾已完成，S2/S3 的[独立源码验收](02-framestore-final-acceptance.md)已 Accepted。[收尾计划与自动队列入口](02-framestore-completion-plan.md)现处完成状态，不自动扩展到包交付或 VersionStore。
 2026-10-10 为 VS 借入补充 S2 `[A-FS-ENSURE-USABLE]` 与 S4 `[S-VS-DATA-BORROW]`：入口 guard、模式配对及持续责任已定；新增公共转发和 VS 局部内核已进入 [骨架与后续实施计划](12-versionstore-implementation-plan.md) 的 V0；V1 已补普通 ref 真实工厂组合验证，原 Accepted 不覆盖此增量。
 
-日期：2026-10-03–11 逐步确认核心/历史合同；2026-10-10 采用无 branch 名称、持久预留低号区、自动/预留区指定创建与单文件发布，并采用 uint32 LocalRefId；2026-10-11 更新tag桶及独立元信息合同。状态：**S1–S3 Accepted（各自源码资格）；S4/S5及已实施专项取得[独立源码验收](12-versionstore-final-acceptance.md)，S6-C/D 本地候选资格 Accepted（[交付记录](13-local-package-delivery.md)），公开交付/真实接入未验收；VersionStore 已接通普通 ref 公开闭环、有界历史、精确 fork 与声明分叉图查询，tag 公开持久化闭环、关联注记及元信息公面已接通；参考依赖拆分 Accepted**。
+日期：2026-10-03–11 逐步确认核心/历史合同；2026-10-11 正式接纳 CU 及附属读取重构。状态：**S1–S3 Accepted（各自源码资格）；S4/S5 既有范围取得[独立源码验收](12-versionstore-final-acceptance.md)，S6-C/D 旧六包本地候选资格 Accepted（[交付记录](13-local-package-delivery.md)）；本轮 CU 已取得独立源码验收 Accepted，见[07 验收](07-versionstore-cross-ref-conditional-update-acceptance.md)，尚未取得新增包资格；公开交付/真实接入未验收；参考依赖拆分 Accepted**。旧六包候选不含 CU，来源/版本/hash 不变，本轮不自动重新打包或发布。
 初始设计源码观察基线：`main @ 70d1009e78a73342a0c0fdc8ffed7731dec58173`；S1 验收记录的核对基线为 `f6f1eb38557863ba5ea1634844a90f0cbe5774cf`；前轮设计阅读基线为 `4175a46`，本轮租借/目录修订核对 `50e8e28`。本文档集供逐阶段细化、审阅和实施，不把文档修订视为新实现或验收。
 
 目标：**以 RBF3 的帧原子性为基础，让中层构建新状态，再发布完整 root payload 使状态生效。**
@@ -30,19 +30,19 @@ S2 已定稿一次性共享 Lease 与 owned Builder/Writer：成功完成只登�
 编号恢复已定为完整流式正式名称检查，取 active/archive 实际最大 FileId，只保留内存 max 和既有 active 台账。空桶/私有槽不提供已发布编号，缺口不补填，uint 耗尽仅拒绝需新文件的请求；archive 内容仍按需校验。正式路径已定为 `active/<8位完整FileId>.rbf` 和 `archive/<6位bucket>/<同一FileId>.rbf`，严格小写 ASCII hex、非零编号、桶范围/对应及全部直接项语法；唯一细节见 S2。冷打开名称成本为 O(active 文件 + archive 桶 + archive 文件)，不保留计数器或全历史 ID 表。owner 锁、实际根准入/组件类型及私有残留合同已进入公开目录生命周期实现；两平台测试、中断/资源/规模资格见[最终源码验收](02-framestore-final-acceptance.md)。
 循环引用通过多个已知尺寸 Builder 的提前地址形成。FrameStore core 与交错构建/耐久确认可以独立定稿、实施和验收。
 VersionStore 采用应用编码的完整 root-payload bytes：每 ref 一个 RBF3 文件，每次追加完整 payload；tag 保存命名不可变 bytes 与固定哈希分桶。应用管理名称/元数据到 RefId 映射、内容 codec/schema；库不提供 branch 绑定或 alias，不分段/轮转、差分/checkpoint 或建立独立 Commit/Parent。
-VersionStore 借入一个 data FrameStore 并拥有独立发布目录；CreateRef/PublishRef/ForkRef/CreateTag 先完成必要依赖与 data ConfirmDurable，再确认输出/发现边界并安装。无关 Builder 不阻断独立闭包；应用成功后自行解码 bytes 加载，内容语义与业务因果由应用解释。
+VersionStore 借入一个 data FrameStore 并拥有独立发布目录；CreateRef/PublishRef/PublishRefs/ForkRef/CreateTag 先完成必要依赖与 data ConfirmDurable，再确认输出/发现边界并安装。PublishRefs 的多个既有 ref 使用 CU 自绑定完整成员表共同判据；空批拒绝、单成员仍用普通 Snapshot。无关 Builder 不阻断独立闭包；应用成功后自行解码 bytes 加载，内容语义与业务因果由应用解释。
 S4 格式门 `versionstore.format` 为普通 44B 记录：统一版本、两份 16B 身份、4B ReservedRefIdUpperBound 与唯一 CRC32C。两模式只读校验并核对实际借入 data，必要 close 成功后才恢复/private 清理/输出；失败不补门或停用健康 data。预留上界创建后不变，Open不能覆盖。2026-10-10 D3已定：fresh空库先准备必要目录布局、随机非零VSID，再直接CreateNew写正式门并flush/close；仅空锁bootstrap可重试，半布局/短坏门不续作，完整门/布局可按实际事实Open。独立永久0B `versionstore.lock`采用writer排斥全部VSowner/只读共享，获锁重检、完整受控清理锁最后；根/组件/no-follow/同FS机制与创建/打开顺序唯一见S4。
 RefId 完整身份为(VSID,非零 local32)，ref/CU 内部身份字段 4B LE；tag Related 注记的独立变长字段见09。完整等值/default/跨 VSID 前检不变。新增 LocalId 只读导出与 ReadRef(local)的显式库上下文 checked 定位，应用可保存动态号或用常量选择固定槽；纯 local 查询由应用保证选对库，不提供整体身份 codec。RefRevision 仍为完整 RefId/ticket，不新增精确 revision 跨进程 codec。S4 `[S-VS-REF-ID-DOMAINS]` 固定 L：1..L 指定 create-only，高于 L 仅自动；冷开 H=max(L,正式最大号)，自动 H+1，低号不推进 H，不复用、无持久 next；Max 仅拒绝自动创建。创建/L/private/平台资格仍随实施取得。
 bytes API 与生命周期唯一见 [11专项](11-versionstore-root-payload-bytes-api.md)：单项 ReadOnlySpan<byte>、发布前私有复制、1..1MiB；写 ref 返回 RefRevision，读取/历史返回自有 GC buffer 的 RefBytesSnapshot，结果不需要 Dispose。tag 创建只确认成功，读取bytes返回 RootPayload；[09专项](09-versionstore-immutable-tags.md)独立定义 TagInfo、ReadTagInfo/ScanTags 与可选 Related 关联注记，元信息成功不证明 root 内容健康或签发来源revision。RootMapCodec 是 [10专项](10-versionstore-rootmap-payload.md)中的独立可选 helper：Encode 输出自有 byte[]，Decode exact-consume 并返回 Ordinal 冻结字典。应用也可直接发布 JSON UTF-8。BCL/codec探针保留原格式身份，不构成本公面已实现或性能资格。
-S4 `[F-VS-REF-FRAMES]` 已定 RefHeader=0 / Snapshot=1、header meta0/非墓碑；header 精确 24/36B 判别无来源/有来源，统一版本+VSID16+RefId4，来源再加 4+8；Snapshot payload为不透明 root bytes、上限1MiB，TailMeta消费 [S4元信息专项](08-versionstore-record-metadata.md) 的时间/长度判形。2026-10-10 用户采用 `[R-VS-LOCAL-COMPLETE]`：可写正式 ref 先按现有 public RBF 恢复，再校验 header 及本次实际需要的记录；初始化完整性只在创建检查、实际到达初始节点或独立完整校验时验证，仍接受恢复后的完整初始化；只读仍不修尾。恢复前初始化保护移出设计队列，不新增前缀 API/初始化账本。[帧格式探针](../../experiments/RefFrameSchemaProbe/README.md)的旧 8B LocalRefId/fixed12 synthetic RootMap 75项和补尾现象保留历史身份；当前格式/新库的恢复与平台验收仍随实施取得。
+S4 `[F-VS-REF-FRAMES]` 已定 RefHeader=0 / Snapshot=1 / CU=2、header meta0/非墓碑；header 精确 24/36B 判别无来源/有来源，统一版本+VSID16+RefId4，来源再加4+8；直接第二帧永远普通 Snapshot。Snapshot payload 为不透明 root bytes、上限1MiB；CU 的 Members-first 格式及容量由07定义，两种发布记录的 TailMeta 消费[08专项](08-versionstore-record-metadata.md)。格式门版本1及旧 Snapshot/header 编码不变，旧 reader 对 CU 新 kind 拒绝。可写正式 ref 先按 public RBF 恢复，再校验 header 及本次需要的记录；只读不修尾，恢复不补写旧组业务成员。[帧格式探针](../../experiments/RefFrameSchemaProbe/README.md)的旧 8B LocalRefId/fixed12 synthetic RootMap 75项保持历史身份，本轮 CU 运行资格另取证。
 2026-10-10 用户采用不支持 branch 名称与任意指定 ID 的化简：S0 `[S-VS-REF-ID-ONLY]`，S4 `[S-VS-REF-ID-DOMAINS]`、`[A-VS-LOCAL-REF-LOOKUP]` 与 `[S-VS-REF-FILE-PUBLISH]` 为权威。CreateRef/ForkRef 都有自动/预留区指定入口，预留不预创建对象；L=256 时首个自动号 257，不规定默认 L 或必建 main。
 所有 ref 位于 `refs/<8 位小写 hex>.rbf`，整数可直接拼出路径，无 name binding、ref 容器或 ID→path 索引；统一 `creating/pending.rbf` 完整flush/close后一次no-overwrite file rename公开。rename就是创建发布点，Confirmed是本次调用对该动作正常完成的确认；重开校验合格的正式ref无需追溯旧调用结果。S4 `[S-VS-CREATING-WORKSPACE]`已定专用可丢弃工作区：全部初始化共用唯一pending，cold仅检查精确单槽/普通类型/no-follow/同FS，可写取消、只读保留，不读私有内容，不以Length/身份/H或正式目标作为取消条件，不续作。W仍先完整正式发现H，RO不因pending全扫；协议与底座移动证据不自动成为VS验收。
 ListRefs消费S4 `[A-VS-REFS-DISCOVERY]`：完整正式路径资格后一次交付自有RefId全集合，含两编号域与坏内容占号文件，不含pending；不打开快照、不恢复文件、不签revision或认领旧尝试。未知项/枚举及必要清理失败不交部分成功，ReadRef另承担内容资格；首版无顺序承诺或持久ID/path索引。
-当前值校验本地 header 并完整读取最新 head，不预读初始快照、不递归祖先；S5 历史从固定完成上界沿首帧 `ForkOrigin = 源 RefId + 源 SizedPtr` 接续发布前缀，通过同步 bool visitor 逐项交付自有 RefBytesSnapshot。选中后可正常停止，调用结束后再 fork/tag/rewind；不外泄枚举器/epoch。返回数与工作步分别限额，Complete/VisitorStopped 与专用预算失败区分，步数不称实际 I/O 或内存上限。ForkRef 两种入口直接完整读取已签发 revision 指定的源帧，不从源 EOF 重新定位；原样 clone 源 root-payload bytes，成功返回子 RefRevision，仍保存子初始完整快照；只传 payload 的创建是无来源起点。rewind 追加旧 payload 成为新 revision，tag 冻结所选 bytes。RefRevision 来自完整发布/实际 checked 历史，不是输出前尝试 token；跨重开的 RootMap 字典书签可用 tag，不保存精确 ref 历史来源。
+当前值校验本地 header 并从物理完成尾逆向选择：普通 Snapshot 直接交付，CU 成立才交付，明确未提交 CU 跳过，必要错误传播；不预读无关初始快照、不递归祖先。S5 历史从固定完成上界沿不可变 ForkOrigin 接续发布前缀，逐项交付自有 RefBytesSnapshot；未提交 CU 不进入发布历史，其 peer 访问/扫描/完整读/结构后继仍先扣工作步，不加入继承 visited。选中后正常停止，调用结束后再 fork/tag/rewind。ForkRef 完整重读已签发 exact 源点，CU 来源还须共同判据，未提交 anchor 必须拒绝。子初始为普通 Snapshot，仅 clone root bytes，data 后仍只确认 exact source 文件，沿 ProcessCrashOnly。tag Related 仅注记，ListForks 仅 header 声明图。CU 不提供跨调用快照隔离；普通 PublishRef 覆盖不强制验证旧组 peer，lazy CompletedTail 解释唯一见07。
 ListForks 消费 S5 `[A-VS-FORKS-CHECKED]`：每次扫描全部正式 ref 的 checked header，包括预留区/自动区与无来源根，完整源存在/迭代环检查后一次性交付自有只读 ForkInfo 边列表。只设正 int maxRefs 数量参数，计全部正式节点，预算失败不当无分叉或部分成功；首版不保留跨调用反向缓存或持久孩子表。来源字段仅为声明位置，不签发 checked 源 revision 或宣称全部源历史健康；实际历史跳转再校验源 root-payload bytes 与子初始 bytes 一致。数量不是硬内存/时限，实际成本与 S4 初次 store 创建/平台资格仍另验；历史实际到达初始节点才检查其 payload；继续继承历史采用[RBF 指定边界逆扫增量](../Rbf/rbf-reverse-boundary-plan.md)，该公共重载与历史接线已在 V2-A 实施，源码与后续平台/包资格分别记录。
 停用类mutation异常先使实例失效，再一次完整受控teardown：非锁owned资源单次逐一尝试、根锁最后，不Dispose借入data，不降低out；旧实例终止，再次Dispose不重关。确定前置拒绝及普通读内容/codec/预算失败不据此新增fault。完整快照损坏报错，不回退旧值；重开读取实际状态。同步mutation的Result/必选out PublicationOutcome与公开尝试/确认边界已在S4定稿，异常路径不依赖新建证据包装；NotAttempted/Confirmed均不代替实例健康。自动创建丢失返回值后不按同值精确认领，首版不提供通用CAS或精确Unknown查询。数据闭包、工具operationId、外部uncertain策略、模拟器RNG和应用谱系由应用负责；VersionStore当前实施边界与下一片见[骨架与后续实施计划](12-versionstore-implementation-plan.md)；D3设计闭合不替代系统验收。
 
-2026-10-03 的初始裁决及失败轨迹见[历史设计审阅](reviews/2026-10-03-dialectical-review.md)；旧单流、单 active/locator、纯 batch planner，以及后来 Commit/control 草案均已被后续会话修订，不作为当前模型的实现证据。S1–S3 已取得各自源码 Accepted；已确认方向见 S0，S4/S5的已实施闭包现已取得独立源码资格；V4-F已补具名内部进程与public组合，source-only队列收束；S6仍待隔离包消费。
+2026-10-03 的初始裁决及失败轨迹见[历史设计审阅](reviews/2026-10-03-dialectical-review.md)；旧单流、单 active/locator、纯 batch planner，以及后来 Commit/control 草案已被后续修订，不作为当前实现证据。S1–S3 与 S4/S5 既有闭包取得各自源码资格，V4-F 旧队列收束，S6-C/D 的旧候选消费另有证据。本轮 CU 是新授权范围，源码验收和包资格单列，历史探针不宣称当前算法全矩阵通过。
 
 RootMap key 已采用有效 Unicode/Ordinal 与无损 JSON 名称映射，拒绝未配对 surrogate，允许空串和需转义字符；规则内聚于 [10专项](10-versionstore-rootmap-payload.md)。不透明发布层的输入/自有输出见 [11专项](11-versionstore-root-payload-bytes-api.md)，fork exact byte clone 与 CU Members-first 不依赖内容 decoder；FrameStore 程序集分离另行设计。
 
@@ -61,7 +61,7 @@ RootMap key 已采用有效 Unicode/Ordinal 与无损 JSON 名称映射，拒绝
 ## 阅读与状态规则
 
 - 先读仓库根 [README](../../README.md)，再读 [S0 总体决策](00-architecture-decisions.md)。
-- 本目录遵循 [规范约定](../spec-conventions.md)：`decision` 记录会话已确认方向；S1–S3 的 `spec` 与签名已成为实施合同，S4–S6 仍是候选要求；未审定阶段的建议、算例、API 名称不自动冻结。[08元信息专项](08-versionstore-record-metadata.md)是S4子合同，编号不表示后序阶段或新增项目。
+- 本目录遵循[规范约定](../spec-conventions.md)：`decision` 记录会话已确认方向；正式接纳的 `spec` 与签名是实施合同，资格按具体源码/平台/包证据声明，新增能力不沿用旧 Accepted。[08专项](08-versionstore-record-metadata.md)是S4子合同，编号不表示后序阶段或新增项目。
 - 本组设计正文按用户要求只保留当前有效条款，被替代的草案条款直接移除，作为上述约定中保留废弃条款要求的局部例外。现行 Clause-ID 不重命名或复用；历史迁移保留在 `reviews/` 与 Git 历史，审阅记录的当时结论及检查数字不代表当前状态。
 - 阶段状态使用 `Draft → Ready → Implementing → Accepted`。Ready 前定稿字段/API/算法及验收映射；可以对范围明确的必要子合同单独审定，未支持能力不得借整体标签宣称成立。
 - S1 的实施合同提交为 `c940ed6`，实现提交为 `8ab98bf`；RBF 818/818、Data 288/288 和 W: public 源码消费已验收，实际工作树和二进制身份见[阶段验收记录](01-rbf-sized-append-acceptance.md)。本片不宣称新增包消费、性能或进程实杀通过，也不宣称下游已接入。
@@ -95,7 +95,7 @@ flowchart LR
 | [09：S5-B 不可变 tag](09-versionstore-immutable-tags.md) | 名称接受、桶路径/格式、独立元信息资格、请求范围裁决、data-first 创建与元信息公面 | 同一 VersionStore 及测试；发布闭环后独立补元信息公面 | tag 冷重开、结果/恢复、callback与规模资格 |
 | [S6 集成与交付](06-integration-and-delivery.md) | 第二种状态模型、公共包消费、交付边界 | examples、eng、CI；消费者接入另有明确范围 | 源码、包及消费者证据分别齐备 |
 
-各操作检查范围唯一见 S4 `[A-VS-VALIDATION-SCOPE]`：当前值只检查 header/最新 head，历史逐项检查，ListForks 只检查 header 与声明图；初始/全部历史和来源 bytes 一致性由 V4-A 的只读 Audit 独立检查，合同见 S4 `[A-VS-AUDIT]`。可写冷开发号仍完整枚举正式 ref 文件，直接 ID 访问无需映射表。tag 按名扫描目标桶至正常 EOF，以独立CRC保护的meta裁决名称，仅Resolve命中读取完整root；元信息坏项导致缺失不确定，不能判健康缺失或创建。ReadTagInfo只证明元信息；ScanTags逐全已建桶，不读root，所到坏meta失败，正常Complete不证明全库名称唯一。名称上限、1024桶、容量、Related注记、信任边界及回调guard唯一见 [09 专项](09-versionstore-immutable-tags.md)；实施按V3-A/B发布闭环、V3-C元信息公面拆分，不阻塞 ref、历史或 fork，不宣称 O(1)查名或时间查询免全库扫描。
+各操作检查范围唯一见 S4 `[A-VS-VALIDATION-SCOPE]`：当前值只检查 header/实际所需 head 与 CU peer，历史逐项检查，ListForks 只检查 header 与声明图；初始化、全部物理发布帧和来源 bytes 一致性由只读 Audit 独立检查，合同见 S4 `[A-VS-AUDIT]`。Audit 完整检查物理 CU，SnapshotCount 只计普通 Snapshot 与成立 CU，不计未提交 CU。可写冷开发号仍完整枚举正式 ref 文件，直接 ID 访问无需映射表。tag 的独立元信息/Related 注记/请求范围与 callback 合同唯一见[09专项](09-versionstore-immutable-tags.md)，不因 CU 增加来源重读或资格，不宣称 O(1) 查名或时间查询免全库扫描。
 
 VersionStore 文档按下表维护单一权威。修改合同与特有验收向量时更新对应篇，其他篇只引用；06 验证组合与交付，不复述各层详细清单。专项编号不新增施工阶段。
 
@@ -104,7 +104,7 @@ VersionStore 文档按下表维护单一权威。修改合同与特有验收向�
 | [04 发布](04-versionstore-publication.md) | 身份/编号、目录/创建/打开、ref envelope、恢复、data-first、PublicationOutcome 与停用清理 |
 | [05 历史与 fork](05-versionstore-names-and-indexes.md) | fork 源资格/byte clone、继承历史/预算/回调、ListForks 声明图及成本导航 |
 | [06 集成与交付](06-integration-and-delivery.md) | public 跨层组合、进程中断矩阵、包与消费者交付证据 |
-| [07 CU 候选](07-versionstore-cross-ref-conditional-update.md) | 完整 Members、共同判据、位置复用/异长消歧及选型证据；尚未并入主线 |
+| [07 CU](07-versionstore-cross-ref-conditional-update.md) | canonical 完整 Members、共同判据、位置复用/异长结构消歧及观察稳定性；已正式接纳，新源码资格见独立07验收 |
 | [08 记录元信息](08-versionstore-record-metadata.md) | 时间意义与取时、ref/CU固定8B TailMeta及其精确长度判形/演进；tag仅复用时间意义与编码 |
 | [09 不可变 tag](09-versionstore-immutable-tags.md) | 名称/容量/路由、桶格式/初始化保护、独立meta CRC/Related注记、请求范围裁决、创建与TagInfo/同步扫描 |
 | [10 可选 RootMap codec](10-versionstore-rootmap-payload.md) | key/Unicode/JSON名称映射、字典所有权与 binary codeword；可独立实施，不阻塞 bytes 发布 |
@@ -116,7 +116,7 @@ VersionStore 文档按下表维护单一权威。修改合同与特有验收向�
 
 [Prepare + Commit 历史比较方案](extensions/obsolete/versionstore-cross-ref-prepare-commit-candidate.md)保留作 07 的比较基线，不列入当前候选扩展。
 
-S2–S6 的 MVP 定稿、实施和验收不等待上述候选扩展的需求确认或 API 定稿；扩展如接纳，另行形成合同与资格。
+S2–S6 的 MVP 定稿、实施和验收不等待 FrameBatch 候选扩展；CU 已正式接纳，其合同与本轮新增资格另列。
 
 2026-10-07 的整组一致性复核与修正见[复核记录](reviews/2026-10-07-consistency-review.md)。该复核轮次只修订合同边界、权威归属与验收向量，S2–S6 仍为 Draft，不构成实现或平台资格。
 其后用户接受解除两项过宽 guard；[活跃构建期间已完成输出的改进记录](reviews/2026-10-07-completed-output-improvements.md)区分本轮 RBF 底座代码验收与 FrameStore/VersionStore 合同修订，不把底座通过视为新项目已实现。
@@ -144,7 +144,7 @@ FrameStore 及其测试项目已在 S2 创建；VersionStore 及其测试项目�
 | `src/VersionStore/VersionStore.csproj` | `Atelia.VersionStore`，生产库 | S4 |
 | `tests/VersionStore.Tests/VersionStore.Tests.csproj` | `Atelia.VersionStore.Tests`，非 pack 测试 | S4 |
 
-项目创建时使用仓库的 .NET 10 SDK、命名与测试依赖约定。新增生产包注册及 pack 顺序仍由 `eng/Pack.ps1` 唯一维护；当前主线注册 Primitives/Data/Rbf/Binary，旧参考库 IsPackable=false，FrameStore 保持 source-only。后续新项目不得借旧库包名交付；S6 完成对应包入口后才能声明新库包消费可用。
+项目创建时使用仓库的 .NET 10 SDK、命名与测试依赖约定。生产包注册及 pack 顺序由 `eng/Pack.ps1` 唯一维护，当前为 Primitives/Data/Rbf/Binary/FrameStore/VersionStore；旧参考库 IsPackable=false。已有六包本地候选只覆盖其来源，CU 包消费需用新版本和新隔离证据，不能覆盖旧候选或借源码测试宣称可用。
 
 本目录不固定后续实施的 Git 提交、包版本或公开发布；这些取决于实际实施会话的授权及验收结果。
 

@@ -1,8 +1,8 @@
 # VersionStore：ref 记录时间与 TailMeta 格式
 
-日期：2026-10-10–11。状态：**Accepted（已实施 ref/tag 的 source-only 源码资格；CU 接线除外）**，映射见[最终源码验收](12-versionstore-final-acceptance.md)。ref 使用固定8B Unix毫秒时间及精确 TailMeta 长度判形；tag 已实施并复用时间意义，其独立 schema/CRC 与元信息公面由09定义。CU仍为候选，后续组合/包资格见[实施计划](12-versionstore-implementation-plan.md)。
+日期：2026-10-10–11。状态：**既有 ref/tag 的 source-only 源码资格 Accepted；CU 已正式接纳，本轮接线通过独立源码验收 Accepted**。既有映射见[最终源码验收](12-versionstore-final-acceptance.md)，CU 增量见[本轮验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。ref/CU 使用固定 8B Unix 毫秒时间及精确 TailMeta 长度判形；tag 已实施并复用时间意义，其独立 schema/CRC 与元信息公面由09定义。组合/包资格见[实施计划](12-versionstore-implementation-plan.md)，旧六包候选不含 CU。
 
-本文是 S4 的 ref/CU 记录元信息子合同，不是新增实施阶段。规范底座为 [RBF 接口](../Rbf/rbf-interface.md)与[RBF 格式](../Rbf/rbf-format.md)。[S4](04-versionstore-publication.md)负责普通 ref 的 kind、header、root-payload envelope、结果定位及完整宿主尺寸；[S5](05-versionstore-names-and-indexes.md)负责历史/fork；[CU 候选](07-versionstore-cross-ref-conditional-update.md)负责联合提交资格。它们引用本合同，不各自定义时间编码。[09 tag 专项](09-versionstore-immutable-tags.md)仅复用 RecordedAtUnixMs 的意义、取时及8B编码；其变长元信息、独立CRC资格和TagInfo/扫描合同不受本文固定形状规则约束。
+本文是 S4 的 ref/CU 记录元信息子合同，不是新增实施阶段。规范底座为 [RBF 接口](../Rbf/rbf-interface.md)与[RBF 格式](../Rbf/rbf-format.md)。[S4](04-versionstore-publication.md)负责普通 ref 的 kind、header、root-payload envelope、结果定位及完整宿主尺寸；[S5](05-versionstore-names-and-indexes.md)负责历史/fork；[CU](07-versionstore-cross-ref-conditional-update.md)负责联合提交资格。它们引用本合同，不各自定义时间编码。[09 tag 专项](09-versionstore-immutable-tags.md)仅复用 RecordedAtUnixMs 的意义、取时及8B编码；其变长元信息、独立CRC资格和TagInfo/扫描合同不受本文固定形状规则约束。
 
 ## 需求与范围
 
@@ -14,7 +14,7 @@
 | 保留实际主链历史、位置身份与原子发布资格 | 现行设计；时间不能代替 ref/SizedPtr 或 CU Members |
 | 不提供旧草案兼容、时间索引、单调时钟或通用元信息框架 | 没有已发布格式兼容义务；tag 元信息查询由09独立定义，不增加持久时间索引 |
 
-本文固定形状及完整读取规则仅适用于普通 Snapshot 和未来接纳的 ConditionalUpdate；RefHeader、tag 桶 header、data 帧不因此增加时间字段。TagRecord 的时间由09单独采用，不以变长 meta 长度判别 schema；CU 仍是独立优先候选，本文不将其并入 S4/S5 核心。
+本文固定形状及完整读取规则仅适用于普通 Snapshot 和已接纳的 ConditionalUpdate；RefHeader、tag 桶 header、data 帧不因此增加时间字段。TagRecord 的时间由09单独采用，不以变长 meta 长度判别 schema；CU 的共同判据由07定义并接入 S4/S5。
 
 ## term `RecordedAtUnixMs` 本次发布记录的生成时间
 
@@ -62,10 +62,10 @@ RBF ReadTailMeta/ReadPooledTailMeta 自身仅提供 L2 预览：TrailerCRC 保�
 
 （Informative）按当前 RBF3 的 4B 对齐，原 meta0 改为 meta8，任意合法相同 payload 的 FrameLength/AppendLength 均增加 8B。空 RootMap payload=1B 的 Snapshot 从 32B 增至 40B；9B 的 version+时间方案会增加 8B 或 12B，因此首版不保留该 version 字节。header/SourceSnapshotTicket 范围、完整 Snapshot 容量与初始化后界只在 S4 推导，不在本专项重复维护。
 
-首个安全实施片是普通 Snapshot 的 meta8 写入、完整读回与 RefBytesSnapshot 时间属性；随后历史/fork/rewind 复用同一 codec，CU 接纳时复用一次取时与固定 meta。实施向量须覆盖 `0`、`-1`、完整高位/极值、受控取时重复/回退、同值重发/子初始重新取时（允许同值）、必要记录未知/截短长度与坏内容不回退，以及 CU 尺寸预测/共享时间、异长替代/消歧的无关 peer 后缀不增加 meta 审计，旧 fork 点不扫描源后续更新。wire 极值测试不表示系统时钟能正常生成这些日期；时钟控制可由内部测试机制完成，不因此增加公开时钟 API。
+首个安全实施片是普通 Snapshot 的 meta8 写入、完整读回与 RefBytesSnapshot 时间属性；随后历史/fork/rewind 复用同一 codec，本轮 CU 接线复用一次取时与固定 meta。实施向量须覆盖 `0`、`-1`、完整高位/极值、受控取时重复/回退、同值重发/子初始重新取时（允许同值）、必要记录未知/截短长度与坏内容不回退，以及 CU 尺寸预测/共享时间、异长替代/消歧的无关 peer 后缀不增加 meta 审计，旧 fork 点不扫描源后续更新。wire 极值测试不表示系统时钟能正常生成这些日期；时钟控制可由内部测试机制完成，不因此增加公开时钟 API。
 
 时间字段独立 golden：`0` → `00 00 00 00 00 00 00 00`；`-1` → `FF FF FF FF FF FF FF FF`；`0x0102030405060708` → `08 07 06 05 04 03 02 01`；`long.MinValue` → `00 00 00 00 00 00 00 80`；`long.MaxValue` → `FF FF FF FF FF FF FF 7F`。不以相同 encoder round-trip 代替这些符号/端序向量。
 
-ref 恢复后完整性准入直接消费 S4 `[R-VS-LOCAL-COMPLETE]`，不另增元信息层的恢复前保护；本合同不改变 ProcessCrashOnly 模型、PublicationOutcome、借入 data 所有权、tag 的独立范围或 CU 选型状态。编码/尺寸算术与历史探针不是 VersionStore 新库、平台、恢复或包消费验收。
+ref 恢复后完整性准入直接消费 S4 `[R-VS-LOCAL-COMPLETE]`，不另增元信息层的恢复前保护；本合同不改变 ProcessCrashOnly 模型、PublicationOutcome、借入 data 所有权或 tag 的独立范围。编码/尺寸算术与历史探针不是本轮 CU 源码、平台、恢复或包消费验收。
 
 两轮独立质询、反例与集成验证见[本次审阅记录](reviews/2026-10-10-record-metadata-review.md)。

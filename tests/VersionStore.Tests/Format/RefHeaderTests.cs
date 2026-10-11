@@ -95,8 +95,7 @@ public class RefHeaderTests {
     [Theory]
     [InlineData(56L, 40)] // Before even the smallest source header's physical successor.
     [InlineData(60L, 36)] // Below smallest meta8 Snapshot.
-    [InlineData(60L, 1048616)] // Above the largest legal ordinary Snapshot frame.
-    public void Header_SourceTicketUsesOrdinarySnapshotBounds(long offset, int length) {
+    public void Header_SourceTicketRejectsCoordinatesBelowAnyPublication(long offset, int length) {
         byte[] changed = Convert.FromHexString(FormatTestValues.ForkHeaderHex);
         BinaryPrimitives.WriteUInt64LittleEndian(changed.AsSpan(28), SizedPtr.Create(offset, length).Packed);
         StoreIdentity identity = FormatTestValues.Identity();
@@ -122,9 +121,12 @@ public class RefHeaderTests {
         Assert.Equal(72, RbfScanBoundary.Empty.EndExclusive + RbfFile.MeasureWriteSize(36, 0).Value.AppendLength);
         Assert.Equal(40, RbfFile.MeasureWriteSize(1, 8).Value.FrameLength);
         Assert.Equal(1048612, RbfFile.MeasureWriteSize(VersionStore.MaxRootPayloadLength, 8).Value.FrameLength);
+        Assert.Equal(SizedPtr.MaxLength, RbfFile.MeasureWriteSize(RbfFile.MaxPayloadAndMetaLength - 8, 8).Value.FrameLength);
         StoreIdentity identity = FormatTestValues.Identity();
         RefId own = RefId.Create(identity, 7);
-        foreach (int length in new[] { 40, 1048612 }) {
+        // The header declares coordinates only. Exact reads separately establish
+        // Snapshot or committed CU membership, codec, and root-payload bounds.
+        foreach (int length in new[] { 40, 1048612, 1048616, SizedPtr.MaxLength }) {
             ForkOrigin origin = new(RefId.Create(identity, 8), SizedPtr.Create(60, length));
             byte[] wire = new byte[36];
             Assert.True(RefHeaderCodec.TryWrite(identity, own, origin, wire));
@@ -142,8 +144,7 @@ public class RefHeaderTests {
             new(RefId.Create(FormatTestValues.DataIdentity(), 8), legal),
             new(RefId.Create(identity, 8), default),
             new(RefId.Create(identity, 8), SizedPtr.Create(56, 40)),
-            new(RefId.Create(identity, 8), SizedPtr.Create(60, 36)),
-            new(RefId.Create(identity, 8), SizedPtr.Create(60, 1048616))
+            new(RefId.Create(identity, 8), SizedPtr.Create(60, 36))
         ];
         foreach (ForkOrigin origin in invalidOrigins) {
             byte[] destination = Enumerable.Repeat((byte)0xA5, 40).ToArray();

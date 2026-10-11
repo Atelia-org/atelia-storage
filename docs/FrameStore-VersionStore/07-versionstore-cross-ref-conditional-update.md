@@ -1,40 +1,40 @@
-# VersionStore：ConditionalUpdate 单帧跨 ref 事务候选
+# VersionStore：ConditionalUpdate 单帧跨 ref 条件发布
 
-状态：**Draft / 用户暂定的优先候选；协议推荐可正式选型，尚未并入S4/S5；VersionStore已有V0骨架，CU尚未实施；生产事务/进程终止/平台及包资格另取证**。本文负责CU的记录、共同判据、位置复用与读取算法；身份字段消费S4，时间消费[08专项](08-versionstore-record-metadata.md)，批量bytes公面消费[11专项](11-versionstore-root-payload-bytes-api.md)。
+状态：**2026-10-11 CU 及附属重构已实施，独立源码验收 Accepted（Windows / WSL2 Linux）**。本文负责 CU 的记录、共同判据、位置复用与读取算法，已接入 S0/S4/S5；身份字段消费 S4，时间消费[08专项](08-versionstore-record-metadata.md)，批量 bytes 公面消费[11专项](11-versionstore-root-payload-bytes-api.md)。实际验证与资格见[本轮 CU 验收记录](07-versionstore-cross-ref-conditional-update-acceptance.md)。既有[最终源码验收](12-versionstore-final-acceptance.md)和[六包候选](13-local-package-delivery.md)不包含 CU；新源码不得沿用其包资格。
 
 比较基线：[Prepare + Commit 历史方案](extensions/obsolete/versionstore-cross-ref-prepare-commit-candidate.md)。现行合同：[S0](00-architecture-decisions.md)、[S1 已知尺寸追加](01-rbf-sized-append.md)、[S4 发布](04-versionstore-publication.md)、[S5 历史](05-versionstore-names-and-indexes.md)、[RBF 接口](../Rbf/rbf-interface.md)。可重复研究探针见 [VersionStoreConditionalUpdateProbe](../../experiments/VersionStoreConditionalUpdateProbe/README.md)。
 
 ## 本轮结论与需求来源
 
-将每 ref 的 Prepare/Commit 合并为一条 ConditionalUpdate 可以保持原子性，同时将一批 k 个 ref 的记录数从 2k 降为 k，去掉两帧邻接判定。最小条件是：**每份成员表包括自身并绑定其实际 ticket；全部指定成员均为完整合法 CU 且完整成员表相等；每次内部调用为所有成员写 fresh CU，不补写旧组**。CU 成员裁决采用“精确完整读；歧义失败时定位实际槽位”的窄函数，消费现有 RBF public API；S5 继承历史所需的指定边界逆扫是独立待实施增量，见[RBF 计划](../Rbf/rbf-reverse-boundary-plan.md)。
+将每 ref 的 Prepare/Commit 合并为一条 ConditionalUpdate 可以保持原子性，同时将一批 k 个 ref 的记录数从 2k 降为 k，去掉两帧邻接判定。最小条件是：**每份成员表包括自身并绑定其实际 ticket；全部指定成员均为完整合法 CU 且完整成员表相等；每次内部调用为所有成员写 fresh CU，不补写旧组**。CU 成员裁决采用“精确完整读；歧义失败时定位实际槽位”的窄函数，消费现有 RBF public API；S5 继承历史所需的指定边界逆扫已在 V2-A 实施，见[RBF 增量](../Rbf/rbf-reverse-boundary-plan.md)及[实施计划](12-versionstore-implementation-plan.md)。本轮不新增 RBF API。
 
-事务资格只需“完整 / 不完整”布尔判据，读取失败沿现有错误通道传播，不增加第三种持久事务状态。未完成 peer 的位置可被新记录复用：**实际 ticket 不同且必要结构检查通过，就足以否定旧成员，不审计替换 payload**；实际 ticket 相同时，仍须完整校验必要记录，再判断普通 RootMap 或异表 CU。按旧 SizedPtr 读取失败不能直接当作损坏，也不能一律吞成不完整。
+事务资格只需“完整 / 不完整”布尔判据，读取失败沿现有错误通道传播，不增加第三种持久事务状态。未完成 peer 的位置可被新记录复用：**实际 ticket 不同且必要结构检查通过，就足以否定旧成员，不审计替换 payload**；实际 ticket 相同时，仍须完整校验必要记录，再判断普通 Snapshot 或异表 CU。按旧 SizedPtr 读取失败不能直接当作损坏，也不能一律吞成不完整。
 
-本候选仅更新同一VersionStore/绑定data中的多个distinct既有ref，不覆盖创建、tag、删除或跨库事务。单owner/driver、data-first、ProcessCrashOnly、完整历史不复用及停用/清理沿用S0/S4；不提供跨调用快照隔离。RootMap只是可选内容codec，事务资格不解释payload语义。
+CU 仅更新同一 VersionStore/绑定 data 中的多个 distinct 既有 ref，不覆盖创建、tag、删除或跨库事务。单 owner/driver、data-first、ProcessCrashOnly、完整历史不复用及停用/清理沿用 S0/S4；不提供跨调用快照隔离。RootMap 只是可选内容 codec，事务资格不解释 payload 语义。
 
-未来并入时，fork和继承历史只接受普通Snapshot或满足共同判据的CU；不完整CU不作为来源节点。ForkOrigin仍定位实际ref/ticket，不追踪参与ref的当前head。
+fork 和继承历史只接受普通 Snapshot 或满足共同判据的 CU；不完整 CU 不作为来源节点，exact fork anchor 指向不完整 CU 时必须拒绝，不能改选更旧来源。ForkOrigin 仍定位实际 ref/ticket，不追踪参与 ref 的当前 head；子文件的直接第二帧永远是普通 Snapshot，只复制源 CU 的 root bytes。
 
 ## 记录与尺寸规划
 
 ```text
 ConditionalUpdate:
-    FrameTag = ConditionalUpdate   // RBF kind；具体取值仍待定
+    FrameTag = 2                   // ConditionalUpdate
     Payload:
       MemberCount: uint32 LE
-      Members: RefId => SizedPtr    // 本批完整成员表，包含本 ref
+      Members: LocalRefId => SizedPtr // 本批完整成员表，包含本 ref；LocalRefId 严格递增
       RootPayloadBytes              // envelope 之后的全部剩余 bytes
     TailMeta:                      // 专项规定的8B记录时间
 ```
 
 各成员可以有不同 root-payload bytes 和帧尺寸，相同的是完整 Members 表。Count 为固定4B uint32 LE，每项为4B LocalRefId + 8B Packed ticket；表后全部剩余 payload 是本 ref 的 root payload，不增加另一层 byte-length。完整 CRC 覆盖整个记录。发布/事务判据不调用 RootMap decoder；调用方在进入 PublishRefs 前自行编码，入口按11公面专项逐项复制 bytes。Members ticket 是对应 ref 文件的 SizedPtr，不能替换为 data FrameAddress。
 
-本候选消费 S4 `[F-VS-REF-ID-4B]`：LocalRefId 固定4B LE，公开值另携同一 VS 上下文，入口拒绝错上下文；ticket 固定8B Packed LE，不使用 Serialize/VarUInt。root payload 直接消费 S4 `[A-VS-ROOT-PAYLOAD]` 的 bytes 范围，当前保持1..1MiB；应用使用 RootMap 时才消费 [RootMap 专项](10-versionstore-rootmap-payload.md)。Members 计数和字段顺序在本轮固定；CU FrameTag 与完整 CU 组合上限仍待工程定稿，并须满足 RBF 公共容量。无新增 payload kind/version，meta 消费专项，两定位字段的解码不证明发布。
+CU 消费 S4 `[F-VS-REF-ID-4B]`：LocalRefId 固定 4B LE，公开值另携同一 VS 上下文，入口拒绝错上下文；ticket 固定 8B Packed LE，不使用 Serialize/VarUInt。Members 按非零 LocalRefId 严格递增形成 canonical 表，重复、乱序及零 ID 均拒绝。root payload 直接消费 S4 `[A-VS-ROOT-PAYLOAD]` 的 bytes 范围，保持 1..1MiB；应用使用 RootMap 时才消费 [RootMap 专项](10-versionstore-rootmap-payload.md)。CU 的 FrameTag 固定为 2，完整 stored payload 上限为 `RbfFile.MaxPayloadAndMetaLength - 8 = 268435416B`，完整 frame 上限为 `SizedPtr.MaxLength = 268435452B`；不另增加任意成员数硬限。无新增 payload kind/version，格式门仍为 1；旧 Snapshot/header 编码不变，旧 reader 遇到新增 kind 按未知 kind 拒绝。meta 消费专项，两定位字段的解码不证明发布。
 
 在预测 CU tickets 前先捕获全部私有 root-payload bytes，长度 rᵢ 已确定。CU payload 长度精确为 4 + 12k + rᵢ，用 checked long 校验，再调用 MeasureWriteSize(payloadLength,8) 并以可信 TailOffset/SizedPtr 预测各 ticket。固定宽度的成员项不依赖 ticket 数值，root payload 的编码也不依赖 CU 自身 tickets，无尺寸循环；不引入成员 padding。相对原8B RefId草案，每表少4k bytes，全组少4k² bytes。
 
-准确说，消除循环只要求 ticket 的编码宽度不随值变化；已知 RefId 的编码长度也能事先度量。固定 RefId 是本候选按用户提议采用的方向，不是正确性额外要求。不得对包含待定 tickets 的整个 payload 做未经解决的变长压缩，再拿未确定的 stored 长度预约。
+准确说，消除循环只要求 ticket 的编码宽度不随值变化；已知 RefId 的编码长度也能事先度量。固定 RefId 是本协议按用户提议采用的方向，不是正确性额外要求。不得对包含待定 tickets 的整个 payload 做未经解决的变长压缩，再拿未确定的 stored 长度预约。
 
-Members 唯一、有界，跨 ref CU 至少两个成员。Count 解码后在集合分配前要求 12L × count <= 实际剩余 payload - 1，checked 地为 root payload 保留至少1B；表解码后剩余 root payload 必须在1..1MiB。不能用 count 直接分配未验规模的集合，不把 root bytes 当 Members 的尾部扩展。解码须检查 RefId 与每个 ticket 的坐标/合法帧尺寸约束，拒绝 default、零长度、截短和非法项；自定位检查不能代替整表 codec 校验。所有文件、身份、尺寸与追加起点均先检查。它是本次内部调用生成的私有值，不接受调用方提供旧表或任意 prepared tickets。
+Members 唯一、有界，跨 ref CU 至少两个成员。Count 解码后在集合分配前要求 `4 + 12L × count + 1 <= 实际 payload 长度 <= 268435416`，checked 地为 root payload 保留至少 1B；表解码后剩余 root payload 必须在 1..1MiB。不能用 count 直接分配未验规模的集合，不把 root bytes 当 Members 的尾部扩展。以实际 count=k 计算 `pMin=4+12k+1`、`pMax=min(4+12k+1MiB,268435416)`，再用公共 `MeasureWriteSize(pMin,8)` / `MeasureWriteSize(pMax,8)` 得出每个成员 ticket 可接受的 frame 长度区间；不得只凭普通 Snapshot 或 k=2 的全局下界接受与本表不可能相容的长度。解码须检查每个非零 LocalRefId 与 ticket 的坐标/上述帧尺寸约束，拒绝 default、零长度、截短和非法项；自定位检查不能代替整表 codec 校验。所有文件、身份、尺寸与追加起点均先检查。它是本次内部调用生成的私有值，不接受调用方提供旧表或任意 prepared tickets。
 
 PublishRefs的输入捕获、空/单成员分流、自有revision字典与共用Outcome唯一消费[11公面专项](11-versionstore-root-payload-bytes-api.md) `[A-VS-BYTES-BATCH]`；本篇定义两个及以上既有ref的CU执行路径。
 
@@ -216,7 +216,7 @@ RBF `TailOffset` 属性本身不检查 Dispose/fault，必须保留扫描入口�
 
 写入只触及本批 k 个 ref。每个组的精确 ticket 校验只访问它的成员与必要 bytes，不需要所有 N 个 Heads；全部 k 张完整表比较仍是 O(k²) 元数据工作，并需读取所选 peer 的完整帧 bytes/CRC；不解析其 RootMap 内容。已成立组的精确读取不扫描 peer 后续历史。连续失败后缀的本地逆扫会累积；异长消歧可能扫描 peer 后缀及真实前驱，再作一次结构后继查询，但不读替换 payload。一次 ReadRef 回退多个旧 CU 时，读取范围是这些被检查组成员集合的并集，不能宣称始终只读最终成立组的成员。
 
-ReadRefHistory 共用 S5 的 MaxSnapshots / MaxWorkSteps：只有向 visitor 交付成立的发布记录才计一项快照；每次进入 peer、forward/reverse MoveNext 尝试和完整帧读取均按既有规则计一步，包括无输出的组验证和失败定位。CU 异长消歧的 ReadFrameInfoImmediatelyAfter 结构后继查询另计一步，正式接纳时须补入 S5 的计费表；每个动作前检查并扣费。继承历史的 source anchor 完整读、GetScanBoundaryAfter 与指定边界 ScanReverse 的完整读也按 S5 计费；CU 异长槽位消歧仍保留自身的后缀定位路径，不能借这份历史优化省略。复用已读本地 CU 不重复计一次 peer 读取；peer 访问不加入 ForkOrigin 继承路径的 visited，也不递归另一组。
+ReadRefHistory 共用 S5 的 MaxSnapshots / MaxWorkSteps：只有向 visitor 交付成立的发布记录才计一项快照；每次进入 peer、forward/reverse MoveNext 尝试和完整帧读取均按既有规则计一步，包括无输出的组验证和失败定位。CU 异长消歧的 ReadFrameInfoImmediatelyAfter 结构后继查询另计一步，S5 计费表包含此项；每个动作前检查并扣费。继承历史的 source anchor 完整读、GetScanBoundaryAfter 与指定边界 ScanReverse 的完整读也按 S5 计费；CU 异长槽位消歧仍保留自身的后缀定位路径，不能借这份历史优化省略。复用已读本地 CU 不重复计一次 peer 读取；peer 访问不加入 ForkOrigin 继承路径的 visited，也不递归另一组。临时 peer 句柄登记在 owner 可清理槽，匹配已有文件时借用，其他 peer 逐个关闭；当前历史/本地句柄加至多一个 peer 句柄，额外 handles 保持 O(1)，不将全部成员文件安装成长驻缓存。
 
 预算耗尽或取消不是 Uncommitted 见证，不能继续回退并把旧值作为成功结果；历史按既有预算/结束合同报告未完成范围，不声称全历史已验证。bytes、底层物理 I/O 与文件工厂内部检查/恢复另作成本测量，不新增字节预算或 ReadRef/ForkRef 预算参数；工作步仍不是固定读取范围或时延保证。
 
@@ -261,12 +261,12 @@ Windows / W: 真实 public RBF3 探针，初录 [结果](../../experiments/Versi
 
 上述探针只使用生产 public Rbf API，未复制首部、Fence 或 CRC 算法。它们使用合成 payload，**不是本轮 Members-first 布局、最终 RefId 或 RootMap codec，也没有 data FrameStore barrier、生产 VersionStore/header/身份门、真实进程终止、输出/flush 异常或 Linux/包资格**。字节镜像是顺序输出前缀模拟，不是断电模拟；没有新增 RBF 入口。
 
-## 成熟度与实施出口
+## 本轮实施与验收出口
 
-**协议可正式选择，尚未并入主线。** 共同判据、fresh 完整锚点与观察稳定性有明确论证，现有 public RBF API 足以执行结构消歧；少量根场景下减少帧和阶段的收益明确。P+C 仍有分帧容量、诊断以及拒绝未提交组时少读 root bytes 的优势，不宣称 CU 在所有工作负载更快。新读取路径完整组合验收仍缺，历史探针不代替生产资格。
+**协议已正式接纳，本轮实现通过独立源码验收（Accepted）。** 共同判据、fresh 完整锚点与观察稳定性有明确论证，现有 public RBF API 足以执行结构消歧；少量根场景下减少帧和阶段的收益明确。P+C 仍有分帧容量、诊断以及拒绝未提交组时少读 root bytes 的优势，不宣称 CU 在所有工作负载更快。当前算法的完整组合结果以[本轮 CU 验收](07-versionstore-cross-ref-conditional-update-acceptance.md)为准，历史探针不代替生产资格。
 
-正式接纳须同步S0/S4/S5及入口的单ref范围、选尾/历史/fork资格、工作步计费与成本，而非只加导航链接。待工程定稿为CU FrameTag、完整CU容量/codec及其运行错误载体；接纳CU来源须重审S4普通Snapshot的SourceSnapshotTicket上界和接受kind。沿用既定身份、bytes/时间、恢复后完整性、生命周期与Outcome，不新增TxId/nonce、Prepared handle、持久索引或恢复日志。只有真实失败查询成本需求才重审窄start定位入口等优化。
+S0/S4/S5 及入口已同步既有 ref 批量范围、选尾/历史/fork 资格、工作步计费与成本，11 定义公开 PublishRefs。S4 的 SourceSnapshotTicket 保留字段名，将最大长度扩至完整 CU frame 范围；其数值检查仍不签发来源资格。沿用既定身份、bytes/时间、恢复后完整性、生命周期与 Outcome，不新增 TxId/nonce、Prepared handle、持久索引或恢复日志。只有真实失败查询成本需求才重审窄 start 定位入口等优化。
 
-最小实施片为两个正式既有ref：正式CU envelope/header+绑定data屏障+PublishRefs+当前/历史共用判据+自有revisions；随后验证每个Begin/End、最终输出、flush及确认后安装的失败/冷开。
+本轮范围为正式既有 ref 的 CU envelope + 绑定 data 屏障 + PublishRefs + 当前/历史/fork/Audit 共用判据 + 自有 revisions，并验证每个 Begin/End、最终输出、flush 及确认后安装的失败/冷开。Audit 完整检查物理 CU，即使其共同判据未成立；SnapshotCount 只计普通 Snapshot 与成立 CU，不计未提交 CU，也不重复展开继承历史。
 
-特有验收包括：Members-first边界/count越界/截短、self/完整表/坏身份/重复项、不同opaque payload的同组与禁用peer decoder；同ticket坏内容硬失败、异长坏HeadLen/缺前驱/后继不符失败、异长未读坏payload不妨碍否定旧ticket但直接读取仍报错；失败旧A/B后新B/C不递归另一组、lazy CompletedTail与观察稳定性、同值/rewind/预算/取消/I/O/fault。历史组验证不交付快照也计工作步，结构后继查询先扣费，peer 不误入继承 visited；CU来源接纳时补CU→普通子Snapshot仅clone root bytes、排除Members的向量；普通单ref不增加表。新helper全矩阵与k增长成本、Windows/Linux及public包资格分别取证。
+特有验收包括：Members-first边界/count越界/截短、self/完整表/坏身份/重复项、不同opaque payload的同组与禁用peer decoder；同ticket坏内容硬失败、异长坏HeadLen/缺前驱/后继不符失败、异长未读坏payload不妨碍否定旧ticket但直接读取仍报错；失败旧A/B后新B/C不递归另一组、lazy CompletedTail与观察稳定性、同值/rewind/预算/取消/I/O/fault。历史组验证不交付快照也计工作步，结构后继查询先扣费，peer 不误入继承 visited；CU→普通子Snapshot仅clone root bytes、排除Members的向量；普通单ref不增加表。新helper全矩阵与k增长成本、Windows/Linux及public包资格分别取证。

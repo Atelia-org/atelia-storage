@@ -14,6 +14,10 @@ internal sealed class VersionStoreTestHooks {
     internal Action? AfterTagBucketPublished;
     // Real complete Append has returned a ticket; the corresponding flush has not begun.
     internal Action<SizedPtr>? AfterRefRecordAppended;
+    // CU-specific internal windows; the callback runs immediately before the real operation.
+    internal Action<uint>? BeforeConditionalUpdateBegin;
+    internal Action<uint>? BeforeConditionalUpdateEnd;
+    internal Action<uint>? BeforeConditionalUpdateFlush;
     internal Action<SizedPtr>? AfterTagRecordAppended;
     // 专门证明 Confirmed 先于结果交付异常；不构成公开发布 callback。
     internal Action? AfterPublicationConfirmed;

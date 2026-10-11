@@ -1,12 +1,12 @@
 # VersionStore 分片实施与续接
 
-更新：2026-10-11。本文是实施导航，不增加设计权威。行为以 [S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)、[08](08-versionstore-record-metadata.md) 至 [11](11-versionstore-root-payload-bytes-api.md) 为准；[S6](06-integration-and-delivery.md) 管组合与交付。[07 CU](07-versionstore-cross-ref-conditional-update.md) 仍是未并入主线的候选。
+更新：2026-10-11。本文是实施导航，不增加设计权威。行为以 [S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)、[07 CU](07-versionstore-cross-ref-conditional-update.md)、[08](08-versionstore-record-metadata.md) 至 [11](11-versionstore-root-payload-bytes-api.md) 为准；[S6](06-integration-and-delivery.md) 管组合与交付。CU 已正式接纳、实施并取得独立源码验收 Accepted，新增证据另列；[既有最终源码验收](12-versionstore-final-acceptance.md)和[六包候选](13-local-package-delivery.md)保持原来源，不含 CU。
 
 ## 调度原则与整体结构
 
 每轮先看 git 状态、当前源码及本文完成项，保留其他工作；选择能独立验证的一条路径。实施者可以调整内部表示和助手，不能把缺少实现重新扩展成已关闭的设计问题。若出现合同反例，记录具体失败轨迹与受阻分片，再调整计划。不要用 `NotImplementedException`、伪成功或 public 裸句柄导入填满候选 API。
 
-核心只发布不透明 bytes。应用可显式调用 `RootMapCodec.Encode/Decode`，也可使用 JSON 或自己的格式；普通 ref、fork、历史、tag 和未来 CU 都不能调用 RootMap decoder 来判发布健康。值和结果不依赖 owner：RefId 包含持久 VSID，RefRevision 包含完整 RefId/ticket，RefBytesSnapshot 拥有 GC 数组。字段 codec 只证明格式，不能自行签发来源或主链资格。
+核心只发布不透明 bytes。应用可显式调用 `RootMapCodec.Encode/Decode`，也可使用 JSON 或自己的格式；普通 ref、fork、历史、tag 和 CU 都不能调用 RootMap decoder 来判发布健康。值和结果不依赖 owner：RefId 包含持久 VSID，RefRevision 包含完整 RefId/ticket，RefBytesSnapshot 拥有 GC 数组。字段 codec 只证明格式，不能自行签发来源或主链资格。
 
 建议维持当前窄分层：
 
@@ -15,8 +15,8 @@
 | `RefId` / `RefRevision` / `RefBytesSnapshot` / `PublicationOutcome` | 公共值与自有结果；可信内部构造只保存已资格化字段 |
 | `Internal/Format` | VSID、44B 门、24/36B ref header、4B local 字段、meta8、规范路径；无文件 I/O |
 | `Internal/Tags` | tag 名称/1024桶路由、BucketHeader/变长 meta codec 与借入句柄的单桶扫描；独立元信息资格与完整 root 资格分离 |
-| `Internal/Records` | 从已取得的 public IRbfFile 校验本次需要的 header/Snapshot，先元信息尺寸再完整读取、复制结果；不拥有文件，历史 helper 内真实步骤由窄回调计费 |
-| `VersionStore` / `Internal/Runtime` | 身份/模式 guard、输入捕获、data-first、PublicationOutcome 与 owned 资源清理；`VersionStore.History.cs` 管固定前缀、预算、回调及一个当前临时句柄；声明图查询另持查询局部临时句柄 |
+| `Internal/Records` | CU canonical codec、ref kind/尺寸/字段资格，以及 RefRecordReader 的窄 header/普通记录读取；从借入 public IRbfFile 建立本次局部格式资格，不解释应用 bytes、不拥有文件，真实 helper 读取动作由窄回调先计费 |
+| `VersionStore` / `Internal/Runtime` | 身份/模式 guard、输入捕获、data-first、PublicationOutcome 与 owned 资源清理；`VersionStore.ConditionalRead.cs` owner partial 管 exact-first 成员定位、有限 allowlist、异长真实前驱/后继与共同判据，供当前值/历史/fork/Audit 共用；PublishRefs 只更新既有 ref，历史管固定前缀/预算/回调，当前历史与短期 CU peer 各持一个可清理槽；声明图查询另持查询局部临时句柄 |
 | `Internal/Storage` / `Internal/Platform` | 根准入/锁/门 I/O/发现/唯一 pending/原生不覆盖发布/按模式打开；不解释应用 bytes |
 | `RootMapCodec` | 独立可选应用 codec，使用 Binary 和 FrameAddress 公共 codec；不进入 owner 的调用链 |
 
@@ -180,7 +180,17 @@ V4-C 的有限观察未提出新的性能SLO或缓存机制。后续不重复这
 
 V2 的底座增量已由 [RBF 边界逆扫记录](../Rbf/rbf-reverse-boundary-plan.md)接入公共接口合同。普通当前值与普通 PublishRef 不依赖它，V1 证据保持原身份。ForkOrigin 元数据可在 V0 编解码，V2-A 读取既有声明并检验 exact 源/bytes；V2-B 已用正式源读取/确认与子发布建立公开 fork 创建闭环。
 
-CU 在正式选型同步 S0/S4/S5 前不进入上述默认队列；尤其不能提前给普通 Snapshot 分配 Members 或让 API 暗中提供跨 ref 事务。包注册、隔离 PackageReference smoke、发布及真实业务仓切换按 S6 另立明确交付片，不由源码骨架自动开启。
+2026-10-11 用户已正式授权 CU 与附属读取重构，S0/S4/S5/07/11 已同步；本轮 CU 是独立源码范围，见下节。普通 Snapshot 不增加 Members，CU 不覆盖 ref 创建/tag/跨库事务。包注册、隔离 PackageReference smoke、发布及真实业务仓切换按 S6 另立明确交付片，旧六包候选保持不变，本轮不自动重新打包或发布。
+
+## CU：本轮跨 ref 条件发布与读取整合（2026-10-11）
+
+状态：**Accepted（CU 增量独立源码资格；Windows / WSL2 Linux）**。前置只读审查认定当前 public RBF/FrameStore API 足够，不需要偏离07或新增底层入口。当前完成项、源码/构建身份及真实运行结果集中在[07 CU 独立验收](07-versionstore-cross-ref-conditional-update-acceptance.md)；已按源码反例复核与两平台运行结果裁决为 Accepted。
+
+本轮交付 `PublishRefs(IReadOnlyDictionary<RefId, ReadOnlyMemory<byte>>, out PublicationOutcome)`，返回自有只读 revision 字典；捕获实际枚举，不信 Count/comparer，empty 拒绝、single 普通、至少两个同库既有 ref 使用 CU。CU tag=2、count4、递增非零 LocalRefId4+Packed8、root1..1MiB、meta8且整批一次取时；容量消费公共 RBF/SizedPtr，不另设成员数上限，成员 ticket 按 actual count 的 Measure 区间校验。格式门仍为1，旧 Snapshot/header 编码保持。
+
+当前值、历史、exact fork 来源与 Audit 使用同一共同判据。只有明确未提交见证允许跳过本地 CU，必要错误/取消/预算不足不能伪装旧值；exact source 未提交拒绝。异长消歧只核对实际主链前驱/后继结构，不审计 replacement payload，不递归替代组。历史 peer 访问/扫描/完整读/结构后继动作前先扣 work，peer 不加入继承 visited；短期 peer 槽进入 owner 清理，额外 handles 为 O(1)。CU 来源子文件仅 clone root bytes 为普通初始 Snapshot，data 后只确认 exact source 文件；Audit 完整物理检查 CU，SnapshotCount 排除未提交 CU。普通 PublishRef 不强制验证被覆盖旧组的 peer，lazy CompletedTail 解释保留。
+
+本轮已分别验收公开闭环/冷重开、canonical/容量与身份反例、共同判据/复用/错误传播、history/fork/Audit 范围、输入及结果所有权、单调 Outcome/停用/单次清理、真实进程终止与 Windows/WSL2；历史实验和前轮测试数字不作为本轮通过结果。包资格未开启：后续若交付 CU，使用新版本、新来源 manifest 与四个隔离 PackageReference smoke，不覆盖已有候选。
 
 ## 后续自动队列与 Linux 验证入口
 
@@ -190,7 +200,7 @@ CU 在正式选型同步 S0/S4/S5 前不进入上述默认队列；尤其不能�
 
 后续Linux功能回归沿用分组执行：新栈及本轮其他完成组保留ext4；冻结EventJournal使用单独tmpfs TMPDIR运行原始完整用例，保存各组TRX及实际文件系统。若要取得旧栈ext4大量fsync的资格，再单独安排有明确目标的运行。Windows仍使用完整solution回归入口。
 
-**V4-F 已完成，本 source-only 队列到此收束。** 具名窗口和剩余组合的两平台验收见下方；不再自动安排V4-G或重新展开设计问题。2026-10-11 用户已明确转入 S6-C/D 包注册及隔离 PackageReference 消费，并选择保留 Atelia.Rbf 名称，先供下游本地试用。当前分片和实际结果见[本地交付记录](13-local-package-delivery.md)。后续先收集下游反馈，按具体问题调整 API 并生成新候选；公开发布、业务仓迁移和 CU 各自独立。
+**V4-F 已完成，本 source-only 队列到此收束。** 具名窗口和剩余组合的两平台验收见下方；不再自动安排V4-G或重新展开设计问题。2026-10-11 用户已明确转入 S6-C/D 包注册及隔离 PackageReference 消费，并选择保留 Atelia.Rbf 名称，先供下游本地试用。当前分片和实际结果见[本地交付记录](13-local-package-delivery.md)。后续先收集下游反馈，按具体问题调整 API 并生成新候选；公开发布与业务仓迁移保持独立；本轮已授权 CU 源码范围另见上节，不自动改变旧包候选。
 
 ## 每轮结束时的交接要求
 

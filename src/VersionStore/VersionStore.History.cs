@@ -11,10 +11,11 @@ public sealed partial class VersionStore {
     private uint _historyRefId;
     private bool _historyActive;
 
-    /// <summary>从固定上界向前交付自有 checked 快照，按 ForkOrigin 接续精确来源前缀。</summary>
+    /// <summary>从固定上界向前交付自有 checked 发布快照，按 ForkOrigin 接续精确来源前缀。</summary>
     /// <remarks>
     /// visitor 的 false 已接收当前项并正常停止；活动调用拒绝递归历史及本 owner 的所有 mutation。
     /// 已交付的值可保留；停止或预算失败不证明未访问历史健康。
+    /// 合法未成立 CU 不交付快照，但其必要读取和 peer 访问仍消耗工作预算。
     /// </remarks>
     public AteliaResult<HistoryEnd> ReadRefHistory(RefId refId, HistoryBudget budget,
         Func<RefBytesSnapshot, bool> visitor, CancellationToken cancellationToken = default) {
@@ -38,6 +39,7 @@ public sealed partial class VersionStore {
             }
             catch (Exception error) { errors.Add(error); }
             finally {
+                CloseConditionalPeer(ref errors);
                 CloseHistoryTemporary(ref errors);
                 if (_faulted) { CleanupOwned(ref errors); }
             }
@@ -83,8 +85,8 @@ public sealed partial class VersionStore {
                 var sourceInfo = file.ReadFrameInfo(ticket);
                 work.CheckState();
                 if (sourceInfo.IsFailure) { return sourceInfo.Error!; }
-                if (!RefRecordCodec.IsSnapshotShape(sourceInfo.Value)) {
-                    return new RefRecordError("The exact source physical record has an invalid Snapshot shape.");
+                if (!RefRecordCodec.IsPublicationShape(sourceInfo.Value)) {
+                    return new RefRecordError("The exact source physical record has an invalid publication shape.");
                 }
 
                 budgetError = work.TakeWorkStep();
@@ -120,6 +122,7 @@ public sealed partial class VersionStore {
                 }
 
                 RbfFrameInfo info = reverse.Current;
+                bool isSourceAnchor = first && source.HasValue;
                 if (first) {
                     if (source is ForkOrigin exactSource) {
                         if (info.Ticket.Packed != exactSource.SourceSnapshotTicket.Packed) {
@@ -131,16 +134,22 @@ public sealed partial class VersionStore {
                     }
                     first = false;
                 }
-                if (info.Ticket.Offset < header.InitialSnapshotOffset || !RefRecordCodec.IsSnapshotShape(info)) {
-                    return new RefRecordError("The historical record is not a legal Snapshot after the checked header.");
+                bool isInitial = info.Ticket.Offset == header.InitialSnapshotOffset;
+                if (info.Ticket.Offset < header.InitialSnapshotOffset || !RefRecordCodec.IsPublicationShape(info)
+                    || (isInitial && !RefRecordCodec.IsSnapshotShape(info))) {
+                    return new RefRecordError("The historical record is not a legal publication after the checked header and its ordinary initial Snapshot.");
                 }
 
-                budgetError = work.TakeWorkStep();
-                if (budgetError is not null) { return budgetError; }
-                var read = RefRecordReader.ReadSnapshot(info, refId);
+                var read = ReadPublication(file, header, info, work.TakeWorkStep, work.CheckState);
                 work.CheckState();
                 if (read.IsFailure) { return read.Error!; }
-                RefBytesSnapshot snapshot = read.Value!;
+                RefBytesSnapshot? snapshot = read.Value.Snapshot;
+                if (snapshot is null) {
+                    if (isSourceAnchor) {
+                        return InvalidHistoryOrigin("The exact declared source CU is not a published snapshot.");
+                    }
+                    continue;
+                }
                 if (childInitial is not null) {
                     if (!snapshot.Payload.SequenceEqual(childInitial.Payload)) {
                         return InvalidHistoryOrigin("The child initial payload is not an exact byte clone of its source Snapshot.");
@@ -148,7 +157,6 @@ public sealed partial class VersionStore {
                     childInitial = null;
                 }
 
-                bool isInitial = info.Ticket.Offset == header.InitialSnapshotOffset;
                 work.DeliverSnapshot();
                 bool keepGoing = visitor(snapshot);
                 work.CheckState();

@@ -1,8 +1,8 @@
 # VersionStore：Binary RootMap payload 专项
 
-日期：2026-10-10–11。状态：**Accepted（独立 source-only 源码资格）**，证据见[最终源码验收](12-versionstore-final-acceptance.md)。RootMapCodec 为已实施的可选应用 codec，普通 ref/fork/tag 不解释其内容；JSON 名称映射不扩为 JSON 导入导出 API，CU 尚未并入主线。
+日期：2026-10-10–11。状态：**Accepted（独立 source-only 源码资格）**，证据见[最终源码验收](12-versionstore-final-acceptance.md)。RootMapCodec 为已实施的可选应用 codec，普通 ref/fork/tag 不解释其内容；JSON 名称映射不扩为 JSON 导入导出 API，CU 已正式接纳，本轮新增资格见[07验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。
 
-本文内聚 RootMap 的 key、wire 与容量合同，供选择该 codec 的应用显式使用；[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)、[tag 专项](09-versionstore-immutable-tags.md)及 [CU 候选](07-versionstore-cross-ref-conditional-update.md)只保存 opaque bytes。RootMap 是完整 string→FrameAddress 字典；RootMap 自有集合定义于本篇；bytes 自有结果由 11 公面专项定义；fork 来源一致性由 S5 `[A-VS-REF-HISTORY-CHECKED]` 定义，不消费字典内容比较，FrameAddress codec 由 S2 定义。
+本文内聚 RootMap 的 key、wire 与容量合同，供选择该 codec 的应用显式使用；[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)、[tag 专项](09-versionstore-immutable-tags.md)及 [CU](07-versionstore-cross-ref-conditional-update.md)只保存 opaque bytes。RootMap 是完整 string→FrameAddress 字典；RootMap 自有集合定义于本篇；bytes 自有结果由 11 公面专项定义；fork 来源一致性由 S5 `[A-VS-REF-HISTORY-CHECKED]` 定义，不消费字典内容比较，FrameAddress codec 由 S2 定义。
 
 ## JSON 名称映射
 
@@ -55,7 +55,7 @@ Decode 入口先检查实际输入为1..1MiB，容量及消费 MUST 按 reader �
 
 ## 与发布层的边界
 
-本codec只解释应用显式交付的完整codeword，不承担Snapshot/tag/CU定位、事务资格或fork来源比较。这些合同分别消费S4、S5及07候选；bytes公面消费[11专项](11-versionstore-root-payload-bytes-api.md)。调用链为Encode→发布bytes、读取自有bytes→Decode；fork原样复制bytes，内容schema由应用管理。
+本codec只解释应用显式交付的完整codeword，不承担Snapshot/tag/CU定位、事务资格或fork来源比较。这些合同分别消费S4、S5及07；bytes公面消费[11专项](11-versionstore-root-payload-bytes-api.md)。调用链为Encode→发布bytes、读取自有bytes→Decode；fork原样复制bytes，内容schema由应用管理。
 
 ## 实施验证补充
 

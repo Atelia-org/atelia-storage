@@ -1,6 +1,6 @@
 # atelia-storage
 
-Atelia 的 .NET 10 存储基础库，使用 MIT 许可证。main 面向 **RBF3 / FrameStore / VersionStore 新栈**：当前底座为 `Atelia.Primitives`、`Atelia.Data`、`Atelia.Rbf`，另有独立的 `Atelia.Binary` 基元 codec（BCL + 纯托管 K4os.Compression.LZ4 `[1.3.8]`）；FrameStore 已实现[公开持久化闭环](src/FrameStore/README.md)，Inventory/Audit 同步物理检查已实现、已纳入本地候选包清单；VersionStore 已接通普通 ref 公开持久化闭环、有界历史读取、精确 fork 创建与声明分叉图查询，并已接通 tag 创建/解析、关联注记、元信息查询/扫描与冷重开、独立只读完整校验 Audit（见 [实施计划](docs/FrameStore-VersionStore/12-versionstore-implementation-plan.md)）。
+Atelia 的 .NET 10 存储基础库，使用 MIT 许可证。main 面向 **RBF3 / FrameStore / VersionStore 新栈**：当前底座为 `Atelia.Primitives`、`Atelia.Data`、`Atelia.Rbf`，另有独立的 `Atelia.Binary` 基元 codec（BCL + 纯托管 K4os.Compression.LZ4 `[1.3.8]`）；FrameStore 已实现[公开持久化闭环](src/FrameStore/README.md)，Inventory/Audit 同步物理检查已实现、已纳入本地候选包清单；VersionStore 已接通普通 ref 公开持久化闭环、有界历史读取、精确 fork 创建与声明分叉图查询，并已接通 tag 创建/解析、关联注记、元信息查询/扫描与冷重开、独立只读完整校验 Audit，以及多 ref 条件提交 `PublishRefs`（见 [实施计划](docs/FrameStore-VersionStore/12-versionstore-implementation-plan.md)）。
 
 现有 EventJournal、RbfSegmentStore、toolkit 及其测试保留原路径，作为 **RBF1 旧栈的冻结参考代码**。旧栈维护和公开交付归 `RBF1` 分支；main 不为它们适配新的底层 API。本轮依赖和交付入口拆分已 **Accepted**，方案与实际证据统一见 [RBF1 参考代码过渡方案](docs/rbf1-reference-transition.md)。
 
@@ -64,7 +64,7 @@ solution build/test 同时覆盖 main 底座和冻结旧栈参考项目；旧栈
 
 公共 binary codec 的规范见 [Bare Primitive Value](docs/Binary/bare-primitive-value.md)，实现入口为 [Atelia.Binary](src/Binary/README.md)：schema 驱动的基元、宽容 reader、精确尺寸与显式受控 Brotli/LZ4 block。源码/包资格单列于[实施验收](docs/Binary/bare-primitive-value-acceptance.md)。[Tagged Value](docs/Binary/tagged-value-intent.md) 仍仅为意向，优先评估 CBOR 等成熟标准。
 
-新栈主入口为 [FrameStore / VersionStore 分阶段设计](docs/FrameStore-VersionStore/README.md)。[S1 公共尺寸计算与提前 ticket](docs/FrameStore-VersionStore/01-rbf-sized-append.md)已 Accepted，源码资格见[阶段验收记录](docs/FrameStore-VersionStore/01-rbf-sized-append-acceptance.md)；S2/S3 已取得[FrameStore 独立源码验收](docs/FrameStore-VersionStore/02-framestore-final-acceptance.md)，S4/S5及已实施专项取得[VersionStore 独立源码验收](docs/FrameStore-VersionStore/12-versionstore-final-acceptance.md)，两个新库已注册到主线包清单。V4-F已补具名内部进程窗口和剩余组合；S6-C/D本地候选与隔离包消费资格见[交付记录](docs/FrameStore-VersionStore/13-local-package-delivery.md)，公开发布与下游迁移另行进行。历史测试与当前增量分开记录，不以源码 Accepted 推定包已交付。
+新栈主入口为 [FrameStore / VersionStore 分阶段设计](docs/FrameStore-VersionStore/README.md)。[S1 公共尺寸计算与提前 ticket](docs/FrameStore-VersionStore/01-rbf-sized-append.md)已 Accepted，源码资格见[阶段验收记录](docs/FrameStore-VersionStore/01-rbf-sized-append-acceptance.md)；S2/S3 已取得[FrameStore 独立源码验收](docs/FrameStore-VersionStore/02-framestore-final-acceptance.md)，S4/S5及已实施专项取得[VersionStore 独立源码验收](docs/FrameStore-VersionStore/12-versionstore-final-acceptance.md)，两个新库已注册到主线包清单。V4-F已补具名内部进程窗口和剩余组合；新增CU / `PublishRefs`取得[独立源码验收](docs/FrameStore-VersionStore/07-versionstore-cross-ref-conditional-update-acceptance.md)，旧六包候选不包含该增量；S6-C/D本地候选与隔离包消费资格见[交付记录](docs/FrameStore-VersionStore/13-local-package-delivery.md)，公开发布与下游迁移另行进行。历史测试与当前增量分开记录，不以源码 Accepted 推定包已交付。
 
 - 协作约束见 [AGENTS.md](AGENTS.md)；本轮新旧依赖边界、状态与验收见 [过渡方案](docs/rbf1-reference-transition.md)。
 - 旧栈参考指南与 [EventJournal 历史设计](docs/EventJournal/)提供模型和事实背景，不是 main 新栈的规范权威。具体公开包以固定来源为准。

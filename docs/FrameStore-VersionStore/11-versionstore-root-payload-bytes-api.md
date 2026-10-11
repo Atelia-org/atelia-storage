@@ -1,6 +1,6 @@
 # VersionStore：root payload bytes 公面与所有权
 
-日期：2026-10-11。状态：**Accepted（已实施 ref/历史/fork/tag 的 source-only 源码资格；未来批量/CU 除外）**，映射见[最终源码验收](12-versionstore-final-acceptance.md)。同步 bytes 捕获、自有 GC 结果与精确 fork 复制已接通；`A-VS-BYTES-BATCH` 仍约束未来批量入口，不代表已提供该 API。本篇是 S4/S5/tag/CU 的 bytes API 与长度/生命周期唯一权威；不改变身份、根锁、单 driver、ProcessCrashOnly、data-first 或三态证据。CU 仍为候选，程序集拆分另行设计。
+日期：2026-10-11。状态：**既有 ref/历史/fork/tag 的 source-only 源码资格 Accepted；批量 CU 已正式接纳并取得本轮独立源码验收 Accepted**。既有范围见[最终源码验收](12-versionstore-final-acceptance.md)，新增 `A-VS-BYTES-BATCH` 接线与证据见[CU 验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。本篇是 S4/S5/tag/CU 的 bytes API 与长度/生命周期唯一权威；不改变身份、根锁、单 driver、ProcessCrashOnly、data-first 或三态证据。旧六包候选不含本轮 CU，程序集拆分另行设计。
 
 ## 最小公面
 
@@ -14,6 +14,9 @@ AteliaResult<RefRevision> CreateRef(
     out PublicationOutcome outcome);
 AteliaResult<RefRevision> PublishRef(
     RefId refId, ReadOnlySpan<byte> payload,
+    out PublicationOutcome outcome);
+AteliaResult<IReadOnlyDictionary<RefId, RefRevision>> PublishRefs(
+    IReadOnlyDictionary<RefId, ReadOnlyMemory<byte>> changes,
     out PublicationOutcome outcome);
 AteliaResult<RefBytesSnapshot> ReadRef(RefId refId);
 AteliaResult<RefBytesSnapshot> ReadRef(uint localRefId);
@@ -63,7 +66,7 @@ ResolveTag 交付前仍完整校验命中记录的 RBF 内容 CRC 与 root-paylo
 
 ### spec [A-VS-BYTES-BATCH] 批量输入只增加可放入集合的视图
 
-CU 候选 PublishRefs 接收 IReadOnlyDictionary<RefId, ReadOnlyMemory<byte>> changes，成功返回自有只读 IReadOnlyDictionary<RefId, RefRevision>，正常接口及集合 cast 不能改写 backing；没有 payload 输出或部分成功，所有成员共享一个 outcome。先逐项枚举并检查持久上下文、default/实际重复 RefId 和1..1MiB长度，以私有集合捕获；不继承 comparer、不信任 Count。枚举器的必要 Dispose/清理也 MUST 在 barrier/输出前完成，失败不交付捕获结果；按私有实际成员数选择路径。空批次拒绝，一个成员可用普通路径，两个及以上使用 CU。
+PublishRefs 接收 `IReadOnlyDictionary<RefId, ReadOnlyMemory<byte>> changes`，返回 `AteliaResult<IReadOnlyDictionary<RefId, RefRevision>>`；成功值是自有只读字典，正常接口及集合 cast 不能改写 backing。没有 payload 输出或部分成功，所有成员共享一个 outcome。入口第一条语句初始化 NotAttempted；先逐项枚举并检查持久上下文、default/实际重复 RefId 和 1..1MiB 长度，以私有集合捕获；不继承 comparer、不信任 Count。枚举器的必要 Dispose/清理也 MUST 在 barrier/输出前完成，失败不交付捕获结果；按私有实际成员数选择路径。空批次拒绝，一个成员 MUST 使用普通 Snapshot 发布路径，两个及以上 MUST 使用 [07 CU](07-versionstore-cross-ref-conditional-update.md)。全部目标必须为同库既有正式 ref，不创建或分配新 RefId。
 
 ReadOnlyMemory 仅用于放入普通集合，不转移 ownership；调用方在整个同步调用期间保持集合和全部 backing buffer 稳定、有效且不重入。库访问 Span 后分别复制有效 slice，全部副本完成才进入发布协议。自定义枚举器/MemoryManager 访问可能执行调用方代码，沿用 single-driver 前提，不新增并发快照/违约诊断。
 
@@ -77,4 +80,4 @@ ReadOnlyMemory 仅用于放入普通集合，不转移 ownership；调用方在�
 
 覆盖1B/1MiB/0B/超限、只复制 slice、输入修改与归池、stackalloc/数组/池来源；read/历史/tag 结果在 pooled 归还与 owner Dispose 后仍有效，后续读取不改变旧结果。证明所有核心路径不调用 RootMap decoder，并覆盖 JSON UTF-8、有界随机 bytes 与内容 codec 失败独立于 CRC/事务资格。批次实际重复/错上下文、同一 buffer 多个slice、捕获失败先于输出、整批 Outcome/确认后结果安装异常与 CU 元数据独立定位均须验证；纯输入失败与同时发生 owned 清理失败的停用差异也须覆盖。
 
-小根对象下选择捕获/交付复制以换取简单 ownership；没有零复制、公开 Builder、streaming、Lease/Dispose、codec callback 或通用预算框架。测量发现复制/RSS成为实际瓶颈后再单独评估。V0 普通 ref 局部实施与验证见实施计划；历史读取与精确 fork 已由 V2-A/V2-B 接线；匿名 tag 已由 V3-B 接线，关联 overload 及元信息公面已由 V3-C 接线；CU仍待正式选型。RBF pooled 生命周期与 FrameStore FrameRead 是底座参考，不替代本结果模型的实际证据。
+小根对象下选择捕获/交付复制以换取简单 ownership；没有零复制、公开 Builder、streaming、Lease/Dispose、codec callback 或通用预算框架。测量发现复制/RSS 成为实际瓶颈后再单独评估。普通 ref、历史、精确 fork 与 tag 的既有接线见实施计划；CU 已正式接纳，本轮接线/独立源码资格见 [07 验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。RBF pooled 生命周期与 FrameStore FrameRead 是底座参考，不替代本结果模型的实际证据。

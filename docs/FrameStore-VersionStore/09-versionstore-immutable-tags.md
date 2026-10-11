@@ -1,6 +1,6 @@
 # S5-B 专项：不可变 tag
 
-日期：2026-10-11。状态：**Accepted（独立 source-only 源码资格）**。1024个惰性桶、独立元信息CRC、匿名/关联 CreateTag、ResolveTag、ReadTagInfo/ScanTags及完整检查的证据见[最终源码验收](12-versionstore-final-acceptance.md)。V4-F补充具名内部进程窗口及六个独立名称/路由golden的冷进程回读，平台结果见[实施计划](12-versionstore-implementation-plan.md)；隔离包消费仍是独立交付出口。该设计取代未实施的tag草案，无旧tag数据迁移，不改ref/CU布局；CU仍为候选。
+日期：2026-10-11。状态：**Accepted（既有独立 source-only 源码资格）**。1024个惰性桶、独立元信息CRC、匿名/关联 CreateTag、ResolveTag、ReadTagInfo/ScanTags及完整检查的证据见[最终源码验收](12-versionstore-final-acceptance.md)。V4-F补充具名内部进程窗口及六个独立名称/路由golden的冷进程回读，平台结果见[实施计划](12-versionstore-implementation-plan.md)；隔离包消费仍是独立交付出口。该设计取代未实施的tag草案，无旧tag数据迁移，不改ref/CU布局；CU 已正式接纳，其新增资格见[07 验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。Related 仍只是坐标注记，不重新验证 CU 来源或共同判据。
 
 本文属于 [S5](05-versionstore-names-and-indexes.md) 的 S5-B，不新增项目或阶段。统一版本、持久身份、借入 data、根/锁、唯一 pending、single-driver、ProcessCrashOnly、PublicationOutcome 与停用清理由 [S4](04-versionstore-publication.md)定义；bytes 输入与自有结果由 [11 专项](11-versionstore-root-payload-bytes-api.md)定义。本篇独立拥有 tag 名称、桶、TailMeta、关联注记与元信息公面，不复制下层尺寸算法，不增加并发或断电保证。
 

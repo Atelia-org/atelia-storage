@@ -223,7 +223,7 @@ public sealed partial class VersionStore : IDisposable {
         return ReadCurrent(RefId.Create(_identity, localRefId));
     }
 
-    /// <summary>读取此库已发布 ref 的 checked 当前快照，不回退到旧记录。</summary>
+    /// <summary>读取最新 checked 发布快照；合法未提交 CU 不进入当前值，必要错误仍阻断回退。</summary>
     public AteliaResult<RefBytesSnapshot> ReadRef(RefId refId) {
         EnsureUsable();
         if (!refId.BelongsTo(_identity)) { return InvalidRef(); }
@@ -254,7 +254,9 @@ public sealed partial class VersionStore : IDisposable {
         if (!SizedPtr.TryCreate(tail, measured.Value.FrameLength, out _)) {
             return new VersionStoreRuntimeError("RefCapacityExceeded", "The real ref tail cannot represent another complete Snapshot ticket.");
         }
-        var current = RefRecordReader.ReadCurrent(file, _identity, refId);
+        var checkedHeader = RefRecordReader.CheckHeader(file, _identity, refId);
+        if (checkedHeader.IsFailure) { return checkedHeader.Error!; }
+        var current = CheckLocalCurrent(file, checkedHeader.Value);
         if (current.IsFailure) { return current.Error!; }
         long recordedAt = _testHooks?.GetRecordedAtUnixMs?.Invoke()
             ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -287,7 +289,10 @@ public sealed partial class VersionStore : IDisposable {
     private AteliaResult<RefBytesSnapshot> ReadCurrent(RefId refId) {
         var opened = GetOrOpen(refId.LocalId);
         if (opened.IsFailure) { return opened.Error!; }
-        return RefRecordReader.ReadCurrent(opened.Value!, _identity, refId);
+        IRbfFile file = opened.Value!;
+        var header = RefRecordReader.CheckHeader(file, _identity, refId);
+        if (header.IsFailure) { return header.Error!; }
+        return ReadPublishedCurrent(file, header.Value);
     }
 
     private AteliaResult<IRbfFile> GetOrOpen(uint localId) {
@@ -363,6 +368,7 @@ public sealed partial class VersionStore : IDisposable {
         try {
             CloseTagScanBucket(ref errors);
             CloseTagScanTargets(ref errors);
+            CloseConditionalPeer(ref errors);
             CloseHistoryTemporary(ref errors);
             CloseTagOperation(ref errors);
             IRbfFile? pending = _pendingRef;

@@ -33,6 +33,7 @@ internal static class InternalProcessHost {
                 throw new ArgumentException("Expected v4f-internal <command> <root> [scenario].");
             }
             args = args[1..];
+            if (args[0].StartsWith("cu-", StringComparison.Ordinal)) { return ConditionalUpdateProcessHost.Run(args); }
             if (args[0].StartsWith("tail.", StringComparison.Ordinal)) {
                 return InternalTailHost.Run(args);
             }

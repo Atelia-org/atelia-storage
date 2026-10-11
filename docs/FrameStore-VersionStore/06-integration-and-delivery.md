@@ -1,6 +1,6 @@
 # S6：消费者验证、公共包与交付
 
-状态：**S6-C/D Accepted（本地候选；Windows 与 WSL2/ext4 隔离包消费）；公开交付与真实接入未取得资格。** 实际候选版本、来源及限定平台见[本地交付记录](13-local-package-delivery.md)。FrameStore S2/S3 与 VersionStore S4/S5 的独立源码验收、V4-B/C/D 的组合/有限资源/应用策略、V4-F 的具名内部进程证据保留各自身份；V4-E 的反例修正及逐条裁决见[VersionStore 源码验收](12-versionstore-final-acceptance.md)。后续先收集下游试用反馈，公开发布与真实消费者切换另行确定范围。
+状态：**S6-C/D Accepted（既有六包本地候选；Windows 与 WSL2/ext4 隔离包消费）；公开交付与真实接入未取得资格。** 实际候选版本、来源及限定平台见[本地交付记录](13-local-package-delivery.md)。该不可变候选不含本轮 CU；CU 已正式接纳，其新源码/进程/平台资格见[07 验收](07-versionstore-cross-ref-conditional-update-acceptance.md)，本轮不自动重新打包或发布。FrameStore S2/S3 与 VersionStore S4/S5 的既有源码验收、V4-B/C/D 的组合/有限资源/应用策略、V4-F 的具名内部进程证据保留各自身份；V4-E 的反例修正及逐条裁决见[VersionStore 源码验收](12-versionstore-final-acceptance.md)。公开发布与真实消费者切换另行确定范围。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。本篇只负责组合、包与交付证据，不反向定义前序协议；ref/history/fork先验证，09 tag施工后补齐完整组合。FrameAddress变长增量资格见[实施记录](02-framestore-varint-address-implementation.md)。
 
 ## 本阶段目标
@@ -71,7 +71,9 @@ FrameStore既有资格不覆盖新增公共EnsureUsable或VS组合；先取得�
 
 tag 元信息组合在[实施计划](12-versionstore-implementation-plan.md)的V3-C接通后补齐：ReadTagInfo可读取root损坏但meta健康的记录；ScanTags以visitor完成名称枚举、时间段及Related ref筛选，不读root、不签发来源revision或证明bytes一致，也不证明整体名称唯一。所到坏meta失败，false立即VisitorStopped，不访问后缀；回调副作用不因后来失败回滚。Related创建仍只执行既定data-first发布，不重读/flush注记ref。
 
-single-driver/HistoryActive/TagScanActive、取消/回调Dispose及必要清理规则按所属阶段在public调用中复验；历史callback可进入ScanTags并使用独立临时桶槽，tag扫描callback拒绝mutation、递归扫描与进入历史，允许的日常读取按09执行。这些串行轨迹不改标为并发资格。实际Open/正式发现成本、history源anchor及必要前缀读取、ListForks规模、tag请求范围桶扫描/连续创建、全桶元信息扫描、bytes复制与资源峰值另测，不把增桶预计记录下降称为端到端提速，也不用codec算术或预算替代性能/平台证据。CU仅在正式接纳[07候选](07-versionstore-cross-ref-conditional-update.md)后另纳入组合矩阵，当前不验证或宣称主线支持。
+single-driver/HistoryActive/TagScanActive、取消/回调Dispose及必要清理规则按所属阶段在public调用中复验；历史callback可进入ScanTags并使用独立临时桶槽，tag扫描callback拒绝mutation、递归扫描与进入历史，允许的日常读取按09执行。这些串行轨迹不改标为并发资格。实际Open/正式发现成本、history源anchor及必要前缀读取、ListForks规模、tag请求范围桶扫描/连续创建、全桶元信息扫描、bytes复制与资源峰值另测，不把增桶预计记录下降称为端到端提速，也不用codec算术或预算替代性能/平台证据。[07 CU](07-versionstore-cross-ref-conditional-update.md)已正式接纳，新增组合矩阵与实际结果独立列在[07 验收](07-versionstore-cross-ref-conditional-update-acceptance.md)，不重标前轮 public 停点或历史探针。
+
+CU 组合必须包含：全部 fresh 成员完成前缀/排列及至少两个既有 ref 的 public 冷重开、data-first 与逐文件完成/flush/确认后安装窗口、未提交 CU 跳过且历史不泄漏、普通覆盖后的旧组资格、同/异长位置复用与必要结构错误、lazy CompletedTail、CU 来源的普通子 Snapshot byte clone、peer 预算/清理、Audit 已发布计数。真实进程终止、受控异常、镜像截断各自标明证据类别；ProcessCrashOnly 不外推为断电。整组成功只共同确认发布资格，不保证跨调用快照隔离或当前 heads 永远同步。
 
 ### spec [S-DELIVERY-PACK-OWNER] 包入口有单一负责人
 
@@ -89,6 +91,7 @@ single-driver/HistoryActive/TagScanActive、取消/回调Dispose及必要清理�
 
 源码测试、子进程恢复、Windows/Linux、隔离候选包、公开签名包回读、消费者升级及真实实例切换 MUST 分别记录。
 源级通过不代表 package API 可用，静态 Source Link 不代表远端下载成功，最小图消费者不代表 DurableGraph 领域正确性。
+已有六包候选的版本/manifest/hash/来源不可变，不因当前 main 新增 CU 而自动拥有 PublishRefs。后续 CU 包交付必须使用新版本，从对应干净已提交树打包并重跑四个隔离 PackageReference smoke；本轮 CU 源码实施不自动授权这一步或网络发布。
 
 ## 仓库接入清单
 

@@ -1,3 +1,4 @@
+using Atelia.Data;
 using Atelia.Rbf;
 using Atelia.VersionStore.Internal.Format;
 using Atelia.VersionStore.Internal.Records;
@@ -45,11 +46,38 @@ public sealed partial class VersionStore {
         IRbfFile sourceFile = opened.Value!;
         var header = RefRecordReader.CheckHeader(sourceFile, _identity, sourceRefId);
         if (header.IsFailure) { return header.Error!; }
-        var captured = RefRecordReader.CaptureExactSnapshot(sourceFile, header.Value, sourceRevision.Ticket);
+        var captured = CaptureExactPublication(sourceFile, header.Value, sourceRevision.Ticket);
         if (captured.IsFailure) { return captured.Error!; }
 
         var origin = new ForkOrigin(sourceRefId, sourceRevision.Ticket);
         return PublishNewRef(prepared.Value, captured.Value!, automatic, origin, sourceFile, ref outcome);
+    }
+
+    private AteliaResult<byte[]> CaptureExactPublication(IRbfFile file, CheckedRefHeader header, SizedPtr ticket) {
+        if (ticket.Offset < header.InitialSnapshotOffset
+            || file.GetPhysicalOffsetImmediatelyAfter(ticket) > file.TailOffset) {
+            return new RefRecordError("The exact source publication lies outside the checked header's completed range.");
+        }
+
+        var readInfo = file.ReadFrameInfo(ticket);
+        EnsureUsable();
+        if (readInfo.IsFailure) { return readInfo.Error!; }
+        RbfFrameInfo info = readInfo.Value;
+        if (!RefRecordCodec.IsPublicationShape(info)
+            || (ticket.Offset == header.InitialSnapshotOffset && !RefRecordCodec.IsSnapshotShape(info))) {
+            return new RefRecordError("The exact source physical record has an invalid publication shape.");
+        }
+        var read = ReadPublication(file, header, info, checkState: EnsureUsable);
+        if (read.IsFailure) { return read.Error!; }
+        RefBytesSnapshot? snapshot = read.Value.Snapshot;
+        if (snapshot is null) { return InvalidHistoryOrigin("The exact source CU is not a published snapshot."); }
+
+        // The complete frame's CRC does not cover its following Fence. Keep the exact
+        // anchor check and capture only root bytes, excluding a CU's Members envelope.
+        var boundary = file.GetScanBoundaryAfter(ticket);
+        EnsureUsable();
+        if (boundary.IsFailure) { return boundary.Error!; }
+        return snapshot.Payload.ToArray();
     }
 
     private bool IsLocalRevision(RefRevision revision) =>

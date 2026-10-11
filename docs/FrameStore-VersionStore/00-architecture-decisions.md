@@ -1,6 +1,6 @@
 # S0：总体边界与决策
 
-日期：2026-10-03–10 逐步确认 FrameStore 核心、RootMap 发布与 ForkOrigin；2026-10-10 新增 FrameAddress 变长 codec，并采用无 branch 名称、持久预留低号区、自动/预留区指定创建及单文件 ref 发布。状态：**会话方向已确认；S2/S3 独立源码验收 Accepted，新增地址能力单独验证；S4–S6 仍 Draft，VersionStore 已接通 source-only 的普通 ref 公开持久化闭环与有界历史读取；参考依赖拆分 Accepted**。
+日期：2026-10-03–11 逐步确认 FrameStore 核心、root payload 发布、ForkOrigin、tag 与 CU；2026-10-11 正式接纳多个既有 ref 的 ConditionalUpdate。状态：**S2/S3 与 S4/S5 既有范围的独立源码验收 Accepted；S6-C/D 旧六包本地候选资格 Accepted；本轮 CU 已正式接纳、实施并取得独立源码资格 Accepted，尚未取得新包资格；参考依赖拆分 Accepted**。CU 增量见[07 验收](07-versionstore-cross-ref-conditional-update-acceptance.md)，不重标[既有源码验收](12-versionstore-final-acceptance.md)或[包交付](13-local-package-delivery.md)。
 本文件记录本次用户已表达的决策。规范写法依 [规范约定](../spec-conventions.md)。API/wire 的具体选择由后续阶段细化。
 
 ## term `FrameStore` 中性的 Frame 存储库
@@ -66,7 +66,7 @@ RootMap 作为可选应用 codec MUST 用 @`Frame-Address` 表达中性根地址
 ### decision [S-FS-CORE-INDEPENDENT] MVP 仅组合核心存储与发布能力
 
 MVP MUST 仅组合 RBF3、FrameStore 核心与 VersionStore 的 ref 发布、历史/fork 和不可变 tag；VS 直接用自己的 RBF3 文件持久化 ref/tag。扩展需求/合同/实施另审，不作为核心格式/API/实施片或 Accepted 前置。
-VersionStore MUST NOT 依赖具体应用构建 State 中间帧的申请顺序、完成顺序或物理排列来定义发布事实；首版发布依据自己的单文件 ref 和 tag 记录。
+VersionStore MUST NOT 依赖具体应用构建 State 中间帧的申请顺序、完成顺序或物理排列来定义发布事实；发布依据自己的普通 Snapshot/tag 记录或 CU 共同成员判据。
 
 ### decision [S-FS-FILE-LEASES] 文件租借串行且可嵌套
 
@@ -121,14 +121,20 @@ tag 创建后不改；ref rewind 追加旧 payload 的新快照，不截掉已�
 
 ### decision [S-VS-REF-SINGLE-FILE] 首版 ref 使用单个 RBF3 文件
 
-2026-10-07 用户明确要求：每个 ref MUST 使用一个以稳定唯一 RefId 定位的 RBF3 文件，每次更新追加一个完整 payload 帧；当前值只读最后快照。首版不分段、不轮转、不差分。RBF / SizedPtr 的帧尺寸和起始偏移硬界仍有效，超界显式拒绝，不能覆盖、回绕或截掉旧历史。
+2026-10-07 用户明确要求：每个 ref MUST 使用一个以稳定唯一 RefId 定位的 RBF3 文件，每次更新追加一个完整 payload 帧；普通 head 直接读取，CU head 由共同判据选择最新已发布快照。首版不分段、不轮转、不差分。RBF / SizedPtr 的帧尺寸和起始偏移硬界仍有效，超界显式拒绝，不能覆盖、回绕或截掉旧历史。
 历史选点是首版功能：从固定已完成上界逆序交付完整快照，返回调用结束后仍可使用的自有 bytes snapshot。S5 定稿同步 bool visitor、返回/工作步两个预算，正常结束区分 Complete 与 VisitorStopped，预算耗尽是专用失败；不外泄枚举器、epoch 或 reader。随机历史读取、持久 cursor、索引及文件分段可以作为后续局部实施片；不提前写入其 wire。
 
 ### decision [S-VS-RECORD-METADATA] ref 记录保存时间，以 meta 长度判形
 
-2026-10-10 用户采用：普通 Snapshot 与未来接纳的 CU MUST 在 TailMeta 保存固定 8B 有符号 Unix 毫秒时间，不另存 record version 字节；元信息形状按实际 TailMetaLength 判别，未来只向末尾追加确定宽度字段。记录时间用于展示/诊断，不承担 revision 身份、发布顺序、fork 因果或事务资格。
+2026-10-10 用户采用：普通 Snapshot 与 CU MUST 在 TailMeta 保存固定 8B 有符号 Unix 毫秒时间，不另存 record version 字节；元信息形状按实际 TailMetaLength 判别，未来只向末尾追加确定宽度字段。记录时间用于展示/诊断，不承担 revision 身份、发布顺序、fork 因果或事务资格。
 
-时间语义、一次私有取时、ref/CU 的精确形状与完整内容资格唯一见 [S4 元信息专项](08-versionstore-record-metadata.md)。S4 负责公开结果/普通宿主尺寸，S5/CU 直接复用；专项不是后序阶段，不给 data/header 增加时间或改变 CU 独立候选状态。2026-10-11 用户采用 tag 的记录时间、可选 Related 关联注记及独立元信息 CRC；tag 只复用时间意义，独立 schema、资格与元信息公面唯一见 [09 专项](09-versionstore-immutable-tags.md)，不套用 ref 的固定8B形状。
+时间语义、一次私有取时、ref/CU 的精确形状与完整内容资格唯一见 [S4 元信息专项](08-versionstore-record-metadata.md)。S4 负责公开结果/普通宿主尺寸，S5/CU 直接复用；专项不是后序阶段，不给 data/header 增加时间。CU 每批只取时一次，时间不扩充共同判据。2026-10-11 用户采用 tag 的记录时间、可选 Related 关联注记及独立元信息 CRC；tag 只复用时间意义，独立 schema、资格与元信息公面唯一见 [09 专项](09-versionstore-immutable-tags.md)，不套用 ref 的固定8B形状。
+
+### decision [S-VS-CROSS-REF-CU] 多个既有 ref 以共同成员判据发布
+
+2026-10-11 用户正式接纳 [07 ConditionalUpdate](07-versionstore-cross-ref-conditional-update.md) 及必要读取重构。`PublishRefs` 只更新同库多个 distinct 既有 ref，全部输入先私有捕获；空集合拒绝、单成员用普通 Snapshot、至少两个成员逐文件各写一条 fresh CU。每份 canonical Members 包括自身实际 ticket，全部指定 CU 完整合法且完整成员表相等才共同成立；不补旧组，不引入 TxId、Prepared 日志、全局 heads 或恢复执行。
+
+当前值、历史、fork 与 Audit 共用07资格；未提交 CU 不进入当前值/发布历史，exact fork 来源未提交必须拒绝。子初始永远为普通 Snapshot，仅 clone root bytes。普通 PublishRef 覆盖只检查本地物理 head，不强制确认上一组 peer；lazy CompletedTail 解释、exact-first/有限错误 allowlist/异长真实前驱后继消歧由07定义。单 driver、data-first、ProcessCrashOnly、完整历史不复用及 owned 清理保持；不承诺跨调用快照隔离、跨 ref 全序、创建/tag/跨库事务或断电耐久。
 
 ### decision [S-VS-REF-FORK-LINK] 创建来源连接完整发布历史
 
@@ -227,7 +233,7 @@ VersionStore 内部投影安装与消费者安装应用状态分别负责。发�
 
 IO/发布尝试后结果可能 Unknown；完整记录可在重开后存在。首版重开读取实际 ref/tag 状态，不依据原异常假设失败，也不盲重试；当前值相同不证明某次调用曾得到 Confirmed。已知损坏不能通过回退到更早根来掩盖。
 
-同文件多 writer、多线程执行、跨实例实时 CAS、在线外部改写、GC/compaction、跨库事务及更强的断电模型属于单独需求；首版覆盖一个 root payload 的原子发布，不建立跨 ref 全序或原子事务。
+同文件多 writer、多线程执行、跨实例实时 CAS、在线外部改写、GC/compaction、跨库事务及更强的断电模型属于单独需求。普通发布覆盖一个 root payload，CU 以完整成员表共同裁决多个既有 ref 的发布资格；不建立跨 ref 全序或跨调用快照隔离。
 
 ## 旧库维护边界
 
@@ -244,13 +250,13 @@ IO/发布尝试后结果可能 Unknown；完整记录可在重开后存在。首
 | RBF3 create/open/recovery 及串行、资源异常边界 | 当前 [接口规范](../Rbf/rbf-interface.md)和 [70d1009 随附验收](../Rbf/rbf3-review-repairs-acceptance.md)；本次未重跑 |
 | 精确尺寸公共 API、提前 ticket Builder、格式投影 | [S1](01-rbf-sized-append.md) 已 Accepted；实现 `8ab98bf`、RBF 818/818 与 W: public 源码消费等身份见[阶段验收](01-rbf-sized-append-acceptance.md) |
 | main 参考依赖拆分及三包交付入口 | [过渡验收](../rbf1-reference-transition.md#6-验收记录) Accepted；1525/1525、七个旧栈 assets 图及 `4db3b8f` 的 W: 三包候选消费通过，不重标 S1 历史结果 |
-| FrameStore 与其测试项目 / VersionStore | FrameStore 已有[公开持久化闭环](02-framestore-persistence-implementation.md)及[同步物理检查](02-framestore-inspection-implementation.md)，S2/S3独立源码Accepted、暂不打包；VersionStore已有[骨架与后续实施计划](12-versionstore-implementation-plan.md)，普通 ref 公开闭环已接通；D3设计闭合不提供系统验收资格 |
-| 新根发布模型 | 普通 ref 的 V1、历史读取的 V2-A、精确 fork 的 V2-B 与声明图的 V2-C 实施及源码证据见[实施计划](12-versionstore-implementation-plan.md)；tag/CU 未实施 |
+| FrameStore 与其测试项目 / VersionStore | S2/S3 与 S4/S5 既有源码资格分别见两份最终验收；已纳入[旧六包本地候选](13-local-package-delivery.md)，该来源不含 CU。本轮 CU 源码与新增资格另列 |
+| 新根发布模型 | 普通 ref、历史、fork、声明图、tag 与 Audit 的既有实现及源码证据见[实施计划](12-versionstore-implementation-plan.md)；CU 正式接纳，新增实际结果见[07 验收](07-versionstore-cross-ref-conditional-update-acceptance.md) |
 | DurableGraph 当前接口及接入 | 2026-10-04 已定位兄弟仓；生产代码仍使用未知尺寸 Begin/End，无新 API 接入证据，不以历史 tag 文档代替实证 |
 
 ## S0 出口
 
 会话已确认新项目/旧维护边界/RBF 恢复、FrameStore 分配/三种追加/嵌套 Builder/软轮转/目录生命周期/header/归还/config，以及完整 root payload 最后发布、单文件 ref、历史与 ForkOrigin。VersionStore 采用无 branch 名称、持久预留低号区及自动/指定创建，指定只用预留号，单文件发布；tag 继续保留。S2/S3 已形成并取得独立源码资格，既有合同不因本轮应用范围化简而改变；VS 剩余关键机制与验证归所属阶段。
-S1 的单文件尺寸和 ticket 合同已实施并独立验收为 Accepted；S2/S3 前轮源码资格见[最终源码验收](02-framestore-final-acceptance.md)，新增 FrameAddress 变长 API 单独记录实施验证。S4–S6 仍是 Draft，具体 wire、类名、方法签名及性能预算按各阶段阻断项细化；本片不代表 VersionStore 或下游适配已完成。
+S1 的单文件尺寸和 ticket 合同已实施并独立验收为 Accepted；S2/S3 与 S4/S5 既有范围分别取得源码资格，S6-C/D 取得原来源的本地候选资格。本轮 CU 正式接纳的 wire、API、判据与预算已进入 S4/S5/07/11，新增源码、平台与包资格仍依实际验收，不沿用旧证据。
 
-2026-10-10 用户采用：无变更 fork 不解码/重编码 RootMap，原样复制 exact 源发布记录的 root-payload bytes，来源一致性检查逐 byte 相同；成功返回子 RefRevision。规范见 S4 [A-VS-ROOT-PAYLOAD] 与 S5；CU 候选 Members-first 布局独立定位 root payload。raw payload 公面已定于 [11专项](11-versionstore-root-payload-bytes-api.md)，FrameStore 程序集拆分另行设计，不在本轮移除借入 data/barrier。
+2026-10-10 用户采用：无变更 fork 不解码/重编码 RootMap，原样复制 exact 源发布记录的 root-payload bytes，来源一致性检查逐 byte 相同；成功返回子 RefRevision。规范见 S4 [A-VS-ROOT-PAYLOAD] 与 S5；CU Members-first 布局独立定位 root payload。raw payload 公面已定于 [11专项](11-versionstore-root-payload-bytes-api.md)，FrameStore 程序集拆分另行设计，不在本轮移除借入 data/barrier。

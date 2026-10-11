@@ -17,8 +17,6 @@ internal static class RefHeaderCodec {
         RbfFile.MeasureWriteSize(NoOriginPayloadSize, 0).Value.AppendLength;
     private static readonly int s_minimumSnapshotLength =
         RbfFile.MeasureWriteSize(1, RecordMetadataCodec.EncodedSize).Value.FrameLength;
-    private static readonly int s_maximumSnapshotLength =
-        RbfFile.MeasureWriteSize(VersionStore.MaxRootPayloadLength, RecordMetadataCodec.EncodedSize).Value.FrameLength;
 
     internal static bool TryRead(
         ReadOnlySpan<byte> payload, StoreIdentity expectedIdentity, RefId expectedRefId, out RefHeader header) {
@@ -68,7 +66,8 @@ internal static class RefHeaderCodec {
 
     private static bool IsValidSourceTicket(SizedPtr ticket) {
         // Packed 已保证可表示与对齐；合法最后帧的末端/Fence 可以超过 MaxOffset，不能另加 end 上界。
+        // 来源可能是 CU；这里仅检查发布坐标的外层尺寸，不证明记录或共同发布资格。
         return ticket.Offset >= s_minimumSnapshotOffset &&
-            ticket.Length >= s_minimumSnapshotLength && ticket.Length <= s_maximumSnapshotLength;
+            ticket.Length >= s_minimumSnapshotLength && ticket.Length <= SizedPtr.MaxLength;
     }
 }
