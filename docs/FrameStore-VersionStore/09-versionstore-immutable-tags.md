@@ -1,6 +1,6 @@
 # S5-B 专项：不可变 tag
 
-日期：2026-10-11。状态：**Draft；用户已批准 1024 个惰性桶、独立校验的可变长 TailMeta、可选关联注记及元信息读取/扫描。VersionStore 普通 ref、历史、fork 与声明分叉图已接通；tag 尚未实施，无 tag 运行或验收证据（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。本次取代未实施的 tag 草案，无旧 tag 数据迁移，不改 ref/CU 布局；CU 仍为候选。
+日期：2026-10-11。状态：**Draft；用户已批准 1024 个惰性桶、独立校验的可变长 TailMeta、可选关联注记及元信息读取/扫描。VersionStore 普通 ref、历史、fork 与声明分叉图已接通；V3-A 已实现 tag codec 与单桶扫描内核，公开 tag 操作尚未接通（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。本次取代未实施的 tag 草案，无旧 tag 数据迁移，不改 ref/CU 布局；CU 仍为候选。
 
 本文属于 [S5](05-versionstore-names-and-indexes.md) 的 S5-B，不新增项目或阶段。统一版本、持久身份、借入 data、根/锁、唯一 pending、single-driver、ProcessCrashOnly、PublicationOutcome 与停用清理由 [S4](04-versionstore-publication.md)定义；bytes 输入与自有结果由 [11 专项](11-versionstore-root-payload-bytes-api.md)定义。本篇独立拥有 tag 名称、桶、TailMeta、关联注记与元信息公面，不复制下层尺寸算法，不增加并发或断电保证。
 
@@ -26,7 +26,7 @@ CreateTag 的两个 bytes 入口与 ResolveTag 唯一消费11：CreateTag 返回
 
 TagName MUST 为 non-null .NET string，按 `string.Length` 接受 **1..1024 个 UTF-16 code units**。VersionStore 提供 `public const int MaxTagNameCodeUnits = 1024`，不提供实例配置；两个 CreateTag 入口、ResolveTag 与 ReadTagInfo 在文件 I/O 前共用准入，超长查询不能探桶后报 TagNotFound。相等使用 StringComparer.Ordinal；Release 与 release 可以分别创建。MUST 原样保留 code units，不 trim、normalize、大小写转换或 replacement。空串被拒绝；非空空白、NUL、控制符、路径分隔符、U+FEFF 与未配对 surrogate 均合法。长度单位不是 scalar、grapheme 或编码字节数。
 
-名称是字段，不成为路径组件，不继承 branch 或冻结旧栈的 ASCII、128B、文件名字符限制。tag 尚未实施，无已发布 tag 格式或新栈 tag 消费验收，不增加旧 tag 兼容义务。
+名称是字段，不成为路径组件，不继承 branch 或冻结旧栈的 ASCII、128B、文件名字符限制。tag 尚无公开持久化闭环及包消费验收，不增加旧 tag 兼容义务。
 
 ### spec [F-VS-TAG-NAME-BPV1] 名称复用普通无损字符串
 
@@ -54,7 +54,7 @@ writer MUST 直接复用 RollingCrc.SealCodewordForward(meta)，reader MUST 复�
 
 MetaCRC 通过后从其前缀顺序解码时间、id、条件 ticket 与名字，要求 **exact-consume**；多余字段/尾随 bytes 拒绝，不按名字的默认编码长度定位。ReadVarUInt32 至多5B、ReadVarUInt64 至多10B，接受 BPV 有界冗余编码；匿名0也可能使用冗余 id 前缀。字符串按实际 ConsumedCount 消费，声明 payload 在分配前用 ReadString(3072) 限界，解码后再检查 1..1024 code units。字节界仍可能先产生3072个 ASCII chars 的临时字符串，不能声称分配前已保证逻辑1024上界；超长逻辑名随后拒绝。
 
-逻辑 meta golden（RBF escape 前，尚非实现验收）：time=0/id=0/Name=A → `00 00 00 00 00 00 00 00 00 03 41 DE 80 26 2D`，15B；time=0/id=1/ticket=(60,40)，Serialize=574、VarUInt64=`BE 04`/Name=A → `00 00 00 00 00 00 00 00 01 BE 04 03 41 69 45 83 C3`，17B。checksum 分别为 0x2D2680DE 与 0xC3834569，按 LE 保存。
+逻辑 meta golden（RBF escape 前，V3-A 纳入 codec 验收）：time=0/id=0/Name=A → `00 00 00 00 00 00 00 00 00 03 41 DE 80 26 2D`，15B；time=0/id=1/ticket=(60,40)，Serialize=574、VarUInt64=`BE 04`/Name=A → `00 00 00 00 00 00 00 00 01 BE 04 03 41 69 45 83 C3`，17B。checksum 分别为 0x2D2680DE 与 0xC3834569，按 LE 保存。
 
 ### spec [F-VS-TAG-CAPACITY] 名称、元信息与完整记录的接受界
 
@@ -85,7 +85,7 @@ VersionStoreFormatVersion=1 MUST 固定 FNV-1a 64-bit：逐个原 UTF-16 code un
 
 相等名称必同桶、跨进程稳定，hash/桶碰撞仍按 Ordinal fullname 区分。这些参数绑定统一格式版本，不能随运行配置或实现更换。FNV 常量与 XOR folding 形式见 [RFC 9923 §2–§3](https://datatracker.ietf.org/doc/html/rfc9923#section-3)；这里固定一次折叠，不宣称全64-bit折叠或分布最优。1024桶限制潜在文件数，每个实际创建桶增加一个 header，仍不轮转。
 
-独立向量（脚本复算，尚非实现验收）：A → hash 0908a207b5a15704 / bucket 00000351；Release → c5566333f1504164 / 00000174；release → bc7f822919cbbb44 / 000001aa；单个 code unit U+D800 → 0831b007b4ea00e5 / 00000265。tag-48 与 tag-65 都为00000106，须分别创建/解析。BPV `03 41`、`02 41 00`、`83 00 41` 均为 A，必须得到同一 hash/桶，不把宽容读取改成 wire 规范化。
+独立向量（脚本复算，V3-A 纳入 codec 验收）：A → hash 0908a207b5a15704 / bucket 00000351；Release → c5566333f1504164 / 00000174；release → bc7f822919cbbb44 / 000001aa；单个 code unit U+D800 → 0831b007b4ea00e5 / 00000265。tag-48 与 tag-65 都为00000106，须分别创建/解析。BPV `03 41`、`02 41 00`、`83 00 41` 均为 A，必须得到同一 hash/桶，不把宽容读取改成 wire 规范化。
 
 tags 是 S4 根准入认识的**可选普通目录**，初次建库不预建；只读 Open/ResolveTag/ReadTagInfo/ScanTags 不创建。首次合法 CreateTag 在确定准入与 data barrier 后、私有初始化前 create-only 建立它，取得 ordinary/no-follow 与同文件系统资格；已存在组件须精确小写且合格。目录存在不表示已发布 tag。
 
@@ -183,6 +183,6 @@ named请求仍做路径资格与O(目标桶记录数+checked meta bytes)扫描�
 | ScanTags/互操作 | missing返回Complete；元信息声明逐条交付含重复及坏root；后续坏meta失败不回滚已交值且不称partial success；false不读后续，取消/throw/Dispose/close优先；递归scan/进入history/全部mutation拒，read/info/resolve/ListForks允许；history callback可scan，双临时槽与当前桶读复用 |
 | 发布/恢复/组合 | data失败无tag输出/无关Builder不堵；pending取消/RO保留，空桶rename仍NotAttempted；Append/flush Unknown与确认后close失败Confirmed；CompletedTail后meta重验；冷开不认领旧尝试；ref后续更新不改tag，应用坏data明确失败，无精确来源能力 |
 
-**施工与成熟度：** 本次为批准的未实施合同修订。V3-A 实施名称/1024路由、可变 TailMeta/独立 CRC、named 元信息隔离与完整 Resolve；V3-B 完成惰性空桶初始化、CreateTag→ResolveTag→冷重开及 Outcome/恢复/资源验收。V3-C 可随后独立实施关联 overload、TagInfo/ReadTagInfo/ScanTags 与回调 guard，不阻断 V3-A/B；核心匿名 writer 仍按同一 schema 写id0。现有公开 RBF TailMeta 读取及 RollingCrc 已够，不新增底层路径/CRC scanner/索引接口。尚缺 tag 源码、真实冷进程/中断、平台、资源与包证据，不宣称 Ready/Accepted；根准入认识 tags 目录不等于已支持 tag。
+**施工与成熟度：** 本合同的 V3-A 已实现名称/1024路由、可变 TailMeta/独立 CRC、named 元信息隔离与唯一命中后的内部完整 root 读取；V3-B 待完成惰性空桶初始化、CreateTag→ResolveTag→冷重开及 Outcome/恢复/资源验收。V3-C 可随后独立实施关联 overload、TagInfo/ReadTagInfo/ScanTags 与回调 guard，不阻断 V3-A/B；核心匿名 writer 仍按同一 schema 写id0。现有公开 RBF TailMeta 读取及 RollingCrc 已够，不新增底层路径/CRC scanner/索引接口。V3-A 的具体源码/测试资格见实施计划；仍缺公开 tag 闭环、真实冷进程/中断、平台、owner 资源与包证据，不宣称 Ready/Accepted；根准入认识 tags 目录不等于已支持 tag。
 
 依据：既有tag合同从35d6c2d的S5迁入；[S5](05-versionstore-names-and-indexes.md)保留导航与历史互操作。[S4](04-versionstore-publication.md)、[RBF接口](../Rbf/rbf-interface.md)、[公共尺寸](../../src/Rbf/RbfFile.cs)、[小TailMeta读取与解escape](../../src/Rbf/RbfFrameInfo.cs)、[RollingCrc封口/检查](../../src/Data/Hashing/RollingCrc.cs)、[BPV字符串选择](../../src/Binary/BareValueEncoding.Strings.cs)、[分配前限制](../../src/Binary/BareValueReader.Strings.cs)、[VarInt](../../src/Binary/BareValueReader.cs)、[SizedPtr](../../src/Data/SizedPtr.cs)为机制依据。[RBF正扫测试](../../tests/Rbf.Tests/Internal/RbfScanForwardTests.cs)为底座证据；冻结旧栈[不可变tag测试](../../tests/EventJournal.Tests/ImmutableTagTests.cs)与[书签消费者](../../../durable-graph/tests/DurableGraph.Persistence.Tests/RepositoryTagTests.cs)仅作工作流背景，不引入旧API/格式，不构成本专项验收。

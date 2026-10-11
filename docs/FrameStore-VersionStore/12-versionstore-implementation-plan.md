@@ -14,6 +14,7 @@
 | --- | --- |
 | `RefId` / `RefRevision` / `RefBytesSnapshot` / `PublicationOutcome` | 公共值与自有结果；可信内部构造只保存已资格化字段 |
 | `Internal/Format` | VSID、44B 门、24/36B ref header、4B local 字段、meta8、规范路径；无文件 I/O |
+| `Internal/Tags` | tag 名称/1024桶路由、BucketHeader/变长 meta codec 与借入句柄的单桶扫描；独立元信息资格与完整 root 资格分离 |
 | `Internal/Records` | 从已取得的 public IRbfFile 校验本次需要的 header/Snapshot，先元信息尺寸再完整读取、复制结果；不拥有文件，历史 helper 内真实步骤由窄回调计费 |
 | `VersionStore` / `Internal/Runtime` | 身份/模式 guard、输入捕获、data-first、PublicationOutcome 与 owned 资源清理；`VersionStore.History.cs` 管固定前缀、预算、回调及一个当前临时句柄；声明图查询另持查询局部临时句柄 |
 | `Internal/Storage` / `Internal/Platform` | 根准入/锁/门 I/O/发现/唯一 pending/原生不覆盖发布/按模式打开；不解释应用 bytes |
@@ -85,6 +86,17 @@ VersionStore 与 FrameStore 均保持 source-only，新栈只引用 main 项目�
 
 实际测试、独立复核与范围限制见本文 V2-C 验证记录。本轮未实施 tag、完整检查、CU 或包交付。
 
+## V3-A：tag 记录与单桶扫描内核（2026-10-11）
+
+本轮从 `33b6cee` 的干净树开始，先完整重读更新后的09，再按 codec、借入句柄读取、内容验收、I/O 边界验收与独立复核分包。采用1024桶、纯 root Payload 与独立 CRC 的可变 TailMeta；关联声明可编解码，但公开 tag 操作仍留后续分片。
+
+- 名称保留1..1024个原 UTF-16 code units，使用普通 BPV 字符串及固定 FNV 路由；接受另一合法表示与有界冗余前缀，按实际消费长度解码。
+- BucketHeader 完整 CRC/身份/桶号检查；TailMeta 用 RollingCrc 默认封口和校验，精确解码时间、可选关联和值域合法的名称。关联仅恢复坐标，不签发 RefRevision 或读取来源。
+- 单桶 named 扫描只检查小 meta，目标计数饱和于2，未知名称只影响零命中的缺失判定。可信元信息即占名，root 长度非法或 CRC 坏不会使名字消失；只有唯一命中的 root 读取才执行完整尺寸、CRC 和自有 RootPayload 复制。
+- 内核借入已准入的 Idle RBF 句柄，不打开/恢复/关闭文件，不接管 owner 的资源或 callback guard。真实读取失败与结构终止失败原样传播；仅本层元信息内容错误可局部隔离。
+
+本片不接通 CreateTag/ResolveTag/ReadTagInfo/ScanTags 公共操作，不证明正式桶 I 长度前检、空桶发布、Outcome 或全桶回调生命周期；这些资格依次由 V3-B/V3-C取得。验证结果见下方本轮记录。
+
 ## 后续顺序与验收出口
 
 | 分片 | 可审查交付物 | 必须保留的边界与验收 |
@@ -93,16 +105,16 @@ VersionStore 与 FrameStore 均保持 source-only，新栈只引用 main 项目�
 | V2-A：已接通有界历史读取 | RBF 指定边界逆扫公共重载；ReadRefHistory、HistoryBudget、HistoryEnd | 固定上界、实际工作计费、早停/回调 Dispose、临时句柄复用/单次清理；受控 ForkOrigin 继承读取与 exact bytes 检查，不代表 fork 创建协议已实施 |
 | V2-B：已接通精确 fork 创建 | 自动/预留号两种 ForkRef；复用现有新 ref 单文件发布路径 | 已签发旧 revision exact 定位/尾 Fence、捕获源 bytes；所有确定拒绝先于 barrier，data 后源 flush，子重新取时并 exact clone；各失败窗口的 Outcome 与停用；public fork-of-fork/历史冷重开闭环 |
 | V2-C：已接通声明分叉图 | ListForks、ForkInfo 与全正式 ref header 扫描 | 仅读 header、单数量预算、缺源/自链接/迭代环检查、自有完整边集合；历史 callback 内同文件复用且不覆盖历史临时槽；不逐边完整审计源 ticket |
-| V3-A：tag 记录与扫描内核（下一片） | 09 的名称/容量/1024桶路由、BucketHeader/TagRecord codec、必要 header、独立 meta CRC 与请求范围扫描裁决；11 的自有 RootPayload 值 | 原 UTF-16/Ordinal 与宽容 BPV，尺寸前检；元信息资格与 root 完整CRC分离，可信非目标不读 root；unknownName、目标重复/损坏与结构错误分离；真实 RBF 文件验收，内部能力不冒称公开 tag 闭环 |
-| V3-B：tag 公开持久化闭环 | 可选 tags 目录及目标桶 backend、空桶发布、匿名 CreateTag/ResolveTag、公开冷重开 | 正式桶长度 I 前检保护初始化；空桶 rename 不推进 tag outcome；同柄元信息查重到 Append；同一 schema 写匿名 id0；借入/history/清理/Outcome 与 bytes 结果互操作 |
+| V3-A：已接通 tag 记录与扫描内核 | 09 的名称/容量/1024桶路由、BucketHeader/TagRecord codec、必要 header、独立 meta CRC 与请求范围扫描裁决；11 的自有 RootPayload 值 | 原 UTF-16/Ordinal 与宽容 BPV，尺寸前检；元信息资格与 root 完整CRC分离，可信非目标不读 root；unknownName、目标重复/损坏与结构错误分离；真实 RBF 文件验收，内部能力不冒称公开 tag 闭环 |
+| V3-B：tag 公开持久化闭环（下一片） | 可选 tags 目录及目标桶 backend、空桶发布、匿名 CreateTag/ResolveTag、公开冷重开 | 正式桶长度 I 前检保护初始化；空桶 rename 不推进 tag outcome；同柄元信息查重到 Append；同一 schema 写匿名 id0；借入/history/清理/Outcome 与 bytes 结果互操作 |
 | V3-C：tag 关联注记与元信息公面 | Related CreateTag overload；09 的自有 TagInfo、ReadTagInfo、ScanTags/TagScanEnd 与同步 callback | Related 不触发源重读/flush或签发revision；元信息成功不证明 root 健康；逐全已建桶、无 fullname 集合或整体重复证明；Complete/VisitorStopped、坏meta失败、取消/异常/Dispose/关闭及 TagScanActive 互操作；在 V3-B 后独立实施，不阻断 V3-A/B |
 | V4：独立完整校验与系统验收 | 只读完整检查入口、public 消费例子、进程终止/资源与两平台矩阵、S4/S5/S6 条款映射 | 日常必要读取与完整校验分别取证；新旧/循环图、坏初始健康 head、应用解码失败、所有发布与清理窗口；不得将内部模拟、字节镜像或源码测试标成 public factory、真实 kill、断电或包资格 |
 
-V1 至 V2-C 已完成源码接线，后续不重做 ref 工厂、历史、fork 或声明图。下一轮优先 V3-A：按 [09 tag 专项](09-versionstore-immutable-tags.md) 先实现名称/路由/容量及单桶请求范围扫描内核，再由 V3-B 接通真实目录和公开发布。拆分依据是 tag 有独立的局部损坏隔离及初始化保护，不能简单套用 ref 当前值检查；这沿用既定 tag 施工顺序，不新增设计问题。
+V1 至 V2-C 及 V3-A 已完成相应源码接线，后续不重做 ref 工厂、历史、fork、声明图或 tag 字段格式。下一轮优先 V3-B：消费 [09 tag 专项](09-versionstore-immutable-tags.md) 与现有单桶内核，接通真实目录和匿名 CreateTag/ResolveTag 公开发布闭环。拆分依据是 tag 有独立的局部损坏隔离及初始化保护，不能简单套用 ref 当前值检查；这沿用既定 tag 施工顺序，不新增设计问题。
 
-V3-A 应用现有 Binary 字符串 plan/reader，消费09的 1..1024 UTF-16 code units、3077B name codeword、纯 root payload 1..1MiB、meta 最大3104B及 payload+meta 最大1,051,680B接受界；路由固定1024桶，具体公式/布局只在09维护。meta CRC 使用现有 `RollingCrc.SealCodewordForward/CheckCodewordForward` 默认参数，作用于 RBF decoded meta codeword；底座 ReadTailMeta 自身不认证其 bytes，独立CRC、exact-consume、名称/Related语义及路由资格通过后才可信。真实 RBF 向量须覆盖两种合法字符串表示/冗余前缀、同桶碰撞、CRC独立golden、各meta字段及末CRC损坏、变长Related/名称边界和尺寸租用前检查。以读取日志证明可信非目标不读root，root/PayloadCRC坏但meta健康仍占同名，Resolve命中才完整校验root；meta坏置unknownName，不猜健康缺失。目标重复与必要结构/I/O/OOM/close错误仍拒绝，不建全名集合或跨调用索引。`RootPayload` 与任何对外常量只按已定公面接入，不添加尚不能工作的 tag 公开占位。
+V3-A 已使用 Binary 字符串 plan/reader 与 RollingCrc 默认 Seal/Check，实现09的实际 codeword 接受界。后续直接消费 `Internal/Tags` 的准备、尺寸预检、checked header、named 扫描与唯一目标完整读取，不在公开操作中再实现第二份 codec 或名称裁决。内部单记录元信息读取要求 FrameInfo 来自 checked header 绑定句柄的真实主链；它严格返回坏元信息错误，named 路径才允许精确隔离，未来 ScanTags 直接传播。`RootPayload` 与 `MaxTagNameCodeUnits` 已加入既定公面，尚无不能工作的 tag 操作占位。
 
-V3-B 消费该内核，另实现正式桶 I 长度前检、缺桶 data-first 初始化与空桶 rename、同一正式句柄元信息查重/Append/flush/close、HistoryActive guard 和完整失败证据。接通原匿名 Span 入口，仍按09的完整 schema 写 RelatedLocalRefId=0。验证独立一次取时、匿名不带ticket、同名root坏仍不能创建，以及冷重开元信息/opaque bytes与Outcome。若现场证据表明两片能可靠合并，可由调度者明确扩至完整 tag 闭环；不能将局部扫描测试提前写成公开资格。后续真实文件实验按 S4/S5 使用 W:；Linux 验证另留身份与结果。
+V3-B 消费该内核，另实现正式桶 I 长度前检、缺桶 data-first 初始化与空桶 rename、同一正式句柄元信息查重/Append/flush/close、HistoryActive guard 和完整失败证据。接通原匿名 Span 入口，仍按09的完整 schema 写 RelatedLocalRefId=0。验证独立一次取时、匿名不带ticket、同名root坏仍不能创建，以及冷重开元信息/opaque bytes与Outcome。继续区分已取得的局部扫描资格和待验证的公开生命周期；不能将局部扫描测试提前写成公开资格。后续真实文件实验按 S4/S5 使用 W:；Linux 验证另留身份与结果。
 
 V3-C 在 V3-B 后接入 Related CreateTag overload、`TagInfo`、`ReadTagInfo(name)` 与 `ScanTags(visitor, CancellationToken)`；字段、签名及 `TagScanEnd.Complete/VisitorStopped` 唯一见09。Related overload 仅接收同 VS、非default、库已签发的 RefRevision，拒绝先于I/O/barrier，不解释输入bytes、不重读或flush相关ref、不签发新revision；验证Related同有同无、关联点与payload可以不相等、关联源随后不可用不影响tag自身资格。ReadTagInfo 检查请求名重复，只依赖独立checked meta，root损坏时仍可返回info；ScanTags逐全已建桶交付自有info，不读root、不建fullname集合或证明全库唯一，所到坏meta失败而不silent skip后Complete。验证false立即停且不访问后缀、callback已发生副作用不回滚、取消/异常/Dispose/必要关闭失败不能正常终止，已交付info在失败及owner关闭后仍有效。TagScanActive 拒绝全部mutation、递归ScanTags与进入历史，mutation必选out仍首句NotAttempted；允许日常读、ResolveTag、ReadTagInfo及ListForks。历史callback允许ScanTags，使用独立临时桶槽；同桶callback查询复用合格句柄，所有退出清guard并单次清理。时间段/ref反查由visitor按字段筛选，总成本包含全部已建桶名称资格、header及meta，不增加时间/来源索引或查询框架。
 
@@ -177,4 +189,17 @@ V2-A 当轮未实施 ForkRef/ListForks/tag/CU、未打包/发布/push。继承�
 
 测试设计阶段发现并补上取消检查间隙：取得首帧扫描器后、实际推进和完整 header 读取前，复用 CheckHeader 的 beforeWork 接缝检查状态。对应测试通过真实 RBF 日志证明该点取消后没有读取请求。最终测试前修正两项新 xUnit 断言风格 warning；早期底座 XML warning 未扩大修订。最终完整运行无失败。
 
-`eng/Test-Rbf1ReferenceAssets.ps1` 确认 7 个冻结参考项目仍消费精确 RBF1 包；VS assets 中 FrameStore/Binary/Rbf/Data/Primitives 均为 main project，外部 codec 仍为 K4os.Compression.LZ4 1.3.8。未打包、发布、push 或迁移消费者。内部故障、受控文件镜像与 Windows 源码测试不替代 Linux、真实进程终止、原生设备故障、规模或包消费资格；声明图成功不证明初始化、全部 Snapshot 或 data 图健康。当前无产品决策阻塞，下一轮按上表优先 V3-A tag 记录与扫描内核。
+`eng/Test-Rbf1ReferenceAssets.ps1` 确认 7 个冻结参考项目仍消费精确 RBF1 包；VS assets 中 FrameStore/Binary/Rbf/Data/Primitives 均为 main project，外部 codec 仍为 K4os.Compression.LZ4 1.3.8。未打包、发布、push 或迁移消费者。内部故障、受控文件镜像与 Windows 源码测试不替代 Linux、真实进程终止、原生设备故障、规模或包消费资格；声明图成功不证明初始化、全部 Snapshot 或 data 图健康。当时下一片为 V3-A；现已接续，当前顺序见上表。
+
+
+## V3-A 验证记录（2026-10-11）
+
+最终 Release build **0 error、0 warning**；完整 `dotnet test Atelia.Storage.slnx -c Release --no-build` 为 **3030 通过、0 失败、9 项 Linux 专属测试跳过**。VersionStore **767 通过、6 跳过**，本轮新增 Tags 73 项与 TagFaults 37 项，共110项。独立源码及测试复核无未解决 P1/P2。命令、9份最终TRX、日志摘要、基线及19个源码/测试文件摘要见 [V3-A 证据](evidence/2026-10-11-versionstore-v3a.json)。
+
+W: 真实 RBF 文件验证首 header、冷重开后的单桶内核、自有 opaque bytes、同桶碰撞/同名不同编码/其他名重复、unknownName 在唯一目标前后及零目标不确定。独立 golden 与手工 BPV 向量覆盖全 UTF-16 code units、冗余前缀、实际3104B meta、关联声明值域、CRC 与 exact-consume；真实帧另强制非零 escape key 和5B root，验证非对齐 meta 解 escape 后的独立CRC。容量与实际起点检查只消费公共 RBF MeasureWriteSize/SizedPtr，合法最后帧末端可越过最大起点。
+
+真实 RBF 读日志和现有内部 read/rent 诊断接缝证明：非目标不完整读 root；M=0/超界仍读小 meta 并占名，Resolve 在租完整帧前拒绝；唯一目标完整读取在扫描正常 EOF 后进行。同柄受控截断验证 meta/framing/full-frame short read，诊断注入验证真实读/租用位置的 I/O、EOF异常、OOM及guard失败传播。buffer 内 codec 截短与真实文件短读分别取证。上述测试不等于原生设备故障、实际系统 OOM、owner停用/关闭或公开 tag 生命周期资格。
+
+首轮定向测试有两项夹具失败：未配对 surrogate 经 InlineData 属性传值被替换，并产生重复测试ID；现改为运行时从原 code unit 构造。坏 Fence 镜像仅有一个健康后继时由 factory EOF 的左 Fence 校验先拒；现增加第二个健康后继，确认进入 scanner 的 TerminationError 路径。未放宽生产合同。首次构建另有既有 Data/Rbf XML warning 和两个新增可空性 warning；新增 warning 已按明确成功分支修正，未扩大旧代码清理。修正后最终完整运行无失败或重复测试ID。
+
+`eng/Test-Rbf1ReferenceAssets.ps1` 确认7个冻结参考项目仍消费精确 RBF1包；VS assets 中 FrameStore/Binary/Rbf/Data/Primitives 均为 main project，外部codec仍为 K4os.Compression.LZ4 1.3.8。未改RBF/FrameStore/pack清单，未打包、发布、push或迁移消费者。当前无产品决策阻塞；下一片 V3-B 接正式桶初始化保护和匿名公开发布闭环，V3-C 再接元信息公面与回调生命周期。

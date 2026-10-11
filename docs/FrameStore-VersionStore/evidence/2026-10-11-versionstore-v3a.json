@@ -1,0 +1,218 @@
+{
+  "date": "2026-10-11",
+  "scope": "VersionStore V3-A tag codec and borrowed-handle single-bucket scanning; source-only; no public tag operations",
+  "baseline": "33b6cee452be25d4317697835ee7cd4ff907e447",
+  "sourceIdentity": "Baseline plus changed/new source files below, committed with this record; UTF-8 text normalized to LF.",
+  "platform": "Windows-11-10.0.22000-SP0",
+  "fixtureDrive": "W:",
+  "commands": [
+    "dotnet build Atelia.Storage.slnx -c Release --nologo -v minimal",
+    "dotnet test Atelia.Storage.slnx -c Release --no-build --logger trx --results-directory artifacts/versionstore-v3a/accepted-tests",
+    "./eng/Test-Rbf1ReferenceAssets.ps1"
+  ],
+  "build": {
+    "succeeded": true,
+    "finalIncrementalWarnings": 0,
+    "errors": 0,
+    "note": "Initial build emitted 41 existing Data/Rbf XML warnings and 2 new nullable warnings. New warnings corrected after explicit IsFailure checks; no unrelated cleanup."
+  },
+  "newCases": {
+    "TagFaults": 37,
+    "Tags": 73
+  },
+  "testOutcomes": {
+    "Passed": 3030,
+    "NotExecuted": 9
+  },
+  "testRuns": [
+    {
+      "assembly": "Atelia.Primitives.Tests.dll",
+      "results": {
+        "Passed": 75
+      },
+      "trx": "artifacts/versionstore-v3a/accepted-tests/gdtutu_TUTU17_2026-10-11_11_51_39.trx",
+      "sha256": "4fc0957d0e673a64b3528d9411c650522ee4fd30e782efbfff3d114b1cee8cbc"
+    },
+    {
+      "assembly": "Atelia.Binary.Tests.dll",
+      "results": {
+        "Passed": 214
+      },
+      "trx": "artifacts/versionstore-v3a/accepted-tests/gdtutu_TUTU17_2026-10-11_11_51_40.trx",
+      "sha256": "ea0b9b3ec41a16d939154a47058335eecf699146a1df6b1d776035324e75ea00"
+    },
+    {
+      "assembly": "Atelia.Data.Tests.dll",
+      "results": {
+        "Passed": 288
+      },
+      "trx": "artifacts/versionstore-v3a/accepted-tests/gdtutu_TUTU17_2026-10-11_11_51_40[1].trx",
+      "sha256": "bab87eb7d8b8336ce0bcfaec0fb75302e2902e70d35e37e5232795f6050bdd46"
+    },
+    {
+      "assembly": "Atelia.RbfSegmentStore.Tests.dll",
+      "results": {
+        "Passed": 48
+      },
+      "trx": "artifacts/versionstore-v3a/accepted-tests/gdtutu_TUTU17_2026-10-11_11_51_40[2].trx",
+      "sha256": "7f4505e63e972c0a21d2c8e6621c2b06e692d02d493c34efce0dbf226030ddba"
+    },
+    {
+      "assembly": "Atelia.VersionStore.Tests.dll",
+      "results": {
+        "Passed": 767,
+        "NotExecuted": 6
+      },
+      "trx": "artifacts/versionstore-v3a/accepted-tests/gdtutu_TUTU17_2026-10-11_11_51_40[3].trx",
+      "sha256": "42f153e9f17448c43751532006535f3d002fdb88d22e0e282496710443a46f20"
+    },
+    {
+      "assembly": "Atelia.EventJournal.Toolkit.Tests.dll",
+      "results": {
+        "Passed": 122
+      },
+      "trx": "artifacts/versionstore-v3a/accepted-tests/gdtutu_TUTU17_2026-10-11_11_51_41.trx",
+      "sha256": "b583f25f207b574e7fc7dac2be33484fe77efd8737344b2cce678040e8889f13"
+    },
+    {
+      "assembly": "Atelia.Rbf.Tests.dll",
+      "results": {
+        "Passed": 920
+      },
+      "trx": "artifacts/versionstore-v3a/accepted-tests/gdtutu_TUTU17_2026-10-11_11_51_41[1].trx",
+      "sha256": "84f21e7f25ff30d71364b153a52b8a3180a919c397198f436202eedc51724dfc"
+    },
+    {
+      "assembly": "Atelia.FrameStore.Tests.dll",
+      "results": {
+        "Passed": 422,
+        "NotExecuted": 3
+      },
+      "trx": "artifacts/versionstore-v3a/accepted-tests/gdtutu_TUTU17_2026-10-11_11_51_41[2].trx",
+      "sha256": "2049fcd69ab663409ccfb332331cceaa183473fa522c4352cc552224b2b2dd8a"
+    },
+    {
+      "assembly": "Atelia.EventJournal.Tests.dll",
+      "results": {
+        "Passed": 174
+      },
+      "trx": "artifacts/versionstore-v3a/accepted-tests/gdtutu_TUTU17_2026-10-11_11_51_41[3].trx",
+      "sha256": "f7a6f706f60cdd808b9defb1aad8a55816a82796f51caba57b1e8052da4ecd9e"
+    }
+  ],
+  "logs": [
+    {
+      "path": "artifacts/versionstore-v3a/build.log",
+      "sha256": "16e33e60919d64747eeb209b391e7611d18b1f80fc15864d333beabc32f2fee9"
+    },
+    {
+      "path": "artifacts/versionstore-v3a/accepted-tests.log",
+      "sha256": "897a779184cab487a5d55a4762c198cbb7cc454c01509a3ad9c62dd2eab03119"
+    },
+    {
+      "path": "artifacts/versionstore-v3a/rbf1-assets.log",
+      "sha256": "75997e0656849e10b55138a4500b10da8c61d34feca82a27c2e364995a4738d0"
+    }
+  ],
+  "sourceFiles": [
+    {
+      "path": "src/VersionStore/Internal/Tags/CheckedTagBucketHeader.cs",
+      "sha256": "bac52e3a79bda0f6624b7697e129b346bba4e52b7671fd5d6bd7160edf26eb9f"
+    },
+    {
+      "path": "src/VersionStore/Internal/Tags/TagBucketHeaderCodec.cs",
+      "sha256": "3b371f41f7b84bdea13f5c0f9a0d1bff963fea2013e09dd14ac21a10674c43e0"
+    },
+    {
+      "path": "src/VersionStore/Internal/Tags/TagMetadataCodec.cs",
+      "sha256": "1930417fd058384cb91561a31479fd4752800f18bd4066ce0da99a58929e6c30"
+    },
+    {
+      "path": "src/VersionStore/Internal/Tags/TagNameCodec.cs",
+      "sha256": "22a6836335c950b432f706449030808619d1de0e8babb4a62ad8738d7137d6d7"
+    },
+    {
+      "path": "src/VersionStore/Internal/Tags/TagNameLookup.cs",
+      "sha256": "516d81b2ce7d0e26c33959bd2ab6af13a3514cfe82ab8245f0c65337501a2ab4"
+    },
+    {
+      "path": "src/VersionStore/Internal/Tags/TagRecordCodec.cs",
+      "sha256": "db62f601216f981c4e14d43bd09518e2693cafca4e62cd6f0c278d90b962cde5"
+    },
+    {
+      "path": "src/VersionStore/Internal/Tags/TagRecordReader.cs",
+      "sha256": "8cf9d1560bffa4da2d0e87faa7f8863c15833c0c3983728e7f5519e27aabd15a"
+    },
+    {
+      "path": "src/VersionStore/RootPayload.cs",
+      "sha256": "e48d1518e8dde3c05181177886eec973d8ff9fee2a2f64a1dbf61d0150dbec41"
+    },
+    {
+      "path": "src/VersionStore/VersionStore.cs",
+      "sha256": "30eee3a50dc6dff9442680296cf878730e32ab42e6f6030981a395072fb3fae5"
+    },
+    {
+      "path": "tests/VersionStore.Tests/TagFaults/TagErrorPropagationTests.cs",
+      "sha256": "f3167c18df38d50cb71f3bde8428decad28a77dcc91929e90a568bf503d2d246"
+    },
+    {
+      "path": "tests/VersionStore.Tests/TagFaults/TagFaultFixture.cs",
+      "sha256": "f14914b69338fd0e8e5bb6e6763ce7579380e0e629a3bdfac6e1c3649f4be637"
+    },
+    {
+      "path": "tests/VersionStore.Tests/TagFaults/TagReadScopeTests.cs",
+      "sha256": "17e0aa9aab9bd50ba794e74a9c76727448d3a8a893c7772f1418cc82f067da8f"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Tags/RootPayloadTests.cs",
+      "sha256": "28075719cbf13735b7555edb36edd14ca13720185b38718acb04a79f88f6c7d6"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Tags/TagBucketFixture.cs",
+      "sha256": "f78c2afe271f178785b0da8bdc4bf991c72ac4d97168d4828c691077da0cf8cb"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Tags/TagHeaderAndMetadataTests.cs",
+      "sha256": "f9c722d94ea75fe2455aae70670d2f728341e2267a2acd68a99991c597531f57"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Tags/TagNameTests.cs",
+      "sha256": "69e59f316f847ec0d62937810dd02870f5b8d63c379eed1650b60193b8ba4316"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Tags/TagRecordCapacityTests.cs",
+      "sha256": "27c70c92751ff30daa97157cf291a73dab070438133e566f8c8368a42ec265a8"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Tags/TagRecordReaderTests.cs",
+      "sha256": "9fab489116e9683dac0e3fc24f6356e57aba49badb9fd32571ca74663e171133"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Tags/TagTestWire.cs",
+      "sha256": "f80cfd7537b7370a85c875da487e4d2845a05afb1097ea2a40966e5ed8f2a26f"
+    }
+  ],
+  "dependencies": {
+    "K4os.Compression.LZ4/1.3.8": "package",
+    "Atelia.Binary/1.0.0": "project",
+    "Atelia.Data/1.0.0": "project",
+    "Atelia.FrameStore/1.0.0": "project",
+    "Atelia.Primitives/1.0.0": "project",
+    "Atelia.Rbf/1.0.0": "project"
+  },
+  "frozenReferenceAssets": "Seven frozen projects verified exact RBF1 0.2.0-rbf1-preview.1, source 3e9554e2ea70f769607e80b3fc11a85506050533.",
+  "reviewAndFixes": [
+    "Independent production and test review: no unresolved P1/P2.",
+    "Initial targeted run: 109 passed, 2 failed; duplicate xUnit ID from unpaired surrogate attribute data. Tests fixed to construct original runtime code units, preserving the independent FNV golden.",
+    "Fence fixture initially rejected by factory EOF qualification; added second healthy successor to exercise scanner failure. No production validation relaxed.",
+    "Actual read/rent observations and public RBF read logs distinguish metadata-only reads from unique-target full reads. Forced nonzero escape with a 5-byte root verifies decoded metadata CRC.",
+    "Guard tests describe post-read checks, not stronger final-delivery or owner-lifecycle qualification."
+  ],
+  "limitations": [
+    "Borrowed Idle IRbfFile internal helpers; directory admission, I pre-open length guard, empty bucket publication, public tag operations and PublicationOutcome are V3-B.",
+    "Public related overload, TagInfo/ReadTagInfo/ScanTags and callback/owner cleanup are V3-C.",
+    "Controlled byte corruption, same-handle truncation and diagnostic read/rent exceptions are internal evidence, not native device faults, real system OOM, or process-kill evidence.",
+    "Windows only; nine Linux-only tests skipped. No package smoke, packing, publication, push, or consumer migration.",
+    "Named query success does not prove untouched buckets, root contents of other names, source revisions or application data graphs."
+  ]
+}

@@ -13,6 +13,9 @@ public sealed partial class VersionStore : IDisposable {
     /// <summary>单条完整 root payload 的最大长度，单位 bytes。</summary>
     public const int MaxRootPayloadLength = 1_048_576;
 
+    /// <summary>单个 tag 名称的最大长度，单位 UTF-16 code units。</summary>
+    public const int MaxTagNameCodeUnits = 1024;
+
     private readonly DataStore _data;
     private readonly StoreIdentity _identity;
     private readonly byte[] _versionStoreId;

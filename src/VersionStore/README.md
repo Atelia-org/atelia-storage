@@ -14,11 +14,12 @@ VersionStore 借入一个 FrameStore，发布不透明 root-payload bytes。每�
 - 自动/预留区指定 `ForkRef`：精确读取已签发 revision，确认 data 后单独确认源 ref，原样复制 bytes 并发布带 ForkOrigin 的子文件；不扫描源后续历史。
 - `ListForks(maxRefs, cancellationToken)`：检查所有正式首帧及声明图，交付自有只读 `ForkInfo` 边列表，不读取 Snapshot 或重读来源 ticket。
 - 私有初始化后一次不覆盖文件移动发布；异常停用、资源单次清理和锁最后释放。
+- tag 内部名称/1024桶路由、BucketHeader 与独立 CRC 可变元信息 codec、借入句柄的单桶 named 扫描及自有 `RootPayload`；公开 tag 操作待接线。
 - 独立可选 `RootMapCodec.Encode/Decode`：有效 Unicode key、Ordinal、变长 FrameAddress、1MiB 上限及完整 codeword 解码。它不在发布内核中自动运行。
 
 `Create(rootPath, data, reservedRefIdUpperBound: 0)` 建立空库，默认没有预留低号；自动创建从 1 开始。指定创建只允许 1..预留上界的空闲槽，自动创建使用正式集合水位加一。`Open(rootPath, data)` 独占打开并取消合格 pending；`OpenReadOnly(rootPath, data)` 共享只读打开，保留 pending，不恢复 ref。各工厂先检查实际借入 data 的可用性与模式，随后核对持久绑定。调用方保持 data 存活并串行使用两层；VS Dispose 不关闭 data。
 
-核心公开闭环为 `Create → CreateRef → PublishRef → ReadRef/ReadRefHistory → Dispose → Open/RO → ReadRef/ReadRefHistory`。两种 `ForkRef` 已接通，并用公开创建和两层冷重开验证继承历史。`ListForks` 已可查询全部正式 ref 的声明分叉图。当前还没有 tag 或完整校验入口；没有占位方法。Windows 源码测试与 Linux、进程终止、包消费资格分别记录，见实施计划。
+核心公开闭环为 `Create → CreateRef → PublishRef → ReadRef/ReadRefHistory → Dispose → Open/RO → ReadRef/ReadRefHistory`。两种 `ForkRef` 已接通，并用公开创建和两层冷重开验证继承历史。`ListForks` 已可查询全部正式 ref 的声明分叉图。当前还没有公开 tag 或完整校验入口；没有占位方法。Windows 源码测试与 Linux、进程终止、包消费资格分别记录，见实施计划。
 
 历史调用示例：
 

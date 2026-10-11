@@ -102,7 +102,7 @@ D6 已由 S2 `[S-FS-ROOT-ADMISSION]` 与真实目录工厂关闭：调用方根/
 | --- | --- | --- |
 | S4 已定，交实施 | 初次建库/根锁/唯一pending/ListRefs/停用清理及恢复后完整性准入已定，不再有D3设计阻塞 | V1已接通CreateRef→ReadRef→PublishRef→冷重开及Windows局部验证；V2-A 已接通历史读取，V2-B 已接通精确 fork，V2-C 已接通 ListForks；后续补 tag、完整检查与两平台进程中断，保持VS整体Draft，局部验证与系统资格分开 |
 | S5 历史已定，交实施 | 已签发 revision/不可变 ForkOrigin 直接精确读取；日常 header/逐项检查与声明图检查分离，详见 S4/S5 | V2-A 已实施[RBF 指定边界逆扫公共重载](../Rbf/rbf-reverse-boundary-plan.md)与旧 fork 点之前的历史读取，源码证据见实施计划；V2-B 已接通 ForkRef，V2-C 已接通 ListForks；继续 tag 与系统验收，不重开已定设计 |
-| S5-B 已定，靠后施工 | [09 专项](09-versionstore-immutable-tags.md)的名称/BPV/容量、1024桶与独立meta资格、Related注记及元信息公面已定，不再有 D8 设计阻塞 | V3-A/B先完成内核及CreateTag→ResolveTag→冷重开；V3-C随后补ReadTagInfo/ScanTags、guard/callback互操作与元信息筛选验收，系统/资源/平台/组合资格另取证 |
+| S5-B 已定，靠后施工 | [09 专项](09-versionstore-immutable-tags.md)的名称/BPV/容量、1024桶与独立meta资格、Related注记及元信息公面已定，不再有 D8 设计阻塞 | V3-A已完成codec与单桶内核，V3-B接续CreateTag→ResolveTag→冷重开；V3-C随后补ReadTagInfo/ScanTags、guard/callback互操作与元信息筛选验收，系统/资源/平台/组合资格另取证 |
 | S2–S6 已定合同 | 仅在真实反例、机制不可行或明确新要求时重开 | 所属阶段的实施/验收要求、进程中断、平台及隔离包消费证据；条件优化另看实际需求 |
 
 每轮结论写回所属阶段，只从本表移出已关闭的设计子题；D3/D8 已移出，不因其实现尚缺而重建待定项。普通实现选择和已定合同验收交给对应实施片，允许少量导航，不建立越来越细的研究队列。关键方案若须实验，先用最小探针取证；若只缺完整实现/测量，说明证据缺口并结束设计轮，不用文档代替代码模型。
