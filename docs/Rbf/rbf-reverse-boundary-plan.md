@@ -1,13 +1,13 @@
-# RBF：按已校验边界逆向扫描的窄计划
+# RBF：按已校验边界逆向扫描的实施记录
 
-状态：**Draft / 已选定设计，公共入口尚未实施**。本篇记录拟新增的逆扫重载，不修改当前 [RBF 接口规范](rbf-interface.md)，不构成已有 API、探针或 Accepted 验收证据。
+状态：**2026-10-11 已实施公共入口；源码验证见 [VersionStore V2-A 记录](../FrameStore-VersionStore/12-versionstore-implementation-plan.md#v2-a-验证记录2026-10-11)**。公共合同已同步 [RBF 接口规范](rbf-interface.md)；本篇保留动机、资格边界与验收映射，不将该源码增量视为包发布或两平台资格。
 
-## 目标与拟新增入口
+## 目标与公共入口
 
-VersionStore 的继承历史需要从已选定的旧 source ticket 向前读取；当前 `ScanReverse(bool)` 只能从已打开文件的实际完成尾部开始，定位成本随 source 后续更新增长。本计划复用现有 `RbfScanBoundary` 和 boundary 校验，只增加一个公开重载：
+VersionStore 的继承历史需要从已选定的旧 source ticket 向前读取；`ScanReverse(bool)` 只能从已打开文件的实际完成尾部开始，从 EOF 定位旧点的成本随 source 后续更新增长。本次复用现有 `RbfScanBoundary` 和 boundary 校验，只增加一个公开重载：
 
 ```csharp
-// 拟新增到 IRbfFile；当前接口与源码尚无此重载。
+// IRbfFile
 AteliaResult<RbfReverseSequence> ScanReverse(
     RbfScanBoundary boundary, bool showTombstone = false);
 ```
@@ -16,7 +16,7 @@ AteliaResult<RbfReverseSequence> ScanReverse(
 
 ## 一个共用的 boundary 校验
 
-以下为拟实施合同，准入及错误类别沿用现有 `ScanForward(boundary, ...)`，不得把新重载理解为当前可调用能力：
+以下合同已经实施，准入及错误类别与 `ScanForward(boundary, ...)` 共用：
 
 1. 先执行相同的 Dispose、共享 write fault 与 Idle guard；Building 时在读取前拒绝，不完成或取消 Builder。
 2. 要求 `EndExclusive` 为全局 4B 对齐，且 `4 <= EndExclusive <= TailOffset`。
@@ -38,7 +38,7 @@ RBF3 的 marker-free 正常 writer 前缀保证全局对齐 Fence 只在真实�
 
 ## 实现接点与成本
 
-可提取复用 [RbfFileImpl](../../src/Rbf/Internal/RbfFileImpl.cs) 的 `ScanForward(boundary, ...)` 现有 boundary 检查；通过后构造 `new RbfReverseSequence(_reader, boundary.EndExclusive, showTombstone)`。只共享这一个校验流程，不增加 boundary 类型、扫描 lease 或通用信任框架。
+[RbfFileImpl](../../src/Rbf/Internal/RbfFileImpl.cs) 的两个 boundary 扫描重载共用 `ValidateScanBoundary`；通过后构造 `new RbfReverseSequence(_reader, boundary.EndExclusive, showTombstone)`。只共享这一个校验流程，不增加 boundary 类型、扫描 lease 或通用信任框架。
 
 现有 [GetScanBoundaryAfter](../../src/Rbf/Internal/RbfReadImpl.ScanBoundary.cs) 会完整读取 anchor 并检查尾 Fence；重载重新核验后，枚举器仍可能再次读取其结构，调用方取得 payload 时也可能再次完整读取。不得承诺一次读取或由暖缓存推定冷读成本。VersionStore 历史必须给 helper 内每次真实完整读取及枚举推进计工作步，先检查额度再执行；不能只给最外层 helper 计费而漏掉重复工作。
 
@@ -55,4 +55,4 @@ RBF3 的 marker-free 正常 writer 前缀保证全局对齐 Fence 只在真实�
 | profile 与冷开 | RBF1 沿既定只读/profile 检查，不增加成员承诺；RBF3 正常 writer 嵌套 payload 向量；坏当前尾仍受 factory 拒绝/恢复约束 |
 | VS 接线 | 已签发旧 revision 与持久来源分别使用其既定资格；真实重复完整读全部计历史预算，早停不访问更早初始或下一来源 |
 
-完成公共入口、针对性源码测试及独立接线复核后，再同步 `rbf-interface.md` 的可用接口与资格说明。此前 VS 文档应显式引用本篇 planned 前置，不以此计划宣称生产或平台验收完成。
+公共入口和针对性测试见 [RbfReverseBoundaryTests](../../tests/Rbf.Tests/Internal/RbfReverseBoundaryTests.cs)，VS 接线与预算/资源测试见 [V2-A 实施与验证](../FrameStore-VersionStore/12-versionstore-implementation-plan.md)。`rbf-interface.md` 已同步可用接口、anchor 完整核验与结构枚举的 CRC 职责区分。RBF1 向量只检验既有只读 profile 支持，不修改冻结旧栈的包依赖；Linux、真实进程终止与新增 API 的包消费资格单列后续验证。

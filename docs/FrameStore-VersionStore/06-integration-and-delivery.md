@@ -1,6 +1,6 @@
 # S6：消费者验证、公共包与交付
 
-状态：**Draft；FrameStore S2/S3独立源码验收已Accepted并保持source-only；VersionStore 已接通普通 ref 公开闭环；本阶段完整端到端集成、包与消费者切换尚未实施（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。
+状态：**Draft；FrameStore S2/S3独立源码验收已Accepted并保持source-only；VersionStore 已接通普通 ref 公开闭环与有界历史读取；本阶段完整端到端集成、包与消费者切换尚未实施（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。本篇只负责组合、包与交付证据，不反向定义前序协议；ref/history/fork先验证，09 tag施工后补齐完整组合。FrameAddress变长增量资格见[实施记录](02-framestore-varint-address-implementation.md)。
 
 ## 本阶段目标
@@ -52,7 +52,7 @@ tool-loop 首次/新 attempt 外发之前 MUST 正常确认该 attempt 的冻结
 | [S5实施与验收](05-versionstore-names-and-indexes.md#实施与验收) | 固定历史上界/预算/停止/回调、直接精确fork来源及byte clone、指定边界继承历史、ListForks header/完整声明图/额度/自有结果 |
 | [08时间](08-versionstore-record-metadata.md)、[09tag](09-versionstore-immutable-tags.md)、[10可选RootMap](10-versionstore-rootmap-payload.md)、[11bytes](11-versionstore-root-payload-bytes-api.md) | 所属格式向量、初始化/扫描、长度/捕获/结果生命周期与内容解释边界；组合时保持各自资格 |
 
-FrameStore既有资格不覆盖新增公共EnsureUsable或VS组合；先取得其新增源码/public证据再接入。S5继承历史还需[RBF 指定边界逆扫公共重载](../Rbf/rbf-reverse-boundary-plan.md)，现有Accepted不包含此尚未实现的增量，S6须消费其独立public验收。public消费者不能借反射、internal入口或旧类型补能力；底座合成探针不代替新库/header/身份门或组合实证。
+FrameStore既有资格不覆盖新增公共EnsureUsable或VS组合；先取得其新增源码/public证据再接入。S5继承历史使用已实施的[RBF 指定边界逆扫公共重载](../Rbf/rbf-reverse-boundary-plan.md)，V2-A 源码验证单独记录；既有Accepted不自动包含此增量，S6须补充其包消费与组合资格。public消费者不能借反射、internal入口或旧类型补能力；底座合成探针不代替新库/header/身份门或组合实证。
 
 **进程中断矩阵。** 使用子进程终止及真实文件冷重开，覆盖以下跨层窗口；保留源commit、SDK、平台、failpoint、预期/实际结果与证据路径。单元fault injection、字节前缀镜像与真实进程中断分别报告，不冒充断电资格。
 
@@ -91,12 +91,12 @@ single-driver/HistoryActive、取消/回调Dispose及必要清理规则按所属
 | 入口 | 前序/本阶段责任 |
 | --- | --- |
 | 四个新 csproj、solution | S2/S4 创建和接入，S6 核对 build/test/package 身份 |
-| RBF 新 API 与 XML | S1 完成；2026-10-07 活跃 Builder 随机读取底座改进另见[本轮记录](reviews/2026-10-07-completed-output-improvements.md)；S5 历史前补指定边界逆扫重载并独立验收；S6 核对公共包入口可消费 |
+| RBF 新 API 与 XML | S1 完成；2026-10-07 活跃 Builder 随机读取底座改进另见[本轮记录](reviews/2026-10-07-completed-output-improvements.md)；V2-A 已补指定边界逆扫重载及源码验证；S6 核对公共包入口可消费 |
 | 新库源码/测试与指南 | S2–S5 形成；S6 将 Accepted 合同映射到 public smoke |
 | `eng/Pack.ps1` | S6 注册包和明确选择/版本算法 |
 | `eng/Test-Package.ps1`、metadata helper | S6 在当前纯 Rbf 三包及纯 Binary 两包隔离验证基础上增加新闭包 smoke，不削弱来源/资产校验 |
 | `eng/Verify-Published.ps1`、发布 workflow/CI | 若纳入公开交付，按实际授权和新 manifest 形态适配 |
-| 根 README / AGENTS.md | 项目实际存在、交付事实变化后更新；FrameStore/VersionStore 与测试项目均已创建、保持 source-only；VersionStore 已接通普通 ref 真实目录闭环，历史/fork/tag 尚缺 |
+| 根 README / AGENTS.md | 项目实际存在、交付事实变化后更新；FrameStore/VersionStore 与测试项目均已创建、保持 source-only；VersionStore 已接通普通 ref 真实目录闭环，历史读取已接通，ForkRef/ListForks/tag 尚缺 |
 | 旧库维护 | RBF1 分支工作包；main 冻结参考及固定包合同不得为新栈改写 |
 
 ## 实施片

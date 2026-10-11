@@ -363,6 +363,7 @@ public sealed class RefRecordReaderTests : IDisposable {
         public AteliaResult<RbfFrame> ReadFrame(SizedPtr ticket, Span<byte> buffer) => file.ReadFrame(ticket, buffer);
         public RbfForwardSequence ScanForward(bool showTombstone = false) { ForwardShowTombstone = showTombstone; return file.ScanForward(showTombstone); }
         public RbfReverseSequence ScanReverse(bool showTombstone = false) { ReverseShowTombstone = showTombstone; return file.ScanReverse(showTombstone); }
+        public AteliaResult<RbfReverseSequence> ScanReverse(RbfScanBoundary boundary, bool showTombstone = false) { ReverseShowTombstone = showTombstone; return file.ScanReverse(boundary, showTombstone); }
         public AteliaResult<RbfScanBoundary> GetScanBoundaryAfter(SizedPtr ticket) => file.GetScanBoundaryAfter(ticket);
         public AteliaResult<RbfForwardSequence> ScanForward(RbfScanBoundary boundary, bool showTombstone = false) => file.ScanForward(boundary, showTombstone);
         public long GetPhysicalOffsetImmediatelyAfter(SizedPtr ticket) => file.GetPhysicalOffsetImmediatelyAfter(ticket);

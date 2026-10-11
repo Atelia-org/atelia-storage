@@ -441,6 +441,13 @@ internal sealed class RbfFileImpl : IRbfFile {
     }
 
     /// <inheritdoc />
+    public AteliaResult<RbfReverseSequence> ScanReverse(RbfScanBoundary boundary, bool showTombstone = false) {
+        var error = ValidateScanBoundary(boundary);
+        if (error is not null) { return error; }
+        return new RbfReverseSequence(_reader, boundary.EndExclusive, showTombstone);
+    }
+
+    /// <inheritdoc />
     public RbfForwardSequence ScanForward(bool showTombstone = false) {
         EnsureIdleForRead();
         return new RbfForwardSequence(_reader, RbfLayout.FirstFrameOffset, _tailOffset, showTombstone);
@@ -454,6 +461,12 @@ internal sealed class RbfFileImpl : IRbfFile {
 
     /// <inheritdoc />
     public AteliaResult<RbfForwardSequence> ScanForward(RbfScanBoundary boundary, bool showTombstone = false) {
+        var error = ValidateScanBoundary(boundary);
+        if (error is not null) { return error; }
+        return new RbfForwardSequence(_reader, boundary.EndExclusive, _tailOffset, showTombstone);
+    }
+
+    private AteliaError? ValidateScanBoundary(RbfScanBoundary boundary) {
         EnsureIdleForRead();
         if (boundary.EndExclusive < RbfLayout.FirstFrameOffset ||
             boundary.EndExclusive > _tailOffset ||
@@ -475,7 +488,7 @@ internal sealed class RbfFileImpl : IRbfFile {
                 return new RbfCrcMismatchError("Scan boundary content witness does not match the anchor.");
             }
         }
-        return new RbfForwardSequence(_reader, boundary.EndExclusive, _tailOffset, showTombstone);
+        return null;
     }
 
     /// <inheritdoc />

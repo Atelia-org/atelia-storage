@@ -14,8 +14,8 @@
 | --- | --- |
 | `RefId` / `RefRevision` / `RefBytesSnapshot` / `PublicationOutcome` | 公共值与自有结果；可信内部构造只保存已资格化字段 |
 | `Internal/Format` | VSID、44B 门、24/36B ref header、4B local 字段、meta8、规范路径；无文件 I/O |
-| `Internal/Records` | 从已取得的 public IRbfFile 校验本次需要的 header/head，先元信息尺寸再完整读取、复制结果；不拥有文件 |
-| `VersionStore` / `Internal/Runtime` | 身份/模式 guard、输入捕获、data-first、PublicationOutcome 与 owned 资源清理；通过窄文件接缝取得目标 |
+| `Internal/Records` | 从已取得的 public IRbfFile 校验本次需要的 header/Snapshot，先元信息尺寸再完整读取、复制结果；不拥有文件，历史 helper 内真实步骤由窄回调计费 |
+| `VersionStore` / `Internal/Runtime` | 身份/模式 guard、输入捕获、data-first、PublicationOutcome 与 owned 资源清理；`VersionStore.History.cs` 管固定前缀、预算、回调及一个当前临时句柄 |
 | `Internal/Storage` / `Internal/Platform` | 根准入/锁/门 I/O/发现/唯一 pending/原生不覆盖发布/按模式打开；不解释应用 bytes |
 | `RootMapCodec` | 独立可选应用 codec，使用 Binary 和 FrameAddress 公共 codec；不进入 owner 的调用链 |
 
@@ -49,18 +49,34 @@ VersionStore 与 FrameStore 均保持 source-only，新栈只引用 main 项目�
 
 已解决的集成接缝：内部助手以 `scoped ref PublicationOutcome` 直接更新调用方证据；意外私有 Append 拒绝视为已预计算计划的不变量失效，停用并留下冷开可取消的 pending；Linux canonical 名称与大小写别名共存也拒绝；平台缺项探测不以宽泛异常捕获吞掉 owned 清理失败。这些修正未改变持久格式或产品范围。
 
+## V2-A：有界历史读取与 RBF 边界逆扫（2026-10-11）
+
+本轮从 `acf3560` 的干净树开始，按 RBF 增量、历史生产路径、公开读取验收、资源故障验收与独立复核分包。新增 `HistoryBudget`、`HistoryEnd` 和 `ReadRefHistory`，不增加 ForkRef/ListForks 占位 API，不改变持久格式或 pack 清单。
+
+- `IRbfFile.ScanReverse(RbfScanBoundary, bool)` 与原有正向边界扫描共用完整 anchor/内容见证/尾 Fence 准入；序列从 anchor（含自身）向前，Empty 在非空文件上仍为空。准入不遍历后缀，也不替代 factory 当前 EOF 资格。接口文档明确区分边界准入的完整 CRC 与后续结构枚举。
+- 历史先检查必要首 header，从固定实际尾部逐项完整读取；到达初始位置才检查初始内容。ForkOrigin 跳转使用 exact ticket、公共 boundary helper 和逐 byte clone 比较，源后来追加的后缀不进入继承遍历。所有交付项为自有 bytes/revision/原时间。
+- 进入 ref、MoveNext 尝试及每次完整读取分别计 work；两个 boundary helper 各有一次真实完整 anchor 重读，均先扣费。当前算法普通文件 n 项用 `3+2n` 步，每个继承源 n 项用 `5+2n` 步；这是该实现的实际步骤，不是新增固定预算 API 保证。helper 取得元信息前也检查尚有工作额度，避免耗尽后额外探测。
+- HistoryActive 拒绝递归历史和现有全部 mutation，必选 out 仍先 NotAttempted；visitor 可以读取当前值和 data。false 不访问更旧节点，true 到达无来源初始才 Complete；取消、callback Dispose/异常及必要关闭失败优先于正常返回。
+- 只保存一个当前临时 ref 槽并供同文件查询复用；跳转和退出先清空再单次关闭，不将每个历史文件加入长期缓存。已缓存 owner 文件只借用。纯读、预算、取消与应用 callback 失败不新增 writer fault；实际 owned 清理/可写打开恢复失败停用、尝试其余资源并最后释放锁。
+
+独立复核发现并修复了一个工作预算边界：源 header 恰好耗尽额度后，未计费的 `ReadFrameInfo` 仍可能探测 anchor。现以不扣费的剩余额度检查阻止该 I/O；测试同时检查调用计数和 public RBF 读取日志，确认两个 helper 的内部完整读取没有漏计。初次集成的测试 `params` 单项构造推断错误已修正，未改变生产 API。
+
+继承路径使用受控、真实 RBF writer 生成的来源文件；普通 ref 的历史使用公开 Create/Publish 与冷重开。它们证明读取和资源合同，不证明尚未实现的 ForkRef 创建时源 flush/子发布协议。下一片必须用公开 ForkRef 补齐这条资格链；Linux、真实进程终止、负载与包消费仍分开验收。
+
 ## 后续顺序与验收出口
 
 | 分片 | 可审查交付物 | 必须保留的边界与验收 |
 | --- | --- | --- |
 | V1：已接通普通 ref 公开闭环 | Create/Open/OpenReadOnly、自动/指定 CreateRef、ReadRef/PublishRef/ListRefs；正式目录 backend 接入现有内核 | public `Create → CreateRef → PublishRef → ReadRef → Dispose → Open/RO → ReadRef`；借入/模式在 VS I/O 前检查；门 close 后才发现/清 pending；可写 H 先完整发现，RO 不为发号全扫；唯一 pending 只取消不采用；原生同 FS no-overwrite rename；坏门/别名/特殊文件/错 data/失败清理与锁最后 |
-| V2：历史、精确 fork 与分叉图 | RBF 指定边界逆扫公共增量先独立验收；ReadRefHistory、两种 ForkRef、ListForks | 历史预算/早停与 callback Dispose；源旧点不扫描后缀；fork exact bytes clone、data 后源 flush、单文件发布；图仅读 header 并迭代检查来源集合/环，结果自有。若工作量过大，按底座增量→历史/fork→声明图分轮 |
+| V2-A：已接通有界历史读取 | RBF 指定边界逆扫公共重载；ReadRefHistory、HistoryBudget、HistoryEnd | 固定上界、实际工作计费、早停/回调 Dispose、临时句柄复用/单次清理；受控 ForkOrigin 继承读取与 exact bytes 检查，不代表 fork 创建协议已实施 |
+| V2-B：精确 fork 创建（下一片） | 自动/预留号两种 ForkRef；复用现有新 ref 单文件发布路径 | 已签发旧 revision exact 定位/尾 Fence、捕获源 bytes；所有确定拒绝先于 barrier，data 后源 flush，子重新取时并 exact clone；各失败窗口的 Outcome 与停用；public fork-of-fork/历史冷重开闭环 |
+| V2-C：声明分叉图 | ListForks、ForkInfo 与全正式 ref header 扫描 | 仅读 header、单数量预算、缺源/自链接/迭代环检查、自有完整边集合；历史 callback 内同文件复用且不覆盖历史临时槽；不逐边完整审计源 ticket |
 | V3：不可变 tag | 09 的名称/路由/请求范围扫描、空桶初始化、CreateTag/ResolveTag | tag header 的初始化长度保护不同于 ref；局部坏 A 不阻断健康 B，零命中且名称不确定不能当 missing；空桶 rename 不推进 tag outcome；与历史 visitor 及 bytes 结果互操作 |
 | V4：独立完整校验与系统验收 | 只读完整检查入口、public 消费例子、进程终止/资源与两平台矩阵、S4/S5/S6 条款映射 | 日常必要读取与完整校验分别取证；新旧/循环图、坏初始健康 head、应用解码失败、所有发布与清理窗口；不得将内部模拟、字节镜像或源码测试标成 public factory、真实 kill、断电或包资格 |
 
-V1 已在本轮接通，后续不重做工厂或建立另一套发布路径。下一轮优先 V2-A：先实施并独立验证 RBF 的指定边界逆扫，再接 `ReadRefHistory` 的固定上界、预算、回调早停和资源清理。V2-B 接精确 `ForkRef` 与继承历史；V2-C 接 `ListForks` 声明图，若可在同轮可靠验收可合并。没有先实现全部历史就不能创建 fork 的底层依赖，但按此顺序更容易分别取得成员/遍历与发布证据。后续真实文件实验按 S4/S5 使用 W:；Linux 验证另留身份与结果。
+V1 和 V2-A 已完成源码接线，后续不重做工厂或历史遍历。下一轮优先 V2-B：接通精确 `ForkRef` 创建，用本轮历史 API 验证完整公开创建/继承路径。V2-C 的目录流式预算/局部临时句柄与图验证边界另行验收，默认不并入 V2-B；若现场工作量允许可靠合并，再明确范围与证据。后续真实文件实验按 S4/S5 使用 W:；Linux 验证另留身份与结果。
 
-V2 的底座增量权威为 [RBF 边界逆扫计划](../Rbf/rbf-reverse-boundary-plan.md)。普通当前值与普通 PublishRef 不依赖它，V1 已独立验收。ForkOrigin 元数据可在 V0 编解码，但只有 V2 的正式源读取/确认才建立链接资格。
+V2 的底座增量已由 [RBF 边界逆扫记录](../Rbf/rbf-reverse-boundary-plan.md)接入公共接口合同。普通当前值与普通 PublishRef 不依赖它，V1 证据保持原身份。ForkOrigin 元数据可在 V0 编解码，本轮读取既有声明并检验 exact 源/bytes；只有 V2-B 的正式源读取/确认与子发布才建立公开 fork 创建闭环。
 
 CU 在正式选型同步 S0/S4/S5 前不进入上述默认队列；尤其不能提前给普通 Snapshot 分配 Members 或让 API 暗中提供跨 ref 事务。包注册、隔离 PackageReference smoke、发布及真实业务仓切换按 S6 另立明确交付片，不由源码骨架自动开启。
 
@@ -68,7 +84,7 @@ CU 在正式选型同步 S0/S4/S5 前不进入上述默认队列；尤其不能�
 
 更新本轮完成项、实际验证命令/结果、尚未取得的资格，以及下一轮最小闭环。后续实现如果改变 internal 接缝，同步修改调用方和有意义的测试；公开行为或持久格式的改变回写所属权威，不只改本文。
 
-当前未发现需要改变产品设计的阻碍。后续关键实现依赖是 RBF 边界逆扫、历史跨文件资源/预算管理及既定 fork/tag 协议；大量 ref 的句柄保留策略与系统验收仍须按实际路径取证，不把已定机制的接线重新扩展为设计待定项。
+当前未发现需要改变产品设计的阻碍。RBF 边界逆扫和历史跨文件资源/预算已接通；后续重点是既定 fork/ListForks/tag 协议与系统验收。历史自身不会把每个访问文件加入长期缓存；既有 `ReadRef/PublishRef` 的 owner 缓存仍保留，不能把局部资源验证视为大规模负载资格。不把已定机制的接线重新扩展为设计待定项。
 
 ## V0 历史验证记录（2026-10-10）
 
@@ -93,4 +109,16 @@ V0 已完成源码集成、主线程验证和独立反例复核，无未解决�
 
 `eng/Test-Rbf1ReferenceAssets.ps1` 验证 7 个冻结参考项目仍使用精确 RBF1 包；VS 的 FrameStore/Binary/Rbf/Data/Primitives 都是 main project，外部依赖为 K4os.Compression.LZ4 1.3.8。没有打包、发布、push 或消费者迁移。
 
-Windows 测试和独立复核支持本轮普通 ref 公开闭环；真实进程终止、跨进程锁、跨 volume/mount、Linux 执行与系统完整验收仍留 V4。没有产品决策阻塞，下一片按上面的 V2-A 推进。
+Windows 测试和独立复核支持 V1 普通 ref 公开闭环；真实进程终止、跨进程锁、跨 volume/mount、Linux 执行与系统完整验收仍留 V4。当时的下一片 V2-A 已在本轮接续，当前顺序以上表为准。
+
+## V2-A 验证记录（2026-10-11）
+
+主线程最终 Release build **0 error、0 warning**；完整 `dotnet test Atelia.Storage.slnx -c Release --no-build` 为 **2753 通过、0 失败、9 项 Linux 专属测试跳过**。VersionStore **490 通过、6 跳过**，本轮新增 History 50 项及 HistoryFaults 30 项；RBF **920 通过**，本轮新增边界逆扫 55 项。独立源码/反例复核无未解决 P1/P2。精确命令、最终 9 份 TRX、日志摘要、基线及本轮源码变更摘要见 [V2-A 证据](evidence/2026-10-11-versionstore-v2a.json)。
+
+公开历史测试在 W: 使用真实 FrameStore/RBF/VersionStore，覆盖两层冷重开、重复同值/rewind、原时间顺序、必要坏节点、初始延后检查、固定 head、来源后缀排除、缺源/环/byte clone 不符、准确预算、回调早停/取消/Dispose 与资源复用。故障测试通过真实 RBF 读取日志确认 source helper 内部完整读次数，并分别验证普通错误与 owned 清理失败的停用差异、主异常优先和锁最后。
+
+首轮完整测试中的一项 Fence 构造提前触发 factory 拒绝；现已拆为两个实际路径：旧 anchor 紧邻末 head 时，坏共享 Fence 在冷开抛异常；存在健康间隔帧时，先证明 factory/head 合格，再由历史 anchor 校验返回失败。最终完整测试使用修正后的 50 项 History 用例。生产合同未为通过测试而放宽。
+
+`eng/Test-Rbf1ReferenceAssets.ps1` 确认 7 个冻结参考项目仍消费精确 RBF1 包；VS assets 中五个 Atelia 底座依赖均为 main project，外部 codec 仍为 K4os.Compression.LZ4 1.3.8。新增 IRbfFile 成员只对本仓新栈测试代理补转发，旧栈包及 pack 清单未改动。早期构建中的既有 Data/Rbf XML warning 未扩大修订，最终增量构建为零 warning。
+
+本轮未实施 ForkRef/ListForks/tag/CU、未打包/发布/push。继承来源为受控文件、关闭失败为窄注入，不据此宣称公开 fork 创建、原生故障、真实进程终止、Linux、规模或包消费资格。没有产品决策阻塞，下一轮按 V2-B 实施两种精确 ForkRef。

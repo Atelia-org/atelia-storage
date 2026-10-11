@@ -67,6 +67,15 @@ public interface IRbfFile : IDisposable {
     /// <param name="showTombstone">是否包含墓碑帧。默认 false（不包含）。</param>
     RbfReverseSequence ScanReverse(bool showTombstone = false);
 
+    /// <summary>重新校验边界 anchor 后，从该边界逆向扫描，包含 anchor 本身。</summary>
+    /// <remarks>
+    /// 仅验证 anchor 的完整帧、内容见证及尾 Fence，不解析其后的帧，也不证明整个前缀的成员资格或完整性。
+    /// anchor 为墓碑帧时沿用 showTombstone 过滤规则。
+    /// Empty 边界返回空序列。枚举仅检查 framing/TrailerCRC；其他帧的完整 payload 校验仍按需读取。
+    /// 生命周期、共享 write fault 与 Builder guard 沿用其他扫描入口，I/O 异常直接传播。
+    /// </remarks>
+    AteliaResult<RbfReverseSequence> ScanReverse(RbfScanBoundary boundary, bool showTombstone = false);
+
     /// <summary>正向扫描。</summary>
     /// <param name="showTombstone">是否包含墓碑帧。默认 false（不包含）。</param>
     RbfForwardSequence ScanForward(bool showTombstone = false);

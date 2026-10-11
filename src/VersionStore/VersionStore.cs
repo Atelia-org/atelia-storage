@@ -9,7 +9,7 @@ using DataStore = Atelia.FrameStore.FrameStore;
 namespace Atelia.VersionStore;
 
 /// <summary>串行使用的不透明根 payload 发布 owner；借入一个实际 data FrameStore。</summary>
-public sealed class VersionStore : IDisposable {
+public sealed partial class VersionStore : IDisposable {
     /// <summary>单条完整 root payload 的最大长度，单位 bytes。</summary>
     public const int MaxRootPayloadLength = 1_048_576;
 
@@ -110,7 +110,8 @@ public sealed class VersionStore : IDisposable {
     /// <summary>在自动区用 H+1 创建无来源 ref，初始化完整 payload 后一次发布整个文件。</summary>
     public AteliaResult<RefRevision> CreateRef(ReadOnlySpan<byte> payload, out PublicationOutcome outcome) {
         outcome = PublicationOutcome.NotAttempted;
-        EnsureUsable();
+        AteliaError? rejection = GetMutationRejection();
+        if (rejection is not null) { return rejection; }
         if (IsReadOnly) { return new VersionStoreRuntimeError("ReadOnly", "This VersionStore owner is read-only."); }
         if (_autoRefIdHighWatermark == uint.MaxValue) {
             return new VersionStoreRuntimeError("RefIdExhausted", "The automatic ref identifier domain is exhausted.");
@@ -122,7 +123,8 @@ public sealed class VersionStore : IDisposable {
     public AteliaResult<RefRevision> CreateRef(uint destLocalRefId, ReadOnlySpan<byte> payload,
         out PublicationOutcome outcome) {
         outcome = PublicationOutcome.NotAttempted;
-        EnsureUsable();
+        AteliaError? rejection = GetMutationRejection();
+        if (rejection is not null) { return rejection; }
         if (IsReadOnly) { return new VersionStoreRuntimeError("ReadOnly", "This VersionStore owner is read-only."); }
         if (destLocalRefId == 0 || destLocalRefId > ReservedRefIdUpperBound) {
             return new VersionStoreRuntimeError("ArgumentError", "A specified ref identifier must belong to the reserved low-number domain.");
@@ -215,7 +217,8 @@ public sealed class VersionStore : IDisposable {
     public AteliaResult<RefRevision> PublishRef(RefId refId, ReadOnlySpan<byte> payload,
         out PublicationOutcome outcome) {
         outcome = PublicationOutcome.NotAttempted;
-        EnsureUsable();
+        AteliaError? rejection = GetMutationRejection();
+        if (rejection is not null) { return rejection; }
         if (IsReadOnly) { return new VersionStoreRuntimeError("ReadOnly", "This VersionStore owner is read-only."); }
         if (!refId.BelongsTo(_identity)) { return InvalidRef(); }
         if (payload.Length is < 1 or > MaxRootPayloadLength) {
@@ -269,6 +272,9 @@ public sealed class VersionStore : IDisposable {
     }
 
     private AteliaResult<IRbfFile> GetOrOpen(uint localId) {
+        if (_historyRefId == localId && _historyRef is { } historyFile) {
+            return AteliaResult<IRbfFile>.Success(historyFile);
+        }
         if (_ownedRefs.TryGetValue(localId, out OwnedRef? cached)) { return AteliaResult<IRbfFile>.Success(cached.File!); }
         // Path qualification errors are ordinary query failures; they do not start writable recovery.
         QualifiedRefTarget target;
@@ -318,6 +324,13 @@ public sealed class VersionStore : IDisposable {
         if (_faulted) { throw new InvalidOperationException("VersionStore is faulted; dispose and reopen it."); }
     }
 
+    private AteliaError? GetMutationRejection() {
+        EnsureUsable();
+        return _historyActive
+            ? new VersionStoreRuntimeError("HistoryActive", "Mutations are not allowed during an active history visitor.")
+            : null;
+    }
+
     private void FaultAndCleanup(Exception primary) {
         _faulted = true;
         CleanupErrors errors = default;
@@ -328,6 +341,7 @@ public sealed class VersionStore : IDisposable {
 
     private void CleanupOwned(ref CleanupErrors errors) {
         try {
+            CloseHistoryTemporary(ref errors);
             IRbfFile? pending = _pendingRef;
             _pendingRef = null;
             try { pending?.Dispose(); }

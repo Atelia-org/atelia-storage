@@ -1,6 +1,6 @@
 # S5：ref 历史、fork 与 tag 施工导航
 
-状态：**Draft；历史 visitor/预算/清理与 ForkOrigin/ListForks 合同已定，用户已采用旧点直接定位与初始内容延后检查；VersionStore 已建骨架，历史/fork、RBF 边界逆扫增量与对应实施/平台验收尚缺（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。
+状态：**Draft；V2-A 已实施历史 visitor/预算/清理、按 ForkOrigin 接续与 RBF 边界逆扫；ForkRef 创建、ListForks 及系统/平台完整验收尚缺（见[实施与后续计划](12-versionstore-implementation-plan.md)）。受控来源文件的读取验收不代表 ForkRef 创建协议已实施。**
 本文负责历史、fork 与声明图查询；ref 格式/身份/编号及发布协议消费 [S4](04-versionstore-publication.md)，记录时间见 [08 专项](08-versionstore-record-metadata.md)，bytes 结果见 [11 专项](11-versionstore-root-payload-bytes-api.md)。不可变 tag 由 [09 专项](09-versionstore-immutable-tags.md)定义，安排在 ref、历史与 fork 之后施工。
 前置：[S0](00-architecture-decisions.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)。扩展 S4 的完整根快照与局部发布协议，不增加全局事实日志。
 
@@ -38,7 +38,7 @@ ref header/普通 Snapshot 的字段、来源判别与完整记录容量唯一�
 
 ### spec [S-VS-FORK-FROM-REVISION] fork 在创建时建立精确来源资格
 
-ForkRef 两种入口 MUST 接收本 VersionStore 的已发布 RefRevision，先消费 S4 default/持久上下文前检，定位正式源 ref、checked header，确认 ticket 在 header 后的完成范围内并直接精确读取。成员来源消费库签发 revision、完整位置不删除/复用与无外部改写的协议，不从源 EOF 重新定位，也不预读无关初始内容；本次仍按 S4 `[A-VS-ROOT-PAYLOAD]` 完整校验目标 CRC、kind、meta 和尺寸，私有捕获 root-payload bytes，并复用现有公共 GetScanBoundaryAfter 重验完整 anchor 及其尾 Fence；随机完整帧 CRC 本身不覆盖尾 Fence。这个 helper 的额外完整读计入实际成本，不扫描源后缀，也不依赖待实施逆扫重载。不得用 ReadRef 替代 exact 来源、不接受裸 SizedPtr 或自由组合 payload/origin。若未来接纳 CU 来源，读取时仍须验证共同事务判据并只截取 root bytes。两种入口均返回 AteliaResult<RefRevision>，成功值的 RefId 为新 ref，保持批外单文件发布与必选 out PublicationOutcome，不为结果物化 Payload。
+ForkRef 两种入口 MUST 接收本 VersionStore 的已发布 RefRevision，先消费 S4 default/持久上下文前检，定位正式源 ref、checked header，确认 ticket 在 header 后的完成范围内并直接精确读取。成员来源消费库签发 revision、完整位置不删除/复用与无外部改写的协议，不从源 EOF 重新定位，也不预读无关初始内容；本次仍按 S4 `[A-VS-ROOT-PAYLOAD]` 完整校验目标 CRC、kind、meta 和尺寸，私有捕获 root-payload bytes，并复用现有公共 GetScanBoundaryAfter 重验完整 anchor 及其尾 Fence；随机完整帧 CRC 本身不覆盖尾 Fence。这个 helper 的额外完整读计入实际成本，不扫描源后缀，也不依赖边界逆扫重载。不得用 ReadRef 替代 exact 来源、不接受裸 SizedPtr 或自由组合 payload/origin。若未来接纳 CU 来源，读取时仍须验证共同事务判据并只截取 root bytes。两种入口均返回 AteliaResult<RefRevision>，成功值的 RefId 为新 ref，保持批外单文件发布与必选 out PublicationOutcome，不为结果物化 Payload。
 
 所有生命周期/历史 mutation guard、自动或指定目标及源 bytes 捕获/容量检查先完成；子初始 Snapshot 按 `[S-VS-RECORD-TIME]` 重新取时，允许与源同毫秒，不复制源时间。随后 data ConfirmDurable，再对 exact 源 ref DurableFlush，最后在单个 private 子文件写完整 header/ForkOrigin 与初始 Snapshot，flush/close 并按 S4 file rename 发布。源 flush 明确确认本次链接的发布记录耐久，checked-read 不能替代；无 receipt、不重刷全部祖先，仍限 ProcessCrashOnly。
 
@@ -50,7 +50,7 @@ ForkRef 两种入口 MUST 接收本 VersionStore 的已发布 RefRevision，先�
 
 ### spec [A-VS-REF-HISTORY-CHECKED] 同步历史读取交付真实且自有的快照
 
-首版入口如下；这是待实施合同，不是已存在的 API：
+首版历史入口已实施如下；实际源码资格见实施计划，ForkRef/ListForks 仍待实施：
 
 ```csharp
 public readonly record struct HistoryBudget(long MaxSnapshots, long MaxWorkSteps);
@@ -91,7 +91,7 @@ visitor 返回 true 表示继续，false 表示已接收当前项并正常选点
 当前临时句柄登记在 owner 可清理槽位，连同 RefId 可供同文件查询复用；正常跳转、所有退出及 owner Dispose 都 MUST 在调用 public Dispose 前先取出并清空槽位，关闭抛错也不重试。owner Dispose 先失效实例，尝试当前临时及其他 owned 资源，不 Dispose 借入 data；方法 finally 只清理仍在槽位的句柄，所有退出都清除 HistoryActive。既有 owned 文件继续遵守自身生命周期，不把借用句柄当临时句柄归还。
 每次 visitor 返回后、继续 I/O 前、必要关闭后及最终正常返回前 MUST 复检 owner disposed/fault 与 token；最后回调 Dispose owner、取消或抛异常，最后关闭失败，都不能返回 Complete/VisitorStopped。取消抛 OperationCanceledException，visitor/I/O 等异常原样传播；必要 CRC/envelope/长度/身份/成员错误返回所属层失败，不跳过坏记录、不回退。预算失败、普通读错误、纯读异常、取消或 visitor 异常本身不 fault 健康 writer；实际 owned 清理/恢复失败按 S4 停用规则，主异常优先并继续尝试清理，清理失败不能被正常停止遮蔽。
 
-**边界逆扫依赖。** 用户已采用 [RBF 边界逆扫计划](../Rbf/rbf-reverse-boundary-plan.md)：新增 `ScanReverse(RbfScanBoundary boundary, bool showTombstone)`，复用现有 anchor/完整 CRC/尾 Fence 检查，从 anchor（含自身）向前。当前生产 public 入口仅从 EOF 开始；新增重载须在 S5 历史实施前补齐并取得独立 public 验收，不以 internal 文件视图、手写 Fence 或仍扫描无关后缀替代。RbfScanBoundary 本身是可构造数据而非成员凭证；本层来源资格来自已签发 revision 或自身创建协议写入的不可变 ForkOrigin、完整位置不复用及无外部改写模型。RBF3 正常 writer 的 marker-free 边界约束不认证任意损坏/手工镜像；失败仍按必要记录传播。同步 visitor 不承诺持久 cursor，底座工厂成本仍另计。
+**边界逆扫依赖。** [RBF 边界逆扫增量](../Rbf/rbf-reverse-boundary-plan.md)已提供 `ScanReverse(RbfScanBoundary boundary, bool showTombstone)`，复用现有 anchor/完整 CRC/尾 Fence 检查，从 anchor（含自身）向前。V2-A 直接使用该公共重载，独立底座测试与 VS 接线验证分别记录，不以 internal 文件视图、手写 Fence 或仍扫描无关后缀替代。RbfScanBoundary 本身是可构造数据而非成员凭证；本层来源资格来自已签发 revision 或自身创建协议写入的不可变 ForkOrigin、完整位置不复用及无外部改写模型。RBF3 正常 writer 的 marker-free 边界约束不认证任意损坏/手工镜像；失败仍按必要记录传播。同步 visitor 不承诺持久 cursor，底座工厂成本仍另计。
 
 （Informative）A 已有 A0/A1/A2/A3，B 从 A2 创建并更新 B1，C 从 B1 创建后更新 C1：`ReadRefHistory(C)` 返回 `C1, C0, B1, B0, A2, A1, A0`；A3 不出现，C0/B1 与 B0/A2 的字典分别相同但 revision 不同。
 

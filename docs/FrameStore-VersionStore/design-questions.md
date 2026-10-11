@@ -99,8 +99,8 @@ D6 已由 S2 `[S-FS-ROOT-ADMISSION]` 与真实目录工厂关闭：调用方根/
 
 | 范围 | 设计阶段聚焦 | 随实施决定或验证 |
 | --- | --- | --- |
-| S4 已定，交实施 | 初次建库/根锁/唯一pending/ListRefs/停用清理及恢复后完整性准入已定，不再有D3设计阻塞 | V1已接通CreateRef→ReadRef→PublishRef→冷重开及Windows局部验证；后续补历史/fork、tag、完整检查与两平台进程中断，保持VS整体Draft，局部验证与系统资格分开 |
-| S5 历史已定，交实施 | 已签发 revision/不可变 ForkOrigin 直接精确读取；日常 header/逐项检查与声明图检查分离，详见 S4/S5 | 先补[RBF 指定边界逆扫公共重载](../Rbf/rbf-reverse-boundary-plan.md)及独立 public 验收，再接续旧 fork 点之前的历史；不把已定公共增量列为待定设计 |
+| S4 已定，交实施 | 初次建库/根锁/唯一pending/ListRefs/停用清理及恢复后完整性准入已定，不再有D3设计阻塞 | V1已接通CreateRef→ReadRef→PublishRef→冷重开及Windows局部验证；V2-A 已接通历史读取；后续补 fork/ListForks、tag、完整检查与两平台进程中断，保持VS整体Draft，局部验证与系统资格分开 |
+| S5 历史已定，交实施 | 已签发 revision/不可变 ForkOrigin 直接精确读取；日常 header/逐项检查与声明图检查分离，详见 S4/S5 | V2-A 已实施[RBF 指定边界逆扫公共重载](../Rbf/rbf-reverse-boundary-plan.md)与旧 fork 点之前的历史读取，源码证据见实施计划；继续实施 ForkRef/ListForks，不重开已定设计 |
 | S5-B 已定，靠后施工 | [09 专项](09-versionstore-immutable-tags.md)的名称/BPV/组合容量与稳定路由参数已定，不再有 D8 设计阻塞 | 先完成 ref、历史/fork，随后实施 CreateTag→ResolveTag→冷重开及桶/损坏/Outcome/资源/平台/组合验收 |
 | S2–S6 已定合同 | 仅在真实反例、机制不可行或明确新要求时重开 | 所属阶段的实施/验收要求、进程中断、平台及隔离包消费证据；条件优化另看实际需求 |
 

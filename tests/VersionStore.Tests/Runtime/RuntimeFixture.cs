@@ -265,6 +265,10 @@ internal sealed class TrackedRefFile(uint localId, IRbfFile inner, List<string> 
         if (ScanFailure is { } error) { throw error; }
         return Inner.ScanReverse(showTombstone);
     }
+    public AteliaResult<RbfReverseSequence> ScanReverse(RbfScanBoundary boundary, bool showTombstone = false) {
+        if (ScanFailure is { } error) { throw error; }
+        return Inner.ScanReverse(boundary, showTombstone);
+    }
     public RbfForwardSequence ScanForward(bool showTombstone = false) {
         if (ScanFailure is { } error) { throw error; }
         return Inner.ScanForward(showTombstone);

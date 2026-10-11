@@ -1,0 +1,230 @@
+{
+  "date": "2026-10-11",
+  "scope": "VersionStore V2-A bounded history and public RBF reverse boundary; source-only",
+  "baseline": "acf35600040fab43bc40ed707b6931bf05ba137a",
+  "sourceIdentity": "Baseline plus the changed/new source files hashed below, committed with this record; UTF-8 text normalized to LF.",
+  "platform": "Windows-11-10.0.22000-SP0",
+  "publicHistoryFixtureDrive": "W:",
+  "commands": [
+    "dotnet build Atelia.Storage.slnx -c Release --nologo -v minimal",
+    "dotnet test Atelia.Storage.slnx -c Release --no-build --logger trx --results-directory artifacts/versionstore-v2a/accepted-tests",
+    "./eng/Test-Rbf1ReferenceAssets.ps1"
+  ],
+  "build": {
+    "succeeded": true,
+    "finalIncrementalWarnings": 0,
+    "errors": 0,
+    "note": "Prerequisite builds emitted existing Data/Rbf XML warnings. Test params construction and two new xUnit warnings fixed before final build."
+  },
+  "testOutcomes": {
+    "Passed": 2753,
+    "NotExecuted": 9
+  },
+  "testRuns": [
+    {
+      "assembly": "Atelia.Primitives.Tests.dll",
+      "results": {
+        "Passed": 75
+      },
+      "trx": "artifacts/versionstore-v2a/accepted-tests/gdtutu_TUTU17_2026-10-11_09_55_23.trx",
+      "trxSha256": "0c5952af3e5223841e2e3b8d8140f4a109052470738f2073b11c1125a05159ea"
+    },
+    {
+      "assembly": "Atelia.Binary.Tests.dll",
+      "results": {
+        "Passed": 214
+      },
+      "trx": "artifacts/versionstore-v2a/accepted-tests/gdtutu_TUTU17_2026-10-11_09_55_23[1].trx",
+      "trxSha256": "e72ed3dc536b8c7c48496a794f884fbafe4f650b074fb3687487df2f306a23bd"
+    },
+    {
+      "assembly": "Atelia.Data.Tests.dll",
+      "results": {
+        "Passed": 288
+      },
+      "trx": "artifacts/versionstore-v2a/accepted-tests/gdtutu_TUTU17_2026-10-11_09_55_23[2].trx",
+      "trxSha256": "9675cb3e40fc396243181b4e5e9f229f3030d3db165ef0486c778022e6b823d9"
+    },
+    {
+      "assembly": "Atelia.RbfSegmentStore.Tests.dll",
+      "results": {
+        "Passed": 48
+      },
+      "trx": "artifacts/versionstore-v2a/accepted-tests/gdtutu_TUTU17_2026-10-11_09_55_23[3].trx",
+      "trxSha256": "a21ae01e226698d80f9ce3b9e2f718a56cae75a0c4a39e5e519d7ac9f1c29bb6"
+    },
+    {
+      "assembly": "Atelia.EventJournal.Tests.dll",
+      "results": {
+        "Passed": 174
+      },
+      "trx": "artifacts/versionstore-v2a/accepted-tests/gdtutu_TUTU17_2026-10-11_09_55_23[4].trx",
+      "trxSha256": "5da926c0cf06b35f7bc258dbd6283901727a841e738b8763200c8adf7805ad1b"
+    },
+    {
+      "assembly": "Atelia.VersionStore.Tests.dll",
+      "results": {
+        "Passed": 490,
+        "NotExecuted": 6
+      },
+      "trx": "artifacts/versionstore-v2a/accepted-tests/gdtutu_TUTU17_2026-10-11_09_55_24.trx",
+      "trxSha256": "874b0e927326b7e27c2f6bc0717fbc0a0e5f2ef144d8bb3e70450d5c22226819",
+      "groupsIncludingSkipped": {
+        "Format": 79,
+        "History": 50,
+        "HistoryFaults": 30,
+        "Platform": 26,
+        "Public": 114,
+        "Records": 40,
+        "RootMap": 43,
+        "Runtime": 69,
+        "Storage": 35,
+        "Values": 10
+      }
+    },
+    {
+      "assembly": "Atelia.EventJournal.Toolkit.Tests.dll",
+      "results": {
+        "Passed": 122
+      },
+      "trx": "artifacts/versionstore-v2a/accepted-tests/gdtutu_TUTU17_2026-10-11_09_55_24[1].trx",
+      "trxSha256": "cc407dacbd0c37bd1c2e305285aa3e57058c942f3a60de6440c57eea77681d1c"
+    },
+    {
+      "assembly": "Atelia.FrameStore.Tests.dll",
+      "results": {
+        "Passed": 422,
+        "NotExecuted": 3
+      },
+      "trx": "artifacts/versionstore-v2a/accepted-tests/gdtutu_TUTU17_2026-10-11_09_55_24[2].trx",
+      "trxSha256": "3b3603ea15aa36a2f907d12c7f8d6152f2141833501b2d162692a16a7d6554c1"
+    },
+    {
+      "assembly": "Atelia.Rbf.Tests.dll",
+      "results": {
+        "Passed": 920
+      },
+      "trx": "artifacts/versionstore-v2a/accepted-tests/gdtutu_TUTU17_2026-10-11_09_55_24[3].trx",
+      "trxSha256": "d833ffe2c9a379d6bccf7a3d620f2bcf27ac21cb58c14541bcc955bf46a45d11",
+      "newReverseBoundaryCases": 55
+    }
+  ],
+  "versionStoreDependencies": {
+    "K4os.Compression.LZ4/1.3.8": "package",
+    "Atelia.Binary/1.0.0": "project",
+    "Atelia.Data/1.0.0": "project",
+    "Atelia.FrameStore/1.0.0": "project",
+    "Atelia.Primitives/1.0.0": "project",
+    "Atelia.Rbf/1.0.0": "project"
+  },
+  "frozenReferences": {
+    "projects": 7,
+    "version": "0.2.0-rbf1-preview.1",
+    "sourceRevision": "3e9554e2ea70f769607e80b3fc11a85506050533"
+  },
+  "independentReview": {
+    "unresolvedP1P2": 0,
+    "resolved": [
+      "CheckWorkAvailable prevents source ReadFrameInfo after work quota is exhausted.",
+      "Boundary admission full CRC and sequence framing-only responsibilities explicitly separated.",
+      "Factory EOF shared-Fence rejection and later historical anchor rejection have separate fixture branches."
+    ]
+  },
+  "evidenceBoundaries": [
+    "Ordinary ref history uses public Create/Publish/Open/OpenReadOnly and two-layer cold reopen.",
+    "Inherited histories use controlled real-RBF source images; public ForkRef is not implemented.",
+    "RBF old-anchor tests observe logical reads separately from cache raw prefetch and factory qualification.",
+    "Budget tests observe actual public RBF read logs: work 8..12 source full reads 0/1/2/2/3.",
+    "Resource failures use explicit seams after actual Dispose or at scan entry; no native-close failure or real process kill qualification.",
+    "History scan flags are asserted true; this slice does not construct a VersionStore tombstone image. RBF tombstone behavior has new profile tests.",
+    "Linux-specific tests remain skipped on Windows; no Linux, cross-platform system, load, package, push or publication evidence."
+  ],
+  "logs": [
+    {
+      "path": "artifacts/versionstore-v2a/build.log",
+      "sha256": "c38da670be4fdfc4c846a8578618852c84dbb1885822d6d27b25fc14cff2932e"
+    },
+    {
+      "path": "artifacts/versionstore-v2a/accepted-tests.log",
+      "sha256": "6879c0b4f04bb4a646ea472ad5d10ea996240951364a9ec2c7d77f29271dd343"
+    },
+    {
+      "path": "artifacts/versionstore-v2a/rbf1-assets.log",
+      "sha256": "75997e0656849e10b55138a4500b10da8c61d34feca82a27c2e364995a4738d0"
+    }
+  ],
+  "sourceChanges": [
+    {
+      "path": "src/Rbf/IRbfFile.cs",
+      "sha256LfUtf8": "6294c6d677ba4465703a3798002868e9e27372db6fbf568a6018361806737a03"
+    },
+    {
+      "path": "src/Rbf/Internal/RbfFileImpl.cs",
+      "sha256LfUtf8": "0d640cdfeeddcd518d15c0d373123b6f556c9e7b2c6e9610b0ec3334317851ac"
+    },
+    {
+      "path": "src/Rbf/RbfScanBoundary.cs",
+      "sha256LfUtf8": "8d10db35e1c714b01ead15c224d0e12219b48918943336c1bcb3b01e14271358"
+    },
+    {
+      "path": "src/VersionStore/HistoryBudget.cs",
+      "sha256LfUtf8": "88556e60814acb0a58e6a625c6ae881ad32cceeba34b03fc8d46f77cc0168115"
+    },
+    {
+      "path": "src/VersionStore/HistoryEnd.cs",
+      "sha256LfUtf8": "bf7af3e04b5f2696e8daae3b873822f7628cf592699bdc91692159b3845c159e"
+    },
+    {
+      "path": "src/VersionStore/Internal/Records/RefRecordReader.cs",
+      "sha256LfUtf8": "b9f4841cf9b005c256f43580efa44a6f1b906662becaf80ee0e6f62cb26a70b8"
+    },
+    {
+      "path": "src/VersionStore/VersionStore.History.cs",
+      "sha256LfUtf8": "ad74f704becb0062b67a9c4c1684f8ff1a5b2a3f63953f954d527b94d8be4449"
+    },
+    {
+      "path": "src/VersionStore/VersionStore.cs",
+      "sha256LfUtf8": "67dbb9136d71978f22f23ccc2f97f0112a2f7d507362fdc93a9b0177c0eb0d03"
+    },
+    {
+      "path": "tests/FrameStore.Tests/Runtime/RuntimeFixture.cs",
+      "sha256LfUtf8": "749661791b4efffed2816bd850f89da6b2411a4826986472d6bb8d002080fdd7"
+    },
+    {
+      "path": "tests/Rbf.Tests/Internal/RbfReverseBoundaryTests.cs",
+      "sha256LfUtf8": "6891c6af6a7bfcadcc6cf480f1d63744c205d87821b08a59739b6e32befb4789"
+    },
+    {
+      "path": "tests/VersionStore.Tests/History/HistoryBudgetTests.cs",
+      "sha256LfUtf8": "b26a325671ddd459ae7d9440fbab3978ba7af11095e51ee9f8e8822488c99571"
+    },
+    {
+      "path": "tests/VersionStore.Tests/History/HistoryFixture.cs",
+      "sha256LfUtf8": "2c331d556c2e90372a95c87d5ef7037078750576100496cfa434552fdef74643"
+    },
+    {
+      "path": "tests/VersionStore.Tests/History/InheritedHistoryTests.cs",
+      "sha256LfUtf8": "614db2a639e256dfc0cbb72ac7ae093e924506694bf34ca7635abfbf3b33549b"
+    },
+    {
+      "path": "tests/VersionStore.Tests/History/PublicHistoryTests.cs",
+      "sha256LfUtf8": "b01792e9014aa3e0dde906125f82d2057ba63c57bb2d2a64eddaa82682f11921"
+    },
+    {
+      "path": "tests/VersionStore.Tests/HistoryFaults/HistoryFaultFixture.cs",
+      "sha256LfUtf8": "bd2f66d59d80ea0946e31ccb3d3ecd7dacd0be37b4d15f7b5b951ff4f30defd0"
+    },
+    {
+      "path": "tests/VersionStore.Tests/HistoryFaults/HistoryFaultTests.cs",
+      "sha256LfUtf8": "248b8f395bf8ee4bbaf23ca8424d5be981d79e07edb510118dbe705de3e025a7"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Records/RefRecordReaderTests.cs",
+      "sha256LfUtf8": "30975b08514d8690a53220977bafd64fb81e2a6ff2866fd9b8e7fe9bd6eefc67"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Runtime/RuntimeFixture.cs",
+      "sha256LfUtf8": "482c4439dcfefe3cfde538a3cf5b4446e62f7e152ffd33b3bc7251cc9e283a35"
+    }
+  ]
+}

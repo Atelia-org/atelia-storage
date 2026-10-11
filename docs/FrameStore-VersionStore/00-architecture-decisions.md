@@ -1,6 +1,6 @@
 # S0：总体边界与决策
 
-日期：2026-10-03–10 逐步确认 FrameStore 核心、RootMap 发布与 ForkOrigin；2026-10-10 新增 FrameAddress 变长 codec，并采用无 branch 名称、持久预留低号区、自动/预留区指定创建及单文件 ref 发布。状态：**会话方向已确认；S2/S3 独立源码验收 Accepted，新增地址能力单独验证；S4–S6 仍 Draft，VersionStore 已接通 source-only 的普通 ref 公开持久化闭环；参考依赖拆分 Accepted**。
+日期：2026-10-03–10 逐步确认 FrameStore 核心、RootMap 发布与 ForkOrigin；2026-10-10 新增 FrameAddress 变长 codec，并采用无 branch 名称、持久预留低号区、自动/预留区指定创建及单文件 ref 发布。状态：**会话方向已确认；S2/S3 独立源码验收 Accepted，新增地址能力单独验证；S4–S6 仍 Draft，VersionStore 已接通 source-only 的普通 ref 公开持久化闭环与有界历史读取；参考依赖拆分 Accepted**。
 本文件记录本次用户已表达的决策。规范写法依 [规范约定](../spec-conventions.md)。API/wire 的具体选择由后续阶段细化。
 
 ## term `FrameStore` 中性的 Frame 存储库
@@ -245,7 +245,7 @@ IO/发布尝试后结果可能 Unknown；完整记录可在重开后存在。首
 | 精确尺寸公共 API、提前 ticket Builder、格式投影 | [S1](01-rbf-sized-append.md) 已 Accepted；实现 `8ab98bf`、RBF 818/818 与 W: public 源码消费等身份见[阶段验收](01-rbf-sized-append-acceptance.md) |
 | main 参考依赖拆分及三包交付入口 | [过渡验收](../rbf1-reference-transition.md#6-验收记录) Accepted；1525/1525、七个旧栈 assets 图及 `4db3b8f` 的 W: 三包候选消费通过，不重标 S1 历史结果 |
 | FrameStore 与其测试项目 / VersionStore | FrameStore 已有[公开持久化闭环](02-framestore-persistence-implementation.md)及[同步物理检查](02-framestore-inspection-implementation.md)，S2/S3独立源码Accepted、暂不打包；VersionStore已有[骨架与后续实施计划](12-versionstore-implementation-plan.md)，普通 ref 公开闭环已接通；D3设计闭合不提供系统验收资格 |
-| 新根发布模型 | 普通 ref 的 V1 实施与局部源码证据见[实施计划](12-versionstore-implementation-plan.md)；历史/fork/tag/CU 未实施 |
+| 新根发布模型 | 普通 ref 的 V1 与历史读取的 V2-A 实施及源码证据见[实施计划](12-versionstore-implementation-plan.md)；ForkRef/ListForks/tag/CU 未实施 |
 | DurableGraph 当前接口及接入 | 2026-10-04 已定位兄弟仓；生产代码仍使用未知尺寸 Begin/End，无新 API 接入证据，不以历史 tag 文档代替实证 |
 
 ## S0 出口

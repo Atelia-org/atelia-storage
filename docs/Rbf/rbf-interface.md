@@ -150,6 +150,9 @@ public interface IRbfFile : IDisposable {
     /// </remarks>
     RbfReverseSequence ScanReverse(bool showTombstone = false);
 
+    /// <summary>完整重验 boundary 的 anchor 与尾 Fence，从 anchor（含自身）向前扫描。</summary>
+    AteliaResult<RbfReverseSequence> ScanReverse(RbfScanBoundary boundary, bool showTombstone = false);
+
     /// <summary>正向扫描，返回帧元信息序列。</summary>
     /// <param name="showTombstone">是否包含墓碑帧。默认 false（不包含）。</param>
     /// <remarks>
@@ -444,7 +447,7 @@ DEPRECATED；2026-10-07 用户确认放宽历史随机读取，由 `[S-RBF-RANDO
 
 ### spec [S-RBF-SCAN-IDLE-ONLY] 新扫描与边界入口要求Idle
 
-存在 open Builder 时，`ScanReverse`、两个 `ScanForward` 重载、`GetScanBoundaryAfter` 和 `ReadFrameInfoImmediatelyAfter` MUST 在读取前抛出 `InvalidOperationException`。本轮只放宽指定 ticket 的随机读取，不改变这些入口的 Building guard，也不新增已取得扫描枚举器的推进限制。
+存在 open Builder 时，两个 `ScanReverse` 重载、两个 `ScanForward` 重载、`GetScanBoundaryAfter` 和 `ReadFrameInfoImmediatelyAfter` MUST 在读取前抛出 `InvalidOperationException`。本轮只放宽指定 ticket 的随机读取，不改变这些入口的 Building guard，也不新增已取得扫描枚举器的推进限制。
 
 `GetPhysicalOffsetImmediatelyAfter` 是不执行 I/O 的纯位置计算，保持原合同，不受此扫描 guard 限制。
 
@@ -607,6 +610,7 @@ public readonly record struct RbfScanBoundary(
 // IRbfFile
 AteliaResult<RbfScanBoundary> GetScanBoundaryAfter(SizedPtr ticket);
 AteliaResult<RbfForwardSequence> ScanForward(RbfScanBoundary boundary, bool showTombstone = false);
+AteliaResult<RbfReverseSequence> ScanReverse(RbfScanBoundary boundary, bool showTombstone = false);
 ```
 
 `GetScanBoundaryAfter` MUST 只读取指定帧及其尾 Fence，执行完整 framing、PayloadCrc 和 TrailerCrc 校验。
@@ -615,10 +619,12 @@ AteliaResult<RbfForwardSequence> ScanForward(RbfScanBoundary boundary, bool show
 
 边界起扫 MUST 先检查 end 的 4B 对齐及 `4 <= end <= EOF`。
 空 anchor 只允许精确的 `(4, default, 0)`；该边界可用于已有 suffix 的非空文件。
-Frame anchor MUST 验证 ticket 与 end 一致、完整帧 CRC、内容见证及尾 Fence，随后直接从 end 起扫，MUST NOT 为寻找边界扫描 prefix。
+两个边界扫描重载共用准入：先执行 Dispose、共享 write fault 与 Idle guard；Frame anchor MUST 验证 ticket 与 end 一致、完整帧 CRC、内容见证及尾 Fence，随后直接从 end 起扫，MUST NOT 为寻找边界扫描 prefix 或 suffix。
+正向重载交付 anchor 之后的 suffix；逆向重载从 anchor（含自身，仍受 tombstone 过滤）继续更早帧，不解析 anchor 之后的 suffix。逆向重载接受 `Empty` 并返回空序列，即使实际文件非空；EOF 逆扫入口行为不变。
 Malformed 参数返回 `Rbf.ArgumentError`；损坏 framing 和 CRC 返回对应 RBF 错误；I/O 异常保留。
 起扫后的枚举仍遵循 framing/trailer 校验及 `TerminationError`、tombstone 过滤合同。
-缓存可能预读 anchor 邻近页的 prefix 字节，但不得解析或验证无关 prefix 帧。
+缓存可能预读 anchor 邻近页的字节，但不得解析或验证扫描范围外的帧。边界准入不修改、flush 或恢复文件；factory 的当前 EOF 资格/恢复仍单独执行，不能借边界重载绕过。
+`RbfScanBoundary` 是 public 可构造数据，不携文件身份或主链来源证明；局部 anchor 成功不认证任意外部 ticket 或整个 prefix。上层来源资格、真实重复完整读的成本及该增量源码验证见[边界逆扫记录](rbf-reverse-boundary-plan.md)。
 
 ### spec [S-RBF-DETERMINISTIC-TAIL] 确定性尾读基础
 
@@ -669,15 +675,15 @@ public ref struct RbfForwardEnumerator {
 当 CRC 校验失败时，MUST 通过 `AteliaResult` 返回失败（错误类型由实现定义）。
 
 ### spec [S-RBF-SCANREVERSE-NO-PAYLOADCRC] ScanReverse不进行PayloadCRC校验
-`ScanReverse(...)` MUST NOT 执行 `PayloadCrc32C` 校验。
-`ScanReverse(...)` MUST 执行 framing 校验 + 尾部元信息校验（`TrailerCrc32C`）并输出 `RbfFrameInfo`。
+逆向序列枚举 MUST NOT 执行 `PayloadCrc32C` 校验；边界重载返回序列前的 anchor 完整核验消费 `[A-RBF-SCAN-BOUNDARY]`，不属结构枚举。
+逆向枚举 MUST 执行 framing 校验 + 尾部元信息校验（`TrailerCrc32C`）并输出 `RbfFrameInfo`。
 
 ### spec [S-RBF-SCANFORWARD-NO-PAYLOADCRC] ScanForward不进行PayloadCRC校验
-`ScanForward(...)` MUST NOT 执行 `PayloadCrc32C` 校验。
-`ScanForward(...)` MUST 执行 framing 校验 + 尾部元信息校验（`TrailerCrc32C`）并输出 `RbfFrameInfo`。
+正向序列枚举 MUST NOT 执行 `PayloadCrc32C` 校验；边界重载返回序列前的 anchor 完整核验消费 `[A-RBF-SCAN-BOUNDARY]`，不属结构枚举。
+正向枚举 MUST 执行 framing 校验 + 尾部元信息校验（`TrailerCrc32C`）并输出 `RbfFrameInfo`。
 
 **CRC 职责分离（Normative）**：
-- **ScanReverse / ScanForward**：只校验 `TrailerCrc32C`（覆盖FrameDescriptor、FrameTag及profile原wire长度：RBF1 LE(L)，RBF3 LE(U)）
+- **ScanReverse / ScanForward 的序列枚举**：只校验 `TrailerCrc32C`（覆盖FrameDescriptor、FrameTag及profile原wire长度：RBF1 LE(L)，RBF3 LE(U)）；boundary 准入另外完整核验 anchor
 - **ReadFrame / ReadPooledFrame**：具备 `PayloadCrc32C` + `TrailerCrc32C` 资格，ticket每次检查两项，info管线按 @[S-RBF-READFRAME-ALWAYS-CRC] 复用尾部资格
 
 如需完整校验，调用方 MUST 使用返回的 `Ticket` 完整读取入口或 `info.ReadFrame` / `info.ReadPooledFrame`。

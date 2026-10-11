@@ -297,6 +297,7 @@ internal sealed class TrackedRbfFile(uint fileId, IRbfFile inner, List<string> o
         return Inner.ReadFrame(ptr, buffer);
     }
     public RbfReverseSequence ScanReverse(bool showTombstone = false) => Inner.ScanReverse(showTombstone);
+    public AteliaResult<RbfReverseSequence> ScanReverse(RbfScanBoundary boundary, bool showTombstone = false) => Inner.ScanReverse(boundary, showTombstone);
     public RbfForwardSequence ScanForward(bool showTombstone = false) {
         ScanForwardCalls++;
         return Inner.ScanForward(showTombstone);

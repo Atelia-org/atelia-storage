@@ -8,7 +8,8 @@ namespace Atelia.VersionStore.Internal.Records;
 /// <remarks>不打开、恢复、关闭文件，不访问初始或来源内容；调用方负责串行及句柄生命周期。</remarks>
 internal static class RefRecordReader {
     internal static AteliaResult<CheckedRefHeader> CheckHeader(
-        IRbfFile file, StoreIdentity expectedIdentity, RefId expectedRefId
+        IRbfFile file, StoreIdentity expectedIdentity, RefId expectedRefId,
+        Func<AteliaError?>? beforeWork = null, Action? checkState = null
     ) {
         ArgumentNullException.ThrowIfNull(file);
         if (expectedIdentity == default || !expectedRefId.BelongsTo(expectedIdentity)) {
@@ -16,8 +17,13 @@ internal static class RefRecordReader {
         }
         if (file.Format != RbfFormat.Rbf3) { return new RefHeaderError("Ref files must use RBF3."); }
 
+        checkState?.Invoke();
         var forward = file.ScanForward(showTombstone: true).GetEnumerator();
-        if (!forward.MoveNext()) {
+        AteliaError? workError = beforeWork?.Invoke();
+        if (workError is not null) { return workError; }
+        bool hasHeader = forward.MoveNext();
+        checkState?.Invoke();
+        if (!hasHeader) {
             return forward.TerminationError ?? new RefHeaderError("The first physical RefHeader is missing.");
         }
 
@@ -25,8 +31,11 @@ internal static class RefRecordReader {
         if (!RefRecordCodec.IsHeaderShape(info)) { return new RefHeaderError("The first physical frame has an invalid RefHeader shape."); }
 
         // Exact shape has bounded the complete frame before allocating its stack buffer.
+        workError = beforeWork?.Invoke();
+        if (workError is not null) { return workError; }
         Span<byte> buffer = stackalloc byte[info.Ticket.Length];
         var read = info.ReadFrame(buffer);
+        checkState?.Invoke();
         if (read.IsFailure) { return read.Error; }
         if (!RefHeaderCodec.TryRead(read.Value.PayloadAndMeta, expectedIdentity, expectedRefId, out RefHeader header)) {
             return new RefHeaderError("The header version, identity, RefId, or origin does not match the admitted context.");
@@ -64,6 +73,13 @@ internal static class RefRecordReader {
         }
         if (!RefRecordCodec.IsSnapshotShape(info)) { return new RefRecordError("The current physical record has an invalid Snapshot shape."); }
 
+        return ReadSnapshot(info, header.RefId);
+    }
+
+    /// <summary>复制一条完整检查的普通 Snapshot；调用方另行取得成员与历史位置资格。</summary>
+    internal static AteliaResult<RefBytesSnapshot> ReadSnapshot(RbfFrameInfo info, RefId refId) {
+        if (!RefRecordCodec.IsSnapshotShape(info)) { return new RefRecordError("The physical record has an invalid Snapshot shape."); }
+
         // Shape/capacity checks above precede the complete pooled read.
         var read = info.ReadPooledFrame();
         if (read.IsFailure) { return read.Error; }
@@ -81,7 +97,7 @@ internal static class RefRecordReader {
             ownedBytes = frame.PayloadAndMeta[..payloadLength].ToArray();
         }
         // Only independent values survive the pooled frame's disposal.
-        return new RefBytesSnapshot(RefRevision.Create(header.RefId, info.Ticket), recordedAtUnixMs, ownedBytes);
+        return new RefBytesSnapshot(RefRevision.Create(refId, info.Ticket), recordedAtUnixMs, ownedBytes);
     }
 
     /// <summary>独立检查首帧与直接第二帧，不把初始化内容检查塞入日常当前值读取。</summary>
