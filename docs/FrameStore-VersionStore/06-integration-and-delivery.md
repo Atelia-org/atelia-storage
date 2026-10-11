@@ -1,6 +1,6 @@
 # S6：消费者验证、公共包与交付
 
-状态：**Draft；FrameStore S2/S3独立源码验收已Accepted并保持source-only；VersionStore 已接通普通 ref 公开闭环与有界历史读取；本阶段完整端到端集成、包与消费者切换尚未实施（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。
+状态：**Draft；FrameStore S2/S3独立源码验收已Accepted并保持source-only；VersionStore 已接通普通 ref 公开闭环、有界历史读取与精确 fork 创建；本阶段完整端到端集成、包与消费者切换尚未实施（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。本篇只负责组合、包与交付证据，不反向定义前序协议；ref/history/fork先验证，09 tag施工后补齐完整组合。FrameAddress变长增量资格见[实施记录](02-framestore-varint-address-implementation.md)。
 
 ## 本阶段目标
@@ -96,7 +96,7 @@ single-driver/HistoryActive、取消/回调Dispose及必要清理规则按所属
 | `eng/Pack.ps1` | S6 注册包和明确选择/版本算法 |
 | `eng/Test-Package.ps1`、metadata helper | S6 在当前纯 Rbf 三包及纯 Binary 两包隔离验证基础上增加新闭包 smoke，不削弱来源/资产校验 |
 | `eng/Verify-Published.ps1`、发布 workflow/CI | 若纳入公开交付，按实际授权和新 manifest 形态适配 |
-| 根 README / AGENTS.md | 项目实际存在、交付事实变化后更新；FrameStore/VersionStore 与测试项目均已创建、保持 source-only；VersionStore 已接通普通 ref 真实目录闭环，历史读取已接通，ForkRef/ListForks/tag 尚缺 |
+| 根 README / AGENTS.md | 项目实际存在、交付事实变化后更新；FrameStore/VersionStore 与测试项目均已创建、保持 source-only；VersionStore 已接通普通 ref 真实目录闭环，历史读取与精确 ForkRef 已接通，ListForks/tag 尚缺 |
 | 旧库维护 | RBF1 分支工作包；main 冻结参考及固定包合同不得为新栈改写 |
 
 ## 实施片

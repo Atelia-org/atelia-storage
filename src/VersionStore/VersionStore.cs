@@ -138,7 +138,17 @@ public sealed partial class VersionStore : IDisposable {
             return new VersionStoreRuntimeError("ArgumentError", "Root payload length must be between 1 and 1,048,576 bytes.");
         }
         byte[] captured = payload.ToArray();
-        var headerSize = RbfFile.MeasureWriteSize(RefHeaderCodec.NoOriginPayloadSize);
+        var prepared = PrepareNewTarget(localId);
+        if (prepared.IsFailure) { return prepared.Error!; }
+        return PublishNewRef(prepared.Value, captured, automatic, null, null, ref outcome);
+    }
+
+    private AteliaResult<RefRevision> PublishNewRef(QualifiedRefTarget target, byte[] captured,
+        bool automatic, ForkOrigin? origin, IRbfFile? sourceFile, scoped ref PublicationOutcome outcome) {
+        int headerPayloadSize = origin.HasValue
+            ? RefHeaderCodec.WithOriginPayloadSize
+            : RefHeaderCodec.NoOriginPayloadSize;
+        var headerSize = RbfFile.MeasureWriteSize(headerPayloadSize);
         if (headerSize.IsFailure) { return headerSize.Error!; }
         var snapshotSize = RbfFile.MeasureWriteSize(captured.Length, RecordMetadataCodec.EncodedSize);
         if (snapshotSize.IsFailure) { return snapshotSize.Error!; }
@@ -148,12 +158,12 @@ public sealed partial class VersionStore : IDisposable {
             || !SizedPtr.TryCreate(snapshotOffset, snapshotSize.Value.FrameLength, out _)) {
             return new VersionStoreRuntimeError("RefCapacityExceeded", "The initial ref frames cannot represent complete tickets.");
         }
-        var prepared = PrepareNewTarget(localId);
-        if (prepared.IsFailure) { return prepared.Error!; }
-        QualifiedRefTarget target = prepared.Value;
+        uint localId = target.LocalId;
         RefId refId = RefId.Create(_identity, localId);
-        Span<byte> header = stackalloc byte[RefHeaderCodec.NoOriginPayloadSize];
-        RefHeaderCodec.TryWrite(_identity, refId, null, header);
+        Span<byte> header = stackalloc byte[headerPayloadSize];
+        if (!RefHeaderCodec.TryWrite(_identity, refId, origin, header)) {
+            throw new InvalidOperationException("Cannot encode the prepared new ref header.");
+        }
         long recordedAt = _testHooks?.GetRecordedAtUnixMs?.Invoke()
             ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         Span<byte> tailMeta = stackalloc byte[RecordMetadataCodec.EncodedSize];
@@ -162,6 +172,8 @@ public sealed partial class VersionStore : IDisposable {
         try {
             if (_testHooks?.ConfirmDataDurable is { } confirm) { confirm(); }
             else { _data.ConfirmDurable(); }
+            // The exact source is confirmed after data, before any private child output.
+            sourceFile?.DurableFlush();
             _pendingRef = _files.CreatePending(_markOwnedCleanupFault);
             EnsureUsable();
             // All pre-I/O rejections were prepared above. A private Append rejection is a plan failure,

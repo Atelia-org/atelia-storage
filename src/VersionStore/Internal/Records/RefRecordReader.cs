@@ -4,8 +4,8 @@ using Atelia.VersionStore.Internal.Format;
 
 namespace Atelia.VersionStore.Internal.Records;
 
-/// <summary>在已准入、Idle 的公共 RBF 句柄上取得必要 header/head 资格。</summary>
-/// <remarks>不打开、恢复、关闭文件，不访问初始或来源内容；调用方负责串行及句柄生命周期。</remarks>
+/// <summary>在已准入、Idle 的公共 RBF 句柄上取得必要 ref 记录资格。</summary>
+/// <remarks>不打开、恢复、关闭文件；只验证调用方选中的必要记录，不额外遍历。调用方负责串行及句柄生命周期。</remarks>
 internal static class RefRecordReader {
     internal static AteliaResult<CheckedRefHeader> CheckHeader(
         IRbfFile file, StoreIdentity expectedIdentity, RefId expectedRefId,
@@ -98,6 +98,44 @@ internal static class RefRecordReader {
         }
         // Only independent values survive the pooled frame's disposal.
         return new RefBytesSnapshot(RefRevision.Create(refId, info.Ticket), recordedAtUnixMs, ownedBytes);
+    }
+
+    /// <summary>为已签发 revision 捕获 exact Snapshot bytes，并重验指定 anchor 的尾 Fence。</summary>
+    /// <remarks>只检查本次源 header 后的指定记录，不读取初始内容或扫描源后缀。</remarks>
+    internal static AteliaResult<byte[]> CaptureExactSnapshot(IRbfFile file, CheckedRefHeader header, SizedPtr ticket) {
+        ArgumentNullException.ThrowIfNull(file);
+        if (!header.IsFor(file)) { throw new ArgumentException("The checked header must belong to this RBF handle.", nameof(header)); }
+        if (ticket.Offset < header.InitialSnapshotOffset
+            || file.GetPhysicalOffsetImmediatelyAfter(ticket) > file.TailOffset) {
+            return new RefRecordError("The exact source Snapshot lies outside the checked header's completed range.");
+        }
+
+        // Bound kind/meta/payload dimensions before the complete pooled ticket read.
+        var readInfo = file.ReadFrameInfo(ticket);
+        if (readInfo.IsFailure) { return readInfo.Error!; }
+        RbfFrameInfo info = readInfo.Value;
+        if (!RefRecordCodec.IsSnapshotShape(info)) {
+            return new RefRecordError("The exact source physical record has an invalid Snapshot shape.");
+        }
+        var read = file.ReadPooledFrame(ticket);
+        if (read.IsFailure) { return read.Error!; }
+        byte[] ownedBytes;
+        using (RbfPooledFrame frame = read.Value!) {
+            int payloadLength = frame.PayloadAndMeta.Length - frame.TailMetaLength;
+            if (frame.Tag != RefRecordCodec.SnapshotTag || frame.IsTombstone
+                || frame.TailMetaLength != RecordMetadataCodec.EncodedSize
+                || payloadLength != info.PayloadLength
+                || !RecordMetadataCodec.TryRead(frame.PayloadAndMeta[payloadLength..], out _)) {
+                return new RefRecordError("The completely checked source Snapshot has an invalid envelope or metadata.");
+            }
+            ownedBytes = frame.PayloadAndMeta[..payloadLength].ToArray();
+        }
+
+        // Complete CRC alone does not cover the Fence outside the ticket. This helper
+        // rereads the full anchor and its Fence without parsing any subsequent frame.
+        var boundary = file.GetScanBoundaryAfter(ticket);
+        if (boundary.IsFailure) { return boundary.Error!; }
+        return ownedBytes;
     }
 
     /// <summary>独立检查首帧与直接第二帧，不把初始化内容检查塞入日常当前值读取。</summary>

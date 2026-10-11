@@ -61,7 +61,18 @@ VersionStore 与 FrameStore 均保持 source-only，新栈只引用 main 项目�
 
 独立复核发现并修复了一个工作预算边界：源 header 恰好耗尽额度后，未计费的 `ReadFrameInfo` 仍可能探测 anchor。现以不扣费的剩余额度检查阻止该 I/O；测试同时检查调用计数和 public RBF 读取日志，确认两个 helper 的内部完整读取没有漏计。初次集成的测试 `params` 单项构造推断错误已修正，未改变生产 API。
 
-继承路径使用受控、真实 RBF writer 生成的来源文件；普通 ref 的历史使用公开 Create/Publish 与冷重开。它们证明读取和资源合同，不证明尚未实现的 ForkRef 创建时源 flush/子发布协议。下一片必须用公开 ForkRef 补齐这条资格链；Linux、真实进程终止、负载与包消费仍分开验收。
+继承路径使用受控、真实 RBF writer 生成的来源文件；普通 ref 的历史使用公开 Create/Publish 与冷重开。它们证明读取和资源合同，不证明 V2-A 当时尚未实现的 ForkRef 创建时源 flush/子发布协议；该资格链已由下述 V2-B 补齐。Linux、真实进程终止、负载与包消费仍分开验收。
+
+## V2-B：精确 fork 创建（2026-10-11）
+
+本轮从 `da922ae` 的干净树开始，按生产接线、公开生命周期/内容反例、发布故障验收与独立复核分包。接通 `ForkRef(RefRevision, out PublicationOutcome)` 和 `ForkRef(uint destLocalRefId, RefRevision, out PublicationOutcome)`；不增加 ListForks/tag/CU，不改变持久格式、平台 backend 或 pack 清单。
+
+- 两入口首句初始化 out，复用生命周期/HistoryActive/mode guard；先拒绝 default/异库 revision、非法目标或 H 耗尽，再检查目标空槽，之后才打开源，避免已知占用仍触发源恢复。
+- 源只检查首 header 与所选 exact ticket 的完成范围、kind/meta/尺寸及完整 CRC，私有捕获不透明 bytes；额外调用公共 `GetScanBoundaryAfter` 完整重验 anchor 与尾 Fence。无需 ReadRef、逆扫、源后来追加内容或无关初始 payload；当前 RBF factory 的 EOF 资格仍独立适用。
+- 普通 CreateRef 与 fork 共用 `PublishNewRef`，分别准备 24B/36B header。子 Snapshot 重新取时，原样复制源 root bytes，来源只写入子 header，不向源登记孩子。
+- 所有准备先于 barrier；顺序为 data ConfirmDurable → exact 源 DurableFlush → 子 pending 初始化/flush/close → no-overwrite rename。源确认及子私有阶段失败保持 NotAttempted；rename 入口 Unknown，成功立即 Confirmed，再无分配推进自动号水位。异常沿既有 fault/单次清理/锁最后规则处理。
+
+公开创建与历史现在组成完整的 fork-of-fork/冷重开路径。受控损坏镜像与内部故障代理分别验证访问边界和失败窗口，不能作为真实进程终止或原生设备故障资格。实际命令与结果见本文 V2-B 验证记录。
 
 ## 后续顺序与验收出口
 
@@ -69,14 +80,14 @@ VersionStore 与 FrameStore 均保持 source-only，新栈只引用 main 项目�
 | --- | --- | --- |
 | V1：已接通普通 ref 公开闭环 | Create/Open/OpenReadOnly、自动/指定 CreateRef、ReadRef/PublishRef/ListRefs；正式目录 backend 接入现有内核 | public `Create → CreateRef → PublishRef → ReadRef → Dispose → Open/RO → ReadRef`；借入/模式在 VS I/O 前检查；门 close 后才发现/清 pending；可写 H 先完整发现，RO 不为发号全扫；唯一 pending 只取消不采用；原生同 FS no-overwrite rename；坏门/别名/特殊文件/错 data/失败清理与锁最后 |
 | V2-A：已接通有界历史读取 | RBF 指定边界逆扫公共重载；ReadRefHistory、HistoryBudget、HistoryEnd | 固定上界、实际工作计费、早停/回调 Dispose、临时句柄复用/单次清理；受控 ForkOrigin 继承读取与 exact bytes 检查，不代表 fork 创建协议已实施 |
-| V2-B：精确 fork 创建（下一片） | 自动/预留号两种 ForkRef；复用现有新 ref 单文件发布路径 | 已签发旧 revision exact 定位/尾 Fence、捕获源 bytes；所有确定拒绝先于 barrier，data 后源 flush，子重新取时并 exact clone；各失败窗口的 Outcome 与停用；public fork-of-fork/历史冷重开闭环 |
-| V2-C：声明分叉图 | ListForks、ForkInfo 与全正式 ref header 扫描 | 仅读 header、单数量预算、缺源/自链接/迭代环检查、自有完整边集合；历史 callback 内同文件复用且不覆盖历史临时槽；不逐边完整审计源 ticket |
+| V2-B：已接通精确 fork 创建 | 自动/预留号两种 ForkRef；复用现有新 ref 单文件发布路径 | 已签发旧 revision exact 定位/尾 Fence、捕获源 bytes；所有确定拒绝先于 barrier，data 后源 flush，子重新取时并 exact clone；各失败窗口的 Outcome 与停用；public fork-of-fork/历史冷重开闭环 |
+| V2-C：声明分叉图（下一片） | ListForks、ForkInfo 与全正式 ref header 扫描 | 仅读 header、单数量预算、缺源/自链接/迭代环检查、自有完整边集合；历史 callback 内同文件复用且不覆盖历史临时槽；不逐边完整审计源 ticket |
 | V3：不可变 tag | 09 的名称/路由/请求范围扫描、空桶初始化、CreateTag/ResolveTag | tag header 的初始化长度保护不同于 ref；局部坏 A 不阻断健康 B，零命中且名称不确定不能当 missing；空桶 rename 不推进 tag outcome；与历史 visitor 及 bytes 结果互操作 |
 | V4：独立完整校验与系统验收 | 只读完整检查入口、public 消费例子、进程终止/资源与两平台矩阵、S4/S5/S6 条款映射 | 日常必要读取与完整校验分别取证；新旧/循环图、坏初始健康 head、应用解码失败、所有发布与清理窗口；不得将内部模拟、字节镜像或源码测试标成 public factory、真实 kill、断电或包资格 |
 
-V1 和 V2-A 已完成源码接线，后续不重做工厂或历史遍历。下一轮优先 V2-B：接通精确 `ForkRef` 创建，用本轮历史 API 验证完整公开创建/继承路径。V2-C 的目录流式预算/局部临时句柄与图验证边界另行验收，默认不并入 V2-B；若现场工作量允许可靠合并，再明确范围与证据。后续真实文件实验按 S4/S5 使用 W:；Linux 验证另留身份与结果。
+V1、V2-A 和 V2-B 已完成源码接线，后续不重做工厂、历史遍历或 fork 发布。下一轮优先 V2-C：接通 `ListForks(maxRefs, cancellationToken)` 与 `ForkInfo`，从公开创建的 ref/fork 查询完整声明图。按 S5 逐个发现并对全部正式节点计预算，超限前不读取该节点 header；不能先调用物化全部编号的 ListRefs 再声称发现成本受预算限制。按需为内部 backend 增加有界枚举接缝，保持 ListRefs 的完整发现合同；每次只检查 header，迭代校验缺源与环，不逐边完整审计源 ticket。历史 callback 中复用当前同文件句柄，其余临时句柄保持查询局部所有权，不能覆盖历史槽。结果只交付完整自有边集合；取消、预算或必要关闭失败不交付部分成功。后续真实文件实验按 S4/S5 使用 W:；Linux 验证另留身份与结果。
 
-V2 的底座增量已由 [RBF 边界逆扫记录](../Rbf/rbf-reverse-boundary-plan.md)接入公共接口合同。普通当前值与普通 PublishRef 不依赖它，V1 证据保持原身份。ForkOrigin 元数据可在 V0 编解码，本轮读取既有声明并检验 exact 源/bytes；只有 V2-B 的正式源读取/确认与子发布才建立公开 fork 创建闭环。
+V2 的底座增量已由 [RBF 边界逆扫记录](../Rbf/rbf-reverse-boundary-plan.md)接入公共接口合同。普通当前值与普通 PublishRef 不依赖它，V1 证据保持原身份。ForkOrigin 元数据可在 V0 编解码，V2-A 读取既有声明并检验 exact 源/bytes；V2-B 已用正式源读取/确认与子发布建立公开 fork 创建闭环。
 
 CU 在正式选型同步 S0/S4/S5 前不进入上述默认队列；尤其不能提前给普通 Snapshot 分配 Members 或让 API 暗中提供跨 ref 事务。包注册、隔离 PackageReference smoke、发布及真实业务仓切换按 S6 另立明确交付片，不由源码骨架自动开启。
 
@@ -84,7 +95,7 @@ CU 在正式选型同步 S0/S4/S5 前不进入上述默认队列；尤其不能�
 
 更新本轮完成项、实际验证命令/结果、尚未取得的资格，以及下一轮最小闭环。后续实现如果改变 internal 接缝，同步修改调用方和有意义的测试；公开行为或持久格式的改变回写所属权威，不只改本文。
 
-当前未发现需要改变产品设计的阻碍。RBF 边界逆扫和历史跨文件资源/预算已接通；后续重点是既定 fork/ListForks/tag 协议与系统验收。历史自身不会把每个访问文件加入长期缓存；既有 `ReadRef/PublishRef` 的 owner 缓存仍保留，不能把局部资源验证视为大规模负载资格。不把已定机制的接线重新扩展为设计待定项。
+当前未发现需要改变产品设计的阻碍。RBF 边界逆扫和历史跨文件资源/预算已接通；后续重点是既定 ListForks/tag 协议与系统验收。历史自身不会把每个访问文件加入长期缓存；既有 `ReadRef/PublishRef/ForkRef` 的 owner 缓存仍保留，不能把局部资源验证视为大规模负载资格。不把已定机制的接线重新扩展为设计待定项。
 
 ## V0 历史验证记录（2026-10-10）
 
@@ -121,4 +132,17 @@ Windows 测试和独立复核支持 V1 普通 ref 公开闭环；真实进程终
 
 `eng/Test-Rbf1ReferenceAssets.ps1` 确认 7 个冻结参考项目仍消费精确 RBF1 包；VS assets 中五个 Atelia 底座依赖均为 main project，外部 codec 仍为 K4os.Compression.LZ4 1.3.8。新增 IRbfFile 成员只对本仓新栈测试代理补转发，旧栈包及 pack 清单未改动。早期构建中的既有 Data/Rbf XML warning 未扩大修订，最终增量构建为零 warning。
 
-本轮未实施 ForkRef/ListForks/tag/CU、未打包/发布/push。继承来源为受控文件、关闭失败为窄注入，不据此宣称公开 fork 创建、原生故障、真实进程终止、Linux、规模或包消费资格。没有产品决策阻塞，下一轮按 V2-B 实施两种精确 ForkRef。
+V2-A 当轮未实施 ForkRef/ListForks/tag/CU、未打包/发布/push。继承来源为受控文件、关闭失败为窄注入，不据此宣称公开 fork 创建、原生故障、真实进程终止、Linux、规模或包消费资格。当时没有产品决策阻塞；两种精确 ForkRef 后续已在 V2-B 接通。
+
+
+## V2-B 验证记录（2026-10-11）
+
+主线程最终 Release build **0 error、0 warning**；完整 `dotnet test Atelia.Storage.slnx -c Release --no-build` 为 **2843 通过、0 失败、9 项 Linux 专属测试跳过**。VersionStore **580 通过、6 跳过**，本轮新增 Forks 37 项与 ForkFaults 53 项。独立源码及反例复核无未解决 P1/P2。精确命令、最终 9 份 TRX、日志摘要、基线与本轮 9 个源码/测试文件摘要见 [V2-B 证据](evidence/2026-10-11-versionstore-v2b.json)。
+
+公开测试在 W: 使用真实 FrameStore/VersionStore/RBF，覆盖两种编号、公开旧点/历史选点、fork-of-fork、源后续追加排除、两层冷重开、自有 bytes、1..1MiB opaque payload、重新取时、源文件逐 byte 不变、HistoryActive/只读/default/异库/Dispose 与活跃 data Builder。受控内容反例另验证坏初始/坏后来 head 不阻断健康 exact 来源，必要 CRC/envelope/尺寸/尾 Fence 必须拒绝；完整 EOF 的 factory 拒绝与旧 anchor 的 boundary 拒绝分别证明。复核后补充了已签发 revision 超出截断后完成范围的拒绝与健康前点仍能 fork；该截断仅为受控损坏镜像，正常协议仍禁止删除已发布位置。
+
+故障测试验证先 data 后 exact 源确认、只刷直接源不刷祖先、私有阶段/rename/确认后异常的 Outcome、主错误优先、单次清理及锁最后。真实 RBF 读取日志证明 exact 源两次完整读取，源后缀仅由测试显式 ReadRef 访问；不以代理调用计数替代底层读证据。
+
+首轮完整测试中两个同源用例在辅助转储步骤触发 Windows 共享冲突：writer 使用 FileShare.None，不能在其存活期间另开读取句柄。已删除该用例重复的转储断言，保留真实读取日志与发布顺序；源文件不变由关闭 owner 前后的公开逐 byte 比较验证。生产共享模式及协议未改动，修正后重新构建并运行完整测试。最初底座构建中的既有 XML warning 未扩大修订。
+
+`eng/Test-Rbf1ReferenceAssets.ps1` 确认 7 个冻结参考项目仍消费精确 RBF1 包；VS assets 中 FrameStore/Binary/Rbf/Data/Primitives 均为 main project，外部 codec 仍为 K4os.Compression.LZ4 1.3.8。未打包、发布、push 或迁移消费者；Windows 源码测试、内部故障注入不能代替 Linux、真实进程终止、原生设备故障、规模或包消费资格。没有产品决策阻塞，下一片为 V2-C 声明分叉图。

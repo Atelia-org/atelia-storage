@@ -1,6 +1,6 @@
 # S5：ref 历史、fork 与 tag 施工导航
 
-状态：**Draft；V2-A 已实施历史 visitor/预算/清理、按 ForkOrigin 接续与 RBF 边界逆扫；ForkRef 创建、ListForks 及系统/平台完整验收尚缺（见[实施与后续计划](12-versionstore-implementation-plan.md)）。受控来源文件的读取验收不代表 ForkRef 创建协议已实施。**
+状态：**Draft；V2-A 已实施历史 visitor/预算/清理、按 ForkOrigin 接续与 RBF 边界逆扫；V2-B 已接通自动/指定 ForkRef 创建；ListForks、tag 及系统/平台完整验收尚缺（见[实施与后续计划](12-versionstore-implementation-plan.md)）。公开 fork 创建/继承历史闭环与受控故障证据分别记录。**
 本文负责历史、fork 与声明图查询；ref 格式/身份/编号及发布协议消费 [S4](04-versionstore-publication.md)，记录时间见 [08 专项](08-versionstore-record-metadata.md)，bytes 结果见 [11 专项](11-versionstore-root-payload-bytes-api.md)。不可变 tag 由 [09 专项](09-versionstore-immutable-tags.md)定义，安排在 ref、历史与 fork 之后施工。
 前置：[S0](00-architecture-decisions.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)。扩展 S4 的完整根快照与局部发布协议，不增加全局事实日志。
 
@@ -50,7 +50,7 @@ ForkRef 两种入口 MUST 接收本 VersionStore 的已发布 RefRevision，先�
 
 ### spec [A-VS-REF-HISTORY-CHECKED] 同步历史读取交付真实且自有的快照
 
-首版历史入口已实施如下；实际源码资格见实施计划，ForkRef/ListForks 仍待实施：
+首版历史入口已实施如下；实际源码资格见实施计划，两种 ForkRef 亦已接通，ListForks 仍待实施：
 
 ```csharp
 public readonly record struct HistoryBudget(long MaxSnapshots, long MaxWorkSteps);

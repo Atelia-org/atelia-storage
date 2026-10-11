@@ -1,6 +1,6 @@
 # S4：VersionStore 不透明根 payload 与单文件 ref 发布
 
-状态：**Draft；单文件 ref、身份/编号、创建/打开、ForkOrigin 与 PublicationOutcome 合同已定；V1 已接通公开工厂、普通 ref 创建/发布/发现与冷重开；完整系统及 Linux 平台验收尚缺（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。
+状态：**Draft；单文件 ref、身份/编号、创建/打开、ForkOrigin 与 PublicationOutcome 合同已定；V1 已接通公开工厂、普通 ref 创建/发布/发现与冷重开，V2-B 已复用单文件发布接通精确 fork；完整系统及 Linux 平台验收尚缺（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。
 本文负责发布协议、身份与 ref envelope；时间编码见 [08 元信息专项](08-versionstore-record-metadata.md)，bytes API/所有权见 [11 公面专项](11-versionstore-root-payload-bytes-api.md)，可选 RootMap codec 见 [10 专项](10-versionstore-rootmap-payload.md)。首版版本为 1，不兼容未实施的旧草案。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)。历史与不可变 tag 见 [S5](05-versionstore-names-and-indexes.md)。
 
@@ -355,7 +355,7 @@ try {
 ```
 
 正常成功 Result MUST 对应 Confirmed；正常失败 Result MUST 对应可证明本次公开发布未发生的 NotAttempted。确定拒绝沿用 Result，生命周期等既有 guard 和运行期异常仍抛出；不得把 Unknown 或 Confirmed 后的异常改成普通失败 Result。out 是唯一调用证据通道，不要求构造 PublicationException、修改 Exception.Data 或查询实例 LastOutcome；原操作异常不为携带证据另行包装。调用方 MAY 用 `out _` 放弃证据，但不能据异常本身推断发布状态。
-（Informative）只靠返回值无法传出抛异常时的证据；后置异常包装需要分配，确认后遇到 OOM 时，包装再失败会丢掉 Confirmed 和原异常。enum 的 out 写回无需分配，适配当前同步串行接口；异步接口另立合同，不为它预建载体。[RBF 故障测试](../../tests/Rbf.Tests/Internal/Rbf3WriterFaultTests.cs)已覆盖完整输出后异常而 TailOffset 未推进，以及 flush 前/后异常，不能按异常本身猜发布相位；本条是上层待实施合同。
+（Informative）只靠返回值无法传出抛异常时的证据；后置异常包装需要分配，确认后遇到 OOM 时，包装再失败会丢掉 Confirmed 和原异常。enum 的 out 写回无需分配，适配当前同步串行接口；异步接口另立合同，不为它预建载体。[RBF 故障测试](../../tests/Rbf.Tests/Internal/Rbf3WriterFaultTests.cs)已覆盖完整输出后异常而 TailOffset 未推进，以及 flush 前/后异常，不能按异常本身猜发布相位；普通 ref 与 fork 的上层接线及源码验证见[实施计划](12-versionstore-implementation-plan.md)，tag 尚待实施。
 证据赋值与 fault latch MUST 只更新现有字段/引用，不依赖新分配。公开协调入口直接更新这一 out；内部助手不得重置已推进的本次证据，或仅在正常返回后把局部 outcome 拷回外层。不调用其他公开 mutation 拼接本次事务。Confirmed 先写回，再进行内存投影/成功值安装、释放或正常返回；以后不能降级。
 
 Outcome 与实例健康是两个事实：NotAttempted 不表示零 I/O 或可直接重试，Confirmed 不表示当前实例还能使用。确定前置拒绝不新增 fault；data/源确认、私有输出及公开输出/flush/close/rename 或确认后安装异常保守停用 VersionStore，并启动一次完整受控 teardown。先无分配地使实例失效，再单次尝试清理全部非锁 owned 资源，最后关闭根锁；旧 owner 终止，后续操作拒绝，再次 Dispose 不重复关闭已尝试对象。仅按各 owner 自己的合同处理其 fault，不 Dispose 借入 data，不把健康 data 一并宣称故障。确定参数/guard 或 pre-I/O 失败 Result 不 teardown；普通查询发布 envelope/长度/预算失败继续按既有读合同处理，实际恢复/owned 清理等已要求停用的失败才进入受控 teardown。
@@ -378,7 +378,7 @@ Outcome 与实例健康是两个事实：NotAttempted 不表示零 I/O 或可直
 
 ### spec [R-VS-LOCAL-COMPLETE] 重开接受局部完整发布事实
 
-**正式 ref 接受恢复后的局部完整事实。** 通过门/data 绑定、正式路径/类型及访问模式/独占准入后，可写访问 MUST 先用 public `RbfFile.OpenExisting` 按 RBF3 单尾合同执行结构恢复，再按 `[F-VS-REF-FRAMES]` 校验 header 及本次实际需要的发布记录。ReadRef 只完整读取最新 head；精确 fork、历史和 ListForks 分别消费 S5 的访问范围，不把初始内容或完整历史校验放在共同打开前置中。初始化与后续更新统一消费这份恢复合同；MUST NOT 仅因恢复作用于初始 Snapshot、Action 非 None 或旧恢复报告已不存在而拒绝。无需恢复前初始前缀资格；S5 所需的边界逆扫是另一份待实施公共增量。
+**正式 ref 接受恢复后的局部完整事实。** 通过门/data 绑定、正式路径/类型及访问模式/独占准入后，可写访问 MUST 先用 public `RbfFile.OpenExisting` 按 RBF3 单尾合同执行结构恢复，再按 `[F-VS-REF-FRAMES]` 校验 header 及本次实际需要的发布记录。ReadRef 只完整读取最新 head；精确 fork、历史和 ListForks 分别消费 S5 的访问范围，不把初始内容或完整历史校验放在共同打开前置中。初始化与后续更新统一消费这份恢复合同；MUST NOT 仅因恢复作用于初始 Snapshot、Action 非 None 或旧恢复报告已不存在而拒绝。无需恢复前初始前缀资格；S5 所需的公共边界逆扫及历史接线已在 V2-A 实施，源码资格见[实施计划](12-versionstore-implementation-plan.md)。
 
 初始 Snapshot body 已完整而仅缺 RBF 可合法补齐的 Key/Fence 时，CompletedTail 后通过必要身份、kind/meta、CRC 与 payload 边界检查即可建立发布资格；应用取得 bytes 后自行解码。后续残尾被 Truncated 后，检查并使用剩余实际末 Snapshot，不另预读初始 payload。若缺必要 header 或已无当前 Snapshot，MUST 报错，不补造空字典。当前 head 自己损坏 MUST 报错，不丢弃它或回退旧值；未访问历史的坏内容不连带拒绝健康 head。RBF 结构恢复可能已经修改文件，随后 VersionStore 才拒绝本次必要记录；不撤销底层恢复。校验本身不修内容，独立完整校验使用只读路径且不承担修复。只读访问使用 public `OpenReadOnlyExisting`，需要修尾时仍拒绝且不修改；旧点直接读取也不能绕过底座工厂对当前 EOF 的结构准入。
 
