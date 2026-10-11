@@ -1,6 +1,8 @@
 # Atelia.VersionStore
 
-本项目参加 solution 构建与测试，已纳入主线本地候选包清单。普通 ref/历史/fork/tag/Audit 等既有范围取得[独立源码验收](../../docs/FrameStore-VersionStore/12-versionstore-final-acceptance.md)。本轮 CU 已正式接纳并实施，新增范围取得独立源码验收 Accepted，范围与实际验证见[07 CU 验收](../../docs/FrameStore-VersionStore/07-versionstore-cross-ref-conditional-update-acceptance.md)。[原六包候选](../../docs/FrameStore-VersionStore/13-local-package-delivery.md)不含 CU，版本/manifest/来源不变；本轮不自动重新打包或发布。设计入口为[S4](../../docs/FrameStore-VersionStore/04-versionstore-publication.md)与[07](../../docs/FrameStore-VersionStore/07-versionstore-cross-ref-conditional-update.md)。
+设计、当前计划与验收索引见 [VersionStore 文档](../../docs/VersionStore/README.md)。
+
+本项目参加 solution 构建与测试，已纳入主线本地候选包清单。普通 ref/历史/fork/tag/Audit 等既有范围取得[独立源码验收](../../docs/VersionStore/12-versionstore-final-acceptance.md)。本轮 CU 已正式接纳并实施，新增范围取得独立源码验收 Accepted，范围与实际验证见[07 CU 验收](../../docs/VersionStore/07-versionstore-cross-ref-conditional-update-acceptance.md)。[原六包候选](../../docs/FrameStore-VersionStore/13-local-package-delivery.md)不含 CU，版本/manifest/来源不变；本轮不自动重新打包或发布。设计入口为[S4](../../docs/VersionStore/04-versionstore-publication.md)与[07](../../docs/VersionStore/07-versionstore-cross-ref-conditional-update.md)。
 
 VersionStore 借入一个 FrameStore，发布不透明 root-payload bytes。每个 ref 是独立 RBF3 文件中的完整快照序列；应用选择内容 codec 并保证 data 依赖闭包。PublishRefs 以 CU 的完整成员表共同裁决多个同库既有 ref 的发布资格，普通单 ref 更新仍为 Snapshot；不提供跨调用快照隔离或创建/tag/跨库事务。
 
@@ -22,7 +24,7 @@ VersionStore 借入一个 FrameStore，发布不透明 root-payload bytes。每�
 
 核心公开闭环为 `Create → CreateRef → PublishRef → ReadRef/ReadRefHistory → Dispose → Open/RO → ReadRef/ReadRefHistory`。两种 `ForkRef` 已接通，并用公开创建和两层冷重开验证继承历史。`ListForks` 已可查询全部正式 ref 的声明分叉图。tag 公开闭环、关联 overload、ReadTagInfo 与 ScanTags 已接通；只读完整校验 `Audit` 已接通。Windows 源码测试与 Linux、进程终止、包消费资格分别记录，见实施计划。
 
-可独立运行的 [VersionStore.Smoke](../../tools/VersionStore.Smoke/README.md) 仅通过 public API 演示多根/循环 data、历史选点、两种 fork、rewind/tag 及新进程只读重开。solution 中的 SystemIntegration 测试另负责真实子进程锁矩阵和公开停点强杀；内部写入窗口、断电和包消费不由这些停点证明。 同一consumer的 resource-write/resource-read 提供16/64/256个ref的有限资源观察，平台实测和测量边界见 [V4-C记录](../../docs/FrameStore-VersionStore/12-versionstore-linux-resource-acceptance.md)。
+可独立运行的 [VersionStore.Smoke](../../tools/VersionStore.Smoke/README.md) 仅通过 public API 演示多根/循环 data、历史选点、两种 fork、rewind/tag 及新进程只读重开。solution 中的 SystemIntegration 测试另负责真实子进程锁矩阵和公开停点强杀；内部写入窗口、断电和包消费不由这些停点证明。 同一consumer的 resource-write/resource-read 提供16/64/256个ref的有限资源观察，平台实测和测量边界见 [V4-C记录](../../docs/VersionStore/12-versionstore-linux-resource-acceptance.md)。
 
 其中[应用策略示例](../../tools/VersionStore.Smoke/README.md#应用策略示例)用四个RootMap根演示tool-loop冻结请求/Started确认、uncertain或receipt查询恢复，以及单driver的operationId/generation合并。应用边界强杀、冷恢复与过期/重复回包拒绝由跨进程测试验证；外部receipt和应用结算规则属于示例，不成为存储的自动重试或exactly-once合同。
 

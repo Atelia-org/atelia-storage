@@ -1,6 +1,6 @@
 # FrameAddress 变长编码与 RootMap 消费
 
-日期：2026-10-10。起始基线：`7f98782`，工作树干净。用户在 R1–R3 收尾后另行批准本片；它不重新开启原自动队列。规范权威为 [S2](02-framestore-core.md) 的 `[F-FS-FRAME-ADDRESS-VARINT]` 与 [S4](04-versionstore-publication.md) 的 `[F-VS-ROOTMAP-BPV1]`。
+日期：2026-10-10。起始基线：`7f98782`，工作树干净。用户在 R1–R3 收尾后另行批准本片；它不重新开启原自动队列。规范权威为 [S2](02-framestore-core.md) 的 `[F-FS-FRAME-ADDRESS-VARINT]` 与 [S4](../VersionStore/04-versionstore-publication.md) 的 `[F-VS-ROOTMAP-BPV1]`。
 
 ## 变更边界
 
@@ -35,4 +35,4 @@ RootMap 探针覆盖 4B entry 下界、key/suffix 的分配前检查、全部 co
 
 本轮没有改变存储平台或恢复路径，因此没有重跑进程终止、资源规模和 Linux 矩阵；新增 codec 的运行证据限定为上述 Windows 验证。未取得新的包消费、生产 VersionStore、断电或性能资格，RootMap 的 1MiB 界也不被解释为峰值内存保证。
 
-2026-10-10 后续设计接受域调整：[RootMap 专项](10-versionstore-rootmap-payload.md)现要求 key 为有效 Unicode，拒绝未配对 surrogate。本记录的全部 code-unit key 向量及对应探针结果保留当时合同身份，不构成新接受域的验证；FrameAddress codec 的资格不受影响。
+2026-10-10 后续设计接受域调整：[RootMap 专项](../VersionStore/10-versionstore-rootmap-payload.md)现要求 key 为有效 Unicode，拒绝未配对 surrogate。本记录的全部 code-unit key 向量及对应探针结果保留当时合同身份，不构成新接受域的验证；FrameAddress codec 的资格不受影响。

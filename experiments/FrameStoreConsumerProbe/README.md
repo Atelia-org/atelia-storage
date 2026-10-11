@@ -1,6 +1,6 @@
 # FrameStore public 循环图消费者探针
 
-独立消费 [S2](../../docs/FrameStore-VersionStore/02-framestore-core.md) 的公开 API，取得 [S3](../../docs/FrameStore-VersionStore/03-framestore-interleaved-builders-and-durability.md) 和[收尾计划 R2](../../docs/FrameStore-VersionStore/02-framestore-completion-plan.md) 所要求的构建轨迹。项目仅直接 `ProjectReference` 当前 `src/FrameStore`，不使用 `InternalsVisibleTo`，不进入 solution、生产包清单或 VersionStore。
+独立消费 [S2](../../docs/FrameStore/02-framestore-core.md) 的公开 API，取得 [S3](../../docs/FrameStore/03-framestore-interleaved-builders-and-durability.md) 和[收尾计划 R2](../../docs/FrameStore/02-framestore-completion-plan.md) 所要求的构建轨迹。项目仅直接 `ProjectReference` 当前 `src/FrameStore`，不使用 `InternalsVisibleTo`，不进入 solution、生产包清单或 VersionStore。
 
 从仓库根串行运行，需要仓库指定的 .NET 10 SDK；Windows 或 Linux 的实际文件系统须满足 FrameStore 的准入要求：
 

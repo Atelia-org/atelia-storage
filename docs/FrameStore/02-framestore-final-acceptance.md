@@ -42,7 +42,7 @@ R1 三组最终原始 JSON、R2 两组消费者和两组资源最终 JSON 均在
 | Scan | [FrameStoreCore.Scan](../../src/FrameStore/Internal/Runtime/FrameStoreCore.Scan.cs) | 同步 visitor、临时 reader 槽、CRC 信任级别、最终 guard 和错误清理 |
 | Platform | [FrameStorePlatform](../../src/FrameStore/Internal/Platform/FrameStorePlatform.cs) | ordinary/no-follow、精确名称、同文件系统、native lock/rename |
 | Header | [FrameHeaderReader](../../src/FrameStore/Internal/Admission/FrameHeaderReader.cs) | 首物理位置、RBF3、固定形状、完整 CRC、预期身份/编号与边界 |
-| Address/Formats | [FrameAddress](../../src/FrameStore/FrameAddress.cs)、[格式目录](../../src/FrameStore/Internal/Format/) | 唯一 12B codec、完整 Packed、24B gate/header、路径、config、阈值 |
+| Address/Formats | [FrameAddress](../../src/FrameStore/FrameAddress.cs)、[格式目录](../../src/FrameStore/Internal/Format) | 唯一 12B codec、完整 Packed、24B gate/header、路径、config、阈值 |
 | T-Life / T-Admit | [PublicLifecycleTests](../../tests/FrameStore.Tests/Public/PublicLifecycleTests.cs)、[PublicAdmissionTests](../../tests/FrameStore.Tests/Public/PublicAdmissionTests.cs) | public 冷生命周期与构造残留的重复拒绝/恢复 |
 | T-Inspect / T-Handoff | [PublicInspectionTests](../../tests/FrameStore.Tests/Public/PublicInspectionTests.cs)、[InspectionOwnerHandoffTests](../../tests/FrameStore.Tests/Public/InspectionOwnerHandoffTests.cs) | 实际正式集合、损坏、visitor/final guard、Dispose 后立即重开 |
 | T-Core / T-Scan | [FrameStoreCoreTests](../../tests/FrameStore.Tests/Runtime/FrameStoreCoreTests.cs)、[FrameStoreScanTests](../../tests/FrameStore.Tests/Runtime/FrameStoreScanTests.cs) | 内部行为、真实 RBF 包装故障、调用次序与单次清理 |

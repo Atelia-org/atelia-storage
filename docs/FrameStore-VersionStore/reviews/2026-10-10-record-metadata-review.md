@@ -1,6 +1,6 @@
 # ref 记录元信息：两轮简化裁决
 
-日期：2026-10-10。基线：`d594665`。范围：先撰写 [S4 元信息专项](../08-versionstore-record-metadata.md)，再以 dialectical-simplification 的三个独立角色质询并交叉复核，最后同步 S0/S4/S5/S6/CU 与入口/问题索引。只有文档修订，VersionStore 尚未实施；没有新库、恢复、性能、平台或包验收结论。
+日期：2026-10-10。基线：`d594665`。范围：先撰写 [S4 元信息专项](../../VersionStore/08-versionstore-record-metadata.md)，再以 dialectical-simplification 的三个独立角色质询并交叉复核，最后同步 S0/S4/S5/S6/CU 与入口/问题索引。只有文档修订，VersionStore 尚未实施；没有新库、恢复、性能、平台或包验收结论。
 
 ## 需求账本
 

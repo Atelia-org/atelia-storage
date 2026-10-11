@@ -273,7 +273,7 @@ public static class BareValueEncoding {
 | VarUInt16 / VarUInt32 / VarUInt64 | ushort / uint / ulong | 对应 MeasureVarUIntX |
 | VarInt16 / VarInt32 / VarInt64 | short / int / long | 对应 MeasureVarIntX |
 
-示意消费（Informative）：FrameStore 的固定 address codec 使用 BCL LE 基元保持 12B；新增变长 codec 组合本层的 VarUInt32 与 VarUInt64，票据通过 SizedPtr.Serialize/Deserialize 转换。VersionStore 使用 VarUInt32(count)、逐项 WriteString(key) 与 FrameAddress 变长 codec 组合 RootMap；完整记录的字段/版本/限额以 [S4](../FrameStore-VersionStore/04-versionstore-publication.md) 为准。本层不引用 FrameStore，也不定义地址资格。
+示意消费（Informative）：FrameStore 的固定 address codec 使用 BCL LE 基元保持 12B；新增变长 codec 组合本层的 VarUInt32 与 VarUInt64，票据通过 SizedPtr.Serialize/Deserialize 转换。VersionStore 使用 VarUInt32(count)、逐项 WriteString(key) 与 FrameAddress 变长 codec 组合 RootMap；完整记录的字段/版本/限额以 [S4](../VersionStore/04-versionstore-publication.md) 为准。本层不引用 FrameStore，也不定义地址资格。
 受控使用（Informative）：PrepareControlledString(value, ValueCompression.Brotli) → 用 EncodedLength 预算 → WritePreparedValue(plan) → ReadControlledString。bytes 的 null 显式使用 ControlledValueEncodingPlan.Null；PrepareControlledBytes(span) 表示非 null bytes，empty span 不表示 null。调用方按 schema 选择 string/bytes reader；同一个 plan 类型不承诺自动识别内层类型。
 
 ## 独立 golden 与验收向量
@@ -333,7 +333,7 @@ LZ4 增量依据：[标准 Block 格式](https://github.com/lz4/lz4/blob/v1.9.4/
 
 - DurableGraph 的 [BinaryPayloadWriter](../../../durable-graph/src/DurableGraph.Serialization/BinaryPayloadWriter.cs)、[BinaryPayloadReader](../../../durable-graph/src/DurableGraph.Serialization/BinaryPayloadReader.cs)、[CanonicalVarInt](../../../durable-graph/src/DurableGraph.Serialization/CanonicalVarInt.cs)、[StringPayloadCodec](../../../durable-graph/src/DurableGraph.Serialization/StringPayloadCodec.cs) 是实现参考：VarInt 拒绝 nonminimal、string 读后重新验证最短，本草案明确放宽这两项，未声称行为相同。
 - StateJournal 的 [VarInt](../../../atelia-statejournal/src/StateJournal/Serialization/VarInt.cs) 最宽终组零与其他路径处理不一；[StringPayloadCodec](../../../atelia-statejournal/src/StateJournal/StringPayloadCodec.cs) 默认 UTF-8 replacement 可损失未配对 surrogate。它们说明需要统一合同，不代表本轮已修复这些库。
-- 既定 [FrameAddress codec](../FrameStore-VersionStore/02-framestore-core.md) 与 [RBF 尺寸/early ticket](../FrameStore-VersionStore/01-rbf-sized-append.md) 由消费层继续拥有，本层不重复其格式常量或身份保证。
+- 既定 [FrameAddress codec](../FrameStore/02-framestore-core.md) 与 [RBF 尺寸/early ticket](../Rbf/01-rbf-sized-append.md) 由消费层继续拥有，本层不重复其格式常量或身份保证。
 - [CBOR RFC 8949 §4.1](https://www.rfc-editor.org/rfc/rfc8949.html#section-4.1) 区分 preferred writer 与接受其他表示的 decoder；这是设计参照，本方案不是 CBOR 子集/兼容格式。
 - BCL 的 [IBufferWriter](https://learn.microsoft.com/en-us/dotnet/api/system.buffers.ibufferwriter-1?view=net-10.0) 定义 sink 协议；[Encoder.Convert](https://learn.microsoft.com/en-us/dotnet/api/system.text.encoder.convert?view=net-10.0) 可用于有状态分块编码。具体 fast path 仍需施工验收。
 - 冻结参考 [EventPayloadCodec](../../src/EventJournal/EventPayloadCodec.cs) 的实际方法为 Brotli/Zlib，q3/w22、Zlib Optimal 与收益阈值是旧 writer 经验；本草案不依赖 EventJournal，也不照抄其解压资格或旧方法编号。

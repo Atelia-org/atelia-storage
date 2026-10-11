@@ -1,7 +1,7 @@
 # S3：FrameStore 交错构建、循环引用与同步耐久屏障
 
 状态：**Accepted（2026-10-10，FrameStore 独立 public 交错构建与同步屏障消费资格）**。证据及适用边界见[最终源码验收](02-framestore-final-acceptance.md)；不包含 VersionStore 发布、包交付或多线程执行。
-前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)。本层不解释根发布或 payload 引用。
+前置：[S0](../FrameStore-VersionStore/00-architecture-decisions.md)、[S1](../Rbf/01-rbf-sized-append.md)、[S2](02-framestore-core.md)。本层不解释根发布或 payload 引用。
 
 独立 public API 消费与资源证据见 [R2 记录](02-framestore-consumer-resource-acceptance.md)，真实进程中断的范围见 [R1 记录](02-framestore-process-acceptance.md)。这些记录分别证明实际覆盖的向量，不代替下文全部出口或上层发布资格。
 

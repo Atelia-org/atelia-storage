@@ -1,7 +1,7 @@
 # S6：消费者验证、公共包与交付
 
-状态：**S6-C/D Accepted（既有六包本地候选；Windows 与 WSL2/ext4 隔离包消费）；公开交付与真实接入未取得资格。** 实际候选版本、来源及限定平台见[本地交付记录](13-local-package-delivery.md)。该不可变候选不含本轮 CU；CU 已正式接纳，其新源码/进程/平台资格见[07 验收](07-versionstore-cross-ref-conditional-update-acceptance.md)，本轮不自动重新打包或发布。FrameStore S2/S3 与 VersionStore S4/S5 的既有源码验收、V4-B/C/D 的组合/有限资源/应用策略、V4-F 的具名内部进程证据保留各自身份；V4-E 的反例修正及逐条裁决见[VersionStore 源码验收](12-versionstore-final-acceptance.md)。公开发布与真实消费者切换另行确定范围。
-前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。本篇只负责组合、包与交付证据，不反向定义前序协议；ref/history/fork先验证，09 tag施工后补齐完整组合。FrameAddress变长增量资格见[实施记录](02-framestore-varint-address-implementation.md)。
+状态：**S6-C/D Accepted（既有六包本地候选；Windows 与 WSL2/ext4 隔离包消费）；公开交付与真实接入未取得资格。** 实际候选版本、来源及限定平台见[本地交付记录](13-local-package-delivery.md)。该不可变候选不含本轮 CU；CU 已正式接纳，其新源码/进程/平台资格见[07 验收](../VersionStore/07-versionstore-cross-ref-conditional-update-acceptance.md)，本轮不自动重新打包或发布。FrameStore S2/S3 与 VersionStore S4/S5 的既有源码验收、V4-B/C/D 的组合/有限资源/应用策略、V4-F 的具名内部进程证据保留各自身份；V4-E 的反例修正及逐条裁决见[VersionStore 源码验收](../VersionStore/12-versionstore-final-acceptance.md)。公开发布与真实消费者切换另行确定范围。
+前置：[S0](00-architecture-decisions.md)、[S1](../Rbf/01-rbf-sized-append.md)、[S2](../FrameStore/02-framestore-core.md)、[S3](../FrameStore/03-framestore-interleaved-builders-and-durability.md)、[S4](../VersionStore/04-versionstore-publication.md)、[S5](../VersionStore/05-versionstore-names-and-indexes.md)。本篇只负责组合、包与交付证据，不反向定义前序协议；ref/history/fork先验证，09 tag施工后补齐完整组合。FrameAddress变长增量资格见[实施记录](../FrameStore/02-framestore-varint-address-implementation.md)。
 
 ## 本阶段目标
 
@@ -17,7 +17,7 @@ DurableGraph 是需求来源；S0 已记录兄弟仓的定位观察，实际接�
 
 两个模型用同一套 public API 写 data、自动或指定 CreateRef、PublishRef/ReadRef，枚举旧快照、创建 tag 并冷重开。固定角色用预留号，动态目录保存 LocalId 并在正确库 checked 定位。所选真实 revision 经自动/指定 ForkRef 建立精确 ForkOrigin 与初始 Snapshot，一次 file rename 发布；只传 roots 表示无来源起点。ReadRefHistory 遍历继承前缀，ListForks 查询全部声明边；无 CreateCommit/PreparedPublication 或默认多对象事务。
 覆盖相同字典的重复发布、新旧 revision 分离与多个 tag；ReadRefHistory 固定完成上界，经同步 visitor 交付自有 RefBytesSnapshot，调用结束后旧字典仍可使用。rewind 追加旧字典，保留全部既有完整记录。不同 Builder 申请/完成次序构建相同逻辑图时，只按返回地址取回，不依靠文件选择或大小排序。
-仓内已提供可独立运行的 [VersionStore.Smoke](../../tools/VersionStore.Smoke/README.md)：多根/循环图、历史选点/fork/rewind/tag 由新进程冷读验证。Windows 两层锁与六个公开停点的实际强杀见 [V4-B 记录](12-versionstore-implementation-plan.md#v4-b-验证记录2026-10-11)。这不是 DurableGraph 接入、内部写入窗口或整张 S6 矩阵完成的证据。 WSL2/ext4与Windows的有限资源消费者、平台用例及原生锁实测见 [V4-C记录](12-versionstore-linux-resource-acceptance.md)；冻结EventJournal单独tmpfs回归与新栈ext4资格分开。
+仓内已提供可独立运行的 [VersionStore.Smoke](../../tools/VersionStore.Smoke/README.md)：多根/循环图、历史选点/fork/rewind/tag 由新进程冷读验证。Windows 两层锁与六个公开停点的实际强杀见 [V4-B 记录](../VersionStore/12-versionstore-implementation-plan.md#v4-b-验证记录2026-10-11)。这不是 DurableGraph 接入、内部写入窗口或整张 S6 矩阵完成的证据。 WSL2/ext4与Windows的有限资源消费者、平台用例及原生锁实测见 [V4-C记录](../VersionStore/12-versionstore-linux-resource-acceptance.md)；冻结EventJournal单独tmpfs回归与新栈ext4资格分开。
 
 ## 两类需求的最小消费者
 
@@ -30,7 +30,7 @@ DurableGraph 是需求来源；S0 已记录兄弟仓的定位观察，实际接�
 | Gym 历史与扇出 | visitor 选中非末快照并停止，返回后分别创建两个自动或预留区指定 fork，再独立推进 | 每次仅一个新 ref 文件原子发布；两个 fork 不是整批事务，对象隔离由应用负责 |
 | rewind/tag | 旧快照追加新 revision，再保存 tag、推进 ref 后冷重开 | 历史保留、同值不合并 revision、tag 字典固定，不把 ref 历史当业务因果 |
 
-V4-D 已由 [public consumer 应用示例](../../tools/VersionStore.Smoke/README.md#应用策略示例)接通前两项：tool-loop 三个应用停点真实kill后冷恢复，generation 用受控Task完成顺序驱动串行合并；具体平台、反例与取证边界见[实施记录](12-versionstore-implementation-plan.md#v4-d-验证记录2026-10-11)。外部receipt是模拟服务，结果结算是应用发布状态内的计入，不代表真实外部支付或任意backend的exactly-once。
+V4-D 已由 [public consumer 应用示例](../../tools/VersionStore.Smoke/README.md#应用策略示例)接通前两项：tool-loop 三个应用停点真实kill后冷恢复，generation 用受控Task完成顺序驱动串行合并；具体平台、反例与取证边界见[实施记录](../VersionStore/12-versionstore-implementation-plan.md#v4-d-验证记录2026-10-11)。外部receipt是模拟服务，结果结算是应用发布状态内的计入，不代表真实外部支付或任意backend的exactly-once。
 
 确定性模拟另由应用检验完整 world、runtime/cursor、RNG 坐标或内部状态、规则与 Agent 工作区。存储保证原样保存/选择与精确 ref 创建来源；轨迹 root 可另表达 action/reward/实验条件，不能把发布分叉图当作业务推演因果。外部 tool 的幂等、receipt/query 或显式重复策略也由应用/backend 验收。
 同步发布消费 S4 `[A-VS-PUBLICATION-EVIDENCE]`：每次初始化 out，成功 Result 为 Confirmed，确定失败为 NotAttempted，异常保存证据并停止旧流程。证据不代表 owner 健康，确认后安装失败仍重开。自动创建丢失返回值不按同值认领；指定目标可冷开 checked 查询，但已占用不证明旧请求 Confirmed。外部 operationId 仍在应用数据内。
@@ -49,10 +49,10 @@ tool-loop 首次/新 attempt 外发之前 MUST 正常确认该 attempt 的冻结
 
 | 验收权威 | S6消费范围 |
 | --- | --- |
-| [S2/S3最终源码验收](02-framestore-final-acceptance.md)、[变长地址增量](02-framestore-varint-address-implementation.md) | 三种追加/交错Builder、两份地址codec、路径/发号、门/锁/私有data、轮转/恢复、FrameRead及Inventory/Audit；已Accepted结果保持其来源身份 |
-| [S4实施与验收](04-versionstore-publication.md#实施与验收) | VS借入guard/模式/绑定、建库/锁/唯一pending、ref身份/路径/两域发号/ListRefs、实际需要的 header/head 与恢复后完整性、检查范围、data-first/Outcome及受控清理 |
-| [S5实施与验收](05-versionstore-names-and-indexes.md#实施与验收) | 固定历史上界/预算/停止/回调、直接精确fork来源及byte clone、指定边界继承历史、ListForks header/完整声明图/额度/自有结果 |
-| [08时间](08-versionstore-record-metadata.md)、[09tag](09-versionstore-immutable-tags.md)、[10可选RootMap](10-versionstore-rootmap-payload.md)、[11bytes](11-versionstore-root-payload-bytes-api.md) | 所属格式向量、初始化/扫描、长度/捕获/结果生命周期与内容解释边界；ref固定meta与tag独立meta资格分别保持，tag元信息成功不证明root健康或精确来源 |
+| [S2/S3最终源码验收](../FrameStore/02-framestore-final-acceptance.md)、[变长地址增量](../FrameStore/02-framestore-varint-address-implementation.md) | 三种追加/交错Builder、两份地址codec、路径/发号、门/锁/私有data、轮转/恢复、FrameRead及Inventory/Audit；已Accepted结果保持其来源身份 |
+| [S4实施与验收](../VersionStore/04-versionstore-publication.md#实施与验收) | VS借入guard/模式/绑定、建库/锁/唯一pending、ref身份/路径/两域发号/ListRefs、实际需要的 header/head 与恢复后完整性、检查范围、data-first/Outcome及受控清理 |
+| [S5实施与验收](../VersionStore/05-versionstore-names-and-indexes.md#实施与验收) | 固定历史上界/预算/停止/回调、直接精确fork来源及byte clone、指定边界继承历史、ListForks header/完整声明图/额度/自有结果 |
+| [08时间](../VersionStore/08-versionstore-record-metadata.md)、[09tag](../VersionStore/09-versionstore-immutable-tags.md)、[10可选RootMap](../VersionStore/10-versionstore-rootmap-payload.md)、[11bytes](../VersionStore/11-versionstore-root-payload-bytes-api.md) | 所属格式向量、初始化/扫描、长度/捕获/结果生命周期与内容解释边界；ref固定meta与tag独立meta资格分别保持，tag元信息成功不证明root健康或精确来源 |
 
 FrameStore既有资格不覆盖新增公共EnsureUsable或VS组合；先取得其新增源码/public证据再接入。S5继承历史使用已实施的[RBF 指定边界逆扫公共重载](../Rbf/rbf-reverse-boundary-plan.md)，V2-A 源码验证单独记录；既有Accepted不自动包含此增量，S6须补充其包消费与组合资格。public消费者不能借反射、internal入口或旧类型补能力；底座合成探针不代替新库/header/身份门或组合实证。
 
@@ -69,9 +69,9 @@ FrameStore既有资格不覆盖新增公共EnsureUsable或VS组合；先取得�
 
 **public端到端组合。** 完成前述最小模型与应用场景，再验证Encode→bytes发布→自有读取→Decode、历史选点后fork/tag/rewind、旧结果跨查询/owner关闭保留及坏data的应用失败。禁用RootMap decoder验证核心路径，JSON/随机bytes同样可发布/读取/fork/tag；fork保留exact源bytes，历史实际校验来源一致性而ListForks只检查header与声明图。坏初始/健康head的ReadRef成功与历史提前停止、实际走到坏节点失败分别验证；源大量后续更新不增加旧fork点定位/历史接续的扫描步骤。合法末帧越过MaxOffset的末端与下一次追加拒绝分别验证；库绑定拒错data与裸地址来源的应用责任分开。
 
-tag 元信息组合在[实施计划](12-versionstore-implementation-plan.md)的V3-C接通后补齐：ReadTagInfo可读取root损坏但meta健康的记录；ScanTags以visitor完成名称枚举、时间段及Related ref筛选，不读root、不签发来源revision或证明bytes一致，也不证明整体名称唯一。所到坏meta失败，false立即VisitorStopped，不访问后缀；回调副作用不因后来失败回滚。Related创建仍只执行既定data-first发布，不重读/flush注记ref。
+tag 元信息组合在[实施计划](../VersionStore/12-versionstore-implementation-plan.md)的V3-C接通后补齐：ReadTagInfo可读取root损坏但meta健康的记录；ScanTags以visitor完成名称枚举、时间段及Related ref筛选，不读root、不签发来源revision或证明bytes一致，也不证明整体名称唯一。所到坏meta失败，false立即VisitorStopped，不访问后缀；回调副作用不因后来失败回滚。Related创建仍只执行既定data-first发布，不重读/flush注记ref。
 
-single-driver/HistoryActive/TagScanActive、取消/回调Dispose及必要清理规则按所属阶段在public调用中复验；历史callback可进入ScanTags并使用独立临时桶槽，tag扫描callback拒绝mutation、递归扫描与进入历史，允许的日常读取按09执行。这些串行轨迹不改标为并发资格。实际Open/正式发现成本、history源anchor及必要前缀读取、ListForks规模、tag请求范围桶扫描/连续创建、全桶元信息扫描、bytes复制与资源峰值另测，不把增桶预计记录下降称为端到端提速，也不用codec算术或预算替代性能/平台证据。[07 CU](07-versionstore-cross-ref-conditional-update.md)已正式接纳，新增组合矩阵与实际结果独立列在[07 验收](07-versionstore-cross-ref-conditional-update-acceptance.md)，不重标前轮 public 停点或历史探针。
+single-driver/HistoryActive/TagScanActive、取消/回调Dispose及必要清理规则按所属阶段在public调用中复验；历史callback可进入ScanTags并使用独立临时桶槽，tag扫描callback拒绝mutation、递归扫描与进入历史，允许的日常读取按09执行。这些串行轨迹不改标为并发资格。实际Open/正式发现成本、history源anchor及必要前缀读取、ListForks规模、tag请求范围桶扫描/连续创建、全桶元信息扫描、bytes复制与资源峰值另测，不把增桶预计记录下降称为端到端提速，也不用codec算术或预算替代性能/平台证据。[07 CU](../VersionStore/07-versionstore-cross-ref-conditional-update.md)已正式接纳，新增组合矩阵与实际结果独立列在[07 验收](../VersionStore/07-versionstore-cross-ref-conditional-update-acceptance.md)，不重标前轮 public 停点或历史探针。
 
 CU 组合必须包含：全部 fresh 成员完成前缀/排列及至少两个既有 ref 的 public 冷重开、data-first 与逐文件完成/flush/确认后安装窗口、未提交 CU 跳过且历史不泄漏、普通覆盖后的旧组资格、同/异长位置复用与必要结构错误、lazy CompletedTail、CU 来源的普通子 Snapshot byte clone、peer 预算/清理、Audit 已发布计数。真实进程终止、受控异常、镜像截断各自标明证据类别；ProcessCrashOnly 不外推为断电。整组成功只共同确认发布资格，不保证跨调用快照隔离或当前 heads 永远同步。
 
@@ -129,4 +129,4 @@ CU 组合必须包含：全部 fresh 成员完成前缀/排列及至少两个既
 最低出口：两个新库的 Accepted 源码闭包、组合恢复资格和隔离公共包消费证据。
 公开发布或真实消费者切换若未纳入当前工作，交付记录明确停在哪一层；不将库可用与已切换混为一个状态。
 
-V4-E取得两个新库的独立源码出口；V4-F补充8个内部发布停点、4个真实物理残尾停点、VS发布路径冲突、独立目录登记窗口和tag六个名称/路由golden冷进程回读。限定范围、两平台运行与证据身份见[验收记录](12-versionstore-final-acceptance.md#s6-组合资格与后续最小分片)及[实施计划](12-versionstore-implementation-plan.md)。源级既定施工队列到此收束；S6-C/D包注册/隔离包消费现按明确授权进入[本地交付片](13-local-package-delivery.md)，实际出口资格以该记录为准。TOCTOU原生rename冲突、任意字节切点、设备故障与断电不在本轮实测范围。
+V4-E取得两个新库的独立源码出口；V4-F补充8个内部发布停点、4个真实物理残尾停点、VS发布路径冲突、独立目录登记窗口和tag六个名称/路由golden冷进程回读。限定范围、两平台运行与证据身份见[验收记录](../VersionStore/12-versionstore-final-acceptance.md#s6-组合资格与后续最小分片)及[实施计划](../VersionStore/12-versionstore-implementation-plan.md)。源级既定施工队列到此收束；S6-C/D包注册/隔离包消费现按明确授权进入[本地交付片](13-local-package-delivery.md)，实际出口资格以该记录为准。TOCTOU原生rename冲突、任意字节切点、设备故障与断电不在本轮实测范围。

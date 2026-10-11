@@ -1,7 +1,7 @@
 # FrameStore 批量地址规划器设想
 
 日期：2026-10-09。状态：**设想阶段候选草稿；需求未验证、API 未冻结、未接纳或实施，不属于 MVP 的 Ready 条件**。
-候选依赖：[S1 RBF 已知尺寸追加](../01-rbf-sized-append.md)、[S2 FrameStore 核心](../02-framestore-core.md)、[S3 交错 Builder 与耐久确认](../03-framestore-interleaved-builders-and-durability.md)。依赖方向为扩展使用核心；核心定稿、实施和验收不等待本候选。
+候选依赖：[S1 RBF 已知尺寸追加](../../Rbf/01-rbf-sized-append.md)、[S2 FrameStore 核心](../02-framestore-core.md)、[S3 交错 Builder 与耐久确认](../03-framestore-interleaved-builders-and-durability.md)。依赖方向为扩展使用核心；核心定稿、实施和验收不等待本候选。
 
 本文为 Informative，只记录未来可能采用的资源优化及 API 草图；没有新增实施合同、持久格式或资源保证。
 

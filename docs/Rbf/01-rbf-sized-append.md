@@ -1,7 +1,7 @@
 # S1：RBF 精确尺寸、已知尺寸追加与格式资格
 
 日期：2026-10-04。状态：**Accepted，实施合同已落地；单文件源码资格已独立验收**。
-前置规范：[S0](00-architecture-decisions.md)及现有 [RBF 接口](../Rbf/rbf-interface.md)、[格式](../Rbf/rbf-format.md)。本阶段不依赖 FrameStore 或 VersionStore。
+前置规范：[S0](../FrameStore-VersionStore/00-architecture-decisions.md)及现有 [RBF 接口](rbf-interface.md)、[格式](rbf-format.md)。本阶段不依赖 FrameStore 或 VersionStore。
 定稿时源码核对基线：`f6f1eb38557863ba5ea1634844a90f0cbe5774cf`；实施合同提交：`c940ed63921f6fa2a942bbf131957d3d7f101626`。运行时实现、测试与源码提交身份由[阶段验收记录](01-rbf-sized-append-acceptance.md)闭合，不能把合同提交当作实现资格。
 
 ## 本阶段目标与已确认选择

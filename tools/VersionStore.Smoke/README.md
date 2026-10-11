@@ -46,7 +46,7 @@ dotnet test tests/VersionStore.Tests/VersionStore.Tests.csproj -c Release --no-b
 
 [DynamicRefScenario.cs](DynamicRefScenario.cs) 用一个独立应用目录 ref 1 指向已登记对象 ref 2；公开自动创建 ref 3 返回 `Confirmed` 后，尚未调用目录 `PublishRef` 就输出 READY 并保持两层 owner。父测试核对 READY/当前 PID 并实际 kill。两个新进程分别以 RO 冷开，检查 `ListRefs` 含 ref 3、目录仍只指向 ref 2、目录与新对象的完整 ticket/bytes 保持原值，并从 ref 3 payload 识别业务 `ObjectId`。夹具 manifest 只记录实验预期，不增加目录协议或自动补登记策略。
 
-[TagGoldenScenario.cs](TagGoldenScenario.cs) 固定消费 [09](../../docs/FrameStore-VersionStore/09-versionstore-immutable-tags.md) 与 `TagNameTests` 的独立向量：`A → 00000351`、`Release → 00000174`、`release → 000001aa`、单 code unit `U+D800 → 00000265`，`tag-48/tag-65 → 00000106`。consumer 不复制 hash/路由算法；名称按原 UTF-16 code units/Ordinal 检查，输出 code unit hex 避免 JSON 替换 lone surrogate。writer 正常关闭双方 owner 并退出，两个独立新进程核对完整不同 payload、`ReadTagInfo/ScanTags` 时间及匿名/Related 元信息，以及源继续发布后保持的旧 Related 坐标；经 public RBF/Binary/CRC API 另观察固定路径、RBF3 桶头和每条完整记录至正常 EOF。父测试独立比对实际桶路径和固定 code units、writer/read 的 payload/metadata，并在每次冷读后比对整棵目录清单及 SHA-256 不变。
+[TagGoldenScenario.cs](TagGoldenScenario.cs) 固定消费 [09](../../docs/VersionStore/09-versionstore-immutable-tags.md) 与 `TagNameTests` 的独立向量：`A → 00000351`、`Release → 00000174`、`release → 000001aa`、单 code unit `U+D800 → 00000265`，`tag-48/tag-65 → 00000106`。consumer 不复制 hash/路由算法；名称按原 UTF-16 code units/Ordinal 检查，输出 code unit hex 避免 JSON 替换 lone surrogate。writer 正常关闭双方 owner 并退出，两个独立新进程核对完整不同 payload、`ReadTagInfo/ScanTags` 时间及匿名/Related 元信息，以及源继续发布后保持的旧 Related 坐标；经 public RBF/Binary/CRC API 另观察固定路径、RBF3 桶头和每条完整记录至正常 EOF。父测试独立比对实际桶路径和固定 code units、writer/read 的 payload/metadata，并在每次冷读后比对整棵目录清单及 SHA-256 不变。
 
 ```powershell
 dotnet run --project tools/VersionStore.Smoke -c Release --no-build -- tag-golden-write E:/temp/versionstore-tag-golden
@@ -91,6 +91,6 @@ dotnet run --project tools/VersionStore.Smoke -c Release --no-build -- resource-
 
 向量包括来源继续增长后的精确 fork 继承、同桶聚集的 tag、三次重复发现/历史/元信息/完整校验，以及独立 owner 上的全 ref 当前值缓存对照。 写进程另测关闭后的新 RW owner 打开与连续 CreateTag 批次（含 ReadRef 捕获）；ForkRef 创建本身未独立计时。输出单行 JSON 保留每次操作耗时、累计托管分配与区间外资源快照。Windows 的进程总 handle 和 Linux 的 fd 不具有相同口径；Linux 另检查指向夹具根的实际 fd。RSS、GC heap 与进程总句柄只作观察，不作为吞吐或任意规模无泄漏的保证；采样点不表示操作中的真实峰值。
 
-SystemIntegration 中16/64两档分别写一次、在两个新进程冷只读验证，并由父进程独立核对文件清单与SHA-256不变；256档可单独运行。具体测量范围、样本与平台结论见[实施计划](../../docs/FrameStore-VersionStore/12-versionstore-implementation-plan.md)。
+SystemIntegration 中16/64两档分别写一次、在两个新进程冷只读验证，并由父进程独立核对文件清单与SHA-256不变；256档可单独运行。具体测量范围、样本与平台结论见[实施计划](../../docs/VersionStore/12-versionstore-implementation-plan.md)。
 
 该模型只证明公开组合和应用自行解释的图。Audit 不替代应用引用闭包检查；tag 关联注记不授予 RefRevision/ForkRef 能力。真实进程终止、Windows/WSL2 Linux、资源规模、故障窗口、隔离包消费与断电资格分别取证，不能由普通图成功推定。

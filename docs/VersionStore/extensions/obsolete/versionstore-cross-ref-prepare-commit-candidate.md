@@ -4,7 +4,7 @@
 
 > 历史比较方案：当前优先发展方向为 [ConditionalUpdate](../../07-versionstore-cross-ref-conditional-update.md)。下文保留提出 Prepare + Commit 时的结论和续谈计划，不作为当前首选方案。
 
-依赖与现行合同：[S0 边界](../../00-architecture-decisions.md)、[S1 RBF 尺寸能力](../../01-rbf-sized-append.md)、[S4 ref 发布](../../04-versionstore-publication.md)、[S5 历史与名称](../../05-versionstore-names-and-indexes.md)、[RBF 接口](../../../Rbf/rbf-interface.md)。本文记录选用该候选后拟建立的行为，不把现行 S4 的“首版不提供跨 ref 事务”悄悄改为已经接纳或交付。
+依赖与现行合同：[S0 边界](../../../FrameStore-VersionStore/00-architecture-decisions.md)、[S1 RBF 尺寸能力](../../../Rbf/01-rbf-sized-append.md)、[S4 ref 发布](../../04-versionstore-publication.md)、[S5 历史与名称](../../05-versionstore-names-and-indexes.md)、[RBF 接口](../../../Rbf/rbf-interface.md)。本文记录选用该候选后拟建立的行为，不把现行 S4 的“首版不提供跨 ref 事务”悄悄改为已经接纳或交付。
 
 ## 续谈入口
 

@@ -1,6 +1,6 @@
 # RBF：按已校验边界逆向扫描的实施记录
 
-状态：**2026-10-11 已实施公共入口；源码验证见 [VersionStore V2-A 记录](../FrameStore-VersionStore/12-versionstore-implementation-plan.md#v2-a-验证记录2026-10-11)**。公共合同已同步 [RBF 接口规范](rbf-interface.md)；本篇保留动机、资格边界与验收映射，不将该源码增量视为包发布或两平台资格。
+状态：**2026-10-11 已实施公共入口；源码验证见 [VersionStore V2-A 记录](../VersionStore/12-versionstore-implementation-plan.md#v2-a-验证记录2026-10-11)**。公共合同已同步 [RBF 接口规范](rbf-interface.md)；本篇保留动机、资格边界与验收映射，不将该源码增量视为包发布或两平台资格。
 
 ## 目标与公共入口
 
@@ -55,4 +55,4 @@ RBF3 的 marker-free 正常 writer 前缀保证全局对齐 Fence 只在真实�
 | profile 与冷开 | RBF1 沿既定只读/profile 检查，不增加成员承诺；RBF3 正常 writer 嵌套 payload 向量；坏当前尾仍受 factory 拒绝/恢复约束 |
 | VS 接线 | 已签发旧 revision 与持久来源分别使用其既定资格；真实重复完整读全部计历史预算，早停不访问更早初始或下一来源 |
 
-公共入口和针对性测试见 [RbfReverseBoundaryTests](../../tests/Rbf.Tests/Internal/RbfReverseBoundaryTests.cs)，VS 接线与预算/资源测试见 [V2-A 实施与验证](../FrameStore-VersionStore/12-versionstore-implementation-plan.md)。`rbf-interface.md` 已同步可用接口、anchor 完整核验与结构枚举的 CRC 职责区分。RBF1 向量只检验既有只读 profile 支持，不修改冻结旧栈的包依赖；Linux、真实进程终止与新增 API 的包消费资格单列后续验证。
+公共入口和针对性测试见 [RbfReverseBoundaryTests](../../tests/Rbf.Tests/Internal/RbfReverseBoundaryTests.cs)，VS 接线与预算/资源测试见 [V2-A 实施与验证](../VersionStore/12-versionstore-implementation-plan.md)。`rbf-interface.md` 已同步可用接口、anchor 完整核验与结构枚举的 CRC 职责区分。RBF1 向量只检验既有只读 profile 支持，不修改冻结旧栈的包依赖；Linux、真实进程终止与新增 API 的包消费资格单列后续验证。

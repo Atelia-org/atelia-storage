@@ -16,10 +16,10 @@
 
 | 裁决 | 位置/最小模型 | 依据与具体失败边界 |
 | --- | --- | --- |
-| simplify | [S4](../04-versionstore-publication.md) 的固定字段、公开 LocalId/目标参数、L/H 均为 uint32；唯一新条款 `[F-VS-REF-ID-4B]` | 用户明确缩宽；一个固定 codec，无已发布格式兼容负担 |
+| simplify | [S4](../../VersionStore/04-versionstore-publication.md) 的固定字段、公开 LocalId/目标参数、L/H 均为 uint32；唯一新条款 `[F-VS-REF-ID-4B]` | 用户明确缩宽；一个固定 codec，无已发布格式兼容负担 |
 | simplify | [S6](../06-integration-and-delivery.md) 直接消费 S4 当前格式/路径及独立向量 | 审查发现 S6 仍写旧 48B 门、8B ID、16hex 路径、28/44B header；这些会使按两文实现的写入与读取互相拒绝，已消除旧口径 |
 | keep | unsigned 高位、Max 前检/checked 加法、低号独立、VSID、完整 Packed ticket | signed 发现会误认高位；Max 后回绕0；全库耗尽禁写会误阻断空闲低号；A/B 的 local=7 误传；相同 offset 不同 length 误认帧 |
-| keep | [CU](../07-versionstore-cross-ref-conditional-update.md) 的 self、完整表、fresh 及错误传播 | 旧 G 的 A 完整而 B 缺，新 H 复用 B 起点；去掉这些约束会跨批拼组。字段缩宽不改变共同发布判据 |
+| keep | [CU](../../VersionStore/07-versionstore-cross-ref-conditional-update.md) 的 self、完整表、fresh 及错误传播 | 旧 G 的 A 完整而 B 缺，新 H 复用 B 起点；去掉这些约束会跨批拼组。字段缩宽不改变共同发布判据 |
 | delete | 当前正文的旧 8B 编码条款与旧尺寸引用 | 新 4B 条款替代旧约束；不把旧锚点复用于新语义，不增加兼容别名或 DEPRECATED 入口，历史由 Git/原记录保留 |
 | defer | 扩宽/协商、CLR 紧凑布局与性能优化 | 无当前消费者或测量；20B 逻辑字段之和不能推出 CLR 步长或吞吐收益 |
 

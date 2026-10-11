@@ -51,7 +51,7 @@ Decode 入口先检查实际输入为1..1MiB，容量及消费 MUST 按 reader �
 
 此1MiB codeword 界与 bytes API 的单项界一致；codec 不负责物理帧、追加起点或文件容量。应用将输出交发布层后，由 S4、tag 或 CU 按自己的 envelope 组合和公共 MeasureWriteSize 检查完整容量。
 
-（Informative）1MiB 是限制单项 root payload 的 MVP 工程选择，不保证合法输入不会 OOM；codec 捕获、编码、冻结解码与发布层复制仍有额外内存。实际工作集与峰值/吞吐留实施测量，不声称数字最优或方案最快。复用 Binary 增加其精确 K4os `[1.3.8]` 依赖。BPV1 [已实施验收](../Binary/bare-primitive-value-acceptance.md)及[基元独立 golden](../../tests/Binary.Tests/SchemaCompositionTests.cs)是底座证据；[RootMapCodecProbe](../../experiments/RootMapCodecProbe/README.md)原 fixed12 synthetic 地址版本的47项检查保留历史身份，不构成本次变长地址/Unicode接受域、独立公共codec、新库或发布恢复资格。新增 FrameAddress 能力见[实施记录](02-framestore-varint-address-implementation.md)。
+（Informative）1MiB 是限制单项 root payload 的 MVP 工程选择，不保证合法输入不会 OOM；codec 捕获、编码、冻结解码与发布层复制仍有额外内存。实际工作集与峰值/吞吐留实施测量，不声称数字最优或方案最快。复用 Binary 增加其精确 K4os `[1.3.8]` 依赖。BPV1 [已实施验收](../Binary/bare-primitive-value-acceptance.md)及[基元独立 golden](../../tests/Binary.Tests/SchemaCompositionTests.cs)是底座证据；[RootMapCodecProbe](../../experiments/RootMapCodecProbe/README.md)原 fixed12 synthetic 地址版本的47项检查保留历史身份，不构成本次变长地址/Unicode接受域、独立公共codec、新库或发布恢复资格。新增 FrameAddress 能力见[实施记录](../FrameStore/02-framestore-varint-address-implementation.md)。
 
 ## 与发布层的边界
 

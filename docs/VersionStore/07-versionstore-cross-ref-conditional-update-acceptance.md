@@ -1,8 +1,8 @@
 # VersionStore ConditionalUpdate 独立源码验收
 
-日期：2026-10-11。状态：**Accepted（CU 增量独立源码资格；Windows / WSL2 Linux）**。本记录消费 [S0](00-architecture-decisions.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)、[07 CU](07-versionstore-cross-ref-conditional-update.md)、[08 元信息](08-versionstore-record-metadata.md)、[11 bytes 公面](11-versionstore-root-payload-bytes-api.md) 与 [S6](06-integration-and-delivery.md)，不增加协议。主线程完成源码合同复核、反例裁决、Windows 回归与 WSL2/Linux 分组回归；[机器证据](evidence/2026-10-11-versionstore-cu07.json)记录受测源码、逐组TRX、具名进程窗口及原始工件 hash。
+日期：2026-10-11。状态：**Accepted（CU 增量独立源码资格；Windows / WSL2 Linux）**。本记录消费 [S0](../FrameStore-VersionStore/00-architecture-decisions.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)、[07 CU](07-versionstore-cross-ref-conditional-update.md)、[08 元信息](08-versionstore-record-metadata.md)、[11 bytes 公面](11-versionstore-root-payload-bytes-api.md) 与 [S6](../FrameStore-VersionStore/06-integration-and-delivery.md)，不增加协议。主线程完成源码合同复核、反例裁决、Windows 回归与 WSL2/Linux 分组回归；[机器证据](evidence/2026-10-11-versionstore-cu07.json)记录受测源码、逐组TRX、具名进程窗口及原始工件 hash。
 
-既有 [V4-E/V4-F 最终源码验收](12-versionstore-final-acceptance.md)仍为其原范围的 Accepted，不覆盖 CU。既有 [S6-C/D 六包候选](13-local-package-delivery.md)不包含本轮 PublishRefs/CU，版本、manifest、hash 与来源不可变；本轮没有重新打包、发布或迁移消费者。历史 ConditionalUpdate 研究探针仍为各自格式/算法的研究证据，不改标为当前生产实现全矩阵通过。
+既有 [V4-E/V4-F 最终源码验收](12-versionstore-final-acceptance.md)仍为其原范围的 Accepted，不覆盖 CU。既有 [S6-C/D 六包候选](../FrameStore-VersionStore/13-local-package-delivery.md)不包含本轮 PublishRefs/CU，版本、manifest、hash 与来源不可变；本轮没有重新打包、发布或迁移消费者。历史 ConditionalUpdate 研究探针仍为各自格式/算法的研究证据，不改标为当前生产实现全矩阵通过。
 
 ## 本轮范围与源码身份
 

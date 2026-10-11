@@ -1,6 +1,6 @@
 # S6-C/D：主线本地候选包交付
 
-日期：2026-10-11。实施基线：`252ba77`。用户已明确转入包交付，先供 `Atelia-org/atelia-storage-2` 试用；公开 nuget.org preview 和真实消费者迁移另行进行。本记录不重标既有[源码验收](12-versionstore-final-acceptance.md)和进程实验。
+日期：2026-10-11。实施基线：`252ba77`。用户已明确转入包交付，先供 `Atelia-org/atelia-storage-2` 试用；公开 nuget.org preview 和真实消费者迁移另行进行。本记录不重标既有[源码验收](../VersionStore/12-versionstore-final-acceptance.md)和进程实验。
 
 ## 包身份与兼容边界
 

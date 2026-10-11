@@ -1,6 +1,6 @@
 # VersionStore 分片实施与续接
 
-更新：2026-10-11。本文是实施导航，不增加设计权威。行为以 [S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)、[07 CU](07-versionstore-cross-ref-conditional-update.md)、[08](08-versionstore-record-metadata.md) 至 [11](11-versionstore-root-payload-bytes-api.md) 为准；[S6](06-integration-and-delivery.md) 管组合与交付。CU 已正式接纳、实施并取得独立源码验收 Accepted，新增证据另列；[既有最终源码验收](12-versionstore-final-acceptance.md)和[六包候选](13-local-package-delivery.md)保持原来源，不含 CU。
+更新：2026-10-11。本文是实施导航，不增加设计权威。行为以 [S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)、[07 CU](07-versionstore-cross-ref-conditional-update.md)、[08](08-versionstore-record-metadata.md) 至 [11](11-versionstore-root-payload-bytes-api.md) 为准；[S6](../FrameStore-VersionStore/06-integration-and-delivery.md) 管组合与交付。CU 已正式接纳、实施并取得独立源码验收 Accepted，新增证据另列；[既有最终源码验收](12-versionstore-final-acceptance.md)和[六包候选](../FrameStore-VersionStore/13-local-package-delivery.md)保持原来源，不含 CU。
 
 ## 调度原则与整体结构
 
@@ -20,7 +20,7 @@
 | `Internal/Storage` / `Internal/Platform` | 根准入/锁/门 I/O/发现/唯一 pending/原生不覆盖发布/按模式打开；不解释应用 bytes |
 | `RootMapCodec` | 独立可选应用 codec，使用 Binary 和 FrameAddress 公共 codec；不进入 owner 的调用链 |
 
-源码构建中新栈只引用 main 项目，现有 RBF1 冻结参考不变。2026-10-11 用户明确转入 S6-C/D 本地包交付，FrameStore/VersionStore 纳入六包 pack 清单；当前交付状态及消费证据见[本地包记录](13-local-package-delivery.md)。历史 source-only 验收保持其原有身份。FrameStore 的 S2/S3 Accepted 不自动覆盖新的借入 guard 或 VS 实现。
+源码构建中新栈只引用 main 项目，现有 RBF1 冻结参考不变。2026-10-11 用户明确转入 S6-C/D 本地包交付，FrameStore/VersionStore 纳入六包 pack 清单；当前交付状态及消费证据见[本地包记录](../FrameStore-VersionStore/13-local-package-delivery.md)。历史 source-only 验收保持其原有身份。FrameStore 的 S2/S3 Accepted 不自动覆盖新的借入 guard 或 VS 实现。
 
 ## V0：已完成骨架和关键局部（2026-10-10）
 
@@ -168,7 +168,7 @@ WSL2 使用固定源码归档及最终三个源码增量，在独立 ext4 的 re
 | V4-D：已接通应用策略最小示例 | S6 tool-loop Started/结果/uncertain 与 generation 串行合并 | public consumer 在三个应用边界真实kill后冷恢复，外部receipt严格匹配、Result不依赖backend；单driver拒绝错operation/旧generation/重复结果，保留同代A/B合并 |
 | V4-E：已完成独立源码验收与反例修正 | S4/S5及08–11的已实施源码条款映射，ListRefs只读结果修复及坏data应用反例 | [独立验收记录](12-versionstore-final-acceptance.md)统一记录Accepted裁决、当前回归与历史证据差异；不把源码Accepted扩为S6全部完成 |
 | V4-F：已完成内部进程窗口与剩余组合补证 | 8个发布停点、4个真实物理残尾停点、VS入口冲突拒绝、独立目录登记窗口、tag golden冷进程 | Windows完整回归、WSL2/ext4的RBF/VS完整回归及独立复核通过；source-only队列收束，包交付另立范围 |
-| S6-C/D：已完成本地候选交付 | 六包 All、四个精确 PackageReference consumer、脚本/来源/闭包验证 | Windows完整源码回归和Windows/WSL2同候选隔离消费通过；保留 Atelia.Rbf 名称；实际版本/来源与反馈续接见[交付记录](13-local-package-delivery.md) |
+| S6-C/D：已完成本地候选交付 | 六包 All、四个精确 PackageReference consumer、脚本/来源/闭包验证 | Windows完整源码回归和Windows/WSL2同候选隔离消费通过；保留 Atelia.Rbf 名称；实际版本/来源与反馈续接见[交付记录](../FrameStore-VersionStore/13-local-package-delivery.md) |
 
 V1 至 V4-D 已完成相应源码、公开组合、两平台有限资源与应用策略。V4-E 按实际源码/测试和证据独立复核，发现并修正 ListRefs 的 `ICollection.SyncRoot` 可变 backing 逃逸，补充健康发布根指向损坏 data 时的 public 冷读反例。V4-F 接续具名内部窗口及剩余组合，实际范围和运行见下方记录；不重做已经闭合的源码实施片。
 
@@ -200,7 +200,7 @@ V2 的底座增量已由 [RBF 边界逆扫记录](../Rbf/rbf-reverse-boundary-pl
 
 后续Linux功能回归沿用分组执行：新栈及本轮其他完成组保留ext4；冻结EventJournal使用单独tmpfs TMPDIR运行原始完整用例，保存各组TRX及实际文件系统。若要取得旧栈ext4大量fsync的资格，再单独安排有明确目标的运行。Windows仍使用完整solution回归入口。
 
-**V4-F 已完成，本 source-only 队列到此收束。** 具名窗口和剩余组合的两平台验收见下方；不再自动安排V4-G或重新展开设计问题。2026-10-11 用户已明确转入 S6-C/D 包注册及隔离 PackageReference 消费，并选择保留 Atelia.Rbf 名称，先供下游本地试用。当前分片和实际结果见[本地交付记录](13-local-package-delivery.md)。后续先收集下游反馈，按具体问题调整 API 并生成新候选；公开发布与业务仓迁移保持独立；本轮已授权 CU 源码范围另见上节，不自动改变旧包候选。
+**V4-F 已完成，本 source-only 队列到此收束。** 具名窗口和剩余组合的两平台验收见下方；不再自动安排V4-G或重新展开设计问题。2026-10-11 用户已明确转入 S6-C/D 包注册及隔离 PackageReference 消费，并选择保留 Atelia.Rbf 名称，先供下游本地试用。当前分片和实际结果见[本地交付记录](../FrameStore-VersionStore/13-local-package-delivery.md)。后续先收集下游反馈，按具体问题调整 API 并生成新候选；公开发布与业务仓迁移保持独立；本轮已授权 CU 源码范围另见上节，不自动改变旧包候选。
 
 ## 每轮结束时的交接要求
 

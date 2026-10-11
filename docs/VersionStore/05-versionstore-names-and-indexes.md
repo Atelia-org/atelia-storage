@@ -2,7 +2,7 @@
 
 状态：**既有历史/fork/tag 等范围的独立 source-only 源码资格 Accepted；CU 已正式接纳并取得本轮独立源码验收 Accepted**。历史 visitor/预算/清理、精确 ForkRef、ListForks 及09的 tag 公开闭环的既有资格见[最终源码验收](12-versionstore-final-acceptance.md)。CU 来源、历史判据与预算增量见[07 验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。公开进程、受控故障、文件镜像与包消费分别记录，旧六包候选不含 CU；后续见[实施计划](12-versionstore-implementation-plan.md)。
 本文负责历史、fork 与声明图查询；ref 格式/身份/编号及发布协议消费 [S4](04-versionstore-publication.md)，记录时间见 [08 专项](08-versionstore-record-metadata.md)，bytes 结果见 [11 专项](11-versionstore-root-payload-bytes-api.md)。不可变 tag 由 [09 专项](09-versionstore-immutable-tags.md)定义，安排在 ref、历史与 fork 之后施工。
-前置：[S0](00-architecture-decisions.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)。扩展 S4 的完整根快照与局部发布协议，不增加全局事实日志。
+前置：[S0](../FrameStore-VersionStore/00-architecture-decisions.md)、[S2](../FrameStore/02-framestore-core.md)、[S3](../FrameStore/03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)。扩展 S4 的完整根快照与局部发布协议，不增加全局事实日志。
 
 ## 目标与最小公开操作
 

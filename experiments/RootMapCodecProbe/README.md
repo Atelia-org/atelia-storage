@@ -1,6 +1,6 @@
 # RootMap 基元组合探针
 
-2026-10-10 修订。实验项目，不属于 solution 或生产 pack；合同权威为 [S4](../../docs/FrameStore-VersionStore/04-versionstore-publication.md) 的 `[F-VS-ROOTMAP-BPV1]`。
+2026-10-10 修订。实验项目，不属于 solution 或生产 pack；合同权威为 [S4](../../docs/VersionStore/04-versionstore-publication.md) 的 `[F-VS-ROOTMAP-BPV1]`。
 
 直接引用主线 public Binary/FrameStore/Rbf API，组合 `VarUInt32(count) + (ordinary BareString + FrameAddress VarInt)×count`。地址通过 `MeasureVarInt` / `WriteVarInt` / `ReadVarInt` 消费真实 public codec：`VarUInt32(FileId) + VarUInt64(SizedPtr.Serialize())`；原有 fixed12 `TryRead/TryWrite` 保留。Binary 当前依赖精确 K4os.Compression.LZ4 `[1.3.8]`，本探针不调用压缩，也不复制 FrameStore/RBF framing encoder。
 
@@ -11,7 +11,7 @@ dotnet run --project experiments/RootMapCodecProbe/Probe.csproj -c Release --no-
 
 **历史证据**：2026-10-09 的 synthetic/fixed12 版本使用 SDK 10.0.201、.NET 10.0.5、Windows；最终 Release 增量 build 为 0 warning / 0 error，run 的 47 个检查通过，原始 stdout 保存于 [历史结果 JSON](evidence/2026-10-09-result.json)。首次依赖重建出现 41 条已有 Data/Rbf XML 文档 warning。该 JSON 保持原样，不能作为本轮 VarInt/public FrameAddress 版本的运行证据。
 
-**本轮结果**：Windows 10.0.22000、SDK 10.0.201 / .NET 10.0.5，Release build 为 0 warning / 0 error；run 的 **118 项检查通过**，真实签发地址为 3B，双项 RootMap 为 20B，冷重开读回 2 帧。原始 stdout 见[本轮结果 JSON](evidence/2026-10-10-varint-result.json)，完整集成验证见[实施记录](../../docs/FrameStore-VersionStore/02-framestore-varint-address-implementation.md)。
+**本轮结果**：Windows 10.0.22000、SDK 10.0.201 / .NET 10.0.5，Release build 为 0 warning / 0 error；run 的 **118 项检查通过**，真实签发地址为 3B，双项 RootMap 为 20B，冷重开读回 2 帧。原始 stdout 见[本轮结果 JSON](evidence/2026-10-10-varint-result.json)，完整集成验证见[实施记录](../../docs/FrameStore/02-framestore-varint-address-implementation.md)。
 
 检查覆盖：
 

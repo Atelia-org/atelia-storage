@@ -62,7 +62,7 @@
 以下是本次队列使用的提示词；当前队列已完成，无需继续排队：
 
 ```text
-请按 docs/FrameStore-VersionStore/02-framestore-completion-plan.md 推进 FrameStore 收尾。
+请按 docs/FrameStore/02-framestore-completion-plan.md 推进 FrameStore 收尾。
 以当前文件和 git 状态为准，自主选定一个尚未完成、边界清楚的本轮目标，
 用 $bounded-delegation 带领 subagents 实施；优先 gpt-6.1-sol / xhigh。
 主线程负责共享契约、独立复核和串行验收；按需编写探针、修复代码、更新进度/证据并本地 git 提交。

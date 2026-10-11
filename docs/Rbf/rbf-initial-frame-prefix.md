@@ -40,7 +40,7 @@ RBF 内部复用现有 layout、plaintext footer/CRC 与 Data XOR 核，准备�
 
 生产入口转发到 [RbfInitialFramePrefix](../../src/Rbf/Internal/RbfInitialFramePrefix.cs)，复用 `FrameLayout`、`RbfFrameWriteCore.WritePlaintextTail`、`RollingCrc` 与 `XorEscape`。实现使用一个最多 268B 的栈 buffer，在其中构造 plaintext body，再原位 XOR 后比较；短于首个完整 body word 时，固定区域核验后直接使用有界补全证明。没有新增 friend、文件工厂、恢复分支、selector 依赖或第二份生产 wire encoder。
 
-[源码测试](../../tests/Rbf.Tests/RbfInitialFramePrefixTests.cs)包含 0/4/高位 Key 的固定真实 writer 向量、公面只读完整帧校验与所有长度的真实中断输出；覆盖所有 0..232B payload × 四种合法 Key 的每个字节前缀、逐 bit 损坏、部分 Key/Fence、全部预期 body words 禁键、重算 CRC 后的错误形状/非零 padding、超长与 233B 异常先行。测试 oracle 独立实现 bitwise CRC 和 byte XOR，不调用生产 layout/footer/CRC/XOR；正常通过与拒绝路径另有预热后零托管分配断言。Windows 与 WSL Linux Release 的 Rbf.Tests 各 865/865 通过，其中本入口 30 个展开 case，包含零托管分配断言；同轮上层 public 残留裁决通过。完整本轮证据与平台边界见[FrameStore 持久化闭环](../FrameStore-VersionStore/02-framestore-persistence-implementation.md)。
+[源码测试](../../tests/Rbf.Tests/RbfInitialFramePrefixTests.cs)包含 0/4/高位 Key 的固定真实 writer 向量、公面只读完整帧校验与所有长度的真实中断输出；覆盖所有 0..232B payload × 四种合法 Key 的每个字节前缀、逐 bit 损坏、部分 Key/Fence、全部预期 body words 禁键、重算 CRC 后的错误形状/非零 padding、超长与 233B 异常先行。测试 oracle 独立实现 bitwise CRC 和 byte XOR，不调用生产 layout/footer/CRC/XOR；正常通过与拒绝路径另有预热后零托管分配断言。Windows 与 WSL Linux Release 的 Rbf.Tests 各 865/865 通过，其中本入口 30 个展开 case，包含零托管分配断言；同轮上层 public 残留裁决通过。完整本轮证据与平台边界见[FrameStore 持久化闭环](../FrameStore/02-framestore-persistence-implementation.md)。
 
 上层必须消费这项 public 准入，不能用可写 Open、宽松长度检查或 internal friend 替代。所有输入同步借用，核验不会修改输入；拒绝也不打开、恢复或修改文件。
 

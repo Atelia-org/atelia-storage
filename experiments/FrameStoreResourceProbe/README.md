@@ -2,7 +2,7 @@
 
 独立 `net10.0` console，`IsPackable=false`，不加入 solution。唯一直接 ProjectReference 是 `src/FrameStore/FrameStore.csproj`，只调用 FrameStore public API；BCL 用于观测进程、普通文件元数据及在无 owner 时构造可还原的坏磁盘向量。
 
-权威：[S2 核心与资源基线](../../docs/FrameStore-VersionStore/02-framestore-core.md)、[收尾计划 R2](../../docs/FrameStore-VersionStore/02-framestore-completion-plan.md)、[当前 public 指南](../../src/FrameStore/README.md)。探针测量既定基线，不新增资源预算 API、缓存、reader pool、manifest 或运行时开关，也不设置吞吐或“泄漏字节”门槛。
+权威：[S2 核心与资源基线](../../docs/FrameStore/02-framestore-core.md)、[收尾计划 R2](../../docs/FrameStore/02-framestore-completion-plan.md)、[当前 public 指南](../../src/FrameStore/README.md)。探针测量既定基线，不新增资源预算 API、缓存、reader pool、manifest 或运行时开关，也不设置吞吐或“泄漏字节”门槛。
 
 ## 事先声明的边界
 

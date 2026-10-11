@@ -68,4 +68,4 @@ RBF ReadTailMeta/ReadPooledTailMeta 自身仅提供 L2 预览：TrailerCRC 保�
 
 ref 恢复后完整性准入直接消费 S4 `[R-VS-LOCAL-COMPLETE]`，不另增元信息层的恢复前保护；本合同不改变 ProcessCrashOnly 模型、PublicationOutcome、借入 data 所有权或 tag 的独立范围。编码/尺寸算术与历史探针不是本轮 CU 源码、平台、恢复或包消费验收。
 
-两轮独立质询、反例与集成验证见[本次审阅记录](reviews/2026-10-10-record-metadata-review.md)。
+两轮独立质询、反例与集成验证见[本次审阅记录](../FrameStore-VersionStore/reviews/2026-10-10-record-metadata-review.md)。

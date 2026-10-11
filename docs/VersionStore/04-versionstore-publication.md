@@ -2,7 +2,7 @@
 
 状态：**既有普通 ref 等范围的独立 source-only 源码资格 Accepted；CU 已正式接纳并取得本轮独立源码验收 Accepted**。普通 ref、身份/编号、创建/打开、ForkOrigin、PublicationOutcome 与只读 Audit 的既有实现及限定证据见[最终源码验收](12-versionstore-final-acceptance.md)；CU 增量见[07 验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。V4-F 与 S6-C/D 的既有进程/本地候选资格各自保留，旧六包候选不含 CU。后续见[实施计划](12-versionstore-implementation-plan.md)。
 本文负责发布协议、身份与 ref envelope；时间编码见 [08 元信息专项](08-versionstore-record-metadata.md)，bytes API/所有权见 [11 公面专项](11-versionstore-root-payload-bytes-api.md)，可选 RootMap codec 见 [10 专项](10-versionstore-rootmap-payload.md)。首版版本为 1，不兼容未实施的旧草案。
-前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)。历史与不可变 tag 见 [S5](05-versionstore-names-and-indexes.md)。
+前置：[S0](../FrameStore-VersionStore/00-architecture-decisions.md)、[S1](../Rbf/01-rbf-sized-append.md)、[S2](../FrameStore/02-framestore-core.md)、[S3](../FrameStore/03-framestore-interleaved-builders-and-durability.md)。历史与不可变 tag 见 [S5](05-versionstore-names-and-indexes.md)。
 
 ## 目标、归属与范围
 
@@ -447,4 +447,4 @@ RefRevision 向量覆盖完整 VSID/local/ticket、同 offset 不同 length、�
 
 header 独立 golden：version=1、VSID=`01..10`、自身 local=`0x89ABCDEF` 的无来源 payload 为 `01 00 00 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 EF CD AB 89`；有来源追加 source local=`0x76543210` 与 SizedPtr(offset60,length40)，suffix=`10 32 54 76 0A 00 00 3C 00 00 00 00`。覆盖24/36之外长度、截短/尾随、零/错身份/未知版、自来源及非法 ticket；另行重新封装的合法24B帧不是原36B帧截短。
 
-人为截短正式文件的恢复向量与 private 完整初始化后 rename 的正常创建中断分别取证。旧 RefFrameSchemaProbe 的8B LocalRefId/fixed12/meta0与112→104→112→None现象保持历史身份，不能替代当前格式/新库验收。源码、进程终止、Windows/Linux 与包资格分别报告；组合与交付唯一见 [S6](06-integration-and-delivery.md)。
+人为截短正式文件的恢复向量与 private 完整初始化后 rename 的正常创建中断分别取证。旧 RefFrameSchemaProbe 的8B LocalRefId/fixed12/meta0与112→104→112→None现象保持历史身份，不能替代当前格式/新库验收。源码、进程终止、Windows/Linux 与包资格分别报告；组合与交付唯一见 [S6](../FrameStore-VersionStore/06-integration-and-delivery.md)。

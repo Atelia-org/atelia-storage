@@ -18,11 +18,11 @@ RootMap 仍由应用保证实际新增依赖全部完成、来源及闭包合法
 
 | 原条款 | 本轮处理 | 当前权威 |
 | --- | --- | --- |
-| `[A-FS-DURABLE-OWNER]` | 保留旧锚点并标记 DEPRECATED，取消全局无 Builder 前置 | [S2](../02-framestore-core.md) `[A-FS-DURABLE-COMPLETED-OUTPUTS]` |
-| `[S-VS-ROOTS-BARRIER]` | 保留旧锚点并标记 DEPRECATED，取消无关 data Builder 拒绝 | [S4](../04-versionstore-publication.md) `[S-VS-ROOTS-AFTER-DATA-CONFIRM]` |
+| `[A-FS-DURABLE-OWNER]` | 保留旧锚点并标记 DEPRECATED，取消全局无 Builder 前置 | [S2](../../FrameStore/02-framestore-core.md) `[A-FS-DURABLE-COMPLETED-OUTPUTS]` |
+| `[S-VS-ROOTS-BARRIER]` | 保留旧锚点并标记 DEPRECATED，取消无关 data Builder 拒绝 | [S4](../../VersionStore/04-versionstore-publication.md) `[S-VS-ROOTS-AFTER-DATA-CONFIRM]` |
 | RBF `[S-RBF-READ-DISALLOW-WHILE-BUILDER-ACTIVE]` | 底座规范保留历史锚点并废弃其随机读取禁令 | [RBF 接口](../../Rbf/rbf-interface.md) `[S-RBF-RANDOM-READ-COMPLETED-PREFIX]` |
 | 活跃 Builder 期间 flush 的底座行为 | 明确保留构建内容及 borrowed/reservation 状态 | [RBF 接口](../../Rbf/rbf-interface.md) `[S-RBF-FLUSH-PRESERVES-BUILDER]` |
-| S2 目标文件 Building 读取限制 | 从租借串行条款中移除，建立消费底座的独立条款 | [S2](../02-framestore-core.md) `[S-FS-RANDOM-READ-COMPLETED-PREFIX]` |
+| S2 目标文件 Building 读取限制 | 从租借串行条款中移除，建立消费底座的独立条款 | [S2](../../FrameStore/02-framestore-core.md) `[S-FS-RANDOM-READ-COMPLETED-PREFIX]` |
 
 S0 记录会话决定，S2/S4 唯一定义核心规则，S3/S5/S6、README、问题索引与 FrameLog 候选消费这些规则。历史审阅及 S1 验收只补充后续变更范围说明，原始正文和检查数字保留。
 

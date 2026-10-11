@@ -1,12 +1,12 @@
 # 2026-10-07：完整 RootMap 与单文件 ref 的下游适配评估
 
 > 后续合同变更说明（同日）：用户已接受活跃 Builder 期间确认/随机读取此前已完成输出，且不相关 Builder 不再阻断 RootMap 发布。本文保留原始需求评估正文；新合同与独立源码验收另见[改进记录](2026-10-07-completed-output-improvements.md)，本评估不重标为运行时验证。
-> 其后同日接受命名 fork 的目录共同发布；本文第 6 项“允许未命名 ref”的原始向量只适用于手工 CreateRef+CreateBranch，新组合入口不留下公开 unbound ref。当前协议见 [S4](../04-versionstore-publication.md) `[S-VS-REF-DIRECTORY-PUBLISH]` 与 [S5](../05-versionstore-names-and-indexes.md) `[S-VS-NAMED-FORK-PUBLISH]`，目录平台资格仍待实施。
+> 其后同日接受命名 fork 的目录共同发布；本文第 6 项“允许未命名 ref”的原始向量只适用于手工 CreateRef+CreateBranch，新组合入口不留下公开 unbound ref。当前协议见 [S4](../../VersionStore/04-versionstore-publication.md) `[S-VS-REF-DIRECTORY-PUBLISH]` 与 [S5](../../VersionStore/05-versionstore-names-and-indexes.md) `[S-VS-NAMED-FORK-PUBLISH]`，目录平台资格仍待实施。
 
 状态：**Informative / 设计评估完成；未实现新库，未运行下游、build/test 或真实进程中断实验**。
 两个只读 subagent 分别评估 LLM tool-loop 与 Game Agent Gym；主线程核对关键源码和失败轨迹后裁决。兄弟仓是需求证据，不能作为新栈的实现或接入资格。
 文档修订后另做独立只读复核，未发现功能阻碍；首次 tag 桶的步骤歧义已明确为“先发布 header-only 空桶，再普通追加/flush 首 tag”，与后续 tag 的结果证据一致。
-当前规范分别见 [S0](../00-architecture-decisions.md)、[S4](../04-versionstore-publication.md)、[S5](../05-versionstore-names-and-indexes.md)；本文不建立第二套格式或运行协议。
+当前规范分别见 [S0](../00-architecture-decisions.md)、[S4](../../VersionStore/04-versionstore-publication.md)、[S5](../../VersionStore/05-versionstore-names-and-indexes.md)；本文不建立第二套格式或运行协议。
 
 ## 评估结论与最小补充
 

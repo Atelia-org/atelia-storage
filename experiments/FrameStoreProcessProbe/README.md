@@ -1,6 +1,6 @@
 # FrameStore public 跨进程与返回边界强杀探针
 
-消费实际 `Atelia.FrameStore` 的 public API，为 [收尾计划 R1](../../docs/FrameStore-VersionStore/02-framestore-completion-plan.md) 取得有界过程证据。项目只直接 `ProjectReference` 当前 `src/FrameStore`，source-only、非 packable，不加入 solution 或生产包清单。
+消费实际 `Atelia.FrameStore` 的 public API，为 [收尾计划 R1](../../docs/FrameStore/02-framestore-completion-plan.md) 取得有界过程证据。项目只直接 `ProjectReference` 当前 `src/FrameStore`，source-only、非 packable，不加入 solution 或生产包清单。
 
 从仓库根串行执行；需要仓库指定的 .NET SDK，运行在 FrameStore 可准入的 Windows 或 Linux 本地文件系统上：
 
@@ -27,7 +27,7 @@ DOTNET_SYSTEM_IO_DISABLEFILELOCKING=1 dotnet run --project experiments/FrameStor
 
 结果记录 runtime、OS、架构、运行目录、assembly SHA-256、传入 revision、`DOTNET_SYSTEM_IO_DISABLEFILELOCKING` 的实际值及 `System.IO.DisableFileLocking` 的 AppContext 值。`callerSuppliedRevision` 是调用方声明，探针不把 dirty 工作区或未提交源码自动视作该提交。WSL 应使用 Linux 文件系统上的独立 checkout/输出目录；两平台资格分别读取实际结果，本文不预先宣称通过。
 
-`appContextDisableFileLocking` 只记录显式 AppContext switch 查询，不是合并环境变量后的有效配置；环境变量为 `1` 时该字段仍可为 false。实际 Unix BCL 选择逻辑见 [runtime v10.0.5 SafeFileHandle.Unix.cs](https://github.com/dotnet/runtime/blob/v10.0.5/src/libraries/System.Private.CoreLib/src/Microsoft/Win32/SafeHandles/SafeFileHandle.Unix.cs)。本轮执行结果见[过程取证记录](../../docs/FrameStore-VersionStore/02-framestore-process-acceptance.md)。
+`appContextDisableFileLocking` 只记录显式 AppContext switch 查询，不是合并环境变量后的有效配置；环境变量为 `1` 时该字段仍可为 false。实际 Unix BCL 选择逻辑见 [runtime v10.0.5 SafeFileHandle.Unix.cs](https://github.com/dotnet/runtime/blob/v10.0.5/src/libraries/System.Private.CoreLib/src/Microsoft/Win32/SafeHandles/SafeFileHandle.Unix.cs)。本轮执行结果见[过程取证记录](../../docs/FrameStore/02-framestore-process-acceptance.md)。
 
 | 场景 | 公开行为与断言 |
 | --- | --- |
