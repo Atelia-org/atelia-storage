@@ -1,4 +1,5 @@
 using System.Globalization;
+using Atelia.VersionStore.Internal.Tags;
 
 namespace Atelia.VersionStore.Internal.Format;
 
@@ -22,8 +23,21 @@ internal static class VersionStorePaths {
 
     internal static bool TryParseRefFileName(ReadOnlySpan<char> name, out uint localRefId) {
         localRefId = 0;
+        if (!TryParseHexFileName(name, out uint value) || value == 0) { return false; }
+        localRefId = value;
+        return true;
+    }
+
+    internal static bool TryParseTagBucketFileName(ReadOnlySpan<char> name, out uint bucketId) {
+        bucketId = 0;
+        if (!TryParseHexFileName(name, out uint value) || value >= TagNameCodec.BucketCount) { return false; }
+        bucketId = value;
+        return true;
+    }
+
+    private static bool TryParseHexFileName(ReadOnlySpan<char> name, out uint value) {
+        value = 0;
         if (name.Length != 12 || !name[8..].SequenceEqual(".rbf")) { return false; }
-        uint value = 0;
         foreach (char digit in name[..8]) {
             uint nibble;
             if (digit is >= '0' and <= '9') { nibble = (uint)(digit - '0'); }
@@ -31,9 +45,6 @@ internal static class VersionStorePaths {
             else { return false; }
             value = (value << 4) | nibble;
         }
-
-        if (value == 0 || !name.SequenceEqual(GetRefFileName(value))) { return false; }
-        localRefId = value;
         return true;
     }
 }

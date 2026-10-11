@@ -1,0 +1,101 @@
+using Atelia.Rbf;
+using Atelia.VersionStore.Internal.Format;
+using Atelia.VersionStore.Internal.Platform;
+using Atelia.VersionStore.Internal.Runtime;
+using Atelia.VersionStore.Internal.Tags;
+
+namespace Atelia.VersionStore.Internal.Storage;
+
+internal sealed partial class DirectoryVersionStoreFiles {
+    public QualifiedTagBucketTarget? ResolveTagBucket(uint bucketId, Action markOwnedCleanupFault) {
+        ArgumentNullException.ThrowIfNull(markOwnedCleanupFault);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(bucketId, (uint)TagNameCodec.BucketCount);
+        if (!VersionStorePlatform.TryRequireDirectory(TagsPath, markOwnedCleanupFault)) {
+            return null;
+        }
+        VersionStorePlatform.RequireSameFileSystem(_root, TagsPath, markOwnedCleanupFault);
+        QualifiedTagBucketTarget? target = null;
+        EnumerateDirect(TagsPath, _operations, path => {
+            string name = Path.GetFileName(path);
+            if (!VersionStorePaths.TryParseTagBucketFileName(name, out uint foundBucket)) { throw InvalidEntry(name); }
+            VersionStorePlatform.RequireEnumeratedFile(path, markOwnedCleanupFault);
+            VersionStorePlatform.RequireFileOnFileSystem(_root, path, markOwnedCleanupFault);
+            if (foundBucket == bucketId) { target = new QualifiedTagBucketTarget(foundBucket, path); }
+        }, markOwnedCleanupFault);
+        return target;
+    }
+
+    public IRbfFile OpenTagBucket(QualifiedTagBucketTarget target, bool readOnly, Action markOwnedCleanupFault) {
+        ArgumentNullException.ThrowIfNull(markOwnedCleanupFault);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(target.BucketId, (uint)TagNameCodec.BucketCount);
+        VersionStorePlatform.RequireDirectory(TagsPath, markOwnedCleanupFault);
+        VersionStorePlatform.RequireSameFileSystem(_root, TagsPath, markOwnedCleanupFault);
+        VersionStorePlatform.RequireEnumeratedFile(target.Path, markOwnedCleanupFault);
+        VersionStorePlatform.RequireFileOnFileSystem(_root, target.Path, markOwnedCleanupFault);
+        long initializedLength = RbfScanBoundary.Empty.EndExclusive
+            + RbfFile.MeasureWriteSize(TagBucketHeaderCodec.PayloadSize, 0).Unwrap().AppendLength;
+        if (!readOnly) { CheckTagBucketLength(target.Path, initializedLength, markOwnedCleanupFault); }
+
+        IRbfFile? file = null;
+        CleanupErrors errors = default;
+        try {
+            try {
+                file = _operations.OpenTagBucket(target.Path, readOnly, out RbfTailRecoveryReport recovery);
+                if (!readOnly && recovery.Action != RbfTailRecoveryAction.None
+                    && (recovery.AffectedFrameOffset is not { } affected || affected < initializedLength)) {
+                    throw new InvalidDataException("Tag bucket recovery must not alter its initialization prefix.");
+                }
+            }
+            catch {
+                // Preflight above cannot mutate the bucket; a writable public factory can.
+                if (!readOnly) { markOwnedCleanupFault(); }
+                throw;
+            }
+            IRbfFile output = file;
+            file = null;
+            return output;
+        }
+        catch (Exception error) { errors.Add(error); }
+        CloseOwned(ref file, ref errors, markOwnedCleanupFault);
+        errors.ThrowIfAny();
+        throw new InvalidOperationException("Unreachable tag bucket handoff.");
+    }
+
+    public void EnsureTagsDirectory(Action markOwnedCleanupFault) {
+        ArgumentNullException.ThrowIfNull(markOwnedCleanupFault);
+        if (!VersionStorePlatform.TryRequireDirectory(TagsPath, markOwnedCleanupFault)) {
+            _operations.CreateTagsDirectory(TagsPath, markOwnedCleanupFault);
+        }
+        VersionStorePlatform.RequireDirectory(TagsPath, markOwnedCleanupFault);
+        VersionStorePlatform.RequireSameFileSystem(_root, TagsPath, markOwnedCleanupFault);
+    }
+
+    public AteliaResult<QualifiedTagBucketTarget> PrepareNewTagBucket(uint bucketId, Action markOwnedCleanupFault) {
+        if (ResolveTagBucket(bucketId, markOwnedCleanupFault) is not null) {
+            return new VersionStoreRuntimeError("TagBucketAlreadyExists", "The formal tag bucket already exists.");
+        }
+        return new QualifiedTagBucketTarget(bucketId, Path.Combine(TagsPath, TagNameCodec.GetBucketFileName(bucketId)));
+    }
+
+    public void PublishPendingTagBucket(QualifiedTagBucketTarget target, Action markOwnedCleanupFault) {
+        ArgumentNullException.ThrowIfNull(markOwnedCleanupFault);
+        _operations.PublishPendingTagBucket(PendingPath, target.Path, markOwnedCleanupFault);
+    }
+
+    private string TagsPath => Path.Combine(_root, VersionStorePaths.TagsDirectoryName);
+
+    private void CheckTagBucketLength(string path, long initializedLength, Action markOwnedCleanupFault) {
+        FileStream? probe = null;
+        CleanupErrors errors = default;
+        try {
+            probe = _operations.ProbeTagBucket(path);
+            if (probe.Length < initializedLength) {
+                throw new InvalidDataException("A formal tag bucket must contain its entire initialized header before writable recovery.");
+            }
+        }
+        catch (Exception error) { errors.Add(error); }
+        // Dispose must succeed before the independent exclusive RBF factory is entered.
+        CloseOwned(ref probe, ref errors, markOwnedCleanupFault);
+        errors.ThrowIfAny();
+    }
+}

@@ -14,12 +14,12 @@ VersionStore 借入一个 FrameStore，发布不透明 root-payload bytes。每�
 - 自动/预留区指定 `ForkRef`：精确读取已签发 revision，确认 data 后单独确认源 ref，原样复制 bytes 并发布带 ForkOrigin 的子文件；不扫描源后续历史。
 - `ListForks(maxRefs, cancellationToken)`：检查所有正式首帧及声明图，交付自有只读 `ForkInfo` 边列表，不读取 Snapshot 或重读来源 ticket。
 - 私有初始化后一次不覆盖文件移动发布；异常停用、资源单次清理和锁最后释放。
-- tag 内部名称/1024桶路由、BucketHeader 与独立 CRC 可变元信息 codec、借入句柄的单桶 named 扫描及自有 `RootPayload`；公开 tag 操作待接线。
+- 匿名 `CreateTag` / `ResolveTag`：1024个惰性桶、独立 CRC 元信息查重、data-first 发布与自有 `RootPayload`；正式桶初始化保护、空桶发布及冷重开。
 - 独立可选 `RootMapCodec.Encode/Decode`：有效 Unicode key、Ordinal、变长 FrameAddress、1MiB 上限及完整 codeword 解码。它不在发布内核中自动运行。
 
 `Create(rootPath, data, reservedRefIdUpperBound: 0)` 建立空库，默认没有预留低号；自动创建从 1 开始。指定创建只允许 1..预留上界的空闲槽，自动创建使用正式集合水位加一。`Open(rootPath, data)` 独占打开并取消合格 pending；`OpenReadOnly(rootPath, data)` 共享只读打开，保留 pending，不恢复 ref。各工厂先检查实际借入 data 的可用性与模式，随后核对持久绑定。调用方保持 data 存活并串行使用两层；VS Dispose 不关闭 data。
 
-核心公开闭环为 `Create → CreateRef → PublishRef → ReadRef/ReadRefHistory → Dispose → Open/RO → ReadRef/ReadRefHistory`。两种 `ForkRef` 已接通，并用公开创建和两层冷重开验证继承历史。`ListForks` 已可查询全部正式 ref 的声明分叉图。当前还没有公开 tag 或完整校验入口；没有占位方法。Windows 源码测试与 Linux、进程终止、包消费资格分别记录，见实施计划。
+核心公开闭环为 `Create → CreateRef → PublishRef → ReadRef/ReadRefHistory → Dispose → Open/RO → ReadRef/ReadRefHistory`。两种 `ForkRef` 已接通，并用公开创建和两层冷重开验证继承历史。`ListForks` 已可查询全部正式 ref 的声明分叉图。匿名 tag 公开闭环已接通；关联 overload、元信息公面及完整校验入口尚未接线，没有占位方法。Windows 源码测试与 Linux、进程终止、包消费资格分别记录，见实施计划。
 
 历史调用示例：
 
@@ -36,8 +36,10 @@ var result = store.ReadRefHistory(refId, new HistoryBudget(100, 1000), snapshot 
 
 `ListForks` 的正整数 `maxRefs` 包含全部正式 ref，连没有来源的根也计数；恰好达到额度且枚举正常结束可成功，超额返回 `VersionStore.ForkQueryBudgetExceeded`，不交付部分图。每次查询重新检查 header、缺源与环，不保留跨调用索引。结果只声明创建关系；`SourceSnapshotTicket` 不是新签发的源 revision，也不证明初始/源 payload 一致或全库内容健康。查询可在历史 visitor 内执行，借用同文件句柄；其他临时句柄逐个关闭，不加入长期缓存。
 
+`CreateTag(name, payload, out outcome)` 按原 UTF-16 code units 的 Ordinal 名称创建，不覆盖已有 tag；成功值恒为 true。`ResolveTag(name)` 返回自有 `RootPayload`，不带 ref revision。名称查重只读取目标桶的小元信息，可信同名即占用，即使其 root 损坏；解析唯一目标时再检查完整 CRC。零命中但存在未知名称记录时返回缺失不确定。每次查询先检查全部已建桶路径名称/类型，只打开目标桶内容，成功不证明其他桶或 data 图健康。
+
 `RootMapCodec` 已可独立消费。应用从 FrameStore 正常追加取得地址，用 `Encode(roots)` 生成自有 byte[]；取得 root bytes 后，显式 `Decode(payload)` 得到自有 Ordinal 冻结字典。空 RootMap 编成单字节 `00`，而 VersionStore 的空 payload 不合法。JSON 或其他编码的应用无需使用 RootMapCodec。
 
 写入内核按实际 slice 长度捕获私有 bytes，在任何 data barrier/发布输出前完成确定检查；先 `data.ConfirmDurable()`，再正式追加和 flush。`out PublicationOutcome` 区分本次未尝试、结果未知和已确认，异常不得抹掉已取得证据。VS 停用会受控清理自身文件与锁，不 Dispose 借入 data；自有结果可跨 owner Dispose 保留。当前值读取不解码内容、不预读初始/源历史、不回退损坏 head。
 
-项目仅引用 main 的 FrameStore/Binary/Rbf/Data/Primitives，不引用冻结 RBF1 库或业务包。tag、独立完整校验、进程终止、两平台与包资格按实施计划分别取得。
+项目仅引用 main 的 FrameStore/Binary/Rbf/Data/Primitives，不引用冻结 RBF1 库或业务包。tag 关联注记/元信息公面、独立完整校验、进程终止、两平台与包资格按实施计划分别取得。

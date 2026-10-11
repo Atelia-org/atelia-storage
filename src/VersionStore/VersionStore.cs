@@ -20,6 +20,7 @@ public sealed partial class VersionStore : IDisposable {
     private readonly StoreIdentity _identity;
     private readonly byte[] _versionStoreId;
     private readonly IVersionStoreFiles _files;
+    private readonly IVersionStoreTagFiles? _tagFiles;
     private readonly Dictionary<uint, OwnedRef> _ownedRefs = [];
     private readonly Action _markOwnedCleanupFault;
     private readonly VersionStoreTestHooks? _testHooks;
@@ -35,7 +36,8 @@ public sealed partial class VersionStore : IDisposable {
     /// </remarks>
     internal VersionStore(DataStore data, StoreIdentity versionStoreId, StoreIdentity boundDataStoreId,
         uint reservedRefIdUpperBound, bool readOnly, IVersionStoreFiles files, IDisposable ownerLock,
-        VersionStoreTestHooks? testHooks = null, uint? autoRefIdHighWatermark = null) {
+        VersionStoreTestHooks? testHooks = null, uint? autoRefIdHighWatermark = null,
+        IVersionStoreTagFiles? tagFiles = null) {
         ArgumentNullException.ThrowIfNull(data);
         ArgumentNullException.ThrowIfNull(files);
         ArgumentNullException.ThrowIfNull(ownerLock);
@@ -62,6 +64,7 @@ public sealed partial class VersionStore : IDisposable {
         _identity = versionStoreId;
         _versionStoreId = identityBytes;
         _files = files;
+        _tagFiles = tagFiles ?? files as IVersionStoreTagFiles;
         _markOwnedCleanupFault = () => _faulted = true;
         _testHooks = testHooks;
         IsReadOnly = readOnly;
@@ -357,6 +360,7 @@ public sealed partial class VersionStore : IDisposable {
     private void CleanupOwned(ref CleanupErrors errors) {
         try {
             CloseHistoryTemporary(ref errors);
+            CloseTagOperation(ref errors);
             IRbfFile? pending = _pendingRef;
             _pendingRef = null;
             try { pending?.Dispose(); }

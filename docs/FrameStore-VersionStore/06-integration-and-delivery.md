@@ -98,7 +98,7 @@ single-driver/HistoryActive/TagScanActive、取消/回调Dispose及必要清理�
 | `eng/Pack.ps1` | S6 注册包和明确选择/版本算法 |
 | `eng/Test-Package.ps1`、metadata helper | S6 在当前纯 Rbf 三包及纯 Binary 两包隔离验证基础上增加新闭包 smoke，不削弱来源/资产校验 |
 | `eng/Verify-Published.ps1`、发布 workflow/CI | 若纳入公开交付，按实际授权和新 manifest 形态适配 |
-| 根 README / AGENTS.md | 项目实际存在、交付事实变化后更新；FrameStore/VersionStore 与测试项目均已创建、保持 source-only；VersionStore 已接通普通 ref 真实目录闭环，历史读取、精确 ForkRef 与 ListForks 已接通，tag 内部 codec/单桶扫描已实现，公开操作尚缺 |
+| 根 README / AGENTS.md | 项目实际存在、交付事实变化后更新；FrameStore/VersionStore 与测试项目均已创建、保持 source-only；VersionStore 已接通普通 ref 真实目录闭环，历史读取、精确 ForkRef 与 ListForks 已接通，匿名 tag 公开持久化闭环已接通，关联注记及元信息公面尚缺 |
 | 旧库维护 | RBF1 分支工作包；main 冻结参考及固定包合同不得为新栈改写 |
 
 ## 实施片

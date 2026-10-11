@@ -6,8 +6,8 @@ using Atelia.VersionStore.Internal.Runtime;
 namespace Atelia.VersionStore.Internal.Storage;
 
 /// <summary>已准入根与持续 owner 锁之下的正式路径和唯一 pending 生命周期。</summary>
-/// <remarks>不拥有锁，不解释 ref 内容；工厂测试操作只用于初始化阶段。</remarks>
-internal sealed class DirectoryVersionStoreFiles : IVersionStoreFiles {
+/// <remarks>不拥有锁，不解释 ref/tag 内容；公开工厂只将默认文件操作交给 owner。</remarks>
+internal sealed partial class DirectoryVersionStoreFiles : IVersionStoreFiles, IVersionStoreTagFiles {
     private readonly string _root;
     private readonly VersionStoreFactoryOperations _operations;
 
@@ -189,7 +189,7 @@ internal sealed class DirectoryVersionStoreFiles : IVersionStoreFiles {
         IRbfFile? file = null;
         CleanupErrors errors = default;
         try {
-            file = RbfFile.CreateNew(PendingPath, RbfCacheMode.Off);
+            file = _operations.CreatePending(PendingPath);
             VersionStorePlatform.RequireFileOnFileSystem(_root, PendingPath, markOwnedCleanupFault);
             IRbfFile output = file;
             file = null;
