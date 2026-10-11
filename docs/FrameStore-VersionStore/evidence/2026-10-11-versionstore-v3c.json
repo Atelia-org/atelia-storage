@@ -1,0 +1,243 @@
+{
+  "date": "2026-10-11",
+  "scope": "VersionStore V3-C related tags, ReadTagInfo and ScanTags; source-only",
+  "baseline": "31f7edde7fd7898be6a70dda9a5c2c71de039cc1",
+  "sourceIdentity": "Baseline plus changed/new C# files below, committed with this record; source hashes normalize UTF-8 text to LF.",
+  "platform": "Windows-11-10.0.22000-SP0",
+  "fixtureDrive": "W:",
+  "commands": [
+    "dotnet build Atelia.Storage.slnx -c Release --nologo -v minimal",
+    "dotnet test tests/VersionStore.Tests/VersionStore.Tests.csproj -c Release --no-build --filter 'FullyQualifiedName~.TagMetadataPublic.|FullyQualifiedName~.TagScanLifecycle.' --logger trx --results-directory artifacts/versionstore-v3c/accepted-targeted",
+    "dotnet test Atelia.Storage.slnx -c Release --no-build --logger trx --results-directory artifacts/versionstore-v3c/accepted-tests",
+    "./eng/Test-Rbf1ReferenceAssets.ps1"
+  ],
+  "build": {
+    "succeeded": true,
+    "warnings": 0,
+    "errors": 0
+  },
+  "newCases": {
+    "TagMetadataPublic": 66,
+    "TagScanLifecycle": 48
+  },
+  "targeted": {
+    "assembly": "Atelia.VersionStore.Tests.dll",
+    "results": {
+      "Passed": 114
+    },
+    "trx": "artifacts/versionstore-v3c/accepted-targeted/gdtutu_TUTU17_2026-10-11_12_36_02.trx",
+    "sha256": "48a69f4fb9e766eecf64d9412638ff07b8cbede1c25fd835cf7b484ca5135b91"
+  },
+  "testOutcomes": {
+    "Passed": 3318,
+    "NotExecuted": 9
+  },
+  "testRuns": [
+    {
+      "assembly": "Atelia.Primitives.Tests.dll",
+      "results": {
+        "Passed": 75
+      },
+      "trx": "artifacts/versionstore-v3c/accepted-tests/gdtutu_TUTU17_2026-10-11_12_36_15.trx",
+      "sha256": "b07dfebc4fd0d8529cc70ddec18325c896716ba415d7add34fe236c13a8020b6"
+    },
+    {
+      "assembly": "Atelia.Data.Tests.dll",
+      "results": {
+        "Passed": 288
+      },
+      "trx": "artifacts/versionstore-v3c/accepted-tests/gdtutu_TUTU17_2026-10-11_12_36_16.trx",
+      "sha256": "6d3111ab07d049076ddfcb8b194d4a108e14d329e9ff9681bd2249c9ad1b91bc"
+    },
+    {
+      "assembly": "Atelia.Binary.Tests.dll",
+      "results": {
+        "Passed": 214
+      },
+      "trx": "artifacts/versionstore-v3c/accepted-tests/gdtutu_TUTU17_2026-10-11_12_36_16[1].trx",
+      "sha256": "6b29fee34b39588737f00780e97d97432d064c115f89b136aa16a85f985cc30c"
+    },
+    {
+      "assembly": "Atelia.RbfSegmentStore.Tests.dll",
+      "results": {
+        "Passed": 48
+      },
+      "trx": "artifacts/versionstore-v3c/accepted-tests/gdtutu_TUTU17_2026-10-11_12_36_16[2].trx",
+      "sha256": "274524d7cf030b1daa1d8236a44078308cda68df05c9600a457c8f3f0eb07e44"
+    },
+    {
+      "assembly": "Atelia.Rbf.Tests.dll",
+      "results": {
+        "Passed": 920
+      },
+      "trx": "artifacts/versionstore-v3c/accepted-tests/gdtutu_TUTU17_2026-10-11_12_36_16[3].trx",
+      "sha256": "36b3134f9d14d0eccb35e942046ae30d2b09a90e0c2895ef55027ce415491bd1"
+    },
+    {
+      "assembly": "Atelia.FrameStore.Tests.dll",
+      "results": {
+        "Passed": 422,
+        "NotExecuted": 3
+      },
+      "trx": "artifacts/versionstore-v3c/accepted-tests/gdtutu_TUTU17_2026-10-11_12_36_16[4].trx",
+      "sha256": "78c63a91791dec47063fa764a93d048e0179897139cefa7457a59bc5b5a962e2"
+    },
+    {
+      "assembly": "Atelia.EventJournal.Tests.dll",
+      "results": {
+        "Passed": 174
+      },
+      "trx": "artifacts/versionstore-v3c/accepted-tests/gdtutu_TUTU17_2026-10-11_12_36_16[5].trx",
+      "sha256": "53c557e54e3f632f51b245ddae128ca751a65b3c99860702df4c0ac259251813"
+    },
+    {
+      "assembly": "Atelia.VersionStore.Tests.dll",
+      "results": {
+        "Passed": 1055,
+        "NotExecuted": 6
+      },
+      "trx": "artifacts/versionstore-v3c/accepted-tests/gdtutu_TUTU17_2026-10-11_12_36_17.trx",
+      "sha256": "07863a10694a79cdc36777d6ce4317fece1b9f76baa784baef16656f9e8c880a"
+    },
+    {
+      "assembly": "Atelia.EventJournal.Toolkit.Tests.dll",
+      "results": {
+        "Passed": 122
+      },
+      "trx": "artifacts/versionstore-v3c/accepted-tests/gdtutu_TUTU17_2026-10-11_12_36_20.trx",
+      "sha256": "18def6c52d9ba56afb0236f57a64f4270032f09dfb66910b2034eb0643822f80"
+    }
+  ],
+  "integrationNotes": [
+    "Owner retains a separate directory cursor so callback Dispose and nested query fault close all traversal resources before the root lock.",
+    "Independent review found same-bucket named handle reuse skipped all-entry path qualification; fixed before final acceptance and covered by invalid-suffix counterexamples.",
+    "Initial build corrected four single params argument target-typed new test errors. Existing XML warnings were not changed.",
+    "First targeted run: 110 passed, 3 failed; test assertions corrected lazy read-log creation and double counting logical/raw read events. Source-read evidence now has a nonempty positive baseline and checks zero incremental reads.",
+    "Unpaired-surrogate test cases now use ASCII case labels and construct code units inside the test; final targeted/full runs have no duplicate test IDs."
+  ],
+  "logs": [
+    {
+      "path": "artifacts/versionstore-v3c/accepted-build.log",
+      "sha256": "25a3fd262da6e7c56975ed4a3fa818e0c2d0a4e82981606209f8be62af2eecb6"
+    },
+    {
+      "path": "artifacts/versionstore-v3c/accepted-targeted.log",
+      "sha256": "85889f4ccab2f3fdaee144b2881eae5ba8b3008f663eba20af136604b96ff65c"
+    },
+    {
+      "path": "artifacts/versionstore-v3c/accepted-tests.log",
+      "sha256": "e72ccbd906c5c763961505ead40bd88bbec86abb5932c801081140e41cc3b19c"
+    },
+    {
+      "path": "artifacts/versionstore-v3c/build.log",
+      "sha256": "c4b0bb8e6334e641ef5a3b2d4861e04f7560d3f0e777218f0028eca9b170f6c2"
+    },
+    {
+      "path": "artifacts/versionstore-v3c/initial-build.log",
+      "sha256": "ce80fe1cc2de53fe45c2f8cd76c246ead6a47c4743a245c34309b7c047f97858"
+    },
+    {
+      "path": "artifacts/versionstore-v3c/rbf1-assets.log",
+      "sha256": "75997e0656849e10b55138a4500b10da8c61d34feca82a27c2e364995a4738d0"
+    },
+    {
+      "path": "artifacts/versionstore-v3c/targeted.log",
+      "sha256": "a97d5005d0d357b446b9eaab23fc9182edc2ab673e78ed2f114551e3cb50a9a5"
+    }
+  ],
+  "sourceFiles": [
+    {
+      "path": "src/VersionStore/Internal/Runtime/IVersionStoreTagFiles.cs",
+      "sha256": "72a7562e768ae531eb9b92a4b492b95bff98863ee924a994c674dbd8d43bdb41"
+    },
+    {
+      "path": "src/VersionStore/Internal/Storage/DirectoryVersionStoreFiles.Tags.cs",
+      "sha256": "f340e221e14e05ef94b839b0176f40b4cbbba1205c7ac3d96fc3f9564af105f9"
+    },
+    {
+      "path": "src/VersionStore/Internal/Tags/TagRecordReader.cs",
+      "sha256": "73bb1b32c7a877014709aa5e524055283c43116803f0dd190a63a638bd37d0ff"
+    },
+    {
+      "path": "src/VersionStore/TagInfo.cs",
+      "sha256": "364aff999623640761542b6b75231145e68d03d262c53cc3a5b3bd1f7ae7a02f"
+    },
+    {
+      "path": "src/VersionStore/TagScanEnd.cs",
+      "sha256": "df5b19a29f1af210106b4cf4dab72f8903f5f5d1c2a96227028054983f407fc2"
+    },
+    {
+      "path": "src/VersionStore/VersionStore.History.cs",
+      "sha256": "99bbf0ae15f217d3e0d557499dfe0288c82f1994d40d1c25e2f57a58e9622ad2"
+    },
+    {
+      "path": "src/VersionStore/VersionStore.TagScan.cs",
+      "sha256": "17855d9509d5ecf8581a8292eaf51bda61d778fe93f29f64db88422274ca9859"
+    },
+    {
+      "path": "src/VersionStore/VersionStore.Tags.cs",
+      "sha256": "759cac64bc3d6b1b448390d4088c296584989d94c796032a8e51cfad07e074f5"
+    },
+    {
+      "path": "src/VersionStore/VersionStore.cs",
+      "sha256": "7bfc11fe2d52e8935c2a8beb77fbca5364055709618ecfa54cedcc23649709a8"
+    },
+    {
+      "path": "tests/VersionStore.Tests/TagMetadataPublic/PublicRelatedTagTests.cs",
+      "sha256": "55bcd009f63988427ab11059e3f32c7a9b0da09795cb754b39fd27e56ecdc210"
+    },
+    {
+      "path": "tests/VersionStore.Tests/TagMetadataPublic/PublicTagInfoTests.cs",
+      "sha256": "dffc02973ccc3636dc152b7552effbab44e54d7aa82104974075eb1b61fd4799"
+    },
+    {
+      "path": "tests/VersionStore.Tests/TagMetadataPublic/PublicTagScanTests.cs",
+      "sha256": "16b816322ebdf304d9e7fdbc2da0b782a474769a9f4544071074fb68cce7fef1"
+    },
+    {
+      "path": "tests/VersionStore.Tests/TagMetadataPublic/TagMetadataReadEvidenceTests.cs",
+      "sha256": "a52d89f330dcf6fd7f9ba8988b425ea4f95a265dd0ee3ec2a4d7d8f6fe7d70d9"
+    },
+    {
+      "path": "tests/VersionStore.Tests/TagPublicationFaults/TagPublicationFaultFixture.cs",
+      "sha256": "416987bb557b61a5deaafbc2b1aed6659907d3167b0db87336a7078fad161332"
+    },
+    {
+      "path": "tests/VersionStore.Tests/TagScanLifecycle/TagScanCallbackTests.cs",
+      "sha256": "167f454fcfb4fe012757ba3fa5837b364869ac68d62fd5c6ba9f0d2af0d465e1"
+    },
+    {
+      "path": "tests/VersionStore.Tests/TagScanLifecycle/TagScanCancellationAndPoolTests.cs",
+      "sha256": "18c6871874defd9666dfbf450be01781271468078f05f483f9b8396143dee222"
+    },
+    {
+      "path": "tests/VersionStore.Tests/TagScanLifecycle/TagScanFaultFixture.cs",
+      "sha256": "241afa03145845790962400037ea1c8cea40ab7c15c9611fc3bb34e0fd524b85"
+    },
+    {
+      "path": "tests/VersionStore.Tests/TagScanLifecycle/TagScanResourceTests.cs",
+      "sha256": "eb44f91774f2aa1934e609697251cfa27dd93858782d0693bc7a71a62340f2e8"
+    }
+  ],
+  "dependencies": {
+    "versionStoreAssets": {
+      "K4os.Compression.LZ4/1.3.8": "package",
+      "Atelia.Binary/1.0.0": "project",
+      "Atelia.Data/1.0.0": "project",
+      "Atelia.FrameStore/1.0.0": "project",
+      "Atelia.Primitives/1.0.0": "project",
+      "Atelia.Rbf/1.0.0": "project"
+    },
+    "frozenReferenceProjects": 7,
+    "rbf1Version": "0.2.0-rbf1-preview.1",
+    "rbf1Source": "3e9554e2ea70f769607e80b3fc11a85506050533"
+  },
+  "independentReview": "Independent source and counterexample review: no unresolved P1/P2. Root reviewed integration and ran build, targeted/full tests and assets checks.",
+  "limitations": [
+    "Controlled images and narrow fault injection are not OS kill, power-loss, native-device failure or real OOM evidence.",
+    "Cold reopen is within the test process, not a separate cold-process qualification.",
+    "Windows execution only; 9 Linux-specific cases skipped. WSL2 Linux system execution remains V4.",
+    "No load/RSS benchmark, packing, publishing, push or consumer migration.",
+    "Independent read-only complete audit remains V4-A. ScanTags does not prove root health, global name uniqueness or related source validity. CU remains a separate candidate."
+  ]
+}

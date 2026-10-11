@@ -344,6 +344,7 @@ public sealed partial class VersionStore : IDisposable {
 
     private AteliaError? GetMutationRejection() {
         EnsureUsable();
+        if (_tagScanActive) { return TagScanActive(); }
         return _historyActive
             ? new VersionStoreRuntimeError("HistoryActive", "Mutations are not allowed during an active history visitor.")
             : null;
@@ -359,6 +360,8 @@ public sealed partial class VersionStore : IDisposable {
 
     private void CleanupOwned(ref CleanupErrors errors) {
         try {
+            CloseTagScanBucket(ref errors);
+            CloseTagScanTargets(ref errors);
             CloseHistoryTemporary(ref errors);
             CloseTagOperation(ref errors);
             IRbfFile? pending = _pendingRef;

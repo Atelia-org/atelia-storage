@@ -23,6 +23,7 @@ public sealed partial class VersionStore {
         if (visitor is null || budget.MaxSnapshots <= 0 || budget.MaxWorkSteps <= 0) {
             return new VersionStoreRuntimeError("ArgumentError", "A nonnull visitor and two positive history budgets are required.");
         }
+        if (_tagScanActive) { return TagScanActive(); }
         if (_historyActive) {
             return new VersionStoreRuntimeError("HistoryActive", "A history visitor is already active on this VersionStore.");
         }

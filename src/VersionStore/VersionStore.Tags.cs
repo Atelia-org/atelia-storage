@@ -13,17 +13,33 @@ public sealed partial class VersionStore {
     /// <remarks>匿名 tag 不分配 ref 身份；必选 out 在任何 guard 之前初始化。</remarks>
     public AteliaResult<bool> CreateTag(string name, ReadOnlySpan<byte> payload, out PublicationOutcome outcome) {
         outcome = PublicationOutcome.NotAttempted;
+        return CreateTagInput(name, payload, null, ref outcome);
+    }
+
+    /// <summary>冻结实际输入 bytes，并记录同库已签发 revision 的可选关联注记。</summary>
+    /// <remarks>关联只保存坐标；不读取、比较或 flush 来源，也不授予精确 clone 资格。</remarks>
+    public AteliaResult<bool> CreateTag(string name, ReadOnlySpan<byte> payload, RefRevision relatedRevision,
+        out PublicationOutcome outcome) {
+        outcome = PublicationOutcome.NotAttempted;
+        return CreateTagInput(name, payload, relatedRevision, ref outcome);
+    }
+
+    private AteliaResult<bool> CreateTagInput(string name, ReadOnlySpan<byte> payload, RefRevision? relatedRevision,
+        scoped ref PublicationOutcome outcome) {
         AteliaError? rejection = GetMutationRejection();
         if (rejection is not null) { return rejection; }
         if (IsReadOnly) { return new VersionStoreRuntimeError("ReadOnly", "This VersionStore owner is read-only."); }
         if (!TagNameCodec.IsValidName(name)) { return InvalidTagName(); }
+        if (relatedRevision is RefRevision related
+            && (!IsLocalRevision(related) || related.Ticket.Length == 0)) { return InvalidRevision(); }
         if (payload.Length is < 1 or > MaxRootPayloadLength) {
             return new VersionStoreRuntimeError("ArgumentError", "Root payload length must be between 1 and 1,048,576 bytes.");
         }
 
         // Prepare the lossless name and exact metadata width without allocating the final metadata.
         // The timestamp is installed once after definite preparation and before the data barrier.
-        TagMetadataEncodingPlan plan = TagMetadataCodec.Prepare(name, 0, _identity);
+        TagMetadataEncodingPlan plan = TagMetadataCodec.Prepare(name, 0, _identity,
+            relatedRevision?.RefId, relatedRevision?.Ticket);
         byte[] captured = payload.ToArray();
         AteliaResult<bool> result = default;
         CleanupErrors errors = default;
@@ -50,6 +66,31 @@ public sealed partial class VersionStore {
         AteliaResult<RootPayload> result = default;
         CleanupErrors errors = default;
         try { result = ResolveTagCore(name); }
+        catch (Exception error) { errors.Add(error); }
+        finally {
+            CloseTagOperation(ref errors);
+            if (_faulted) { CleanupOwned(ref errors); }
+        }
+        errors.ThrowIfAny();
+        EnsureUsable();
+        return result;
+    }
+
+    /// <summary>读取唯一可信名称的自有元信息；不读取 root 或核验关联来源。</summary>
+    public AteliaResult<TagInfo> ReadTagInfo(string name) {
+        EnsureUsable();
+        if (!TagNameCodec.IsValidName(name)) { return InvalidTagName(); }
+
+        AteliaResult<TagInfo> result = default;
+        CleanupErrors errors = default;
+        try {
+            var opened = GetNamedTagBucket(name);
+            if (opened.IsFailure) { result = opened.Error!; }
+            else {
+                var metadata = TagRecordReader.ReadNamedMetadata(opened.Value.File, opened.Value.Header, name, EnsureUsable);
+                result = metadata.IsFailure ? metadata.Error! : CreateTagInfo(metadata.Value);
+            }
+        }
         catch (Exception error) { errors.Add(error); }
         finally {
             CloseTagOperation(ref errors);
@@ -104,7 +145,8 @@ public sealed partial class VersionStore {
         if (recordSize.IsFailure) { return recordSize.Error!; }
         long recordedAt = _testHooks?.GetRecordedAtUnixMs?.Invoke()
             ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var finalPlan = new TagMetadataEncodingPlan(new TagMetadata(name, recordedAt, null, null),
+        var finalPlan = new TagMetadataEncodingPlan(new TagMetadata(name, recordedAt,
+            plan.Metadata.RelatedRefId, plan.Metadata.RelatedTicket),
             plan.NamePlan, plan.EncodedLength);
         byte[] tailMeta = TagMetadataCodec.Encode(in finalPlan);
         Span<byte> headerPayload = stackalloc byte[TagBucketHeaderCodec.PayloadSize];
@@ -162,17 +204,34 @@ public sealed partial class VersionStore {
     }
 
     private AteliaResult<RootPayload> ResolveTagCore(string name) {
+        var opened = GetNamedTagBucket(name);
+        if (opened.IsFailure) { return opened.Error!; }
+        return TagRecordReader.ResolveNamed(opened.Value.File, opened.Value.Header, name, EnsureUsable);
+    }
+
+    private AteliaResult<(IRbfFile File, CheckedTagBucketHeader Header)> GetNamedTagBucket(string name) {
         uint bucketId = TagNameCodec.GetBucketId(name);
+        // Every named call still qualifies all direct directory entries, including calls
+        // from a scan visitor. Borrowing a content handle does not waive path qualification.
         var resolved = GetTagFiles().ResolveTagBucket(bucketId, _markOwnedCleanupFault);
         EnsureUsable();
         if (resolved is not QualifiedTagBucketTarget target) {
             return new TagNotFoundError("The requested tag bucket does not exist.");
         }
+        // A scan visitor borrows the already qualified current bucket; the named finally must
+        // neither replace its slot nor close this handle. Other buckets retain their own slot.
+        if (_tagScanFile is { } scanFile && _tagScanHeader.IsFor(scanFile) && _tagScanHeader.BucketId == bucketId) {
+            EnsureUsable();
+            return (scanFile, _tagScanHeader);
+        }
         IRbfFile file = OpenTagOperation(target, IsReadOnly);
         var header = TagRecordReader.CheckHeader(file, _identity, bucketId, EnsureUsable);
         if (header.IsFailure) { return header.Error!; }
-        return TagRecordReader.ResolveNamed(file, header.Value, name, EnsureUsable);
+        return (file, header.Value);
     }
+
+    private static TagInfo CreateTagInfo(TagMetadata metadata) =>
+        new(metadata.Name, metadata.RecordedAtUnixMs, metadata.RelatedRefId, metadata.RelatedTicket);
 
     private IVersionStoreTagFiles GetTagFiles() => _tagFiles
         ?? throw new InvalidOperationException("This internal VersionStore backend does not support tag files.");

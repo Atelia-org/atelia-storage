@@ -1,3 +1,4 @@
+using System.Collections;
 using Atelia.Rbf;
 using Atelia.VersionStore.Internal.Format;
 using Atelia.VersionStore.Internal.Platform;
@@ -7,6 +8,34 @@ using Atelia.VersionStore.Internal.Tags;
 namespace Atelia.VersionStore.Internal.Storage;
 
 internal sealed partial class DirectoryVersionStoreFiles {
+    public IEnumerator<QualifiedTagBucketTarget> EnumerateTagBucketTargets(Action checkState,
+        Action markOwnedCleanupFault) {
+        ArgumentNullException.ThrowIfNull(checkState);
+        ArgumentNullException.ThrowIfNull(markOwnedCleanupFault);
+        IEnumerator<string>? entries = null;
+        CleanupErrors errors = default;
+        try {
+            checkState();
+            bool exists = VersionStorePlatform.TryRequireDirectory(TagsPath, markOwnedCleanupFault);
+            checkState();
+            if (exists) {
+                VersionStorePlatform.RequireSameFileSystem(_root, TagsPath, markOwnedCleanupFault);
+                checkState();
+                VersionStorePlatform.RequireEnumeratedDirectory(TagsPath, markOwnedCleanupFault);
+                checkState();
+                entries = _operations.EnumerateDirectory(TagsPath);
+                checkState();
+            }
+            var output = new TagBucketEnumerator(this, entries, checkState, markOwnedCleanupFault);
+            entries = null;
+            return output;
+        }
+        catch (Exception error) { errors.Add(error); }
+        CloseOwned(ref entries, ref errors, markOwnedCleanupFault);
+        errors.ThrowIfAny();
+        throw new InvalidOperationException("Unreachable tag enumeration handoff.");
+    }
+
     public QualifiedTagBucketTarget? ResolveTagBucket(uint bucketId, Action markOwnedCleanupFault) {
         ArgumentNullException.ThrowIfNull(markOwnedCleanupFault);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(bucketId, (uint)TagNameCodec.BucketCount);
@@ -97,5 +126,50 @@ internal sealed partial class DirectoryVersionStoreFiles {
         // Dispose must succeed before the independent exclusive RBF factory is entered.
         CloseOwned(ref probe, ref errors, markOwnedCleanupFault);
         errors.ThrowIfAny();
+    }
+
+    // The owner holds this cursor in an independent slot, so callback Dispose also releases it
+    // before the root lock. No iterator finally can replace a MoveNext error with a close error.
+    private sealed class TagBucketEnumerator(DirectoryVersionStoreFiles owner, IEnumerator<string>? entries,
+        Action checkState, Action markOwnedCleanupFault) : IEnumerator<QualifiedTagBucketTarget> {
+        private IEnumerator<string>? _entries = entries;
+        private QualifiedTagBucketTarget _current;
+        private bool _hasCurrent;
+
+        public QualifiedTagBucketTarget Current => _hasCurrent
+            ? _current
+            : throw new InvalidOperationException("The tag bucket cursor has no current target.");
+
+        object IEnumerator.Current => Current;
+
+        public bool MoveNext() {
+            checkState();
+            _hasCurrent = false;
+            if (_entries is null) { return false; }
+            bool hasEntry = _entries.MoveNext();
+            checkState();
+            if (!hasEntry) { return false; }
+            string path = _entries.Current;
+            checkState();
+            string name = Path.GetFileName(path);
+            if (!VersionStorePaths.TryParseTagBucketFileName(name, out uint bucketId)) { throw InvalidEntry(name); }
+            VersionStorePlatform.RequireEnumeratedFile(path, markOwnedCleanupFault);
+            checkState();
+            VersionStorePlatform.RequireFileOnFileSystem(owner._root, path, markOwnedCleanupFault);
+            checkState();
+            _current = new QualifiedTagBucketTarget(bucketId, path);
+            _hasCurrent = true;
+            return true;
+        }
+
+        public void Reset() => throw new NotSupportedException();
+
+        public void Dispose() {
+            IEnumerator<string>? toClose = _entries;
+            _entries = null;
+            _hasCurrent = false;
+            try { toClose?.Dispose(); }
+            catch { markOwnedCleanupFault(); throw; }
+        }
     }
 }

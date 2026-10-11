@@ -109,7 +109,7 @@ internal static class TagRecordReader {
         return new TagNameLookup(unknownName, matchCount, target, targetMetadata);
     }
 
-    /// <summary>严格读取一条小元信息；未来全桶扫描可直接传播本层内容错误。</summary>
+    /// <summary>严格读取一条小元信息；全桶扫描直接传播本层内容错误。</summary>
     /// <remarks>
     /// info 必须来自 header 所绑定句柄的本次真实主链枚举，不能混入其他文件的 FrameInfo。
     /// root 长度或 CRC 不影响占名资格。底层读取失败原样返回，运行期异常不捕获。

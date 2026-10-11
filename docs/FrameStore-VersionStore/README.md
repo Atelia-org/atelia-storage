@@ -3,7 +3,7 @@
 FrameStore 的 R1–R3 收尾已完成，S2/S3 的[独立源码验收](02-framestore-final-acceptance.md)已 Accepted。[收尾计划与自动队列入口](02-framestore-completion-plan.md)现处完成状态，不自动扩展到包交付或 VersionStore。
 2026-10-10 为 VS 借入补充 S2 `[A-FS-ENSURE-USABLE]` 与 S4 `[S-VS-DATA-BORROW]`：入口 guard、模式配对及持续责任已定；新增公共转发和 VS 局部内核已进入 [骨架与后续实施计划](12-versionstore-implementation-plan.md) 的 V0；V1 已补普通 ref 真实工厂组合验证，原 Accepted 不覆盖此增量。
 
-日期：2026-10-03–11 逐步确认核心/历史合同；2026-10-10 采用无 branch 名称、持久预留低号区、自动/预留区指定创建与单文件发布，并采用 uint32 LocalRefId；2026-10-11 更新tag桶及独立元信息合同。状态：**S1–S3 Accepted（各自源码资格）；S4–S6 Draft；FrameStore/VersionStore source-only，VersionStore 已接通普通 ref 公开闭环、有界历史、精确 fork 与声明分叉图查询，匿名 tag 公开持久化闭环已接通，关联注记及元信息公面尚缺；参考依赖拆分 Accepted**。
+日期：2026-10-03–11 逐步确认核心/历史合同；2026-10-10 采用无 branch 名称、持久预留低号区、自动/预留区指定创建与单文件发布，并采用 uint32 LocalRefId；2026-10-11 更新tag桶及独立元信息合同。状态：**S1–S3 Accepted（各自源码资格）；S4–S6 Draft；FrameStore/VersionStore source-only，VersionStore 已接通普通 ref 公开闭环、有界历史、精确 fork 与声明分叉图查询，tag 公开持久化闭环、关联注记及元信息公面已接通；参考依赖拆分 Accepted**。
 初始设计源码观察基线：`main @ 70d1009e78a73342a0c0fdc8ffed7731dec58173`；S1 验收记录的核对基线为 `f6f1eb38557863ba5ea1634844a90f0cbe5774cf`；前轮设计阅读基线为 `4175a46`，本轮租借/目录修订核对 `50e8e28`。本文档集供逐阶段细化、审阅和实施，不把文档修订视为新实现或验收。
 
 目标：**以 RBF3 的帧原子性为基础，让中层构建新状态，再发布完整 root payload 使状态生效。**

@@ -1,6 +1,6 @@
 # S5-B 专项：不可变 tag
 
-日期：2026-10-11。状态：**Draft；用户已批准 1024 个惰性桶、独立校验的可变长 TailMeta、可选关联注记及元信息读取/扫描。VersionStore 普通 ref、历史、fork 与声明分叉图已接通；V3-B 已接通匿名 CreateTag/ResolveTag、惰性桶发布与冷重开；关联注记及元信息公面留 V3-C（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。本次取代未实施的 tag 草案，无旧 tag 数据迁移，不改 ref/CU 布局；CU 仍为候选。
+日期：2026-10-11。状态：**Draft；用户已批准 1024 个惰性桶、独立校验的可变长 TailMeta、可选关联注记及元信息读取/扫描。VersionStore 普通 ref、历史、fork 与声明分叉图已接通；V3-B 已接通匿名 CreateTag/ResolveTag、惰性桶发布与冷重开；V3-C 已接通关联注记及元信息公面（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。本次取代未实施的 tag 草案，无旧 tag 数据迁移，不改 ref/CU 布局；CU 仍为候选。
 
 本文属于 [S5](05-versionstore-names-and-indexes.md) 的 S5-B，不新增项目或阶段。统一版本、持久身份、借入 data、根/锁、唯一 pending、single-driver、ProcessCrashOnly、PublicationOutcome 与停用清理由 [S4](04-versionstore-publication.md)定义；bytes 输入与自有结果由 [11 专项](11-versionstore-root-payload-bytes-api.md)定义。本篇独立拥有 tag 名称、桶、TailMeta、关联注记与元信息公面，不复制下层尺寸算法，不增加并发或断电保证。
 
@@ -183,6 +183,6 @@ named请求仍做路径资格与O(目标桶记录数+checked meta bytes)扫描�
 | ScanTags/互操作 | missing返回Complete；元信息声明逐条交付含重复及坏root；后续坏meta失败不回滚已交值且不称partial success；false不读后续，取消/throw/Dispose/close优先；递归scan/进入history/全部mutation拒，read/info/resolve/ListForks允许；history callback可scan，双临时槽与当前桶读复用 |
 | 发布/恢复/组合 | data失败无tag输出/无关Builder不堵；pending取消/RO保留，空桶rename仍NotAttempted；Append/flush Unknown与确认后close失败Confirmed；CompletedTail后meta重验；冷开不认领旧尝试；ref后续更新不改tag，应用坏data明确失败，无精确来源能力 |
 
-**施工与成熟度：** 本合同的 V3-A 已实现名称/1024路由、可变 TailMeta/独立 CRC、named 元信息隔离与唯一命中后的内部完整 root 读取；V3-B 已接通惰性空桶初始化、匿名 CreateTag→ResolveTag→冷重开及 Outcome/恢复/资源源码验收。V3-C 可随后独立实施关联 overload、TagInfo/ReadTagInfo/ScanTags 与回调 guard，不阻断 V3-A/B；核心匿名 writer 仍按同一 schema 写id0。现有公开 RBF TailMeta 读取及 RollingCrc 已够，不新增底层路径/CRC scanner/索引接口。V3-A/B 的具体源码/测试资格见实施计划；仍缺关联与元信息公面、真实冷进程/中断、Linux、规模与包证据，不宣称 Ready/Accepted。
+**施工与成熟度：** 本合同的 V3-A 已实现名称/1024路由、可变 TailMeta/独立 CRC、named 元信息隔离与唯一命中后的内部完整 root 读取；V3-B 已接通惰性空桶初始化、匿名 CreateTag→ResolveTag→冷重开及 Outcome/恢复/资源源码验收。V3-C 已接通关联 overload、TagInfo/ReadTagInfo/ScanTags 与回调 guard；关联与匿名 writer 复用同一发布路径与 schema。现有公开 RBF TailMeta 读取及 RollingCrc 已够，不新增底层路径/CRC scanner/索引接口。V3-A/B/C 的具体源码/测试资格见实施计划；仍缺独立完整校验、真实冷进程/中断、Linux、规模与包证据，不宣称 Ready/Accepted。
 
 依据：既有tag合同从35d6c2d的S5迁入；[S5](05-versionstore-names-and-indexes.md)保留导航与历史互操作。[S4](04-versionstore-publication.md)、[RBF接口](../Rbf/rbf-interface.md)、[公共尺寸](../../src/Rbf/RbfFile.cs)、[小TailMeta读取与解escape](../../src/Rbf/RbfFrameInfo.cs)、[RollingCrc封口/检查](../../src/Data/Hashing/RollingCrc.cs)、[BPV字符串选择](../../src/Binary/BareValueEncoding.Strings.cs)、[分配前限制](../../src/Binary/BareValueReader.Strings.cs)、[VarInt](../../src/Binary/BareValueReader.cs)、[SizedPtr](../../src/Data/SizedPtr.cs)为机制依据。[RBF正扫测试](../../tests/Rbf.Tests/Internal/RbfScanForwardTests.cs)为底座证据；冻结旧栈[不可变tag测试](../../tests/EventJournal.Tests/ImmutableTagTests.cs)与[书签消费者](../../../durable-graph/tests/DurableGraph.Persistence.Tests/RepositoryTagTests.cs)仅作工作流背景，不引入旧API/格式，不构成本专项验收。

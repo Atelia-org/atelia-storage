@@ -20,6 +20,9 @@ internal readonly struct QualifiedTagBucketTarget(uint bucketId, string path) {
 internal interface IVersionStoreTagFiles {
     /// <summary>只取得目标路径资格；null 仅表示已证明目录或目标桶健康缺失，不创建或读取桶内容。</summary>
     QualifiedTagBucketTarget? ResolveTagBucket(uint bucketId, Action markOwnedCleanupFault);
+    /// <summary>流式发现实际已建桶；将枚举器所有权移交 owner，缺目录交付空枚举器。</summary>
+    /// <remarks>每次 MoveNext 先后检查状态并取得当前项路径资格；必要 Dispose 失败调用 marker。</remarks>
+    IEnumerator<QualifiedTagBucketTarget> EnumerateTagBucketTargets(Action checkState, Action markOwnedCleanupFault);
     /// <summary>公共工厂打开目标并移交 Idle 句柄；失败前取得的资源由 backend 单次关闭。</summary>
     IRbfFile OpenTagBucket(QualifiedTagBucketTarget target, bool readOnly, Action markOwnedCleanupFault);
     /// <summary>仅在 data barrier 后调用；建立或资格化精确小写 tags 普通目录。</summary>

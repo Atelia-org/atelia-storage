@@ -120,6 +120,9 @@ internal sealed class TagPublicationFiles(IVersionStoreTagFiles inner, string ro
     internal int PrepareCalls;
     internal int RenameCalls;
 
+    public IEnumerator<QualifiedTagBucketTarget> EnumerateTagBucketTargets(Action checkState, Action markOwnedCleanupFault) =>
+        inner.EnumerateTagBucketTargets(checkState, markOwnedCleanupFault);
+
     public QualifiedTagBucketTarget? ResolveTagBucket(uint bucketId, Action markOwnedCleanupFault) {
         ResolveCalls++;
         events.Add("bucket:resolve");
