@@ -7,7 +7,9 @@ namespace Atelia.VersionStore;
 public sealed partial class VersionStore {
     /// <summary>精确读取同库已签发 revision 的自有 root bytes、原时间与完整位置。</summary>
     /// <remarks>
-    /// 不改选当前值或更旧记录，不确认 data/源文件。合法未成立 CU 返回读取错误。
+    /// 不改选当前值或更旧记录，不额外确认 data/源文件。合法未成立 CU 返回读取错误。
+    /// 可写 owner 的惰性打开仍可能执行物理尾恢复；
+    /// 成功恢复动作记入 <see cref="RecoveryReports"/>，与业务发布结果独立。
     /// 保存的 revision 可用于同库重开 owner；不接受裸 ticket 或外部构造的位置。
     /// </remarks>
     public AteliaResult<RefBytesSnapshot> ReadRevision(RefRevision revision) {
