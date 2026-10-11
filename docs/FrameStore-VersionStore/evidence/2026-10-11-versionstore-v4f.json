@@ -1,0 +1,1664 @@
+{
+  "baselineRevision": "3274558f4c9568c39ce1ddb8d7c59f13e7371137",
+  "sourceQualification": "Fixed baseline plus the explicit source delta below; not a clean final-commit snapshot.",
+  "sourceDelta": [
+    {
+      "path": "src/Rbf/Rbf.csproj",
+      "bytes": 1945,
+      "sha256": "45b452249c1173f5b44a4e7e5faa084e5d325fcdee85e1184525ca1b97e38c3b"
+    },
+    {
+      "path": "src/VersionStore/Internal/Runtime/VersionStoreTestHooks.cs",
+      "bytes": 1054,
+      "sha256": "6e618dc4794b6c3359f349bcdea1f59eb5441b83f1ad9432c5ff22f36953dd7a"
+    },
+    {
+      "path": "src/VersionStore/Internal/Storage/DirectoryVersionStoreFiles.cs",
+      "bytes": 12790,
+      "sha256": "d8e56590079e7fc7d0e24a9be76a137d3a8c6a4232708cee459c3e833855b5e6"
+    },
+    {
+      "path": "src/VersionStore/Internal/Storage/VersionStoreFactory.cs",
+      "bytes": 5763,
+      "sha256": "68807700079d3a668ca11745d0306e3c73d30043fd7764f53376625958cde2ef"
+    },
+    {
+      "path": "src/VersionStore/Internal/Storage/VersionStoreFactoryOperations.cs",
+      "bytes": 2792,
+      "sha256": "39553fd89465c7ed17ee024eb0f2ca6e599fa8de25f4394413454f1c2822db25"
+    },
+    {
+      "path": "src/VersionStore/VersionStore.Tags.cs",
+      "bytes": 12953,
+      "sha256": "cee7b595f922e56b11681bc5014d3541af2b2374fde915862ff998c39258c1fb"
+    },
+    {
+      "path": "src/VersionStore/VersionStore.cs",
+      "bytes": 20261,
+      "sha256": "c7ef717c2d7d20665a547de1a7dd2b4bf843f57c33fc9e08b40bfc44131a6fff"
+    },
+    {
+      "path": "tests/VersionStore.Tests/InternalProcess/InternalProcessChild.cs",
+      "bytes": 7091,
+      "sha256": "f095665d0ec3c4508a642e2c4ed8e5e422bdb9d4bc3f18d831d712db0f3f26f2"
+    },
+    {
+      "path": "tests/VersionStore.Tests/InternalProcess/InternalProcessHost.cs",
+      "bytes": 22103,
+      "sha256": "8225e884f143d4e97d66847c135c3425a286d190863827a8be7b5b06965f01b9"
+    },
+    {
+      "path": "tests/VersionStore.Tests/InternalProcess/InternalPublicationProcessTests.cs",
+      "bytes": 5866,
+      "sha256": "d179b80ecd43ed2fe93f10c920483a2426af24ffc968f6871ed0d07e61369487"
+    },
+    {
+      "path": "tests/VersionStore.Tests/InternalProcess/InternalTailHost.cs",
+      "bytes": 16191,
+      "sha256": "298190b173a6068a8d49518434ac8cdc7545ec2cb34e0c18d1132437dee40bd9"
+    },
+    {
+      "path": "tests/VersionStore.Tests/InternalProcess/InternalTailProcessTests.cs",
+      "bytes": 11075,
+      "sha256": "e5589afaf629d9daa8a44c511fbf37b1bd21dbc2f81018986c43bae40d4f1f75"
+    },
+    {
+      "path": "tests/VersionStore.Tests/SystemIntegration/PublicCombinationProcessTests.cs",
+      "bytes": 7346,
+      "sha256": "38ff509f9bb832d0e6663ec616afef4f81c0c7a8cfdc86718ce01dcaff4c8dd2"
+    },
+    {
+      "path": "tests/VersionStore.Tests/VersionStore.Tests.csproj",
+      "bytes": 1229,
+      "sha256": "8e5e9a7ccf290ea686a946920ba0c9bfea875fc2c45d87006acdb62b3ef1099d"
+    },
+    {
+      "path": "tools/VersionStore.Smoke/DynamicRefScenario.cs",
+      "bytes": 9356,
+      "sha256": "20575a8c6089287aca7fea7e78105b5e9afcbd7e793aabccdedcf0427844b786"
+    },
+    {
+      "path": "tools/VersionStore.Smoke/Program.cs",
+      "bytes": 1393,
+      "sha256": "ec3dab2654e4eeb5e77564de771034da522f519e7f5b29a301c7274ed5b7c6ca"
+    },
+    {
+      "path": "tools/VersionStore.Smoke/TagGoldenScenario.cs",
+      "bytes": 13613,
+      "sha256": "ce457a28142e20766f8686f086ca97833d1a3cfc378067ee6e5699dd6c900273"
+    }
+  ],
+  "independentReview": {
+    "path": "artifacts/versionstore-v4f/review.md",
+    "bytes": 10494,
+    "sha256": "d2a458836a0d572aa5ceb49b33d71e38747a8f44a8eb6ee83002e8a7ff94c7a5"
+  },
+  "windows": {
+    "environment": {
+      "baseline": "3274558f4c9568c39ce1ddb8d7c59f13e7371137",
+      "sdk": "10.0.201",
+      "os": "Microsoft Windows 10.0.22000",
+      "architecture": "X64",
+      "temp": "W:\\TEMP\\",
+      "repository": "E:\\repos\\Atelia-org\\atelia-storage",
+      "powershell": "7.6.3",
+      "drives": [
+        {
+          "Name": "E:\\",
+          "DriveFormat": "ReFS",
+          "DriveType": 3
+        },
+        {
+          "Name": "W:\\",
+          "DriveFormat": "NTFS",
+          "DriveType": 3
+        }
+      ]
+    },
+    "commands": [
+      "dotnet build Atelia.Storage.slnx -c Release --nologo -v minimal",
+      "dotnet test tests/VersionStore.Tests/VersionStore.Tests.csproj -c Release --no-build --filter 'FullyQualifiedName~InternalProcess|FullyQualifiedName~PublicCombinationProcessTests' --logger trx --results-directory artifacts/versionstore-v4f/windows/targeted/trx",
+      "dotnet build Atelia.Storage.slnx -c Release --nologo -v minimal",
+      "dotnet test Atelia.Storage.slnx -c Release --no-build --logger trx --results-directory artifacts/versionstore-v4f/windows/full/trx",
+      "./eng/Test-Rbf1ReferenceAssets.ps1"
+    ],
+    "initialBuild": {
+      "exitCode": 0,
+      "warnings": 42,
+      "errors": 0,
+      "path": "artifacts/versionstore-v4f/windows/build.log",
+      "bytes": 23801,
+      "sha256": "f7fb5f806d36d88954087a8cf4ed23a364cf6eb097087a6e943e70f7f986f7e5"
+    },
+    "finalBuild": {
+      "exitCode": 0,
+      "warnings": 0,
+      "errors": 0,
+      "path": "artifacts/versionstore-v4f/windows/build-final.log",
+      "bytes": 2856,
+      "sha256": "3c50b3306a2b81efc5b095cbc45308cd26029d683f767eaceb6f9f3879f990d0"
+    },
+    "initialTargetedFailure": "14 passed / 1 failed: RecoverConflict fixture read raw bytes while its RW owner retained an exclusive ref handle. Moved the raw comparison after owner disposal; all 15 pass in final whole-solution run. The initial xUnit2031 warning was also corrected.",
+    "targeted": {
+      "files": [
+        {
+          "path": "artifacts/versionstore-v4f/windows/targeted/trx/gdtutu_TUTU17_2026-10-11_15_21_54.trx",
+          "bytes": 117252,
+          "sha256": "9244ba7aa4f25a7f4beabb94efe6d81c2dda562df65be9ca5dedb509a56d4a5a",
+          "outcomes": {
+            "Passed": 14,
+            "Failed": 1
+          },
+          "failures": [
+            "Atelia.VersionStore.Tests.InternalProcess.InternalPublicationProcessTests.CreateEntryRejectsTargetInsertedBeforeRenameWithoutOverwritingOrAdoptingIt"
+          ]
+        }
+      ],
+      "outcomes": {
+        "Passed": 14,
+        "Failed": 1
+      }
+    },
+    "full": {
+      "files": [
+        {
+          "path": "artifacts/versionstore-v4f/windows/full/trx/gdtutu_TUTU17_2026-10-11_15_23_20.trx",
+          "bytes": 101081,
+          "sha256": "0c4c011287ee63fa7f43d4a7584bacce980fea0d22e3f385bc3a41c29f232c80",
+          "outcomes": {
+            "Passed": 75
+          },
+          "failures": []
+        },
+        {
+          "path": "artifacts/versionstore-v4f/windows/full/trx/gdtutu_TUTU17_2026-10-11_15_23_20[1].trx",
+          "bytes": 389195,
+          "sha256": "45a59c22fd1b57f50fad037f44e255040c2838f86e757cea61c056ee2d744670",
+          "outcomes": {
+            "Passed": 288
+          },
+          "failures": []
+        },
+        {
+          "path": "artifacts/versionstore-v4f/windows/full/trx/gdtutu_TUTU17_2026-10-11_15_23_20[2].trx",
+          "bytes": 631534,
+          "sha256": "912bc9ec4b797e6f28b969de35a6a57ba93c4c8c1b7f7c97d56a79ce12f550b3",
+          "outcomes": {
+            "Passed": 422,
+            "NotExecuted": 3
+          },
+          "failures": []
+        },
+        {
+          "path": "artifacts/versionstore-v4f/windows/full/trx/gdtutu_TUTU17_2026-10-11_15_23_20[3].trx",
+          "bytes": 243458,
+          "sha256": "458130a198dc75dce81f8bb4b4044e2a02997fd4aa1137135a30d1a851b16ae0",
+          "outcomes": {
+            "Passed": 174
+          },
+          "failures": []
+        },
+        {
+          "path": "artifacts/versionstore-v4f/windows/full/trx/gdtutu_TUTU17_2026-10-11_15_23_21.trx",
+          "bytes": 300212,
+          "sha256": "c8ad9b8f18dd66c6725c82b0825baad8dee477d3b8f881d456bbe07b2d3926e7",
+          "outcomes": {
+            "Passed": 214
+          },
+          "failures": []
+        },
+        {
+          "path": "artifacts/versionstore-v4f/windows/full/trx/gdtutu_TUTU17_2026-10-11_15_23_21[1].trx",
+          "bytes": 71346,
+          "sha256": "f36cc399acb36dfe042df73e76fa5c9ec42b26b7fd464ac12336322aa9851986",
+          "outcomes": {
+            "Passed": 48
+          },
+          "failures": []
+        },
+        {
+          "path": "artifacts/versionstore-v4f/windows/full/trx/gdtutu_TUTU17_2026-10-11_15_23_21[2].trx",
+          "bytes": 184743,
+          "sha256": "c353bcf0eeee16cc981b98ae82ea16a8d743f2dbfc6c011d506c0a7b30d2b183",
+          "outcomes": {
+            "Passed": 122
+          },
+          "failures": []
+        },
+        {
+          "path": "artifacts/versionstore-v4f/windows/full/trx/gdtutu_TUTU17_2026-10-11_15_23_21[3].trx",
+          "bytes": 1291599,
+          "sha256": "b1df825c9bf077f5404fdf28ea99728e1d5151b49b5d21329256a939ad66976b",
+          "outcomes": {
+            "Passed": 920
+          },
+          "failures": []
+        },
+        {
+          "path": "artifacts/versionstore-v4f/windows/full/trx/gdtutu_TUTU17_2026-10-11_15_23_21[4].trx",
+          "bytes": 2087216,
+          "sha256": "6184a15d6b3be7cfce49df82a5802a1e284b1f7f41a8e7da93424934d6de1775",
+          "outcomes": {
+            "Passed": 1192,
+            "NotExecuted": 6
+          },
+          "failures": []
+        }
+      ],
+      "outcomes": {
+        "Passed": 3455,
+        "NotExecuted": 9
+      }
+    },
+    "processEvidence": {
+      "count": 181,
+      "internalCount": 73,
+      "publicCount": 108,
+      "exits": {
+        "0": 150,
+        "-1": 29,
+        "1": 2
+      },
+      "kills": 29,
+      "internalReadies": [
+        {
+          "pid": 36248,
+          "exitCode": -1,
+          "killed": true,
+          "scenario": "tag-body-partial",
+          "path": "W:\\TEMP\\atelia-versionstore-physical-tail\\2aa463619e58417fa435642eda17ac36\\versions\\tags\\0000014a.rbf",
+          "frameOffset": 60,
+          "frameLength": 124,
+          "cutLength": 71,
+          "actualLength": 71,
+          "completeLength": 188,
+          "metadataLength": 32,
+          "oldTicketOffset": 60,
+          "oldTicketLength": 84,
+          "expectedRecovery": "Truncated",
+          "ownersAlive": true,
+          "appendReturned": false,
+          "targetFlushes": 0,
+          "writes": [
+            {
+              "path": "W:\\TEMP\\atelia-versionstore-physical-tail\\2aa463619e58417fa435642eda17ac36\\versions\\tags\\0000014a.rbf",
+              "offset": 60,
+              "requestedBytes": 128,
+              "writtenBytes": 11
+            }
+          ]
+        },
+        {
+          "pid": 20040,
+          "exitCode": -1,
+          "killed": true,
+          "scenario": "tag-empty",
+          "pendingFlushes": 1,
+          "renameReturned": true,
+          "firstAppendStarted": false
+        },
+        {
+          "pid": 21984,
+          "exitCode": -1,
+          "killed": true,
+          "scenario": "tag-append",
+          "ticket": 2080374800,
+          "appendReturned": true,
+          "targetFlushes": 0,
+          "physicalLength": 192
+        },
+        {
+          "pid": 35468,
+          "exitCode": -1,
+          "killed": true,
+          "scenario": "fork-specified-renamed",
+          "targetId": 8,
+          "pendingFlushes": 1,
+          "renameReturned": true,
+          "resultDelivered": false
+        },
+        {
+          "pid": 5816,
+          "exitCode": -1,
+          "killed": true,
+          "scenario": "tag-body-complete",
+          "path": "W:\\TEMP\\atelia-versionstore-physical-tail\\86d413ac0d5f4626a1ca68ebf51d2a3c\\versions\\tags\\0000014a.rbf",
+          "frameOffset": 60,
+          "frameLength": 124,
+          "cutLength": 180,
+          "actualLength": 180,
+          "completeLength": 188,
+          "metadataLength": 32,
+          "oldTicketOffset": 60,
+          "oldTicketLength": 84,
+          "expectedRecovery": "CompletedTail",
+          "ownersAlive": true,
+          "appendReturned": false,
+          "targetFlushes": 0,
+          "writes": [
+            {
+              "path": "W:\\TEMP\\atelia-versionstore-physical-tail\\86d413ac0d5f4626a1ca68ebf51d2a3c\\versions\\tags\\0000014a.rbf",
+              "offset": 60,
+              "requestedBytes": 128,
+              "writtenBytes": 120
+            }
+          ]
+        },
+        {
+          "pid": 35584,
+          "exitCode": -1,
+          "killed": true,
+          "scenario": "tag-private",
+          "pendingFlushes": 1,
+          "pendingClosed": true,
+          "renameReturned": false
+        },
+        {
+          "pid": 36348,
+          "exitCode": -1,
+          "killed": true,
+          "scenario": "fork-specified-private",
+          "targetId": 8,
+          "pendingFlushes": 1,
+          "pendingClosed": true,
+          "renameReturned": false
+        },
+        {
+          "pid": 27856,
+          "exitCode": -1,
+          "killed": true,
+          "scenario": "ref-append",
+          "ticket": 2483027978,
+          "appendReturned": true,
+          "targetFlushes": 0,
+          "physicalLength": 192
+        },
+        {
+          "pid": 35156,
+          "exitCode": -1,
+          "killed": true,
+          "scenario": "create-auto-renamed",
+          "targetId": 257,
+          "pendingFlushes": 1,
+          "renameReturned": true,
+          "resultDelivered": false
+        },
+        {
+          "pid": 35012,
+          "exitCode": -1,
+          "killed": true,
+          "scenario": "ref-body-partial",
+          "path": "W:\\TEMP\\atelia-versionstore-physical-tail\\6ece4552e5b248d691f81659a3227b1e\\versions\\refs\\00000001.rbf",
+          "frameOffset": 148,
+          "frameLength": 100,
+          "cutLength": 159,
+          "actualLength": 159,
+          "completeLength": 252,
+          "metadataLength": 8,
+          "oldTicketOffset": 60,
+          "oldTicketLength": 84,
+          "expectedRecovery": "Truncated",
+          "ownersAlive": true,
+          "appendReturned": false,
+          "targetFlushes": 0,
+          "writes": [
+            {
+              "path": "W:\\TEMP\\atelia-versionstore-physical-tail\\6ece4552e5b248d691f81659a3227b1e\\versions\\refs\\00000001.rbf",
+              "offset": 148,
+              "requestedBytes": 104,
+              "writtenBytes": 11
+            }
+          ]
+        },
+        {
+          "pid": 17276,
+          "exitCode": -1,
+          "killed": true,
+          "scenario": "create-auto-private",
+          "targetId": 257,
+          "pendingFlushes": 1,
+          "pendingClosed": true,
+          "renameReturned": false
+        },
+        {
+          "pid": 19368,
+          "exitCode": -1,
+          "killed": true,
+          "scenario": "ref-body-complete",
+          "path": "W:\\TEMP\\atelia-versionstore-physical-tail\\62811cb57f7d47f6a1f972d2781c8d63\\versions\\refs\\00000001.rbf",
+          "frameOffset": 148,
+          "frameLength": 100,
+          "cutLength": 244,
+          "actualLength": 244,
+          "completeLength": 252,
+          "metadataLength": 8,
+          "oldTicketOffset": 60,
+          "oldTicketLength": 84,
+          "expectedRecovery": "CompletedTail",
+          "ownersAlive": true,
+          "appendReturned": false,
+          "targetFlushes": 0,
+          "writes": [
+            {
+              "path": "W:\\TEMP\\atelia-versionstore-physical-tail\\62811cb57f7d47f6a1f972d2781c8d63\\versions\\refs\\00000001.rbf",
+              "offset": 148,
+              "requestedBytes": 104,
+              "writtenBytes": 96
+            }
+          ]
+        }
+      ],
+      "actualRepairs": [
+        {
+          "scenario": "ref-body-partial",
+          "reports": [
+            {
+              "path": "W:\\TEMP\\atelia-versionstore-physical-tail\\6ece4552e5b248d691f81659a3227b1e\\versions\\refs\\00000001.rbf",
+              "readOnly": false,
+              "reportAvailable": true,
+              "action": "Truncated",
+              "originalLength": 159,
+              "finalLength": 148,
+              "affectedFrameOffset": 148,
+              "ticketOffset": null,
+              "ticketLength": null
+            }
+          ],
+          "metadataRechecked": false
+        },
+        {
+          "scenario": "tag-body-partial",
+          "reports": [
+            {
+              "path": "W:\\TEMP\\atelia-versionstore-physical-tail\\2aa463619e58417fa435642eda17ac36\\versions\\tags\\0000014a.rbf",
+              "readOnly": false,
+              "reportAvailable": true,
+              "action": "Truncated",
+              "originalLength": 71,
+              "finalLength": 60,
+              "affectedFrameOffset": 60,
+              "ticketOffset": null,
+              "ticketLength": null
+            }
+          ],
+          "metadataRechecked": false
+        },
+        {
+          "scenario": "tag-body-complete",
+          "reports": [
+            {
+              "path": "W:\\TEMP\\atelia-versionstore-physical-tail\\86d413ac0d5f4626a1ca68ebf51d2a3c\\versions\\tags\\0000014a.rbf",
+              "readOnly": false,
+              "reportAvailable": true,
+              "action": "CompletedTail",
+              "originalLength": 180,
+              "finalLength": 188,
+              "affectedFrameOffset": 60,
+              "ticketOffset": 60,
+              "ticketLength": 124
+            }
+          ],
+          "metadataRechecked": true
+        },
+        {
+          "scenario": "ref-body-complete",
+          "reports": [
+            {
+              "path": "W:\\TEMP\\atelia-versionstore-physical-tail\\62811cb57f7d47f6a1f972d2781c8d63\\versions\\refs\\00000001.rbf",
+              "readOnly": false,
+              "reportAvailable": true,
+              "action": "CompletedTail",
+              "originalLength": 244,
+              "finalLength": 252,
+              "affectedFrameOffset": 148,
+              "ticketOffset": 148,
+              "ticketLength": 100
+            }
+          ],
+          "metadataRechecked": false
+        }
+      ]
+    },
+    "evidenceManifest": {
+      "path": "artifacts/versionstore-v4f/windows/evidence-files.json",
+      "bytes": 61058,
+      "sha256": "1e14c8f945596d7ec368c49ada1293b2339817e3b37810241bcddb6b9b57ede7"
+    }
+  },
+  "linuxSummary": {
+    "path": "artifacts/versionstore-v4f/linux/summary.json",
+    "bytes": 140226,
+    "sha256": "ba0a860fe400a77cf7ab8ec9196a9513bd50642bb660eff763ec96bae7a3a90f",
+    "contentProjection": "Original summary with only newV4FTests.output omitted; original bytes are hash-bound above.",
+    "content": {
+      "schemaVersion": 1,
+      "status": "passed-rbf-versionstore-regression",
+      "sourceQualification": {
+        "capturedUtc": "2026-10-11T07:25:33.727809+00:00",
+        "baselineRevision": "3274558f4c9568c39ce1ddb8d7c59f13e7371137",
+        "baselineArchiveSha256": "ab4b0de9061e0393d133b232c0b759de81ef7100076b6b085935aa9593a3b35c",
+        "windowsHeadAtCapture": "3274558f4c9568c39ce1ddb8d7c59f13e7371137",
+        "repository": "/var/tmp/atelia-storage-v4f-3274558.fex9ktjr/repo",
+        "evidence": "/var/tmp/atelia-storage-v4f-3274558.fex9ktjr/evidence",
+        "TMPDIR": "/var/tmp/atelia-storage-v4f-3274558.fex9ktjr/tmp",
+        "baselineFileCount": 742,
+        "preSyncMismatches": [],
+        "files": [
+          {
+            "path": "src/Rbf/Rbf.csproj",
+            "baselineSha256": "97d28075679aaba54b27fc5f4d4d27a32a04eb2f225279ae5852330024c9f7dd",
+            "baselinePresent": true,
+            "windowsRawSha256": "45b452249c1173f5b44a4e7e5faa084e5d325fcdee85e1184525ca1b97e38c3b",
+            "linuxLfSha256": "45b452249c1173f5b44a4e7e5faa084e5d325fcdee85e1184525ca1b97e38c3b",
+            "windowsRawBytes": 1945,
+            "linuxLfBytes": 1945,
+            "crlfSequences": 0,
+            "normalization": "CRLF byte sequences replaced by LF; all other bytes retained"
+          },
+          {
+            "path": "src/VersionStore/Internal/Runtime/VersionStoreTestHooks.cs",
+            "baselineSha256": "232c4e09b95f8d0cded00e4c46fc30c26a2ea35d7914517b9a407874c0e1102c",
+            "baselinePresent": true,
+            "windowsRawSha256": "6e618dc4794b6c3359f349bcdea1f59eb5441b83f1ad9432c5ff22f36953dd7a",
+            "linuxLfSha256": "6e618dc4794b6c3359f349bcdea1f59eb5441b83f1ad9432c5ff22f36953dd7a",
+            "windowsRawBytes": 1054,
+            "linuxLfBytes": 1054,
+            "crlfSequences": 0,
+            "normalization": "CRLF byte sequences replaced by LF; all other bytes retained"
+          },
+          {
+            "path": "src/VersionStore/Internal/Storage/DirectoryVersionStoreFiles.cs",
+            "baselineSha256": "aa5b66cde6aca4690311df1b1ae137366035091f2e2f167b95b28b9eacc27b19",
+            "baselinePresent": true,
+            "windowsRawSha256": "d8e56590079e7fc7d0e24a9be76a137d3a8c6a4232708cee459c3e833855b5e6",
+            "linuxLfSha256": "d8e56590079e7fc7d0e24a9be76a137d3a8c6a4232708cee459c3e833855b5e6",
+            "windowsRawBytes": 12790,
+            "linuxLfBytes": 12790,
+            "crlfSequences": 0,
+            "normalization": "CRLF byte sequences replaced by LF; all other bytes retained"
+          },
+          {
+            "path": "src/VersionStore/Internal/Storage/VersionStoreFactory.cs",
+            "baselineSha256": "08ea5d1c1de0a3e661b1839c5cf387ba0c70e026aa98700d88bc6c6fc2b3d4e1",
+            "baselinePresent": true,
+            "windowsRawSha256": "68807700079d3a668ca11745d0306e3c73d30043fd7764f53376625958cde2ef",
+            "linuxLfSha256": "68807700079d3a668ca11745d0306e3c73d30043fd7764f53376625958cde2ef",
+            "windowsRawBytes": 5763,
+            "linuxLfBytes": 5763,
+            "crlfSequences": 0,
+            "normalization": "CRLF byte sequences replaced by LF; all other bytes retained"
+          },
+          {
+            "path": "src/VersionStore/Internal/Storage/VersionStoreFactoryOperations.cs",
+            "baselineSha256": "6540cab116e3ae5f7978399253109f8d91e06b7d0ce0b71f58fb07e2a96e57cb",
+            "baselinePresent": true,
+            "windowsRawSha256": "39553fd89465c7ed17ee024eb0f2ca6e599fa8de25f4394413454f1c2822db25",
+            "linuxLfSha256": "39553fd89465c7ed17ee024eb0f2ca6e599fa8de25f4394413454f1c2822db25",
+            "windowsRawBytes": 2792,
+            "linuxLfBytes": 2792,
+            "crlfSequences": 0,
+            "normalization": "CRLF byte sequences replaced by LF; all other bytes retained"
+          },
+          {
+            "path": "src/VersionStore/VersionStore.cs",
+            "baselineSha256": "bec002a75d6f4774049bd6ef632fbee27965ac49a5f424fccfff4209e685fa0e",
+            "baselinePresent": true,
+            "windowsRawSha256": "c7ef717c2d7d20665a547de1a7dd2b4bf843f57c33fc9e08b40bfc44131a6fff",
+            "linuxLfSha256": "c7ef717c2d7d20665a547de1a7dd2b4bf843f57c33fc9e08b40bfc44131a6fff",
+            "windowsRawBytes": 20261,
+            "linuxLfBytes": 20261,
+            "crlfSequences": 0,
+            "normalization": "CRLF byte sequences replaced by LF; all other bytes retained"
+          },
+          {
+            "path": "src/VersionStore/VersionStore.Tags.cs",
+            "baselineSha256": "759cac64bc3d6b1b448390d4088c296584989d94c796032a8e51cfad07e074f5",
+            "baselinePresent": true,
+            "windowsRawSha256": "cee7b595f922e56b11681bc5014d3541af2b2374fde915862ff998c39258c1fb",
+            "linuxLfSha256": "cee7b595f922e56b11681bc5014d3541af2b2374fde915862ff998c39258c1fb",
+            "windowsRawBytes": 12953,
+            "linuxLfBytes": 12953,
+            "crlfSequences": 0,
+            "normalization": "CRLF byte sequences replaced by LF; all other bytes retained"
+          },
+          {
+            "path": "tests/VersionStore.Tests/InternalProcess/InternalProcessChild.cs",
+            "baselineSha256": null,
+            "baselinePresent": false,
+            "windowsRawSha256": "f095665d0ec3c4508a642e2c4ed8e5e422bdb9d4bc3f18d831d712db0f3f26f2",
+            "linuxLfSha256": "f095665d0ec3c4508a642e2c4ed8e5e422bdb9d4bc3f18d831d712db0f3f26f2",
+            "windowsRawBytes": 7091,
+            "linuxLfBytes": 7091,
+            "crlfSequences": 0,
+            "normalization": "CRLF byte sequences replaced by LF; all other bytes retained"
+          },
+          {
+            "path": "tests/VersionStore.Tests/InternalProcess/InternalProcessHost.cs",
+            "baselineSha256": null,
+            "baselinePresent": false,
+            "windowsRawSha256": "8225e884f143d4e97d66847c135c3425a286d190863827a8be7b5b06965f01b9",
+            "linuxLfSha256": "8225e884f143d4e97d66847c135c3425a286d190863827a8be7b5b06965f01b9",
+            "windowsRawBytes": 22103,
+            "linuxLfBytes": 22103,
+            "crlfSequences": 0,
+            "normalization": "CRLF byte sequences replaced by LF; all other bytes retained"
+          },
+          {
+            "path": "tests/VersionStore.Tests/InternalProcess/InternalPublicationProcessTests.cs",
+            "baselineSha256": null,
+            "baselinePresent": false,
+            "windowsRawSha256": "d179b80ecd43ed2fe93f10c920483a2426af24ffc968f6871ed0d07e61369487",
+            "linuxLfSha256": "d179b80ecd43ed2fe93f10c920483a2426af24ffc968f6871ed0d07e61369487",
+            "windowsRawBytes": 5866,
+            "linuxLfBytes": 5866,
+            "crlfSequences": 0,
+            "normalization": "CRLF byte sequences replaced by LF; all other bytes retained"
+          },
+          {
+            "path": "tests/VersionStore.Tests/InternalProcess/InternalTailHost.cs",
+            "baselineSha256": null,
+            "baselinePresent": false,
+            "windowsRawSha256": "298190b173a6068a8d49518434ac8cdc7545ec2cb34e0c18d1132437dee40bd9",
+            "linuxLfSha256": "298190b173a6068a8d49518434ac8cdc7545ec2cb34e0c18d1132437dee40bd9",
+            "windowsRawBytes": 16191,
+            "linuxLfBytes": 16191,
+            "crlfSequences": 0,
+            "normalization": "CRLF byte sequences replaced by LF; all other bytes retained"
+          },
+          {
+            "path": "tests/VersionStore.Tests/InternalProcess/InternalTailProcessTests.cs",
+            "baselineSha256": null,
+            "baselinePresent": false,
+            "windowsRawSha256": "e5589afaf629d9daa8a44c511fbf37b1bd21dbc2f81018986c43bae40d4f1f75",
+            "linuxLfSha256": "e5589afaf629d9daa8a44c511fbf37b1bd21dbc2f81018986c43bae40d4f1f75",
+            "windowsRawBytes": 11075,
+            "linuxLfBytes": 11075,
+            "crlfSequences": 0,
+            "normalization": "CRLF byte sequences replaced by LF; all other bytes retained"
+          },
+          {
+            "path": "tests/VersionStore.Tests/SystemIntegration/PublicCombinationProcessTests.cs",
+            "baselineSha256": null,
+            "baselinePresent": false,
+            "windowsRawSha256": "38ff509f9bb832d0e6663ec616afef4f81c0c7a8cfdc86718ce01dcaff4c8dd2",
+            "linuxLfSha256": "38ff509f9bb832d0e6663ec616afef4f81c0c7a8cfdc86718ce01dcaff4c8dd2",
+            "windowsRawBytes": 7346,
+            "linuxLfBytes": 7346,
+            "crlfSequences": 0,
+            "normalization": "CRLF byte sequences replaced by LF; all other bytes retained"
+          },
+          {
+            "path": "tests/VersionStore.Tests/VersionStore.Tests.csproj",
+            "baselineSha256": "d5890a8c6908da8b6e183375f7e9e0e6ba7526ba4af585925d583ee2091007f2",
+            "baselinePresent": true,
+            "windowsRawSha256": "8e5e9a7ccf290ea686a946920ba0c9bfea875fc2c45d87006acdb62b3ef1099d",
+            "linuxLfSha256": "8e5e9a7ccf290ea686a946920ba0c9bfea875fc2c45d87006acdb62b3ef1099d",
+            "windowsRawBytes": 1229,
+            "linuxLfBytes": 1229,
+            "crlfSequences": 0,
+            "normalization": "CRLF byte sequences replaced by LF; all other bytes retained"
+          },
+          {
+            "path": "tools/VersionStore.Smoke/DynamicRefScenario.cs",
+            "baselineSha256": null,
+            "baselinePresent": false,
+            "windowsRawSha256": "20575a8c6089287aca7fea7e78105b5e9afcbd7e793aabccdedcf0427844b786",
+            "linuxLfSha256": "20575a8c6089287aca7fea7e78105b5e9afcbd7e793aabccdedcf0427844b786",
+            "windowsRawBytes": 9356,
+            "linuxLfBytes": 9356,
+            "crlfSequences": 0,
+            "normalization": "CRLF byte sequences replaced by LF; all other bytes retained"
+          },
+          {
+            "path": "tools/VersionStore.Smoke/Program.cs",
+            "baselineSha256": "b75d324326cc6c420dd9890eee202fca01254dba231e46c4fa81faa3b1eb8ee3",
+            "baselinePresent": true,
+            "windowsRawSha256": "ec3dab2654e4eeb5e77564de771034da522f519e7f5b29a301c7274ed5b7c6ca",
+            "linuxLfSha256": "ec3dab2654e4eeb5e77564de771034da522f519e7f5b29a301c7274ed5b7c6ca",
+            "windowsRawBytes": 1393,
+            "linuxLfBytes": 1393,
+            "crlfSequences": 0,
+            "normalization": "CRLF byte sequences replaced by LF; all other bytes retained"
+          },
+          {
+            "path": "tools/VersionStore.Smoke/TagGoldenScenario.cs",
+            "baselineSha256": null,
+            "baselinePresent": false,
+            "windowsRawSha256": "ce457a28142e20766f8686f086ca97833d1a3cfc378067ee6e5699dd6c900273",
+            "linuxLfSha256": "ce457a28142e20766f8686f086ca97833d1a3cfc378067ee6e5699dd6c900273",
+            "windowsRawBytes": 13613,
+            "linuxLfBytes": 13613,
+            "crlfSequences": 0,
+            "normalization": "CRLF byte sequences replaced by LF; all other bytes retained"
+          }
+        ],
+        "addedFiles": [
+          "tests/VersionStore.Tests/InternalProcess/InternalProcessChild.cs",
+          "tests/VersionStore.Tests/InternalProcess/InternalProcessHost.cs",
+          "tests/VersionStore.Tests/InternalProcess/InternalPublicationProcessTests.cs",
+          "tests/VersionStore.Tests/InternalProcess/InternalTailHost.cs",
+          "tests/VersionStore.Tests/InternalProcess/InternalTailProcessTests.cs",
+          "tests/VersionStore.Tests/SystemIntegration/PublicCombinationProcessTests.cs",
+          "tools/VersionStore.Smoke/DynamicRefScenario.cs",
+          "tools/VersionStore.Smoke/TagGoldenScenario.cs"
+        ],
+        "deletedFiles": [],
+        "unchangedArchivedFileCount": 733,
+        "windowsSourceStatusAtCapture": [
+          " M docs/FrameStore-VersionStore/12-versionstore-implementation-plan.md",
+          " M src/Rbf/Rbf.csproj",
+          " M src/VersionStore/Internal/Runtime/VersionStoreTestHooks.cs",
+          " M src/VersionStore/Internal/Storage/DirectoryVersionStoreFiles.cs",
+          " M src/VersionStore/Internal/Storage/VersionStoreFactory.cs",
+          " M src/VersionStore/Internal/Storage/VersionStoreFactoryOperations.cs",
+          " M src/VersionStore/VersionStore.Tags.cs",
+          " M src/VersionStore/VersionStore.cs",
+          " M tests/VersionStore.Tests/VersionStore.Tests.csproj",
+          " M tools/VersionStore.Smoke/Program.cs",
+          " M tools/VersionStore.Smoke/README.md",
+          "?? tests/VersionStore.Tests/InternalProcess/InternalProcessChild.cs",
+          "?? tests/VersionStore.Tests/InternalProcess/InternalProcessHost.cs",
+          "?? tests/VersionStore.Tests/InternalProcess/InternalPublicationProcessTests.cs",
+          "?? tests/VersionStore.Tests/InternalProcess/InternalTailHost.cs",
+          "?? tests/VersionStore.Tests/InternalProcess/InternalTailProcessTests.cs",
+          "?? tests/VersionStore.Tests/SystemIntegration/PublicCombinationProcessTests.cs",
+          "?? tools/VersionStore.Smoke/DynamicRefScenario.cs",
+          "?? tools/VersionStore.Smoke/TagGoldenScenario.cs"
+        ],
+        "freezeHashesMatch": true,
+        "qualification": "Fixed committed HEAD archive plus exactly 17 explicit source/test/build files; all other archive files remain unchanged. Source-only, not a clean committed final HEAD snapshot."
+      },
+      "sourceDeltaSha256": "244318bac6e324550bd15e42359b555d90e0c12df6413ac27cff31743ff14525",
+      "sourceVerification": {
+        "count": 750,
+        "unexpectedChanges": [],
+        "windowsDeltaStillMatches": true,
+        "details": "source-files.json",
+        "inputs": "input-manifest.json",
+        "buildOutputs": "build-outputs.json"
+      },
+      "environment": {
+        "capturedUtc": "2026-10-11T07:26:30.574597+00:00",
+        "repository": "/var/tmp/atelia-storage-v4f-3274558.fex9ktjr/repo",
+        "uid": "uid=0(root) gid=0(root) groups=0(root),989(docker)",
+        "uname": "Linux Tutu17 6.18.33.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun 18 21:54:43 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux",
+        "osRelease": "PRETTY_NAME=\"Ubuntu 24.04.4 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"24.04\"\nVERSION=\"24.04.4 LTS (Noble Numbat)\"\nVERSION_CODENAME=noble\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=noble\nLOGO=ubuntu-logo\n",
+        "sdk": "10.0.201",
+        "dotnetInfo": ".NET SDK:\n Version:           10.0.201\n Commit:            4d3023de60\n Workload version:  10.0.200-manifests.0793c108\n MSBuild version:   18.3.0-release-26153-122+4d3023de6\n\nRuntime Environment:\n OS Name:     ubuntu\n OS Version:  24.04\n OS Platform: Linux\n RID:         linux-x64\n Base Path:   /usr/lib/dotnet/sdk/10.0.201/\n\n.NET workloads installed:\nThere are no installed workloads to display.\nConfigured to use workload sets when installing new manifests.\nNo workload sets are installed. Run \"dotnet workload restore\" to install a workload set.\n\nHost:\n  Version:      10.0.5\n  Architecture: x64\n  Commit:       a612c2a105\n\n.NET SDKs installed:\n  8.0.131 [/usr/lib/dotnet/sdk]\n  9.0.115 [/usr/lib/dotnet/sdk]\n  10.0.201 [/usr/lib/dotnet/sdk]\n\n.NET runtimes installed:\n  Microsoft.AspNetCore.App 8.0.31 [/usr/lib/dotnet/shared/Microsoft.AspNetCore.App]\n  Microsoft.AspNetCore.App 9.0.14 [/usr/lib/dotnet/shared/Microsoft.AspNetCore.App]\n  Microsoft.AspNetCore.App 10.0.5 [/usr/lib/dotnet/shared/Microsoft.AspNetCore.App]\n  Microsoft.NETCore.App 8.0.31 [/usr/lib/dotnet/shared/Microsoft.NETCore.App]\n  Microsoft.NETCore.App 9.0.14 [/usr/lib/dotnet/shared/Microsoft.NETCore.App]\n  Microsoft.NETCore.App 10.0.5 [/usr/lib/dotnet/shared/Microsoft.NETCore.App]\n\nOther architectures found:\n  None\n\nEnvironment variables:\n  DOTNET_CLI_HOME                          [/var/tmp/atelia-storage-v4f-3274558.fex9ktjr/dotnet-home]\n  DOTNET_CLI_TELEMETRY_OPTOUT              [1]\n  DOTNET_NOLOGO                            [1]\n\nglobal.json file:\n  /var/tmp/atelia-storage-v4f-3274558.fex9ktjr/repo/global.json\n\nLearn more:\n  https://aka.ms/dotnet/info\n\nDownload .NET:\n  https://aka.ms/dotnet/download\n",
+        "variables": {
+          "TMPDIR": "/var/tmp/atelia-storage-v4f-3274558.fex9ktjr/tmp",
+          "DOTNET_CLI_HOME": "/var/tmp/atelia-storage-v4f-3274558.fex9ktjr/dotnet-home",
+          "NUGET_PACKAGES": "/var/tmp/atelia-storage-v4f-3274558.fex9ktjr/nuget-packages",
+          "VERSIONSTORE_PROCESS_EVIDENCE_DIRECTORY": "/var/tmp/atelia-storage-v4f-3274558.fex9ktjr/evidence/processes"
+        },
+        "filesystems": {
+          "repository": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "TMPDIR": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "cache": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "evidence": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          }
+        },
+        "filesystemsAfterBuild": {
+          "benchmarks/Data.Benchmarks/bin": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "benchmarks/Data.Benchmarks/obj": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "benchmarks/Rbf.Benchmarks/bin": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "benchmarks/Rbf.Benchmarks/obj": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "src/Binary/bin": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "src/Binary/obj": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "src/Data/bin": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "src/Data/obj": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "src/EventJournal/bin": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "src/EventJournal/obj": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "src/FrameStore/bin": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "src/FrameStore/obj": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "src/Primitives/bin": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "src/Primitives/obj": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "src/Rbf/bin": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "src/Rbf/obj": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "src/RbfSegmentStore/bin": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "src/RbfSegmentStore/obj": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "src/VersionStore/bin": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "src/VersionStore/obj": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "tests/Binary.Tests/bin": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "tests/Binary.Tests/obj": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "tests/Data.Tests/bin": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "tests/Data.Tests/obj": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "tests/EventJournal.Tests/bin": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "tests/EventJournal.Tests/obj": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "tests/EventJournal.Toolkit.Tests/bin": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "tests/EventJournal.Toolkit.Tests/obj": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "tests/EventJournal.Validation/bin": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "tests/EventJournal.Validation/obj": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "tests/FrameStore.Tests/bin": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "tests/FrameStore.Tests/obj": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "tests/Primitives.Tests/bin": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "tests/Primitives.Tests/obj": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "tests/Rbf.Tests/bin": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "tests/Rbf.Tests/obj": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "tests/RbfSegmentStore.Tests/bin": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "tests/RbfSegmentStore.Tests/obj": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "tests/VersionStore.Tests/bin": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "tests/VersionStore.Tests/obj": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "tools/EventJournal.Toolkit/bin": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "tools/EventJournal.Toolkit/obj": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "tools/VersionStore.Smoke/bin": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "tools/VersionStore.Smoke/obj": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          }
+        }
+      },
+      "commands": [
+        {
+          "name": "sdk-version",
+          "cwd": "/var/tmp/atelia-storage-v4f-3274558.fex9ktjr/repo",
+          "argv": [
+            "dotnet",
+            "--version"
+          ],
+          "startedUtc": "2026-10-11T07:26:24.598434+00:00",
+          "endedUtc": "2026-10-11T07:26:28.431543+00:00",
+          "elapsedSeconds": 3.833109,
+          "exitCode": 0
+        },
+        {
+          "name": "dotnet-info",
+          "cwd": "/var/tmp/atelia-storage-v4f-3274558.fex9ktjr/repo",
+          "argv": [
+            "dotnet",
+            "--info"
+          ],
+          "startedUtc": "2026-10-11T07:26:29.021506+00:00",
+          "endedUtc": "2026-10-11T07:26:29.999167+00:00",
+          "elapsedSeconds": 0.977661,
+          "exitCode": 0
+        },
+        {
+          "name": "build",
+          "cwd": "/var/tmp/atelia-storage-v4f-3274558.fex9ktjr/repo",
+          "argv": [
+            "dotnet",
+            "build",
+            "Atelia.Storage.slnx",
+            "-c",
+            "Release"
+          ],
+          "startedUtc": "2026-10-11T07:26:30.686456+00:00",
+          "endedUtc": "2026-10-11T07:26:58.164683+00:00",
+          "elapsedSeconds": 27.478227,
+          "exitCode": 0
+        },
+        {
+          "name": "rbf1-assets",
+          "cwd": "/var/tmp/atelia-storage-v4f-3274558.fex9ktjr/repo",
+          "argv": [
+            "pwsh",
+            "-NoLogo",
+            "-NoProfile",
+            "-File",
+            "eng/Test-Rbf1ReferenceAssets.ps1"
+          ],
+          "startedUtc": "2026-10-11T07:26:58.989831+00:00",
+          "endedUtc": "2026-10-11T07:27:06.313764+00:00",
+          "elapsedSeconds": 7.323933,
+          "exitCode": 0
+        },
+        {
+          "name": "rbf",
+          "cwd": "/var/tmp/atelia-storage-v4f-3274558.fex9ktjr/repo",
+          "argv": [
+            "dotnet",
+            "test",
+            "tests/Rbf.Tests/Rbf.Tests.csproj",
+            "-c",
+            "Release",
+            "--no-build",
+            "--logger",
+            "trx;LogFileName=rbf.trx",
+            "--results-directory",
+            "/var/tmp/atelia-storage-v4f-3274558.fex9ktjr/evidence/trx"
+          ],
+          "startedUtc": "2026-10-11T07:27:07.034927+00:00",
+          "endedUtc": "2026-10-11T07:28:36.772524+00:00",
+          "elapsedSeconds": 89.737597,
+          "exitCode": 0
+        },
+        {
+          "name": "versionstore",
+          "cwd": "/var/tmp/atelia-storage-v4f-3274558.fex9ktjr/repo",
+          "argv": [
+            "dotnet",
+            "test",
+            "tests/VersionStore.Tests/VersionStore.Tests.csproj",
+            "-c",
+            "Release",
+            "--no-build",
+            "--logger",
+            "trx;LogFileName=versionstore.trx",
+            "--results-directory",
+            "/var/tmp/atelia-storage-v4f-3274558.fex9ktjr/evidence/trx"
+          ],
+          "startedUtc": "2026-10-11T07:28:37.727707+00:00",
+          "endedUtc": "2026-10-11T07:33:09.069321+00:00",
+          "elapsedSeconds": 271.341614,
+          "exitCode": 0
+        }
+      ],
+      "build": {
+        "warnings": 41,
+        "errors": 0,
+        "warningDetails": "build-warnings.json"
+      },
+      "tests": {
+        "count": 2118,
+        "passed": 2117,
+        "failed": 0,
+        "skipped": 1,
+        "trx": [
+          {
+            "path": "trx/rbf.trx",
+            "sha256": "a1ecdb8d464f73aed5b5854eb983a0b0b0a80066e48740e53297e315eaf1460e",
+            "counters": {
+              "total": 920,
+              "executed": 920,
+              "passed": 920,
+              "failed": 0,
+              "error": 0,
+              "timeout": 0,
+              "aborted": 0,
+              "inconclusive": 0,
+              "passedButRunAborted": 0,
+              "notRunnable": 0,
+              "notExecuted": 0,
+              "disconnected": 0,
+              "warning": 0,
+              "completed": 0,
+              "inProgress": 0,
+              "pending": 0
+            },
+            "runOutcome": "Completed"
+          },
+          {
+            "path": "trx/versionstore.trx",
+            "sha256": "3815e4d3bf8a991ac388efa6d68c9d0c9285a2d64f43734da0cdd1d709622fca",
+            "counters": {
+              "total": 1198,
+              "executed": 1197,
+              "passed": 1197,
+              "failed": 0,
+              "error": 0,
+              "timeout": 0,
+              "aborted": 0,
+              "inconclusive": 0,
+              "passedButRunAborted": 0,
+              "notRunnable": 0,
+              "notExecuted": 0,
+              "disconnected": 0,
+              "warning": 0,
+              "completed": 0,
+              "inProgress": 0,
+              "pending": 0
+            },
+            "runOutcome": "Completed"
+          }
+        ],
+        "details": "test-results.json",
+        "newV4FTests": [
+          {
+            "testName": "Atelia.VersionStore.Tests.SystemIntegration.PublicCombinationProcessTests.IndependentTagNameAndBucketGoldensSurviveWriterExitAndFreshReadProcesses",
+            "outcome": "Passed",
+            "duration": "00:00:01.5835219",
+            "trx": "trx/versionstore.trx"
+          },
+          {
+            "testName": "Atelia.VersionStore.Tests.InternalProcess.InternalTailProcessTests.RealWriterPrefixThenParentKill_RejectsReadOnlyAndRecoversThroughVersionStore(scenario: \"tag-body-partial\")",
+            "outcome": "Passed",
+            "duration": "00:00:01.4552972",
+            "trx": "trx/versionstore.trx"
+          },
+          {
+            "testName": "Atelia.VersionStore.Tests.SystemIntegration.PublicCombinationProcessTests.ConfirmedDynamicRefRemainsDiscoverableAfterKillBeforeIndependentDirectoryRegistration",
+            "outcome": "Passed",
+            "duration": "00:00:00.9888006",
+            "trx": "trx/versionstore.trx"
+          },
+          {
+            "testName": "Atelia.VersionStore.Tests.InternalProcess.InternalTailProcessTests.RealWriterPrefixThenParentKill_RejectsReadOnlyAndRecoversThroughVersionStore(scenario: \"ref-body-complete\")",
+            "outcome": "Passed",
+            "duration": "00:00:01.3220864",
+            "trx": "trx/versionstore.trx"
+          },
+          {
+            "testName": "Atelia.VersionStore.Tests.InternalProcess.InternalPublicationProcessTests.ActualKillInsidePublicationHasOnlyTheColdFactsOfItsNamedWindow(scenario: \"fork-specified-private\")",
+            "outcome": "Passed",
+            "duration": "00:00:01.6829238",
+            "trx": "trx/versionstore.trx"
+          },
+          {
+            "testName": "Atelia.VersionStore.Tests.InternalProcess.InternalPublicationProcessTests.ActualKillInsidePublicationHasOnlyTheColdFactsOfItsNamedWindow(scenario: \"create-auto-private\")",
+            "outcome": "Passed",
+            "duration": "00:00:01.4868575",
+            "trx": "trx/versionstore.trx"
+          },
+          {
+            "testName": "Atelia.VersionStore.Tests.InternalProcess.InternalTailProcessTests.RealWriterPrefixThenParentKill_RejectsReadOnlyAndRecoversThroughVersionStore(scenario: \"tag-body-complete\")",
+            "outcome": "Passed",
+            "duration": "00:00:01.4733835",
+            "trx": "trx/versionstore.trx"
+          },
+          {
+            "testName": "Atelia.VersionStore.Tests.InternalProcess.InternalPublicationProcessTests.ActualKillInsidePublicationHasOnlyTheColdFactsOfItsNamedWindow(scenario: \"tag-append\")",
+            "outcome": "Passed",
+            "duration": "00:00:01.4136235",
+            "trx": "trx/versionstore.trx"
+          },
+          {
+            "testName": "Atelia.VersionStore.Tests.InternalProcess.InternalPublicationProcessTests.ActualKillInsidePublicationHasOnlyTheColdFactsOfItsNamedWindow(scenario: \"fork-specified-renamed\")",
+            "outcome": "Passed",
+            "duration": "00:00:01.6422562",
+            "trx": "trx/versionstore.trx"
+          },
+          {
+            "testName": "Atelia.VersionStore.Tests.InternalProcess.InternalTailProcessTests.RealWriterPrefixThenParentKill_RejectsReadOnlyAndRecoversThroughVersionStore(scenario: \"ref-body-partial\")",
+            "outcome": "Passed",
+            "duration": "00:00:01.3649692",
+            "trx": "trx/versionstore.trx"
+          },
+          {
+            "testName": "Atelia.VersionStore.Tests.InternalProcess.InternalPublicationProcessTests.ActualKillInsidePublicationHasOnlyTheColdFactsOfItsNamedWindow(scenario: \"create-auto-renamed\")",
+            "outcome": "Passed",
+            "duration": "00:00:01.3879833",
+            "trx": "trx/versionstore.trx"
+          },
+          {
+            "testName": "Atelia.VersionStore.Tests.InternalProcess.InternalPublicationProcessTests.ActualKillInsidePublicationHasOnlyTheColdFactsOfItsNamedWindow(scenario: \"tag-private\")",
+            "outcome": "Passed",
+            "duration": "00:00:01.6289132",
+            "trx": "trx/versionstore.trx"
+          },
+          {
+            "testName": "Atelia.VersionStore.Tests.InternalProcess.InternalPublicationProcessTests.ActualKillInsidePublicationHasOnlyTheColdFactsOfItsNamedWindow(scenario: \"ref-append\")",
+            "outcome": "Passed",
+            "duration": "00:00:01.3114766",
+            "trx": "trx/versionstore.trx"
+          },
+          {
+            "testName": "Atelia.VersionStore.Tests.InternalProcess.InternalPublicationProcessTests.CreateEntryRejectsTargetInsertedBeforeRenameWithoutOverwritingOrAdoptingIt",
+            "outcome": "Passed",
+            "duration": "00:00:01.5153155",
+            "trx": "trx/versionstore.trx"
+          },
+          {
+            "testName": "Atelia.VersionStore.Tests.InternalProcess.InternalPublicationProcessTests.ActualKillInsidePublicationHasOnlyTheColdFactsOfItsNamedWindow(scenario: \"tag-empty\")",
+            "outcome": "Passed",
+            "duration": "00:00:01.5114015",
+            "trx": "trx/versionstore.trx"
+          }
+        ]
+      },
+      "processes": {
+        "count": 181,
+        "distinctPids": 181,
+        "normalExitCount": 150,
+        "expectedFailureCount": 2,
+        "killedCount": 29,
+        "exitCodes": {
+          "137": 29,
+          "0": 150,
+          "1": 2
+        },
+        "commands": {
+          "tool-worker": 6,
+          "seed": 27,
+          "tool-recover": 9,
+          "probe": 20,
+          "verify": 36,
+          "tool-read": 7,
+          "resource-read": 4,
+          "generation-write": 1,
+          "hold": 12,
+          "resource-write": 2,
+          "graph-read": 2,
+          "tag-golden-write": 1,
+          "tag-golden-read": 2,
+          "crash-worker": 6,
+          "dynamic-ref-read": 2,
+          "graph-write": 1,
+          "dynamic-ref-worker": 1,
+          "generation-read": 2,
+          "retry": 4,
+          "interrupt": 8,
+          "tail.verify": 8,
+          "verify-conflict-recovered": 1,
+          "verify-conflict": 1,
+          "tail.interrupt": 4,
+          "tail.seed": 4,
+          "tail.readonly-reject": 4,
+          "conflict": 1,
+          "tail.recover": 4,
+          "recover-conflict": 1
+        },
+        "public": {
+          "count": 108,
+          "distinctPids": 108,
+          "normalExitCount": 89,
+          "expectedFailureCount": 2,
+          "killedCount": 17,
+          "exitCodes": {
+            "137": 17,
+            "0": 89,
+            "1": 2
+          },
+          "commands": {
+            "tool-worker": 6,
+            "seed": 18,
+            "tool-recover": 9,
+            "probe": 20,
+            "verify": 12,
+            "tool-read": 7,
+            "resource-read": 4,
+            "generation-write": 1,
+            "hold": 12,
+            "resource-write": 2,
+            "graph-read": 2,
+            "tag-golden-write": 1,
+            "tag-golden-read": 2,
+            "crash-worker": 6,
+            "dynamic-ref-read": 2,
+            "graph-write": 1,
+            "dynamic-ref-worker": 1,
+            "generation-read": 2
+          }
+        },
+        "internal": {
+          "count": 73,
+          "distinctPids": 73,
+          "normalExitCount": 61,
+          "expectedFailureCount": 0,
+          "killedCount": 12,
+          "exitCodes": {
+            "0": 61,
+            "137": 12
+          },
+          "commands": {
+            "verify": 24,
+            "seed": 9,
+            "retry": 4,
+            "interrupt": 8,
+            "tail.verify": 8,
+            "verify-conflict-recovered": 1,
+            "verify-conflict": 1,
+            "tail.interrupt": 4,
+            "tail.seed": 4,
+            "tail.readonly-reject": 4,
+            "conflict": 1,
+            "tail.recover": 4,
+            "recover-conflict": 1
+          }
+        },
+        "details": "process-summary.json",
+        "matrixDetails": "v4f-process-matrix.json",
+        "publicationKillVectors": 8,
+        "physicalTailKillVectors": 4
+      },
+      "priorEvidence": {
+        "unchangedDuringThisRun": true,
+        "details": "prior-evidence-preservation.json"
+      },
+      "assetsDetails": "assets.json",
+      "rawTranscript": "raw-transcript.log",
+      "evidenceDirectoryLinux": "/var/tmp/atelia-storage-v4f-3274558.fex9ktjr/evidence",
+      "evidenceDirectoryWindows": "/mnt/e/repos/Atelia-org/atelia-storage/artifacts/versionstore-v4f/linux",
+      "limits": [
+        "Fixed committed HEAD archive plus the exact 17-file frozen delta; not a clean committed final HEAD snapshot.",
+        "Whole Release solution build followed by full Rbf and VersionStore tests. FrameStore and frozen old-stack tests were not repeated on Linux.",
+        "WSL2 Ubuntu/root with actual ext4 source/bin/obj/TMPDIR/evidence and a separate copied NuGet cache.",
+        "Named internal writer process windows and public combinations; process SIGKILL does not imply power-loss durability.",
+        "No package smoke, packaging, publishing, business migration or CU qualification."
+      ]
+    }
+  },
+  "linuxEvidenceManifest": {
+    "path": "artifacts/versionstore-v4f/linux/evidence-files.json",
+    "bytes": 44731,
+    "sha256": "1c640985034b9a858252351afae8eb09e49854573c01bc379adaa18615211d93"
+  },
+  "scope": "Source-only V4-F. Internal instrumented writer process kills and pure-public application combinations are separate evidence classes.",
+  "exclusions": [
+    "power loss",
+    "device failure",
+    "all byte-prefix permutations",
+    "package registration or consumption",
+    "publishing",
+    "business migration",
+    "cross-ref transactions"
+  ]
+}

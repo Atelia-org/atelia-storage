@@ -272,6 +272,7 @@ public sealed partial class VersionStore : IDisposable {
                 return append.Error!;
             }
             SizedPtr ticket = append.Value;
+            _testHooks?.AfterRefRecordAppended?.Invoke(append.Value);
             file.DurableFlush();
             outcome = PublicationOutcome.Confirmed;
             _testHooks?.AfterPublicationConfirmed?.Invoke();

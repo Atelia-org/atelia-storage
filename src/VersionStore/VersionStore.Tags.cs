@@ -197,6 +197,7 @@ public sealed partial class VersionStore {
             outcome = PublicationOutcome.NotAttempted;
             return append.Error!;
         }
+        _testHooks?.AfterTagRecordAppended?.Invoke(append.Value);
         _tagOperationFile.DurableFlush();
         outcome = PublicationOutcome.Confirmed;
         _testHooks?.AfterPublicationConfirmed?.Invoke();

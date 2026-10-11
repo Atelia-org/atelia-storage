@@ -1,6 +1,6 @@
 # S5-B 专项：不可变 tag
 
-日期：2026-10-11。状态：**Accepted（独立 source-only 源码资格）**。1024个惰性桶、独立元信息CRC、匿名/关联 CreateTag、ResolveTag、ReadTagInfo/ScanTags及完整检查的证据见[最终源码验收](12-versionstore-final-acceptance.md)。内部进程窗口、独立名称/路由 golden 的冷进程补证及包消费仍见[后续计划](12-versionstore-implementation-plan.md)，不随本状态宣称完成。该设计取代未实施的 tag 草案，无旧 tag 数据迁移，不改 ref/CU 布局；CU 仍为候选。
+日期：2026-10-11。状态：**Accepted（独立 source-only 源码资格）**。1024个惰性桶、独立元信息CRC、匿名/关联 CreateTag、ResolveTag、ReadTagInfo/ScanTags及完整检查的证据见[最终源码验收](12-versionstore-final-acceptance.md)。V4-F补充具名内部进程窗口及六个独立名称/路由golden的冷进程回读，平台结果见[实施计划](12-versionstore-implementation-plan.md)；隔离包消费仍是独立交付出口。该设计取代未实施的tag草案，无旧tag数据迁移，不改ref/CU布局；CU仍为候选。
 
 本文属于 [S5](05-versionstore-names-and-indexes.md) 的 S5-B，不新增项目或阶段。统一版本、持久身份、借入 data、根/锁、唯一 pending、single-driver、ProcessCrashOnly、PublicationOutcome 与停用清理由 [S4](04-versionstore-publication.md)定义；bytes 输入与自有结果由 [11 专项](11-versionstore-root-payload-bytes-api.md)定义。本篇独立拥有 tag 名称、桶、TailMeta、关联注记与元信息公面，不复制下层尺寸算法，不增加并发或断电保证。
 
@@ -183,6 +183,6 @@ named请求仍做路径资格与O(目标桶记录数+checked meta bytes)扫描�
 | ScanTags/互操作 | missing返回Complete；元信息声明逐条交付含重复及坏root；后续坏meta失败不回滚已交值且不称partial success；false不读后续，取消/throw/Dispose/close优先；递归scan/进入history/全部mutation拒，read/info/resolve/ListForks允许；history callback可scan，双临时槽与当前桶读复用 |
 | 发布/恢复/组合 | data失败无tag输出/无关Builder不堵；pending取消/RO保留，空桶rename仍NotAttempted；Append/flush Unknown与确认后close失败Confirmed；CompletedTail后meta重验；冷开不认领旧尝试；ref后续更新不改tag，应用坏data明确失败，无精确来源能力 |
 
-**施工与成熟度：** 本合同的 V3-A 已实现名称/1024路由、可变 TailMeta/独立 CRC、named 元信息隔离与唯一命中后的内部完整 root 读取；V3-B 已接通惰性空桶初始化、匿名 CreateTag→ResolveTag→冷重开及 Outcome/恢复/资源源码验收。V3-C 已接通关联 overload、TagInfo/ReadTagInfo/ScanTags 与回调 guard；关联与匿名 writer 复用同一发布路径与 schema。现有公开 RBF TailMeta 读取及 RollingCrc 已够，不新增底层路径/CRC scanner/索引接口。V3-A/B/C 的具体源码/测试资格见实施计划；V4-A 已接通 S4 `[A-VS-AUDIT]` 的只读完整校验；仍缺真实冷进程/中断、Linux、规模与包证据，不宣称 Ready/Accepted。
+**施工与成熟度：** 本合同的V3-A/B/C已完成codec、惰性空桶、发布/解析、关联及元信息公面；匿名与关联writer共用发布路径和schema。现有公开RBF TailMeta读取及RollingCrc已经够用，不新增底层scanner/索引接口。V4-A已接通只读完整Audit，V4-B至V4-F的具名进程、两平台与有限规模证据分别见实施计划；V4-E取得独立源码Accepted。包消费资格仍缺，有限规模观察不代表任意负载SLO。
 
 依据：既有tag合同从35d6c2d的S5迁入；[S5](05-versionstore-names-and-indexes.md)保留导航与历史互操作。[S4](04-versionstore-publication.md)、[RBF接口](../Rbf/rbf-interface.md)、[公共尺寸](../../src/Rbf/RbfFile.cs)、[小TailMeta读取与解escape](../../src/Rbf/RbfFrameInfo.cs)、[RollingCrc封口/检查](../../src/Data/Hashing/RollingCrc.cs)、[BPV字符串选择](../../src/Binary/BareValueEncoding.Strings.cs)、[分配前限制](../../src/Binary/BareValueReader.Strings.cs)、[VarInt](../../src/Binary/BareValueReader.cs)、[SizedPtr](../../src/Data/SizedPtr.cs)为机制依据。[RBF正扫测试](../../tests/Rbf.Tests/Internal/RbfScanForwardTests.cs)为底座证据；冻结旧栈[不可变tag测试](../../tests/EventJournal.Tests/ImmutableTagTests.cs)与[书签消费者](../../../durable-graph/tests/DurableGraph.Persistence.Tests/RepositoryTagTests.cs)仅作工作流背景，不引入旧API/格式，不构成本专项验收。

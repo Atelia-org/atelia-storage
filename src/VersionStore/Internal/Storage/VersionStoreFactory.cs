@@ -8,7 +8,7 @@ namespace Atelia.VersionStore.Internal.Storage;
 /// <summary>公开 owner 的根、锁、门与目录资格移交入口。</summary>
 internal static class VersionStoreFactory {
     internal static VersionStore Create(string rootPath, DataStore data, uint reservedRefIdUpperBound,
-        VersionStoreFactoryOperations? operations = null) {
+        VersionStoreFactoryOperations? operations = null, VersionStoreTestHooks? testHooks = null) {
         ArgumentException.ThrowIfNullOrWhiteSpace(rootPath);
         ArgumentNullException.ThrowIfNull(data);
         if (reservedRefIdUpperBound == uint.MaxValue) {
@@ -34,9 +34,12 @@ internal static class VersionStoreFactory {
             FormatGate gate = DirectoryVersionStoreFiles.InitializeEmptyStore(root, dataIdentity,
                 reservedRefIdUpperBound, operations);
             operations.BeforeOwnerHandoff(root);
+            // Only the explicitly internal hook path hands runtime observers to the owner.
+            // Public calls and existing factory failure tests retain default runtime operations.
+            var files = new DirectoryVersionStoreFiles(root, testHooks is null ? null : operations);
             var store = new VersionStore(data, gate.VersionStoreId, gate.DataStoreId,
-                gate.ReservedRefIdUpperBound, readOnly: false, new DirectoryVersionStoreFiles(root),
-                ownerLock, autoRefIdHighWatermark: gate.ReservedRefIdUpperBound);
+                gate.ReservedRefIdUpperBound, readOnly: false, files,
+                ownerLock, testHooks, autoRefIdHighWatermark: gate.ReservedRefIdUpperBound);
             ownerLock = null;
             return store;
         }
@@ -50,7 +53,7 @@ internal static class VersionStoreFactory {
     }
 
     internal static VersionStore Open(string rootPath, DataStore data, bool readOnly,
-        VersionStoreFactoryOperations? operations = null) {
+        VersionStoreFactoryOperations? operations = null, VersionStoreTestHooks? testHooks = null) {
         ArgumentException.ThrowIfNullOrWhiteSpace(rootPath);
         ArgumentNullException.ThrowIfNull(data);
         string root = Path.GetFullPath(rootPath);
@@ -73,8 +76,10 @@ internal static class VersionStoreFactory {
             }
             files.QualifyPending(readOnly);
             operations.BeforeOwnerHandoff(root);
+            // As in Create, runtime interception requires explicit internal test hooks.
+            var runtimeFiles = new DirectoryVersionStoreFiles(root, testHooks is null ? null : operations);
             var store = new VersionStore(data, gate.VersionStoreId, gate.DataStoreId,
-                gate.ReservedRefIdUpperBound, readOnly, new DirectoryVersionStoreFiles(root), ownerLock,
+                gate.ReservedRefIdUpperBound, readOnly, runtimeFiles, ownerLock, testHooks,
                 autoRefIdHighWatermark: highWatermark);
             ownerLock = null;
             return store;

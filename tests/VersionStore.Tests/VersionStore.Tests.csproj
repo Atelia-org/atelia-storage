@@ -5,6 +5,8 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <OutputType>Exe</OutputType>
+    <StartupObject>Atelia.VersionStore.Tests.InternalProcess.InternalProcessHost</StartupObject>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="xunit" Version="2.9.2" />

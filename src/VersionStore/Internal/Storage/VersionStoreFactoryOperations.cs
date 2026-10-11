@@ -30,6 +30,15 @@ internal class VersionStoreFactoryOperations {
 
     internal virtual IRbfFile CreatePending(string path) => RbfFile.CreateNew(path, RbfCacheMode.Off);
 
+    // The default is the exact public RBF path previously used by the directory backend.
+    // Internal process tests may observe the report produced by the actual VS lazy open.
+    internal virtual IRbfFile OpenRef(string path, bool readOnly, out RbfTailRecoveryReport recovery) {
+        recovery = default;
+        return readOnly
+            ? RbfFile.OpenReadOnlyExisting(path, RbfCacheMode.Off)
+            : RbfFile.OpenExisting(path, out recovery, RbfCacheMode.Off);
+    }
+
     internal virtual FileStream ProbeTagBucket(string path) =>
         new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
 

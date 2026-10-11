@@ -167,15 +167,15 @@ WSL2 使用固定源码归档及最终三个源码增量，在独立 ext4 的 re
 | V4-C：Linux 与有限资源取证 | 独立 ext4 快照的新栈回归/进程验证、16/64/256有限资源消费者、Windows完整回归 | ext4与旧栈tmpfs分组回归分别记录；临时遍历与owner缓存分开，资源/成本不推广为任意负载承诺 |
 | V4-D：已接通应用策略最小示例 | S6 tool-loop Started/结果/uncertain 与 generation 串行合并 | public consumer 在三个应用边界真实kill后冷恢复，外部receipt严格匹配、Result不依赖backend；单driver拒绝错operation/旧generation/重复结果，保留同代A/B合并 |
 | V4-E：已完成独立源码验收与反例修正 | S4/S5及08–11的已实施源码条款映射，ListRefs只读结果修复及坏data应用反例 | [独立验收记录](12-versionstore-final-acceptance.md)统一记录Accepted裁决、当前回归与历史证据差异；不把源码Accepted扩为S6全部完成 |
-| V4-F：内部进程窗口与剩余组合补证 | 少量pending/rename/Append/flush状态转折强杀、VS入口不覆盖冲突、独立目录登记窗口、tag golden冷进程 | 内部宿主明确Internal+Process身份；保持现有consumer纯public；RO→RW→RO与实际恢复报告、源hash及两平台分别取证 |
+| V4-F：已完成内部进程窗口与剩余组合补证 | 8个发布停点、4个真实物理残尾停点、VS入口冲突拒绝、独立目录登记窗口、tag golden冷进程 | Windows完整回归、WSL2/ext4的RBF/VS完整回归及独立复核通过；source-only队列收束，包交付另立范围 |
 
-V1 至 V4-D 已完成相应源码、公开组合、两平台有限资源与应用策略。V4-E 按实际源码/测试和证据独立复核，发现并修正 ListRefs 的 `ICollection.SyncRoot` 可变 backing 逃逸，补充健康发布根指向损坏 data 时的 public 冷读反例；最终资格与本轮运行见[验收记录](12-versionstore-final-acceptance.md)。下一轮优先 **V4-F：内部进程窗口与剩余组合补证**，不重做已经闭合的源码实施片。
+V1 至 V4-D 已完成相应源码、公开组合、两平台有限资源与应用策略。V4-E 按实际源码/测试和证据独立复核，发现并修正 ListRefs 的 `ICollection.SyncRoot` 可变 backing 逃逸，补充健康发布根指向损坏 data 时的 public 冷读反例。V4-F 接续具名内部窗口及剩余组合，实际范围和运行见下方记录；不重做已经闭合的源码实施片。
 
-V4-F 的精确范围和冷开判据集中在[验收记录的剩余矩阵](12-versionstore-final-acceptance.md#s6-组合资格与后续最小分片)：private ref/fork 已关闭但未 rename、rename 后未交付、private/正式空 tag 桶、完整 Append 未 flush、真实物理残尾。约九至十个代表性 kill 向量起步，两种创建/编号域消费共用实现而不作全组合乘积；真实残尾须记录 writer 的实际写出，不能在 kill 后人工截尾。同步异常/out 的局部证据继续消费已有测试，不要求进程死后恢复旧 outcome。另补 VS 真实入口 no-overwrite 冲突、动态 ref 创建后独立目录未登记窗口，以及09名称/路由 golden 的新进程回读。包注册/隔离包消费仍另立交付片。
+V4-F 的精确范围和冷开判据集中在[验收记录的组合矩阵](12-versionstore-final-acceptance.md#s6-组合资格与后续最小分片)。内部宿主复用测试程序集的 IVT，public consumer 仍无 internal 访问。真实物理残尾由 RBF 实际短写后停住再 kill 形成，没有事后截尾；恢复报告由 VS 正常 lazy open 的内部观察入口取得。同步异常/out 的局部证据继续消费已有测试，不要求进程死后恢复旧 outcome。包注册/隔离包消费仍另立交付片。
 
 V3 续接只需保持现有窄分层：`Internal/Tags` 独立管理 codec/checked header/named 名称裁决；匿名与关联写入共用发布路径。元信息读取不需要完整 root 资格，ScanTags 严格传播记录错误；named 路径的 unknownName 隔离不能搬到完整校验。`_tagOperationFile` 为 named 查询短期 owned 槽；扫描桶、checked header 与目录 cursor 另持独立状态，以便同桶 callback 借用、跨桶查询独立关闭及 callback Dispose 时锁最后。不要以日常 ScanTags 成功代替完整校验。
 
-V4-C 的有限观察未提出新的性能SLO或缓存机制。后续不重复这批向量来凑轮次；若实际应用暴露容量/延迟要求，再据具体负载立项。剩余工作限于 V4-F 的具名组合补证，出现具体反例时才调整范围。
+V4-C 的有限观察未提出新的性能SLO或缓存机制。后续不重复这批向量来凑轮次；若实际应用暴露容量/延迟要求，再据具体负载立项。后续只按具体反例或新的交付目标开启工作，不无限扩展中断位置的排列组合。
 
 V2 的底座增量已由 [RBF 边界逆扫记录](../Rbf/rbf-reverse-boundary-plan.md)接入公共接口合同。普通当前值与普通 PublishRef 不依赖它，V1 证据保持原身份。ForkOrigin 元数据可在 V0 编解码，V2-A 读取既有声明并检验 exact 源/bytes；V2-B 已用正式源读取/确认与子发布建立公开 fork 创建闭环。
 
@@ -189,13 +189,13 @@ CU 在正式选型同步 S0/S4/S5 前不进入上述默认队列；尤其不能�
 
 后续Linux功能回归沿用分组执行：新栈及本轮其他完成组保留ext4；冻结EventJournal使用单独tmpfs TMPDIR运行原始完整用例，保存各组TRX及实际文件系统。若要取得旧栈ext4大量fsync的资格，再单独安排有明确目标的运行。Windows仍使用完整solution回归入口。
 
-V4-E 后暂估 **1轮 V4-F 组合补证**：源码范围已明确，现有窄 hooks 与底座写出观察可复用；若真实物理残尾的可重复停点需要单独实验，再按实际证据拆分，不能预先宣布整张矩阵完成。V4-F完成后复核本表并结束当前source-only施工队列；S6还缺隔离包消费时明确报告，不为保持队列运行而自动开启打包发布、业务仓接入或CU。
+**V4-F 已完成，本 source-only 队列到此收束。** 具名窗口和剩余组合的两平台验收见下方；不再自动安排V4-G或重新展开设计问题。若后续指令仍只是“继续实现”，先复核当前状态并报告源码队列已完成；下一项实质目标是S6-C/D包注册及隔离PackageReference消费，需要明确转入交付范围。公开发布、业务仓接入和CU各自独立，不由本队列自动开启。
 
 ## 每轮结束时的交接要求
 
 更新本轮完成项、实际验证命令/结果、尚未取得的资格，以及下一轮最小闭环。后续实现如果改变 internal 接缝，同步修改调用方和有意义的测试；公开行为或持久格式的改变回写所属权威，不只改本文。
 
-当前未发现需要改变产品设计的阻碍。RBF 边界逆扫和历史跨文件资源/预算已接通；独立完整校验已在 V4-A 接通，后续重点是系统验收。历史自身不会把每个访问文件加入长期缓存；既有 `ReadRef/PublishRef/ForkRef` 的 owner 缓存仍保留，不能把局部资源验证视为大规模负载资格。不把已定机制的接线重新扩展为设计待定项。
+当前未发现需要改变产品设计的阻碍。RBF边界逆扫、历史跨文件资源/预算和独立完整校验均已接通；V4-F收束具名系统组合。历史自身不会把每个访问文件加入长期缓存；既有`ReadRef/PublishRef/ForkRef`的owner缓存仍保留，不能把局部资源验证视为大规模负载资格。不把已定机制的接线重新扩展为设计待定项。
 
 ## V0 历史验证记录（2026-10-10）
 
@@ -364,3 +364,17 @@ Windows 初次build0error/41既有warning，定向6/6；首完整回归唯一失
 历史核验594个唯一工件，保留V4-C两个派生描述符的hash漂移；直接TRX、源码、process raw与实际assets仍有匹配证据，不修改旧记录或宣称全部旧摘要通过。依赖资产保持main项目/精确RBF1包隔离。详细条款映射、剩余窗口及机器工件见[最终源码验收](12-versionstore-final-acceptance.md)和[本轮证据](evidence/2026-10-11-versionstore-v4e.json)。
 
 **S4/S5及已实施专项的独立source-only源码资格现为Accepted；S6仍Draft。** 下一片V4-F按上表补内部进程窗口和少量尚缺组合；不扩大运行时功能、不重新展开设计问题、不自动开启包交付、业务迁移或CU。
+
+## V4-F 验证记录（2026-10-11）
+
+本轮基于干净`3274558`，分成内部发布窗口、真实物理残尾、public组合、独立复核和WSL验证工作包。生产增量仅为可空内部测试hooks、factory显式测试接线与保持默认语义的OpenRef观察接缝，另给VersionStore.Tests增加RBF测试友元；公开API、持久格式和pack清单不变。测试程序集增加独立可执行入口，现有`tools/VersionStore.Smoke`仍纯public。
+
+- `InternalPublicationProcessTests`的8个停点：自动create/指定旧点fork的private已flush/close与rename后未交付，各2个；private tag header与已公开合法空桶，各1个；正式ref/已有桶完整Append返回但未flush，各1个。真实Kill后分别由fresh RO→RW→RO检查事实，private只取消不续作，正式完整记录不混搭；另1项实际VS发布路径冲突检查Unknown/fault、目标不变、RO保留/RW取消pending和正式高水位。冲突发生在平台目标前检，不称原生syscall竞争实测。
+- `InternalTailProcessTests`的4个停点：ref后续Snapshot和tag首TagRecord各覆盖部分body及完整body缺TailKey+Fence。停点在真实短写后的AfterWrite，parent不改镜像；RO拒绝且全树不变，VS实际lazy RW报告分别为Truncated/CompletedTail，再两次fresh RO/Audit稳定。实际ref长度159→148 / 244→252，tag长度71→60 / 180→188；CompletedTail tag实际重读32B必要meta，完整root随后另验。本片尾向量的data RecoveryReports为空，未触发data恢复；不能把这四个VS文件窗口称为新data修尾资格。
+- `PublicCombinationProcessTests`的2项：独立目录ref尚未登记已确认动态ref时强杀，冷开仍按ListRefs和应用身份发现；A、Release/release、孤立U+D800、同桶tag-48/tag-65六个固定向量在新进程验证五个路径、Ordinal、完整payload/meta/Related、ScanTags及公开RBF格式。顺序子进程允许OS复用PID，每条消息只核对当前Process.Id。
+
+Windows首轮Release构建0error/42warning（41既有XML warning和1条新增xUnit断言风格warning），定向14/15：唯一失败为测试在RW owner独占ref时使用File.ReadAllBytes。把字节对比移至关闭双方owner后，并修正xUnit断言；重新Release构建0error/0warning，完整solution最终**3455 passed / 0 failed / 9 skipped**，VersionStore为1192 passed / 6 Linux-only skipped，新增15项全通过。完整运行181个子进程：73个Internal+Process含12次强杀，108个public含17次强杀及2次预期失败；本片新增79个子进程、13次强杀。首次失败工件保留，不改标通过。
+
+Linux使用新的WSL2/ext4工作区`/var/tmp/atelia-storage-v4f-3274558.fex9ktjr`，固定`3274558`archive加17份明确源码增量（8个新增文件），750个受测源文件；Windows raw hash与Linux受测输入逐项核对。完整Release构建0error/41既有warning，随后串行RBF完整**920/920**、VersionStore完整**1197 passed / 1 Windows-only skipped**，共**2117 passed / 0 failed / 1 skipped**；不是本轮Linux完整solution test或FrameStore重跑。两平台均复核七个冻结旧栈项目的精确RBF1资产及新栈project闭包；public consumer唯一外部codec保持K4os 1.3.8。Linux的bin/obj、NuGet和TMPDIR全部与Windows隔离并位于ext4，既有工件保持原身份。
+
+两平台精确来源、命令、TRX、进程raw与文件hash统一见[本轮机器证据](evidence/2026-10-11-versionstore-v4f.json)。当前已完成的源码资格与S6组合判据见[最终验收](12-versionstore-final-acceptance.md#s6-组合资格与后续最小分片)。所有.NET重命令串行，未打包、发布、push或切换业务消费者；残尾为Internal+Process有限代表，不外推任意切点、恢复再中断或断电/设备故障。

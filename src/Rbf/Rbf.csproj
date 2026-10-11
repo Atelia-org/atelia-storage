@@ -30,6 +30,9 @@
       <_Parameter1>Atelia.Rbf.Tests</_Parameter1>
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Atelia.VersionStore.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>Rbf.Benchmarks</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>

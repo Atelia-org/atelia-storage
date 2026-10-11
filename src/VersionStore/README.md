@@ -1,6 +1,6 @@
 # Atelia.VersionStore
 
-本项目是 source-only 的 VersionStore，参加 solution 构建与测试，暂不打包。已取得[独立源码验收](../../docs/FrameStore-VersionStore/12-versionstore-final-acceptance.md)；该资格不覆盖 S6 尚缺的内部进程窗口或包消费。设计入口为 [S4](../../docs/FrameStore-VersionStore/04-versionstore-publication.md)，后续分片见[实施计划](../../docs/FrameStore-VersionStore/12-versionstore-implementation-plan.md)。
+本项目是 source-only 的 VersionStore，参加 solution 构建与测试，暂不打包。已取得[独立源码验收](../../docs/FrameStore-VersionStore/12-versionstore-final-acceptance.md)；V4-F补充具名内部进程窗口、真实物理残尾和剩余public组合，范围及平台结果见[实施计划](../../docs/FrameStore-VersionStore/12-versionstore-implementation-plan.md)。S6隔离包消费仍是独立交付工作。设计入口为 [S4](../../docs/FrameStore-VersionStore/04-versionstore-publication.md)。
 
 VersionStore 借入一个 FrameStore，发布不透明 root-payload bytes。每个 ref 是独立 RBF3 文件中的完整快照序列；应用选择内容 codec 并保证 data 依赖闭包。普通 ref 不承担跨 ref 事务，CU 仍是独立候选。
 

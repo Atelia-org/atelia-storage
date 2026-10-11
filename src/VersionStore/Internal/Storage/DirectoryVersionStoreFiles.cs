@@ -108,9 +108,7 @@ internal sealed partial class DirectoryVersionStoreFiles : IVersionStoreFiles, I
         // The target token obtained actual spelling/type qualification; content recovery is lazy.
         VersionStorePlatform.RequireEnumeratedFile(target.Path, markOwnedCleanupFault);
         VersionStorePlatform.RequireFileOnFileSystem(_root, target.Path, markOwnedCleanupFault);
-        return readOnly
-            ? RbfFile.OpenReadOnlyExisting(target.Path, RbfCacheMode.Off)
-            : RbfFile.OpenExisting(target.Path, out _, RbfCacheMode.Off);
+        return _operations.OpenRef(target.Path, readOnly, out _);
     }
 
     public AteliaResult<IReadOnlyList<uint>> ListRefIds(Action markOwnedCleanupFault) {

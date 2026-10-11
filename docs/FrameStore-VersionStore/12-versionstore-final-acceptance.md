@@ -1,8 +1,8 @@
-# VersionStore 独立源码验收与条款映射（V4-E）
+# VersionStore 独立源码验收与条款映射（V4-E / V4-F）
 
-日期：2026-10-11。审查基线：`9e751d4`。本记录消费 [S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)、[08](08-versionstore-record-metadata.md)–[11](11-versionstore-root-payload-bytes-api.md) 的已实施合同及 [S6](06-integration-and-delivery.md) 的分层取证要求；不增加协议或重标历史运行结果。
+日期：2026-10-11。V4-E审查基线：`9e751d4`；V4-F组合增量基线：`3274558`。本记录消费 [S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)、[08](08-versionstore-record-metadata.md)–[11](11-versionstore-root-payload-bytes-api.md) 的已实施合同及 [S6](06-integration-and-delivery.md) 的分层取证要求；不增加协议或重标历史运行结果。
 
-状态：**Accepted（独立 source-only 源码资格）。** S4/S5及08–11的已实施 ref/历史/fork/tag/Audit/可选 RootMap 合同取得本记录限定的资格；本轮发现的 P2 已修复并通过两平台回归，无未解决的 P1/P2。S6仍为Draft，内部写入窗口、包交付与应用迁移各自保留出口；未来批量/CU不在本次Accepted范围。
+状态：**Accepted（独立 source-only 源码资格）。** S4/S5及08–11的已实施 ref/历史/fork/tag/Audit/可选 RootMap 合同取得本记录限定的资格；V4-E发现的P2已修复并通过两平台回归。V4-F的具名内部窗口和组合增量单列在末节；S6仍为Draft，包交付与应用迁移各自保留出口；未来批量/CU不在本次Accepted范围。
 
 ## 证据层次与来源
 
@@ -27,7 +27,7 @@ Windows 实际测试临时文件位于 W: NTFS，仓库位于 E: ReFS。Linux �
 
 历史核验重读594个唯一工件，发现 V4-C 的两个派生描述符漂移：`linux-delta/evidence-files.json` 多一项 `baseline-preservation-check.json`，`linux-delta/finalize-evidence.py` 多一条复制该文件的语句。仅移除对应新增项即可精确重建旧 hash/长度；直接 TRX、源码、process raw、summary 及两个保留的 WSL workspace 实际源文件/资产仍匹配独立记录。保留旧摘要，不回写成假定未变；不能宣称“V4-C 全部旧 hash 通过”。详细实测和旧/新 hash 在[本轮机器证据](evidence/2026-10-11-versionstore-v4e.json)的 `baselineEvidence` 中登记。
 
-## 本轮反例、修正与验证
+## V4-E 反例、修正与验证
 
 独立 ref 评审发现一个 P2：`Array.AsReadOnly(refs)` 的非泛型 `ICollection.SyncRoot` 返回实际 `RefId[]`，调用方可经普通 BCL API 改变 `ListRefs` 已交付的结果。这没有修改磁盘，但违反 `A-VS-REFS-DISCOVERY` 的自有只读结果合同。改为与 ListForks 相同的私有薄封装，只提供 `IReadOnlyList<RefId>` 及枚举；不新增通用集合框架或公开类型。
 
@@ -83,18 +83,17 @@ Linux 在新的 WSL2/ext4 workspace 使用固定 `9e751d4` archive 加五份明�
 
 独立 public 消费者已覆盖多根循环图、三种追加与交错 Builder、非末选点、fork-of-fork、rewind/tag、冷重开、tool-loop 与 generation 串行合并。`PublicProcessTests` 与 `ApplicationProcessTests` 使用真实子进程，不借 reflection 或 IVT 补 public 能力。内部单元夹具不改变消费者的资格。
 
-S6 的完整内部中断矩阵仍待补。V4-B/D 的实际 kill 在 public 返回/应用边界，观测到的 data 恢复均为 None；活跃 Builder 中仅留内存缓冲，不能据此声称实测物理残尾恢复。下一片 **V4-F** 只补以下具名状态，不重新展开功能、应用模型或通用故障框架：
+V4-B/D 的实际 kill 在 public 返回/应用边界，观测到的 data 恢复均为 None；活跃 Builder 中仅留内存缓冲，不能据此声称实测物理残尾恢复。**V4-F** 用独立测试程序集宿主补以下具名内部状态；实际平台运行、失败修正和源码身份见[实施计划的V4-F记录](12-versionstore-implementation-plan.md#v4-f-验证记录2026-10-11)及[机器证据](evidence/2026-10-11-versionstore-v4f.json)。
 
-| 待补状态 | 冷开必须检查的事实 |
+| 已实施向量 | 冷开判据及证据入口 |
 | --- | --- |
-| 新 ref/fork 的 private 已 flush/close，rename 前；以及 rename 返回、结果交付前 | private 不出现在 ListRefs；RO 保留、RW 取消且不续作；移动后正式对象完整且 fork 来源/bytes 正确。有限向量覆盖自动与指定两域，不构造全阶段笛卡尔积 |
-| private tag header rename 前 | 私有完整 header 不成为正式桶；RO 保留、RW 取消，不收养或继续旧 tag 请求 |
-| 合法空 tag 桶已 rename，首条 TagRecord Append 前 | 桶可存在而 tag 不存在；不从空桶存在推断 tag Confirmed；之后正常创建成功 |
-| 正式 ref/tag 的完整 Append 返回、DurableFlush 前 | kill 没有可返回给旧调用方的 outcome；冷开接受完整实际记录，payload 不混搭，不能倒推旧调用曾 Confirmed |
-| writer 实际输出形成的不完整物理尾 | 由窄底座观察/测试宿主停在真实写出点，父进程 kill；先检查 RO 拒绝且 bytes 不变，再以 RW 恢复并检查实际报告、根事实、重复 RO 不变。不得用 kill 后人工截尾替代 |
+| 自动 create/指定旧点 fork 的 private 已 flush/close、rename 前；以及 rename 返回、结果交付前（4个） | `InternalPublicationProcessTests`：实际 flush 观察和独占重开证明 private 已关闭；RO 保留且不出现在 ListRefs，RW取消不续作；正式对象、精确旧点来源/bytes正确，源不变；新请求不烧掉未发布编号 |
+| private tag header rename 前；合法空桶 rename 后、首条 Append 前（2个） | 同上：RO树/bytes不变，RW取消private，完整空桶可Audit且`TagNotFound`；随后新CreateTag正常，不从空桶存在推断首tag确认 |
+| 正式 ref / 已有 tag 桶的完整 Append 返回、DurableFlush 前（2个） | 同上：真实Append返回ticket后停住，目标flush计数为0；冷开读回完整实际bytes。进程终止没有旧outcome，不能倒推曾Confirmed |
+| ref后续记录 / tag首条记录的部分body，以及完整body缺TailKey+Fence（4个） | `InternalTailProcessTests`：真实`RandomAccess.Write`短写后停于`AfterWrite`；parent kill，无事后截尾。先fresh RO拒绝且全树不变，实际VS lazy RW记录`Truncated/CompletedTail`的offset/length/ticket；tag完成后重读必要meta，再两轮fresh RO/Audit，除恢复目标尾外所有bytes不变 |
 
-同片补三个范围明确的组合证据：经 VS 创建入口触发真实 no-overwrite 冲突并证明目标未改写；动态 ref 已创建但独立目录 ref 尚未登记时 kill，冷开检查 ListRefs 中存在未登记对象；09 独立名称/路由 golden 在新进程回读。当前平台 helper 的移动反例不是 VS 入口证据，独立目录窗口目前仅有协议推导；`TagNameTests` 的独立 golden 与同进程冷 owner 也不替代其冷进程要求。它们不要求增加目录协议、通用事务或名称索引。
+同片补三个有限组合：经实际VS创建入口的`BeforeNewRefRename`植入合格正式目标，真实发布路径的目标前检拒绝，out为Unknown、旧owner fault，目标bytes不变；冷RO保留pending、RW取消并由真实正式集合决定下个自动号。此证据**未到达原生rename syscall冲突**，不声称实测TOCTOU竞争；原生不覆盖flags仍由源码及既有正常移动/平台证据支撑。`PublicCombinationProcessTests`另覆盖动态ref确认后、独立目录发布前强杀（ListRefs发现未登记对象，应用按bytes识别业务身份），以及六个独立名称向量的冷进程回读（A、Release/release、孤立U+D800、同桶tag-48/tag-65）；固定五个路径、Ordinal、payload/meta/Related、ScanTags及公开RBF格式读回均核对，RO全树不变。
 
-已有 `BeforeNewRefRename/BeforeNewTagBucketRename/AfterTagBucketPublished/AfterPublicationConfirmed` 测试接缝可用于独立内部宿主；追加边界可用真实 IRbfFile 薄包装，物理中途需底座观察。宿主必须明确 Internal+Process 身份，不把 IVT 引入现有 public consumer；最终方法以能证明具体状态的最小实现为准。同步 out/OOM/必要 close 异常继续由 Internal/Source 负责，进程终止没有 out，不要求伪造旧调用返回证据。
+内部宿主使用原有发布hooks、两项Append后可空action和现有RBF写出观察；factory只有显式internal testHooks非null才转交runtime operations，观察恢复不能绕过根/锁/门/发现或提前裸RBF修尾。RBF新增的IVT仅给测试程序集；现有public consumer仍只用public API。同步 out/OOM/必要close异常继续由Internal/Source负责。上述有限代表不外推任意字节切点、多缓冲输出、恢复再中断、物理设备故障或断电资格。
 
 包注册、隔离 PackageReference、发布、DurableGraph 接入及 CU 不属于本队列。S6 最低出口还要求隔离包消费，所以不能因源码 Accepted 宣布 S6 Accepted。
