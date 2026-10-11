@@ -36,10 +36,11 @@ internal static class VersionStoreFactory {
             operations.BeforeOwnerHandoff(root);
             // Only the explicitly internal hook path hands runtime observers to the owner.
             // Public calls and existing factory failure tests retain default runtime operations.
-            var files = new DirectoryVersionStoreFiles(root, testHooks is null ? null : operations);
+            var recoveryLog = new VersionStoreRecoveryLog();
+            var files = new DirectoryVersionStoreFiles(root, testHooks is null ? null : operations, recoveryLog);
             var store = new VersionStore(data, gate.VersionStoreId, gate.DataStoreId,
                 gate.ReservedRefIdUpperBound, readOnly: false, files,
-                ownerLock, testHooks, autoRefIdHighWatermark: gate.ReservedRefIdUpperBound);
+                ownerLock, testHooks, autoRefIdHighWatermark: gate.ReservedRefIdUpperBound, recoveryLog: recoveryLog);
             ownerLock = null;
             return store;
         }
@@ -77,10 +78,11 @@ internal static class VersionStoreFactory {
             files.QualifyPending(readOnly);
             operations.BeforeOwnerHandoff(root);
             // As in Create, runtime interception requires explicit internal test hooks.
-            var runtimeFiles = new DirectoryVersionStoreFiles(root, testHooks is null ? null : operations);
+            var recoveryLog = new VersionStoreRecoveryLog();
+            var runtimeFiles = new DirectoryVersionStoreFiles(root, testHooks is null ? null : operations, recoveryLog);
             var store = new VersionStore(data, gate.VersionStoreId, gate.DataStoreId,
                 gate.ReservedRefIdUpperBound, readOnly, runtimeFiles, ownerLock, testHooks,
-                autoRefIdHighWatermark: highWatermark);
+                autoRefIdHighWatermark: highWatermark, recoveryLog: recoveryLog);
             ownerLock = null;
             return store;
         }

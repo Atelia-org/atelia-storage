@@ -428,6 +428,29 @@ tag 桶继续先执行 [S5-B 专项](09-versionstore-immutable-tags.md)的初始
 Open 不默认扫描所有 ref 历史或 data 图；按需打开/校验目标文件，不将成功 Open 宣称为全库审计或全部根图健康证明。所有必要错误传播显式；资源/I/O fault 不被吞成缺对象。
 重开后已知 RefId 或当前库本地号用 ReadRef，tag 名用 checked ResolveTag；检查合格的正式 ref 即接受其当前发布事实，无需追溯旧调用结果，也不机械重复 create-only。当前同号/同值不改写某次旧调用的 outcome。指定号码可由应用预先保存，重开 checked 查询实际目标，但不成为尝试 token。自动创建 rename 后交付失败可留下 ref 而调用方无新号；ListRefs 可发现集合，不能按同值精确认领旧调用。动态恢复关联由应用在 payload 或其数据闭包保存业务身份并核对，不增加预交付 RefId 或自动重试。
 
+### spec [A-VS-RECOVERY-REPORTS] 惰性打开的成功物理恢复动作
+
+VersionStore MUST 提供以下诊断公面，恢复策略仍消费 `[R-VS-LOCAL-COMPLETE]` 和 RBF 的成功打开报告：
+
+```csharp
+public enum VersionStoreRecoveryFileKind { Ref, TagBucket }
+public readonly record struct VersionStoreRecoveryReport(
+    VersionStoreRecoveryFileKind FileKind,
+    uint LocalId,
+    RbfTailRecoveryReport Recovery);
+public IReadOnlyList<VersionStoreRecoveryReport> RecoveryReports { get; }
+```
+
+Ref 的 LocalId 为非零本地编号，TagBucket 为 0..1023 桶号；列表属于本 owner 的 VersionStoreId，独立导出日志时调用方一并保存该身份。报告只含诊断值，不公开路径、文件、lease 或业务发布凭据，不能签发 RefRevision。
+
+初始列表为空。所有可写 ref/tag 的惰性打开，包括普通读取/发布、精确读取/fork、history/ListForks 的临时 ref、CU peer、named tag 与 ScanTags 的桶，MUST 经共同通道累计 RBF 工厂成功返回的非 None 动作。缓存或已有扫描句柄借用不新增动作；后续健康打开的 None 不覆盖旧动作。只保留实际修尾动作，内存 O(动作数)，不建立所有健康打开的统计目录或承诺累计量硬上限。RO 不修尾、需恢复时拒绝；借入 FS 的独立恢复仍仅由 FS 自己报告。
+
+getter 返回只读、只追加的 live view，不复制全集。Count 可增长，已有项及其顺序 MUST 保持；fault/Dispose 后 getter、Count/indexer 和保存的 view 仍可读，不调用可用性 guard、不清台账。view 只持有动作值集合，不持有 owner/backend、文件、锁、lease 或捕获 owner 的 delegate，也不通过普通集合 cast/SyncRoot 暴露可写 backing。串行调用方可在操作前后保存 beforeCount/afterCount，再读取 `[beforeCount, afterCount)`；枚举不保证跨调用快照，需要冻结集合或异步交付时由调用方复制。
+
+实现 MUST 在可写 RBF 工厂前准备一项追加容量，成功返回句柄/report 后立即无分配追加非 None 动作，早于 tag 初始化恢复保护、VS 必要校验、资源移交与清理。底层修尾已经发生，上层 header/CU 校验失败、visitor 异常、取消、关闭失败或 owner 停用不撤销动作；仍沿原资源槽单次关闭、根锁最后释放的规则，不另建事件或 per-open reservation/commit 协议。
+
+报告不证明发布成立、root/data 图健康、某次旧调用 Confirmed 或全库已经检查。NotAttempted 可以伴随目标惰性修尾。RBF 工厂在修尾写入/截短、flush 或复检期间失败，可能已修改 bytes 而未成功交付报告；缺报告不证明未修改，不伪造 None 或完整失败取证。此 API 不增加 data 探测或耐久确认，不改变 PublicationOutcome、历史预算、CU 共同资格与 owned 清理合同。
+
 
 
 ## 实施与验收

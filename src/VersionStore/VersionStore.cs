@@ -37,7 +37,7 @@ public sealed partial class VersionStore : IDisposable {
     internal VersionStore(DataStore data, StoreIdentity versionStoreId, StoreIdentity boundDataStoreId,
         uint reservedRefIdUpperBound, bool readOnly, IVersionStoreFiles files, IDisposable ownerLock,
         VersionStoreTestHooks? testHooks = null, uint? autoRefIdHighWatermark = null,
-        IVersionStoreTagFiles? tagFiles = null) {
+        IVersionStoreTagFiles? tagFiles = null, VersionStoreRecoveryLog? recoveryLog = null) {
         ArgumentNullException.ThrowIfNull(data);
         ArgumentNullException.ThrowIfNull(files);
         ArgumentNullException.ThrowIfNull(ownerLock);
@@ -67,6 +67,7 @@ public sealed partial class VersionStore : IDisposable {
         _tagFiles = tagFiles ?? files as IVersionStoreTagFiles;
         _markOwnedCleanupFault = () => _faulted = true;
         _testHooks = testHooks;
+        RecoveryReports = (recoveryLog ?? new VersionStoreRecoveryLog()).Reports;
         IsReadOnly = readOnly;
         ReservedRefIdUpperBound = reservedRefIdUpperBound;
         _autoRefIdHighWatermark = highWatermark;
@@ -91,6 +92,14 @@ public sealed partial class VersionStore : IDisposable {
 
     /// <summary>创建后不可变的预留本地编号上界。</summary>
     public uint ReservedRefIdUpperBound { get; }
+
+    /// <summary>本 owner 累计的成功物理修尾动作，只读视图随惰性打开追加。</summary>
+    /// <remarks>
+    /// 初始为空，仅包含成功 RBF open 返回的非 None 动作；既有项和顺序不变。
+    /// getter 与保存的视图在 fault/Dispose 后仍可读。固定集合由调用方复制；
+    /// 枚举不提供跨调用快照保证。报告不证明发布成立、data 健康或旧调用 Confirmed。
+    /// </remarks>
+    public IReadOnlyList<VersionStoreRecoveryReport> RecoveryReports { get; }
 
     /// <summary>检查本 owner 和实际借入 data 的生命周期资格，不执行 I/O 或确认输出。</summary>
     /// <remarks>

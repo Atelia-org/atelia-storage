@@ -10,11 +10,14 @@ namespace Atelia.VersionStore.Internal.Storage;
 internal sealed partial class DirectoryVersionStoreFiles : IVersionStoreFiles, IVersionStoreTagFiles {
     private readonly string _root;
     private readonly VersionStoreFactoryOperations _operations;
+    private readonly VersionStoreRecoveryLog _recoveryLog;
 
-    internal DirectoryVersionStoreFiles(string admittedRoot, VersionStoreFactoryOperations? operations = null) {
+    internal DirectoryVersionStoreFiles(string admittedRoot, VersionStoreFactoryOperations? operations = null,
+        VersionStoreRecoveryLog? recoveryLog = null) {
         ArgumentNullException.ThrowIfNull(admittedRoot);
         _root = admittedRoot;
         _operations = operations ?? VersionStoreFactoryOperations.Default;
+        _recoveryLog = recoveryLog ?? new VersionStoreRecoveryLog();
     }
 
     internal static void CheckFreshInput(string root, VersionStoreFactoryOperations operations) {
@@ -108,7 +111,10 @@ internal sealed partial class DirectoryVersionStoreFiles : IVersionStoreFiles, I
         // The target token obtained actual spelling/type qualification; content recovery is lazy.
         VersionStorePlatform.RequireEnumeratedFile(target.Path, markOwnedCleanupFault);
         VersionStorePlatform.RequireFileOnFileSystem(_root, target.Path, markOwnedCleanupFault);
-        return _operations.OpenRef(target.Path, readOnly, out _);
+        if (!readOnly) { _recoveryLog.PrepareAppend(); }
+        IRbfFile file = _operations.OpenRef(target.Path, readOnly, out RbfTailRecoveryReport recovery);
+        if (!readOnly) { _recoveryLog.Record(VersionStoreRecoveryFileKind.Ref, target.LocalId, recovery); }
+        return file;
     }
 
     public AteliaResult<IReadOnlyList<uint>> ListRefIds(Action markOwnedCleanupFault) {

@@ -14,6 +14,7 @@ VersionStore 借入一个 FrameStore，发布不透明 root-payload bytes。每�
 - 自动/预留区指定 `CreateRef`、`ListRefs`、必要 header/head 校验、opaque bytes 自有读取与 data-first 的 `PublishRef`。
 - `ReadRevision`：精确重读同持久 VSID 的库签发 revision，返回原位置/时间和自有 root bytes；共同 CU 资格与目标尾 Fence 仍须成立。
 - 公共 `EnsureUsable`：先检查 VS 自身 Dispose/fault，再检查实际借入 data 的生命周期；纯检查无 I/O 或确认，失败不额外停用 VS。
+- `RecoveryReports`：本 owner 惰性打开 ref/tag 桶期间的成功物理修尾动作，只读累计视图；仅追加非 None 报告，fault/Dispose 后仍可读取。
 - `PublishRefs`：私有捕获实际输入，空批拒绝、单成员普通 Snapshot、至少两个成员 fresh CU；canonical 自绑定成员表、整批一次取时、data-first 与全部文件确认，返回自有只读 revision 字典。
 - `ReadRefHistory`：显式 `HistoryBudget`、固定完成尾上界、逐项 visitor、自有快照与 exact ForkOrigin 前缀接续；预算、早停和访问范围分别裁决。
 - 自动/预留区指定 `ForkRef`：精确读取已签发 revision，确认 data 后单独确认源 ref，原样复制 bytes 并发布带 ForkOrigin 的子文件；不扫描源后续历史。
@@ -38,6 +39,25 @@ RefBytesSnapshot exact = store.ReadRevision(saved).Unwrap();
 ```
 
 `ReadRevision` 支持 RO/RW，只接受 nondefault、同持久 VSID 的库签发值，并在发现 I/O 前拒绝 default/foreign 输入。它按既有模式惰性打开目标，重验必要 header、完成范围、完整 CRC/envelope/meta、CU 共同资格与成功目标的尾 Fence；合法未成立 CU 返回 `VersionStore.InvalidRefRecord`，不改选当前值或更旧点。该入口不确认 data/源文件、不发布或产生 Outcome。成员来源仍依赖库签发值、完整位置不删除/复用与无外部改写；无裸 ticket/位置构造或跨进程匿名 revision 导入。重读旧点不为重新定位目标扫描本地后缀；CU 必要 peer 与异长消歧仍可能访问多个文件。自有结果可在后续读、owner fault/Dispose 后继续使用。
+
+观察一次访问期间的物理恢复：
+
+```csharp
+IReadOnlyList<VersionStoreRecoveryReport> reports = store.RecoveryReports;
+int beforeCount = reports.Count;
+var result = store.ReadRef(refId);
+int afterCount = reports.Count;
+for (int index = beforeCount; index < afterCount; index++) {
+    VersionStoreRecoveryReport report = reports[index];
+    // report.FileKind / LocalId / Recovery
+}
+```
+
+`RecoveryReports` 初始为空，属于本 owner 的 VersionStoreId。`FileKind.Ref` 的 LocalId 是非零本地 ref 编号，`FileKind.TagBucket` 是 0..1023 桶号。普通 ref、历史/ListForks 临时 ref、CU peer、named tag 与 ScanTags 的可写惰性打开共享记录通道；借用已开句柄或以后同文件健康打开不会增加报告。RO 不修尾、需恢复时仍拒绝。
+
+保存的视图 Count 可以增长，已有项和顺序不变；读取 `[beforeCount, afterCount)` 获得本次新增动作，需要固定集合或异步交付日志时由调用方复制。枚举不提供跨调用快照保证。视图只保存动作值集合，不持有 owner、backend、文件或锁，也不暴露可写集合通道；getter、Count/indexer 和既有视图在 fault/Dispose 后仍可用。调用方仍按单 driver 串行操作。
+
+仅记录成功 RBF open 返回的非 None 动作；记录早于必要 header/CU/tag 初始化保护和资源移交检查，因此后续读取、visitor、取消或清理失败仍保留已执行动作，异常后也可取得 afterCount。报告不证明发布成立、root/data 图健康或旧调用 Confirmed，`NotAttempted` 可以伴随 lazy 修尾。RBF 工厂失败可能已改 bytes 却没有成功报告，台账不合成 None 或提供完整失败取证；借入 FS 的恢复报告仍归 FS。独立导出日志时一并保存 VersionStoreId，报告不签发 RefRevision。
 
 可独立运行的 [VersionStore.Smoke](../../tools/VersionStore.Smoke/README.md) 仅通过 public API 演示多根/循环 data、历史选点、两种 fork、rewind/tag 及新进程只读重开。solution 中的 SystemIntegration 测试另负责真实子进程锁矩阵和公开停点强杀；内部写入窗口、断电和包消费不由这些停点证明。 同一consumer的 resource-write/resource-read 提供16/64/256个ref的有限资源观察，平台实测和测量边界见 [V4-C记录](../../docs/VersionStore/12-versionstore-linux-resource-acceptance.md)。
 

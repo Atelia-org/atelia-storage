@@ -104,6 +104,8 @@ tags 是 S4 根准入认识的**可选普通目录**，初次建库不预建；�
 
 统一版本选择桶 header、记录与 meta schema，不选择 root 内容 codec；可变T只是尺寸。首 header 版本/身份/形状或尾随错误拒绝桶。后续未知 kind、重复 header、tombstone 或坏 meta 在 named 查询中属于未知名记录，在 ScanTags 中属于必要错误；不增加独立桶/记录版本、名称 CRC、索引或泛用 audit API。
 
+named 入口与 ScanTags 的可写桶打开共用 S4 `[A-VS-RECOVERY-REPORTS]` 的诊断通道。成功 RBF 修尾的非 None 动作在本篇初始化恢复保护和必要记录校验之前入账；后续拒绝不撤销动作。报告用 TagBucket/本地桶号标识，不按 tag 名产生第二份台账，缓存/当前扫描桶的借用不重复报告。
+
 以 checked 门、本次 VSID/BucketId 编码 header，令 H=RbfFile.MeasureWriteSize(24,0)，I=RbfScanBoundary.Empty.EndExclusive+H.AppendLength。共同首帧检查使用 ScanForward(showTombstone:true)：要求 Rbf3、首物理 offset、H.FrameLength、payload24、kind/meta/tombstone 匹配，再完整 CRC、精确解码比对；checked 后界须为I。缺首帧先查 TerminationError，不找后续替代。
 
 可写正式桶在 public RbfFile.OpenExisting 前用公共文件长度入口拒绝实际长度<I，先关闭探测句柄再进独占工厂。非 None 恢复须有 AffectedFrameOffset>=I，随后仍共同检查 header；只允许 header 后残尾恢复，不补造/认领 header。header body 完整但缺原 Key/Fence 也须在I前检拒绝，不能先 CompletedTail、下次 Action=None 收养。长度足够但 header 内容坏仍拒绝，不承诺底层尾恢复前完全不修改坏文件。只读用 OpenReadOnlyExisting，残尾拒绝且不修复。所有成功资格均消费公共工厂正常EOF/恢复边界，不另绕过工厂。

@@ -2,7 +2,7 @@
 
 VersionStore 借入一个 FrameStore，发布应用解释的不透明 root-payload bytes，并提供 ref、历史、fork、tag 与只读 Audit。公开用法见 [Atelia.VersionStore](../../src/VersionStore/README.md)。本页只做导航，不增加合同或重标验收范围。
 
-精确 revision 读取与公共组合 guard 已实施，新增资格见[下游公面增量验收](../FrameStore-VersionStore/14-downstream-api-refinement-acceptance.md)。当前跨层施工队列仅剩 VS 惰性恢复报告，统一见[下游公面完善计划](../FrameStore-VersionStore/14-downstream-api-refinement-plan.md)，不重复加入旧阶段队列。
+精确 revision 读取、公共组合 guard 与惰性物理 RecoveryReports 已实施，新增资格见[下游公面增量验收](../FrameStore-VersionStore/14-downstream-api-refinement-acceptance.md)。[下游公面完善计划](../FrameStore-VersionStore/14-downstream-api-refinement-plan.md)的获准施工队列已收束，只保留延后事项的重访条件，不重复加入旧阶段队列。
 
 ## 最小阅读路径
 

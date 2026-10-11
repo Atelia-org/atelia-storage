@@ -64,12 +64,14 @@ internal sealed partial class DirectoryVersionStoreFiles {
         long initializedLength = RbfScanBoundary.Empty.EndExclusive
             + RbfFile.MeasureWriteSize(TagBucketHeaderCodec.PayloadSize, 0).Unwrap().AppendLength;
         if (!readOnly) { CheckTagBucketLength(target.Path, initializedLength, markOwnedCleanupFault); }
+        if (!readOnly) { _recoveryLog.PrepareAppend(); }
 
         IRbfFile? file = null;
         CleanupErrors errors = default;
         try {
             try {
                 file = _operations.OpenTagBucket(target.Path, readOnly, out RbfTailRecoveryReport recovery);
+                if (!readOnly) { _recoveryLog.Record(VersionStoreRecoveryFileKind.TagBucket, target.BucketId, recovery); }
                 if (!readOnly && recovery.Action != RbfTailRecoveryAction.None
                     && (recovery.AffectedFrameOffset is not { } affected || affected < initializedLength)) {
                     throw new InvalidDataException("Tag bucket recovery must not alter its initialization prefix.");

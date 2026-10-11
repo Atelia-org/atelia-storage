@@ -2,6 +2,8 @@
 
 Atelia 的 .NET 10 存储基础库，使用 MIT 许可证。main 面向 **RBF3 / FrameStore / VersionStore 新栈**：当前底座为 `Atelia.Primitives`、`Atelia.Data`、`Atelia.Rbf`，另有独立的 `Atelia.Binary` 基元 codec（BCL + 纯托管 K4os.Compression.LZ4 `[1.3.8]`）；FrameStore 已实现[公开持久化闭环](src/FrameStore/README.md)，Inventory/Audit 同步物理检查已实现、已纳入本地候选包清单；VersionStore 已接通普通 ref 公开持久化闭环、有界历史读取、精确 fork 创建与声明分叉图查询，并已接通 tag 创建/解析、关联注记、元信息查询/扫描与冷重开、独立只读完整校验 Audit，以及多 ref 条件提交 `PublishRefs`（见 [实施计划](docs/VersionStore/12-versionstore-implementation-plan.md)）。
 
+下游反馈驱动的公面增量也已实施：VS 精确 `ReadRevision`、组合 `EnsureUsable` 和惰性 `RecoveryReports`，FS 用户 `Length` 与 `Payload`/`TailMeta` 切片。获准队列已收束，分片源码与实际运行资格见[增量验收](docs/FrameStore-VersionStore/14-downstream-api-refinement-acceptance.md)；旧六包候选不含 CU 或这些 API，包交付另行验证。
+
 现有 EventJournal、RbfSegmentStore、toolkit 及其测试保留原路径，作为 **RBF1 旧栈的冻结参考代码**。旧栈维护和公开交付归 `RBF1` 分支；main 不为它们适配新的底层 API。本轮依赖和交付入口拆分已 **Accepted**，方案与实际证据统一见 [RBF1 参考代码过渡方案](docs/rbf1-reference-transition.md)。
 
 | 当前边界 | 底层与交付方式 | 入口 |
