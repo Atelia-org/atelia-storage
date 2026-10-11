@@ -9,7 +9,10 @@
     <Project Path="src/RbfSegmentStore/RbfSegmentStore.csproj" />
     <Project Path="src/EventJournal/EventJournal.csproj" />
   </Folder>
-  <Folder Name="/tools/"><Project Path="tools/EventJournal.Toolkit/EventJournal.Toolkit.csproj" /></Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/EventJournal.Toolkit/EventJournal.Toolkit.csproj" />
+    <Project Path="tools/VersionStore.Smoke/VersionStore.Smoke.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/EventJournal.Validation/EventJournal.Validation.csproj" />
     <Project Path="tests/EventJournal.Toolkit.Tests/EventJournal.Toolkit.Tests.csproj" />

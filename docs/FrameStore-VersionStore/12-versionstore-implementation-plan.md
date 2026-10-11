@@ -132,6 +132,17 @@ VersionStore 与 FrameStore 均保持 source-only，新栈只引用 main 项目�
 
 实际构建、测试与独立审查记录见下方 V4-A 验证记录。下一片转入 V4-B 系统组合和真实进程验收，不再扩展完整检查为修复框架或报告系统。
 
+## V4-B：公开组合消费者与真实进程边界（2026-10-11）
+
+本轮从 `4fb6008` 的干净树开始，新增独立、非打包的 [VersionStore.Smoke](../../tools/VersionStore.Smoke/README.md) 与 SystemIntegration 父进程测试。消费者仅直接 ProjectReference VersionStore，使用 public API；不依赖测试程序集的 IVT、反射或生产故障接缝。没有修改生产协议、存储格式或 pack 清单。
+
+- 多根/循环图：两类应用记录、四个 RootMap 根、三种追加、提前地址/交错完成及软轮转；真实新进程遍历 A↔B/self、历史选点、两种 fork/fork-of-fork、rewind、匿名/关联 tag 与元信息查询，分别执行应用引用闭包和两层 Audit。
+- 跨进程锁：分别验证全栈和 VersionStore 独立 reader/writer 矩阵；后者仅在所有 seed owner 关闭后复制 data 夹具，保持 StoreId、隔离 data 锁，断言已成功打开 data 后才被 versionstore.lock 拒绝。这是测试隔离，不新增生产克隆能力。
+- 六个公开停点：未发布的完整 data、已确认 A 且无关 B 仍活跃、普通 ref / 指定 CreateRef / 精确 fork / 关联 tag 的 Confirmed 返回后。父进程核对 READY/PID 后强杀自己启动且仍持有 owner 的进程，再以新进程真实 RW→RO 工厂检查已发布状态和完整 data 闭包；还验证正常 Dispose 与强杀后释放锁。
+- 公开停点只证明 ProcessCrashOnly；没有截获内部 pending、rename、Append 或 flush 中途。不把恢复报告数量当成实际修尾，也不要求未发布 data 必须消失。S6 的应用 tool-loop/generation 场景、WSL2、有限资源测量和最终条款复核仍列入后续。
+
+实际命令、平台、运行结果与审查记录见下方 V4-B 验证记录。
+
 ## 后续顺序与验收出口
 
 | 分片 | 可审查交付物 | 必须保留的边界与验收 |
@@ -144,13 +155,16 @@ VersionStore 与 FrameStore 均保持 source-only，新栈只引用 main 项目�
 | V3-B：已接通匿名 tag 公开持久化闭环 | 可选 tags 目录及目标桶 backend、空桶发布、匿名 CreateTag/ResolveTag、公开冷重开 | 正式桶长度 I 前检保护初始化；空桶 rename 不推进 tag outcome；同柄元信息查重到 Append；同一 schema 写匿名 id0；借入/history/清理/Outcome 与 bytes 结果互操作 |
 | V3-C：已接通 tag 关联注记与元信息公面 | Related CreateTag overload；09 的自有 TagInfo、ReadTagInfo、ScanTags/TagScanEnd 与同步 callback | Related 不触发源重读/flush或签发revision；元信息成功不证明 root 健康；逐全已建桶、无 fullname 集合或整体重复证明；Complete/VisitorStopped、坏meta失败、取消/异常/Dispose/关闭及 TagScanActive 互操作；复用 V3-B 发布与 named 读取内核 |
 | V4-A：已接通独立完整校验 | Audit/VersionStoreAudit；只读全 ref/tag 与 fork 一致性 | 完整帧、真实主链 ticket、名称重复、失败/取消/清理及无恢复；不审 data 或 pending 内容 |
-| V4-B 及后续：系统验收 | public 消费例子、进程终止/资源与两平台矩阵、S4/S5/S6 条款映射 | 日常必要读取与完整校验分别取证；新旧/循环图、坏初始健康 head、应用解码失败、所有发布与清理窗口；不得将内部模拟、字节镜像或源码测试标成 public factory、真实 kill、断电或包资格 |
+| V4-B：公开组合与公开停点进程验收 | 独立 public 消费者、跨进程两层锁、六个明确停点的强杀/冷开 | 只证明已执行的 Windows public 停点；内部写入窗口、应用策略和两平台资格分别取证 |
+| V4-C 及后续：系统验收收尾 | WSL2、有限资源、S6 应用场景与 S4/S5/S6 条款映射 | 按已有证据裁决剩余缺口，不重做核心功能；内部模拟、字节镜像、真实 kill、断电和包资格分开 |
 
-V1 至 V4-A 已完成相应源码接线，后续不重做 ref 工厂、历史、fork、声明图、tag 公面或完整校验。下一轮优先 **V4-B：公开组合消费者与真实进程边界**：用仓内独立可运行的最小消费者把 S6 的多根/循环 data、历史选点/fork、rewind/tag 和冷重开串起来；在子进程中实际检查 reader/writer 锁冲突及有明确同步点的终止/重开轨迹。只验证 ProcessCrashOnly 和公开结果，不将手工坏字节或内部异常注入改标为 kill 证据，不引入应用框架、CU 或包注册。
+V1 至 V4-A 已完成相应源码接线，V4-B 已补公开图消费者与 Windows 真实进程边界。下一轮优先 **V4-C：WSL2 Linux 与有限资源验收**：在独立 ext4 源码快照中运行固定 SDK 的 Release 构建、完整测试和本轮 SystemIntegration；记录实际文件系统、源码身份与进程结果。用有限向量观察 Open/发现、历史/fork、tag 扫描和 Audit 的成本与资源，不把一次测量泛化为吞吐承诺。
+
+S6 尚余的 tool-loop Started/结果/uncertain 与 generation 串行合并，可复用本轮独立消费者作最小应用示例；若超出下一片容量，独立收尾，不引入应用框架。最终按条款逐项映射 V0–V4 的 public、内部受控故障与真实进程证据，明确是否还需补特定内部窗口，不能由 public 停点自动宣布整张中断矩阵完成。
 
 V3 续接只需保持现有窄分层：`Internal/Tags` 独立管理 codec/checked header/named 名称裁决；匿名与关联写入共用发布路径。元信息读取不需要完整 root 资格，ScanTags 严格传播记录错误；named 路径的 unknownName 隔离不能搬到完整校验。`_tagOperationFile` 为 named 查询短期 owned 槽；扫描桶、checked header 与目录 cursor 另持独立状态，以便同桶 callback 借用、跨桶查询独立关闭及 callback Dispose 时锁最后。不要以日常 ScanTags 成功代替完整校验。
 
-V4-B 后继续有限规模/资源观察、WSL2 Linux 执行，以及最终独立条款复核；可按实际风险拆片，平台发现的问题优先修正。核心公开能力与完整检查已经齐备，剩余缺口是系统证据与最终验收，不应扩展功能清单或重开已定设计。
+V4-C 继续有限规模/资源观察、WSL2 Linux 执行，以及最终独立条款复核；可按实际风险拆片，平台发现的问题优先修正。核心公开能力与完整检查已经齐备，剩余缺口是系统证据与最终验收，不应扩展功能清单或重开已定设计。
 
 V2 的底座增量已由 [RBF 边界逆扫记录](../Rbf/rbf-reverse-boundary-plan.md)接入公共接口合同。普通当前值与普通 PublishRef 不依赖它，V1 证据保持原身份。ForkOrigin 元数据可在 V0 编解码，V2-A 读取既有声明并检验 exact 源/bytes；V2-B 已用正式源读取/确认与子发布建立公开 fork 创建闭环。
 
@@ -162,7 +176,7 @@ CU 在正式选型同步 S0/S4/S5 前不进入上述默认队列；尤其不能�
 
 后续在 WSL 的 Linux 文件系统上建立独立、对应明确源码 revision 的检出或源码副本，并在其中还原、Release 构建和测试；bin/obj、日志及测试临时目录与 Windows 隔离。Linux 文件语义验收的测试文件放在 ext4 等 Linux 文件系统，不以 `/mnt/e` 上的 Windows 挂载目录代替；如专测挂载边界，分别记录两侧实际文件系统。保留发行版、内核、SDK、源码身份、实际测试路径/文件系统、TRX与进程实验结果，区分 WSL2/Linux 执行与 Windows 原生执行；不将 WSL2 结果外推为全部 Linux 部署环境、断电或物理设备故障资格。
 
-V4-A 完成后，按当前剩余范围暂估 **2–4轮**：含WSL2的系统组合/进程终止/有限资源验收约1–3轮，最终独立复核与收尾约1轮。此前建议的5轮加1轮余量队列可继续使用，按实际反例和验证结果调整，不将轮数作为必须用满的任务量。既定范围完成后停止；若出现具体环境或产品决策阻碍，记录事实与剩余项后结束本轮。打包发布、业务仓接入和CU不随该队列自动启动。
+V4-B 完成后，按当前剩余范围暂估 **2–3轮**：WSL2/有限资源及剩余应用场景约1–2轮，最终条款复核与必要补证约1轮。此前建议的5轮加1轮余量队列可继续使用，按实际反例和验证结果调整，不将轮数作为必须用满的任务量。既定范围完成后停止；若出现具体环境或产品决策阻碍，记录事实与剩余项后结束本轮。打包发布、业务仓接入和CU不随该队列自动启动。
 
 ## 每轮结束时的交接要求
 
@@ -286,3 +300,18 @@ W: 真实公开工厂覆盖关联实际 slice、输入归池后的冻结值、�
 首次生产编译发现一处把OptionalRbfFrameInfo当nullable进行pattern matching的错误，已改为HasValue/Value。首次定向90通过、2失败，原因是测试BCL AggregateException.Flatten按广度展开而改变嵌套主错观察顺序；已改为沿原异常树深度遍历，与既有测试一致，生产聚合规则未改变。修正后重新build、全部新增项和完整solution均通过。初次底座编译41项既有XML warning未扩大清理，最终增量构建零warning。
 
 `eng/Test-Rbf1ReferenceAssets.ps1`确认7个冻结参考项目的精确RBF1包与来源；VersionStore的五个Atelia依赖均为main project，K4os.Compression.LZ4保持1.3.8。未修改底座或pack清单，未打包/发布/push或迁移消费者。S4/S5/S6仍为Draft；没有产品决策阻塞，下一片V4-B按上文进入公开组合和真实进程边界，随后纳入WSL2 Linux、有限资源证据与最终独立复核。
+
+
+## V4-B 验证记录（2026-10-11）
+
+主线程最终 Release build **0 error、0 warning**；新增 SystemIntegration **19/19通过**。完整 `dotnet test Atelia.Storage.slnx -c Release --no-build` 为 **3429通过、0失败、9项Linux专属测试跳过**；VersionStore **1166通过、6跳过**。定向与完整回归各自启动71个子进程、10个真实强杀，其余61个正常退出；两次运行是同一19项向量，不合并宣称38项独立覆盖。Windows 10.0.22000 / .NET SDK 10.0.201，过程夹具位于 `W:/TEMP`（NTFS）。命令、9份完整TRX、日志、逐进程证据摘要及源码身份见 [V4-B证据](evidence/2026-10-11-versionstore-v4b.json)。
+
+公开图得到4 refs、11个本地 Snapshot、3 forks、3 tags、24个data帧；写与两次冷只读验证各在独立进程，RO前后文件集合和SHA-256完全不变。所有数据读取沿真实地址，包含A↔B/self、三种追加、交错完成与多代逆序申请。进程另用非RootMap的opaque应用格式验证确认后的bytes和完整引用闭包。
+
+锁矩阵分别证明FrameStore和VersionStore的reader共享/writer排斥，拒绝具体落在对应lock文件的Windows原生code32；VS隔离先成功打开具有同StoreId的冷镜像data。正常release与实际kill后均可重新取得writer。六个公开停点无正常退场路径，父端核对READY中的PID/Outcome后强杀并等待退出，再启动验证进程；A确认时B的真实writer仍可访问，完成依赖与B的file关系由公开地址wire检查。
+
+本轮所有data恢复报告实际为 `None`，原始/最终长度相同；活跃Builder中的未完成bytes尚在buffer，没有实证物理修尾。未发布的完整data在这两次运行中均留下，ref仍为旧值；这是观察，不成为未确认data必存合同。内部pending/rename/flush中途、OS关闭/设备失败、断电、WSL2和应用tool-loop/generation仍不在本轮实际取证内。
+
+独立源码复核无未解决P1/P2。运行前修正父进程构造失败后的child回收责任、锁异常必须排除Aggregate并按OS精确识别、活跃Builder不能只靠场景标记。构建/定向/完整运行均无失败；首次底座重新构建出现41项既有Data/Rbf XML warning，最终增量构建零warning，未作范围外清理。生产库源码未变。
+
+`eng/Test-Rbf1ReferenceAssets.ps1`确认7个冻结参考项目仍消费精确RBF1包与来源；独立consumer仅直接ProjectReference VersionStore，实际六个Atelia依赖均为main project，唯一外部runtime codec依赖K4os.Compression.LZ4保持1.3.8。没有打包、发布、push或业务仓迁移；S4/S5/S6保持Draft/source-only。没有产品决策阻碍；下一轮V4-C按上文完成WSL2/有限资源，并保持剩余应用场景和最终条款复核可见。

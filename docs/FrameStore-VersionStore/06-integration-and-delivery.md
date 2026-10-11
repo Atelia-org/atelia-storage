@@ -1,6 +1,6 @@
 # S6：消费者验证、公共包与交付
 
-状态：**Draft；FrameStore S2/S3独立源码验收已Accepted并保持source-only；VersionStore 已接通普通 ref 公开闭环、有界历史读取、精确 fork 创建与声明分叉图查询；本阶段完整端到端集成、包与消费者切换尚未实施（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。
+状态：**Draft；FrameStore S2/S3独立源码验收已Accepted并保持source-only；VersionStore 已接通普通 ref 公开闭环、有界历史读取、精确 fork 创建与声明分叉图查询；V4-B 已补仓内 public 图消费者及 Windows 公开停点真实进程验收，系统验收收尾、包与消费者切换仍待完成（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。本篇只负责组合、包与交付证据，不反向定义前序协议；ref/history/fork先验证，09 tag施工后补齐完整组合。FrameAddress变长增量资格见[实施记录](02-framestore-varint-address-implementation.md)。
 
 ## 本阶段目标
@@ -17,7 +17,7 @@ DurableGraph 是需求来源；S0 已记录兄弟仓的定位观察，实际接�
 
 两个模型用同一套 public API 写 data、自动或指定 CreateRef、PublishRef/ReadRef，枚举旧快照、创建 tag 并冷重开。固定角色用预留号，动态目录保存 LocalId 并在正确库 checked 定位。所选真实 revision 经自动/指定 ForkRef 建立精确 ForkOrigin 与初始 Snapshot，一次 file rename 发布；只传 roots 表示无来源起点。ReadRefHistory 遍历继承前缀，ListForks 查询全部声明边；无 CreateCommit/PreparedPublication 或默认多对象事务。
 覆盖相同字典的重复发布、新旧 revision 分离与多个 tag；ReadRefHistory 固定完成上界，经同步 visitor 交付自有 RefBytesSnapshot，调用结束后旧字典仍可使用。rewind 追加旧字典，保留全部既有完整记录。不同 Builder 申请/完成次序构建相同逻辑图时，只按返回地址取回，不依靠文件选择或大小排序。
-这些是仓内可独立运行的最小消费者，不是 DurableGraph 已接入的证据。
+仓内已提供可独立运行的 [VersionStore.Smoke](../../tools/VersionStore.Smoke/README.md)：多根/循环图、历史选点/fork/rewind/tag 由新进程冷读验证。Windows 两层锁与六个公开停点的实际强杀见 [V4-B 记录](12-versionstore-implementation-plan.md#v4-b-验证记录2026-10-11)。这不是 DurableGraph 接入、内部写入窗口或整张 S6 矩阵完成的证据。
 
 ## 两类需求的最小消费者
 

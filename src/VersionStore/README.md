@@ -21,6 +21,8 @@ VersionStore 借入一个 FrameStore，发布不透明 root-payload bytes。每�
 
 核心公开闭环为 `Create → CreateRef → PublishRef → ReadRef/ReadRefHistory → Dispose → Open/RO → ReadRef/ReadRefHistory`。两种 `ForkRef` 已接通，并用公开创建和两层冷重开验证继承历史。`ListForks` 已可查询全部正式 ref 的声明分叉图。tag 公开闭环、关联 overload、ReadTagInfo 与 ScanTags 已接通；只读完整校验 `Audit` 已接通。Windows 源码测试与 Linux、进程终止、包消费资格分别记录，见实施计划。
 
+可独立运行的 [VersionStore.Smoke](../../tools/VersionStore.Smoke/README.md) 仅通过 public API 演示多根/循环 data、历史选点、两种 fork、rewind/tag 及新进程只读重开。solution 中的 SystemIntegration 测试另负责真实子进程锁矩阵和公开停点强杀；内部写入窗口、断电和包消费不由这些停点证明。
+
 历史调用示例：
 
 ```csharp

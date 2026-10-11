@@ -1,0 +1,1221 @@
+{
+  "date": "2026-10-11",
+  "scope": "VersionStore V4-B public source consumer and Windows process boundaries; source-only",
+  "baseline": "4fb6008af429711d87b71dd82a93bb57724d40ca",
+  "sourceIdentity": "Baseline plus source/build files below, committed with this record. Text hashes normalize CRLF to LF.",
+  "platform": "Windows-11-10.0.22000-SP0",
+  "sdk": "10.0.201",
+  "processFixtureRoot": "W:/TEMP/atelia-versionstore-process/<GUID>",
+  "processFixtureFileSystem": "NTFS",
+  "commands": [
+    "dotnet build Atelia.Storage.slnx -c Release --nologo -v minimal",
+    "dotnet test tests/VersionStore.Tests/VersionStore.Tests.csproj -c Release --no-build --filter 'FullyQualifiedName~.SystemIntegration.' --logger trx --results-directory artifacts/versionstore-v4b/targeted",
+    "dotnet test Atelia.Storage.slnx -c Release --no-build --logger trx --results-directory artifacts/versionstore-v4b/accepted-tests",
+    "./eng/Test-Rbf1ReferenceAssets.ps1"
+  ],
+  "processEvidenceEnvironment": "VERSIONSTORE_PROCESS_EVIDENCE_DIRECTORY points respectively to targeted-processes and full-processes under artifacts/versionstore-v4b",
+  "build": {
+    "success": true,
+    "warnings": 0,
+    "errors": 0,
+    "initialExistingXmlWarnings": 41
+  },
+  "targeted": [
+    {
+      "path": "artifacts/versionstore-v4b/targeted/gdtutu_TUTU17_2026-10-11_13_08_25.trx",
+      "sha256": "7c8e9da0c0fd4c3a2d24a19c2969ed9665608ab9d0332806e6fe88b92006b456",
+      "assembly": "Atelia.VersionStore.Tests.dll",
+      "results": {
+        "Passed": 19
+      }
+    }
+  ],
+  "fullOutcomes": {
+    "Passed": 3429,
+    "NotExecuted": 9
+  },
+  "fullTestRuns": [
+    {
+      "path": "artifacts/versionstore-v4b/accepted-tests/gdtutu_TUTU17_2026-10-11_13_09_04.trx",
+      "sha256": "135bf081ddec40d2d243e468d2b9a1abf2bc8af35e7a4a0846031f2a173ee1ed",
+      "assembly": "Atelia.Primitives.Tests.dll",
+      "results": {
+        "Passed": 75
+      }
+    },
+    {
+      "path": "artifacts/versionstore-v4b/accepted-tests/gdtutu_TUTU17_2026-10-11_13_09_04[1].trx",
+      "sha256": "09e12c60dabfe441d62985acd2524bcd4fcd4ced353286ef5e8a65311993ecd4",
+      "assembly": "Atelia.Binary.Tests.dll",
+      "results": {
+        "Passed": 214
+      }
+    },
+    {
+      "path": "artifacts/versionstore-v4b/accepted-tests/gdtutu_TUTU17_2026-10-11_13_09_04[2].trx",
+      "sha256": "e1c89ca0f1d6cc817700e1f8315fe6a4ed2621419b5d237f52970b02d9f6a76d",
+      "assembly": "Atelia.Data.Tests.dll",
+      "results": {
+        "Passed": 288
+      }
+    },
+    {
+      "path": "artifacts/versionstore-v4b/accepted-tests/gdtutu_TUTU17_2026-10-11_13_09_04[3].trx",
+      "sha256": "b6b0613f82ffd4cb031812ddb29f6a19a274d77212af4796d3d5ae94dbfe74b6",
+      "assembly": "Atelia.FrameStore.Tests.dll",
+      "results": {
+        "NotExecuted": 3,
+        "Passed": 422
+      }
+    },
+    {
+      "path": "artifacts/versionstore-v4b/accepted-tests/gdtutu_TUTU17_2026-10-11_13_09_04[4].trx",
+      "sha256": "1efd105c3c64cedc1c34e2663e037805272454d7ca677cb0e40c2230c45ae37b",
+      "assembly": "Atelia.EventJournal.Tests.dll",
+      "results": {
+        "Passed": 174
+      }
+    },
+    {
+      "path": "artifacts/versionstore-v4b/accepted-tests/gdtutu_TUTU17_2026-10-11_13_09_05.trx",
+      "sha256": "b6cdc867358e80e4589a5d452b17cff7b216918153aab0db635da7b584fba727",
+      "assembly": "Atelia.RbfSegmentStore.Tests.dll",
+      "results": {
+        "Passed": 48
+      }
+    },
+    {
+      "path": "artifacts/versionstore-v4b/accepted-tests/gdtutu_TUTU17_2026-10-11_13_09_05[1].trx",
+      "sha256": "1865a5350dbf959f2b038b8b522a3ba9592325fd25922bbe04f6f25d15b88497",
+      "assembly": "Atelia.EventJournal.Toolkit.Tests.dll",
+      "results": {
+        "Passed": 122
+      }
+    },
+    {
+      "path": "artifacts/versionstore-v4b/accepted-tests/gdtutu_TUTU17_2026-10-11_13_09_05[2].trx",
+      "sha256": "99d3bc46818110e5beaa950dd489d92c7ede51059d5baa4a015fe70b938ddd5a",
+      "assembly": "Atelia.Rbf.Tests.dll",
+      "results": {
+        "Passed": 920
+      }
+    },
+    {
+      "path": "artifacts/versionstore-v4b/accepted-tests/gdtutu_TUTU17_2026-10-11_13_09_05[3].trx",
+      "sha256": "e25906e9815e5c1c9c747dac0836c5ad061ae37c9b27248975a48e0e0421f16f",
+      "assembly": "Atelia.VersionStore.Tests.dll",
+      "results": {
+        "Passed": 1166,
+        "NotExecuted": 6
+      }
+    }
+  ],
+  "processRuns": [
+    {
+      "run": "targeted-processes",
+      "processes": 71,
+      "killed": 10,
+      "normalExit": 61,
+      "manifest": {
+        "path": "artifacts/versionstore-v4b/targeted-processes-manifest.json",
+        "sha256": "1f5c9f7689c770946845bf030432f7c5c43b8fdb73e0b31ebaea6a78a0866862"
+      },
+      "graphResults": [
+        {
+          "status": "ok",
+          "scenario": "graph-read",
+          "pid": 33340,
+          "refs": 4,
+          "snapshots": 11,
+          "forks": 3,
+          "tags": 3,
+          "tagBuckets": 3,
+          "dataFrames": 24,
+          "dataFiles": 18
+        },
+        {
+          "status": "ok",
+          "scenario": "graph-write",
+          "pid": 20956,
+          "refs": 4,
+          "snapshots": 11,
+          "forks": 3,
+          "tags": 3
+        },
+        {
+          "status": "ok",
+          "scenario": "graph-read",
+          "pid": 33676,
+          "refs": 4,
+          "snapshots": 11,
+          "forks": 3,
+          "tags": 3,
+          "tagBuckets": 3,
+          "dataFrames": 24,
+          "dataFiles": 18
+        }
+      ],
+      "lockRejections": [
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 18672,
+          "mode": "vs-write",
+          "stage": "versions",
+          "dataOpened": true,
+          "nativeCode": 32,
+          "lockFile": "versionstore.lock",
+          "errorType": "System.IO.IOException"
+        },
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 30636,
+          "mode": "write",
+          "stage": "data",
+          "dataOpened": false,
+          "nativeCode": 32,
+          "lockFile": "framestore.lock",
+          "errorType": "System.IO.IOException"
+        },
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 19344,
+          "mode": "vs-read",
+          "stage": "versions",
+          "dataOpened": true,
+          "nativeCode": 32,
+          "lockFile": "versionstore.lock",
+          "errorType": "System.IO.IOException"
+        },
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 22312,
+          "mode": "read",
+          "stage": "data",
+          "dataOpened": false,
+          "nativeCode": 32,
+          "lockFile": "framestore.lock",
+          "errorType": "System.IO.IOException"
+        },
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 15576,
+          "mode": "write",
+          "stage": "data",
+          "dataOpened": false,
+          "nativeCode": 32,
+          "lockFile": "framestore.lock",
+          "errorType": "System.IO.IOException"
+        },
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 20676,
+          "mode": "vs-write",
+          "stage": "versions",
+          "dataOpened": true,
+          "nativeCode": 32,
+          "lockFile": "versionstore.lock",
+          "errorType": "System.IO.IOException"
+        }
+      ],
+      "crashReady": [
+        {
+          "kind": "ready",
+          "command": "crash-worker",
+          "pid": 22760,
+          "checkpoint": "fork-confirmed",
+          "outcome": "Confirmed",
+          "activeBuilder": false,
+          "leftAddress": null,
+          "buildingAddress": null,
+          "rightAddress": null,
+          "publicBoundary": "after-call-before-owner-dispose"
+        },
+        {
+          "kind": "ready",
+          "command": "crash-worker",
+          "pid": 29092,
+          "checkpoint": "confirmed-a-active-b",
+          "outcome": "Confirmed",
+          "activeBuilder": true,
+          "leftAddress": "AQAAAAwAAKQAAAAA",
+          "buildingAddress": "AQAAAAcEANgAAAAA",
+          "rightAddress": "AgAAAAwAADwAAAAA",
+          "publicBoundary": "after-call-before-owner-dispose"
+        },
+        {
+          "kind": "ready",
+          "command": "crash-worker",
+          "pid": 6024,
+          "checkpoint": "tag-confirmed",
+          "outcome": "Confirmed",
+          "activeBuilder": false,
+          "leftAddress": null,
+          "buildingAddress": null,
+          "rightAddress": null,
+          "publicBoundary": "after-call-before-owner-dispose"
+        },
+        {
+          "kind": "ready",
+          "command": "crash-worker",
+          "pid": 17396,
+          "checkpoint": "unpublished-data",
+          "outcome": "NotAttempted",
+          "activeBuilder": false,
+          "leftAddress": null,
+          "buildingAddress": null,
+          "rightAddress": null,
+          "publicBoundary": "after-call-before-owner-dispose"
+        },
+        {
+          "kind": "ready",
+          "command": "crash-worker",
+          "pid": 29220,
+          "checkpoint": "create-confirmed",
+          "outcome": "Confirmed",
+          "activeBuilder": false,
+          "leftAddress": null,
+          "buildingAddress": null,
+          "rightAddress": null,
+          "publicBoundary": "after-call-before-owner-dispose"
+        },
+        {
+          "kind": "ready",
+          "command": "crash-worker",
+          "pid": 13736,
+          "checkpoint": "ref-confirmed",
+          "outcome": "Confirmed",
+          "activeBuilder": false,
+          "leftAddress": null,
+          "buildingAddress": null,
+          "rightAddress": null,
+          "publicBoundary": "after-call-before-owner-dispose"
+        }
+      ],
+      "verifications": [
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 7372,
+          "checkpoint": "unpublished-data",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 1,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 30028,
+          "checkpoint": "fork-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 164,
+              "finalLength": 164,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 2,
+          "refCount": 2,
+          "snapshotCount": 2,
+          "forkCount": 1,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 12080,
+          "checkpoint": "unpublished-data",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 1,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 27740,
+          "checkpoint": "create-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 2,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 5492,
+          "checkpoint": "confirmed-a-active-b",
+          "roPasses": 2,
+          "recoveryReports": 2,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 216,
+              "finalLength": 216,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            },
+            {
+              "fileId": 2,
+              "action": "None",
+              "originalLength": 112,
+              "finalLength": 112,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 25552,
+          "checkpoint": "tag-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 1,
+          "forkCount": 0,
+          "tagCount": 1,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 37264,
+          "checkpoint": "fork-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 164,
+              "finalLength": 164,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 2,
+          "refCount": 2,
+          "snapshotCount": 2,
+          "forkCount": 1,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 37768,
+          "checkpoint": "create-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 2,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 30516,
+          "checkpoint": "tag-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 1,
+          "forkCount": 0,
+          "tagCount": 1,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 27108,
+          "checkpoint": "ref-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 26708,
+          "checkpoint": "ref-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 34472,
+          "checkpoint": "confirmed-a-active-b",
+          "roPasses": 2,
+          "recoveryReports": 2,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 216,
+              "finalLength": 216,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            },
+            {
+              "fileId": 2,
+              "action": "None",
+              "originalLength": 112,
+              "finalLength": 112,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        }
+      ]
+    },
+    {
+      "run": "full-processes",
+      "processes": 71,
+      "killed": 10,
+      "normalExit": 61,
+      "manifest": {
+        "path": "artifacts/versionstore-v4b/full-processes-manifest.json",
+        "sha256": "63bd7928ec72ee28392fba67cf555e5784df150e1424bdac3c5b4eacba1a21d8"
+      },
+      "graphResults": [
+        {
+          "status": "ok",
+          "scenario": "graph-write",
+          "pid": 36312,
+          "refs": 4,
+          "snapshots": 11,
+          "forks": 3,
+          "tags": 3
+        },
+        {
+          "status": "ok",
+          "scenario": "graph-read",
+          "pid": 24220,
+          "refs": 4,
+          "snapshots": 11,
+          "forks": 3,
+          "tags": 3,
+          "tagBuckets": 3,
+          "dataFrames": 24,
+          "dataFiles": 18
+        },
+        {
+          "status": "ok",
+          "scenario": "graph-read",
+          "pid": 7276,
+          "refs": 4,
+          "snapshots": 11,
+          "forks": 3,
+          "tags": 3,
+          "tagBuckets": 3,
+          "dataFrames": 24,
+          "dataFiles": 18
+        }
+      ],
+      "lockRejections": [
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 35920,
+          "mode": "write",
+          "stage": "data",
+          "dataOpened": false,
+          "nativeCode": 32,
+          "lockFile": "framestore.lock",
+          "errorType": "System.IO.IOException"
+        },
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 31148,
+          "mode": "vs-write",
+          "stage": "versions",
+          "dataOpened": true,
+          "nativeCode": 32,
+          "lockFile": "versionstore.lock",
+          "errorType": "System.IO.IOException"
+        },
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 29220,
+          "mode": "write",
+          "stage": "data",
+          "dataOpened": false,
+          "nativeCode": 32,
+          "lockFile": "framestore.lock",
+          "errorType": "System.IO.IOException"
+        },
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 20984,
+          "mode": "vs-read",
+          "stage": "versions",
+          "dataOpened": true,
+          "nativeCode": 32,
+          "lockFile": "versionstore.lock",
+          "errorType": "System.IO.IOException"
+        },
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 21464,
+          "mode": "read",
+          "stage": "data",
+          "dataOpened": false,
+          "nativeCode": 32,
+          "lockFile": "framestore.lock",
+          "errorType": "System.IO.IOException"
+        },
+        {
+          "kind": "rejected",
+          "command": "probe",
+          "pid": 27924,
+          "mode": "vs-write",
+          "stage": "versions",
+          "dataOpened": true,
+          "nativeCode": 32,
+          "lockFile": "versionstore.lock",
+          "errorType": "System.IO.IOException"
+        }
+      ],
+      "crashReady": [
+        {
+          "kind": "ready",
+          "command": "crash-worker",
+          "pid": 34128,
+          "checkpoint": "ref-confirmed",
+          "outcome": "Confirmed",
+          "activeBuilder": false,
+          "leftAddress": null,
+          "buildingAddress": null,
+          "rightAddress": null,
+          "publicBoundary": "after-call-before-owner-dispose"
+        },
+        {
+          "kind": "ready",
+          "command": "crash-worker",
+          "pid": 29796,
+          "checkpoint": "create-confirmed",
+          "outcome": "Confirmed",
+          "activeBuilder": false,
+          "leftAddress": null,
+          "buildingAddress": null,
+          "rightAddress": null,
+          "publicBoundary": "after-call-before-owner-dispose"
+        },
+        {
+          "kind": "ready",
+          "command": "crash-worker",
+          "pid": 37044,
+          "checkpoint": "confirmed-a-active-b",
+          "outcome": "Confirmed",
+          "activeBuilder": true,
+          "leftAddress": "AQAAAAwAAKQAAAAA",
+          "buildingAddress": "AQAAAAcEANgAAAAA",
+          "rightAddress": "AgAAAAwAADwAAAAA",
+          "publicBoundary": "after-call-before-owner-dispose"
+        },
+        {
+          "kind": "ready",
+          "command": "crash-worker",
+          "pid": 33496,
+          "checkpoint": "tag-confirmed",
+          "outcome": "Confirmed",
+          "activeBuilder": false,
+          "leftAddress": null,
+          "buildingAddress": null,
+          "rightAddress": null,
+          "publicBoundary": "after-call-before-owner-dispose"
+        },
+        {
+          "kind": "ready",
+          "command": "crash-worker",
+          "pid": 33640,
+          "checkpoint": "unpublished-data",
+          "outcome": "NotAttempted",
+          "activeBuilder": false,
+          "leftAddress": null,
+          "buildingAddress": null,
+          "rightAddress": null,
+          "publicBoundary": "after-call-before-owner-dispose"
+        },
+        {
+          "kind": "ready",
+          "command": "crash-worker",
+          "pid": 11664,
+          "checkpoint": "fork-confirmed",
+          "outcome": "Confirmed",
+          "activeBuilder": false,
+          "leftAddress": null,
+          "buildingAddress": null,
+          "rightAddress": null,
+          "publicBoundary": "after-call-before-owner-dispose"
+        }
+      ],
+      "verifications": [
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 28088,
+          "checkpoint": "ref-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 13596,
+          "checkpoint": "unpublished-data",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 1,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 20728,
+          "checkpoint": "unpublished-data",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 1,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 21928,
+          "checkpoint": "fork-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 164,
+              "finalLength": 164,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 2,
+          "refCount": 2,
+          "snapshotCount": 2,
+          "forkCount": 1,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 29924,
+          "checkpoint": "confirmed-a-active-b",
+          "roPasses": 2,
+          "recoveryReports": 2,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 216,
+              "finalLength": 216,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            },
+            {
+              "fileId": 2,
+              "action": "None",
+              "originalLength": 112,
+              "finalLength": 112,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 6796,
+          "checkpoint": "confirmed-a-active-b",
+          "roPasses": 2,
+          "recoveryReports": 2,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 216,
+              "finalLength": 216,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            },
+            {
+              "fileId": 2,
+              "action": "None",
+              "originalLength": 112,
+              "finalLength": 112,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 27196,
+          "checkpoint": "create-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 2,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 34380,
+          "checkpoint": "fork-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 164,
+              "finalLength": 164,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 2,
+          "refCount": 2,
+          "snapshotCount": 2,
+          "forkCount": 1,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 29604,
+          "checkpoint": "ref-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 25496,
+          "checkpoint": "tag-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 1,
+          "forkCount": 0,
+          "tagCount": 1,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 9004,
+          "checkpoint": "create-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 2,
+          "snapshotCount": 2,
+          "forkCount": 0,
+          "tagCount": 0,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        },
+        {
+          "kind": "completed",
+          "command": "verify",
+          "pid": 27312,
+          "checkpoint": "tag-confirmed",
+          "roPasses": 2,
+          "recoveryReports": 1,
+          "recoveryDetails": [
+            {
+              "fileId": 1,
+              "action": "None",
+              "originalLength": 268,
+              "finalLength": 268,
+              "affectedFrameOffset": null,
+              "frameTicket": null
+            }
+          ],
+          "dataFrames": 4,
+          "refCount": 1,
+          "snapshotCount": 1,
+          "forkCount": 0,
+          "tagCount": 1,
+          "opaqueAndDataClosure": true,
+          "internalFlushRenameWindowsCovered": false
+        }
+      ]
+    }
+  ],
+  "dependencies": {
+    "smokeProjectReferences": [
+      "../../src/VersionStore/VersionStore.csproj"
+    ],
+    "resolvedProjects": {
+      "Atelia.Binary/1.0.0": "project",
+      "Atelia.Data/1.0.0": "project",
+      "Atelia.FrameStore/1.0.0": "project",
+      "Atelia.Primitives/1.0.0": "project",
+      "Atelia.Rbf/1.0.0": "project",
+      "Atelia.VersionStore/1.0.0": "project"
+    },
+    "runtimePackages": {
+      "K4os.Compression.LZ4/1.3.8": "package"
+    },
+    "frozenReferenceProjectsVerified": 7,
+    "frozenRbfVersion": "0.2.0-rbf1-preview.1",
+    "frozenSource": "3e9554e2ea70f769607e80b3fc11a85506050533"
+  },
+  "logs": [
+    {
+      "path": "artifacts/versionstore-v4b/accepted-build.log",
+      "sha256": "0ba05d6a5b824583b4748ec149c4e091760c9af90ff9943be2dada1210bce051"
+    },
+    {
+      "path": "artifacts/versionstore-v4b/accepted-tests.log",
+      "sha256": "8c80d880edcab8c4aa7dfb9975df9744b60ab6878a5187fd621f39d02edad978"
+    },
+    {
+      "path": "artifacts/versionstore-v4b/build.log",
+      "sha256": "663c57c9bf88c50c710322dbecfbedfcd8e35d2d7f08b50c3ba1fdac039d2fbc"
+    },
+    {
+      "path": "artifacts/versionstore-v4b/dotnet-info.log",
+      "sha256": "583c33d0b09a1d6e1f7a440e844a2c161c83339790628ab627ec967823b579f7"
+    },
+    {
+      "path": "artifacts/versionstore-v4b/rbf1-assets.log",
+      "sha256": "75997e0656849e10b55138a4500b10da8c61d34feca82a27c2e364995a4738d0"
+    },
+    {
+      "path": "artifacts/versionstore-v4b/targeted.log",
+      "sha256": "0dd860b925f9f98650e6e8d2fcad428b5ef51fa133657163b7f813c4089ff6ab"
+    },
+    {
+      "path": "artifacts/versionstore-v4b/drives.json",
+      "sha256": "d4cac710afb4d409d3239a9204e094b41ebf192cd720c4ee77a40557d59cea15"
+    }
+  ],
+  "sourceFiles": [
+    {
+      "path": "Atelia.Storage.slnx",
+      "sha256LfText": "6c17b78b059bfe12afec6b6c5a79b65ff4956cfd47832ba72996faa7ee391b9c"
+    },
+    {
+      "path": "tests/VersionStore.Tests/SystemIntegration/PublicProcessTests.cs",
+      "sha256LfText": "b88b76129a28cd4fb2496377b6aa5fbdb5f8807a02e233fd9bdb7258c42f3bd1"
+    },
+    {
+      "path": "tests/VersionStore.Tests/SystemIntegration/SmokeProcess.cs",
+      "sha256LfText": "f44508eaf167af2bff4c5d695299bc58d3755995957a1d58408d8b145c7db7ae"
+    },
+    {
+      "path": "tests/VersionStore.Tests/VersionStore.Tests.csproj",
+      "sha256LfText": "d5890a8c6908da8b6e183375f7e9e0e6ba7526ba4af585925d583ee2091007f2"
+    },
+    {
+      "path": "tools/VersionStore.Smoke/GraphScenario.cs",
+      "sha256LfText": "fc9792ca974b8afed3702cd5c991e69917abea2514920e0c7025acd07af87b16"
+    },
+    {
+      "path": "tools/VersionStore.Smoke/ProcessScenario.cs",
+      "sha256LfText": "859bf90ec06cc0cb7be8400a0941c382e2bad7ee69168125e8aa1b6a44fc5799"
+    },
+    {
+      "path": "tools/VersionStore.Smoke/Program.cs",
+      "sha256LfText": "b21196381cafd019803a7091e357a5c1dea01fb219c90c3bbbbc02d77e590e0a"
+    },
+    {
+      "path": "tools/VersionStore.Smoke/VersionStore.Smoke.csproj",
+      "sha256LfText": "bab90632ef624bc3bd4f3d2929602646a70749fcdeed57f8a625905ac23d5f00"
+    }
+  ],
+  "independentReview": {
+    "agent": "v4b_review",
+    "unresolvedP1P2": 0,
+    "reviewed": "public-only dependencies, process ownership/cleanup, two-layer lock isolation, ready/kill/reopen, graph history/tag/data assertions, scope claims"
+  },
+  "limitations": [
+    "Windows native execution only; WSL2/ext4 remains next slice",
+    "Public returned-call checkpoints only; no interception inside pending/rename/Append/flush",
+    "ProcessCrashOnly; no power loss or native device failure",
+    "All observed data recovery actions None, not physical tail repair",
+    "Unpublished complete data survived in these runs; this is an observation, not durability guarantee",
+    "No application tool-loop/generation, scale/RSS, package registration/consumption, external application migration or CU acceptance"
+  ]
+}
