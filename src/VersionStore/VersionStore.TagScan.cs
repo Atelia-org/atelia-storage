@@ -14,7 +14,7 @@ public sealed partial class VersionStore {
     /// <remarks>所到坏元信息直接失败；visitor 的 false 接收当前项后正常停止，已交付值不回滚。</remarks>
     public AteliaResult<TagScanEnd> ScanTags(Func<TagInfo, bool> visitor,
         CancellationToken cancellationToken = default) {
-        EnsureUsable();
+        EnsureOwnerUsable();
         if (visitor is null) {
             return new VersionStoreRuntimeError("ArgumentError", "A nonnull tag visitor is required.");
         }
@@ -24,7 +24,7 @@ public sealed partial class VersionStore {
         _tagScanActive = true;
         try {
             void CheckState() {
-                EnsureUsable();
+                EnsureOwnerUsable();
                 cancellationToken.ThrowIfCancellationRequested();
             }
             AteliaResult<TagScanEnd> result = default;

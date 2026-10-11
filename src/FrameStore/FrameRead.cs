@@ -20,6 +20,22 @@ public sealed class FrameRead : IDisposable {
     /// <summary>帧的完整 Payload 与 TailMeta；释放后访问抛 ObjectDisposedException。</summary>
     public ReadOnlySpan<byte> PayloadAndMeta => _frame.PayloadAndMeta;
 
+    /// <summary>已完整校验的 Payload 零复制切片；释放后访问抛 ObjectDisposedException。</summary>
+    public ReadOnlySpan<byte> Payload {
+        get {
+            var bytes = PayloadAndMeta;
+            return bytes[..(bytes.Length - TailMetaLength)];
+        }
+    }
+
+    /// <summary>已完整校验的 TailMeta 零复制切片；空切片同样受释放 guard 保护。</summary>
+    public ReadOnlySpan<byte> TailMeta {
+        get {
+            var bytes = PayloadAndMeta;
+            return bytes[(bytes.Length - TailMetaLength)..];
+        }
+    }
+
     /// <summary>PayloadAndMeta 尾部的 TailMeta 长度。</summary>
     public int TailMetaLength => _frame.TailMetaLength;
 

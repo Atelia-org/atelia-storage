@@ -31,7 +31,7 @@ public sealed partial class VersionStore {
             }
             captured.Add(new CapturedRefChange(pair.Key, pair.Value.Span.ToArray()));
         }
-        EnsureUsable();
+        EnsureOwnerUsable();
         if (captured.Count == 0) {
             return new VersionStoreRuntimeError("ArgumentError", "A publication batch must not be empty.");
         }

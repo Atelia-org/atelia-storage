@@ -2,7 +2,7 @@
 
 FrameStore 是独立的多文件不可变 Frame 分配器，负责地址、文件生命周期、随机读取与同步耐久确认。公开用法见 [Atelia.FrameStore](../../src/FrameStore/README.md)。本页只做导航，不增加合同；实现 FrameStore 无须先通读 VersionStore 文档。
 
-新增用户 Length 与 Payload/TailMeta 切片的待实施方案见[下游公面完善计划](../FrameStore-VersionStore/14-downstream-api-refinement-plan.md)。该增量已完成方案审查，尚未实现，不沿用下方既有验收资格。
+用户 Length 与 Payload/TailMeta 切片已实施；本轮独立源码与 Windows Release 资格见[下游公面增量验收](../FrameStore-VersionStore/14-downstream-api-refinement-acceptance.md)，合同归入 S2。既有验收及旧候选保持其原范围。
 
 ## 最小阅读路径
 

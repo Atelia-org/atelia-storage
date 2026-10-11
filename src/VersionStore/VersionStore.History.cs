@@ -19,7 +19,7 @@ public sealed partial class VersionStore {
     /// </remarks>
     public AteliaResult<HistoryEnd> ReadRefHistory(RefId refId, HistoryBudget budget,
         Func<RefBytesSnapshot, bool> visitor, CancellationToken cancellationToken = default) {
-        EnsureUsable();
+        EnsureOwnerUsable();
         if (!refId.BelongsTo(_identity)) { return InvalidRef(); }
         if (visitor is null || budget.MaxSnapshots <= 0 || budget.MaxWorkSteps <= 0) {
             return new VersionStoreRuntimeError("ArgumentError", "A nonnull visitor and two positive history budgets are required.");
@@ -200,7 +200,7 @@ public sealed partial class VersionStore {
     }
 
     private void CheckHistoryState(CancellationToken cancellationToken) {
-        EnsureUsable();
+        EnsureOwnerUsable();
         cancellationToken.ThrowIfCancellationRequested();
     }
 

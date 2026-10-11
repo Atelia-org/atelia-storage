@@ -4,7 +4,7 @@
 
 ## 最小公面
 
-单 ref 输入使用 ReadOnlySpan<byte>，有效长度就是 Span.Length；不另传 length、capacity、IMemoryOwner 或编码 callback。普通 ref 写入返回 RefRevision，避免发布后为返回 bytes 再分配结果。ReadRef 和历史 visitor 交付 RefBytesSnapshot。所有发布 mutation 保持必选 out PublicationOutcome，第一条语句初始化 NotAttempted。
+单 ref 输入使用 ReadOnlySpan<byte>，有效长度就是 Span.Length；不另传 length、capacity、IMemoryOwner 或编码 callback。普通 ref 写入返回 RefRevision，避免发布后为返回 bytes 再分配结果。ReadRef、ReadRevision 和历史 visitor 交付 RefBytesSnapshot。所有发布 mutation 保持必选 out PublicationOutcome，第一条语句初始化 NotAttempted。
 
 ~~~csharp
 AteliaResult<RefRevision> CreateRef(
@@ -20,6 +20,7 @@ AteliaResult<IReadOnlyDictionary<RefId, RefRevision>> PublishRefs(
     out PublicationOutcome outcome);
 AteliaResult<RefBytesSnapshot> ReadRef(RefId refId);
 AteliaResult<RefBytesSnapshot> ReadRef(uint localRefId);
+AteliaResult<RefBytesSnapshot> ReadRevision(RefRevision revision);
 
 public sealed class RefBytesSnapshot {
     private readonly byte[] _bytes; // 由内部构造接收自有数组
@@ -30,6 +31,8 @@ public sealed class RefBytesSnapshot {
 ~~~
 
 代码块展示公共形状与 getter 实现，省略内部构造。结果普通 class、内部构造，无 public setter/init、结构等值/结构 hash、owner/reader 或 Dispose；null 不代表 missing/default 成功。Span 属性每次访问由对象持有的私有 GC byte[] 产生；Span 自身不作为 class 字段。时间直接消费元信息专项，payload 不包含 TailMeta。
+
+ReadRevision 只接受库签发、同持久 VSID 的 nondefault revision。精确完成位置、完整 CRC/尾 Fence/CU 资格与无回退合同唯一消费 S4 `[A-VS-READ-REVISION]`；返回输入 Revision、原时间及 root bytes，排除 TailMeta/CU Members，不确认 data 或控制数据。saved revision 可在同库重开后使用，裸位置与跨进程导入仍不开放。
 
 ### spec [A-VS-BYTES-INPUT] 同步捕获，调用方保持稳定
 

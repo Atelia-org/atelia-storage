@@ -15,12 +15,12 @@ public readonly struct FramePayloadWriter : IReservableBufferWriter {
         return lease;
     }
 
-    /// <inheritdoc/>
+    /// <summary>本次 Builder 已预留和已 Advance 的用户累计 bytes，包含 Payload 与 TailMeta，从 0 开始。</summary>
     /// <remarks>
-    /// 保留 RBF writer 已写/预留的逻辑累计长度投影（包括内部 HeadLen），不是物理输出量。
-    /// 需要统计本次写入/预留的逻辑增量时，应比较同一 Builder 操作前后的 Length 差值。
+    /// ReserveSpan 成功后立即计入，Advance 按实际 count 计入；借用 buffer、回填及 Commit 不增加长度。
+    /// known-size 的声明容量不计入，内部 framing 不计入；此值不是物理输出量。
     /// </remarks>
-    public long Length => GetLease().Builder.PayloadAndMeta.Length;
+    public long Length => GetLease().PayloadAndMetaLength;
 
     /// <inheritdoc/>
     public void Advance(int count) {

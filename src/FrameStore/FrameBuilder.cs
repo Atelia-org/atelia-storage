@@ -13,6 +13,7 @@ public readonly struct FrameBuilder : IDisposable {
         get {
             var lease = _lease ?? throw new InvalidOperationException("Builder is not initialized.");
             lease.EnsureWriterUsable();
+            lease.CapturePayloadAndMetaLengthOrigin();
             return new FramePayloadWriter(lease);
         }
     }

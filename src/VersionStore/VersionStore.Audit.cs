@@ -15,7 +15,7 @@ public sealed partial class VersionStore {
     /// 可写 owner 返回 ReadOnlyRequired，活动 history/tag visitor 返回相应 Active 失败，均不执行 I/O。
     /// </remarks>
     public AteliaResult<VersionStoreAudit> Audit(CancellationToken cancellationToken = default) {
-        EnsureUsable();
+        EnsureOwnerUsable();
         if (_tagScanActive) { return TagScanActive(); }
         if (_historyActive) {
             return new VersionStoreRuntimeError("HistoryActive", "Audit is not allowed during an active history visitor.");
@@ -24,7 +24,7 @@ public sealed partial class VersionStore {
             return new VersionStoreRuntimeError("ReadOnlyRequired", "Audit requires a read-only VersionStore owner.");
         }
         void CheckState() {
-            EnsureUsable();
+            EnsureOwnerUsable();
             cancellationToken.ThrowIfCancellationRequested();
         }
 

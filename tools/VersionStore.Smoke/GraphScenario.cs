@@ -63,7 +63,11 @@ internal static class GraphScenario {
                 selectedRevision = selected.Revision;
                 Require(selectedRevision == duplicate && selectedRevision != next, "Fork source must be the exact historical revision.");
                 Require(selected.Payload.SequenceEqual(initialBytes), "Selected bytes changed during later publication.");
+                RefBytesSnapshot exact = versions.ReadRevision(selectedRevision).Unwrap();
+                Require(exact.Revision == selectedRevision && exact.RecordedAtUnixMs == selected.RecordedAtUnixMs
+                    && exact.Payload.SequenceEqual(selected.Payload), "Exact revision read changed identity, time or bytes.");
                 savedRoots = RootMapCodec.Decode(selected.Payload).Unwrap();
+                versions.EnsureUsable();
                 ValidateGraph(data, savedRoots, 0);
 
                 RefRevision branchTwo = versions.ForkRef(2, selectedRevision, out outcome).Unwrap();
@@ -150,6 +154,10 @@ internal static class GraphScenario {
                 ValidateHistory(data, threeHistory, new[] { 3, 0, 0, 0 }, new uint[] { 3, 3, 1, 1 });
                 ValidateHistory(data, deepHistory, new[] { 2, 2, 0, 0, 0 }, new uint[] { 4, 2, 2, 1, 1 });
                 RefBytesSnapshot selected = mainHistory[3];
+                versions.EnsureUsable();
+                RefBytesSnapshot exact = versions.ReadRevision(selected.Revision).Unwrap();
+                Require(exact.Revision == selected.Revision && exact.RecordedAtUnixMs == selected.RecordedAtUnixMs
+                    && exact.Payload.SequenceEqual(selected.Payload), "Cold exact revision read differs from history.");
                 Require(selected.Revision != mainHistory[4].Revision && selected.Payload.SequenceEqual(mainHistory[4].Payload), "Same-value revisions were merged.");
                 Require(mainHistory[1].Revision != selected.Revision && mainHistory[1].Payload.SequenceEqual(selected.Payload), "Rewind did not preserve the old revision.");
                 Require(twoHistory[3].Revision == selected.Revision && threeHistory[2].Revision == selected.Revision, "Forks inherited a different source point.");
@@ -216,8 +224,10 @@ internal static class GraphScenario {
         Require(FileId(addressA) != FileId(addressB), "Simultaneous sized builders must allocate different files.");
         byte[] firstBytes = EncodeNode(reverseAllocation ? 2 : 1, generation, secondAddress, firstAddress);
         byte[] secondBytes = EncodeNode(reverseAllocation ? 1 : 2, generation, firstAddress, secondAddress);
+        Require(first.PayloadAndMeta.Length == 0 && second.PayloadAndMeta.Length == 0, "User length must start at zero.");
         WriteBytes(first.PayloadAndMeta, firstBytes.AsSpan(0, 16));
         WriteBytes(second.PayloadAndMeta, secondBytes);
+        Require(first.PayloadAndMeta.Length == 16 && second.PayloadAndMeta.Length == NodeSize, "Interleaved user lengths differ.");
 
         // Buffer Append remains usable while both sized builders are still leased.
         FrameAddress counter = data.Append(StateTag, EncodeState(1, generation)).Unwrap();
@@ -226,6 +236,7 @@ internal static class GraphScenario {
         WriteBytes(workspaceBuilder.PayloadAndMeta, EncodeState(2, generation));
         FrameAddress workspace = workspaceBuilder.EndAppend(StateTag).Unwrap();
         WriteBytes(first.PayloadAndMeta, firstBytes.AsSpan(16));
+        Require(first.PayloadAndMeta.Length == NodeSize, "Repeated writer access reset its length origin.");
         Require(first.EndAppend(NodeTag).Unwrap() == firstAddress, "Interleaved EndAppend changed its early address.");
 
         var roots = new Dictionary<string, FrameAddress>(StringComparer.Ordinal) {
@@ -263,7 +274,7 @@ internal static class GraphScenario {
 
     private static Node ReadNode(DataStore data, FrameAddress address) {
         using FrameRead frame = data.ReadFrame(address).Unwrap();
-        ReadOnlySpan<byte> bytes = frame.PayloadAndMeta;
+        ReadOnlySpan<byte> bytes = frame.Payload;
         Require(frame.Address == address && frame.Tag == NodeTag && frame.TailMetaLength == 0 && !frame.IsTombstone, "Node frame envelope differs.");
         Require(bytes.Length == NodeSize && BinaryPrimitives.ReadUInt32LittleEndian(bytes) == RecordVersion, "Node record schema differs.");
         Require(FrameAddress.TryRead(bytes.Slice(16, FrameAddress.EncodedSize), out FrameAddress peer), "Invalid peer address.");
@@ -290,7 +301,7 @@ internal static class GraphScenario {
 
     private static void ValidateState(DataStore data, FrameAddress address, int kind, int generation) {
         using FrameRead frame = data.ReadFrame(address).Unwrap();
-        ReadOnlySpan<byte> bytes = frame.PayloadAndMeta;
+        ReadOnlySpan<byte> bytes = frame.Payload;
         Require(frame.Address == address && frame.Tag == StateTag && frame.TailMetaLength == 0 && !frame.IsTombstone, "State frame envelope differs.");
         Require(bytes.Length == StateSize && BinaryPrimitives.ReadUInt32LittleEndian(bytes) == RecordVersion, "State record schema differs.");
         Require(BinaryPrimitives.ReadInt32LittleEndian(bytes[4..]) == kind && BinaryPrimitives.ReadInt32LittleEndian(bytes[8..]) == generation, "State kind/generation differs.");

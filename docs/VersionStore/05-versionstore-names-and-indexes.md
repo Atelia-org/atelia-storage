@@ -41,6 +41,8 @@ ref header/普通 Snapshot 的字段、来源判别与完整记录容量唯一�
 
 ForkRef 两种入口 MUST 接收本 VersionStore 的已发布 RefRevision，先消费 S4 default/持久上下文前检，定位正式源 ref、checked header，确认 ticket 在 header 后的完成范围内并直接精确读取。成员来源消费库签发 revision、完整位置不删除/复用与无外部改写的协议，不从源 EOF 重新定位，也不预读无关初始内容；本次仍按 S4 `[A-VS-ROOT-PAYLOAD]` 完整校验目标 CRC、kind、meta 和尺寸，私有捕获 root-payload bytes，并复用现有公共 GetScanBoundaryAfter 重验完整 anchor 及其尾 Fence；随机完整帧 CRC 本身不覆盖尾 Fence。这个 helper 的额外完整读计入实际成本，不扫描源本地后缀，也不依赖边界逆扫重载。不得用 ReadRef 替代 exact 来源、不接受裸 SizedPtr 或自由组合 payload/origin。CU 来源还 MUST 通过07共同判据并只截取 root bytes，判为未提交时返回来源错误，不改选较旧节点；peer 的异长消歧可按07访问其必要后缀。两种入口均返回 AteliaResult<RefRevision>，成功值的 RefId 为新 ref，保持批外单文件发布与必选 out PublicationOutcome，不为结果物化 Payload。
 
+精确来源读取与 S4 `[A-VS-READ-REVISION]` 共用校验内核；只有合法未成立 CU 的错误由入口各自解释，fork 保留 InvalidForkOrigin。fork 同步消费共同内核已经从 pooled 帧捕获的私有 root bytes，不再复制第二份 GC 数组；普通 CreateRef/PublishRef 的调用方输入仍须在 barrier 前私有捕获。不通过公共 ReadRevision 改写历史遍历或漏计其资格工作。
+
 所有生命周期/历史 mutation guard、自动或指定目标及源 bytes 捕获/容量检查先完成；子初始 Snapshot 按 `[S-VS-RECORD-TIME]` 重新取时，允许与源同毫秒，不复制源时间。随后 data ConfirmDurable，再对 exact 源 ref DurableFlush，最后在单个 private 子文件写完整 header/ForkOrigin 与初始 Snapshot，flush/close 并按 S4 file rename 发布。源 flush 明确确认本次链接的发布记录耐久，checked-read 不能替代；无 receipt、不重刷全部祖先，仍限 ProcessCrashOnly。
 
 源 flush 失败时，本次 fork 尚未尝试公开事实，为 NotAttempted；源 RBF 按自身 fault，VersionStore 停用，不进入子输出。子私有文件/rename/内存安装的结果继续使用 S4 PublicationOutcome。只在子 header 写来源，不向源文件追加孩子列表、不改变源 head，避免源登记与子发布之间引入第二个一致性协议。

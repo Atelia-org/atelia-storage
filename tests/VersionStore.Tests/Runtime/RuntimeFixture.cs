@@ -236,6 +236,8 @@ internal sealed class TrackedRefFile(uint localId, IRbfFile inner, List<string> 
     internal int DisposeCalls;
     internal int AppendCalls;
     internal int FlushCalls;
+    internal int ReverseScanCalls;
+    internal readonly List<SizedPtr> PooledReads = [];
     internal byte[]? AppendedPayload;
     internal byte[]? AppendedMeta;
 
@@ -273,16 +275,19 @@ internal sealed class TrackedRefFile(uint localId, IRbfFile inner, List<string> 
 
     public AteliaResult<RbfPooledFrame> ReadPooledFrame(SizedPtr ptr) {
         operations.Add($"read:{localId}");
+        PooledReads.Add(ptr);
         return Inner.ReadPooledFrame(ptr);
     }
     public RbfFrameBuilder BeginAppend() => Inner.BeginAppend();
     public RbfFrameBuilder BeginAppend(int payloadLength, int tailMetaLength, out SizedPtr ticket) => Inner.BeginAppend(payloadLength, tailMetaLength, out ticket);
     public AteliaResult<RbfFrame> ReadFrame(SizedPtr ptr, Span<byte> buffer) => Inner.ReadFrame(ptr, buffer);
     public RbfReverseSequence ScanReverse(bool showTombstone = false) {
+        ReverseScanCalls++;
         if (ScanFailure is { } error) { throw error; }
         return Inner.ScanReverse(showTombstone);
     }
     public AteliaResult<RbfReverseSequence> ScanReverse(RbfScanBoundary boundary, bool showTombstone = false) {
+        ReverseScanCalls++;
         if (ScanFailure is { } error) { throw error; }
         return Inner.ScanReverse(boundary, showTombstone);
     }

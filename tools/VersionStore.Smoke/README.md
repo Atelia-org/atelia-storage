@@ -20,6 +20,8 @@ Linux 命令相同，换成 Linux 文件系统上的 fresh 路径。graph 成功
 
 冷读核对四个完整 RootMap、所有实际 node/self/peer 地址、完整继承历史、三条精确 ForkOrigin 声明、三份不可变 tag、`ReadTagInfo/ScanTags` 关联坐标及保存时间。独立只读 `VersionStore.Audit` 应得到4 refs、11个物理本地 snapshots、3 forks、3 tags；随后 FrameStore `Audit` 校验24个图帧。返回的快照、RootPayload、TagInfo 和解码字典在两个 owner Dispose 后再次使用。
 
+下游公面完善后，graph 场景还用 `ReadRevision` 精确重读历史选点并核对 identity/time/bytes，在保存根的使用前调用组合 `EnsureUsable()`，从 `FrameRead.Payload` 读取应用数据；交错 Builder 检查用户 `Length` 从0累计且重复 getter 不重置。本场景属于 public ProjectReference 验证，不代表这些增量已进入旧候选包。
+
 除 graph/resource/tool/generation/dynamic-ref/tag-golden 场景外的 CLI 参数交给 `ProcessScenario.Run`；以下命令供父测试驱动，每行 JSON 都带真实 `pid`：
 
 | 命令 | 行为 |

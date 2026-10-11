@@ -92,13 +92,23 @@ public sealed partial class VersionStore : IDisposable {
     /// <summary>创建后不可变的预留本地编号上界。</summary>
     public uint ReservedRefIdUpperBound { get; }
 
+    /// <summary>检查本 owner 和实际借入 data 的生命周期资格，不执行 I/O 或确认输出。</summary>
+    /// <remarks>
+    /// 先检查本 owner 的 Dispose/fault，再传播 data 的原异常；纯检查失败不额外停用本 owner。
+    /// 允许只读 owner、活跃 data Builder 和现有 visitor；调用方仍须保持 data 存活并串行操作。
+    /// </remarks>
+    public void EnsureUsable() {
+        EnsureOwnerUsable();
+        _data.EnsureUsable();
+    }
+
     /// <summary>完整发现全部正式 ref 的路径身份；结果自有且只读，不证明 ref 内容健康。</summary>
     public AteliaResult<IReadOnlyList<RefId>> ListRefs() {
-        EnsureUsable();
+        EnsureOwnerUsable();
         AteliaResult<IReadOnlyList<uint>> listed;
         try {
             listed = _files.ListRefIds(_markOwnedCleanupFault);
-            EnsureUsable();
+            EnsureOwnerUsable();
         }
         catch (Exception error) {
             if (_faulted) { FaultAndCleanup(error); }
@@ -149,7 +159,8 @@ public sealed partial class VersionStore : IDisposable {
         return PublishNewRef(prepared.Value, captured, automatic, null, null, ref outcome);
     }
 
-    private AteliaResult<RefRevision> PublishNewRef(QualifiedRefTarget target, byte[] captured,
+    // All callers supply privately captured owned bytes; this synchronous helper never retains the span.
+    private AteliaResult<RefRevision> PublishNewRef(QualifiedRefTarget target, ReadOnlySpan<byte> captured,
         bool automatic, ForkOrigin? origin, IRbfFile? sourceFile, scoped ref PublicationOutcome outcome) {
         int headerPayloadSize = origin.HasValue
             ? RefHeaderCodec.WithOriginPayloadSize
@@ -181,7 +192,7 @@ public sealed partial class VersionStore : IDisposable {
             // The exact source is confirmed after data, before any private child output.
             sourceFile?.DurableFlush();
             _pendingRef = _files.CreatePending(_markOwnedCleanupFault);
-            EnsureUsable();
+            EnsureOwnerUsable();
             // All pre-I/O rejections were prepared above. A private Append rejection is a plan failure,
             // so Unwrap stops this owner instead of leaving a healthy owner with an occupied pending.
             _pendingRef.Append(RefRecordCodec.HeaderTag, header).Unwrap();
@@ -207,7 +218,7 @@ public sealed partial class VersionStore : IDisposable {
     private AteliaResult<QualifiedRefTarget> PrepareNewTarget(uint localId) {
         try {
             var prepared = _files.PrepareNewRef(localId, _markOwnedCleanupFault);
-            EnsureUsable();
+            EnsureOwnerUsable();
             return prepared;
         }
         catch (Exception error) {
@@ -218,14 +229,14 @@ public sealed partial class VersionStore : IDisposable {
 
     /// <summary>读取此库指定非零本地编号的 checked 当前快照。</summary>
     public AteliaResult<RefBytesSnapshot> ReadRef(uint localRefId) {
-        EnsureUsable();
+        EnsureOwnerUsable();
         if (localRefId == 0) { return InvalidRef(); }
         return ReadCurrent(RefId.Create(_identity, localRefId));
     }
 
     /// <summary>读取最新 checked 发布快照；合法未提交 CU 不进入当前值，必要错误仍阻断回退。</summary>
     public AteliaResult<RefBytesSnapshot> ReadRef(RefId refId) {
-        EnsureUsable();
+        EnsureOwnerUsable();
         if (!refId.BelongsTo(_identity)) { return InvalidRef(); }
         return ReadCurrent(refId);
     }
@@ -305,7 +316,7 @@ public sealed partial class VersionStore : IDisposable {
         try {
             var resolved = _files.ResolveRef(localId, _markOwnedCleanupFault);
             // A cleanup marker cannot be followed by a normal Result or another output attempt.
-            EnsureUsable();
+            EnsureOwnerUsable();
             if (resolved.IsFailure) { return resolved.Error!; }
             target = resolved.Value;
         }
@@ -322,7 +333,7 @@ public sealed partial class VersionStore : IDisposable {
 
         IRbfFile? pendingTransfer = file;
         try {
-            EnsureUsable();
+            EnsureOwnerUsable();
             _ownedRefs.Add(localId, new OwnedRef(file));
             pendingTransfer = null;
             return AteliaResult<IRbfFile>.Success(file);
@@ -343,13 +354,13 @@ public sealed partial class VersionStore : IDisposable {
     private static AteliaError InvalidRef() =>
         new VersionStoreRuntimeError("ArgumentError", "A nondefault RefId bound to this VersionStore is required.");
 
-    private void EnsureUsable() {
+    private void EnsureOwnerUsable() {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (_faulted) { throw new InvalidOperationException("VersionStore is faulted; dispose and reopen it."); }
     }
 
     private AteliaError? GetMutationRejection() {
-        EnsureUsable();
+        EnsureOwnerUsable();
         if (_tagScanActive) { return TagScanActive(); }
         return _historyActive
             ? new VersionStoreRuntimeError("HistoryActive", "Mutations are not allowed during an active history visitor.")

@@ -27,6 +27,7 @@ public sealed class FrameStoreCoreTests {
         Assert.IsType<FrameStoreStateError>(firstAlias.EndAppend(99).Error);
         Assert.Throws<InvalidOperationException>(() => oldWriter.GetMemory(1));
         Assert.Throws<InvalidOperationException>(() => oldWriter.Advance(0));
+        Assert.Throws<InvalidOperationException>(() => { _ = oldWriter.Length; });
         Assert.Throws<InvalidOperationException>(() => { _ = firstAlias.PayloadAndMeta; });
         var replacement = fixture.Core.BeginAppend(1, 0, out var replacementAddress);
         Assert.Equal(2u, replacementAddress.FileId);
@@ -245,6 +246,8 @@ public sealed class FrameStoreCoreTests {
         Assert.Equal(1, fixture.Core.OutstandingBuilders);
         Assert.Equal(1u, fixture.Core.MaxPublishedFileId);
         Assert.Throws<InvalidOperationException>(() => writer.GetMemory());
+        Assert.Throws<InvalidOperationException>(() => { _ = writer.Length; });
+        Assert.Throws<InvalidOperationException>(() => { _ = held.PayloadAndMeta; });
         Assert.Throws<InvalidOperationException>(() => held.EndAppend(1));
         Assert.Equal(0, fixture.Lock.DisposeCalls);
     }
@@ -352,13 +355,36 @@ public sealed class FrameStoreCoreTests {
         var alias = read;
         fixture.Core.Dispose();
         Assert.Equal(new byte[] { 1, 2, 3 }, read.PayloadAndMeta.ToArray());
+        Assert.Equal(new byte[] { 1, 2 }, read.Payload.ToArray());
+        Assert.Equal(new byte[] { 3 }, read.TailMeta.ToArray());
         Assert.Equal(address, read.Address);
         Assert.Equal(9u, read.Tag);
         Assert.Equal(1, read.TailMetaLength);
         alias.Dispose();
         read.Dispose();
         Assert.Throws<ObjectDisposedException>(() => { _ = read.PayloadAndMeta.Length; });
+        Assert.Throws<ObjectDisposedException>(() => { _ = read.Payload.Length; });
+        Assert.Throws<ObjectDisposedException>(() => { _ = read.TailMeta.Length; });
         Assert.Equal(9u, read.Tag);
+    }
+
+    [Fact]
+    public void OwnedReadSlices_OutliveFaultedOwnerUntilTheirOwnDispose() {
+        using var fixture = new RuntimeFixture();
+        var address = fixture.Core.Append(9, [1, 2], [3]).Unwrap();
+        using var read = fixture.Core.ReadFrame(address).Unwrap();
+        var failure = new IOException("Injected output failure after an owned read.");
+        fixture.Files.Created[1].AppendFailure = failure;
+        Assert.Same(failure, Assert.Throws<IOException>(() => fixture.Core.Append(10, [4])));
+        Assert.True(fixture.Core.IsFaulted);
+        Assert.Equal(new byte[] { 1, 2 }, read.Payload.ToArray());
+        Assert.Equal(new byte[] { 3 }, read.TailMeta.ToArray());
+        fixture.Core.Dispose();
+        Assert.Equal(new byte[] { 1, 2 }, read.Payload.ToArray());
+        Assert.Equal(new byte[] { 3 }, read.TailMeta.ToArray());
+        read.Dispose();
+        Assert.Throws<ObjectDisposedException>(() => { _ = read.Payload.Length; });
+        Assert.Throws<ObjectDisposedException>(() => { _ = read.TailMeta.Length; });
     }
 
     [Fact]
@@ -404,6 +430,7 @@ public sealed class FrameStoreCoreTests {
         Assert.Equal(1, high.DisposeCalls);
         Assert.Equal(1, fixture.Lock.DisposeCalls);
         Assert.Throws<ObjectDisposedException>(() => stale.GetMemory());
+        Assert.Throws<ObjectDisposedException>(() => { _ = stale.Length; });
         Assert.Throws<ObjectDisposedException>(() => first.EndAppend(1));
         Assert.Throws<ObjectDisposedException>(() => fixture.Core.ReadFrame(default));
     }
@@ -429,6 +456,7 @@ public sealed class FrameStoreCoreTests {
         Assert.IsType<FrameStoreStateError>(builder.EndAppend(0).Error);
         Assert.Throws<InvalidOperationException>(() => { _ = builder.PayloadAndMeta; });
         Assert.Throws<InvalidOperationException>(() => writer.GetMemory());
+        Assert.Throws<InvalidOperationException>(() => { _ = writer.Length; });
         builder.Dispose();
         using var fixture = new RuntimeFixture(writable: false, maxBuilders: 0, threshold: -1);
         Assert.Throws<InvalidOperationException>(() => fixture.Core.Append(0, []));

@@ -170,15 +170,15 @@ RBF ticket checked read 证明 CRC，不独自证明主链成员；正常签发�
 
 ### spec [A-FS-READ-OWNED] 随机读取返回独立拥有的完整帧
 
-首版完整读取入口如下；这是待实施合同，不是已存在的 API：
+首版完整读取入口如下：
 
 ```csharp
 AteliaResult<FrameRead> ReadFrame(FrameAddress address);
 ```
 
-FrameRead MUST 为 sealed class，提供只读 Address、Tag、PayloadAndMeta（ReadOnlySpan<byte>）、TailMetaLength、IsTombstone 和幂等 Dispose；构造入口不公开。它私有持有一个 RbfPooledFrame，消费其完整 CRC 与 buffer 所有权，不复制 payload、不暴露 SizedPtr、IRbfFile、Reader 或后续 I/O 方法。失败 Result 不签发结果，清理正常时 RBF 错误原样传播；本层非法地址/缺失文件按所属层分类，不把权限、I/O、格式或 CRC 错误当成不存在。
+FrameRead MUST 为 sealed class，提供只读 Address、Tag、PayloadAndMeta、Payload、TailMeta（后三者为 ReadOnlySpan<byte>）、TailMetaLength、IsTombstone 和幂等 Dispose；构造入口不公开。Payload 为 PayloadAndMeta 去除末尾 TailMetaLength bytes 的切片，TailMeta 为该尾部切片；均先取得受生命周期 guard 保护的 PayloadAndMeta，不复制或重复校验，空切片也不能绕过 guard。它私有持有一个 RbfPooledFrame，消费其完整 CRC 与 buffer 所有权，不复制 payload、不暴露 SizedPtr、IRbfFile、Reader 或后续 I/O 方法。失败 Result 不签发结果，清理正常时 RBF 错误原样传播；本层非法地址/缺失文件按所属层分类，不把权限、I/O、格式或 CRC 错误当成不存在。
 调用顺序 MUST 为 owner disposed/shared fault → 地址/定位资格 → 取得 reader → RBF 完整读取 → 必要临时 reader 关闭 → 移交 FrameRead。已有 owned active 直接复用先前 Open/Create 已取得的身份/header 资格，不为随机读再起首帧扫描；未拥有的文件临时只读打开后先做身份/header 检查。Building 时继续消费 `[S-FS-RANDOM-READ-COMPLETED-PREFIX]`，不为读结果追加扫描或全 owner Idle 前置。仅数值地址与 CRC 成功仍不证明主链成员或原始来源。
-包装分配、读取或临时关闭失败时，MUST 释放尚未移交的底层帧；清理遵循 `[S-FS-OWNED-FAULT]`，不让关闭异常遮蔽主异常。成功结果不持有 reader/owner，后续归档、owner fault/Dispose 不撤销已移交的 bytes；调用方负责逐个 Dispose，不由 owner 回收它们。结果 Dispose 只终结自身 buffer 所有权一次，所有引用别名共享此状态；之后 PayloadAndMeta getter 抛 ObjectDisposedException，已取得的 span 不能再用，纯元信息值仍可保存。
+包装分配、读取或临时关闭失败时，MUST 释放尚未移交的底层帧；清理遵循 `[S-FS-OWNED-FAULT]`，不让关闭异常遮蔽主异常。成功结果不持有 reader/owner，后续归档、owner fault/Dispose 不撤销已移交的 bytes；调用方负责逐个 Dispose，不由 owner 回收它们。结果 Dispose 只终结自身 buffer 所有权一次，所有引用别名共享此状态；之后 PayloadAndMeta、Payload、TailMeta getter 均抛 ObjectDisposedException，已取得的 span 不能再用，纯元信息值仍可保存。
 首版不提供 caller-buffer/Span 读取、Reader-bound FrameInfo、TailMeta-only Preview 或独立结果 Lease。出现实际分配成本或大 payload 预筛选需求后再设计相应窄入口，不为不存在的新栈消费者增加尺寸查询和多套结果类型。
 
 ### spec [A-FS-INVENTORY-AUDIT] 物理检查使用同步 visitor
@@ -236,12 +236,13 @@ public readonly struct FrameBuilder : IDisposable {
 }
 ```
 
-FramePayloadWriter MUST 为实现 IReservableBufferWriter 的 readonly struct，转发其全部方法与 Length；声明预算、reservation token、CRC、finalize 和内层 epoch 仍由 RBF/Data 负责，不重新实现。Length 沿用 RBF 的既有投影，不自动改成应用 payload 已用量。
+FramePayloadWriter MUST 为实现 IReservableBufferWriter 的 readonly struct，转发其全部写入方法；声明预算、reservation token、CRC、finalize 和内层 epoch 仍由 RBF/Data 负责，不重新实现。Length 为本次 Builder 的用户 Reserved + Advanced 累计 bytes，从 0 开始，包含 Payload 和 TailMeta，不含内部 HeadLen 或其他 framing；声明容量不计入已用量。成功 ReserveSpan 立即计入，Advance 按实际 count 计入；GetSpan/GetMemory、TryGetReservedSpan、回填、Commit 不增加 Length，Advance(0) 仅归还借用。确定参数/协议/容量拒绝不增加 Length，底层异常仍消费现有 fault/lease 合同，不新增通用回滚保证。物理尺寸另用 RBF 公共 MeasureWriteSize。
+共享 Lease 在首次通过 guard 的 FrameBuilder.PayloadAndMeta getter 中、返回 writer 前捕获一次底层长度原点；所有 Builder/Writer 副本共享它。不得延迟到首次 Length 访问、每个 writer 各自捕获或硬编码 RBF HeadLen。RBF/Data Length 与输出预算保持原合同。
 每次 Begin MUST 在签发内层 Builder 之前分配一份新的共享 Lease 对象；Builder/Writer 的所有副本只持有这份租借身份。Lease 不池化、不复用、不持久化；FileEntry.CurrentLease 的引用相等与 Lease 的活跃状态共同证明当前资格，不另加外层数值 epoch 或尝试 ID。文件资源在用户输出之前进入 owner 台账。
 
 任何有 owner 的 End、PayloadAndMeta getter 或 Writer 方法 MUST 先检查 owner disposed/shared fault，再检查租借；不得先访问内层或按 RBF epoch 猜 outer 资格。owner 已释放抛 ObjectDisposedException，fault 抛 InvalidOperationException。健康 owner 上 default/已结束/非当前 Builder 的 End 返回 FrameStoreStateError（AteliaError 子类型）；无效 Writer/getter 抛 InvalidOperationException。内层可纠正 End Result 拒绝原样传播，活跃租借及额度保持。default 或已终结副本的 Dispose 为 no-op；Dispose 属于受控清理入口，不用普通 fault guard 阻断清理。
 
-Lease 只额外镜像一个 HasUnadvancedBorrow 位：GetSpan/GetMemory 正常返回后置 true，Advance（包括 0）正常返回后清 false；失败 Advance 保持原位。ReserveSpan、Commit、TryGetReservedSpan 和 Length 不改变此位，普通 borrow 期间 reservation 的 Commit/TryGetReservedSpan 继续合法。End 在委派前发现此位为 true 时 MUST 抛 InvalidOperationException，保留同一租借供 Advance/Advance(0) 纠正，不 fault、不取消、不修改内层。
+借用协议只额外镜像一个 HasUnadvancedBorrow 位：GetSpan/GetMemory 正常返回后置 true，Advance（包括 0）正常返回后清 false；失败 Advance 保持原位。ReserveSpan、Commit、TryGetReservedSpan 和 Length 不改变此位，普通 borrow 期间 reservation 的 Commit/TryGetReservedSpan 继续合法。End 在委派前发现此位为 true 时 MUST 抛 InvalidOperationException，保留同一租借供 Advance/Advance(0) 纠正，不 fault、不取消、不修改内层。
 这份最小镜像用于识别当前 RBF 的可纠正非 Result guard；其他拒绝仍消费 RBF，不按异常类型、消息或 TailOffset 猜提交相位。已交出的 Span/Memory 无法被方法 guard 撤销，调用方 MUST 遵守其借用有效期，结束租借或 owner fault 后不得继续使用。
 
 正常 End 或健康取消只终结这份 Lease 一次，清除 CurrentLease 和内层 Builder 引用、释放一次计数；旧副本不得再委派到 RBF，不能取消或修改后来的租借。个体 Dispose 在尝试内层取消前先让 Lease 不可再操作；健康取消返回后才恢复文件分配资格。取消异常按共享 fault 处理，当前文件不得重租，重复副本 Dispose 不重试取消，文件资源留给 owner 清理。

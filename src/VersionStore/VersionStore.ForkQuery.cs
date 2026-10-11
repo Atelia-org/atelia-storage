@@ -11,12 +11,12 @@ public sealed partial class VersionStore {
     /// <remarks>预算包含无来源根；不读取 Snapshot 或逐边校验源 ticket。历史 visitor 可以串行调用。</remarks>
     public AteliaResult<IReadOnlyList<ForkInfo>> ListForks(int maxRefs,
         CancellationToken cancellationToken = default) {
-        EnsureUsable();
+        EnsureOwnerUsable();
         if (maxRefs <= 0) {
             return new VersionStoreRuntimeError("ArgumentError", "A positive formal ref query budget is required.");
         }
         void CheckState() {
-            EnsureUsable();
+            EnsureOwnerUsable();
             cancellationToken.ThrowIfCancellationRequested();
         }
         AteliaError? BeforeHeaderWork() {

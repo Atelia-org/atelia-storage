@@ -2,7 +2,7 @@
 
 更新：2026-10-11。本文是实施导航，不增加设计权威。行为以 [S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)、[07 CU](07-versionstore-cross-ref-conditional-update.md)、[08](08-versionstore-record-metadata.md) 至 [11](11-versionstore-root-payload-bytes-api.md) 为准；[S6](../FrameStore-VersionStore/06-integration-and-delivery.md) 管组合与交付。CU 已正式接纳、实施并取得独立源码验收 Accepted，新增证据另列；[既有最终源码验收](12-versionstore-final-acceptance.md)和[六包候选](../FrameStore-VersionStore/13-local-package-delivery.md)保持原来源，不含 CU。
 
-**当前新增公面队列**统一见[下游反馈重构备忘](../FrameStore-VersionStore/14-downstream-api-refinement-plan.md)。下一片为精确 revision 读取、公共组合 guard 与 FrameStore façade 完善，随后补惰性恢复报告；均已完成方案审查、尚未实施。本文下方 V0–V4/CU 保留各自完成与验收身份，不作为这些新增 API 的实施证据。
+**当前新增公面队列**统一见[下游反馈重构备忘](../FrameStore-VersionStore/14-downstream-api-refinement-plan.md)。精确 revision 读取、公共组合 guard 与 FrameStore façade 已实施，独立源码复核与本轮 Windows Release 全回归见[增量验收](../FrameStore-VersionStore/14-downstream-api-refinement-acceptance.md)；下一片仅剩惰性恢复报告。本文下方 V0–V4/CU 保留各自完成与验收身份，不作为这些新增 API 的证据，也不把已完成项重复列为待办。
 
 ## 调度原则与整体结构
 

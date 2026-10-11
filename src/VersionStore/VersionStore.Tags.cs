@@ -54,13 +54,13 @@ public sealed partial class VersionStore {
             if (_faulted) { CleanupOwned(ref errors); }
         }
         errors.ThrowIfAny();
-        EnsureUsable();
+        EnsureOwnerUsable();
         return result;
     }
 
     /// <summary>解析唯一可信名称并读取完整 checked root bytes；结果自有且不需要 Dispose。</summary>
     public AteliaResult<RootPayload> ResolveTag(string name) {
-        EnsureUsable();
+        EnsureOwnerUsable();
         if (!TagNameCodec.IsValidName(name)) { return InvalidTagName(); }
 
         AteliaResult<RootPayload> result = default;
@@ -72,13 +72,13 @@ public sealed partial class VersionStore {
             if (_faulted) { CleanupOwned(ref errors); }
         }
         errors.ThrowIfAny();
-        EnsureUsable();
+        EnsureOwnerUsable();
         return result;
     }
 
     /// <summary>读取唯一可信名称的自有元信息；不读取 root 或核验关联来源。</summary>
     public AteliaResult<TagInfo> ReadTagInfo(string name) {
-        EnsureUsable();
+        EnsureOwnerUsable();
         if (!TagNameCodec.IsValidName(name)) { return InvalidTagName(); }
 
         AteliaResult<TagInfo> result = default;
@@ -87,7 +87,7 @@ public sealed partial class VersionStore {
             var opened = GetNamedTagBucket(name);
             if (opened.IsFailure) { result = opened.Error!; }
             else {
-                var metadata = TagRecordReader.ReadNamedMetadata(opened.Value.File, opened.Value.Header, name, EnsureUsable);
+                var metadata = TagRecordReader.ReadNamedMetadata(opened.Value.File, opened.Value.Header, name, EnsureOwnerUsable);
                 result = metadata.IsFailure ? metadata.Error! : CreateTagInfo(metadata.Value);
             }
         }
@@ -97,7 +97,7 @@ public sealed partial class VersionStore {
             if (_faulted) { CleanupOwned(ref errors); }
         }
         errors.ThrowIfAny();
-        EnsureUsable();
+        EnsureOwnerUsable();
         return result;
     }
 
@@ -106,7 +106,7 @@ public sealed partial class VersionStore {
         IVersionStoreTagFiles files = GetTagFiles();
         uint bucketId = TagNameCodec.GetBucketId(name);
         var resolved = files.ResolveTagBucket(bucketId, _markOwnedCleanupFault);
-        EnsureUsable();
+        EnsureOwnerUsable();
 
         QualifiedTagBucketTarget target;
         bool newBucket = resolved is null;
@@ -114,9 +114,9 @@ public sealed partial class VersionStore {
         if (resolved is QualifiedTagBucketTarget existing) {
             target = existing;
             IRbfFile file = OpenTagOperation(target, readOnly: false);
-            var header = TagRecordReader.CheckHeader(file, _identity, bucketId, EnsureUsable);
+            var header = TagRecordReader.CheckHeader(file, _identity, bucketId, EnsureOwnerUsable);
             if (header.IsFailure) { return header.Error!; }
-            var lookup = TagRecordReader.ScanNamed(file, header.Value, name, EnsureUsable);
+            var lookup = TagRecordReader.ScanNamed(file, header.Value, name, EnsureOwnerUsable);
             if (lookup.IsFailure) { return lookup.Error!; }
             if (lookup.Value!.MatchCount != 0) {
                 return new TagDuplicateNameError("The requested tag name is already occupied.");
@@ -125,11 +125,11 @@ public sealed partial class VersionStore {
                 return new TagLookupUncertainError("An unreadable record name prevents safe create-only publication.");
             }
             recordsOffset = file.TailOffset;
-            EnsureUsable();
+            EnsureOwnerUsable();
         }
         else {
             var prepared = files.PrepareNewTagBucket(bucketId, _markOwnedCleanupFault);
-            EnsureUsable();
+            EnsureOwnerUsable();
             if (prepared.IsFailure) { return prepared.Error!; }
             target = prepared.Value;
             var headerSize = RbfFile.MeasureWriteSize(TagBucketHeaderCodec.PayloadSize, 0);
@@ -157,34 +157,34 @@ public sealed partial class VersionStore {
         mutationStarted = true;
         if (_testHooks?.ConfirmDataDurable is { } confirm) { confirm(); }
         else { _data.ConfirmDurable(); }
-        EnsureUsable();
+        EnsureOwnerUsable();
         if (newBucket) {
             files.EnsureTagsDirectory(_markOwnedCleanupFault);
-            EnsureUsable();
+            EnsureOwnerUsable();
             _pendingRef = _files.CreatePending(_markOwnedCleanupFault);
-            EnsureUsable();
+            EnsureOwnerUsable();
             _pendingRef.Append(TagRecordCodec.HeaderTag, headerPayload).Unwrap();
-            TagRecordReader.CheckHeader(_pendingRef, _identity, bucketId, EnsureUsable).Unwrap();
+            TagRecordReader.CheckHeader(_pendingRef, _identity, bucketId, EnsureOwnerUsable).Unwrap();
             if (_pendingRef.TailOffset != recordsOffset) {
                 throw new InvalidOperationException("The private BucketHeader did not end at its prepared initialization boundary.");
             }
             _pendingRef.DurableFlush();
-            EnsureUsable();
+            EnsureOwnerUsable();
             IRbfFile toClose = _pendingRef;
             _pendingRef = null;
             toClose.Dispose();
-            EnsureUsable();
+            EnsureOwnerUsable();
             _testHooks?.BeforeNewTagBucketRename?.Invoke();
-            EnsureUsable();
+            EnsureOwnerUsable();
             files.PublishPendingTagBucket(target, _markOwnedCleanupFault);
-            EnsureUsable();
+            EnsureOwnerUsable();
             _testHooks?.AfterTagBucketPublished?.Invoke();
-            EnsureUsable();
+            EnsureOwnerUsable();
 
             // An empty bucket is infrastructure, not evidence that this tag was attempted.
             // Reopen through the normal public factory and independently check the formal header.
             IRbfFile file = OpenTagOperation(target, readOnly: false);
-            TagRecordReader.CheckHeader(file, _identity, bucketId, EnsureUsable).Unwrap();
+            TagRecordReader.CheckHeader(file, _identity, bucketId, EnsureOwnerUsable).Unwrap();
             if (file.TailOffset != recordsOffset) {
                 throw new InvalidOperationException("The published empty bucket does not end at its prepared initialization boundary.");
             }
@@ -207,7 +207,7 @@ public sealed partial class VersionStore {
     private AteliaResult<RootPayload> ResolveTagCore(string name) {
         var opened = GetNamedTagBucket(name);
         if (opened.IsFailure) { return opened.Error!; }
-        return TagRecordReader.ResolveNamed(opened.Value.File, opened.Value.Header, name, EnsureUsable);
+        return TagRecordReader.ResolveNamed(opened.Value.File, opened.Value.Header, name, EnsureOwnerUsable);
     }
 
     private AteliaResult<(IRbfFile File, CheckedTagBucketHeader Header)> GetNamedTagBucket(string name) {
@@ -215,18 +215,18 @@ public sealed partial class VersionStore {
         // Every named call still qualifies all direct directory entries, including calls
         // from a scan visitor. Borrowing a content handle does not waive path qualification.
         var resolved = GetTagFiles().ResolveTagBucket(bucketId, _markOwnedCleanupFault);
-        EnsureUsable();
+        EnsureOwnerUsable();
         if (resolved is not QualifiedTagBucketTarget target) {
             return new TagNotFoundError("The requested tag bucket does not exist.");
         }
         // A scan visitor borrows the already qualified current bucket; the named finally must
         // neither replace its slot nor close this handle. Other buckets retain their own slot.
         if (_tagScanFile is { } scanFile && _tagScanHeader.IsFor(scanFile) && _tagScanHeader.BucketId == bucketId) {
-            EnsureUsable();
+            EnsureOwnerUsable();
             return (scanFile, _tagScanHeader);
         }
         IRbfFile file = OpenTagOperation(target, IsReadOnly);
-        var header = TagRecordReader.CheckHeader(file, _identity, bucketId, EnsureUsable);
+        var header = TagRecordReader.CheckHeader(file, _identity, bucketId, EnsureOwnerUsable);
         if (header.IsFailure) { return header.Error!; }
         return (file, header.Value);
     }
@@ -240,7 +240,7 @@ public sealed partial class VersionStore {
     private IRbfFile OpenTagOperation(QualifiedTagBucketTarget target, bool readOnly) {
         if (_tagOperationFile is not null) { throw new InvalidOperationException("A named tag operation is already active."); }
         _tagOperationFile = GetTagFiles().OpenTagBucket(target, readOnly, _markOwnedCleanupFault);
-        EnsureUsable();
+        EnsureOwnerUsable();
         return _tagOperationFile;
     }
 

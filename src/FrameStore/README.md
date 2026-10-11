@@ -15,7 +15,7 @@ using (var store = Store.Create(rootPath)) {
 }
 using (var store = Store.OpenReadOnly(rootPath)) {
     using var frame = store.ReadFrame(address).Unwrap();
-    // frame.PayloadAndMeta 是已完整校验且独立拥有的 bytes。
+    // frame.Payload / frame.TailMeta 是完整校验后自有 bytes 的零复制切片。
 }
 ```
 
@@ -23,7 +23,11 @@ using (var store = Store.OpenReadOnly(rootPath)) {
 
 `BeginAppend()` 提供未知尺寸 Builder；`BeginAppend(payloadLength, tailMetaLength, out address)` 在声明最终 stored 长度后提供提前地址。多个 Builder 可嵌套、交错并乱序完成，每个独占一个文件。其 `PayloadAndMeta` writer 的借用须经 Advance 归还，成功 EndAppend 自动归还租借；提前地址不证明完成、来源或耐久，取消后的坐标可能复用。普通 buffer Append 不消耗 Builder 配额。可选 `framestore.config.json` 只接受 `MaxOutstandingBuilders`，默认 32。
 
-writer 的 `Length` 保留 RBF 已写/预留的逻辑累计长度，包含内部 HeadLen；统计用户操作的逻辑增量应比较同一 Builder 操作前后的差值。该属性不表示物理输出量；当前实现到 EndAppend 提交 HeadLen 前会保留未完成内容。
+writer 的 `Length` 现在表示本次 Builder 的用户 `Reserved + Advanced` 累计 bytes，从 0 开始，包含 Payload 与 TailMeta，排除内部 framing。成功 `ReserveSpan` 立即计入，`Advance(count)` 按实际 count 计入；`GetSpan/GetMemory`、`TryGetReservedSpan`、回填及 `Commit` 不增加长度，`Advance(0)` 仅归还借用。known-size 声明是最终 stored 长度预算，不代表已使用长度；unknown-size 到 End 才确定 meta 分界。所有 Builder/writer 副本及重复 getter 共享同一长度原点。
+
+确定的参数、协议或容量拒绝不增加 `Length`；可纠正的 EndAppend 拒绝保留同一 writer，仍可完成回填或继续写入。End/取消、文件复用、owner fault/Dispose 后旧 writer 仍按原租借 guard 拒绝。
+
+这是 `Length` 的公开语义变更：旧调用方若从绝对值中扣除内部 HeadLen，需要移除该扣减；同一 Builder 前后差值的用法仍成立。物理尺寸仍使用 `Atelia.Rbf.RbfFile.MeasureWriteSize(payloadLength, tailMetaLength)`，不能用 `Length` 代替。当前实现到 EndAppend 提交 HeadLen 前会保留未完成内容。
 
 资源成本按实际 active 数计算：健康取消 Builder 后仍保留可写文件句柄，降低 M 后重开也会接管全部历史 active。大 sizeHint 可以租到远大于声明 payload 的 buffer；End/取消及 FrameRead.Dispose 归还池，不保证进程工作集立即下降。独立循环图、M=1 回填示例和 Windows/Linux 有界资源基线见 [R2 消费与资源记录](../../docs/FrameStore/02-framestore-consumer-resource-acceptance.md)。
 
@@ -33,7 +37,7 @@ writer 的 `Length` 保留 RBF 已写/预留的逻辑累计长度，包含内部
 
 `StoreId`、`IsReadOnly` 是纯保存值，fault/Dispose 后仍可读取，不能证明当前可用。公共 `EnsureUsable()` 已直接转发现有内部检查；其窄转发合同见 [S2](../../docs/FrameStore/02-framestore-core.md) `[A-FS-ENSURE-USABLE]`，借入入口/持续责任见 [S4](../../docs/VersionStore/04-versionstore-publication.md) `[S-VS-DATA-BORROW]`。新增验证与 VS 骨架接线见[本轮记录](../../docs/VersionStore/12-versionstore-implementation-plan.md)，不重标原 Accepted 证据。
 
-成功的 `FrameRead` 独立拥有 buffer，需调用方 Dispose，可在 store 关闭后使用；已取得的 span 不得越过 FrameRead.Dispose。地址必须同时知道所属 store；不公开裸 RBF writer 或路径导入。
+成功的 `FrameRead` 独立拥有 buffer，需调用方 Dispose，可在 store fault/关闭后使用。`Payload` 与 `TailMeta` 从保留的 `PayloadAndMeta` 零复制切片，不重复解码；`TailMetaLength` 仍提供分界长度。FrameRead.Dispose 后三个 bytes getter 都抛 ObjectDisposedException，包括空 Payload/空 TailMeta；已取得的 span 不得越过 Dispose。地址必须同时知道所属 store；不公开裸 RBF writer 或路径导入。
 
 `FrameAddress.TryWrite/TryRead` 保持固定 12B，适用于提前尺寸规划和地址预留回填。普通已知地址另可使用 `MeasureVarInt()`、`WriteVarInt(BareValueWriter)` 和 `ReadVarInt(ref BareValueReader)`：编码为 `VarUInt32(FileId) + VarUInt64(SizedPtr.Serialize())`，合法地址占 3～15B，不保证每个值都短于 12B。记录 schema 必须明确选择格式，不能自动探测或失败后切换。变长 writer 输出最短表示，reader 接受 Binary 规定的有界冗余表示；复合地址读取失败不推进 reader，实际消费不能用 Measure 反推。default 不能度量或输出，writer 下游异常不保证回滚。
 

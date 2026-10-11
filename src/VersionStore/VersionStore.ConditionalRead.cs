@@ -340,9 +340,9 @@ public sealed partial class VersionStore {
     }
 
     private void CheckConditionalState(Action? checkState) {
-        EnsureUsable();
+        EnsureOwnerUsable();
         checkState?.Invoke();
-        EnsureUsable();
+        EnsureOwnerUsable();
     }
 
     private AteliaError? BeforeConditionalWork(Func<AteliaError?>? beforeWork, Action? checkState) {

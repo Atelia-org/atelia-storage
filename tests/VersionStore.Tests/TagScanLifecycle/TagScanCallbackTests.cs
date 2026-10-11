@@ -64,7 +64,14 @@ public sealed class TagScanCallbackTests {
             retained.Add(info);
             var scan = Assert.Single(f.Tags.Opened);
             Assert.Equal(0, scan.DisposeCalls);
-            Assert.Equal(id, f.Store.ReadRef(id).Unwrap().Revision.RefId);
+            int events = f.Events.Count;
+            f.Store.EnsureUsable();
+            Assert.Equal(events, f.Events.Count);
+            var current = f.Store.ReadRef(id).Unwrap();
+            Assert.Equal(id, current.Revision.RefId);
+            var exact = f.Store.ReadRevision(current.Revision).Unwrap();
+            Assert.Equal(current.Revision, exact.Revision);
+            Assert.Equal(current.Payload.ToArray(), exact.Payload.ToArray());
             Assert.Equal(info.Name, f.Store.ReadTagInfo(info.Name).Unwrap().Name);
             Assert.Equal(info.Name == TagScanFaultFixture.Name ? new byte[] { 0xff, 0 } : new byte[] { 3 },
                 f.Store.ResolveTag(info.Name).Unwrap().Bytes.ToArray());

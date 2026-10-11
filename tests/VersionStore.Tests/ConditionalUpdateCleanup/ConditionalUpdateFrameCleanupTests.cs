@@ -8,12 +8,17 @@ using Xunit;
 namespace Atelia.VersionStore.Tests.ConditionalUpdateCleanup;
 
 public sealed class ConditionalUpdateFrameCleanupTests {
-    [Fact]
-    public void SuccessfulLocalPublicationReadReturnFailureFaultsAndClosesTheOwner() {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SuccessfulLocalPublicationReadReturnFailureFaultsAndClosesTheOwner(bool exact) {
         using var fixture = new ConditionalUpdateFaultFixture();
         var operations = new FrameCleanupOperations { BadReturnId = 1 };
         var store = Open(fixture, operations, readOnly: true);
-        Assert.Throws<ArgumentException>(() => { store.ReadRef(fixture.Id(1)); });
+        Assert.Throws<ArgumentException>(() => {
+            if (exact) { store.ReadRevision(fixture.Initial[1]); }
+            else { store.ReadRef(fixture.Id(1)); }
+        });
         AssertLeaseWasTakenAndFaultCleanup(fixture, operations);
         using var reopened = fixture.OpenPublic(readOnly: true);
         Assert.Equal(fixture.Initial[1], reopened.ReadRef(fixture.Id(1)).Unwrap().Revision);
@@ -37,13 +42,18 @@ public sealed class ConditionalUpdateFrameCleanupTests {
         AssertLeaseWasTakenAndFaultCleanup(fixture, operations);
     }
 
-    [Fact]
-    public void SuccessfulDesignatedPeerReadReturnFailureClosesPeerBeforeOwnedFilesAndLock() {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SuccessfulDesignatedPeerReadReturnFailureClosesPeerBeforeOwnedFilesAndLock(bool exact) {
         using var fixture = new ConditionalUpdateFaultFixture();
         IReadOnlyDictionary<RefId, RefRevision> group = PublishGroup(fixture);
         var operations = new FrameCleanupOperations { BadReturnId = 2, BadReturnTicket = group[fixture.Id(2)].Ticket };
         var store = Open(fixture, operations, readOnly: true);
-        Assert.Throws<ArgumentException>(() => { store.ReadRef(fixture.Id(1)); });
+        Assert.Throws<ArgumentException>(() => {
+            if (exact) { store.ReadRevision(group[fixture.Id(1)]); }
+            else { store.ReadRef(fixture.Id(1)); }
+        });
         AssertLeaseWasTakenAndFaultCleanup(fixture, operations);
         Assert.Equal(new[] { "close:2", "close:1", "lock:close" },
             operations.Events.Where(item => item.StartsWith("close:", StringComparison.Ordinal) || item == "lock:close"));
@@ -52,10 +62,12 @@ public sealed class ConditionalUpdateFrameCleanupTests {
         Assert.Equal(group[fixture.Id(2)], reopened.ReadRef(fixture.Id(2)).Unwrap().Revision);
     }
 
-    [Fact]
-    public void BodyPrimarySurvivesLocalReturnAndOwnedFileCleanupFailuresInOrder() {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void BodyPrimarySurvivesLocalReturnAndOwnedFileCleanupFailuresInOrder(bool exact) {
         using var fixture = new ConditionalUpdateFaultFixture();
-        PublishGroup(fixture);
+        IReadOnlyDictionary<RefId, RefRevision> group = PublishGroup(fixture);
         var primary = new IOException("peer body read failed");
         var fileCleanup = new IOException("owned file close failed");
         var operations = new FrameCleanupOperations {
@@ -63,7 +75,10 @@ public sealed class ConditionalUpdateFrameCleanupTests {
             DisposeFailureId = 1, DisposeFailure = fileCleanup
         };
         var store = Open(fixture, operations, readOnly: true);
-        AggregateException observed = Assert.Throws<AggregateException>(() => { store.ReadRef(fixture.Id(1)); });
+        AggregateException observed = Assert.Throws<AggregateException>(() => {
+            if (exact) { store.ReadRevision(group[fixture.Id(1)]); }
+            else { store.ReadRef(fixture.Id(1)); }
+        });
         Assert.Same(primary, observed.InnerExceptions[0]);
         Assert.IsType<ArgumentException>(observed.InnerExceptions[1]);
         Assert.Same(fileCleanup, observed.InnerExceptions[2]);

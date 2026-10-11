@@ -10,8 +10,16 @@ internal sealed class FrameLease(FrameStoreCore owner, FrameFileEntry entry) {
     internal bool Active;
     internal bool Counted;
     internal bool HasUnadvancedBorrow;
+    private long? _payloadAndMetaLengthOrigin;
 
     internal bool IsCurrent => Active && ReferenceEquals(Entry.CurrentLease, this);
+
+    // Capture before the first writer escapes, so an initial Length read after writing
+    // and every Builder/Writer alias observe the same user-byte origin.
+    internal void CapturePayloadAndMetaLengthOrigin() =>
+        _payloadAndMetaLengthOrigin ??= Builder.PayloadAndMeta.Length;
+
+    internal long PayloadAndMetaLength => Builder.PayloadAndMeta.Length - _payloadAndMetaLengthOrigin!.Value;
 
     internal void EnsureWriterUsable() {
         Owner.EnsureUsable();

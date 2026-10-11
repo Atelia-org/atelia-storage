@@ -31,6 +31,8 @@ Create、Open、OpenReadOnly MUST 接收实际借入的非 null data FrameStore�
 
 调用方 MUST 在 VersionStore 借用期间保持同一 data owner 未 Dispose、未 fault，并将两层相关操作和 Dispose 串行化；不得在同步调用或其输入/visitor 回调中插入不受合同允许的借入 data 操作。入口检查不维持租借、不监控后续状态，不为所有纯发布目录查询新增 data 探测或违约诊断保证；真正的 data 读/屏障继续消费 FrameStore 自己的生命周期与 fault guard。data 后续 fault 时停止依赖它的 VS 流程，并按两层既有规则清理/重开；VS 操作已经触发 data/源确认异常时，仍按 `[A-VS-PUBLICATION-EVIDENCE]` 停用 VS，不改变 PublicationOutcome。
 
+VersionStore 另提供公共 `void EnsureUsable()`，先检查自身 disposed、再检查自身 fault，最后调用实际 borrowed data 的 EnsureUsable。该组合检查无 I/O、恢复或耐久确认，允许 RO/RW、活跃 data Builder 和现有 visitor 状态；只是调用时的寿命资格，不维持持续租借或证明内容健康。借入 data 的 guard 异常原样传播，纯检查失败不额外 fault/清理 VS。内部纯发布目录查询仍只检查自身 owner，不改为自动探测 data；真正发布的 data barrier 异常继续按既有停用与 PublicationOutcome 合同处理。VersionStoreId/DataStoreId/IsReadOnly 等保存值不是当前可用性证明。
+
 VersionStore Dispose 不调用此借入 guard、不 Dispose data；即使 data 已 fault/Dispose，仍必须尝试清理 VS 自己的资源。已交付的自有快照和值继续遵循各自生命周期，不因 borrowed owner 后续失效而撤销。
 
 ### spec [F-VS-OWN-FORMAT] 固定记录绑定发布库与借入 data
@@ -189,7 +191,7 @@ VersionStore MUST 提供 `ReadRef(uint localRefId)`，与 `ReadRef(RefId)` 返�
 ## term `Ref-Revision` 已接受快照的位置身份
 
 RefId 由 `[F-VS-REF-ID-4B]` 定义，是正式 ref 文件的稳定身份；应用名称/业务标记不进入文件名或库内绑定。RefRevision 为库签发的自有位置值，绑定完整 RefId 及实际快照位置/长度，不与 data FrameAddress、仅 offset 或 owner 引用互换。
-revision 只从完成发布或实际 checked-read 且已确认真实主链成员的当前/历史快照取得，不在输出前签发。不同完整物理快照即使 RootMap 同值也具有不同 revision。它不是某次未完成调用的尝试 token；首版不提供凭裸位置随机 ReadRevision，也不以字典相同证明某次调用成功 flush。S5 的按 revision fork 是内部重读与校验来源的窄创建入口，不开放任意位置读取。
+revision 只从完成发布或实际 checked-read 且已确认真实主链成员的快照取得，不在输出前签发。不同完整物理快照即使 RootMap 同值也具有不同 revision。它不是某次未完成调用的尝试 token；ReadRevision 只接受库签发值，不提供凭裸位置读取，也不以字典相同证明某次调用成功 flush。S5 的按 revision fork 与精确读取共用来源资格，不开放任意位置构造或导入。
 
 ### spec [A-VS-REF-REVISION-VALUE] 自有 revision 复用身份与完整 ticket
 
@@ -204,6 +206,16 @@ revision 只从完成发布或实际 checked-read 且已确认真实主链成员
 不提供公开位置构造/转换、setter/init、Deconstruct、IsValid、算术/排序、规范文本或整个 RefRevision 的公开/持久 codec。ForkOrigin 仍组合宿主上下文、4B RefId 字段与 8B Packed LE ticket；不能从这些元数据直接构造 checked revision，也不新增完整 revision 记录、版本或预留字段。暂不支持匿名精确 revision 独立外存后跨进程直接导入；tag 可保存09定义的 Related 关联注记，但不签发 revision、不证明 root bytes 与该点一致，不能透明替代精确 ref 历史来源。出现明确消费者时再立带完整上下文的窄导入/导出合同。
 
 （Informative）只读投影是使现有历史与 ListForks 来源边直接关联的工程选择，不是用户另行规定的 API；全私有值也能正确完成选点后 fork，声明边本身也能按 ticket 分组。A1/A2 同字典而分别分出 B/C 时，只比较 RefId 或 RootMap 不能识别选中点的孩子，两属性允许直接比较已有 source 字段，无专用 MatchesLocation API。它们只观察首版单文件位置，未来分段需重审定位/观察合同，不承诺此 tuple 永远足够。无公开构造是窄签发表面，不是不可伪造安全机制；公开构造加严格 fork 校验也可正确，但当前没有裸位置请求消费者。旧 [CheckpointAddress](../../../durable-graph/src/DurableGraph.Persistence/CheckpointAddress.cs)及[重开失效测试](../../../durable-graph/tests/DurableGraph.Persistence.Tests/DB078EventQueryTests.cs)是实例绑定的另一模型，不成为本栈兼容义务；[结构扫描仍返回坏 payload 的测试](../../tests/Rbf.Tests/Internal/RbfScanReverseTests.cs)佐证内容资格不能只由 framing 代替，不构成新值类型或 VersionStore 实施资格。
+
+### spec [A-VS-READ-REVISION] 精确重读库签发的快照
+
+VersionStore MUST 提供 `AteliaResult<RefBytesSnapshot> ReadRevision(RefRevision revision)`。先检查自身 owner disposed/fault，再在目标发现 I/O 前拒绝 default/不同持久 VSID 的值；支持 RO/RW，按既有模式复用或惰性打开正式 ref。没有新发布、data barrier、源 flush 或 PublicationOutcome。
+
+本次 MUST 检查必要 header、header 后完成范围、目标 ReadFrameInfo 形状、完整 CRC/kind/envelope/meta/尺寸，以及成功目标的 GetScanBoundaryAfter 尾 Fence；CU 还须通过07共同判据。仅交付 root bytes、原 RecordedAtUnixMs 与等于输入的 Revision，结果自有 bytes/生命周期消费11。合法未提交 exact CU 返回本层记录错误 VersionStore.InvalidRefRecord，不能回退到别的节点；必要结构、CRC、peer、I/O 及清理错误按原合同传播，不能伪装为未提交。普通校验失败不新增 fault，实际 owned 可写打开恢复/清理失败仍按既有规则停用。
+
+目标成员来源消费库签发值、完整位置不删除/复用与无外部改写的协议；不为重新定位本地旧点扫描来源后缀或重验前序链。完整帧 CRC 与后 Fence 本身不证明真实主链成员，不能据此开放裸 ticket。底层工厂当前 EOF 资格及 CU peer 必要消歧仍保留，不承诺 O(1) I/O。保存值可交给同库重开 owner，不新增跨进程匿名 revision 导入/导出。
+
+历史/tag visitor 内允许串行调用并复用匹配已有句柄。visitor 自行发起的 ReadRevision 是独立操作，不自动计入外层 HistoryBudget；历史内核仍对自身资格工作逐步计费，不借此入口绕开预算。Dispose、取消、异常与必要清理继续消费既有 callback/owner 合同。
 
 ## 单文件存储与最小 codec
 

@@ -15,7 +15,8 @@
 | [00 总体边界与决策](00-architecture-decisions.md) | 各层职责、已确认方向、依赖与恢复模型；具体 API/wire 由所属模块规范定义 |
 | [06 集成与交付](06-integration-and-delivery.md) | public 跨层组合、进程中断、包消费及真实消费者的分层资格 |
 | [13 本地包交付](13-local-package-delivery.md) | 既有六包候选的不可变版本、来源、manifest 与隔离消费证据；该候选不含后来的 CU 增量 |
-| [14 下游公面完善计划](14-downstream-api-refinement-plan.md) | 新增精确读取、用户长度/切片、组合 guard 与恢复信息的已审查待实施方案；统一维护跨层施工队列 |
+| [14 下游公面完善计划](14-downstream-api-refinement-plan.md) | 统一维护剩余跨层施工队列，下一片为 VS 惰性恢复报告；已完成公面归入模块规范 |
+| [14 下游公面增量验收](14-downstream-api-refinement-acceptance.md) | 精确读取、用户长度/切片、组合 guard 的实际源码与 Windows Release 证据；不改变旧候选资格 |
 | [设计问题导航](design-questions.md) | 设计研究边界与已关闭事项；当前没有待定设计项，不作为额外规范输入 |
 | [reviews/](reviews/) | 跨层讨论与历史审阅；当时结论、源码与检查数字保持原身份 |
 
