@@ -110,6 +110,23 @@ internal sealed class TestVersionStoreFiles(List<string> operations, string? roo
         return AteliaResult<IReadOnlyList<uint>>.Success(Array.AsReadOnly(Paths.Keys.ToArray()));
     }
 
+    public AteliaError? VisitRefTargets(Func<QualifiedRefTarget, AteliaError?> visit, Action checkState,
+        Action markOwnedCleanupFault) {
+        ListCalls++;
+        operations.Add("list");
+        checkState();
+        if (ListCleanupFailure is { } cleanupFailure) { markOwnedCleanupFault(); throw cleanupFailure; }
+        if (ListFailure is { } failure) { throw failure; }
+        foreach (var pair in Paths) {
+            checkState();
+            AteliaError? error = visit(new QualifiedRefTarget(pair.Key, pair.Value));
+            checkState();
+            if (error is not null) { return error; }
+        }
+        checkState();
+        return null;
+    }
+
     public AteliaResult<QualifiedRefTarget> PrepareNewRef(uint localId, Action markOwnedCleanupFault) {
         PrepareCalls++;
         operations.Add($"prepare:{localId}");

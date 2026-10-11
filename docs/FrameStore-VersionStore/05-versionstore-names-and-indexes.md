@@ -1,6 +1,6 @@
 # S5：ref 历史、fork 与 tag 施工导航
 
-状态：**Draft；V2-A 已实施历史 visitor/预算/清理、按 ForkOrigin 接续与 RBF 边界逆扫；V2-B 已接通自动/指定 ForkRef 创建；ListForks、tag 及系统/平台完整验收尚缺（见[实施与后续计划](12-versionstore-implementation-plan.md)）。公开 fork 创建/继承历史闭环与受控故障证据分别记录。**
+状态：**Draft；V2-A 已实施历史 visitor/预算/清理、按 ForkOrigin 接续与 RBF 边界逆扫；V2-B 已接通自动/指定 ForkRef 创建，V2-C 已接通 ListForks 声明图查询；tag 及系统/平台完整验收尚缺（见[实施与后续计划](12-versionstore-implementation-plan.md)）。公开 fork 创建/继承历史闭环与受控故障证据分别记录。**
 本文负责历史、fork 与声明图查询；ref 格式/身份/编号及发布协议消费 [S4](04-versionstore-publication.md)，记录时间见 [08 专项](08-versionstore-record-metadata.md)，bytes 结果见 [11 专项](11-versionstore-root-payload-bytes-api.md)。不可变 tag 由 [09 专项](09-versionstore-immutable-tags.md)定义，安排在 ref、历史与 fork 之后施工。
 前置：[S0](00-architecture-decisions.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)。扩展 S4 的完整根快照与局部发布协议，不增加全局事实日志。
 
@@ -50,7 +50,7 @@ ForkRef 两种入口 MUST 接收本 VersionStore 的已发布 RefRevision，先�
 
 ### spec [A-VS-REF-HISTORY-CHECKED] 同步历史读取交付真实且自有的快照
 
-首版历史入口已实施如下；实际源码资格见实施计划，两种 ForkRef 亦已接通，ListForks 仍待实施：
+首版历史入口已实施如下；实际源码资格见实施计划，两种 ForkRef 与 ListForks 亦已接通：
 
 ```csharp
 public readonly record struct HistoryBudget(long MaxSnapshots, long MaxWorkSteps);
@@ -101,7 +101,7 @@ visitor 返回 true 表示继续，false 表示已接收当前项并正常选点
 
 ### spec [A-VS-FORKS-CHECKED] 正式 ref 的首帧声明完整分叉图
 
-首版入口如下；这是待实施合同，不是已存在的 API：
+首版入口已在 V2-C 实施；源码与后续系统资格见[实施计划](12-versionstore-implementation-plan.md)：
 
 ```csharp
 public readonly struct ForkInfo {
@@ -132,7 +132,7 @@ ForkInfo 是普通非 record readonly struct，仅有三个只读属性及内部
 该边集合是唯一来源的派生视图：按 SourceRefId 可找直接分叉，按 exact source ticket 可区分同一 ref 的不同分叉点，对 child/source 关系求传递闭包可找所有后代；不隐含跨 ref 时间全序。已有 RefBytesSnapshot 可用 Revision.RefId/Ticket 与声明位置比较，关联 exact 点的分叉；匹配不签发源 revision 或证明源内容健康。应用映射不增加边，名称展示由应用管理；应用可从结果派生反向表。
 首版每次 ListForks 都执行上述完整 checked 扫描，不保留跨调用反向表、负缓存或图安装/更新相位，不写持久孩子列表、全局 catalog 或索引。实际重复查询成本超出目标后，再研究内存表及其完整建立/更新资格。
 
-（Informative）int 参数与完整物化列表/节点索引的 Count 域相符，是没有超出该域消费者时的工程选择，long 也可正确。readonly 结果与私有薄封装提供稳定保留视图；独立可变副本或标准 immutable 集合也可正确，不因此建立公共集合框架或安全凭证。每 ref 的本层读取固定为首 header，图行走是线性节点访问；哈希表定位按通常均摊成本估算，不承诺碰撞下的硬 CPU 界。公开 [RBF 正扫](../../src/Rbf/RbfForwardEnumerator.cs)与[payload 坏仍可结构扫描的测试](../../tests/Rbf.Tests/Internal/RbfScanForwardTests.cs)证明 framing 不替代必要完整读取；兄弟仓的[私有只读列表封装](../../../durable-graph/src/DurableGraph.Storage/StateRevision.cs)只提供窄所有权实现参考，不引入依赖或兼容。没有新栈实际消费者或性能测量证明额外 work/byte 限额、排序、缓存及通用图 API 必要；本条不是实现、平台或包资格。
+（Informative）int 参数与完整物化列表/节点索引的 Count 域相符，是没有超出该域消费者时的工程选择，long 也可正确。readonly 结果与私有薄封装提供稳定保留视图；独立可变副本或标准 immutable 集合也可正确，不因此建立公共集合框架或安全凭证。每 ref 的本层读取固定为首 header，图行走是线性节点访问；哈希表定位按通常均摊成本估算，不承诺碰撞下的硬 CPU 界。公开 [RBF 正扫](../../src/Rbf/RbfForwardEnumerator.cs)与[payload 坏仍可结构扫描的测试](../../tests/Rbf.Tests/Internal/RbfScanForwardTests.cs)证明 framing 不替代必要完整读取；兄弟仓的[私有只读列表封装](../../../durable-graph/src/DurableGraph.Storage/StateRevision.cs)只提供窄所有权实现参考，不引入依赖或兼容。没有新栈实际消费者或性能测量证明额外 work/byte 限额、排序、缓存及通用图 API 必要；本条定义访问范围与复杂度；V2-C 源码验证见实施计划，不能替代平台或包资格。
 
 ## 不可变 tag 的独立施工片
 

@@ -83,6 +83,8 @@ internal sealed class ForkFaultFiles(TestVersionStoreFiles inner, string root, L
     }
 
     public AteliaResult<IReadOnlyList<uint>> ListRefIds(Action markOwnedCleanupFault) => inner.ListRefIds(markOwnedCleanupFault);
+    public AteliaError? VisitRefTargets(Func<QualifiedRefTarget, AteliaError?> visit, Action checkState,
+        Action markOwnedCleanupFault) => inner.VisitRefTargets(visit, checkState, markOwnedCleanupFault);
     public AteliaResult<QualifiedRefTarget> PrepareNewRef(uint localId, Action markOwnedCleanupFault) => inner.PrepareNewRef(localId, markOwnedCleanupFault);
     public IRbfFile CreatePending(Action markOwnedCleanupFault) => inner.CreatePending(markOwnedCleanupFault);
     public void PublishPending(QualifiedRefTarget target, Action markOwnedCleanupFault) => inner.PublishPending(target, markOwnedCleanupFault);

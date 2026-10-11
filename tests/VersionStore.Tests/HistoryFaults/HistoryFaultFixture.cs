@@ -153,6 +153,19 @@ internal sealed class HistoryFaultFiles(string root, List<string> operations) : 
     public AteliaResult<IReadOnlyList<uint>> ListRefIds(Action markOwnedCleanupFault) =>
         AteliaResult<IReadOnlyList<uint>>.Success(Array.AsReadOnly(Paths.Keys.ToArray()));
 
+    public AteliaError? VisitRefTargets(Func<QualifiedRefTarget, AteliaError?> visit, Action checkState,
+        Action markOwnedCleanupFault) {
+        checkState();
+        foreach (var pair in Paths) {
+            checkState();
+            AteliaError? error = visit(new QualifiedRefTarget(pair.Key, pair.Value));
+            checkState();
+            if (error is not null) { return error; }
+        }
+        checkState();
+        return null;
+    }
+
     public AteliaResult<QualifiedRefTarget> PrepareNewRef(uint localId, Action markOwnedCleanupFault) {
         operations.Add("prepare");
         throw new InvalidOperationException("History fault tests do not create through their controlled backend.");

@@ -1,6 +1,6 @@
 # S5-B 专项：不可变 tag
 
-日期：2026-10-10。状态：**Draft；用户已批准固定名称长度上限与请求范围的坏记录隔离，本次修订保留名称 codec、256 桶路由、初始化保护、data-first 与 PublicationOutcome。VersionStore 已有V0骨架，但 tag 尚未实施、无 tag 运行或验收证据（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。
+日期：2026-10-10。状态：**Draft；用户已批准固定名称长度上限与请求范围的坏记录隔离，本次修订保留名称 codec、256 桶路由、初始化保护、data-first 与 PublicationOutcome。VersionStore 已接通普通 ref、历史、fork 与声明分叉图，但 tag 尚未实施、无 tag 运行或验收证据（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。
 
 本文属于 [S5](05-versionstore-names-and-indexes.md) 的 S5-B，不是新增项目或阶段。建议先完成 S4 ref 闭环与 S5 历史/fork，再施工本文 tag，最后补齐 S6 tag 组合消费；tag 的机制依赖 S4，历史回调互操作另消费 S5，不将这份施工建议变成新增依赖。执行保持单 owner/driver 串行与 ProcessCrashOnly，不增加并发或断电保证。统一版本、持久身份、root-payload envelope、借入 data、根/锁、唯一 pending 及停用清理由 [S4](04-versionstore-publication.md) 唯一定义；本篇是 tag 名称、桶及其操作的唯一权威，不复制下层格式或尺寸算法。
 

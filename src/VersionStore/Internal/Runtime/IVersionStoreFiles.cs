@@ -21,6 +21,10 @@ internal interface IVersionStoreFiles {
     IRbfFile OpenRef(QualifiedRefTarget target, bool readOnly, Action markOwnedCleanupFault);
     /// <summary>完整发现全部正式路径身份；返回前完成必要资格及枚举资源清理，不读取 ref 内容。</summary>
     AteliaResult<IReadOnlyList<uint>> ListRefIds(Action markOwnedCleanupFault);
+    /// <summary>逐项资格化正式目标；callback 的非 null 错误停止发现，null 仅在正常 EOF 及清理成功后返回。</summary>
+    /// <remarks>每项名称、类型和同文件系统资格先于 callback；不物化全集。状态回调覆盖发现、逐项与必要关闭边界。</remarks>
+    AteliaError? VisitRefTargets(Func<QualifiedRefTarget, AteliaError?> visit, Action checkState,
+        Action markOwnedCleanupFault);
     /// <summary>只为指定正式目标取得资格；存在时拒绝，不创建或恢复文件。</summary>
     AteliaResult<QualifiedRefTarget> PrepareNewRef(uint localId, Action markOwnedCleanupFault);
     /// <summary>CreateNew 唯一 pending，成功后移交新 RBF3 Idle 句柄；失败资源由 backend 单次清理。</summary>

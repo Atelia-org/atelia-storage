@@ -1,0 +1,209 @@
+{
+  "date": "2026-10-11",
+  "scope": "VersionStore V2-C bounded full declared fork graph; source-only",
+  "baseline": "736416696bca01122647919089f78c00f5a0e59f",
+  "sourceIdentity": "Baseline plus changed/new source files below, committed with this record; UTF-8 text normalized to LF.",
+  "platform": "Windows-11-10.0.22000-SP0",
+  "publicQueryFixtureDrive": "W:",
+  "commands": [
+    "dotnet build Atelia.Storage.slnx -c Release --nologo -v minimal",
+    "dotnet test Atelia.Storage.slnx -c Release --no-build --logger trx --results-directory artifacts/versionstore-v2c/accepted-tests",
+    "./eng/Test-Rbf1ReferenceAssets.ps1"
+  ],
+  "build": {
+    "succeeded": true,
+    "finalIncrementalWarnings": 0,
+    "errors": 0,
+    "note": "Prerequisite build emitted existing XML and incomplete-test-fixture warnings. Two new xUnit assertion warnings corrected before final build; no unrelated cleanup."
+  },
+  "newCases": {
+    "ForkQueries": 35,
+    "ForkQueryFaults": 42
+  },
+  "testOutcomes": {
+    "Passed": 2920,
+    "NotExecuted": 9
+  },
+  "testRuns": [
+    {
+      "assembly": "Atelia.Primitives.Tests.dll",
+      "results": {
+        "Passed": 75
+      },
+      "trx": "artifacts/versionstore-v2c/accepted-tests/gdtutu_TUTU17_2026-10-11_10_35_10.trx",
+      "trxSha256": "5e3d1cce16b893d16b1fe133407a69e8d593d58f175c16cf7afde45feaa7b082"
+    },
+    {
+      "assembly": "Atelia.Data.Tests.dll",
+      "results": {
+        "Passed": 288
+      },
+      "trx": "artifacts/versionstore-v2c/accepted-tests/gdtutu_TUTU17_2026-10-11_10_35_11.trx",
+      "trxSha256": "ed9b276cc16c0f1c408d95269b8172c82d2022eb709ec69fc26054e1f504d54b"
+    },
+    {
+      "assembly": "Atelia.RbfSegmentStore.Tests.dll",
+      "results": {
+        "Passed": 48
+      },
+      "trx": "artifacts/versionstore-v2c/accepted-tests/gdtutu_TUTU17_2026-10-11_10_35_11[1].trx",
+      "trxSha256": "738e445234657a15ac48d5986e02cf9a449b923743e745f32e9c1fc1bdfa26ed"
+    },
+    {
+      "assembly": "Atelia.Binary.Tests.dll",
+      "results": {
+        "Passed": 214
+      },
+      "trx": "artifacts/versionstore-v2c/accepted-tests/gdtutu_TUTU17_2026-10-11_10_35_11[2].trx",
+      "trxSha256": "7a74857bb4779dcb519ecef88a5936b798387f4876d749713ea3640d7efb5d99"
+    },
+    {
+      "assembly": "Atelia.EventJournal.Toolkit.Tests.dll",
+      "results": {
+        "Passed": 122
+      },
+      "trx": "artifacts/versionstore-v2c/accepted-tests/gdtutu_TUTU17_2026-10-11_10_35_11[3].trx",
+      "trxSha256": "856d5fd65245d40cb8827ad1bf0680811538af75ff1574342db3bdbe1e19be5e"
+    },
+    {
+      "assembly": "Atelia.VersionStore.Tests.dll",
+      "results": {
+        "Passed": 657,
+        "NotExecuted": 6
+      },
+      "trx": "artifacts/versionstore-v2c/accepted-tests/gdtutu_TUTU17_2026-10-11_10_35_11[4].trx",
+      "trxSha256": "99005aa45d96c143bde3d81b403823aaeac4b7616dc646e4fc47d65795aeb1ba"
+    },
+    {
+      "assembly": "Atelia.Rbf.Tests.dll",
+      "results": {
+        "Passed": 920
+      },
+      "trx": "artifacts/versionstore-v2c/accepted-tests/gdtutu_TUTU17_2026-10-11_10_35_11[5].trx",
+      "trxSha256": "aa086060acdffd5a841a2efd4fbc4e7b2986eb8f9fec93e8e83a7ee105520b7a"
+    },
+    {
+      "assembly": "Atelia.FrameStore.Tests.dll",
+      "results": {
+        "Passed": 422,
+        "NotExecuted": 3
+      },
+      "trx": "artifacts/versionstore-v2c/accepted-tests/gdtutu_TUTU17_2026-10-11_10_35_11[6].trx",
+      "trxSha256": "e0237f729dce6621109b548ee159803b39053d19ed796c71e7284907d9469982"
+    },
+    {
+      "assembly": "Atelia.EventJournal.Tests.dll",
+      "results": {
+        "Passed": 174
+      },
+      "trx": "artifacts/versionstore-v2c/accepted-tests/gdtutu_TUTU17_2026-10-11_10_35_11[7].trx",
+      "trxSha256": "facc4334355afff6d0f9a895e62436890d4f2c60df90022e9a39c3a98c21cc25"
+    }
+  ],
+  "logs": [
+    {
+      "path": "artifacts/versionstore-v2c/build.log",
+      "sha256": "f026aac55592dbd3e8468b0261f0048f55e95af6fdc91ea5dd9d0c432df07bc1"
+    },
+    {
+      "path": "artifacts/versionstore-v2c/accepted-tests.log",
+      "sha256": "f6d9baf964f1d509efd392e1de1f45c22c44b6da4e0b0edfaff73c88930437cc"
+    },
+    {
+      "path": "artifacts/versionstore-v2c/rbf1-assets.log",
+      "sha256": "75997e0656849e10b55138a4500b10da8c61d34feca82a27c2e364995a4738d0"
+    }
+  ],
+  "sourceFiles": [
+    {
+      "path": "src/VersionStore/ForkInfo.cs",
+      "normalizedTextSha256": "b6f25c295e9350bcca04fe18beb21c47708a6785e0fe27114a7a47f99da97097"
+    },
+    {
+      "path": "src/VersionStore/Internal/Runtime/IVersionStoreFiles.cs",
+      "normalizedTextSha256": "7ad090d9a4b53f2324a81c75c96d24aeab7b67b223cd44f0a476c780f101efe3"
+    },
+    {
+      "path": "src/VersionStore/Internal/Storage/DirectoryVersionStoreFiles.cs",
+      "normalizedTextSha256": "4b2c3b695f0d38b565a1565f2b51956d26d11e2f3dfae384dacbd3586dcc7b6c"
+    },
+    {
+      "path": "src/VersionStore/VersionStore.ForkQuery.cs",
+      "normalizedTextSha256": "41cc478fecfe1e89a2c39a3cd54ecffeac535245e82a6f2435de2519a087b56b"
+    },
+    {
+      "path": "tests/VersionStore.Tests/ForkFaults/ForkFaultFixture.cs",
+      "normalizedTextSha256": "0a765efa91782f1c20784363c57539de0ffbe2fb8ca4efe4a64ec65bf0c6ac87"
+    },
+    {
+      "path": "tests/VersionStore.Tests/ForkQueries/ForkQueryFixture.cs",
+      "normalizedTextSha256": "edd729398a0a06533ac7fa34d5efdb62acce810deff31635098ba88461e8028e"
+    },
+    {
+      "path": "tests/VersionStore.Tests/ForkQueries/ForkQueryScaleTests.cs",
+      "normalizedTextSha256": "fde02fd1d9834700309bc251c21e7e2f6d4523597c5ea5fb3d32d41eaf0622f9"
+    },
+    {
+      "path": "tests/VersionStore.Tests/ForkQueries/ForkQueryValidationTests.cs",
+      "normalizedTextSha256": "ae688d81ee44ef7e8db16a1479c28abceaae7960aa3528bdf70e993e9e88e13c"
+    },
+    {
+      "path": "tests/VersionStore.Tests/ForkQueries/PublicForkQueryTests.cs",
+      "normalizedTextSha256": "7fbc94ea9ec5ccc32054d68482b9f61a8f5fd2151a837cfee6269ada875c87c8"
+    },
+    {
+      "path": "tests/VersionStore.Tests/ForkQueryFaults/ForkQueryCancellationTests.cs",
+      "normalizedTextSha256": "85921e1685fc5225512486f4703e579cdb91a1811a82973706144c02e4674aee"
+    },
+    {
+      "path": "tests/VersionStore.Tests/ForkQueryFaults/ForkQueryDiscoveryFaultTests.cs",
+      "normalizedTextSha256": "552cc51a492c971e9ba0ca4eef7890adc63079a51178a9b9e651bf8fb52b4bd6"
+    },
+    {
+      "path": "tests/VersionStore.Tests/ForkQueryFaults/ForkQueryFaultFixture.cs",
+      "normalizedTextSha256": "75684d14c7ecbf104c4f93e5d4b2dbcca3d0eac7fccca318e133e3239fe40dd9"
+    },
+    {
+      "path": "tests/VersionStore.Tests/ForkQueryFaults/ForkQueryResourceFaultTests.cs",
+      "normalizedTextSha256": "8f8dd0a1f9728c87b9bbd78e1e699d11f4245a55d787e903525fec7dd3c32c88"
+    },
+    {
+      "path": "tests/VersionStore.Tests/HistoryFaults/HistoryFaultFixture.cs",
+      "normalizedTextSha256": "57d103134c91285f883a47ae84c56e51953047d865bf1b79907ef80526eac916"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Runtime/RuntimeFixture.cs",
+      "normalizedTextSha256": "a1c088e90de9f9db18cc2026fba82d8cf551de2b8181627da9cf8ff1f75d9d40"
+    }
+  ],
+  "versionStoreDependencies": {
+    "K4os.Compression.LZ4/1.3.8": "package",
+    "Atelia.Binary/1.0.0": "project",
+    "Atelia.Data/1.0.0": "project",
+    "Atelia.FrameStore/1.0.0": "project",
+    "Atelia.Primitives/1.0.0": "project",
+    "Atelia.Rbf/1.0.0": "project"
+  },
+  "frozenReferenceAssets": {
+    "projects": 7,
+    "exactVersion": "0.2.0-rbf1-preview.1",
+    "sourceCommit": "3e9554e2ea70f769607e80b3fc11a85506050533"
+  },
+  "review": {
+    "unresolvedP1P2": 0,
+    "findings": [
+      "Header beforeWork callback closes a cancellation gap after obtaining ScanForward but before actual MoveNext/full header read. Real read log verifies zero requests when cancelled there.",
+      "Added explicit budget Result plus enumerator-close failure test: close exception wins, owner faults and lock releases last.",
+      "Checked temporary-handle transfer in test fixture when AfterOpen hook can fail.",
+      "Iterative white/gray/black graph walk reviewed with 1024-node chain and 384-ancestor/192-branch real-file correctness vectors; no performance qualification claimed."
+    ]
+  },
+  "limitations": [
+    "Windows source qualification only; Linux, real process termination, native device failure, scale and package qualification remain separate.",
+    "Controlled malformed/header-only/cyclic files are negative/declaration fixtures, not public creation or crash evidence.",
+    "Faults injected through internal seams around production directory enumeration and real RBF; no public fault APIs.",
+    "Header-only query proves declared graph, not Snapshot initialization, source ticket membership, clone bytes or full data graph health.",
+    "Tags, full audit and CU not implemented in this slice.",
+    "No packaging, publish, push or consumer migration."
+  ]
+}

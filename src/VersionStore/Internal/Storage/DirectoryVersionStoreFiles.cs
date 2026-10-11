@@ -116,16 +116,55 @@ internal sealed class DirectoryVersionStoreFiles : IVersionStoreFiles {
     public AteliaResult<IReadOnlyList<uint>> ListRefIds(Action markOwnedCleanupFault) {
         ArgumentNullException.ThrowIfNull(markOwnedCleanupFault);
         var ids = new List<uint>();
-        VersionStorePlatform.RequireDirectory(RefsPath, markOwnedCleanupFault);
-        VersionStorePlatform.RequireSameFileSystem(_root, RefsPath, markOwnedCleanupFault);
-        EnumerateDirect(RefsPath, _operations, path => {
-            string name = Path.GetFileName(path);
-            if (!VersionStorePaths.TryParseRefFileName(name, out uint id)) { throw InvalidEntry(name); }
-            VersionStorePlatform.RequireEnumeratedFile(path, markOwnedCleanupFault);
-            VersionStorePlatform.RequireFileOnFileSystem(_root, path, markOwnedCleanupFault);
-            ids.Add(id);
-        }, markOwnedCleanupFault);
+        AteliaError? error = VisitRefTargets(target => {
+            ids.Add(target.LocalId);
+            return null;
+        }, static () => { }, markOwnedCleanupFault);
+        if (error is not null) { return error; }
         return AteliaResult<IReadOnlyList<uint>>.Success(ids.AsReadOnly());
+    }
+
+    public AteliaError? VisitRefTargets(Func<QualifiedRefTarget, AteliaError?> visit, Action checkState,
+        Action markOwnedCleanupFault) {
+        ArgumentNullException.ThrowIfNull(visit);
+        ArgumentNullException.ThrowIfNull(checkState);
+        ArgumentNullException.ThrowIfNull(markOwnedCleanupFault);
+        IEnumerator<string>? entries = null;
+        AteliaError? result = null;
+        CleanupErrors errors = default;
+        try {
+            checkState();
+            VersionStorePlatform.RequireDirectory(RefsPath, markOwnedCleanupFault);
+            checkState();
+            VersionStorePlatform.RequireSameFileSystem(_root, RefsPath, markOwnedCleanupFault);
+            checkState();
+            VersionStorePlatform.RequireEnumeratedDirectory(RefsPath, markOwnedCleanupFault);
+            checkState();
+            entries = _operations.EnumerateDirectory(RefsPath);
+            while (true) {
+                checkState();
+                bool hasEntry = entries.MoveNext();
+                checkState();
+                if (!hasEntry) { break; }
+                string path = entries.Current;
+                checkState();
+                string name = Path.GetFileName(path);
+                if (!VersionStorePaths.TryParseRefFileName(name, out uint id)) { throw InvalidEntry(name); }
+                VersionStorePlatform.RequireEnumeratedFile(path, markOwnedCleanupFault);
+                checkState();
+                VersionStorePlatform.RequireFileOnFileSystem(_root, path, markOwnedCleanupFault);
+                checkState();
+                result = visit(new QualifiedRefTarget(id, path));
+                checkState();
+                if (result is not null) { break; }
+            }
+            checkState();
+        }
+        catch (Exception error) { errors.Add(error); }
+        CloseOwned(ref entries, ref errors, markOwnedCleanupFault);
+        errors.ThrowIfAny();
+        checkState();
+        return result;
     }
 
     public AteliaResult<QualifiedRefTarget> PrepareNewRef(uint localId, Action markOwnedCleanupFault) {

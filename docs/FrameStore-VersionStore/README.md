@@ -3,7 +3,7 @@
 FrameStore 的 R1–R3 收尾已完成，S2/S3 的[独立源码验收](02-framestore-final-acceptance.md)已 Accepted。[收尾计划与自动队列入口](02-framestore-completion-plan.md)现处完成状态，不自动扩展到包交付或 VersionStore。
 2026-10-10 为 VS 借入补充 S2 `[A-FS-ENSURE-USABLE]` 与 S4 `[S-VS-DATA-BORROW]`：入口 guard、模式配对及持续责任已定；新增公共转发和 VS 局部内核已进入 [骨架与后续实施计划](12-versionstore-implementation-plan.md) 的 V0；V1 已补普通 ref 真实工厂组合验证，原 Accepted 不覆盖此增量。
 
-日期：2026-10-03–10 逐步确认核心/历史合同；2026-10-10 采用无 branch 名称、持久预留低号区、自动/预留区指定创建与单文件发布，并采用固定 4B LE LocalRefId。状态：**S1–S3 Accepted（各自源码资格）；S4–S6 Draft；FrameStore/VersionStore source-only，VersionStore 已接通普通 ref 公开闭环、有界历史与精确 fork，ListForks/tag 尚缺；参考依赖拆分 Accepted**。
+日期：2026-10-03–10 逐步确认核心/历史合同；2026-10-10 采用无 branch 名称、持久预留低号区、自动/预留区指定创建与单文件发布，并采用固定 4B LE LocalRefId。状态：**S1–S3 Accepted（各自源码资格）；S4–S6 Draft；FrameStore/VersionStore source-only，VersionStore 已接通普通 ref 公开闭环、有界历史、精确 fork 与声明分叉图查询，tag 尚缺；参考依赖拆分 Accepted**。
 初始设计源码观察基线：`main @ 70d1009e78a73342a0c0fdc8ffed7731dec58173`；S1 验收记录的核对基线为 `f6f1eb38557863ba5ea1634844a90f0cbe5774cf`；前轮设计阅读基线为 `4175a46`，本轮租借/目录修订核对 `50e8e28`。本文档集供逐阶段细化、审阅和实施，不把文档修订视为新实现或验收。
 
 目标：**以 RBF3 的帧原子性为基础，让中层构建新状态，再发布完整 root payload 使状态生效。**
@@ -129,7 +129,7 @@ S2–S6 的 MVP 定稿、实施和验收不等待上述候选扩展的需求确�
 | V1 | S2 owned 三种追加/嵌套租借与核心 barrier + S4 CreateRef/PublishRef/ReadRef；冷重开 | 单文件 ref，完整 bytes payload；S3 验证交错构建组合，不引入分段或全局日志 |
 | V2 | S3 双文件 A↔B、self-reference 与乱序完成后同时发布多个根，取消/reuse/Unknown | 本根所需依赖完成并确认，无关 Builder 可继续构建，旧/新字典不能混搭 |
 | V3 | S2 creating/active/archive、软轮转/编号恢复 + S3 多 active barrier 组合验收与进程中断 | 完成后才声明完整多文件生命周期和恢复资格 |
-| V4 | RBF 边界逆扫及 S5 历史读取已在 V2-A 实施，自动/指定 fork 已在 V2-B 接通；接续 ListForks 与 rewind 互操作 | 复用 S4 单文件发布；已签发 revision 精确读取、历史按边界接续；分段/差分/任意 revision 查询后置 |
+| V4 | RBF 边界逆扫及 S5 历史读取已在 V2-A 实施，自动/指定 fork 已在 V2-B 接通，ListForks 已在 V2-C 接通；后续补系统与组合验收 | 复用 S4 单文件发布；已签发 revision 精确读取、历史按边界接续；分段/差分/任意 revision 查询后置 |
 | V4-tag | 随后实施 [S5-B 专项](09-versionstore-immutable-tags.md)及 tag 组合消费 | 独立创建/查询，留在同一 VersionStore，不成为 V1–V4 前置 |
 | V5 | S6 平台、公共包、真实消费者边界 | 包 smoke/消费者接入仍各自出证据 |
 
