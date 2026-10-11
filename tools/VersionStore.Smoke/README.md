@@ -20,7 +20,7 @@ Linux 命令相同，换成 Linux 文件系统上的 fresh 路径。每次成功
 
 冷读核对四个完整 RootMap、所有实际 node/self/peer 地址、完整继承历史、三条精确 ForkOrigin 声明、三份不可变 tag、`ReadTagInfo/ScanTags` 关联坐标及保存时间。独立只读 `VersionStore.Audit` 应得到4 refs、11个物理本地 snapshots、3 forks、3 tags；随后 FrameStore `Audit` 校验24个图帧。返回的快照、RootPayload、TagInfo 和解码字典在两个 owner Dispose 后再次使用。
 
-除 graph/resource 外的 CLI 参数交给 `ProcessScenario.Run`；以下命令供父测试驱动，每行 JSON 都带真实 `pid`：
+除 graph/resource/tool/generation 外的 CLI 参数交给 `ProcessScenario.Run`；以下命令供父测试驱动，每行 JSON 都带真实 `pid`：
 
 | 命令 | 行为 |
 | --- | --- |
@@ -40,7 +40,31 @@ dotnet test tests/VersionStore.Tests/VersionStore.Tests.csproj -c Release --no-b
 
 设置 `VERSIONSTORE_PROCESS_EVIDENCE_DIRECTORY` 后，父调度器可保存每个 child 的 transcript；这与本 consumer 的普通 stdout JSON 分开。
 
-父测试含原有19项、71个子进程（10次 READY 后实际 `Process.Kill()`），以及下述两档资源向量的2项、6个正常子进程；每个 child 都等待退出并核对结果。进程超时/失败也只清理自己持有的 Process。stdout/stderr、命令、PID、kill 与退出码可保留在上述证据目录；路径使用 fresh GUID 临时目录，父测试结束后清理夹具。具体一次运行的事实以实施计划的证据摘要为准。
+父测试包含原有19项、71个子进程（10次 READY 后实际 `Process.Kill()`），两档资源向量的2项、6个正常子进程，以及下述应用策略的7项、25个子进程（6次强杀、2次预期拒绝）。每个 child 都等待退出并核对结果。进程超时/失败也只清理自己持有的 Process。stdout/stderr、命令、PID、kill 与退出码可保留在上述证据目录；路径使用 fresh GUID 临时目录，父测试结束后清理夹具。具体一次运行的事实以实施计划的证据摘要为准。
+
+## 应用策略示例
+
+[ToolLoopScenario.cs](ToolLoopScenario.cs) 用 `runtime/history/tasks/context` 四个 RootMap 根保存应用记录。先正常确认冻结请求与身份的 Started，才允许调用文件模拟的外部 backend。`tool-worker <root> <checkpoint>` 在 `started`、`external-completed` 或 `result-published` 输出 READY 后保持 owner 等待父测试强杀；任何 stdin 或 EOF 都失败。不要用普通输入退出冒充中断。
+
+`tool-recover <root>` 在新进程打开双方 writer，依据持久应用 phase 决策：
+
+| 实际状态 | 应用策略 |
+| --- | --- |
+| Started，查询无 receipt | 返回 uncertain；不重试外发，也不追加同值 Started |
+| Started，存在匹配 receipt | 核对两库身份、operation/attempt 和冻结请求后发布 Result |
+| Result 已发布 | 从应用状态完成；不查询 backend，不重复执行或结算 |
+
+`tool-read <root>` 只读核验任一阶段的四根记录与历史。父测试验证两次恢复不重复发布、只读不改任何文件、已发布 Result 即使移除 receipt 仍可恢复，以及错误 attempt/request receipt 在任何恢复发布前拒绝。`tool-backend-receipt.json` 是示例外部服务的 receipt，不是 VersionStore 的恢复权威；无 receipt 不证明外部未执行。示例的 settlement 是发布记录中的应用结果计入，不是另一个外部付款动作，不提供任意外部调用 exactly-once。
+
+[GenerationScenario.cs](GenerationScenario.cs) 用受控 Task 完成顺序送入同一个串行 driver。每次回包读取最新 head，分别检查 generation、operationId 及该 slot 是否已结算。九次回包接受三次、拒绝六次；第二代先合并 B 再合并 A，保留两个结果。拒绝不会追加 revision 或 data；下一次有效发布保存已观察的拒绝计数。冷读验证五份快照、二十个应用帧、当前 A=101/B=202，以及跨代累计结算值314。
+
+```powershell
+dotnet run --project tools/VersionStore.Smoke -c Release --no-build -- generation-write E:/temp/versionstore-generation
+dotnet run --project tools/VersionStore.Smoke -c Release --no-build -- generation-read E:/temp/versionstore-generation
+dotnet test tests/VersionStore.Tests/VersionStore.Tests.csproj -c Release --no-build --filter FullyQualifiedName~ApplicationProcessTests
+```
+
+应用 schema、请求身份、回包策略及 RootMap 解码都在 consumer。VersionStore 没有新增 CAS、多线程 writer、外部调度或自动恢复状态机。
 
 ## 有限资源探针
 

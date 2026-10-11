@@ -3,6 +3,12 @@ namespace Atelia.VersionStore.Smoke;
 internal static class Program {
     private static int Main(string[] args) {
         try {
+            if (args.Length > 0 && args[0] is "tool-worker" or "tool-recover" or "tool-read") {
+                return ToolLoopScenario.Run(args);
+            }
+            if (args.Length > 0 && args[0] is "generation-write" or "generation-read") {
+                return GenerationScenario.Run(args);
+            }
             if (args.Length > 0 && args[0] is "resource-write" or "resource-read") {
                 return ResourceScenario.Run(args);
             }

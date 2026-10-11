@@ -1,6 +1,6 @@
 # S6：消费者验证、公共包与交付
 
-状态：**Draft；FrameStore S2/S3独立源码验收已Accepted并保持source-only；VersionStore 已接通普通 ref 公开闭环、有界历史读取、精确 fork 创建与声明分叉图查询；V4-B 已补仓内 public 图消费者及公开停点真实进程验收，V4-C 补 Linux 与有限资源取证；应用策略示例、最终条款复核、包与消费者切换仍待完成（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。
+状态：**Draft；FrameStore S2/S3独立源码验收已Accepted并保持source-only；VersionStore 已接通普通 ref 公开闭环、有界历史读取、精确 fork 创建与声明分叉图查询；V4-B 已补仓内 public 图消费者及公开停点真实进程验收，V4-C 补 Linux 与有限资源取证，V4-D 补 tool-loop/generation 应用策略示例；最终条款复核、包与消费者切换仍待完成（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)、[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)。本篇只负责组合、包与交付证据，不反向定义前序协议；ref/history/fork先验证，09 tag施工后补齐完整组合。FrameAddress变长增量资格见[实施记录](02-framestore-varint-address-implementation.md)。
 
 ## 本阶段目标
@@ -29,6 +29,8 @@ DurableGraph 是需求来源；S0 已记录兄弟仓的定位观察，实际接�
 | 异步任务合并 | A/B 结果交由单 driver，依据最新 operationId/generation 串行合并，再发布字典 | 过期回包不覆盖新状态；不宣称 VersionStore 提供通用 CAS 或多线程 writer |
 | Gym 历史与扇出 | visitor 选中非末快照并停止，返回后分别创建两个自动或预留区指定 fork，再独立推进 | 每次仅一个新 ref 文件原子发布；两个 fork 不是整批事务，对象隔离由应用负责 |
 | rewind/tag | 旧快照追加新 revision，再保存 tag、推进 ref 后冷重开 | 历史保留、同值不合并 revision、tag 字典固定，不把 ref 历史当业务因果 |
+
+V4-D 已由 [public consumer 应用示例](../../tools/VersionStore.Smoke/README.md#应用策略示例)接通前两项：tool-loop 三个应用停点真实kill后冷恢复，generation 用受控Task完成顺序驱动串行合并；具体平台、反例与取证边界见[实施记录](12-versionstore-implementation-plan.md#v4-d-验证记录2026-10-11)。外部receipt是模拟服务，结果结算是应用发布状态内的计入，不代表真实外部支付或任意backend的exactly-once。
 
 确定性模拟另由应用检验完整 world、runtime/cursor、RNG 坐标或内部状态、规则与 Agent 工作区。存储保证原样保存/选择与精确 ref 创建来源；轨迹 root 可另表达 action/reward/实验条件，不能把发布分叉图当作业务推演因果。外部 tool 的幂等、receipt/query 或显式重复策略也由应用/backend 验收。
 同步发布消费 S4 `[A-VS-PUBLICATION-EVIDENCE]`：每次初始化 out，成功 Result 为 Confirmed，确定失败为 NotAttempted，异常保存证据并停止旧流程。证据不代表 owner 健康，确认后安装失败仍重开。自动创建丢失返回值不按同值认领；指定目标可冷开 checked 查询，但已占用不证明旧请求 Confirmed。外部 operationId 仍在应用数据内。

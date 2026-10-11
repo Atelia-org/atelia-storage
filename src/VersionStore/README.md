@@ -23,6 +23,8 @@ VersionStore 借入一个 FrameStore，发布不透明 root-payload bytes。每�
 
 可独立运行的 [VersionStore.Smoke](../../tools/VersionStore.Smoke/README.md) 仅通过 public API 演示多根/循环 data、历史选点、两种 fork、rewind/tag 及新进程只读重开。solution 中的 SystemIntegration 测试另负责真实子进程锁矩阵和公开停点强杀；内部写入窗口、断电和包消费不由这些停点证明。 同一consumer的 resource-write/resource-read 提供16/64/256个ref的有限资源观察，平台实测和测量边界见 [V4-C记录](../../docs/FrameStore-VersionStore/12-versionstore-linux-resource-acceptance.md)。
 
+其中[应用策略示例](../../tools/VersionStore.Smoke/README.md#应用策略示例)用四个RootMap根演示tool-loop冻结请求/Started确认、uncertain或receipt查询恢复，以及单driver的operationId/generation合并。应用边界强杀、冷恢复与过期/重复回包拒绝由跨进程测试验证；外部receipt和应用结算规则属于示例，不成为存储的自动重试或exactly-once合同。
+
 历史调用示例：
 
 ```csharp

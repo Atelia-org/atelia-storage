@@ -1,0 +1,1574 @@
+{
+  "schema": 1,
+  "slice": "V4-D",
+  "date": "2026-10-11",
+  "baselineRevision": "fb3d1260a1d74034a5ecc92ddccf1bdd5eac125f",
+  "sourceQualification": "Baseline plus the five listed source additions/overrides; no production source change.",
+  "sources": [
+    {
+      "path": "tools/VersionStore.Smoke/Program.cs",
+      "bytes": 1079,
+      "sha256": "b75d324326cc6c420dd9890eee202fca01254dba231e46c4fa81faa3b1eb8ee3"
+    },
+    {
+      "path": "tools/VersionStore.Smoke/ToolLoopScenario.cs",
+      "bytes": 23073,
+      "sha256": "55f75f6687874d65717b75356e23240df80244d7baa03d51ee7907bb6165bab4"
+    },
+    {
+      "path": "tools/VersionStore.Smoke/GenerationScenario.cs",
+      "bytes": 20579,
+      "sha256": "4d419e99a4fe51a0011fcfc15e97dc2d7e1c48d2be518306b26fc75dec8be41c"
+    },
+    {
+      "path": "tests/VersionStore.Tests/SystemIntegration/SmokeProcess.cs",
+      "bytes": 6343,
+      "sha256": "d159e89021e2b4cb60e8272eba5376df91695e68cfe20b9e992de044013bd175"
+    },
+    {
+      "path": "tests/VersionStore.Tests/SystemIntegration/ApplicationProcessTests.cs",
+      "bytes": 7238,
+      "sha256": "d5ad2f919edcf97bc51ed3b495671b9d5495505b49af3f7e612fcd59d175dd6b"
+    }
+  ],
+  "windows": {
+    "environment": {
+      "platform": "Microsoft Windows 10.0.22000",
+      "architecture": "X64",
+      "temp": "W:\\TEMP\\",
+      "filesystem": "NTFS",
+      "repository": "E:\\repos\\Atelia-org\\atelia-storage",
+      "sdkPin": "10.0.201"
+    },
+    "build": {
+      "exitCode": 0,
+      "errors": 0,
+      "warnings": 41,
+      "warningScope": "existing Data/Rbf XML comments",
+      "command": "dotnet build Atelia.Storage.slnx -c Release --nologo -v minimal",
+      "log": {
+        "path": "artifacts/versionstore-v4d/windows/build.log",
+        "bytes": 22987,
+        "sha256": "a66a16b2cb3821299ca6b1c485cdcea88167d524e3930afbd0ae3976e872922b"
+      }
+    },
+    "targeted": {
+      "totals": {
+        "total": 7,
+        "passed": 7,
+        "failed": 0,
+        "notExecuted": 0
+      },
+      "reports": [
+        {
+          "path": "artifacts/versionstore-v4d/windows/targeted/trx/gdtutu_TUTU17_2026-10-11_14_33_24.trx",
+          "bytes": 57292,
+          "sha256": "ef8005f12a7c1a2a0ec38caff5b25bed9fc82e11d79e50cf0d3f4e75b59e063c",
+          "counters": {
+            "total": 7,
+            "executed": 7,
+            "passed": 7,
+            "failed": 0,
+            "error": 0,
+            "timeout": 0,
+            "aborted": 0,
+            "inconclusive": 0,
+            "passedButRunAborted": 0,
+            "notRunnable": 0,
+            "notExecuted": 0,
+            "disconnected": 0,
+            "warning": 0,
+            "completed": 0,
+            "inProgress": 0,
+            "pending": 0
+          }
+        }
+      ],
+      "applicationCases": [
+        {
+          "testName": "Atelia.VersionStore.Tests.SystemIntegration.ApplicationProcessTests.SingleDriverMergesCurrentResultsAndRejectsStaleOrDuplicateReplies",
+          "outcome": "Passed",
+          "duration": "00:00:01.3903341"
+        },
+        {
+          "testName": "Atelia.VersionStore.Tests.SystemIntegration.ApplicationProcessTests.ForeignReceiptFailsBeforeAnyRecoveryPublication(field: \"AttemptId\")",
+          "outcome": "Passed",
+          "duration": "00:00:00.7308138"
+        },
+        {
+          "testName": "Atelia.VersionStore.Tests.SystemIntegration.ApplicationProcessTests.ToolRecoveryUsesApplicationPhaseWithoutBlindRedispatch(checkpoint: \"external-completed\", phase: \"result\", dispatches: 1, settlements: 1, snapshots: 3)",
+          "outcome": "Passed",
+          "duration": "00:00:02.8700073"
+        },
+        {
+          "testName": "Atelia.VersionStore.Tests.SystemIntegration.ApplicationProcessTests.ToolRecoveryUsesApplicationPhaseWithoutBlindRedispatch(checkpoint: \"started\", phase: \"uncertain\", dispatches: 0, settlements: 0, snapshots: 2)",
+          "outcome": "Passed",
+          "duration": "00:00:02.0391464"
+        },
+        {
+          "testName": "Atelia.VersionStore.Tests.SystemIntegration.ApplicationProcessTests.ToolRecoveryUsesApplicationPhaseWithoutBlindRedispatch(checkpoint: \"result-published\", phase: \"result\", dispatches: 1, settlements: 1, snapshots: 3)",
+          "outcome": "Passed",
+          "duration": "00:00:02.1015040"
+        },
+        {
+          "testName": "Atelia.VersionStore.Tests.SystemIntegration.ApplicationProcessTests.PublishedResultDoesNotRequireTheExternalBackendOnRecovery",
+          "outcome": "Passed",
+          "duration": "00:00:01.2235778"
+        },
+        {
+          "testName": "Atelia.VersionStore.Tests.SystemIntegration.ApplicationProcessTests.ForeignReceiptFailsBeforeAnyRecoveryPublication(field: \"Request\")",
+          "outcome": "Passed",
+          "duration": "00:00:00.7616185"
+        }
+      ]
+    },
+    "full": {
+      "totals": {
+        "total": 3447,
+        "passed": 3438,
+        "failed": 0,
+        "notExecuted": 9
+      },
+      "reports": [
+        {
+          "path": "artifacts/versionstore-v4d/windows/full/trx/gdtutu_TUTU17_2026-10-11_14_34_02.trx",
+          "bytes": 101081,
+          "sha256": "2fae60fc8051c9957324f3d9854b923fecc9daf90272cfb6c590cae03e54fbd9",
+          "counters": {
+            "total": 75,
+            "executed": 75,
+            "passed": 75,
+            "failed": 0,
+            "error": 0,
+            "timeout": 0,
+            "aborted": 0,
+            "inconclusive": 0,
+            "passedButRunAborted": 0,
+            "notRunnable": 0,
+            "notExecuted": 0,
+            "disconnected": 0,
+            "warning": 0,
+            "completed": 0,
+            "inProgress": 0,
+            "pending": 0
+          }
+        },
+        {
+          "path": "artifacts/versionstore-v4d/windows/full/trx/gdtutu_TUTU17_2026-10-11_14_34_03.trx",
+          "bytes": 300212,
+          "sha256": "be58e73ff986b5de2eb06a3fb451d000d334086ce0d8015aab1801cfe8bb8a5c",
+          "counters": {
+            "total": 214,
+            "executed": 214,
+            "passed": 214,
+            "failed": 0,
+            "error": 0,
+            "timeout": 0,
+            "aborted": 0,
+            "inconclusive": 0,
+            "passedButRunAborted": 0,
+            "notRunnable": 0,
+            "notExecuted": 0,
+            "disconnected": 0,
+            "warning": 0,
+            "completed": 0,
+            "inProgress": 0,
+            "pending": 0
+          }
+        },
+        {
+          "path": "artifacts/versionstore-v4d/windows/full/trx/gdtutu_TUTU17_2026-10-11_14_34_03[1].trx",
+          "bytes": 389195,
+          "sha256": "a7e9374c81a9bf48e4e05818f7749ec469819cb3ab00f2830f87aa5e3fd9aad5",
+          "counters": {
+            "total": 288,
+            "executed": 288,
+            "passed": 288,
+            "failed": 0,
+            "error": 0,
+            "timeout": 0,
+            "aborted": 0,
+            "inconclusive": 0,
+            "passedButRunAborted": 0,
+            "notRunnable": 0,
+            "notExecuted": 0,
+            "disconnected": 0,
+            "warning": 0,
+            "completed": 0,
+            "inProgress": 0,
+            "pending": 0
+          }
+        },
+        {
+          "path": "artifacts/versionstore-v4d/windows/full/trx/gdtutu_TUTU17_2026-10-11_14_34_03[2].trx",
+          "bytes": 71346,
+          "sha256": "ac260f6a7b2f1f6eb7b6023933227291cea878a2af2691895ffb4de7926407fc",
+          "counters": {
+            "total": 48,
+            "executed": 48,
+            "passed": 48,
+            "failed": 0,
+            "error": 0,
+            "timeout": 0,
+            "aborted": 0,
+            "inconclusive": 0,
+            "passedButRunAborted": 0,
+            "notRunnable": 0,
+            "notExecuted": 0,
+            "disconnected": 0,
+            "warning": 0,
+            "completed": 0,
+            "inProgress": 0,
+            "pending": 0
+          }
+        },
+        {
+          "path": "artifacts/versionstore-v4d/windows/full/trx/gdtutu_TUTU17_2026-10-11_14_34_03[3].trx",
+          "bytes": 631534,
+          "sha256": "07c1d8bee86c1c97e746c7220ef30d72a39629c300ef71ecda661d597a117e61",
+          "counters": {
+            "total": 425,
+            "executed": 422,
+            "passed": 422,
+            "failed": 0,
+            "error": 0,
+            "timeout": 0,
+            "aborted": 0,
+            "inconclusive": 0,
+            "passedButRunAborted": 0,
+            "notRunnable": 0,
+            "notExecuted": 0,
+            "disconnected": 0,
+            "warning": 0,
+            "completed": 0,
+            "inProgress": 0,
+            "pending": 0
+          }
+        },
+        {
+          "path": "artifacts/versionstore-v4d/windows/full/trx/gdtutu_TUTU17_2026-10-11_14_34_03[4].trx",
+          "bytes": 243458,
+          "sha256": "bcc09ef6d81c7bfd251c8298003fa729b2a81ed387e1caa628c8e4bb2aaa525c",
+          "counters": {
+            "total": 174,
+            "executed": 174,
+            "passed": 174,
+            "failed": 0,
+            "error": 0,
+            "timeout": 0,
+            "aborted": 0,
+            "inconclusive": 0,
+            "passedButRunAborted": 0,
+            "notRunnable": 0,
+            "notExecuted": 0,
+            "disconnected": 0,
+            "warning": 0,
+            "completed": 0,
+            "inProgress": 0,
+            "pending": 0
+          }
+        },
+        {
+          "path": "artifacts/versionstore-v4d/windows/full/trx/gdtutu_TUTU17_2026-10-11_14_34_03[5].trx",
+          "bytes": 1975199,
+          "sha256": "a08d7e3db755ae9ca2d95534e483963537895d6f5ab59795a5c96e42d7c2355f",
+          "counters": {
+            "total": 1181,
+            "executed": 1175,
+            "passed": 1175,
+            "failed": 0,
+            "error": 0,
+            "timeout": 0,
+            "aborted": 0,
+            "inconclusive": 0,
+            "passedButRunAborted": 0,
+            "notRunnable": 0,
+            "notExecuted": 0,
+            "disconnected": 0,
+            "warning": 0,
+            "completed": 0,
+            "inProgress": 0,
+            "pending": 0
+          }
+        },
+        {
+          "path": "artifacts/versionstore-v4d/windows/full/trx/gdtutu_TUTU17_2026-10-11_14_34_04.trx",
+          "bytes": 184743,
+          "sha256": "fc183d478b8f5f0c4f019bdff958d3fa258703c63c0e6f4f9d63fda74e740e9b",
+          "counters": {
+            "total": 122,
+            "executed": 122,
+            "passed": 122,
+            "failed": 0,
+            "error": 0,
+            "timeout": 0,
+            "aborted": 0,
+            "inconclusive": 0,
+            "passedButRunAborted": 0,
+            "notRunnable": 0,
+            "notExecuted": 0,
+            "disconnected": 0,
+            "warning": 0,
+            "completed": 0,
+            "inProgress": 0,
+            "pending": 0
+          }
+        },
+        {
+          "path": "artifacts/versionstore-v4d/windows/full/trx/gdtutu_TUTU17_2026-10-11_14_34_04[1].trx",
+          "bytes": 1291599,
+          "sha256": "a73182762ad2ccf2b2e2b9a23247a9990aac3d4dae30ebea59df204cf5f5f5da",
+          "counters": {
+            "total": 920,
+            "executed": 920,
+            "passed": 920,
+            "failed": 0,
+            "error": 0,
+            "timeout": 0,
+            "aborted": 0,
+            "inconclusive": 0,
+            "passedButRunAborted": 0,
+            "notRunnable": 0,
+            "notExecuted": 0,
+            "disconnected": 0,
+            "warning": 0,
+            "completed": 0,
+            "inProgress": 0,
+            "pending": 0
+          }
+        }
+      ],
+      "applicationCases": [
+        {
+          "testName": "Atelia.VersionStore.Tests.SystemIntegration.ApplicationProcessTests.SingleDriverMergesCurrentResultsAndRejectsStaleOrDuplicateReplies",
+          "outcome": "Passed",
+          "duration": "00:00:01.3210834"
+        },
+        {
+          "testName": "Atelia.VersionStore.Tests.SystemIntegration.ApplicationProcessTests.PublishedResultDoesNotRequireTheExternalBackendOnRecovery",
+          "outcome": "Passed",
+          "duration": "00:00:01.0988530"
+        },
+        {
+          "testName": "Atelia.VersionStore.Tests.SystemIntegration.ApplicationProcessTests.ForeignReceiptFailsBeforeAnyRecoveryPublication(field: \"Request\")",
+          "outcome": "Passed",
+          "duration": "00:00:00.7332621"
+        },
+        {
+          "testName": "Atelia.VersionStore.Tests.SystemIntegration.ApplicationProcessTests.ToolRecoveryUsesApplicationPhaseWithoutBlindRedispatch(checkpoint: \"result-published\", phase: \"result\", dispatches: 1, settlements: 1, snapshots: 3)",
+          "outcome": "Passed",
+          "duration": "00:00:01.9840930"
+        },
+        {
+          "testName": "Atelia.VersionStore.Tests.SystemIntegration.ApplicationProcessTests.ToolRecoveryUsesApplicationPhaseWithoutBlindRedispatch(checkpoint: \"started\", phase: \"uncertain\", dispatches: 0, settlements: 0, snapshots: 2)",
+          "outcome": "Passed",
+          "duration": "00:00:03.2664068"
+        },
+        {
+          "testName": "Atelia.VersionStore.Tests.SystemIntegration.ApplicationProcessTests.ForeignReceiptFailsBeforeAnyRecoveryPublication(field: \"AttemptId\")",
+          "outcome": "Passed",
+          "duration": "00:00:00.7371390"
+        },
+        {
+          "testName": "Atelia.VersionStore.Tests.SystemIntegration.ApplicationProcessTests.ToolRecoveryUsesApplicationPhaseWithoutBlindRedispatch(checkpoint: \"external-completed\", phase: \"result\", dispatches: 1, settlements: 1, snapshots: 3)",
+          "outcome": "Passed",
+          "duration": "00:00:03.2773683"
+        }
+      ]
+    },
+    "targetedProcesses": {
+      "count": 25,
+      "uniquePids": 25,
+      "outcomes": {
+        "normal": 17,
+        "killed": 6,
+        "expectedFailure": 2
+      },
+      "commands": {
+        "tool-read": 7,
+        "tool-worker": 6,
+        "generation-write": 1,
+        "generation-read": 2,
+        "tool-recover": 9
+      },
+      "applicationProcesses": [
+        {
+          "pid": 33428,
+          "command": "tool-read",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "result",
+          "storedPhase": "result",
+          "recoveryAction": "already-result",
+          "backendQueryCount": 0,
+          "dispatchCount": 1,
+          "settlementCount": 1,
+          "snapshotCount": 3,
+          "publishedThisRun": 0,
+          "startedOutcome": null,
+          "resultOutcome": null
+        },
+        {
+          "pid": 33644,
+          "command": "tool-worker",
+          "killed": true,
+          "exitCode": -1,
+          "checkpoint": "result-published",
+          "phase": "result",
+          "storedPhase": "result",
+          "recoveryAction": "checkpoint",
+          "backendQueryCount": 0,
+          "dispatchCount": 1,
+          "settlementCount": 1,
+          "snapshotCount": 3,
+          "publishedThisRun": 3,
+          "startedOutcome": "Confirmed",
+          "resultOutcome": "Confirmed"
+        },
+        {
+          "pid": 32632,
+          "command": "generation-write",
+          "killed": false,
+          "exitCode": 0,
+          "generation": 2,
+          "accepted": 3,
+          "rejected": 6,
+          "dispatched": 4,
+          "settled": 314,
+          "slots": {
+            "A": 101,
+            "B": 202
+          },
+          "rejections": {
+            "operationId": 2,
+            "generation": 2,
+            "duplicate": 2
+          },
+          "counts": {
+            "refs": 1,
+            "snapshots": 5,
+            "dataFrames": 20
+          }
+        },
+        {
+          "pid": 33560,
+          "command": "tool-read",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "started",
+          "storedPhase": "started",
+          "recoveryAction": "uncertain",
+          "backendQueryCount": 1,
+          "dispatchCount": 0,
+          "settlementCount": 0,
+          "snapshotCount": 2,
+          "publishedThisRun": 0,
+          "startedOutcome": null,
+          "resultOutcome": null
+        },
+        {
+          "pid": 17364,
+          "command": "tool-read",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "result",
+          "storedPhase": "result",
+          "recoveryAction": "already-result",
+          "backendQueryCount": 0,
+          "dispatchCount": 1,
+          "settlementCount": 1,
+          "snapshotCount": 3,
+          "publishedThisRun": 0,
+          "startedOutcome": null,
+          "resultOutcome": null
+        },
+        {
+          "pid": 21440,
+          "command": "tool-worker",
+          "killed": true,
+          "exitCode": -1,
+          "checkpoint": "external-completed",
+          "phase": "started",
+          "storedPhase": "started",
+          "recoveryAction": "checkpoint",
+          "backendQueryCount": 0,
+          "dispatchCount": 1,
+          "settlementCount": 0,
+          "snapshotCount": 2,
+          "publishedThisRun": 2,
+          "startedOutcome": "Confirmed",
+          "resultOutcome": "NotAttempted"
+        },
+        {
+          "pid": 28964,
+          "command": "tool-read",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "started",
+          "storedPhase": "started",
+          "recoveryAction": "query-result",
+          "backendQueryCount": 1,
+          "dispatchCount": 1,
+          "settlementCount": 0,
+          "snapshotCount": 2,
+          "publishedThisRun": 0,
+          "startedOutcome": null,
+          "resultOutcome": null
+        },
+        {
+          "pid": 33828,
+          "command": "tool-worker",
+          "killed": true,
+          "exitCode": -1,
+          "checkpoint": "external-completed",
+          "phase": "started",
+          "storedPhase": "started",
+          "recoveryAction": "checkpoint",
+          "backendQueryCount": 0,
+          "dispatchCount": 1,
+          "settlementCount": 0,
+          "snapshotCount": 2,
+          "publishedThisRun": 2,
+          "startedOutcome": "Confirmed",
+          "resultOutcome": "NotAttempted"
+        },
+        {
+          "pid": 32360,
+          "command": "generation-read",
+          "killed": false,
+          "exitCode": 0,
+          "generation": 2,
+          "accepted": 3,
+          "rejected": 6,
+          "dispatched": 4,
+          "settled": 314,
+          "slots": {
+            "A": 101,
+            "B": 202
+          },
+          "rejections": {
+            "operationId": 2,
+            "generation": 2,
+            "duplicate": 2
+          },
+          "counts": {
+            "refs": 1,
+            "snapshots": 5,
+            "dataFrames": 20
+          }
+        },
+        {
+          "pid": 13776,
+          "command": "generation-read",
+          "killed": false,
+          "exitCode": 0,
+          "generation": 2,
+          "accepted": 3,
+          "rejected": 6,
+          "dispatched": 4,
+          "settled": 314,
+          "slots": {
+            "A": 101,
+            "B": 202
+          },
+          "rejections": {
+            "operationId": 2,
+            "generation": 2,
+            "duplicate": 2
+          },
+          "counts": {
+            "refs": 1,
+            "snapshots": 5,
+            "dataFrames": 20
+          }
+        },
+        {
+          "pid": 35260,
+          "command": "tool-recover",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "uncertain",
+          "storedPhase": "started",
+          "recoveryAction": "uncertain",
+          "backendQueryCount": 1,
+          "dispatchCount": 0,
+          "settlementCount": 0,
+          "snapshotCount": 2,
+          "publishedThisRun": 0,
+          "startedOutcome": null,
+          "resultOutcome": null
+        },
+        {
+          "pid": 28360,
+          "command": "tool-worker",
+          "killed": true,
+          "exitCode": -1,
+          "checkpoint": "result-published",
+          "phase": "result",
+          "storedPhase": "result",
+          "recoveryAction": "checkpoint",
+          "backendQueryCount": 0,
+          "dispatchCount": 1,
+          "settlementCount": 1,
+          "snapshotCount": 3,
+          "publishedThisRun": 3,
+          "startedOutcome": "Confirmed",
+          "resultOutcome": "Confirmed"
+        },
+        {
+          "pid": 33624,
+          "command": "tool-read",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "result",
+          "storedPhase": "result",
+          "recoveryAction": "already-result",
+          "backendQueryCount": 0,
+          "dispatchCount": 1,
+          "settlementCount": 1,
+          "snapshotCount": 3,
+          "publishedThisRun": 0,
+          "startedOutcome": null,
+          "resultOutcome": null
+        },
+        {
+          "pid": 18772,
+          "command": "tool-read",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "started",
+          "storedPhase": "started",
+          "recoveryAction": "uncertain",
+          "backendQueryCount": 1,
+          "dispatchCount": 0,
+          "settlementCount": 0,
+          "snapshotCount": 2,
+          "publishedThisRun": 0,
+          "startedOutcome": null,
+          "resultOutcome": null
+        },
+        {
+          "pid": 25372,
+          "command": "tool-recover",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "result",
+          "storedPhase": "result",
+          "recoveryAction": "query-result",
+          "backendQueryCount": 1,
+          "dispatchCount": 1,
+          "settlementCount": 1,
+          "snapshotCount": 3,
+          "publishedThisRun": 1,
+          "startedOutcome": null,
+          "resultOutcome": "Confirmed"
+        },
+        {
+          "pid": 5436,
+          "command": "tool-worker",
+          "killed": true,
+          "exitCode": -1,
+          "checkpoint": "external-completed",
+          "phase": "started",
+          "storedPhase": "started",
+          "recoveryAction": "checkpoint",
+          "backendQueryCount": 0,
+          "dispatchCount": 1,
+          "settlementCount": 0,
+          "snapshotCount": 2,
+          "publishedThisRun": 2,
+          "startedOutcome": "Confirmed",
+          "resultOutcome": "NotAttempted"
+        },
+        {
+          "pid": 30784,
+          "command": "tool-recover",
+          "killed": false,
+          "exitCode": 1
+        },
+        {
+          "pid": 34540,
+          "command": "tool-recover",
+          "killed": false,
+          "exitCode": 1
+        },
+        {
+          "pid": 31112,
+          "command": "tool-recover",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "uncertain",
+          "storedPhase": "started",
+          "recoveryAction": "uncertain",
+          "backendQueryCount": 1,
+          "dispatchCount": 0,
+          "settlementCount": 0,
+          "snapshotCount": 2,
+          "publishedThisRun": 0,
+          "startedOutcome": null,
+          "resultOutcome": null
+        },
+        {
+          "pid": 30724,
+          "command": "tool-read",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "result",
+          "storedPhase": "result",
+          "recoveryAction": "already-result",
+          "backendQueryCount": 0,
+          "dispatchCount": 1,
+          "settlementCount": 1,
+          "snapshotCount": 3,
+          "publishedThisRun": 0,
+          "startedOutcome": null,
+          "resultOutcome": null
+        },
+        {
+          "pid": 33664,
+          "command": "tool-recover",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "result",
+          "storedPhase": "result",
+          "recoveryAction": "already-result",
+          "backendQueryCount": 0,
+          "dispatchCount": 1,
+          "settlementCount": 1,
+          "snapshotCount": 3,
+          "publishedThisRun": 0,
+          "startedOutcome": null,
+          "resultOutcome": null
+        },
+        {
+          "pid": 31180,
+          "command": "tool-recover",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "result",
+          "storedPhase": "result",
+          "recoveryAction": "already-result",
+          "backendQueryCount": 0,
+          "dispatchCount": 1,
+          "settlementCount": 1,
+          "snapshotCount": 3,
+          "publishedThisRun": 0,
+          "startedOutcome": null,
+          "resultOutcome": null
+        },
+        {
+          "pid": 30516,
+          "command": "tool-recover",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "result",
+          "storedPhase": "result",
+          "recoveryAction": "already-result",
+          "backendQueryCount": 0,
+          "dispatchCount": 1,
+          "settlementCount": 1,
+          "snapshotCount": 3,
+          "publishedThisRun": 0,
+          "startedOutcome": null,
+          "resultOutcome": null
+        },
+        {
+          "pid": 4812,
+          "command": "tool-worker",
+          "killed": true,
+          "exitCode": -1,
+          "checkpoint": "started",
+          "phase": "started",
+          "storedPhase": "started",
+          "recoveryAction": "checkpoint",
+          "backendQueryCount": 0,
+          "dispatchCount": 0,
+          "settlementCount": 0,
+          "snapshotCount": 2,
+          "publishedThisRun": 2,
+          "startedOutcome": "Confirmed",
+          "resultOutcome": "NotAttempted"
+        },
+        {
+          "pid": 30364,
+          "command": "tool-recover",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "result",
+          "storedPhase": "result",
+          "recoveryAction": "already-result",
+          "backendQueryCount": 0,
+          "dispatchCount": 1,
+          "settlementCount": 1,
+          "snapshotCount": 3,
+          "publishedThisRun": 0,
+          "startedOutcome": null,
+          "resultOutcome": null
+        }
+      ]
+    },
+    "fullProcesses": {
+      "count": 102,
+      "uniquePids": 100,
+      "outcomes": {
+        "normal": 84,
+        "killed": 16,
+        "expectedFailure": 2
+      },
+      "commands": {
+        "resource-write": 2,
+        "hold": 12,
+        "tool-recover": 9,
+        "probe": 20,
+        "crash-worker": 6,
+        "seed": 18,
+        "generation-read": 2,
+        "generation-write": 1,
+        "verify": 12,
+        "tool-worker": 6,
+        "tool-read": 7,
+        "graph-write": 1,
+        "resource-read": 4,
+        "graph-read": 2
+      },
+      "applicationProcesses": [
+        {
+          "pid": 21188,
+          "command": "tool-recover",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "uncertain",
+          "storedPhase": "started",
+          "recoveryAction": "uncertain",
+          "backendQueryCount": 1,
+          "dispatchCount": 0,
+          "settlementCount": 0,
+          "snapshotCount": 2,
+          "publishedThisRun": 0,
+          "startedOutcome": null,
+          "resultOutcome": null
+        },
+        {
+          "pid": 29568,
+          "command": "generation-read",
+          "killed": false,
+          "exitCode": 0,
+          "generation": 2,
+          "accepted": 3,
+          "rejected": 6,
+          "dispatched": 4,
+          "settled": 314,
+          "slots": {
+            "A": 101,
+            "B": 202
+          },
+          "rejections": {
+            "operationId": 2,
+            "generation": 2,
+            "duplicate": 2
+          },
+          "counts": {
+            "refs": 1,
+            "snapshots": 5,
+            "dataFrames": 20
+          }
+        },
+        {
+          "pid": 13744,
+          "command": "generation-write",
+          "killed": false,
+          "exitCode": 0,
+          "generation": 2,
+          "accepted": 3,
+          "rejected": 6,
+          "dispatched": 4,
+          "settled": 314,
+          "slots": {
+            "A": 101,
+            "B": 202
+          },
+          "rejections": {
+            "operationId": 2,
+            "generation": 2,
+            "duplicate": 2
+          },
+          "counts": {
+            "refs": 1,
+            "snapshots": 5,
+            "dataFrames": 20
+          }
+        },
+        {
+          "pid": 18520,
+          "command": "tool-recover",
+          "killed": false,
+          "exitCode": 1
+        },
+        {
+          "pid": 27288,
+          "command": "generation-read",
+          "killed": false,
+          "exitCode": 0,
+          "generation": 2,
+          "accepted": 3,
+          "rejected": 6,
+          "dispatched": 4,
+          "settled": 314,
+          "slots": {
+            "A": 101,
+            "B": 202
+          },
+          "rejections": {
+            "operationId": 2,
+            "generation": 2,
+            "duplicate": 2
+          },
+          "counts": {
+            "refs": 1,
+            "snapshots": 5,
+            "dataFrames": 20
+          }
+        },
+        {
+          "pid": 26920,
+          "command": "tool-worker",
+          "killed": true,
+          "exitCode": -1,
+          "checkpoint": "result-published",
+          "phase": "result",
+          "storedPhase": "result",
+          "recoveryAction": "checkpoint",
+          "backendQueryCount": 0,
+          "dispatchCount": 1,
+          "settlementCount": 1,
+          "snapshotCount": 3,
+          "publishedThisRun": 3,
+          "startedOutcome": "Confirmed",
+          "resultOutcome": "Confirmed"
+        },
+        {
+          "pid": 30980,
+          "command": "tool-read",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "started",
+          "storedPhase": "started",
+          "recoveryAction": "uncertain",
+          "backendQueryCount": 1,
+          "dispatchCount": 0,
+          "settlementCount": 0,
+          "snapshotCount": 2,
+          "publishedThisRun": 0,
+          "startedOutcome": null,
+          "resultOutcome": null
+        },
+        {
+          "pid": 34560,
+          "command": "tool-read",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "started",
+          "storedPhase": "started",
+          "recoveryAction": "query-result",
+          "backendQueryCount": 1,
+          "dispatchCount": 1,
+          "settlementCount": 0,
+          "snapshotCount": 2,
+          "publishedThisRun": 0,
+          "startedOutcome": null,
+          "resultOutcome": null
+        },
+        {
+          "pid": 13696,
+          "command": "tool-read",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "result",
+          "storedPhase": "result",
+          "recoveryAction": "already-result",
+          "backendQueryCount": 0,
+          "dispatchCount": 1,
+          "settlementCount": 1,
+          "snapshotCount": 3,
+          "publishedThisRun": 0,
+          "startedOutcome": null,
+          "resultOutcome": null
+        },
+        {
+          "pid": 33916,
+          "command": "tool-worker",
+          "killed": true,
+          "exitCode": -1,
+          "checkpoint": "result-published",
+          "phase": "result",
+          "storedPhase": "result",
+          "recoveryAction": "checkpoint",
+          "backendQueryCount": 0,
+          "dispatchCount": 1,
+          "settlementCount": 1,
+          "snapshotCount": 3,
+          "publishedThisRun": 3,
+          "startedOutcome": "Confirmed",
+          "resultOutcome": "Confirmed"
+        },
+        {
+          "pid": 37220,
+          "command": "tool-worker",
+          "killed": true,
+          "exitCode": -1,
+          "checkpoint": "external-completed",
+          "phase": "started",
+          "storedPhase": "started",
+          "recoveryAction": "checkpoint",
+          "backendQueryCount": 0,
+          "dispatchCount": 1,
+          "settlementCount": 0,
+          "snapshotCount": 2,
+          "publishedThisRun": 2,
+          "startedOutcome": "Confirmed",
+          "resultOutcome": "NotAttempted"
+        },
+        {
+          "pid": 22524,
+          "command": "tool-worker",
+          "killed": true,
+          "exitCode": -1,
+          "checkpoint": "started",
+          "phase": "started",
+          "storedPhase": "started",
+          "recoveryAction": "checkpoint",
+          "backendQueryCount": 0,
+          "dispatchCount": 0,
+          "settlementCount": 0,
+          "snapshotCount": 2,
+          "publishedThisRun": 2,
+          "startedOutcome": "Confirmed",
+          "resultOutcome": "NotAttempted"
+        },
+        {
+          "pid": 33808,
+          "command": "tool-recover",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "uncertain",
+          "storedPhase": "started",
+          "recoveryAction": "uncertain",
+          "backendQueryCount": 1,
+          "dispatchCount": 0,
+          "settlementCount": 0,
+          "snapshotCount": 2,
+          "publishedThisRun": 0,
+          "startedOutcome": null,
+          "resultOutcome": null
+        },
+        {
+          "pid": 5816,
+          "command": "tool-read",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "result",
+          "storedPhase": "result",
+          "recoveryAction": "already-result",
+          "backendQueryCount": 0,
+          "dispatchCount": 1,
+          "settlementCount": 1,
+          "snapshotCount": 3,
+          "publishedThisRun": 0,
+          "startedOutcome": null,
+          "resultOutcome": null
+        },
+        {
+          "pid": 34288,
+          "command": "tool-worker",
+          "killed": true,
+          "exitCode": -1,
+          "checkpoint": "external-completed",
+          "phase": "started",
+          "storedPhase": "started",
+          "recoveryAction": "checkpoint",
+          "backendQueryCount": 0,
+          "dispatchCount": 1,
+          "settlementCount": 0,
+          "snapshotCount": 2,
+          "publishedThisRun": 2,
+          "startedOutcome": "Confirmed",
+          "resultOutcome": "NotAttempted"
+        },
+        {
+          "pid": 24452,
+          "command": "tool-recover",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "result",
+          "storedPhase": "result",
+          "recoveryAction": "already-result",
+          "backendQueryCount": 0,
+          "dispatchCount": 1,
+          "settlementCount": 1,
+          "snapshotCount": 3,
+          "publishedThisRun": 0,
+          "startedOutcome": null,
+          "resultOutcome": null
+        },
+        {
+          "pid": 26068,
+          "command": "tool-recover",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "result",
+          "storedPhase": "result",
+          "recoveryAction": "already-result",
+          "backendQueryCount": 0,
+          "dispatchCount": 1,
+          "settlementCount": 1,
+          "snapshotCount": 3,
+          "publishedThisRun": 0,
+          "startedOutcome": null,
+          "resultOutcome": null
+        },
+        {
+          "pid": 35120,
+          "command": "tool-read",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "started",
+          "storedPhase": "started",
+          "recoveryAction": "uncertain",
+          "backendQueryCount": 1,
+          "dispatchCount": 0,
+          "settlementCount": 0,
+          "snapshotCount": 2,
+          "publishedThisRun": 0,
+          "startedOutcome": null,
+          "resultOutcome": null
+        },
+        {
+          "pid": 35300,
+          "command": "tool-recover",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "result",
+          "storedPhase": "result",
+          "recoveryAction": "query-result",
+          "backendQueryCount": 1,
+          "dispatchCount": 1,
+          "settlementCount": 1,
+          "snapshotCount": 3,
+          "publishedThisRun": 1,
+          "startedOutcome": null,
+          "resultOutcome": "Confirmed"
+        },
+        {
+          "pid": 33376,
+          "command": "tool-recover",
+          "killed": false,
+          "exitCode": 1
+        },
+        {
+          "pid": 30180,
+          "command": "tool-read",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "result",
+          "storedPhase": "result",
+          "recoveryAction": "already-result",
+          "backendQueryCount": 0,
+          "dispatchCount": 1,
+          "settlementCount": 1,
+          "snapshotCount": 3,
+          "publishedThisRun": 0,
+          "startedOutcome": null,
+          "resultOutcome": null
+        },
+        {
+          "pid": 35772,
+          "command": "tool-worker",
+          "killed": true,
+          "exitCode": -1,
+          "checkpoint": "external-completed",
+          "phase": "started",
+          "storedPhase": "started",
+          "recoveryAction": "checkpoint",
+          "backendQueryCount": 0,
+          "dispatchCount": 1,
+          "settlementCount": 0,
+          "snapshotCount": 2,
+          "publishedThisRun": 2,
+          "startedOutcome": "Confirmed",
+          "resultOutcome": "NotAttempted"
+        },
+        {
+          "pid": 27908,
+          "command": "tool-recover",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "result",
+          "storedPhase": "result",
+          "recoveryAction": "already-result",
+          "backendQueryCount": 0,
+          "dispatchCount": 1,
+          "settlementCount": 1,
+          "snapshotCount": 3,
+          "publishedThisRun": 0,
+          "startedOutcome": null,
+          "resultOutcome": null
+        },
+        {
+          "pid": 23572,
+          "command": "tool-read",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "result",
+          "storedPhase": "result",
+          "recoveryAction": "already-result",
+          "backendQueryCount": 0,
+          "dispatchCount": 1,
+          "settlementCount": 1,
+          "snapshotCount": 3,
+          "publishedThisRun": 0,
+          "startedOutcome": null,
+          "resultOutcome": null
+        },
+        {
+          "pid": 30996,
+          "command": "tool-recover",
+          "killed": false,
+          "exitCode": 0,
+          "checkpoint": null,
+          "phase": "result",
+          "storedPhase": "result",
+          "recoveryAction": "already-result",
+          "backendQueryCount": 0,
+          "dispatchCount": 1,
+          "settlementCount": 1,
+          "snapshotCount": 3,
+          "publishedThisRun": 0,
+          "startedOutcome": null,
+          "resultOutcome": null
+        }
+      ]
+    },
+    "commands": [
+      "dotnet test tests/VersionStore.Tests/VersionStore.Tests.csproj -c Release --no-build --filter FullyQualifiedName~ApplicationProcessTests --logger trx --results-directory artifacts/versionstore-v4d/windows/targeted/trx",
+      "dotnet test Atelia.Storage.slnx -c Release --no-build --logger trx --results-directory artifacts/versionstore-v4d/windows/full/trx",
+      "./eng/Test-Rbf1ReferenceAssets.ps1"
+    ],
+    "commandExitCodes": [
+      0,
+      0,
+      0
+    ],
+    "rbf1ReferenceAssets": {
+      "path": "artifacts/versionstore-v4d/windows/assets.log",
+      "bytes": 694,
+      "sha256": "75997e0656849e10b55138a4500b10da8c61d34feca82a27c2e364995a4738d0"
+    },
+    "artifactManifest": {
+      "path": "artifacts/versionstore-v4d/windows-artifacts.json",
+      "bytes": 30807,
+      "sha256": "1dd70f2e56877289cae161568e3ba94040713514dea8dc76136cc7f5e457f1b7"
+    },
+    "artifactCount": 143
+  },
+  "limits": [
+    "Source-only; no pack, PackageReference qualification, publish, consumer migration or CU.",
+    "Real kills are application/public-return boundaries, not internal pending/rename/Append/flush windows or power-loss tests.",
+    "Receipt file models an external service; settlement is within the published application state, not an external payment.",
+    "Task completions have a controlled order and all store calls use one driver; no concurrent writer/CAS guarantee.",
+    "Windows targeted and full runs exercise the same seven application vectors; repeated runs are not additional independent coverage."
+  ],
+  "review": {
+    "independentReviewer": "/root/v4d_review",
+    "unresolvedP1P2": 0,
+    "scope": "Actual consumer and parent tests, S6 requirements, raw TRX and child transcripts, source hashes and artifact manifests, final documentation.",
+    "mainVerification": {
+      "artifactAndSourceHashes": 198,
+      "localMarkdownLinks": 56,
+      "result": "passed"
+    },
+    "correctionsBeforeAcceptance": [
+      "Aligned tool result phase and generation slots JSON casing with parent tests before the first build.",
+      "Evidence summarizer counts child invocations separately from reused Windows PIDs and derives skipped tests from total minus executed."
+    ]
+  },
+  "linux": {
+    "summary": {
+      "path": "artifacts/versionstore-v4d/linux/summary.json",
+      "bytes": 11203,
+      "sha256": "45b09753da34db56f5a4a725ae6eafcb7abe046077b82369b5e4bde4e1a9ef70"
+    },
+    "qualification": {
+      "schemaVersion": 1,
+      "status": "passed-directed-application-tests",
+      "sourceQualification": {
+        "capturedUtc": "2026-10-11T06:34:28.408649+00:00",
+        "baselineRevision": "fb3d1260a1d74034a5ecc92ddccf1bdd5eac125f",
+        "baselineArchiveSha256": "8eadceede099949475e6483899954716e7aa8dd3f8e0c0229c52ab63e666702c",
+        "windowsHeadAtCapture": "fb3d1260a1d74034a5ecc92ddccf1bdd5eac125f",
+        "repository": "/var/tmp/atelia-storage-v4d-fb3d126.3__dw0qm/repo",
+        "evidence": "/var/tmp/atelia-storage-v4d-fb3d126.3__dw0qm/evidence",
+        "TMPDIR": "/var/tmp/atelia-storage-v4d-fb3d126.3__dw0qm/tmp",
+        "baselineFileCount": 735,
+        "preSyncMismatches": [],
+        "postSyncMismatches": [
+          "tests/VersionStore.Tests/SystemIntegration/SmokeProcess.cs",
+          "tools/VersionStore.Smoke/Program.cs"
+        ],
+        "addedFiles": [
+          "tools/VersionStore.Smoke/ToolLoopScenario.cs",
+          "tools/VersionStore.Smoke/GenerationScenario.cs",
+          "tests/VersionStore.Tests/SystemIntegration/ApplicationProcessTests.cs"
+        ],
+        "unchangedArchivedFileCount": 733,
+        "files": [
+          {
+            "path": "tools/VersionStore.Smoke/ToolLoopScenario.cs",
+            "baselineSha256": null,
+            "baselinePresent": false,
+            "windowsRawSha256": "55f75f6687874d65717b75356e23240df80244d7baa03d51ee7907bb6165bab4",
+            "linuxLfSha256": "55f75f6687874d65717b75356e23240df80244d7baa03d51ee7907bb6165bab4",
+            "windowsRawBytes": 23073,
+            "linuxLfBytes": 23073,
+            "crlfSequences": 0,
+            "normalization": "CRLF byte sequences replaced by LF; all other bytes retained"
+          },
+          {
+            "path": "tools/VersionStore.Smoke/GenerationScenario.cs",
+            "baselineSha256": null,
+            "baselinePresent": false,
+            "windowsRawSha256": "4d419e99a4fe51a0011fcfc15e97dc2d7e1c48d2be518306b26fc75dec8be41c",
+            "linuxLfSha256": "4d419e99a4fe51a0011fcfc15e97dc2d7e1c48d2be518306b26fc75dec8be41c",
+            "windowsRawBytes": 20579,
+            "linuxLfBytes": 20579,
+            "crlfSequences": 0,
+            "normalization": "CRLF byte sequences replaced by LF; all other bytes retained"
+          },
+          {
+            "path": "tools/VersionStore.Smoke/Program.cs",
+            "baselineSha256": "98c0a2dd527cccf01c1de34d664d56dc3f2ded488756b5ac7d6d7581164afce4",
+            "baselinePresent": true,
+            "windowsRawSha256": "b75d324326cc6c420dd9890eee202fca01254dba231e46c4fa81faa3b1eb8ee3",
+            "linuxLfSha256": "b75d324326cc6c420dd9890eee202fca01254dba231e46c4fa81faa3b1eb8ee3",
+            "windowsRawBytes": 1079,
+            "linuxLfBytes": 1079,
+            "crlfSequences": 0,
+            "normalization": "CRLF byte sequences replaced by LF; all other bytes retained"
+          },
+          {
+            "path": "tests/VersionStore.Tests/SystemIntegration/ApplicationProcessTests.cs",
+            "baselineSha256": null,
+            "baselinePresent": false,
+            "windowsRawSha256": "d5ad2f919edcf97bc51ed3b495671b9d5495505b49af3f7e612fcd59d175dd6b",
+            "linuxLfSha256": "d5ad2f919edcf97bc51ed3b495671b9d5495505b49af3f7e612fcd59d175dd6b",
+            "windowsRawBytes": 7238,
+            "linuxLfBytes": 7238,
+            "crlfSequences": 0,
+            "normalization": "CRLF byte sequences replaced by LF; all other bytes retained"
+          },
+          {
+            "path": "tests/VersionStore.Tests/SystemIntegration/SmokeProcess.cs",
+            "baselineSha256": "f44508eaf167af2bff4c5d695299bc58d3755995957a1d58408d8b145c7db7ae",
+            "baselinePresent": true,
+            "windowsRawSha256": "d159e89021e2b4cb60e8272eba5376df91695e68cfe20b9e992de044013bd175",
+            "linuxLfSha256": "d159e89021e2b4cb60e8272eba5376df91695e68cfe20b9e992de044013bd175",
+            "windowsRawBytes": 6343,
+            "linuxLfBytes": 6343,
+            "crlfSequences": 0,
+            "normalization": "CRLF byte sequences replaced by LF; all other bytes retained"
+          }
+        ],
+        "qualification": "Fixed committed baseline plus exactly five explicit consumer/test additions or overrides. Production libraries and all other archived files remain baseline-identical. This is not a clean final committed HEAD snapshot."
+      },
+      "sourceVerification": {
+        "count": 738,
+        "unexpectedChanges": [],
+        "windowsDeltaStillMatches": true,
+        "details": "source-files.json"
+      },
+      "environment": {
+        "capturedUtc": "2026-10-11T06:35:52.621396+00:00",
+        "repository": "/var/tmp/atelia-storage-v4d-fb3d126.3__dw0qm/repo",
+        "uid": "uid=0(root) gid=0(root) groups=0(root),989(docker)",
+        "uname": "Linux Tutu17 6.18.33.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun 18 21:54:43 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux",
+        "osRelease": "PRETTY_NAME=\"Ubuntu 24.04.4 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"24.04\"\nVERSION=\"24.04.4 LTS (Noble Numbat)\"\nVERSION_CODENAME=noble\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=noble\nLOGO=ubuntu-logo\n",
+        "sdk": "10.0.201",
+        "dotnetInfo": ".NET SDK:\n Version:           10.0.201\n Commit:            4d3023de60\n Workload version:  10.0.200-manifests.0793c108\n MSBuild version:   18.3.0-release-26153-122+4d3023de6\n\nRuntime Environment:\n OS Name:     ubuntu\n OS Version:  24.04\n OS Platform: Linux\n RID:         linux-x64\n Base Path:   /usr/lib/dotnet/sdk/10.0.201/\n\n.NET workloads installed:\nThere are no installed workloads to display.\nConfigured to use workload sets when installing new manifests.\nNo workload sets are installed. Run \"dotnet workload restore\" to install a workload set.\n\nHost:\n  Version:      10.0.5\n  Architecture: x64\n  Commit:       a612c2a105\n\n.NET SDKs installed:\n  8.0.131 [/usr/lib/dotnet/sdk]\n  9.0.115 [/usr/lib/dotnet/sdk]\n  10.0.201 [/usr/lib/dotnet/sdk]\n\n.NET runtimes installed:\n  Microsoft.AspNetCore.App 8.0.31 [/usr/lib/dotnet/shared/Microsoft.AspNetCore.App]\n  Microsoft.AspNetCore.App 9.0.14 [/usr/lib/dotnet/shared/Microsoft.AspNetCore.App]\n  Microsoft.AspNetCore.App 10.0.5 [/usr/lib/dotnet/shared/Microsoft.AspNetCore.App]\n  Microsoft.NETCore.App 8.0.31 [/usr/lib/dotnet/shared/Microsoft.NETCore.App]\n  Microsoft.NETCore.App 9.0.14 [/usr/lib/dotnet/shared/Microsoft.NETCore.App]\n  Microsoft.NETCore.App 10.0.5 [/usr/lib/dotnet/shared/Microsoft.NETCore.App]\n\nOther architectures found:\n  None\n\nEnvironment variables:\n  DOTNET_CLI_HOME                          [/var/tmp/atelia-storage-v4d-fb3d126.3__dw0qm/dotnet-home]\n  DOTNET_CLI_TELEMETRY_OPTOUT              [1]\n  DOTNET_NOLOGO                            [1]\n\nglobal.json file:\n  /var/tmp/atelia-storage-v4d-fb3d126.3__dw0qm/repo/global.json\n\nLearn more:\n  https://aka.ms/dotnet/info\n\nDownload .NET:\n  https://aka.ms/dotnet/download",
+        "variables": {
+          "TMPDIR": "/var/tmp/atelia-storage-v4d-fb3d126.3__dw0qm/tmp",
+          "DOTNET_CLI_HOME": "/var/tmp/atelia-storage-v4d-fb3d126.3__dw0qm/dotnet-home",
+          "NUGET_PACKAGES": "/var/tmp/atelia-storage-v4d-fb3d126.3__dw0qm/nuget-packages",
+          "VERSIONSTORE_PROCESS_EVIDENCE_DIRECTORY": "/var/tmp/atelia-storage-v4d-fb3d126.3__dw0qm/evidence/processes"
+        },
+        "filesystems": {
+          "repository": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "TMPDIR": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          },
+          "evidence": {
+            "filesystems": [
+              {
+                "target": "/",
+                "source": "/dev/sde",
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,data=ordered"
+              }
+            ]
+          }
+        }
+      },
+      "commands": [
+        {
+          "name": "build",
+          "cwd": "/var/tmp/atelia-storage-v4d-fb3d126.3__dw0qm/repo",
+          "argv": [
+            "dotnet",
+            "build",
+            "Atelia.Storage.slnx",
+            "-c",
+            "Release"
+          ],
+          "startedUtc": "2026-10-11T06:35:55.136327+00:00",
+          "endedUtc": "2026-10-11T06:36:22.721541+00:00",
+          "elapsedSeconds": 27.585214,
+          "exitCode": 0
+        },
+        {
+          "name": "application-process",
+          "cwd": "/var/tmp/atelia-storage-v4d-fb3d126.3__dw0qm/repo",
+          "argv": [
+            "dotnet",
+            "test",
+            "tests/VersionStore.Tests/VersionStore.Tests.csproj",
+            "-c",
+            "Release",
+            "--no-build",
+            "--filter",
+            "FullyQualifiedName~ApplicationProcessTests",
+            "--logger",
+            "trx",
+            "--results-directory",
+            "/var/tmp/atelia-storage-v4d-fb3d126.3__dw0qm/evidence/trx"
+          ],
+          "startedUtc": "2026-10-11T06:36:23.128874+00:00",
+          "endedUtc": "2026-10-11T06:36:35.932418+00:00",
+          "elapsedSeconds": 12.803544,
+          "exitCode": 0
+        }
+      ],
+      "build": {
+        "warnings": 41,
+        "errors": 0
+      },
+      "tests": {
+        "count": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "trx": [
+          {
+            "path": "trx/_Tutu17_2026-10-11_14_36_28.trx",
+            "sha256": "943b03191cd5de83edbf73023c518caeb57a290e96ee8ff6d42e3ad57ff869bd",
+            "counters": {
+              "total": 7,
+              "executed": 7,
+              "passed": 7,
+              "failed": 0,
+              "error": 0,
+              "timeout": 0,
+              "aborted": 0,
+              "inconclusive": 0,
+              "passedButRunAborted": 0,
+              "notRunnable": 0,
+              "notExecuted": 0,
+              "disconnected": 0,
+              "warning": 0,
+              "completed": 0,
+              "inProgress": 0,
+              "pending": 0
+            },
+            "runOutcome": "Completed"
+          }
+        ],
+        "details": "test-results.json"
+      },
+      "processes": {
+        "count": 25,
+        "distinctPids": 25,
+        "normalExitCount": 17,
+        "expectedFailureCount": 2,
+        "killedCount": 6,
+        "exitCodes": {
+          "137": 6,
+          "0": 17,
+          "1": 2
+        },
+        "commands": {
+          "tool-worker": 6,
+          "tool-read": 7,
+          "tool-recover": 9,
+          "generation-read": 2,
+          "generation-write": 1
+        },
+        "details": "process-summary.json"
+      },
+      "priorWSLEvidence": {
+        "unchanged": true,
+        "fileCount": 221,
+        "details": "prior-evidence-preservation.json"
+      },
+      "assetsDetails": "assets.json",
+      "evidenceDirectoryLinux": "/var/tmp/atelia-storage-v4d-fb3d126.3__dw0qm/evidence",
+      "evidenceDirectoryWindows": "/mnt/e/repos/Atelia-org/atelia-storage/artifacts/versionstore-v4d/linux",
+      "limits": [
+        "Fresh committed baseline plus exactly five consumer/test delta files, not a final clean committed HEAD.",
+        "Release solution build and changed ApplicationProcessTests only; no repeat full solution or finite-resource run.",
+        "WSL2 Ubuntu/root on ext4 with isolated source/bin/obj/TMPDIR and copied separate NuGet cache.",
+        "Application policy examples and controlled public process stops; not internal write-window or power-loss coverage.",
+        "Source-only consumer; no package smoke, packaging, publishing or business integration."
+      ]
+    }
+  }
+}

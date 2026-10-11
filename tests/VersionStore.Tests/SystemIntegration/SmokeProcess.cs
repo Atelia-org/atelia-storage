@@ -99,6 +99,16 @@ internal sealed class SmokeProcess : IAsyncDisposable {
         await Finish();
     }
 
+    internal async Task<string> ExpectFailure() {
+        await _process.WaitForExitAsync().WaitAsync(Timeout);
+        await _stdout.WaitAsync(Timeout);
+        string error = await _stderr.WaitAsync(Timeout);
+        Assert.Equal(1, _process.ExitCode);
+        Assert.NotEmpty(error);
+        Assert.False(_lines.Reader.TryRead(out var extra), $"Failed command emitted success output: {extra}");
+        return error;
+    }
+
     internal async Task Kill() {
         Assert.False(_process.HasExited, "The process exited before the requested kill.");
         _process.Kill();
