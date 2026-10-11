@@ -2,6 +2,8 @@
 
 更新：2026-10-11。本文是实施导航，不增加设计权威。行为以 [S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)、[07 CU](07-versionstore-cross-ref-conditional-update.md)、[08](08-versionstore-record-metadata.md) 至 [11](11-versionstore-root-payload-bytes-api.md) 为准；[S6](../FrameStore-VersionStore/06-integration-and-delivery.md) 管组合与交付。CU 已正式接纳、实施并取得独立源码验收 Accepted，新增证据另列；[既有最终源码验收](12-versionstore-final-acceptance.md)和[六包候选](../FrameStore-VersionStore/13-local-package-delivery.md)保持原来源，不含 CU。
 
+**当前新增公面队列**统一见[下游反馈重构备忘](../FrameStore-VersionStore/14-downstream-api-refinement-plan.md)。下一片为精确 revision 读取、公共组合 guard 与 FrameStore façade 完善，随后补惰性恢复报告；均已完成方案审查、尚未实施。本文下方 V0–V4/CU 保留各自完成与验收身份，不作为这些新增 API 的实施证据。
+
 ## 调度原则与整体结构
 
 每轮先看 git 状态、当前源码及本文完成项，保留其他工作；选择能独立验证的一条路径。实施者可以调整内部表示和助手，不能把缺少实现重新扩展成已关闭的设计问题。若出现合同反例，记录具体失败轨迹与受阻分片，再调整计划。不要用 `NotImplementedException`、伪成功或 public 裸句柄导入填满候选 API。

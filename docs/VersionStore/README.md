@@ -2,6 +2,8 @@
 
 VersionStore 借入一个 FrameStore，发布应用解释的不透明 root-payload bytes，并提供 ref、历史、fork、tag 与只读 Audit。公开用法见 [Atelia.VersionStore](../../src/VersionStore/README.md)。本页只做导航，不增加合同或重标验收范围。
 
+当前新增公面施工队列见[下游公面完善计划](../FrameStore-VersionStore/14-downstream-api-refinement-plan.md)：精确 revision 读取、公共组合 guard 与惰性恢复报告已完成方案审查，尚未实现。跨层待办只在该篇维护，不重复加入旧阶段队列。
+
 ## 最小阅读路径
 
 1. 先看[实施计划](12-versionstore-implementation-plan.md)的当前完成项，再看[既有最终源码验收](12-versionstore-final-acceptance.md)与 [CU 独立源码验收](07-versionstore-cross-ref-conditional-update-acceptance.md)的范围；原 source-only 队列已收束，`PublishRefs` / CU 已 Accepted。
