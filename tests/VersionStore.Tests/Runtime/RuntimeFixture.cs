@@ -19,17 +19,19 @@ internal sealed class RuntimeFixture : IDisposable {
     internal readonly VersionStoreTestHooks Hooks = new();
     internal readonly VersionStore Store;
 
-    internal RuntimeFixture(bool readOnly = false, bool readOnlyData = false, uint reservedUpper = 17) {
+    internal RuntimeFixture(bool readOnly = false, bool readOnlyData = false, uint reservedUpper = 17,
+        uint? autoRefIdHighWatermark = null) {
         Directory.CreateDirectory(Root);
         string dataPath = Path.Combine(Root, "data");
         Data = DataStore.Create(dataPath);
         if (readOnlyData) { Data.Dispose(); Data = DataStore.OpenReadOnly(dataPath); }
         StoreIdentity.TryRead(Data.StoreId, out DataIdentity);
         StoreIdentity.TryRead(Enumerable.Range(1, 16).Select(i => (byte)i).ToArray(), out Identity);
-        Files = new TestVersionStoreFiles(Operations);
+        Files = new TestVersionStoreFiles(Operations, Root);
         Lock = new RecordingOwnerLock(Operations);
         Hooks.ConfirmDataDurable = () => { Operations.Add("data:confirm"); Data.ConfirmDurable(); };
-        Store = new VersionStore(Data, Identity, DataIdentity, reservedUpper, readOnly, Files, Lock, Hooks);
+        Store = new VersionStore(Data, Identity, DataIdentity, reservedUpper, readOnly, Files, Lock, Hooks,
+            autoRefIdHighWatermark);
     }
 
     internal RefId Seed(uint localId = 1, byte[]? payload = null, long recordedAt = 123) {
@@ -74,16 +76,87 @@ internal sealed class RecordingOwnerLock(List<string> operations) : IDisposable 
     }
 }
 
-internal sealed class TestVersionStoreFiles(List<string> operations) : IVersionStoreFiles {
+internal sealed class TestVersionStoreFiles(List<string> operations, string? root = null) : IVersionStoreFiles {
     internal readonly Dictionary<uint, string> Paths = [];
     internal readonly Dictionary<uint, TrackedRefFile> Opened = [];
     internal Exception? ResolveFailure;
     internal Exception? ResolveCleanupFailure;
     internal Exception? OpenFailure;
     internal Exception? OpenCleanupFailure;
+    internal Exception? ListFailure;
+    internal Exception? ListCleanupFailure;
+    internal Exception? PrepareFailure;
+    internal Exception? PrepareCleanupFailure;
+    internal Exception? PendingCreateFailure;
+    internal Exception? PendingCreateCleanupFailure;
+    internal Exception? RenameFailure;
+    internal bool RenameThenThrow;
+    internal Action<TrackedRefFile>? ConfigurePending;
+    internal readonly List<TrackedRefFile> PendingFiles = [];
     internal long? NextTailOffset;
     internal int ResolveCalls;
     internal int OpenCalls;
+    internal int ListCalls;
+    internal int PrepareCalls;
+    internal int PendingCreateCalls;
+    internal int RenameCalls;
+    internal string PendingPath => Path.Combine(root ?? throw new InvalidOperationException("No fixture creation root."), "pending.rbf");
+
+    public AteliaResult<IReadOnlyList<uint>> ListRefIds(Action markOwnedCleanupFault) {
+        ListCalls++;
+        operations.Add("list");
+        if (ListCleanupFailure is { } cleanupFailure) { markOwnedCleanupFault(); throw cleanupFailure; }
+        if (ListFailure is { } failure) { throw failure; }
+        return AteliaResult<IReadOnlyList<uint>>.Success(Array.AsReadOnly(Paths.Keys.ToArray()));
+    }
+
+    public AteliaResult<QualifiedRefTarget> PrepareNewRef(uint localId, Action markOwnedCleanupFault) {
+        PrepareCalls++;
+        operations.Add($"prepare:{localId}");
+        if (PrepareCleanupFailure is { } cleanupFailure) { markOwnedCleanupFault(); throw cleanupFailure; }
+        if (PrepareFailure is { } failure) { throw failure; }
+        if (Paths.ContainsKey(localId)) {
+            return new VersionStoreRuntimeError("RefAlreadyExists", "The formal fixture target is occupied.");
+        }
+        return new QualifiedRefTarget(localId,
+            Path.Combine(root ?? throw new InvalidOperationException("No fixture creation root."), localId.ToString("x8") + ".rbf"));
+    }
+
+    public IRbfFile CreatePending(Action markOwnedCleanupFault) {
+        PendingCreateCalls++;
+        operations.Add("pending:create");
+        if (PendingCreateCleanupFailure is { } cleanupFailure) { markOwnedCleanupFault(); throw cleanupFailure; }
+        if (PendingCreateFailure is { } failure) { throw failure; }
+        IRbfFile? pending = RbfFile.CreateNew(PendingPath, RbfCacheMode.Off);
+        try {
+            var tracked = new TrackedRefFile(0, pending, operations);
+            ConfigurePending?.Invoke(tracked);
+            PendingFiles.Add(tracked);
+            pending = null;
+            return tracked;
+        }
+        catch (Exception primary) {
+            CleanupErrors errors = default;
+            errors.Add(primary);
+            IRbfFile? toClose = pending;
+            pending = null;
+            try { toClose?.Dispose(); }
+            catch (Exception cleanupError) { markOwnedCleanupFault(); errors.Add(cleanupError); }
+            errors.ThrowIfAny();
+            throw;
+        }
+    }
+
+    public void PublishPending(QualifiedRefTarget target, Action markOwnedCleanupFault) {
+        RenameCalls++;
+        operations.Add($"rename:{target.LocalId}");
+        if (RenameFailure is { } failure && !RenameThenThrow) { throw failure; }
+        // Fixture bookkeeping is prepared before the real move. Production uses its native rename seam.
+        Paths.Add(target.LocalId, target.Path);
+        try { File.Move(PendingPath, target.Path, overwrite: false); }
+        catch { Paths.Remove(target.LocalId); throw; }
+        if (RenameFailure is { } laterFailure) { throw laterFailure; }
+    }
 
     public AteliaResult<QualifiedRefTarget> ResolveRef(uint localId, Action markOwnedCleanupFault) {
         ResolveCalls++;
@@ -136,6 +209,8 @@ internal sealed class TrackedRefFile(uint localId, IRbfFile inner, List<string> 
     internal long? TailOffsetOverride;
     internal AteliaError? AppendError;
     internal Exception? AppendFailure;
+    internal int? AppendFailureCall;
+    internal int? AppendErrorCall;
     internal bool AppendThenThrow;
     internal Exception? FlushFailure;
     internal bool FlushThenThrow;
@@ -155,10 +230,12 @@ internal sealed class TrackedRefFile(uint localId, IRbfFile inner, List<string> 
         operations.Add($"append:{localId}");
         AppendedPayload = payload.ToArray();
         AppendedMeta = tailMeta.ToArray();
-        if (AppendError is { } rejected) { return rejected; }
-        if (AppendFailure is { } error && !AppendThenThrow) { throw error; }
+        bool rejectThisCall = AppendErrorCall is null || AppendErrorCall == AppendCalls;
+        bool failThisCall = AppendFailureCall is null || AppendFailureCall == AppendCalls;
+        if (AppendError is { } rejected && rejectThisCall) { return rejected; }
+        if (AppendFailure is { } error && failThisCall && !AppendThenThrow) { throw error; }
         var result = Inner.Append(tag, payload, tailMeta);
-        if (AppendFailure is { } laterError) { throw laterError; }
+        if (AppendFailure is { } laterError && failThisCall) { throw laterError; }
         return result;
     }
 

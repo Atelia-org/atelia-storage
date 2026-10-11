@@ -1,0 +1,370 @@
+{
+  "date": "2026-10-11",
+  "scope": "VersionStore V1 public single-ref persistence; source-only",
+  "baseline": "7cca95c",
+  "sourceIdentity": "Changes committed with this evidence; source hashes normalize UTF-8 text to LF, excluding bin/obj.",
+  "platform": "Windows-11-10.0.22000-SP0",
+  "publicFixtureDrive": "W:",
+  "commands": [
+    "dotnet build Atelia.Storage.slnx -c Release --nologo -v minimal",
+    "dotnet test Atelia.Storage.slnx -c Release --no-build --logger trx --results-directory artifacts/versionstore-v1/accepted-tests",
+    "./eng/Test-Rbf1ReferenceAssets.ps1"
+  ],
+  "build": {
+    "succeeded": true,
+    "finalIncrementalWarnings": 0,
+    "errors": 0,
+    "note": "Initial integration fixed scoped-ref escape and test generic inference. Earlier Data/Rbf build had 41 existing XML warnings."
+  },
+  "testOutcomes": {
+    "Passed": 2618,
+    "NotExecuted": 9
+  },
+  "testRuns": [
+    {
+      "assembly": "Atelia.Primitives.Tests.dll",
+      "results": {
+        "Passed": 75
+      },
+      "trx": "artifacts/versionstore-v1/accepted-tests/gdtutu_TUTU17_2026-10-11_09_37_29.trx",
+      "trxSha256": "4d6c11139f6c31920a937277e24e221119798fe8882a5031f332d0d5be342dbc"
+    },
+    {
+      "assembly": "Atelia.Data.Tests.dll",
+      "results": {
+        "Passed": 288
+      },
+      "trx": "artifacts/versionstore-v1/accepted-tests/gdtutu_TUTU17_2026-10-11_09_37_29[1].trx",
+      "trxSha256": "5efd590854249c98ede50020095fbf55d6be020d8216c73f9061b64df33bd914"
+    },
+    {
+      "assembly": "Atelia.RbfSegmentStore.Tests.dll",
+      "results": {
+        "Passed": 48
+      },
+      "trx": "artifacts/versionstore-v1/accepted-tests/gdtutu_TUTU17_2026-10-11_09_37_29[2].trx",
+      "trxSha256": "e051e463dc334660f6ae7f2b453bd68609fdbb6741631cdd800f033206014914"
+    },
+    {
+      "assembly": "Atelia.FrameStore.Tests.dll",
+      "results": {
+        "Passed": 422,
+        "NotExecuted": 3
+      },
+      "trx": "artifacts/versionstore-v1/accepted-tests/gdtutu_TUTU17_2026-10-11_09_37_29[3].trx",
+      "trxSha256": "53cbaaffcb51576ad8d96a2df7708bf7b88635ebc58de2ec1178783c8c9576bb"
+    },
+    {
+      "assembly": "Atelia.Binary.Tests.dll",
+      "results": {
+        "Passed": 214
+      },
+      "trx": "artifacts/versionstore-v1/accepted-tests/gdtutu_TUTU17_2026-10-11_09_37_30.trx",
+      "trxSha256": "eb2f32966610f870a414af15bd0cedaff4e290f8d56ad9404ab9f3635dc0d4f5"
+    },
+    {
+      "assembly": "Atelia.VersionStore.Tests.dll",
+      "results": {
+        "Passed": 410,
+        "NotExecuted": 6
+      },
+      "trx": "artifacts/versionstore-v1/accepted-tests/gdtutu_TUTU17_2026-10-11_09_37_30[1].trx",
+      "trxSha256": "dc021a52e5e52542e8969adb803b62cac60073b67aec38f606cb805c36139ee0",
+      "groupsIncludingSkipped": {
+        "Format": 79,
+        "Platform": 26,
+        "Public": 114,
+        "Records": 40,
+        "RootMap": 43,
+        "Runtime": 69,
+        "Storage": 35,
+        "Values": 10
+      }
+    },
+    {
+      "assembly": "Atelia.EventJournal.Toolkit.Tests.dll",
+      "results": {
+        "Passed": 122
+      },
+      "trx": "artifacts/versionstore-v1/accepted-tests/gdtutu_TUTU17_2026-10-11_09_37_30[2].trx",
+      "trxSha256": "9cbc932104229ac10dc15a4a93f72095819f04c66af00802af84968ed6cb4957"
+    },
+    {
+      "assembly": "Atelia.Rbf.Tests.dll",
+      "results": {
+        "Passed": 865
+      },
+      "trx": "artifacts/versionstore-v1/accepted-tests/gdtutu_TUTU17_2026-10-11_09_37_30[3].trx",
+      "trxSha256": "220a43e60904d0c5150a2556143645176c4e5acc2ffa854e226231d8572ffae9"
+    },
+    {
+      "assembly": "Atelia.EventJournal.Tests.dll",
+      "results": {
+        "Passed": 174
+      },
+      "trx": "artifacts/versionstore-v1/accepted-tests/gdtutu_TUTU17_2026-10-11_09_37_30[4].trx",
+      "trxSha256": "e753b13dbbad36397f4b209ceb0799a223b5bff60de97918386198c6e8099992"
+    }
+  ],
+  "dependencyClosure": [
+    {
+      "name": "K4os.Compression.LZ4/1.3.8",
+      "type": "package"
+    },
+    {
+      "name": "Atelia.Binary/1.0.0",
+      "type": "project"
+    },
+    {
+      "name": "Atelia.Data/1.0.0",
+      "type": "project"
+    },
+    {
+      "name": "Atelia.FrameStore/1.0.0",
+      "type": "project"
+    },
+    {
+      "name": "Atelia.Primitives/1.0.0",
+      "type": "project"
+    },
+    {
+      "name": "Atelia.Rbf/1.0.0",
+      "type": "project"
+    }
+  ],
+  "frozenRbf1Assets": {
+    "projects": 7,
+    "version": "0.2.0-rbf1-preview.1",
+    "source": "3e9554e2ea70f769607e80b3fc11a85506050533",
+    "passed": true
+  },
+  "review": {
+    "unresolvedP1P2": 0,
+    "scope": "Independent source and assertion review plus root integration verification",
+    "resolved": [
+      "Direct scoped ref outcome write-through",
+      "Unexpected private append rejection faults with NotAttempted",
+      "Reject canonical plus case alias for managed components",
+      "Do not swallow owned cleanup error during missing-parent detection",
+      "Test assertions distinguish native lock admission errors from format errors; byte mirrors read between owners"
+    ]
+  },
+  "limitations": [
+    "No Linux runtime execution; six VS and three FS Linux tests skipped",
+    "No real process kill, power loss, OS flush/close fault, cross-process lock or cross-volume/mount execution qualification",
+    "Controlled failure injection and modified file images are not crash evidence",
+    "History, fork, tags, full audit and CU not implemented",
+    "No package, network publish, push or consumer migration"
+  ],
+  "logsSha256": {
+    "build.log": "e6308d9b74c92c48ee064dca0b86e8bc449bbf7b7affe776d8ee7def8d2ee770",
+    "accepted-tests.log": "82da5f539ea514c3e9dace97c8ca1bc5676a77aada609a17b187ea5375eb07de",
+    "rbf1-assets.log": "75997e0656849e10b55138a4500b10da8c61d34feca82a27c2e364995a4738d0"
+  },
+  "sourceFiles": [
+    {
+      "path": "src/VersionStore/Internal/Format/FormatGateCodec.cs",
+      "lfUtf8Sha256": "729952130686aac933271b37f9f08b7a809f93d4fac74f03754d17e79f194388"
+    },
+    {
+      "path": "src/VersionStore/Internal/Format/RecordMetadataCodec.cs",
+      "lfUtf8Sha256": "b7770d8d1cafb6a02e862ea99c6a964613a136f310118b515973d0d064e9becd"
+    },
+    {
+      "path": "src/VersionStore/Internal/Format/RefHeaderCodec.cs",
+      "lfUtf8Sha256": "a99bdf5909ebe1f1708f33b40268308938112e540085ee921cbb1c3e9855a380"
+    },
+    {
+      "path": "src/VersionStore/Internal/Format/RefIdCodec.cs",
+      "lfUtf8Sha256": "5c9fa08b23cea6dfdd81d70001d20fdac013dd812ddf87364a1b6e489e629b6e"
+    },
+    {
+      "path": "src/VersionStore/Internal/Format/StoreIdentity.cs",
+      "lfUtf8Sha256": "9f458f2c53e056e7950cec077b7b2a273d05d894854cbff5b75e09a293d2e4a9"
+    },
+    {
+      "path": "src/VersionStore/Internal/Format/VersionStorePaths.cs",
+      "lfUtf8Sha256": "6b6f3788fff40c7d5f64331132f93a1b94f859c6ace971d0477a1821a89dc13e"
+    },
+    {
+      "path": "src/VersionStore/Internal/Platform/VersionStorePlatform.cs",
+      "lfUtf8Sha256": "98cd91c79058a05494b3556351b5aed47898b62f5e20ddb10960bbc7f0bc4f04"
+    },
+    {
+      "path": "src/VersionStore/Internal/Records/CheckedRefHeader.cs",
+      "lfUtf8Sha256": "effec18a90347df449d7d252ebd5f1cc2681f58e6ec9a0ce19e6f4d2ab125652"
+    },
+    {
+      "path": "src/VersionStore/Internal/Records/RefRecordCodec.cs",
+      "lfUtf8Sha256": "6a3441345b4131f83056159929abc9cf97feabe43dda1ff7055ad6f0a045cc2c"
+    },
+    {
+      "path": "src/VersionStore/Internal/Records/RefRecordReader.cs",
+      "lfUtf8Sha256": "f92b8b1181bd68c334a9c4927ceb400d0cb7cd6f447fab0099ded5473b6d1dd8"
+    },
+    {
+      "path": "src/VersionStore/Internal/RootMap/ExactRootMapBuffer.cs",
+      "lfUtf8Sha256": "b807bb22fa2958535c5737a54dde2a4023a7f6a3102169c1a69d6b5d7890316b"
+    },
+    {
+      "path": "src/VersionStore/Internal/Runtime/CleanupErrors.cs",
+      "lfUtf8Sha256": "9630f936b3a492d2a8ad53913ff236d457cd49e853ae136c5735aab49a61e071"
+    },
+    {
+      "path": "src/VersionStore/Internal/Runtime/IVersionStoreFiles.cs",
+      "lfUtf8Sha256": "f63ce3762a12182867fb1d19c1fe3dd62870ea014ae389dfaefd68075df3969b"
+    },
+    {
+      "path": "src/VersionStore/Internal/Runtime/VersionStoreRuntimeError.cs",
+      "lfUtf8Sha256": "9b92c4bc0cb40296e36163f9ccfade36ca540026a06c1dcc8b60b6d23676ad7f"
+    },
+    {
+      "path": "src/VersionStore/Internal/Runtime/VersionStoreTestHooks.cs",
+      "lfUtf8Sha256": "8ddc8a920eb3d662c9c0ca64a8c7abd82017e73a752c0a6e805baf3da82ac69b"
+    },
+    {
+      "path": "src/VersionStore/Internal/Storage/DirectoryVersionStoreFiles.cs",
+      "lfUtf8Sha256": "418e1d91292dd5ee3b469227f084a3f7d718800ef1952f96c3ca72da3df60054"
+    },
+    {
+      "path": "src/VersionStore/Internal/Storage/VersionStoreFactory.cs",
+      "lfUtf8Sha256": "08ea5d1c1de0a3e661b1839c5cf387ba0c70e026aa98700d88bc6c6fc2b3d4e1"
+    },
+    {
+      "path": "src/VersionStore/Internal/Storage/VersionStoreFactoryOperations.cs",
+      "lfUtf8Sha256": "0b4838c014ffd0bc5392f2ecb19ca990c4d55318b5d88897726e2ac3781c81a7"
+    },
+    {
+      "path": "src/VersionStore/PublicationOutcome.cs",
+      "lfUtf8Sha256": "deef1ad96b0f4244c87ad179453d1eb3254fc918f00018926de57b78aaf45677"
+    },
+    {
+      "path": "src/VersionStore/RefBytesSnapshot.cs",
+      "lfUtf8Sha256": "2d5380ffa82d412edff6796f2f00c2fd0647b06c9a44489b581fb21dbf188a49"
+    },
+    {
+      "path": "src/VersionStore/RefId.cs",
+      "lfUtf8Sha256": "e2aa87ac9e850bf89714c89850fd718a808b9659ad9d5b7e6f2edc2a17322725"
+    },
+    {
+      "path": "src/VersionStore/RefRevision.cs",
+      "lfUtf8Sha256": "99e314dc9d1f39b8a4e64d40088db065ed5f7b70f6d338e80409c80f3547f93b"
+    },
+    {
+      "path": "src/VersionStore/RootMapCodec.cs",
+      "lfUtf8Sha256": "4c6f7b7f73c4f831b50e2902f329e7318bf3bbbeaadce69f9f734bfd073a8383"
+    },
+    {
+      "path": "src/VersionStore/VersionStore.cs",
+      "lfUtf8Sha256": "25834368a6cdcf9469853e0f637e31f718a1aac685997e2257486ff2f6d93f22"
+    },
+    {
+      "path": "src/VersionStore/VersionStore.csproj",
+      "lfUtf8Sha256": "14ac0f81c670670f625f4b76805a896cca7e42f2ec9cc88468a0ffe3c55535bb"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Format/FormatGateTests.cs",
+      "lfUtf8Sha256": "aadfc413a67c27c74a273c6afe0301f35a3d71bc3b97f174f1ce04af92081b3b"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Format/FormatTestValues.cs",
+      "lfUtf8Sha256": "1b0bb7ed24af051204b7669a84dd6e47a0bb376ef2877a956d998bfcd5afc84d"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Format/RecordMetadataTests.cs",
+      "lfUtf8Sha256": "0db0691de0f0ff82152536e63708e14094754f4150c57f951ca3729dc89bd5bf"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Format/RefHeaderTests.cs",
+      "lfUtf8Sha256": "486ac30cfa71ad34617be21e4007cf34a24988444551097c2fa5d781e2bd5c18"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Format/RefIdCodecTests.cs",
+      "lfUtf8Sha256": "e755a3a30daa88f0471d74a8663b63799658a574ff6090aa9072dffdac834b4b"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Format/StoreIdentityTests.cs",
+      "lfUtf8Sha256": "89113b58faaeee5a2a9dd275f1aeb3b1ae1ec6be1bd357c3adc19fccd8ee1e14"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Format/VersionStorePathsTests.cs",
+      "lfUtf8Sha256": "a332bdd0d42f361a65ade6109d0660e499f20524218ba46db6ba4a3f065bed25"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Platform/VersionStorePlatformTests.cs",
+      "lfUtf8Sha256": "e1fc329115f5221eab7084a47637c6d3fb0ff9c688db9ebf2a8361e1d427308a"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Public/PublicAdmissionTests.cs",
+      "lfUtf8Sha256": "275acc9499eb37e870004492ef903631e0daaebe4a7689462e49895e49ca1253"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Public/PublicLifecycleTests.cs",
+      "lfUtf8Sha256": "b59e6ed57781149ddc046e926e84aad98d061487ec6007a8e8550bac859d4591"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Public/PublicPathAdmissionTests.cs",
+      "lfUtf8Sha256": "01a2508aecc2716b5fd73dbcb23501be6575836fa441dcbb2906d1f36200a0b9"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Public/PublicPayloadAndRecoveryTests.cs",
+      "lfUtf8Sha256": "dc040bad60cc8a11ce4b431c46b2cf4278341dd54c169da46fc5ccaeadf9c723"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Public/PublicRefDiscoveryTests.cs",
+      "lfUtf8Sha256": "f5a409b40e7959ac6c5036ea472282ab3d80bdcc84442f524a303c30efdc00b5"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Public/PublicVersionStoreFixture.cs",
+      "lfUtf8Sha256": "b71dd5701a1adbf3fd3b18206d24f32cf67fca5f6a518e56284c2c80a4cbcb2b"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Records/RefRecordReaderTests.cs",
+      "lfUtf8Sha256": "80b1a9955dfd7ea611b790b2c9c331907e41673a8136ac6c478b168dfefac4d6"
+    },
+    {
+      "path": "tests/VersionStore.Tests/RootMap/RootMapCodecTests.cs",
+      "lfUtf8Sha256": "fbdbc7adc19f97f470c7d2c30e2ceeec8b71ea4c392c7ce69612fcaa96b482e5"
+    },
+    {
+      "path": "tests/VersionStore.Tests/RootMap/RootMapFixture.cs",
+      "lfUtf8Sha256": "c505577a66e8f5b23003a6f0a0badc7981d563b89596604b2a264e715663972a"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Runtime/RuntimeFixture.cs",
+      "lfUtf8Sha256": "653027a177cebcc6e106338630d9d79940a67a0290ede6509cc6fb42f88a66bc"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Runtime/VersionStoreCreationTests.cs",
+      "lfUtf8Sha256": "9cf16391e8fbdba162ac649e74a16ae6a9a1cfb3776eb7577bb25e5fa4da170f"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Runtime/VersionStoreRuntimeTests.cs",
+      "lfUtf8Sha256": "9337fe44a28e618ea969b4ca6ddc76f081a1c0bcb7a049b3c8a4f3aec7f83b8a"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Storage/DirectoryVersionStoreFilesTests.cs",
+      "lfUtf8Sha256": "3e74e960bcede2385f5599baf2885d477056ec374fd988ae7fe5b12c313d1a07"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Storage/FactoryFailureWindowTests.cs",
+      "lfUtf8Sha256": "91d25478545603be7eba3a75ce9d52b80192f04c54ba51cc783caebfeddab573"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Storage/StorageFixture.cs",
+      "lfUtf8Sha256": "5be1b135763aaba7fb27fd670908c68e86fb85ec1e9ced9de0fd0d8e4fef1132"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Values/RefBytesSnapshotTests.cs",
+      "lfUtf8Sha256": "06cc2986519953d9e5ac693e19fcc00dd1a5ef1b08dbc80202ff9dbf73a9a099"
+    },
+    {
+      "path": "tests/VersionStore.Tests/Values/RefValueTests.cs",
+      "lfUtf8Sha256": "502ebc0621d41a9fc380e15553d5b4de1123d7a0279f231f61f309652c72f891"
+    },
+    {
+      "path": "tests/VersionStore.Tests/VersionStore.Tests.csproj",
+      "lfUtf8Sha256": "119da6833460c5e42352c1cdab5bccb3f66bd1a3cb2f029c8acba4fe03bcd552"
+    }
+  ]
+}

@@ -1,0 +1,108 @@
+using Atelia.VersionStore.Internal.Format;
+using Atelia.VersionStore.Internal.Platform;
+using Atelia.VersionStore.Internal.Runtime;
+using DataStore = Atelia.FrameStore.FrameStore;
+
+namespace Atelia.VersionStore.Internal.Storage;
+
+/// <summary>公开 owner 的根、锁、门与目录资格移交入口。</summary>
+internal static class VersionStoreFactory {
+    internal static VersionStore Create(string rootPath, DataStore data, uint reservedRefIdUpperBound,
+        VersionStoreFactoryOperations? operations = null) {
+        ArgumentException.ThrowIfNullOrWhiteSpace(rootPath);
+        ArgumentNullException.ThrowIfNull(data);
+        if (reservedRefIdUpperBound == uint.MaxValue) {
+            throw new ArgumentOutOfRangeException(nameof(reservedRefIdUpperBound));
+        }
+        string root = Path.GetFullPath(rootPath);
+        StoreIdentity dataIdentity = CheckBorrowedData(data, readOnly: false);
+        operations ??= VersionStoreFactoryOperations.Default;
+
+        // Pure input and borrowed-owner checks precede every VS path operation.
+        if (VersionStorePlatform.TryAdmitRoot(root)) {
+            root = VersionStorePlatform.AdmitRoot(root, createIfMissing: false);
+            DirectoryVersionStoreFiles.CheckFreshInput(root, operations);
+        }
+        root = VersionStorePlatform.AdmitRoot(root, createIfMissing: true);
+
+        IDisposable? ownerLock = null;
+        try {
+            operations.BeforeCreateOwnerLock(root);
+            ownerLock = operations.AcquireOwnerLock(root, create: true, readOnly: false);
+            // Another Create can finish between preflight and our exclusive acquisition.
+            DirectoryVersionStoreFiles.CheckFreshInput(root, operations);
+            FormatGate gate = DirectoryVersionStoreFiles.InitializeEmptyStore(root, dataIdentity,
+                reservedRefIdUpperBound, operations);
+            operations.BeforeOwnerHandoff(root);
+            var store = new VersionStore(data, gate.VersionStoreId, gate.DataStoreId,
+                gate.ReservedRefIdUpperBound, readOnly: false, new DirectoryVersionStoreFiles(root),
+                ownerLock, autoRefIdHighWatermark: gate.ReservedRefIdUpperBound);
+            ownerLock = null;
+            return store;
+        }
+        catch (Exception error) {
+            CleanupErrors errors = default;
+            errors.Add(error);
+            Close(ref ownerLock, ref errors);
+            errors.ThrowIfAny();
+            throw;
+        }
+    }
+
+    internal static VersionStore Open(string rootPath, DataStore data, bool readOnly,
+        VersionStoreFactoryOperations? operations = null) {
+        ArgumentException.ThrowIfNullOrWhiteSpace(rootPath);
+        ArgumentNullException.ThrowIfNull(data);
+        string root = Path.GetFullPath(rootPath);
+        StoreIdentity dataIdentity = CheckBorrowedData(data, readOnly);
+        operations ??= VersionStoreFactoryOperations.Default;
+        root = VersionStorePlatform.AdmitRoot(root, createIfMissing: false);
+
+        IDisposable? ownerLock = null;
+        try {
+            ownerLock = operations.AcquireOwnerLock(root, create: false, readOnly);
+            // The gate owns a temporary handle; its successful close precedes layout and discovery.
+            FormatGate gate = DirectoryVersionStoreFiles.ReadGate(root, dataIdentity, operations);
+            DirectoryVersionStoreFiles.CheckLayout(root);
+            var files = new DirectoryVersionStoreFiles(root, operations);
+            uint highWatermark = gate.ReservedRefIdUpperBound;
+            if (!readOnly) {
+                var discovered = files.ListRefIds(static () => { });
+                if (discovered.IsFailure) { throw new InvalidDataException(discovered.Error!.ToString()); }
+                foreach (uint id in discovered.Value!) { highWatermark = Math.Max(highWatermark, id); }
+            }
+            files.QualifyPending(readOnly);
+            operations.BeforeOwnerHandoff(root);
+            var store = new VersionStore(data, gate.VersionStoreId, gate.DataStoreId,
+                gate.ReservedRefIdUpperBound, readOnly, new DirectoryVersionStoreFiles(root), ownerLock,
+                autoRefIdHighWatermark: highWatermark);
+            ownerLock = null;
+            return store;
+        }
+        catch (Exception error) {
+            CleanupErrors errors = default;
+            errors.Add(error);
+            Close(ref ownerLock, ref errors);
+            errors.ThrowIfAny();
+            throw;
+        }
+    }
+
+    private static StoreIdentity CheckBorrowedData(DataStore data, bool readOnly) {
+        data.EnsureUsable();
+        if (!readOnly && data.IsReadOnly) {
+            throw new ArgumentException("A writable VersionStore requires writable borrowed data.", nameof(data));
+        }
+        if (!StoreIdentity.TryRead(data.StoreId, out StoreIdentity identity)) {
+            throw new ArgumentException("The borrowed data identity is invalid.", nameof(data));
+        }
+        return identity;
+    }
+
+    private static void Close<T>(ref T? slot, ref CleanupErrors errors) where T : class, IDisposable {
+        T? toClose = slot;
+        slot = null;
+        try { toClose?.Dispose(); }
+        catch (Exception error) { errors.Add(error); }
+    }
+}

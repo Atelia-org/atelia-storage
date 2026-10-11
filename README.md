@@ -1,6 +1,6 @@
 # atelia-storage
 
-Atelia 的 .NET 10 存储基础库，使用 MIT 许可证。main 面向 **RBF3 / FrameStore / VersionStore 新栈**：当前底座为 `Atelia.Primitives`、`Atelia.Data`、`Atelia.Rbf`，另有独立的 `Atelia.Binary` 基元 codec（BCL + 纯托管 K4os.Compression.LZ4 `[1.3.8]`）；FrameStore 已实现[公开持久化闭环](src/FrameStore/README.md)，Inventory/Audit 同步物理检查已实现、暂不打包；VersionStore 已建立 source-only 骨架与关键局部，真实目录工厂尚未实施（见 [实施计划](docs/FrameStore-VersionStore/12-versionstore-implementation-plan.md)）。
+Atelia 的 .NET 10 存储基础库，使用 MIT 许可证。main 面向 **RBF3 / FrameStore / VersionStore 新栈**：当前底座为 `Atelia.Primitives`、`Atelia.Data`、`Atelia.Rbf`，另有独立的 `Atelia.Binary` 基元 codec（BCL + 纯托管 K4os.Compression.LZ4 `[1.3.8]`）；FrameStore 已实现[公开持久化闭环](src/FrameStore/README.md)，Inventory/Audit 同步物理检查已实现、暂不打包；VersionStore 已接通 source-only 的普通 ref 公开持久化闭环（见 [实施计划](docs/FrameStore-VersionStore/12-versionstore-implementation-plan.md)）。
 
 现有 EventJournal、RbfSegmentStore、toolkit 及其测试保留原路径，作为 **RBF1 旧栈的冻结参考代码**。旧栈维护和公开交付归 `RBF1` 分支；main 不为它们适配新的底层 API。本轮依赖和交付入口拆分已 **Accepted**，方案与实际证据统一见 [RBF1 参考代码过渡方案](docs/rbf1-reference-transition.md)。
 

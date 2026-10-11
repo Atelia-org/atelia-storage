@@ -1,6 +1,6 @@
 # S4：VersionStore 不透明根 payload 与单文件 ref 发布
 
-状态：**Draft；单文件 ref、身份/编号、创建/打开、ForkOrigin 与 PublicationOutcome 合同已定；V0 已实现公共借入 guard、项目骨架与关键局部；真实目录工厂及系统/平台验收尚缺（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。
+状态：**Draft；单文件 ref、身份/编号、创建/打开、ForkOrigin 与 PublicationOutcome 合同已定；V1 已接通公开工厂、普通 ref 创建/发布/发现与冷重开；完整系统及 Linux 平台验收尚缺（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。
 本文负责发布协议、身份与 ref envelope；时间编码见 [08 元信息专项](08-versionstore-record-metadata.md)，bytes API/所有权见 [11 公面专项](11-versionstore-root-payload-bytes-api.md)，可选 RootMap codec 见 [10 专项](10-versionstore-rootmap-payload.md)。首版版本为 1，不兼容未实施的旧草案。
 前置：[S0](00-architecture-decisions.md)、[S1](01-rbf-sized-append.md)、[S2](02-framestore-core.md)、[S3](03-framestore-interleaved-builders-and-durability.md)。历史与不可变 tag 见 [S5](05-versionstore-names-and-indexes.md)。
 
@@ -341,7 +341,7 @@ public enum PublicationOutcome {
 }
 ```
 
-入口第一条语句 MUST 把 outcome 设为 NotAttempted，先于生命周期/模式/参数检查、输入复制、编码及任何 I/O。调用方每次先在 try 外初始化独立局部变量，异常路径仍可读取；以下是候选 API 的消费示意，不是已实施 API：
+入口第一条语句 MUST 把 outcome 设为 NotAttempted，先于生命周期/模式/参数检查、输入复制、编码及任何 I/O。调用方每次先在 try 外初始化独立局部变量，异常路径仍可读取；以下示意消费已实施的普通 PublishRef 公面；其他发布操作按其实施状态判断：
 
 ```csharp
 var outcome = PublicationOutcome.NotAttempted;

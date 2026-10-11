@@ -1,6 +1,6 @@
 # VersionStore：root payload bytes 公面与所有权
 
-日期：2026-10-10。状态：**Draft / 用户采用同步 bytes 输入、自有 GC buffer 结果和发布前捕获；V0 已实现普通 ref 结果和发布内核，工厂/创建/历史/tag/CU尚缺（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。本篇是 S4/S5/tag/CU 的 bytes API 与长度/生命周期唯一权威；不改变身份、根锁、单 driver、ProcessCrashOnly、data-first 或三态证据。CU 仍为候选，程序集拆分另行设计。
+日期：2026-10-10。状态：**Draft / 用户采用同步 bytes 输入、自有 GC buffer 结果和发布前捕获；V1 已接通工厂与普通 ref 创建/读取/发布，历史/tag/CU尚缺（见[骨架与后续实施计划](12-versionstore-implementation-plan.md)）**。本篇是 S4/S5/tag/CU 的 bytes API 与长度/生命周期唯一权威；不改变身份、根锁、单 driver、ProcessCrashOnly、data-first 或三态证据。CU 仍为候选，程序集拆分另行设计。
 
 ## 最小公面
 

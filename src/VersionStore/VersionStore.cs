@@ -3,12 +3,12 @@ using Atelia.Rbf;
 using Atelia.VersionStore.Internal.Format;
 using Atelia.VersionStore.Internal.Records;
 using Atelia.VersionStore.Internal.Runtime;
+using Atelia.VersionStore.Internal.Storage;
 using DataStore = Atelia.FrameStore.FrameStore;
 
 namespace Atelia.VersionStore;
 
 /// <summary>串行使用的不透明根 payload 发布 owner；借入一个实际 data FrameStore。</summary>
-/// <remarks>本施工片只有内部 owner 接线，目录创建/打开工厂尚未实施。</remarks>
 public sealed class VersionStore : IDisposable {
     /// <summary>单条完整 root payload 的最大长度，单位 bytes。</summary>
     public const int MaxRootPayloadLength = 1_048_576;
@@ -21,22 +21,27 @@ public sealed class VersionStore : IDisposable {
     private readonly Action _markOwnedCleanupFault;
     private readonly VersionStoreTestHooks? _testHooks;
     private IDisposable? _ownerLock;
+    private IRbfFile? _pendingRef;
+    private uint _autoRefIdHighWatermark;
     private bool _disposed;
     private bool _faulted;
 
     /// <summary>接收已完成门/根/锁资格的内部资源；成功后接管句柄，失败由调用者清理。</summary>
     /// <remarks>
-    /// 这里重验 borrowed data，不替代未来 factory 在任何 VS I/O 之前的借入检查。
-    /// 本轮测试接线不具有生产目录或平台资格。
+    /// 这里重验 borrowed data，不替代 factory 在任何 VS I/O 之前的借入检查。
     /// </remarks>
     internal VersionStore(DataStore data, StoreIdentity versionStoreId, StoreIdentity boundDataStoreId,
         uint reservedRefIdUpperBound, bool readOnly, IVersionStoreFiles files, IDisposable ownerLock,
-        VersionStoreTestHooks? testHooks = null) {
+        VersionStoreTestHooks? testHooks = null, uint? autoRefIdHighWatermark = null) {
         ArgumentNullException.ThrowIfNull(data);
         ArgumentNullException.ThrowIfNull(files);
         ArgumentNullException.ThrowIfNull(ownerLock);
         if (reservedRefIdUpperBound == uint.MaxValue) {
             throw new ArgumentOutOfRangeException(nameof(reservedRefIdUpperBound));
+        }
+        uint highWatermark = autoRefIdHighWatermark ?? reservedRefIdUpperBound;
+        if (highWatermark < reservedRefIdUpperBound) {
+            throw new ArgumentOutOfRangeException(nameof(autoRefIdHighWatermark));
         }
         byte[] identityBytes = new byte[StoreIdentity.EncodedSize];
         if (!versionStoreId.TryWrite(identityBytes)) {
@@ -58,8 +63,19 @@ public sealed class VersionStore : IDisposable {
         _testHooks = testHooks;
         IsReadOnly = readOnly;
         ReservedRefIdUpperBound = reservedRefIdUpperBound;
+        _autoRefIdHighWatermark = highWatermark;
         _ownerLock = ownerLock;
     }
+
+    /// <summary>在 fresh 根创建空 VersionStore，借入可写 data；预留低号仅用于指定创建。</summary>
+    public static VersionStore Create(string rootPath, DataStore data, uint reservedRefIdUpperBound = 0) =>
+        VersionStoreFactory.Create(rootPath, data, reservedRefIdUpperBound);
+
+    /// <summary>独占打开已有 VersionStore，发现完整正式编号集合并取消合格 private pending。</summary>
+    public static VersionStore Open(string rootPath, DataStore data) => VersionStoreFactory.Open(rootPath, data, readOnly: false);
+
+    /// <summary>共享只读打开已有 VersionStore，不恢复或取消 pending。</summary>
+    public static VersionStore OpenReadOnly(string rootPath, DataStore data) => VersionStoreFactory.Open(rootPath, data, readOnly: true);
 
     /// <summary>持久 VersionStore 身份的 16 个 canonical opaque bytes。</summary>
     public ReadOnlySpan<byte> VersionStoreId => _versionStoreId;
@@ -69,6 +85,116 @@ public sealed class VersionStore : IDisposable {
 
     /// <summary>创建后不可变的预留本地编号上界。</summary>
     public uint ReservedRefIdUpperBound { get; }
+
+    /// <summary>完整发现全部正式 ref 的路径身份；结果自有且只读，不证明 ref 内容健康。</summary>
+    public AteliaResult<IReadOnlyList<RefId>> ListRefs() {
+        EnsureUsable();
+        AteliaResult<IReadOnlyList<uint>> listed;
+        try {
+            listed = _files.ListRefIds(_markOwnedCleanupFault);
+            EnsureUsable();
+        }
+        catch (Exception error) {
+            if (_faulted) { FaultAndCleanup(error); }
+            throw;
+        }
+        if (listed.IsFailure) { return listed.Error!; }
+        IReadOnlyList<uint> locals = listed.Value!;
+        var refs = new RefId[locals.Count];
+        for (int index = 0; index < refs.Length; index++) {
+            refs[index] = RefId.Create(_identity, locals[index]);
+        }
+        return AteliaResult<IReadOnlyList<RefId>>.Success(Array.AsReadOnly(refs));
+    }
+
+    /// <summary>在自动区用 H+1 创建无来源 ref，初始化完整 payload 后一次发布整个文件。</summary>
+    public AteliaResult<RefRevision> CreateRef(ReadOnlySpan<byte> payload, out PublicationOutcome outcome) {
+        outcome = PublicationOutcome.NotAttempted;
+        EnsureUsable();
+        if (IsReadOnly) { return new VersionStoreRuntimeError("ReadOnly", "This VersionStore owner is read-only."); }
+        if (_autoRefIdHighWatermark == uint.MaxValue) {
+            return new VersionStoreRuntimeError("RefIdExhausted", "The automatic ref identifier domain is exhausted.");
+        }
+        return CreateNewRef(checked(_autoRefIdHighWatermark + 1), payload, automatic: true, ref outcome);
+    }
+
+    /// <summary>在预留区 create-only 创建指定 ref；已占目标不能覆盖、复用或认领。</summary>
+    public AteliaResult<RefRevision> CreateRef(uint destLocalRefId, ReadOnlySpan<byte> payload,
+        out PublicationOutcome outcome) {
+        outcome = PublicationOutcome.NotAttempted;
+        EnsureUsable();
+        if (IsReadOnly) { return new VersionStoreRuntimeError("ReadOnly", "This VersionStore owner is read-only."); }
+        if (destLocalRefId == 0 || destLocalRefId > ReservedRefIdUpperBound) {
+            return new VersionStoreRuntimeError("ArgumentError", "A specified ref identifier must belong to the reserved low-number domain.");
+        }
+        return CreateNewRef(destLocalRefId, payload, automatic: false, ref outcome);
+    }
+
+    private AteliaResult<RefRevision> CreateNewRef(uint localId, ReadOnlySpan<byte> payload,
+        bool automatic, scoped ref PublicationOutcome outcome) {
+        if (payload.Length is < 1 or > MaxRootPayloadLength) {
+            return new VersionStoreRuntimeError("ArgumentError", "Root payload length must be between 1 and 1,048,576 bytes.");
+        }
+        byte[] captured = payload.ToArray();
+        var headerSize = RbfFile.MeasureWriteSize(RefHeaderCodec.NoOriginPayloadSize);
+        if (headerSize.IsFailure) { return headerSize.Error!; }
+        var snapshotSize = RbfFile.MeasureWriteSize(captured.Length, RecordMetadataCodec.EncodedSize);
+        if (snapshotSize.IsFailure) { return snapshotSize.Error!; }
+        long headerOffset = RbfScanBoundary.Empty.EndExclusive;
+        long snapshotOffset = headerOffset + headerSize.Value.AppendLength;
+        if (!SizedPtr.TryCreate(headerOffset, headerSize.Value.FrameLength, out _)
+            || !SizedPtr.TryCreate(snapshotOffset, snapshotSize.Value.FrameLength, out _)) {
+            return new VersionStoreRuntimeError("RefCapacityExceeded", "The initial ref frames cannot represent complete tickets.");
+        }
+        var prepared = PrepareNewTarget(localId);
+        if (prepared.IsFailure) { return prepared.Error!; }
+        QualifiedRefTarget target = prepared.Value;
+        RefId refId = RefId.Create(_identity, localId);
+        Span<byte> header = stackalloc byte[RefHeaderCodec.NoOriginPayloadSize];
+        RefHeaderCodec.TryWrite(_identity, refId, null, header);
+        long recordedAt = _testHooks?.GetRecordedAtUnixMs?.Invoke()
+            ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        Span<byte> tailMeta = stackalloc byte[RecordMetadataCodec.EncodedSize];
+        RecordMetadataCodec.TryWrite(recordedAt, tailMeta);
+
+        try {
+            if (_testHooks?.ConfirmDataDurable is { } confirm) { confirm(); }
+            else { _data.ConfirmDurable(); }
+            _pendingRef = _files.CreatePending(_markOwnedCleanupFault);
+            EnsureUsable();
+            // All pre-I/O rejections were prepared above. A private Append rejection is a plan failure,
+            // so Unwrap stops this owner instead of leaving a healthy owner with an occupied pending.
+            _pendingRef.Append(RefRecordCodec.HeaderTag, header).Unwrap();
+            SizedPtr snapshotTicket = _pendingRef.Append(RefRecordCodec.SnapshotTag, captured, tailMeta).Unwrap();
+            _pendingRef.DurableFlush();
+            IRbfFile toClose = _pendingRef;
+            _pendingRef = null;
+            toClose.Dispose();
+            _testHooks?.BeforeNewRefRename?.Invoke();
+            outcome = PublicationOutcome.Unknown;
+            _files.PublishPending(target, _markOwnedCleanupFault);
+            outcome = PublicationOutcome.Confirmed;
+            if (automatic) { _autoRefIdHighWatermark = localId; }
+            _testHooks?.AfterPublicationConfirmed?.Invoke();
+            return RefRevision.Create(refId, snapshotTicket);
+        }
+        catch (Exception error) {
+            FaultAndCleanup(error);
+            throw;
+        }
+    }
+
+    private AteliaResult<QualifiedRefTarget> PrepareNewTarget(uint localId) {
+        try {
+            var prepared = _files.PrepareNewRef(localId, _markOwnedCleanupFault);
+            EnsureUsable();
+            return prepared;
+        }
+        catch (Exception error) {
+            if (_faulted) { FaultAndCleanup(error); }
+            throw;
+        }
+    }
 
     /// <summary>读取此库指定非零本地编号的 checked 当前快照。</summary>
     public AteliaResult<RefBytesSnapshot> ReadRef(uint localRefId) {
@@ -202,6 +328,10 @@ public sealed class VersionStore : IDisposable {
 
     private void CleanupOwned(ref CleanupErrors errors) {
         try {
+            IRbfFile? pending = _pendingRef;
+            _pendingRef = null;
+            try { pending?.Dispose(); }
+            catch (Exception error) { _faulted = true; errors.Add(error); }
             // Enumerate the dictionary struct directly: Values can allocate its collection on first access.
             foreach (var pair in _ownedRefs) {
                 OwnedRef entry = pair.Value;
