@@ -23,7 +23,7 @@ RootMapCodec 提供两个无 owner、无 I/O 的公开静态入口；实现见 [
 
 RootMap codec 的输入与解码结果使用 `IReadOnlyDictionary<string, FrameAddress>`，不新增 public RootMap、集合 Builder 或比较器类型。非 null 空字典合法；null 字典、null key、实际重复的 Ordinal key 和 default FrameAddress 为确定输入拒绝；key/wire/容量消费 `[F-VS-ROOTMAP-BPV1]`。接口自身不证明所有权、不可变性或比较政策，不能直接保存调用方集合或只读包装。
 
-外部输入 MUST 逐项捕获到私有 `Dictionary<string, FrameAddress>(StringComparer.Ordinal)`：检查实际枚举的 key/地址与既定容量，通过 TryAdd 拒重，不继承输入 comparer，不以输入 Count 或 TryGetValue 决定正确性或分配规模；捕获与枚举器必要清理成功后，直接从私有字典度量并编码精确数组，无需冻结编码中间集合。应用在调用 bytes 发布 API 前处理编码失败。不得直接用 ToFrozenDictionary 代替拒重步骤，其重复键行为是覆盖而非拒绝。Decode 同样先按 codec 拒绝重复/非法条目，最后交付自有冻结内容，不保存 pooled bytes 或复用下一帧的可变 scratch 字典。
+外部输入 MUST 逐项捕获到私有 `Dictionary<string, FrameAddress>(StringComparer.Ordinal)`：检查实际枚举的 key/地址与既定容量，通过 TryAdd 拒重，不继承输入 comparer，不以输入 Count 或 TryGetValue 决定正确性或分配规模；捕获时累计精确字段长度，捕获与枚举器必要清理成功后，加上实际条目数的前缀长度，从私有字典编码精确数组，无需额外遍历重新度量或冻结编码中间集合。应用在调用 bytes 发布 API 前处理编码失败。不得直接用 ToFrozenDictionary 代替拒重步骤，其重复键行为是覆盖而非拒绝。Decode 同样先按 codec 拒绝重复/非法条目，最后交付自有冻结内容，不保存 pooled bytes 或复用下一帧的可变 scratch 字典。
 
 调用方 MUST 在整个同步 Encode 调用期间保持输入集合稳定。自定义接口与枚举器可执行调用方代码，捕获与必要清理失败不交付结果；codec 没有 owner、HistoryActive、PublicationOutcome 或 I/O 职责，包含它的应用流程自行遵守所属 owner 的串行合同。Decode 同步期间的输入 bytes 也必须有效且稳定。
 

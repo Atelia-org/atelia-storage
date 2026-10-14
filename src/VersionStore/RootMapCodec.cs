@@ -42,11 +42,7 @@ public static class RootMapCodec {
         }
 
         // Enumeration and its necessary Dispose have completed before any output allocation.
-        long encodedLength = BareValueEncoding.MeasureVarUInt32((uint)captured.Count);
-        foreach (var entry in captured) {
-            encodedLength = checked(encodedLength + BareValueEncoding.PrepareString(entry.Key).EncodedLength
-                + entry.Value.MeasureVarInt());
-        }
+        long encodedLength = checked(fieldsLength + BareValueEncoding.MeasureVarUInt32((uint)captured.Count));
         var output = new ExactRootMapBuffer(checked((int)encodedLength));
         var writer = new BareValueWriter(output);
         writer.WriteVarUInt32((uint)captured.Count);
