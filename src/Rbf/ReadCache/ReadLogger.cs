@@ -74,9 +74,13 @@ internal sealed class ReadLogger : IDisposable {
     }
 
     private void DisposeWriter() {
-        _writer?.Flush();
-        _writer?.Dispose();
+        // End ownership and installed-path state before closing; a failed close is never retried.
+        var writer = _writer;
         _writer = null;
+        _logPath = null;
+        _metadata = null;
+        // StreamWriter.Dispose flushes and still closes its owned stream when flushing throws.
+        writer?.Dispose();
     }
 
     private void CreateWriter(string logPath, bool append) {
