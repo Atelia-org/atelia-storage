@@ -194,15 +194,21 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     private int _lastSpanLength;
     private bool _hasLastSpan;
 
+    private void CancelOrdinaryBorrow() {
+        bool cancelInner = _hasLastSpan && _chunks.IsEmpty;
+        // Consume the borrow before delegating: the inner may accept cancellation and then throw.
+        _hasLastSpan = false;
+        _lastSpanLength = 0;
+        if (cancelInner) { _innerWriter.Advance(0); }
+    }
+
     public void Advance(int count) {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         if (count < 0) { throw new ArgumentOutOfRangeException(nameof(count), "Count cannot be negative"); }
         if (count == 0) {
             // Treat Advance(0) as explicit cancellation of outstanding span.
-            if (_hasLastSpan && _chunks.IsEmpty) { _innerWriter.Advance(0); }
-            _hasLastSpan = false;
-            _lastSpanLength = 0;
+            CancelOrdinaryBorrow();
             TryRecycleFlushedChunks();
             TryRestorePassthroughIfIdle();
             return;
@@ -211,11 +217,11 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         // Validate that count does not exceed the available space from the last GetSpan/GetMemory call.
         if (!_hasLastSpan || count > _lastSpanLength) { throw new ArgumentOutOfRangeException(nameof(count), "Count exceeds available space from the last buffer request."); }
         if (GetActiveChunksCount() == 0) {
+            _hasLastSpan = false;
+            _lastSpanLength = 0;
             _innerWriter.Advance(count);
             _length += count;
             _flushedLength += count;
-            _hasLastSpan = false;
-            _lastSpanLength = 0;
             if (_debugLog is not null) {
                 Trace($"Advance passthrough count={count}, written={_length}");
             }
@@ -359,8 +365,10 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     private bool _disposed = false;
 
     /// <summary>Resets the writer to its initial state, returning all rented buffers to the pool.</summary>
+    /// <remarks>Ends this writer's ordinary borrow; the borrowed inner writer and previously flushed bytes are retained.</remarks>
     public void Reset() {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        CancelOrdinaryBorrow();
         // 归还所有租借的缓冲区
         foreach (var c in _chunks) {
             if (c.IsRented) {
@@ -373,9 +381,7 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         _reservations.Clear();
         _length = 0;
         _flushedLength = 0;
-        _hasLastSpan = false;
-        _lastSpanLength = 0;
-        // 不重置 _reservationSerial，避免 Reset 后旧 token 与新 token 发生整数复用造成误提交风险。
+        // ReservationTracker 保留 token serial，避免 Reset 后旧 token 被重新签发。
     }
 
     #region Core State Properties

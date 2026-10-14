@@ -290,6 +290,25 @@ static void VerifyReservableWriters() {
                 && nestedOutput.WrittenSpan.SequenceEqual(new byte[] { 0x45, 0x45, 0x45, 0x45 }),
                 "Nested Advance(0) left the inner writer with an outstanding borrow.");
         }
+
+        foreach (bool disposeOuter in new[] { false, true }) {
+            var lifecycleOutput = new ArrayBufferWriter<byte>();
+            IReservableBufferWriter lifecycleInner = CreateReservableWriter(useSink, lifecycleOutput);
+            using (var innerLifetime = (IDisposable)lifecycleInner)
+            using (var outer = new ChunkedReservableWriter(lifecycleInner)) {
+                lifecycleInner.GetSpan(2)[..2].Fill(0x21);
+                lifecycleInner.Advance(2);
+                outer.GetMemory(4).Span[..4].Fill(0x99);
+                if (disposeOuter) { outer.Dispose(); }
+                else { outer.Reset(); }
+                // Ending the outer borrow must preserve the borrowed inner and its committed prefix.
+                lifecycleInner.GetSpan(2)[..2].Fill(0x45);
+                lifecycleInner.Advance(2);
+                Require(lifecycleInner.Length == 4
+                    && lifecycleOutput.WrittenSpan.SequenceEqual(new byte[] { 0x21, 0x21, 0x45, 0x45 }),
+                    "Outer Reset/Dispose failed to cancel its borrow or altered the borrowed inner's output.");
+            }
+        }
     }
 }
 
