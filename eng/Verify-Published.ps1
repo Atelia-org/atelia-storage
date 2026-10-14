@@ -43,9 +43,11 @@ foreach ($id in $ids) {
     }
     if (!$downloaded) { throw 'Published package download failed.' }
     $publicHash = (Get-FileHash -LiteralPath $publicPath -Algorithm SHA256).Hash.ToLowerInvariant()
-    $candidateArchive = [IO.Compression.ZipFile]::OpenRead($candidatePath)
-    $publicArchive = [IO.Compression.ZipFile]::OpenRead($publicPath)
+    $candidateArchive = $null
+    $publicArchive = $null
     try {
+        $candidateArchive = [IO.Compression.ZipFile]::OpenRead($candidatePath)
+        $publicArchive = [IO.Compression.ZipFile]::OpenRead($publicPath)
         if ($candidateArchive.GetEntry('.signature.p7s')) { throw "Candidate is already signed: $id" }
         $signature = $publicArchive.GetEntry('.signature.p7s')
         if (!$signature -or $signature.Length -le 0) { throw "Downloaded public package is not repository signed: $id" }
@@ -65,17 +67,25 @@ foreach ($id in $ids) {
             $before = $candidateArchive.GetEntry($name)
             $after = $publicArchive.GetEntry($name)
             if (!$before -or !$after) { throw "Missing package asset: $name" }
-            $beforeStream = $before.Open()
-            $afterStream = $after.Open()
+            $beforeStream = $null
+            $afterStream = $null
             try {
+                $beforeStream = $before.Open()
+                $afterStream = $after.Open()
                 $beforeHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($beforeStream))
                 $afterHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($afterStream))
                 if ($beforeHash -cne $afterHash) { throw "Published package asset differs from candidate: $name" }
             }
-            finally { $beforeStream.Dispose(); $afterStream.Dispose() }
+            finally {
+                try { if ($null -ne $beforeStream) { $beforeStream.Dispose() } }
+                finally { if ($null -ne $afterStream) { $afterStream.Dispose() } }
+            }
         }
     }
-    finally { $candidateArchive.Dispose(); $publicArchive.Dispose() }
+    finally {
+        try { if ($null -ne $candidateArchive) { $candidateArchive.Dispose() } }
+        finally { if ($null -ne $publicArchive) { $publicArchive.Dispose() } }
+    }
     $verified += [ordered]@{
         id = $id; version = $Version; sourceRevision = $manifest.sourceRevision
         candidateSha256 = $candidate.sha256; publishedSha256 = $publicHash; publicUrl = $url

@@ -353,3 +353,9 @@ finally {
     $env:NUGET_HTTP_CACHE_PATH = $originalHttpCache
     $env:DOTNET_CLI_UI_LANGUAGE = $originalUiLanguage
 }
+
+# Run archive resource probes after restoring the environment, in a process without these git/dotnet mocks.
+$publishedResourceEvidence = Join-Path ([IO.Path]::GetTempPath()) ('storage-published-resource-entry-' + [Guid]::NewGuid().ToString('N'))
+& pwsh -NoProfile -File (Join-Path $PSScriptRoot 'Verify-Published.Tests.ps1') -EvidenceDirectory $publishedResourceEvidence
+if ($LASTEXITCODE -ne 0) { throw "Verify-Published resource tests failed; see $publishedResourceEvidence/result.json." }
+$publishedResourceEvidence | Set-Content -LiteralPath (Join-Path $evidence 'verify-published-resources.txt') -Encoding utf8NoBOM
