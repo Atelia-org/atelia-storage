@@ -14,7 +14,7 @@ namespace Atelia.Data;
 /// - <see cref="Commit(int)"/> 之后，底层实现需确保所有比该 reservation 更早写入的数据最终可以推进到下游目标；若实现选择延迟冲刷，必须提供显式 <c>Flush</c> 或在生命周期结束时自动冲刷。
 /// 状态约束（写入方需要遵守下列调用序列）：
 /// - 空闲 → 借用普通缓冲：调用 <see cref="IBufferWriter{T}.GetSpan(int)"/> 或 <see cref="IBufferWriter{T}.GetMemory(int)"/> 进入“Waiting-Advance”状态。
-/// - Waiting-Advance：必须调用 <see cref="IBufferWriter{T}.Advance(int)"/>（可传 0 表示放弃）后才能继续请求新缓冲或进行预留。此状态下仍允许调用 <see cref="Commit(int)"/> 和 <see cref="TryGetReservedSpan(int, out Span{byte})"/>(它们操作独立的 reservation，与当前借用的 span 无关)。
+/// - Waiting-Advance：必须调用 <see cref="IBufferWriter{T}.Advance(int)"/>（可传 0 表示放弃）后才能继续请求新缓冲或进行预留。此状态下仍允许调用 <see cref="Commit(int)"/> 和 <see cref="TryGetReservedSpan(int, out Span{byte})"/>(它们操作独立的 reservation，与当前借用的 span 无关)。Commit 可冲刷已提交前缀，但普通缓冲的借用持续到对应 Advance、Dispose 或 Reset，不能因冲刷而提前回收其底层存储。
 /// - 空闲 → 预留缓冲：在没有“Waiting-Advance”缓冲时调用 <see cref="ReserveSpan(int, out int, string?)"/>；预留 span 持续有效直至配对的 <see cref="Commit(int)"/>。
 /// - Waiting-Commit：每个 reservation 需调用一次 <see cref="Commit(int)"/>。实现应阻止重复提交、未知 token 或未提交 reservation 即结束生命周期。
 /// 任何违反顺序的调用都应在实现中导致异常，以便尽早暴露调用方错误。

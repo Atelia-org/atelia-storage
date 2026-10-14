@@ -43,13 +43,13 @@ public class SinkReservableWriterXorEscapeTests {
     [InlineData(1)]
     [InlineData(2)]
     [InlineData(3)]
-    public void AlreadyPushedPrefixAndNonFirstReservation_UseLogicalPhaseZero(int edgeLength) {
+    public void AlreadyPushedPrefixBeforeOversizedReservation_UsesLogicalPhaseZero(int edgeLength) {
         using var fixture = new WriterFixture(oversizeSlack: edgeLength);
         byte[] prefix = Enumerable.Range(1, 17).Select(value => (byte)value).ToArray();
         Write(fixture.Writer, prefix);
         Assert.Equal(prefix.Length, fixture.Writer.PushedLength);
 
-        // Advance(0) retains an empty active chunk; the oversized reservation starts in the next one.
+        // Abandon a small borrow before requesting an oversized reservation.
         _ = fixture.Writer.GetSpan(1);
         fixture.Writer.Advance(0);
         fixture.Writer.ReserveSpan(1025, out int token).Fill(0xA5);

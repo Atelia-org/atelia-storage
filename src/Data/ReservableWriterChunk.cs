@@ -27,7 +27,7 @@ internal sealed class ReservableWriterChunk {
     /// <summary>缓冲区中待刷新的数据量</summary>
     public int PendingData => DataEnd - DataBegin;
 
-    /// <summary>缓冲区是否已完全刷新（可回收）</summary>
+    /// <summary>已写入数据是否完全刷新；仍有普通借用时不能回收。</summary>
     public bool IsFullyFlushed => DataBegin == DataEnd;
 
     /// <summary>获取可写入区域的 Span 视图</summary>

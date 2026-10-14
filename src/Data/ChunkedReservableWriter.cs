@@ -152,6 +152,8 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         // 手动逐个检查并出队，确保在出队前归还池内缓冲区
         int recycled = 0;
         while (_chunks.TryPeekFirst(out var c) && c.IsFullyFlushed) {
+            // A pending ordinary borrow belongs to the tail, even after Commit flushes its prefix.
+            if (_hasLastSpan && _chunks.Count == 1) { break; }
             if (c.IsRented) {
                 c.IsRented = false;
                 _pool.Return(c.Buffer);
@@ -198,8 +200,11 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         if (count < 0) { throw new ArgumentOutOfRangeException(nameof(count), "Count cannot be negative"); }
         if (count == 0) {
             // Treat Advance(0) as explicit cancellation of outstanding span.
+            if (_hasLastSpan && _chunks.IsEmpty) { _innerWriter.Advance(0); }
             _hasLastSpan = false;
             _lastSpanLength = 0;
+            TryRecycleFlushedChunks();
+            TryRestorePassthroughIfIdle();
             return;
         }
 
@@ -209,6 +214,8 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
             _innerWriter.Advance(count);
             _length += count;
             _flushedLength += count;
+            _hasLastSpan = false;
+            _lastSpanLength = 0;
             if (_debugLog is not null) {
                 Trace($"Advance passthrough count={count}, written={_length}");
             }
@@ -219,6 +226,8 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
             if (TryGetLastActiveChunk(out lastChunk)) {
                 lastChunk.DataEnd += count;
                 _length += count;
+                _hasLastSpan = false;
+                _lastSpanLength = 0;
                 bool flushed = FlushCommittedData();
                 if (flushed) {
                     // Only try to recycle if a flush actually occurred.
@@ -230,8 +239,6 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
                 }
             }
         }
-
-        _hasLastSpan = false; // Clear the state to prevent reuse.
     }
 
     public Memory<byte> GetMemory(int sizeHint = 0) {

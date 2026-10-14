@@ -123,6 +123,8 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
     private void TryRecycleFlushedChunks() {
         int recycled = 0;
         while (_chunks.TryPeekFirst(out var c) && c.IsFullyFlushed) {
+            // A pending ordinary borrow belongs to the tail, even after Commit flushes its prefix.
+            if (_hasLastSpan && _chunks.Count == 1) { break; }
             if (c.IsRented) {
                 c.IsRented = false;
                 _pool.Return(c.Buffer);
@@ -150,6 +152,7 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
         if (count == 0) {
             _hasLastSpan = false;
             _lastSpanLength = 0;
+            TryRecycleFlushedChunks();
             return;
         }
 
@@ -162,6 +165,8 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
 
         lastChunk.DataEnd += count;
         _length += count;
+        _hasLastSpan = false;
+        _lastSpanLength = 0;
 
         bool pushed = FlushCommittedData();
         if (pushed) {
@@ -170,8 +175,6 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
         else if (_debugLog is not null) {
             Trace($"Advance buffered count={count}, pending={PendingLength}");
         }
-
-        _hasLastSpan = false;
     }
 
     public Memory<byte> GetMemory(int sizeHint = 0) {

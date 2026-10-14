@@ -54,6 +54,47 @@ public class ReservableWriterPoolReturnTests {
     }
 
     [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void AdvanceBorrowedBuffer_ReturnAcceptedThenThrows_DoesNotRepeatReturnOrAdvance(
+        bool useSink,
+        bool cancelBorrow
+    ) {
+        var pool = new AcceptThenThrowPool(failingReturnAttempt: 1);
+        var output = new TestHelpers.CollectingWriter();
+        var writer = CreateWriter(useSink, output, pool);
+        using var disposable = (IDisposable)writer;
+        writer.ReserveSpan(4, out int token).Fill(0x11);
+        writer.GetSpan(4)[..4].Fill(0x22);
+
+        // Commit outputs the reservation while retaining the lease backing the ordinary borrow.
+        writer.Commit(token);
+        Assert.Equal(1, pool.RentCount);
+        Assert.Empty(pool.ReturnLeaseIds);
+        Assert.Equal(Enumerable.Repeat((byte)0x11, 4).ToArray(), output.Data());
+
+        var failure = Assert.Throws<InjectedReturnFailureException>(() => writer.Advance(cancelBorrow ? 0 : 4));
+        Assert.Same(pool.Failure, failure);
+        Assert.Equal(new[] { 1 }, pool.ReturnLeaseIds);
+        byte[] expected = cancelBorrow
+            ? Enumerable.Repeat((byte)0x11, 4).ToArray()
+            : Enumerable.Repeat((byte)0x11, 4).Concat(Enumerable.Repeat((byte)0x22, 4)).ToArray();
+        Assert.Equal(expected, output.Data());
+        Assert.Equal((long)expected.Length, writer.Length);
+
+        // The borrow was consumed before recycling failed, so it cannot be advanced twice.
+        Assert.Throws<ArgumentOutOfRangeException>(() => writer.Advance(4));
+        Assert.Equal(expected, output.Data());
+        Assert.Equal((long)expected.Length, writer.Length);
+
+        disposable.Dispose();
+        Assert.Equal(new[] { 1 }, pool.ReturnLeaseIds);
+        Assert.Equal(expected, output.Data());
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void Reset_RerentsSameArray_CanReturnTheNewLease(bool useSink) {
