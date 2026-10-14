@@ -17,7 +17,7 @@ public ref struct RbfReverseEnumerator {
     private AteliaError? _terminationError;
 
     /// <summary>初始化逆向扫描枚举器。</summary>
-    /// <param name="handle">RBF 文件句柄。</param>
+    /// <param name="reader">RBF 文件读取器。</param>
     /// <param name="dataTail">扫描起始位置（文件逻辑尾部）。</param>
     /// <param name="showTombstone">是否包含墓碑帧。</param>
     internal RbfReverseEnumerator(RandomAccessReader reader, long dataTail, bool showTombstone) {

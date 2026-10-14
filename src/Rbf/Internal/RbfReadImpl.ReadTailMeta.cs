@@ -8,7 +8,7 @@ namespace Atelia.Rbf.Internal;
 /// <summary>RBF TailMeta 读取操作。</summary>
 internal static partial class RbfReadImpl {
     /// <summary>从 SizedPtr 读取 TailMeta（调用方提供 buffer，L2 信任）。</summary>
-    /// <param name="file">RBF 文件句柄。</param>
+    /// <param name="reader">RBF 文件读取器。</param>
     /// <param name="ticket">帧位置凭据。</param>
     /// <param name="buffer">调用方提供的 buffer，长度 MUST &gt;= TailMetaLength。</param>
     /// <returns>成功时返回 RbfTailMeta（TailMeta 指向 buffer 子区间），失败时返回错误。</returns>
@@ -31,7 +31,7 @@ internal static partial class RbfReadImpl {
     }
 
     /// <summary>从 SizedPtr 读取 TailMeta（自动租用 buffer，L2 信任）。</summary>
-    /// <param name="file">RBF 文件句柄。</param>
+    /// <param name="reader">RBF 文件读取器。</param>
     /// <param name="ticket">帧位置凭据。</param>
     /// <returns>成功时返回 RbfPooledTailMeta，失败时返回错误（buffer 已自动归还）。</returns>
     /// <remarks>

@@ -14,7 +14,7 @@ public ref struct RbfReverseSequence {
     private readonly bool _showTombstone;
 
     /// <summary>初始化逆向扫描序列。</summary>
-    /// <param name="handle">RBF 文件句柄。</param>
+    /// <param name="reader">RBF 文件读取器。</param>
     /// <param name="dataTail">扫描起始位置（文件逻辑尾部）。</param>
     /// <param name="showTombstone">是否包含墓碑帧。</param>
     internal RbfReverseSequence(RandomAccessReader reader, long dataTail, bool showTombstone) {

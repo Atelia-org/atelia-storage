@@ -70,7 +70,7 @@ internal static partial class RbfReadImpl {
     #region ReadPooledFrame Public API
 
     /// <summary>从 ArrayPool 借缓存读取帧。调用方 MUST 调用 Dispose() 归还 buffer。</summary>
-    /// <param name="file">文件句柄。</param>
+    /// <param name="reader">RBF 文件读取器。</param>
     /// <param name="ticket">帧位置凭据。</param>
     /// <param name="returnOnFailure">内部失败释放接点；为 null 时失败 buffer 归还 Shared。</param>
     /// <returns>成功时返回 RbfPooledFrame，失败时返回错误（buffer 已自动归还）。</returns>
@@ -83,7 +83,7 @@ internal static partial class RbfReadImpl {
         ReadPooledFrameCore<SizedPtr, SizedPtrReadPolicy>(reader, in ticket, returnOnFailure);
 
     /// <summary>从 ArrayPool 借缓存读取帧（已验证的 RbfFrameInfo 快路径）。</summary>
-    /// <param name="file">文件句柄。</param>
+    /// <param name="reader">RBF 文件读取器。</param>
     /// <param name="info">已验证的帧元信息句柄。</param>
     /// <param name="returnOnFailure">内部失败释放接点；为 null 时失败 buffer 归还 Shared。</param>
     /// <returns>成功时返回 RbfPooledFrame，失败时返回错误（buffer 已自动归还）。</returns>
@@ -154,9 +154,9 @@ internal static partial class RbfReadImpl {
     #region ReadFrame Public API
 
     /// <summary>将帧读入调用方提供的 buffer，返回解析后的 RbfFrame。</summary>
-    /// <param name="file">文件句柄。</param>
+    /// <param name="reader">RBF 文件读取器。</param>
     /// <param name="ticket">帧位置凭据。</param>
-    /// <param name="buffer">调用方提供的 buffer，长度 MUST &gt;= ptr.LengthBytes。</param>
+    /// <param name="buffer">调用方提供的 buffer，长度 MUST &gt;= ticket.Length。</param>
     /// <returns>成功时返回 RbfFrame（Payload 指向 buffer 子区间），失败时返回错误。</returns>
     /// <remarks>
     /// 生命周期警告：返回的 RbfFrame.Payload 直接引用 buffer，
@@ -173,7 +173,7 @@ internal static partial class RbfReadImpl {
     }
 
     /// <summary>读取已验证的帧到提供的 buffer 中，复用已验证 Trailer 元信息。</summary>
-    /// <param name="file">文件句柄。</param>
+    /// <param name="reader">RBF 文件读取器。</param>
     /// <param name="info">已验证的帧元信息句柄。</param>
     /// <param name="buffer">调用方提供的 buffer，长度 MUST &gt;= info.Ticket.Length。</param>
     /// <returns>成功时返回 RbfFrame（Payload 指向 buffer 子区间），失败时返回错误。</returns>

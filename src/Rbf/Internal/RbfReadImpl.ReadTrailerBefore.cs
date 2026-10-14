@@ -6,9 +6,9 @@ namespace Atelia.Rbf.Internal;
 /// <summary>RBF 原始操作集。</summary>
 partial class RbfReadImpl {
     /// <summary>读取指定位置之前的帧元信息（只读 TrailerCodeword，不校验 PayloadCrc）。</summary>
-    /// <param name="file">RBF 文件句柄。</param>
+    /// <param name="reader">RBF 文件读取器。</param>
     /// <param name="fenceEndOffset">帧尾 Fence 的 EndOffsetExclusive。</param>
-    /// <returns>成功时返回 RbfFrameInfo（已绑定 file 句柄），失败时返回错误。</returns>
+    /// <returns>成功时返回 RbfFrameInfo（已绑定 reader），失败时返回错误。</returns>
     /// <remarks>
     /// 唯一入口：这是创建 RbfFrameInfo 的内部验证路径之一，完成所有结构性验证。
     /// 规范引用：@[A-READ-TRAILER-BEFORE]
@@ -71,7 +71,7 @@ partial class RbfReadImpl {
         // RBF3 fixed overhead additionally includes raw TailKey4.
         int payloadLen = (int)trailer.TailLen - RbfLayout.GetFixedOverhead(reader.Profile) - trailer.TailMetaLen - trailer.PaddingLen;
 
-        // 10. 构造 RbfFrameInfo（绑定 file 句柄）
+        // 10. 构造 RbfFrameInfo（绑定 reader）
         var ticket = SizedPtr.Create(frameStart, (int)trailer.TailLen);
         return new RbfFrameInfo(
             reader: reader,

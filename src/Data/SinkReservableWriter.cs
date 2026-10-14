@@ -15,7 +15,7 @@ namespace Atelia.Data;
 /// - Reservation spans are always backed by pooled chunks owned by this instance, so their lifetime is stable
 ///   until <see cref="Commit"/>, <see cref="Reset"/>, or <see cref="Dispose"/>.
 /// - Flushing is synchronous via <see cref="IByteSink.Push"/>; therefore a flushed region can be recycled
-///   immediately after <see cref="Push"/> returns.
+///   immediately after <see cref="IByteSink.Push(ReadOnlySpan{byte})"/> returns.
 /// - This type keeps the same call-order constraints as <see cref="IReservableBufferWriter"/>.
 ///
 /// Thread Safety: not thread-safe.

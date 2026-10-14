@@ -59,9 +59,9 @@ partial class RbfReadImpl {
     }
 
     /// <summary>从 SizedPtr 读取帧元信息（只读 TrailerCodeword，L2 信任）。</summary>
-    /// <param name="file">RBF 文件句柄。</param>
+    /// <param name="reader">RBF 文件读取器。</param>
     /// <param name="ticket">帧位置凭据。</param>
-    /// <returns>成功时返回 RbfFrameInfo（已绑定 file 句柄），失败时返回错误。</returns>
+    /// <returns>成功时返回 RbfFrameInfo（已绑定 reader），失败时返回错误。</returns>
     /// <remarks>
     /// 最小化 I/O：读取 Trailer16，RBF3 另读 raw Key4；不读 Payload。
     /// L2 信任：执行 TrailerCrc 校验、reserved bits 校验、TailLen 一致性校验。
@@ -113,7 +113,7 @@ partial class RbfReadImpl {
         // 7. 计算 PayloadLength
         int payloadLen = ticketLength - RbfLayout.GetFixedOverhead(reader.Profile) - trailer.TailMetaLen - trailer.PaddingLen;
 
-        // 8. 构造 RbfFrameInfo（绑定 file 句柄）
+        // 8. 构造 RbfFrameInfo（绑定 reader）
         return new RbfFrameInfo(
             reader: reader,
             ticket: ticket,
