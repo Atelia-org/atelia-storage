@@ -1,5 +1,6 @@
 using System.Collections;
 using Xunit;
+using DataStore = Atelia.FrameStore.FrameStore;
 using Store = Atelia.VersionStore.VersionStore;
 
 namespace Atelia.VersionStore.Tests.ConditionalUpdatePublic;
@@ -30,6 +31,40 @@ public sealed class PublicConditionalUpdateInputTests {
             Assert.Equal(new byte[] { 5 }, store.ReadRef(b.RefId).Unwrap().Payload.ToArray());
         }
         fixture.AssertWire(group[a.RefId], group, [4], long.MinValue, long.MaxValue);
+    }
+
+    [Fact]
+    public void SingleMemberCapturesEffectiveSliceBeforeEnumeratorDisposeAndSurvivesBothLayersColdReopen() {
+        using var fixture = new ConditionalUpdatePublicFixture();
+        byte[] input = [0xa0, 1, 2, 3, 0xb0];
+        byte[] expected = [1, 2, 3];
+        RefRevision published;
+        bool disposed = false;
+        using (var store = fixture.Create()) {
+            RefRevision initial = store.CreateRef(7, [0xff], out _).Unwrap();
+            var changes = new EnumerationOnlyDictionary([
+                new(initial.RefId, input.AsMemory(1, 3))
+            ], onDispose: () => {
+                input.AsSpan().Fill(0xcc);
+                disposed = true;
+            });
+
+            var accepted = store.PublishRefs(changes, out var outcome).Unwrap();
+
+            Assert.True(disposed);
+            Assert.All(input, value => Assert.Equal((byte)0xcc, value));
+            Assert.Equal(PublicationOutcome.Confirmed, outcome);
+            Assert.Single(accepted);
+            published = accepted[initial.RefId];
+            Assert.NotEqual(initial, published);
+            Assert.Equal(expected, store.ReadRef(initial.RefId).Unwrap().Payload.ToArray());
+        }
+        fixture.Data.Dispose();
+        using var data = DataStore.OpenReadOnly(fixture.DataRoot);
+        using var cold = Store.OpenReadOnly(fixture.Root, data);
+        RefBytesSnapshot snapshot = cold.ReadRef(published.RefId).Unwrap();
+        Assert.Equal(published, snapshot.Revision);
+        Assert.Equal(expected, snapshot.Payload.ToArray());
     }
 
     [Theory]

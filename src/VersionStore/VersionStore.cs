@@ -265,6 +265,12 @@ public sealed partial class VersionStore : IDisposable {
 
         // Capture only the effective slice. Allocation and all definite preparation precede the barrier.
         byte[] captured = payload.ToArray();
+        return PublishCapturedRef(refId, captured, ref outcome);
+    }
+
+    // Public admission and private input capture are complete; both single-ref entry paths reuse this kernel.
+    private AteliaResult<RefRevision> PublishCapturedRef(RefId refId, ReadOnlySpan<byte> captured,
+        scoped ref PublicationOutcome outcome) {
         var measured = RbfFile.MeasureWriteSize(captured.Length, RecordMetadataCodec.EncodedSize);
         if (measured.IsFailure) { return measured.Error!; }
         var opened = GetOrOpen(refId.LocalId);

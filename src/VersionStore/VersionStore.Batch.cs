@@ -37,7 +37,7 @@ public sealed partial class VersionStore {
         }
         if (captured.Count == 1) {
             CapturedRefChange only = captured[0];
-            var published = PublishRef(only.RefId, only.Payload, out outcome);
+            var published = PublishCapturedRef(only.RefId, only.Payload, ref outcome);
             if (published.IsFailure) { return published.Error!; }
             try {
                 return AteliaResult<IReadOnlyDictionary<RefId, RefRevision>>.Success(
