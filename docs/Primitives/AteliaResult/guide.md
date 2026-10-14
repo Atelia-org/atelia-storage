@@ -31,18 +31,21 @@ public AteliaResult<MyObject> CreateObject(string name) {
 
 ### 2.2 返回失败
 
-必须提供一个 `AteliaError` 实例。
+必须提供一个非 null 的 `AteliaError` 实例。`AteliaError` 是抽象 record，使用已定义的具体错误类型，或先派生自己的错误类型：
 
 ```csharp
+public sealed record ObjectNotFoundError(ulong Id)
+    : AteliaError(
+        ErrorCode: "MyComp.NotFound",
+        Message: $"Id {Id} missing",
+        RecoveryHint: "Check the identifier, or create the object before loading it."
+    );
+
 public AteliaResult<MyObject> LoadObject(ulong id) {
     if (!Exists(id)) {
-        // 方式 A: 使用预定义的强类型错误 (推荐)
-        // return AteliaResult<MyObject>.Failure(new ObjectNotFoundError(id));
-        return new ObjectNotFoundError(id); // 推荐使用隐式类型转换语法
-
-        // 方式 B: 临时构建 (仅限原型阶段)
-        // return AteliaResult<MyObject>.Failure(new AteliaError("MyComp.NotFound", $"Id {id} missing"));
-        return new AteliaError("MyComp.NotFound", $"Id {id} missing"); // 推荐使用隐式类型转换语法
+        // 隐式转换；也可显式 return AteliaResult<MyObject>.Failure(error)。
+        var error = new ObjectNotFoundError(id);
+        return error;
     }
     // ...
 }
@@ -55,7 +58,7 @@ var result = service.LoadObject(123);
 
 // 检查失败 (推荐模式)
 if (result.IsFailure) {
-    // result.Error 包含 ErrorCode, Message, RecoveryHint
+    // result.Error 包含 ErrorCode、Message，以及可空的 RecoveryHint。
     logger.LogError($"Load failed: {result.Error.Message}");
     return;
 }
@@ -68,11 +71,11 @@ var obj = result.Unwrap();
 
 ## 3. 错误定义规范
 
-当你定义一个新的 `AteliaError` 派生类时，必须遵循：
+定义新的 `AteliaError` 派生类时，字段等级以[正式规范](specification.md#36-ateliaerror-字段说明)为准：
 
-1.  **ErrorCode**: `{Component}.{ErrorName}` (PascalCase)
-2.  **Message**: 发生了什么 + 上下文
-3.  **RecoveryHint**: 告诉 Agent 下一步做什么
+1.  **ErrorCode（MUST）**: `{Component}.{ErrorName}` (PascalCase)
+2.  **Message（MUST）**: 发生了什么 + 上下文
+3.  **RecoveryHint（SHOULD）**: 有明确恢复建议时告诉 Agent 下一步做什么；没有合适建议时可为 null。
 
 **模板：**
 

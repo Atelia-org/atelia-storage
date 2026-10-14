@@ -23,4 +23,4 @@
 > **错误即示能 (Error as Affordance)**
 > 一个好的错误不应只说"你错了"(Stop)，而应说"你可以怎么做"(Detour)。
 
-`AteliaResult` 强制要求错误包含 `RecoveryHint`，帮助调用者（尤其是 Agent）自主恢复。
+错误应该提供有操作价值的 `RecoveryHint`，帮助调用者（尤其是 Agent）自主恢复；这是 SHOULD 建议，该字段可为 null，并非构造错误的硬性要求。字段等级见[正式规范](specification.md#36-ateliaerror-字段说明)。
