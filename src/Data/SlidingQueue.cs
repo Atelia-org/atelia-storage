@@ -141,6 +141,7 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
     /// <summary>
     /// 按谓词连续出队（头到尾），返回实际出队个数。与 BCL 不同：这是一个附加便捷方法，用于批量消费。
     /// </summary>
+    /// <remarks>谓词失败时保留已消费的前缀；每次出队都使已有枚举器失效。</remarks>
     public int DequeueWhile(System.Func<T, bool> predicate, bool autoCompactCheck = true) {
         if (predicate == null) { throw new ArgumentNullException(nameof(predicate)); }
         return DequeueWhile(new FuncValuePredicate<T>(predicate), autoCompactCheck);
@@ -161,9 +162,9 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
             }
             _head++;
             count++;
+            _version++;
         }
         if (_head != oldHead) {
-            _version++;
             Debug.Assert(_head <= _items.Count);
             if (autoCompactCheck) {
                 Compact();
@@ -279,7 +280,7 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
     public bool Any() => !IsEmpty;
 
     /// <summary>
-    /// 按顺序批量入队；一次性提升版本号以保持枚举 fail-fast 语义。
+    /// 按顺序批量入队。输入枚举失败时保留已入队的前缀；每次变动都使已有枚举器失效。
     /// </summary>
     public void EnqueueRange(IEnumerable<T> source) {
         if (source == null) { throw new ArgumentNullException(nameof(source)); }
@@ -293,10 +294,8 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
         if (source is ICollection<T> coll) {
             int incoming = coll.Count;
             if (incoming == 0) { return; /* 无新增 */ }
-            bool compacted = false;
             if (_head > 0 && _items.Count + incoming > _items.Capacity) {
                 Compact(force: true); // 可能已 bump 版本
-                compacted = true;
             }
             int needed = _items.Count + incoming;
             if (needed > _items.Capacity) {
@@ -306,34 +305,24 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
             // 利用 AddRange 降低循环边界检查成本（coll 可能是 List / 数组）
             if (coll is List<T> list) {
                 _items.AddRange(list); // 内部会优化 List -> List 复制
+                _version++;
             }
             else if (coll is T[] arr) {
                 _items.AddRange(arr);
+                _version++;
             }
             else {
                 foreach (var item in coll) {
-                    _items.Add(item);
+                    Enqueue(item);
                 }
             }
-            if (!compacted) { _version++; /* 若已压缩则版本已递增，这里避免二次 bump */ }
             Debug.Assert(_head <= _items.Count);
             return;
         }
 
-        int added = 0;
-        bool compactedInLoop = false;
-        // 对未知大小的可枚举：逐项添加；在需要真正增长前尝试 JIT 搬移。
+        // Enqueue 在需要增长前尝试搬移，并立即更新版本；下一次输入回调可以观察已入队元素。
         foreach (var item in source) {
-            if (_head > 0 && _items.Count == _items.Capacity) {
-                Compact(force: true); // 版本 +1
-                compactedInLoop = true;
-            }
-            _items.Add(item);
-            added++;
-        }
-        if (added > 0 && !compactedInLoop) {
-            _version++;
-            Debug.Assert(_head <= _items.Count);
+            Enqueue(item);
         }
     }
 
