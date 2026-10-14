@@ -32,6 +32,8 @@ using (writer) {
     using var first = writer.BeginAppend(FrameAddress.EncodedSize, firstMeta.Length, out FrameAddress firstAddress);
     using var second = writer.BeginAppend(FrameAddress.EncodedSize, secondMeta.Length, out FrameAddress secondAddress);
     Require(firstAddress != secondAddress, "Interleaved builders must have independent early addresses.");
+    Require(first.PayloadAndMeta.Length == 0 && second.PayloadAndMeta.Length == 0,
+        "A fresh sized writer counted the underlying RBF prefix as user bytes.");
     writer.EnsureUsable(); // Active builders do not invalidate this lifecycle check.
     byte[] firstPayload = EncodeFixed(secondAddress);
     byte[] secondPayload = EncodeFixed(firstAddress);
@@ -42,6 +44,7 @@ using (writer) {
     expected.Add(secondAddress, new(102, secondPayload.Concat(secondMeta).ToArray(), secondMeta.Length));
 
     using var unknown = writer.BeginAppend();
+    Require(unknown.PayloadAndMeta.Length == 0, "A fresh unknown-size writer did not start at zero user bytes.");
     WriteBytes(unknown.PayloadAndMeta, unknownPayload);
     WriteBytes(first.PayloadAndMeta, firstPayload.AsSpan(6));
     WriteBytes(first.PayloadAndMeta, firstMeta);
@@ -61,6 +64,8 @@ using (writer) {
 RequireDisposed(writer);
 using (retained) {
     Require(retained.PayloadAndMeta.SequenceEqual(expected[addresses[0]].Body), "FrameRead did not retain its owned bytes after store Dispose.");
+    Require(retained.Payload.SequenceEqual(bufferPayload) && retained.TailMeta.SequenceEqual(bufferMeta),
+        "FrameRead slices changed after store Dispose.");
 }
 
 // A writable reopen retains the same addresses and does not repair healthy files.
@@ -103,7 +108,7 @@ using (var cold = Store.OpenReadOnly(storePath)) {
     Require(reports.All(report => report.FileId != 0 && report.HeaderPayload.Length == 24), "Audit returned an invalid file header report.");
     fileCount = reports.Count;
 }
-Console.WriteLine($"FrameStore public package smoke passed: {expected.Count} frames, {fileCount} files; three append forms, interleaved early addresses, archive, varint, cold reads, Inventory and Audit.");
+Console.WriteLine($"FrameStore public package smoke passed: {expected.Count} frames, {fileCount} files; three append forms, user Length, Payload/TailMeta slices, interleaved early addresses, archive, varint, cold reads, Inventory and Audit.");
 Console.WriteLine($"Retained smoke files: {directory}");
 
 static byte[] EncodeFixed(FrameAddress address) {
@@ -121,14 +126,20 @@ static byte[] EncodeVarInt(FrameAddress[] addresses) {
 }
 
 static void WriteBytes(FramePayloadWriter writer, ReadOnlySpan<byte> bytes) {
+    long before = writer.Length;
     bytes.CopyTo(writer.GetSpan(bytes.Length));
+    Require(writer.Length == before, "An unadvanced borrow changed user Length.");
     writer.Advance(bytes.Length);
+    Require(writer.Length == before + bytes.Length, "Advance changed user Length by a different amount.");
 }
 
 static void VerifyFrame(Store store, FrameAddress address, ExpectedFrame expected) {
     using var frame = store.ReadFrame(address).Unwrap();
     Require(frame.Address == address && frame.Tag == expected.Tag && frame.TailMetaLength == expected.MetaLength
         && !frame.IsTombstone && frame.PayloadAndMeta.SequenceEqual(expected.Body), "A complete public read changed frame bytes or metadata.");
+    int payloadLength = expected.Body.Length - expected.MetaLength;
+    Require(frame.Payload.SequenceEqual(expected.Body.AsSpan(0, payloadLength))
+        && frame.TailMeta.SequenceEqual(expected.Body.AsSpan(payloadLength)), "Public Payload/TailMeta slices changed their exact boundaries.");
 }
 
 static void VerifyPeer(Store store, FrameAddress address, FrameAddress peer) {

@@ -1,5 +1,8 @@
+using System.Buffers;
 using System.Text;
+using Atelia.Data;
 using Atelia.FrameStore;
+using Atelia.Rbf;
 using Atelia.VersionStore;
 using DataStore = Atelia.FrameStore.FrameStore;
 using Versions = Atelia.VersionStore.VersionStore;
@@ -139,8 +142,160 @@ using (var data = DataStore.OpenReadOnly(dataPath)) {
     dataFrames = data.Audit(_ => { }).Unwrap();
     Require(dataFrames == 5, "Data Audit did not cover the actual data frames.");
 }
+VersionStoreAudit batchAudit = VerifyBatchPublication(directory);
+VerifyReservableWriters();
 Console.WriteLine($"VersionStore public package smoke passed: {audit.RefCount} refs, {audit.SnapshotCount} snapshots, {audit.ForkCount} forks, {audit.TagCount} tags, {dataFrames} data frames; RootMap/opaque publish, exact history, immutable tags and cold read-only Audit.");
+Console.WriteLine($"VersionStore package increments passed: {batchAudit.RefCount} isolated refs, {batchAudit.SnapshotCount} snapshots; single/CU PublishRefs, exact ReadRevision, both-layer cold reopen, EnsureUsable, healthy RecoveryReports and transitive Data borrow/cancel.");
 Console.WriteLine($"Retained smoke files: {directory}");
+
+static VersionStoreAudit VerifyBatchPublication(string directory) {
+    string dataPath = Path.Combine(directory, "batch-data");
+    string versionsPath = Path.Combine(directory, "batch-versions");
+    byte[] initialABytes = [0xa0];
+    byte[] initialBBytes = [0xb0];
+    byte[] singleBytes = [0xa1, 0x00, 0xff];
+    byte[] cuABytes = [0xa2, 0x80];
+    byte[] cuBBytes = [0xb2, 0x00, 0x7f, 0xff];
+    byte[] latestABytes = [0xa3, 0xfe];
+    var expected = new Dictionary<RefRevision, byte[]>();
+    RefRevision single;
+    RefRevision cuA;
+    RefRevision cuB;
+    RefRevision latestA;
+    IReadOnlyList<VersionStoreRecoveryReport> retainedReports;
+    using (var data = DataStore.Create(dataPath))
+    using (var versions = Versions.Create(versionsPath, data)) {
+        versions.EnsureUsable();
+        retainedReports = versions.RecoveryReports;
+        Require(retainedReports.Count == 0, "Fresh VersionStore reported physical recovery.");
+        RefRevision initialA = versions.CreateRef(initialABytes, out var outcome).Unwrap();
+        Confirmed(outcome);
+        RefRevision initialB = versions.CreateRef(initialBBytes, out outcome).Unwrap();
+        Confirmed(outcome);
+
+        byte[] singleInput = [0xf0, 0xa1, 0x00, 0xff, 0xf1];
+        var singlePublication = versions.PublishRefs(new Dictionary<RefId, ReadOnlyMemory<byte>> {
+            [initialA.RefId] = singleInput.AsMemory(1, 3)
+        }, out outcome).Unwrap();
+        Confirmed(outcome);
+        Require(singlePublication.Count == 1, "Single-member PublishRefs returned a different member set.");
+        single = singlePublication[initialA.RefId];
+        singleInput.AsSpan().Fill(0xcc);
+
+        var cuPublication = versions.PublishRefs(new Dictionary<RefId, ReadOnlyMemory<byte>> {
+            [initialB.RefId] = cuBBytes,
+            [initialA.RefId] = cuABytes
+        }, out outcome).Unwrap();
+        Confirmed(outcome);
+        Require(cuPublication.Count == 2, "CU PublishRefs returned a partial or different member set.");
+        cuA = cuPublication[initialA.RefId];
+        cuB = cuPublication[initialB.RefId];
+        Require(cuA != single && cuB != initialB, "CU reused an earlier publication revision.");
+        Require(versions.ReadRef(cuA.RefId).Unwrap().Revision == cuA
+            && versions.ReadRef(cuB.RefId).Unwrap().Revision == cuB, "CU did not install both member heads.");
+
+        // Cover one CU member with a later ordinary Snapshot; the old complete group remains readable.
+        var latestPublication = versions.PublishRefs(new Dictionary<RefId, ReadOnlyMemory<byte>> {
+            [initialA.RefId] = latestABytes
+        }, out outcome).Unwrap();
+        Confirmed(outcome);
+        Require(latestPublication.Count == 1, "The later single-member publication changed its member set.");
+        latestA = latestPublication[initialA.RefId];
+        Require(latestA != cuA, "A later single-member publication reused its CU revision.");
+        expected.Add(initialA, initialABytes);
+        expected.Add(initialB, initialBBytes);
+        expected.Add(single, singleBytes);
+        expected.Add(cuA, cuABytes);
+        expected.Add(cuB, cuBBytes);
+        expected.Add(latestA, latestABytes);
+        VerifyBatchReads(versions, expected, latestA, cuB);
+        Require(retainedReports.Count == 0, "Healthy batch publication unexpectedly recovered a tail.");
+    }
+    Require(retainedReports.Count == 0, "The saved recovery view became unreadable or changed after Dispose.");
+    VerifyPublicationKind(versionsPath, single, 1);
+    VerifyPublicationKind(versionsPath, cuA, 2);
+    VerifyPublicationKind(versionsPath, cuB, 2);
+    VerifyPublicationKind(versionsPath, latestA, 1);
+
+    // Both layers are new owners on each reopen; none of these reads use the original cache.
+    using (var data = DataStore.Open(dataPath))
+    using (var versions = Versions.Open(versionsPath, data)) {
+        VerifyBatchReads(versions, expected, latestA, cuB);
+        Require(versions.RecoveryReports.Count == 0, "Healthy writable reopen unexpectedly repaired a ref.");
+    }
+    using (var data = DataStore.OpenReadOnly(dataPath))
+    using (var versions = Versions.OpenReadOnly(versionsPath, data)) {
+        VerifyBatchReads(versions, expected, latestA, cuB);
+        VersionStoreAudit audit = versions.Audit().Unwrap();
+        Require(audit.RefCount == 2 && audit.SnapshotCount == 6 && audit.ForkCount == 0
+            && audit.TagCount == 0 && audit.TagBucketCount == 0, "Isolated batch Audit returned unexpected totals.");
+        Require(versions.RecoveryReports.Count == 0, "Read-only batch verification reported a repair.");
+        return audit;
+    }
+}
+
+static void VerifyBatchReads(Versions versions, IReadOnlyDictionary<RefRevision, byte[]> expected,
+    RefRevision latestA, RefRevision latestB) {
+    versions.EnsureUsable();
+    foreach (var entry in expected) {
+        RefBytesSnapshot exact = versions.ReadRevision(entry.Key).Unwrap();
+        Require(exact.Revision == entry.Key && exact.Payload.SequenceEqual(entry.Value),
+            "ReadRevision changed an exact old or current publication.");
+    }
+    foreach (RefRevision revision in new[] { latestA, latestB }) {
+        RefBytesSnapshot current = versions.ReadRef(revision.RefId).Unwrap();
+        Require(current.Revision == revision && current.Payload.SequenceEqual(expected[revision]),
+            "ReadRef disagrees with the expected current batch member.");
+    }
+}
+
+static void VerifyPublicationKind(string versionsPath, RefRevision revision, uint expectedTag) {
+    string refPath = Path.Combine(versionsPath, "refs", $"{revision.RefId.LocalId:x8}.rbf");
+    using var file = RbfFile.OpenReadOnlyExisting(refPath, RbfCacheMode.Off);
+    using var frame = file.ReadPooledFrame(revision.Ticket).Unwrap();
+    Require(frame.Ticket == revision.Ticket && frame.Tag == expectedTag && frame.TailMetaLength == 8
+        && !frame.IsTombstone, "PublishRefs chose a different physical Snapshot/CU record kind.");
+}
+
+static void VerifyReservableWriters() {
+    foreach (bool useSink in new[] { false, true }) {
+        var output = new ArrayBufferWriter<byte>();
+        IReservableBufferWriter writer = CreateReservableWriter(useSink, output);
+        using (var lifetime = (IDisposable)writer) {
+            writer.ReserveSpan(4, out int token).Fill(0x11);
+            Span<byte> borrowed = writer.GetMemory(4).Span;
+            borrowed[..4].Fill(0x22);
+            writer.Commit(token);
+            Require(writer.Length == 4 && output.WrittenSpan.SequenceEqual(new byte[] { 0x11, 0x11, 0x11, 0x11 }),
+                "Commit included bytes from an unadvanced ordinary borrow.");
+            // Commit releases the reservation, while this independent ordinary borrow stays writable.
+            borrowed[..4].Fill(0x33);
+            writer.Advance(4);
+            Require(writer.Length == 8 && output.WrittenSpan.SequenceEqual(new byte[] { 0x11, 0x11, 0x11, 0x11, 0x33, 0x33, 0x33, 0x33 }),
+                "Commit invalidated the ordinary borrow before its matching Advance.");
+        }
+
+        var nestedOutput = new ArrayBufferWriter<byte>();
+        IReservableBufferWriter inner = CreateReservableWriter(useSink, nestedOutput);
+        using (var innerLifetime = (IDisposable)inner)
+        using (var outer = new ChunkedReservableWriter(inner)) {
+            outer.GetSpan(4)[..4].Fill(0x99);
+            outer.Advance(0);
+            Require(outer.Length == 0 && inner.Length == 0 && nestedOutput.WrittenCount == 0,
+                "Nested passthrough cancellation published abandoned bytes.");
+            // A strict inner writer must accept a new borrow after the outer layer cancels its old one.
+            outer.GetMemory(4).Span[..4].Fill(0x45);
+            outer.Advance(4);
+            Require(outer.Length == 4 && inner.Length == 4
+                && nestedOutput.WrittenSpan.SequenceEqual(new byte[] { 0x45, 0x45, 0x45, 0x45 }),
+                "Nested Advance(0) left the inner writer with an outstanding borrow.");
+        }
+    }
+}
+
+static IReservableBufferWriter CreateReservableWriter(bool useSink, ArrayBufferWriter<byte> output) => useSink
+    ? new SinkReservableWriter(new CollectingSink(output))
+    : new ChunkedReservableWriter(output);
 
 static RootSet WriteRoots(DataStore data, int generation) {
     var roots = new Dictionary<string, FrameAddress>(StringComparer.Ordinal);
@@ -224,3 +379,10 @@ static void Require(bool condition, string message) {
 }
 
 internal sealed record RootSet(byte[] Payload, IReadOnlyDictionary<string, FrameAddress> Roots, int Generation);
+
+internal sealed class CollectingSink(ArrayBufferWriter<byte> output) : IByteSink {
+    public void Push(ReadOnlySpan<byte> bytes) {
+        bytes.CopyTo(output.GetSpan(bytes.Length));
+        output.Advance(bytes.Length);
+    }
+}
