@@ -85,6 +85,8 @@ Create MUST 在获锁后重新检查初始输入，不能沿用锁前空根的�
 
 精确拼写要求适用于本协议的受管组件：固定控制文件与 `active`/`archive`/`creating`、桶及数据文件名。以实际直接目录项取得名称资格，不能把宽容路径查找成功当作精确拼写；所有受管目录必须是普通目录，叶项必须是普通文件，拒绝 symlink、junction/reparse、设备、FIFO 等特殊项。已经从实际枚举取得 canonical 名称的项只需类型检查，不为每个文件重新扫描父目录。完整正式名称发现保持 O(A+B+H)；active 排序/运行台账初始化成本另计。
 
+受管组件的大小写别名与 canonical 项同时存在时也必须拒绝，不能因找到了正确项而忽略别名。
+
 root、creating、active、archive 及实际归档桶 MUST 位于同一文件系统；受管叶文件亦须与其父目录具有相同文件系统/mount 资格。数据移动必须使用原生同文件系统、不覆盖 rename；不能退回复制后删除或覆盖目标。Windows 使用普通 disk/no-reparse 句柄资格及实际 volume GUID，Linux 使用 statx 的普通类型、device 与 mount identity；无法提供所需资格时拒绝。当前 Windows 不支持无法取得 volume GUID 的位置，Linux 要求可提供所需 statx 字段及 renameat2 RENAME_NOREPLACE 的环境；未支持的平台不降级打开。owner 锁另消费 `[S-FS-OWNER-LOCK]`。
 
 这些入口消费已定的非对抗性、无外部并发改写/替换假设：在准入及持锁期间，根和受管项由遵守本协议的 owner 管理。由此可以在类型/名称资格后调用现有 public RBF 路径工厂，不需要新增裸 handle 导入或敌对 TOCTOU 防护。检查不是对任意祖先、外部复制或裸 RBF 写入的协调；Open 不建立根其他内容的永久白名单。实际平台与失败向量证据见[公开持久化闭环记录](02-framestore-persistence-implementation.md)，不由机制选择推定完整 S2 Accepted。

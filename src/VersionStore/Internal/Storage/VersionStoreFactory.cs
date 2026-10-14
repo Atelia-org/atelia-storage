@@ -71,9 +71,11 @@ internal static class VersionStoreFactory {
             var files = new DirectoryVersionStoreFiles(root, operations);
             uint highWatermark = gate.ReservedRefIdUpperBound;
             if (!readOnly) {
-                var discovered = files.ListRefIds(static () => { });
-                if (discovered.IsFailure) { throw new InvalidDataException(discovered.Error!.ToString()); }
-                foreach (uint id in discovered.Value!) { highWatermark = Math.Max(highWatermark, id); }
+                AteliaError? discoveryError = files.VisitRefTargets(target => {
+                    highWatermark = Math.Max(highWatermark, target.LocalId);
+                    return null;
+                }, static () => { }, static () => { });
+                if (discoveryError is not null) { throw new InvalidDataException(discoveryError.ToString()); }
             }
             files.QualifyPending(readOnly);
             operations.BeforeOwnerHandoff(root);

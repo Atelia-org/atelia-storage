@@ -90,7 +90,7 @@ internal static class FrameStorePlatform {
         try { toClose?.Dispose(); }
         catch (Exception error) { errors.Add(error); }
         errors.ThrowIfAny();
-        if (!found && alias is not null) {
+        if (alias is not null) {
             throw new InvalidDataException($"Path component '{alias}' is not the required exact spelling '{component}'.");
         }
         if (!found && !allowMissing) { throw new FileNotFoundException("Required exact path component is missing.", Path.Combine(parent, component)); }

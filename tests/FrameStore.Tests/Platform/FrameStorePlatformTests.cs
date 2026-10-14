@@ -47,6 +47,30 @@ public class FrameStorePlatformTests {
         Assert.Empty(File.ReadAllBytes(control));
     }
 
+    [LinuxFact]
+    public void LinuxCanonicalManagedComponentAndCaseAliasCannotCoexist() {
+        using var fixture = new PlatformFixture();
+        string active = Path.Combine(fixture.Parent, "active");
+        string activeAlias = Path.Combine(fixture.Parent, "Active");
+        Directory.CreateDirectory(active);
+        Directory.CreateDirectory(activeAlias);
+        Assert.Throws<InvalidDataException>(() => FrameStorePlatform.RequireDirectory(active));
+        Assert.Throws<InvalidDataException>(() => FrameStorePlatform.CreateDirectory(active));
+        Assert.True(Directory.Exists(active));
+        Assert.True(Directory.Exists(activeAlias));
+
+        string control = Path.Combine(fixture.Parent, "framestore.lock");
+        string alias = Path.Combine(fixture.Parent, "FrameStore.lock");
+        File.WriteAllBytes(control, []);
+        File.WriteAllBytes(alias, [0x41]);
+        Assert.Throws<InvalidDataException>(() => FrameStorePlatform.RequireFile(control));
+        Assert.Throws<InvalidDataException>(() => {
+            using var owner = FrameStorePlatform.AcquireOwnerLock(fixture.Parent, create: true, readOnly: false);
+        });
+        Assert.Empty(File.ReadAllBytes(control));
+        Assert.Equal(new byte[] { 0x41 }, File.ReadAllBytes(alias));
+    }
+
     [WindowsFact]
     public void WindowsCallerRootAndParentSpellingIsNotPersistentCanonicalName() {
         using var fixture = new PlatformFixture();
