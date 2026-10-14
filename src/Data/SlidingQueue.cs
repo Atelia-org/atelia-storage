@@ -73,9 +73,9 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
 
     /// <summary>追加一个元素到尾部（泛型约束 notnull 确保不接受 null）。</summary>
     public void Enqueue(T item) {
-        // JIT Compaction: 若底层 List 已满且存在已消费前缀，则先搬移存活元素到下标 0 复用空间，避免真正扩容。
+        // 空间不足时仅按阈值压缩；小前缀交给 List 几何扩容，避免滚动队列每次搬移整个活动区。
         if (_head > 0 && _items.Count == _items.Capacity) {
-            Compact(force: true); // force: 无视阈值，直接压缩；O(存活数)，劣于扩容的 O(总数) 只有活动区更小才触发
+            Compact();
         }
         _items.Add(item);
         _version++;
@@ -290,17 +290,12 @@ public sealed class SlidingQueue<T> : IReadOnlyList<T> where T : notnull {
             EnqueueRange(snapshot); // 递归调用走 ICollection<T> 分支（数组实现 ICollection）
             return;
         }
-        // 优先处理具备 Count 的集合：一次性预估容量，减少多次扩容/多次 JIT 搬移。
+        // 已知大小的集合仅在空间不足时按阈值压缩；由 List 保持几何扩容。
         if (source is ICollection<T> coll) {
             int incoming = coll.Count;
             if (incoming == 0) { return; /* 无新增 */ }
-            if (_head > 0 && _items.Count + incoming > _items.Capacity) {
-                Compact(force: true); // 可能已 bump 版本
-            }
-            int needed = _items.Count + incoming;
-            if (needed > _items.Capacity) {
-                // 直接设置足够容量，避免 List 的指数扩容行为导致多余内存峰值。
-                _items.Capacity = needed;
+            if (_head > 0 && incoming > _items.Capacity - _items.Count) {
+                Compact();
             }
             // 利用 AddRange 降低循环边界检查成本（coll 可能是 List / 数组）
             if (coll is List<T> list) {
