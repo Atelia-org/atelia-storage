@@ -1,6 +1,6 @@
 # HeadStore：Binary NamedFrameMap payload 专项
 
-命名更新：2026-10-16 活跃合同采用 HeadStore/Head/Entry；既有 Accepted 仍对应原 VersionStore revision，本轮重命名验证见[13记录](13-headstore-renaming-plan.md)。格式版本、路径与 Clause-ID 不变；[14 HeadSetTag](14-named-head-snapshots-plan.md)尚未实施。
+命名更新：2026-10-16 活跃合同采用 HeadStore/Head/Entry；既有 Accepted 仍对应原 VersionStore revision，本轮重命名验证见[13记录](13-headstore-renaming-plan.md)。格式版本、路径与 Clause-ID 不变；[14 HeadSetTag](14-headset-tags-plan.md)尚未实施。
 
 日期：2026-10-10–11。状态：**Accepted（独立 source-only 源码资格）**，证据见[最终源码验收](12-versionstore-final-acceptance.md)。NamedFrameMapCodec 为已实施的可选应用 codec，普通 Head/fork/tag 不解释其内容；JSON 名称映射不扩为 JSON 导入导出 API，CU 已正式接纳，本轮新增资格见[07验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。
 

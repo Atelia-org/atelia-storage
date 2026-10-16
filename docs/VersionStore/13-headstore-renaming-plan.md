@@ -1,6 +1,6 @@
 # HeadStore 术语与符号重命名方案
 
-日期：2026-10-16。状态：行为保持重命名已完成，独立源码复核与 Windows Release 验收通过；未提交、打包或发布。本文记录迁移对照和本轮交付；[HeadSetTag 方案](14-named-head-snapshots-plan.md)负责下一片用具名固定成员表替换旧 bytes tag，尚未实施。第3节是原名到目标名的核验对照，不再作为要求用户逐项 IDE 操作的待办。既有 VersionStore 验收与包证据保留原 revision 身份。
+日期：2026-10-16。状态：行为保持重命名已完成，独立源码复核与 Windows Release 验收通过；未提交、打包或发布。本文记录迁移对照和本轮交付；[HeadSetTag 方案](14-headset-tags-plan.md)负责下一片用具名固定成员表替换旧 bytes tag，尚未实施。第3节是原名到目标名的核验对照，不再作为要求用户逐项 IDE 操作的待办。既有 VersionStore 验收与包证据保留原 revision 身份。
 
 ## 1. 来源、边界与顺序
 
@@ -171,4 +171,4 @@
 - 工程与交付接线：源码/测试/Smoke/PackageSmoke目录、程序集/namespace/友元、两份solution、六包顺序与CI/包检查统一到HeadStore；`git diff --check`通过。文档目录/basename和历史证据身份保留。
 - 包构建/隔离PackageReference/发布：未进行。本轮改变公共API符号及NuGet ID（`Atelia.VersionStore`→`Atelia.HeadStore`），消费方需独立适配并更新引用；新包须使用新的不可变版本，从干净已提交来源完成四个隔离包消费者验证。此处源码验收不代替该资格。
 
-下一片：[HeadSetTag 具名成员表替换旧 bytes tag](14-named-head-snapshots-plan.md)。两片分别报告 API 变化、格式变化和验收结果；本设计不授权提交、打包或发布。
+下一片：[HeadSetTag 具名成员表替换旧 bytes tag](14-headset-tags-plan.md)。两片分别报告 API 变化、格式变化和验收结果；本设计不授权提交、打包或发布。

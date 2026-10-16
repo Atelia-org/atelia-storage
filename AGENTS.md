@@ -1,6 +1,6 @@
 # atelia-storage 协作入口
 
-- 当前 HeadStore 重命名状态与验证见 [重命名记录](docs/VersionStore/13-headstore-renaming-plan.md)。既有 VersionStore 验收与包身份保持历史来源；[HeadSetTag 方案](docs/VersionStore/14-named-head-snapshots-plan.md)尚未实施，勿把旧 bytes tag 当作具名成员表。
+- 当前 HeadStore 重命名状态与验证见 [重命名记录](docs/VersionStore/13-headstore-renaming-plan.md)。既有 VersionStore 验收与包身份保持历史来源；[HeadSetTag 方案](docs/VersionStore/14-headset-tags-plan.md)尚未实施，勿把旧 bytes tag 当作具名成员表。
 
 使用简体中文交流，保留技术标识符原文。先读根 [README](README.md)，新栈任务按模块进入 [FrameStore 文档](docs/FrameStore/README.md)、[HeadStore 文档](docs/VersionStore/README.md) 或 [RBF 规范](docs/Rbf/rbf-interface.md)；跨层边界与交付见[共同入口](docs/FrameStore-VersionStore/README.md)。旧栈任务再读 [EventJournal](src/EventJournal/README.md) 或 [RbfSegmentStore](src/RbfSegmentStore/README.md)。
 

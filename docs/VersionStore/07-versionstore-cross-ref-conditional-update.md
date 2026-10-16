@@ -1,6 +1,6 @@
 # HeadStore：ConditionalUpdate 单帧跨 Head 条件发布
 
-命名更新：2026-10-16 活跃合同采用 HeadStore/Head/Entry；既有 Accepted 仍对应原 VersionStore revision，本轮重命名验证见[13记录](13-headstore-renaming-plan.md)。格式版本、路径与 Clause-ID 不变；[14 HeadSetTag](14-named-head-snapshots-plan.md)尚未实施。
+命名更新：2026-10-16 活跃合同采用 HeadStore/Head/Entry；既有 Accepted 仍对应原 VersionStore revision，本轮重命名验证见[13记录](13-headstore-renaming-plan.md)。格式版本、路径与 Clause-ID 不变；[14 HeadSetTag](14-headset-tags-plan.md)尚未实施。
 
 状态：**2026-10-11 CU 及附属重构已实施，独立源码验收 Accepted（Windows / WSL2 Linux）**。本文负责 CU 的记录、共同判据、位置复用与读取算法，已接入 S0/S4/S5；身份字段消费 S4，时间消费[08专项](08-versionstore-record-metadata.md)，批量 bytes 公面消费[11专项](11-versionstore-root-payload-bytes-api.md)。实际验证与资格见[本轮 CU 验收记录](07-versionstore-cross-ref-conditional-update-acceptance.md)。既有[最终源码验收](12-versionstore-final-acceptance.md)和[六包候选](../FrameStore-VersionStore/13-local-package-delivery.md)不包含 CU；新源码不得沿用其包资格。
 

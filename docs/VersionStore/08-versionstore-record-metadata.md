@@ -1,6 +1,6 @@
 # HeadStore：Head 记录时间与 TailMeta 格式
 
-命名更新：2026-10-16 活跃合同采用 HeadStore/Head/Entry；既有 Accepted 仍对应原 VersionStore revision，本轮重命名验证见[13记录](13-headstore-renaming-plan.md)。格式版本、路径与 Clause-ID 不变；[14 HeadSetTag](14-named-head-snapshots-plan.md)尚未实施。
+命名更新：2026-10-16 活跃合同采用 HeadStore/Head/Entry；既有 Accepted 仍对应原 VersionStore revision，本轮重命名验证见[13记录](13-headstore-renaming-plan.md)。格式版本、路径与 Clause-ID 不变；[14 HeadSetTag](14-headset-tags-plan.md)尚未实施。
 
 日期：2026-10-10–11。状态：**既有 Head/tag 的 source-only 源码资格 Accepted；CU 已正式接纳，本轮接线通过独立源码验收 Accepted**。既有映射见[最终源码验收](12-versionstore-final-acceptance.md)，CU 增量见[本轮验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。Head/CU 使用固定 8B Unix 毫秒时间及精确 TailMeta 长度判形；tag 已实施并复用时间意义，其独立 schema/CRC 与元信息公面由09定义。组合/包资格见[实施计划](12-versionstore-implementation-plan.md)，旧六包候选不含 CU。
 

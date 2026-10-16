@@ -24,9 +24,9 @@
 
 2026-10-16 本轮命名裁决：主线程与独立只读 subagent 比较 `HeadTag` 和 `HeadSetTag` 后，选择 **HeadSetTag**。对 coding agent，类型名直接说明多入口集合，比省略 `Set` 更能避免把它当作单个 Head 的附加标签。集合允许只有一个成员；`HeadSet` 仅是名称中的集合限定，不新增独立对象、身份或 API。其内容始终为 `HeadId → HeadEntryId` 固定表，不能退化成只保存 HeadId 的集合，也不随之后的 Head 发布移动。
 
-方法采用 `CreateTag / ReadTag / ReadTagInfo / ScanTags`；完整对象及辅助类型采用 `HeadSetTag / HeadSetTagInfo / HeadSetTagScanEnd`。已有 `TagCount / TagBucketCount / TagBucket / MaxTagNameCodeUnits` 和内部桶、记录的 `Tag` 词根保留；不为统一前缀额外重命名整个桶实现。本文文件名暂保留，以保持已有链接。旧提案中的 `HeadSnapshot` 名称不再作为目标 API。
+方法采用 `CreateTag / ReadTag / ReadTagInfo / ScanTags`；完整对象及辅助类型采用 `HeadSetTag / HeadSetTagInfo / HeadSetTagScanEnd`。已有 `TagCount / TagBucketCount / TagBucket / MaxTagNameCodeUnits` 和内部桶、记录的 `Tag` 词根保留；不为统一前缀额外重命名整个桶实现。本文文件名采用 `14-headset-tags-plan.md`，仓内引用同步更新。旧提案中的 `HeadSnapshot` 名称不再作为目标 API。
 
-**同名不等于兼容：** 新 `CreateTag` 接收 HeadId 集合并返回 HeadSetTag，替换旧任意 bytes / Related overload；新成员表与格式版本2仍须完整实施。本次仅调整标识符，不改变下述创建、确认、校验、故障或交付合同。
+**同名不等于兼容：** 新 `CreateTag` 接收 HeadId 集合并返回 HeadSetTag，替换旧任意 bytes / Related overload；新成员表与格式版本2仍须完整实施。此前选择 HeadSetTag 名称的修订仅调整目标标识符；本文待实施的范围包含下述创建、确认、校验、故障与交付行为变化。
 
 候选签名（设计，不是当前可执行 API）：
 
@@ -51,7 +51,7 @@ AteliaResult<HeadSetTagScanEnd> ScanTags(
 | ResolveTag / RootPayload | ReadTag / HeadSetTag；不是原返回类型换名 |
 | TagInfo / TagScanEnd | 行为替换片使用 HeadSetTagInfo / HeadSetTagScanEnd；前者删除 Related、增加 EntryCount，不列为首批纯 rename |
 | ReadTagInfo / ScanTags | 方法名保留，返回值和 visitor 改用新类型；不沿用旧 Related 合同 |
-| MaxTagNameCodeUnits（工作树暂为 MaxSnapshotNameCodeUnits） | 统一为 MaxTagNameCodeUnits，仍为1024；可在纯重命名片纠正 |
+| MaxTagNameCodeUnits | 保留现名与1024上限；行为保持重命名片已完成名称纠正 |
 | Audit.TagCount / TagBucketCount | 名称保留；格式2下统计新成员表及其桶，Audit 增加成员精确读取资格验证 |
 | HeadStoreRecoveryFileKind.TagBucket | 名称及枚举值保留；物理路径仍见第5节 |
 
@@ -208,7 +208,7 @@ DG 必须独立安排历史书签模型后再升级 pin；可研究把书签放�
 | --- | --- |
 | [S0](../FrameStore-VersionStore/00-architecture-decisions.md) `[S-ROOT-PUBLISHED-LAST]`、[S4](04-versionstore-publication.md) | data-first、依赖确认顺序、owner/Outcome/故障模型 |
 | [07 CU](07-versionstore-cross-ref-conditional-update.md)、[ConditionalRead](../../src/HeadStore/HeadStore.ConditionalRead.cs) | 指定peer共同判据、合法否定见证、惰性恢复与不递归后来组 |
-| [CU发布故障测试](../../tests/HeadStore.Tests/ConditionalUpdateFaults/ConditionalUpdatePublicationFaultTests.cs) `AllCompleteEndsRemainUnknownAfterAnyRefFlushFailureAndColdReadAcceptsTheWholeGroup` | 已成立可与旧调用Unknown并存，不等于此前全部确认 |
+| [CU发布故障测试](../../tests/HeadStore.Tests/ConditionalUpdateFaults/ConditionalUpdatePublicationFaultTests.cs) `AllCompleteEndsRemainUnknownAfterAnyHeadFlushFailureAndColdReadAcceptsTheWholeGroup` | 已成立可与旧调用Unknown并存，不等于此前全部确认 |
 | [主类](../../src/HeadStore/HeadStore.cs)、[Fork](../../src/HeadStore/HeadStore.Fork.cs) | mutation guard、data/source确认、精确克隆和资源清理 |
 | [Tags](../../src/HeadStore/HeadStore.Tags.cs)、[09](09-versionstore-immutable-tags.md)、[Related测试](../../tests/HeadStore.Tests/TagMetadataPublic/PublicRelatedTagTests.cs) | 被替换的任意bytes/Related语义、meta查重与桶复用基础 |
 | [Entry](../../src/HeadStore/HeadStore.Entry.cs)、[HeadEntryId](../../src/HeadStore/HeadEntryId.cs)、[Audit](../../src/HeadStore/HeadStore.Audit.cs) | ID签发变化、精确读取与局部审计资源，不用公共读取填永久缓存 |

@@ -4,7 +4,7 @@ HeadStore 借入一个 FrameStore，发布应用解释的不透明 root-payload 
 
 精确 EntryId 读取、公共组合 guard 与惰性物理 RecoveryReports 已实施，新增资格见[下游公面增量验收](../FrameStore-VersionStore/14-downstream-api-refinement-acceptance.md)。[下游公面完善计划](../FrameStore-VersionStore/14-downstream-api-refinement-plan.md)的获准施工队列已收束，只保留延后事项的重访条件，不重复加入旧阶段队列。
 
-2026-10-16 已完成[HeadStore 行为保持重命名](13-headstore-renaming-plan.md)：活跃公面与工程统一采用 HeadStore/Head/Entry，验证状态以该篇为准；[HeadSetTag 成员表替换旧 tag](14-named-head-snapshots-plan.md)尚未实施。当前仍为旧 bytes/Related tag 合同，既有 VersionStore 验收与包来源不重标。文档目录、basename 和 Clause-ID 暂保留。
+2026-10-16 已完成[HeadStore 行为保持重命名](13-headstore-renaming-plan.md)：活跃公面与工程统一采用 HeadStore/Head/Entry，验证状态以该篇为准；[HeadSetTag 成员表替换旧 tag](14-headset-tags-plan.md)尚未实施。当前仍为旧 bytes/Related tag 合同，既有 VersionStore 验收与包来源不重标。文档目录、basename 和 Clause-ID 暂保留。
 
 ## 最小阅读路径
 

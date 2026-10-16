@@ -1,6 +1,6 @@
 # S5-B 专项：不可变 tag
 
-命名更新：2026-10-16 活跃合同采用 HeadStore/Head/Entry；既有 Accepted 仍对应原 VersionStore revision，本轮重命名验证见[13记录](13-headstore-renaming-plan.md)。格式版本、路径与 Clause-ID 不变；[14 HeadSetTag](14-named-head-snapshots-plan.md)尚未实施。
+命名更新：2026-10-16 活跃合同采用 HeadStore/Head/Entry；既有 Accepted 仍对应原 VersionStore revision，本轮重命名验证见[13记录](13-headstore-renaming-plan.md)。格式版本、路径与 Clause-ID 不变；[14 HeadSetTag](14-headset-tags-plan.md)尚未实施。
 
 日期：2026-10-11。状态：**Accepted（既有独立 source-only 源码资格）**。1024个惰性桶、独立元信息CRC、匿名/关联 CreateTag、ResolveTag、ReadTagInfo/ScanTags及完整检查的证据见[最终源码验收](12-versionstore-final-acceptance.md)。V4-F补充具名内部进程窗口及六个独立名称/路由golden的冷进程回读，平台结果见[实施计划](12-versionstore-implementation-plan.md)；隔离包消费仍是独立交付出口。该设计取代未实施的tag草案，无旧tag数据迁移，不改Head/CU布局；CU 已正式接纳，其新增资格见[07 验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。Related 仍只是坐标注记，不重新验证 CU 来源或共同判据。
 
