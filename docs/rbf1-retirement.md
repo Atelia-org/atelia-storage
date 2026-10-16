@@ -1,6 +1,6 @@
 # RBF1 从主线退出
 
-日期：2026-10-16。源码清理、独立复核与 Windows Release 验证已通过；本地包验证见下文。
+日期：2026-10-16。状态：**Accepted**。源码清理提交：`66605a44352de4a9e2f0c120514d822aaaa0505f`。源码、独立复核、Windows RBF3 探针及本地六包隔离消费均通过。
 
 ## 决策与恢复入口
 
@@ -15,6 +15,8 @@
 | 已发布 RBF1 五包 | `0.2.0-rbf1-preview.1`，来源 [`3e9554e2ea70f769607e80b3fc11a85506050533`](https://github.com/Atelia-org/atelia-storage/tree/3e9554e2ea70f769607e80b3fc11a85506050533) |
 
 RBF1 分支与清理前快照并非完全相同：主线后来增加了 Windows publication 验收，以及冻结旧包依赖的构建和指南调整。完整恢复这些材料应使用上表清理前快照；维护旧栈则使用 RBF1 分支。归档标签仅在本地创建，本轮不推送或公开发布。
+
+本轮核实远端 main 仍为 `3de8fb050d81d35ee1c36d1b978024cbc42cb455`；清理前快照及本次提交尚未推送。文中的 GitHub 固定 SHA 链接在这些提交发布后才可远端访问；当前使用下面的本地 Git 命令查阅。静态 Source Link 验证也不意味着远端源码已经可下载。
 
 可在独立工作树查阅完整旧快照：
 
@@ -39,8 +41,35 @@ git worktree add --detach ../atelia-storage-rbf1-archive 043f77aa68700568499ceb9
 - 通用低层测试迁移期间发现一条旧 padding 断言沿用 RBF1 的宽松结果；现按 RBF3 非零 padding 拒绝合同精确断言 `RbfFramingError`，没有放宽生产实现。
 - 14 个 solution 项目的实际 `project.assets.json` 无 RBF1 包或旧栈项目；所有 Atelia 存储依赖均为 main project。
 - 主线程检查跨包边界并抽查实现与测试；源码、测试、文档工作包相互复核，另由独立 agent 审阅最终运行时和文档删除范围，无剩余阻塞问题。最后清理了一条旧 writer 独占的无引用常量和一处旧布局注释。
+- 上述尾修后再次 Release solution build：0 warnings、0 errors；对应 Rbf 单项目 `--no-build` 复验 856/856 通过。生产探针和本地打包使用随后干净的 `66605a4`。
 - Markdown 相对链接扫描未发现本轮删除造成的新断链；12 个不同固定归档目标已用 Git 对象验证存在。`git diff --check` 通过。
 
 源码测试日志和 TRX 保留在忽略目录 `artifacts/rbf1-retirement-*`。当前结果只覆盖此 Windows 运行；不表示 Linux、设备断电、真实 RBF1 数据迁移或公开发布已经验收。
 
-本地六包候选、四个隔离消费者与 RBF3 生产探针的验证待在干净源码提交上执行并追加实际身份。
+### RBF3 生产探针
+
+从干净 `66605a4` Release 构建 `experiments/RbfFastOpen/Rbf3ProductionProbe/Rbf3ProductionProbe.csproj`，再执行 `run.py --quick --expect-commit 66605a44352de4a9e2f0c120514d822aaaa0505f`，输出目录 `W:/AteliaStorageRbf1Retirement-probe-20261016`。
+
+- `provenance.json` 的 `Accepted=true`；源码与二进制 hash 在运行前后稳定。
+- 6 个独立输入包含 5 个 RBF3 正向向量和 1 个固定 RBF1 拒绝向量；RBF3 覆盖双 cache、完整 uint Key、CRC、读取/扫描/元信息，RBF1 两种打开方式拒绝且不改文件。
+- Append 和 Builder 各 329 个尾部 byte-prefix cuts；只读不修改、单尾恢复与二次打开幂等均通过。
+- 23 个受控子进程终止检查点、4 个短 Header 拒绝、2 个生产完整 wire 的独立 Python 回验均通过。
+- quick 模式保留本次测量结果，不据此声明新的性能提升、任意 syscall 崩溃或设备断电资格。
+
+### 本地包消费
+
+包版本 `0.4.0-rbf3-local.20261016133347`，来源 `66605a44352de4a9e2f0c120514d822aaaa0505f`；本次 API/读取兼容性收窄使用新候选版本，未覆盖既有包，也未修改下游 pin。
+
+```powershell
+./eng/Pack.ps1 -Version 0.4.0-rbf3-local.20261016133347 -OutputDirectory artifacts/rbf1-retirement-feed/0.4.0-rbf3-local.20261016133347
+./eng/Test-Package.ps1 -Version 0.4.0-rbf3-local.20261016133347 -FeedDirectory artifacts/rbf1-retirement-feed/0.4.0-rbf3-local.20261016133347 -WorkDirectory W:/AteliaStorageRbf1Retirement-package-0.4.0-rbf3-local.20261016133347
+```
+
+复验时从上述来源的干净树执行，使用新的仓外 WorkDirectory；同版本只能复用来源及 hash 完全一致的候选。
+
+- 六包与 symbols/manifest 生成成功；四个 consumer 各只直接引用一个 Atelia 包，Rbf 三包、Binary + K4os、FrameStore 五个 Atelia + K4os、HeadStore 六个 Atelia + K4os 闭包全部通过。
+- public smoke 包括 RBF3 写入、读取、冷重开、RBF1 拒绝且不改文件，Binary codec，FrameStore Inventory/Audit，以及 HeadStore 发布/history/fork/tag/CU/增量 API。
+- metadata、来源、portable PDB、静态 Source Link、独立 cache bytes 与 168 个本地源码 checksum 通过。manifest 保留于上述 feed，完整消费证据保留于上述 W: 目录。
+- `eng/Test-Package.EntryPoint.Tests.ps1` 在 `W:/AteliaStorageRbf1Retirement-entry-20261016` 通过；该组使用 mock，与上述真实包消费分开记录。
+
+没有推送 Git 提交/归档标签、公开发布 NuGet 包或测试远端 Source Link 下载；后续文档验收提交不改变本次候选的源码身份。
