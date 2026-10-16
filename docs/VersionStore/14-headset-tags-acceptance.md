@@ -1,6 +1,6 @@
 # HeadSetTag 格式2实施与独立验收记录
 
-日期：2026-10-16。状态：**Windows 源码与进程验收通过；本地包消费待验证**。本页记录本轮合同到源码/测试及实际运行证据的映射。既有VersionStore、CU、重命名和RBF1退役证据保留各自来源，不自动覆盖本片。
+日期：2026-10-16。状态：**Accepted，限本轮Windows源码、实际进程窗口及本地六包隔离消费**。实现提交：`886439af5395e25ed2ee831885c3a00ae106e7d8`。本页记录本轮合同到源码/测试及实际运行证据的映射。既有VersionStore、CU、重命名和RBF1退役证据保留各自来源，不自动覆盖本片。
 
 ## 变更范围
 
@@ -55,10 +55,23 @@
 | 新增故障/资源向量 | 同次完整测试中的 `HeadSetTagFaults`，含真实依赖flush前后故障、CU Unknown冷重开再确认、重入、Dispose与Audit取消/多级close失败 | 21/21通过；另有16个public与9个canonical向量通过 |
 | 实际进程中断 | `artifacts/headset-tags/process-evidence/` 保存PID、READY、kill/exitCode及fresh验证；新窗口PID依次为39880、22988、43252，均killed=true、exitCode=-1 | 三窗口及迁移后的既有进程用例均通过 |
 | Windows/Linux资格 | Windows / .NET SDK 10.0.201；本次未运行Linux；10项平台条件跳过不计作通过 | Windows通过；Linux未新增资格 |
-| 本地六包候选 | 待新版本、干净已提交来源与manifest/hash | 未进行 |
-| 四个隔离PackageReference消费者 | Rbf三包、Binary+K4os、FrameStore五个Atelia+K4os、HeadStore六个Atelia+K4os；各consumer只直接引用一个顶层Atelia包 | 未进行 |
+| 本地六包候选 | `0.5.0-headset-local.20261016140613`；来源为干净的 `886439a`；manifest位于 `artifacts/headset-tags/feed/0.5.0-headset-local.20261016140613/` | 六包及symbols/manifest通过 |
+| 四个隔离PackageReference消费者 | `W:/AteliaStorageHeadSetTag-package-0.5.0-headset-local.20261016140613`；Rbf三包、Binary+K4os、FrameStore五个Atelia+K4os、HeadStore六个Atelia+K4os；各consumer只直接引用一个顶层Atelia包 | 全部通过；169个本地源码checksum、PDB、静态Source Link与来源通过 |
 | 公开发布/DG迁移 | 不属于本页默认完成范围 | 未进行 |
 
 包smoke须覆盖集合tag、CU subset/pair、fork子捕获、两层冷重开与成员ReadEntry，并核对actual assets、来源与checksum。源码通过不替代包消费；旧版本/manifest/hash不覆盖重用。最终状态只能依据本表实际证据改写，不能将尚未执行的测试列成Accepted。
 
 补充核验：源码消费 `.rename/HeadStorePackageSmoke.Source.csproj` 的 Release build/run 已通过（日志 `artifacts/headset-tags/build-source-consumer.log`、`source-smoke.log`），其 ProjectReference 证据不替代上表包消费。完整suite分项为 Primitives 75、Data 339、Binary 214、Rbf 856、FrameStore 438 + 4 skips、HeadStore 1466 + 6 skips。首次迁移测试暴露的六项版本期望/夹具/声明读取断言已修正，最终完整重跑全部通过，没有降低生产校验或删除有效旧测试来制造通过。
+
+## 本地包复验与交付边界
+
+实际从干净实现提交执行：
+
+```powershell
+./eng/Pack.ps1 -Version 0.5.0-headset-local.20261016140613 -OutputDirectory artifacts/headset-tags/feed/0.5.0-headset-local.20261016140613
+./eng/Test-Package.ps1 -Version 0.5.0-headset-local.20261016140613 -FeedDirectory artifacts/headset-tags/feed/0.5.0-headset-local.20261016140613 -WorkDirectory W:/AteliaStorageHeadSetTag-package-0.5.0-headset-local.20261016140613
+```
+
+完整日志见 `artifacts/headset-tags/pack-final.log`、`package-consumers.log` 及隔离目录的 `logs/`。首次pack遇到Windows构建输出DLL复制的MSB3021访问拒绝，未生成正式manifest；保留partial stage后从相同干净提交重试成功，未改生产代码或覆盖已完成候选。包的固定来源始终为 `886439a`，后续验收文档提交不改变其身份。复验应在该来源的干净checkout使用新的仓外WorkDirectory，同版本仅可复用来源及hash完全相同的候选。
+
+HeadStore包消费者实际验证双成员表、fork子身份、CU subset/pair、格式2 header、两层冷重开、成员ReadEntry与只读Audit。没有推送Git提交、公开发布NuGet包或修改下游pin；未测试远端Source Link下载、Linux新增资格及设备掉电。调用方按硬切API/格式2使用，不提供旧bytes/Related适配、双reader或数据迁移。

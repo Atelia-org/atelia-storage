@@ -1,6 +1,6 @@
 # HeadStore source-only public consumer
 
-这是独立 console consumer，只直接 `ProjectReference` 主线 `HeadStore`，经其依赖使用 FrameStore、Rbf、Binary/Data 的 public API；`IsPackable=false`。没有 `InternalsVisibleTo`、反射、internal API、EventJournal/RbfSegmentStore 或业务依赖。它不是PackageReference、公开包交付或DurableGraph接入证据。本轮迁移格式2/HeadSetTag，当前待验收；实际运行与进程结果见[14记录](../../docs/VersionStore/14-headset-tags-acceptance.md)，旧统计仅保留原轮资格。
+这是独立 console consumer，只直接 `ProjectReference` 主线 `HeadStore`，经其依赖使用 FrameStore、Rbf、Binary/Data 的 public API；`IsPackable=false`。没有 `InternalsVisibleTo`、反射、internal API、EventJournal/RbfSegmentStore 或业务依赖。它不是PackageReference、公开包交付或DurableGraph接入证据。本轮迁移格式2/HeadSetTag，Windows源码及实际进程窗口已通过；实际运行与进程结果见[14记录](../../docs/VersionStore/14-headset-tags-acceptance.md)，旧统计仅保留原轮资格。
 
 先在仓根串行完成 Release 构建，然后用两个独立进程写入与冷读；`graph-write` 的应用 root 必须缺失或为空，不自动删除已有数据：
 

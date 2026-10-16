@@ -4,7 +4,7 @@ HeadStore 借入一个 FrameStore，发布应用解释的不透明 root-payload 
 
 精确 EntryId 读取、公共组合 guard 与惰性物理 RecoveryReports 已实施，新增资格见[下游公面增量验收](../FrameStore-VersionStore/14-downstream-api-refinement-acceptance.md)。[下游公面完善计划](../FrameStore-VersionStore/14-downstream-api-refinement-plan.md)的获准施工队列已收束，只保留延后事项的重访条件，不重复加入旧阶段队列。
 
-2026-10-16 已完成[HeadStore 行为保持重命名](13-headstore-renaming-plan.md)：活跃公面与工程统一采用 HeadStore/Head/Entry，验证状态以该篇为准；[HeadSetTag成员表替换](14-headset-tags-plan.md)正在实施，统一格式2、删除旧bytes/Related公面；目标合同见09，新增资格见[14验收记录](14-headset-tags-acceptance.md)，当前待验收。既有VersionStore验收与包来源不重标。文档目录、basename 和 Clause-ID 暂保留。
+2026-10-16 已完成[HeadStore 行为保持重命名](13-headstore-renaming-plan.md)：活跃公面与工程统一采用 HeadStore/Head/Entry，验证状态以该篇为准；[HeadSetTag成员表替换](14-headset-tags-plan.md)已实施，统一格式2、删除旧bytes/Related公面；目标合同见09，新增资格见[14验收记录](14-headset-tags-acceptance.md)，Windows源码、进程与本地包消费已通过。既有VersionStore验收与包来源不重标。文档目录、basename 和 Clause-ID 暂保留。
 
 ## 最小阅读路径
 
@@ -34,7 +34,7 @@ NamedFrameMap 是应用显式选择的 codec，普通 Head、历史、fork、tag
 | --- | --- |
 | S4/S5 与 08–11 的既有独立源码资格，含 V4-E/V4-F | [最终源码验收](12-versionstore-final-acceptance.md)；该 Accepted 不含 CU |
 | `PublishHeads` / CU 的独立源码、具名进程窗口与两平台增量 | [07 CU 验收](07-versionstore-cross-ref-conditional-update-acceptance.md) |
-| HeadSetTag格式2、正式成员引用、故障/取消及具名进程窗口 | [14验收记录](14-headset-tags-acceptance.md)，实施中待验收 |
+| HeadSetTag格式2、正式成员引用、故障/取消及具名进程窗口 | [14验收记录](14-headset-tags-acceptance.md)，Windows源码、进程与本地包消费通过 |
 | 已实施分片、历史命令及组合验证 | [实施计划](12-versionstore-implementation-plan.md) |
 | V4-C 的限定 Linux 平台与资源观察 | [Linux / 资源验收](12-versionstore-linux-resource-acceptance.md)，保持其当轮范围 |
 

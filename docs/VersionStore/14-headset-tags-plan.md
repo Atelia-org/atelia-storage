@@ -1,6 +1,6 @@
 # HeadSetTag 具名成员表替换旧 bytes tag
 
-日期：2026-10-16。状态：实施中，待独立验收；当前目标合同已归入 [09 tag 规范](09-versionstore-immutable-tags.md)，本篇记录决策和施工范围，不另立第二份合同。实际结果见[14验收记录](14-headset-tags-acceptance.md)，不沿用旧bytes tag资格。[重命名方案](13-headstore-renaming-plan.md)先行（行为保持重命名已通过 Windows Release 源码验收，范围以该篇第6节为准），本篇用目标名称描述新合同。设计审阅不是源码、进程或包消费验收。
+日期：2026-10-16。状态：已实施，Windows源码、进程与本地包消费验收通过；当前合同已归入 [09 tag 规范](09-versionstore-immutable-tags.md)，本篇记录决策和施工范围，不另立第二份合同。实际结果见[14验收记录](14-headset-tags-acceptance.md)，不沿用旧bytes tag资格。[重命名方案](13-headstore-renaming-plan.md)先行（行为保持重命名已通过 Windows Release 源码验收，范围以该篇第6节为准），本篇用目标名称描述新合同。设计审阅不是源码、进程或包消费验收。
 
 ## 1. 最小模型与需求账本
 
@@ -28,7 +28,7 @@
 
 **同名不等于兼容：** 新 `CreateTag` 接收 HeadId 集合并返回 HeadSetTag，替换旧任意 bytes / Related overload；新成员表与格式版本2仍须完整实施。此前选择 HeadSetTag 名称的修订仅调整目标标识符；本轮实施范围包含下述创建、确认、校验、故障与交付行为变化。
 
-本轮公开签名（源码接线与运行资格待验收）：
+本轮已实施的公开签名（验收范围见14验收记录）：
 
 ```csharp
 AteliaResult<HeadSetTag> CreateTag(

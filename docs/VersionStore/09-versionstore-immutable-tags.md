@@ -1,6 +1,6 @@
 # S5-B 专项：HeadSetTag 具名固定成员表
 
-状态：2026-10-16 **格式2与 HeadSetTag 行为替换实施中，待验收**。本篇是当前目标合同；源码、进程与包结果由[14验收记录](14-headset-tags-acceptance.md)单独记录。旧 bytes/Related tag 的 V3-A/B/C、V4 及 VersionStore Accepted 保持原 revision，不作为本轮资格。[14实施方案](14-headset-tags-plan.md)记录决策与切片，不重复成为第二份规范权威。
+状态：2026-10-16 **格式2与 HeadSetTag 已实施，Windows源码、进程与本地包消费验收通过**。本篇是当前合同；源码、进程与包结果由[14验收记录](14-headset-tags-acceptance.md)单独记录。旧 bytes/Related tag 的 V3-A/B/C、V4 及 VersionStore Accepted 保持原 revision，不作为本轮资格。[14实施方案](14-headset-tags-plan.md)记录决策与切片，不重复成为第二份规范权威。
 
 本篇负责成员表、名称/桶、独立元信息、稳定捕获、依赖确认、查询与扫描。统一版本2、身份、借入 data、根/锁、pending、单 driver、ProcessCrashOnly、PublicationOutcome 与清理消费 [S4](04-versionstore-publication.md)。HeadEntry bytes 的长度和所有权由 [11](11-versionstore-root-payload-bytes-api.md)负责；tag 不再保存任意 bytes。
 

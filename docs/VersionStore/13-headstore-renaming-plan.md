@@ -1,5 +1,7 @@
 # HeadStore 术语与符号重命名方案
 
+续接更新（2026-10-16）：本文以下保留重命名验收当轮状态；后续 HeadSetTag 格式2替换已实施并取得 Windows 源码、进程及本地包消费资格，见[14验收记录](14-headset-tags-acceptance.md)。文中的“下一片/尚未实施”不再表示当前待办。
+
 日期：2026-10-16。状态：行为保持重命名已完成，独立源码复核与 Windows Release 验收通过；未提交、打包或发布。本文记录迁移对照和本轮交付；[HeadSetTag 方案](14-headset-tags-plan.md)负责下一片用具名固定成员表替换旧 bytes tag，尚未实施。第3节是原名到目标名的核验对照，不再作为要求用户逐项 IDE 操作的待办。既有 VersionStore 验收与包证据保留原 revision 身份。
 
 ## 1. 来源、边界与顺序
