@@ -9,22 +9,17 @@ internal static class RbfWireCodec {
     private const uint Rbf3LengthUnitsLimit = 1u << 26;
 
     /// <summary>先验证完整 wire 值，再转换为 byte 长度。</summary>
-    internal static AteliaResult<int> DecodeFrameLength(RbfProfile profile, uint wireLength) {
-        switch (profile) {
-            case RbfProfile.Rbf3:
-                // Range-check U before shifting: 0x40000007 must not alias the valid length 28.
-                if (wireLength < Rbf3MinLengthUnits || wireLength >= Rbf3LengthUnitsLimit) {
-                    return new RbfFramingError($"Invalid RBF3 frame length units: {wireLength}.");
-                }
-                return (int)(wireLength << 2);
-            default:
-                throw new ArgumentOutOfRangeException(nameof(profile), profile, "Unknown RBF profile.");
+    internal static AteliaResult<int> DecodeFrameLength(uint wireLength) {
+        // Range-check U before shifting: 0x40000007 must not alias the valid length 28.
+        if (wireLength < Rbf3MinLengthUnits || wireLength >= Rbf3LengthUnitsLimit) {
+            return new RbfFramingError($"Invalid RBF3 frame length units: {wireLength}.");
         }
+        return (int)(wireLength << 2);
     }
 
-    /// <summary>将合法 byte 长度转换成 profile 的 wire 字段。</summary>
-    internal static uint EncodeFrameLength(RbfProfile profile, int frameLength) {
-        if (frameLength < RbfLayout.GetMinFrameLength(profile) || frameLength > FrameLayout.MaxFrameLength ||
+    /// <summary>将合法 byte 长度转换成 RBF3 的 wire 字段。</summary>
+    internal static uint EncodeFrameLength(int frameLength) {
+        if (frameLength < FrameLayout.MinFrameLength || frameLength > FrameLayout.MaxFrameLength ||
             (frameLength & RbfLayout.AlignmentMask) != 0) {
             throw new ArgumentOutOfRangeException(nameof(frameLength), frameLength, "Frame length must be in the profile's aligned byte range.");
         }
@@ -32,7 +27,7 @@ internal static class RbfWireCodec {
     }
 
     /// <summary>验证 plaintext Trailer 的原始 CRC，然后将 TailLen 归一为 bytes。</summary>
-    internal static AteliaResult<TrailerCodewordData> ParseTrailer(RbfProfile profile, scoped ReadOnlySpan<byte> plaintextTrailer) {
+    internal static AteliaResult<TrailerCodewordData> ParseTrailer(scoped ReadOnlySpan<byte> plaintextTrailer) {
         if (plaintextTrailer.Length < TrailerCodewordHelper.Size) {
             return new RbfFramingError($"TrailerCodeword truncated: {plaintextTrailer.Length} bytes.");
         }
@@ -42,9 +37,9 @@ internal static class RbfWireCodec {
         if (parsed.IsFailure) { return parsed.Error!; }
 
         var raw = parsed.Value;
-        var length = DecodeFrameLength(profile, raw.TailLen);
+        var length = DecodeFrameLength(raw.TailLen);
         if (length.IsFailure) { return length.Error!; }
-        var payloadLength = TrailerCodewordHelper.ComputePayloadLength(profile, (uint)length.Value, raw.TailMetaLen, raw.PaddingLen);
+        var payloadLength = TrailerCodewordHelper.ComputePayloadLength((uint)length.Value, raw.TailMetaLen, raw.PaddingLen);
         if (payloadLength.IsFailure) { return payloadLength.Error!; }
 
         return new TrailerCodewordData {
@@ -60,7 +55,7 @@ internal static class RbfWireCodec {
         if (encodedTrailer.Length < TrailerCodewordHelper.Size) {
             return new RbfFramingError($"Encoded TrailerCodeword truncated: {encodedTrailer.Length} bytes.");
         }
-        uint fence = RbfLayout.GetFenceWord(RbfProfile.Rbf3);
+        uint fence = RbfLayout.FenceWord;
         if (key == fence) { return new RbfFramingError("RBF3 TailKey equals Fence."); }
 
         encodedTrailer = encodedTrailer[..TrailerCodewordHelper.Size];
@@ -73,6 +68,6 @@ internal static class RbfWireCodec {
         // Body and Trailer begin on a 4-byte boundary, so every Trailer byte uses phase 0.
         Span<byte> plaintext = stackalloc byte[TrailerCodewordHelper.Size];
         XorEscape.Copy(encodedTrailer, plaintext, key);
-        return ParseTrailer(RbfProfile.Rbf3, plaintext);
+        return ParseTrailer(plaintext);
     }
 }

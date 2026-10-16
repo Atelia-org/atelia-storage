@@ -42,7 +42,7 @@ public ref struct RbfReverseEnumerator {
     /// <returns>成功移动返回 <c>true</c>，到达文件头或遇到错误返回 <c>false</c>。</returns>
     public bool MoveNext() {
         _reader.EnsureUsable();
-        long minimum = RbfLayout.HeaderOnlyLength + RbfLayout.GetMinFrameLength(_reader.Profile) + RbfLayout.FenceSize;
+        long minimum = RbfLayout.HeaderOnlyLength + FrameLayout.MinFrameLength + RbfLayout.FenceSize;
         while (_dataTail >= minimum) {
             var result = RbfReadImpl.ReadTrailerBefore(_reader, _dataTail);
 

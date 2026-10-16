@@ -13,13 +13,13 @@ internal static class RbfInitialFramePrefix {
 
     internal static bool IsMatch(ReadOnlySpan<byte> prefix, uint tag, ReadOnlySpan<byte> payload) {
         if (payload.Length > MaxPayloadLength) { throw new ArgumentOutOfRangeException(nameof(payload)); }
-        FrameLayout layout = FrameLayout.TryCreate(RbfProfile.Rbf3, payload.Length, 0).Unwrap();
+        FrameLayout layout = FrameLayout.TryCreate(payload.Length, 0).Unwrap();
         int totalLength = RbfLayout.HeaderOnlyLength + layout.FrameLength + RbfLayout.FenceSize;
         if (prefix.Length > totalLength) { return false; }
 
         Span<byte> image = stackalloc byte[MaxImageLength];
         image = image[..totalLength];
-        RbfLayout.GetFence(RbfProfile.Rbf3).CopyTo(image);
+        RbfLayout.Fence.CopyTo(image);
         BinaryPrimitives.WriteUInt32LittleEndian(image[RbfLayout.FirstFrameOffset..], layout.WireFrameLength);
         const int bodyStart = RbfLayout.FirstFrameOffset + FrameLayout.HeadLenSize;
         int fixedLength = Math.Min(bodyStart, prefix.Length);
@@ -40,7 +40,7 @@ internal static class RbfInitialFramePrefix {
 
         uint key = BinaryPrimitives.ReadUInt32LittleEndian(prefix[bodyStart..])
             ^ BinaryPrimitives.ReadUInt32LittleEndian(body);
-        uint fence = RbfLayout.GetFenceWord(RbfProfile.Rbf3);
+        uint fence = RbfLayout.FenceWord;
         if (key == fence) { return false; }
         XorEscape.InPlace(body, key);
         // Check the complete expected body: even an unobserved aligned Fence makes this Key illegal.
@@ -50,7 +50,7 @@ internal static class RbfInitialFramePrefix {
 
         int keyStart = bodyStart + body.Length;
         BinaryPrimitives.WriteUInt32LittleEndian(image[keyStart..], key);
-        RbfLayout.GetFence(RbfProfile.Rbf3).CopyTo(image[(keyStart + RbfLayout.TailKeySize)..]);
+        RbfLayout.Fence.CopyTo(image[(keyStart + RbfLayout.TailKeySize)..]);
         return prefix.SequenceEqual(image[..prefix.Length]);
     }
 }

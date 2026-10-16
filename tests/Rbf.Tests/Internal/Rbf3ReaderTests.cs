@@ -75,7 +75,7 @@ public sealed class Rbf3ReaderTests : IDisposable {
         byte[] wire = BuildFrame(payload, meta, 0xE1020304u);
         WriteImage(wire);
         using var handle = File.OpenHandle(_path, FileMode.Open, FileAccess.Read);
-        using var reader = new RandomAccessReader(handle, profile: RbfProfile.Rbf3);
+        using var reader = new RandomAccessReader(handle);
         var info = RbfReadImpl.ReadFrameInfo(reader, SizedPtr.Create(4, wire.Length)).Unwrap();
         var rents = new List<int>();
         var reads = new List<int>();
@@ -104,7 +104,7 @@ public sealed class Rbf3ReaderTests : IDisposable {
         BinaryPrimitives.WriteUInt32LittleEndian(wire, 0x40000007u);
         byte[] image = WriteImage(wire);
         using var handle = File.OpenHandle(_path, FileMode.Open, FileAccess.Read);
-        using var reader = new RandomAccessReader(handle, profile: RbfProfile.Rbf3);
+        using var reader = new RandomAccessReader(handle);
         var reads = new List<(long Offset, int Length)>();
         reader.ReadObserver = (offset, length, raw) => { if (!raw) { reads.Add((offset, length)); } };
         var info = RbfReadImpl.ReadTrailerBefore(reader, image.Length).Unwrap();
@@ -125,7 +125,7 @@ public sealed class Rbf3ReaderTests : IDisposable {
         BinaryPrimitives.WriteUInt32LittleEndian(wire, units);
         byte[] image = WriteImage(wire);
         using var handle = File.OpenHandle(_path, FileMode.Open, FileAccess.Read);
-        using var reader = new RandomAccessReader(handle, profile: RbfProfile.Rbf3);
+        using var reader = new RandomAccessReader(handle);
         var reads = new List<int>();
         reader.ReadObserver = (_, length, raw) => { if (!raw) { reads.Add(length); } };
         Assert.True(RbfReadImpl.ReadFrameInfoAt(reader, 4, image.Length).IsFailure);
@@ -146,7 +146,7 @@ public sealed class Rbf3ReaderTests : IDisposable {
         ScalarXor(wire.AsSpan(4, wire.Length - 8), key);
         byte[] image = WriteImage(wire);
         using var handle = File.OpenHandle(_path, FileMode.Open, FileAccess.Read);
-        using var reader = new RandomAccessReader(handle, profile: RbfProfile.Rbf3);
+        using var reader = new RandomAccessReader(handle);
         Assert.True(RbfReadImpl.ReadFrameInfo(reader, SizedPtr.Create(4, wire.Length)).IsFailure);
         Assert.True(RbfReadImpl.ReadTrailerBefore(reader, image.Length).IsFailure);
         Assert.True(RbfReadImpl.ReadFrame(reader, SizedPtr.Create(4, wire.Length), new byte[wire.Length]).IsFailure);
@@ -159,7 +159,7 @@ public sealed class Rbf3ReaderTests : IDisposable {
         byte[] wire = BuildFrame(Bytes(5), Bytes(3), uint.MaxValue);
         WriteImage(wire);
         using var handle = File.OpenHandle(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-        using var reader = new ReverseReadCache(handle, profile: RbfProfile.Rbf3);
+        using var reader = new ReverseReadCache(handle);
         SizedPtr ticket = SizedPtr.Create(4, wire.Length);
         var info = RbfReadImpl.ReadFrameInfo(reader, ticket).Unwrap();
         int damaged = damageTrailer ? wire.Length - 20 : 4;
@@ -184,14 +184,14 @@ public sealed class Rbf3ReaderTests : IDisposable {
         BinaryPrimitives.WriteUInt32LittleEndian(wire.AsSpan(wire.Length - 4), Fence);
         WriteImage(wire);
         using (var handle = File.OpenHandle(_path, FileMode.Open, FileAccess.Read))
-        using (var reader = new RandomAccessReader(handle, profile: RbfProfile.Rbf3)) {
+        using (var reader = new RandomAccessReader(handle)) {
             Assert.True(RbfReadImpl.ReadFrameInfo(reader, SizedPtr.Create(4, wire.Length)).IsFailure);
         }
         wire = BuildFrame(Bytes(8), [], 0xE1020304u);
         BinaryPrimitives.WriteUInt32LittleEndian(wire.AsSpan(wire.Length - 20), Fence);
         WriteImage(wire);
         using var secondHandle = File.OpenHandle(_path, FileMode.Open, FileAccess.Read);
-        using var secondReader = new RandomAccessReader(secondHandle, profile: RbfProfile.Rbf3);
+        using var secondReader = new RandomAccessReader(secondHandle);
         var result = RbfReadImpl.ReadFrameInfo(secondReader, SizedPtr.Create(4, wire.Length));
         Assert.IsType<RbfFramingError>(result.Error);
         Assert.Contains("contains Fence", result.Error!.Message);
@@ -203,7 +203,7 @@ public sealed class Rbf3ReaderTests : IDisposable {
         byte[] live = BuildFrame(Bytes(7), Bytes(1), 0xE1020304u);
         byte[] image = WriteImage(tombstone, live);
         using var handle = File.OpenHandle(_path, FileMode.Open, FileAccess.Read);
-        using var reader = new ReverseReadCache(handle, profile: RbfProfile.Rbf3);
+        using var reader = new ReverseReadCache(handle);
         SizedPtr liveTicket = SizedPtr.Create(8 + tombstone.Length, live.Length);
         var forward = new RbfForwardEnumerator(reader, 4, image.Length, false);
         Assert.True(forward.MoveNext());
@@ -228,7 +228,7 @@ public sealed class Rbf3ReaderTests : IDisposable {
         byte[] wire = BuildFrame(payload, meta, uint.MaxValue);
         byte[] image = WriteImage(wire);
         using var handle = File.OpenHandle(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-        using var reader = new RandomAccessReader(handle, profile: RbfProfile.Rbf3);
+        using var reader = new RandomAccessReader(handle);
         SizedPtr ticket = SizedPtr.Create(4, wire.Length);
         var boundary = RbfReadImpl.GetScanBoundaryAfter(reader, ticket, image.Length, image.Length).Unwrap();
         byte[] witness = new byte[12 + payload.Length + meta.Length];
@@ -249,7 +249,7 @@ public sealed class Rbf3ReaderTests : IDisposable {
         byte[] image = WriteImage(wire, wire);
         using var handle = File.OpenHandle(_path, FileMode.Open, FileAccess.Read);
         long eof = 8 + wire.Length;
-        using var reader = new ReverseReadCache(handle, fixedEof: eof, profile: RbfProfile.Rbf3);
+        using var reader = new ReverseReadCache(handle, fixedEof: eof);
         Assert.True(RbfReadImpl.ReadFrameInfo(reader, SizedPtr.Create(4, wire.Length)).IsSuccess);
         int rents = 0;
         reader.BufferRentObserver = _ => rents++;
@@ -273,7 +273,7 @@ public sealed class Rbf3ReaderTests : IDisposable {
     }
 
     private static RandomAccessReader CreateReader(Microsoft.Win32.SafeHandles.SafeFileHandle handle, RbfCacheMode mode) =>
-        mode == RbfCacheMode.Off ? new RandomAccessReader(handle, profile: RbfProfile.Rbf3) : new ReverseReadCache(handle, (int)mode, profile: RbfProfile.Rbf3);
+        mode == RbfCacheMode.Off ? new RandomAccessReader(handle) : new ReverseReadCache(handle, (int)mode);
 
     private static byte[] Bytes(int length) => Enumerable.Range(0, length).Select(i => (byte)((i * 37 + 11) & 255)).ToArray();
 

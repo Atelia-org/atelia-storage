@@ -34,7 +34,7 @@ internal static class RbfAppendImpl {
         RbfEscapeKeySelector? selectKey = null,
         bool isTombstone = false
     ) {
-        var layoutResult = FrameLayout.TryCreate(RbfProfile.Rbf3, payload.Length, tailMeta.Length);
+        var layoutResult = FrameLayout.TryCreate(payload.Length, tailMeta.Length);
         if (layoutResult.IsFailure) { return layoutResult.Error!; }
         var startError = RbfFrameWriteCore.ValidateFrameStartOffset(fileOffset);
         if (startError is not null) { return startError; }
@@ -49,7 +49,7 @@ internal static class RbfAppendImpl {
         crc = RollingCrc.CrcForward(crc, tailMeta);
         crc = RollingCrc.CrcForward(crc, footer[..layout.PaddingLength]) ^ RollingCrc.DefaultFinalXor;
         RbfFrameWriteCore.WritePlaintextTail(footer[layout.PaddingLength..], in layout, tag, isTombstone, crc);
-        uint fence = RbfLayout.GetFenceWord(RbfProfile.Rbf3);
+        uint fence = RbfLayout.FenceWord;
         uint key = selectKey is null ? XorEscape.SelectKey(fence, payload, tailMeta, footer) : selectKey(fence, payload, tailMeta, footer);
 
         int totalLength = layout.FrameLength + RbfLayout.FenceSize;

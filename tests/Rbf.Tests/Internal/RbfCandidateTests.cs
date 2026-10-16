@@ -128,7 +128,7 @@ public sealed class RbfCandidateTests : IDisposable {
     public void FullFrameBytesWithoutItsWholeFence_AreRejected() {
         var (first, _, _) = WriteFrames();
         using var handle = File.OpenHandle(_path, FileMode.Open, FileAccess.Read, FileShare.Read);
-        using var reader = new RandomAccessReader(handle, first.EndOffsetExclusive, profile: RbfProfile.Rbf3);
+        using var reader = new RandomAccessReader(handle, first.EndOffsetExclusive);
         int calls = 0;
         reader.ReadObserver = (_, _, _) => calls++;
         Assert.True(RbfReadImpl.ReadPooledFrame(reader, first).IsFailure);
@@ -162,7 +162,7 @@ public sealed class RbfCandidateTests : IDisposable {
         bytes[checked((int)first.EndOffsetExclusive)] ^= 0xFF;
         File.WriteAllBytes(_path, bytes);
         using var handle = File.OpenHandle(_path, FileMode.Open, FileAccess.Read, FileShare.Read);
-        using var reader = new RandomAccessReader(handle, eof, profile: RbfProfile.Rbf3);
+        using var reader = new RandomAccessReader(handle, eof);
         int rents = 0;
         reader.BufferRentObserver = _ => rents++;
         Assert.True(RbfReadImpl.ReadPooledFrame(reader, first).IsFailure);

@@ -40,7 +40,7 @@ public class RbfPooledFrameTests : IDisposable {
     /// RBF3 布局：[HeadLen][Payload][TailMeta][Padding][PayloadCrc][TrailerCodeword][TailKey]
     /// </remarks>
     private static byte[] CreateValidFrameBytes(uint tag, ReadOnlySpan<byte> payload, bool isTombstone = false) {
-        var layout = new FrameLayout(RbfProfile.Rbf3, payload.Length);
+        var layout = new FrameLayout(payload.Length);
         int frameLen = layout.FrameLength;
 
         byte[] frame = new byte[frameLen];
@@ -285,7 +285,7 @@ public class RbfPooledFrameTests : IDisposable {
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
         using var reader = new RandomAccessReader(handle);
 
-        int frameLen = new FrameLayout(RbfProfile.Rbf3, payload.Length).FrameLength;
+        int frameLen = new FrameLayout(payload.Length).FrameLength;
         var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
 
         // Act

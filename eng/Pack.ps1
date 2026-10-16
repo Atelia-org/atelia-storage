@@ -1,14 +1,9 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][ValidatePattern('^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[a-z0-9]+([.-][a-z0-9]+)*)?$')][string]$Version,
-    [Parameter(Mandatory)][string]$OutputDirectory,
-    [ValidateSet('All')][string]$Project = 'All',
-    [hashtable]$DependencyVersions
+    [Parameter(Mandatory)][string]$OutputDirectory
 )
 $ErrorActionPreference = 'Stop'
-if ($PSBoundParameters.ContainsKey('DependencyVersions')) {
-    throw [ArgumentException]::new('Main delivers only the Primitives/Data/Rbf/Binary/FrameStore/HeadStore package set. Selective delivery and DependencyVersions are maintained on the RBF1 branch.', 'DependencyVersions')
-}
 $repo = Split-Path $PSScriptRoot -Parent
 $feed = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputDirectory)
 $repositoryUrl = 'https://github.com/Atelia-org/atelia-storage'

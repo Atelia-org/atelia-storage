@@ -94,7 +94,7 @@ public class RbfFrameBuilderTests : IDisposable {
             Assert.True(frame.PayloadAndMeta.IsEmpty);
 
             // 新 RBF3 最小帧含尾 EscapeKey，共 28 字节。
-            int expectedMinFrameLength = new FrameLayout(RbfProfile.Rbf3, 0).FrameLength;
+            int expectedMinFrameLength = new FrameLayout(0).FrameLength;
             Assert.Equal(28, expectedMinFrameLength);
             Assert.Equal(expectedMinFrameLength, ptr.Length);
         }
@@ -119,7 +119,7 @@ public class RbfFrameBuilderTests : IDisposable {
         var ptr = result.Value;
         if (sized) { Assert.Equal(earlyTicket, ptr); }
         Assert.Equal(SizedPtr.MaxOffset, ptr.Offset);
-        Assert.Equal(new FrameLayout(RbfProfile.Rbf3, 0).FrameLength, ptr.Length);
+        Assert.Equal(new FrameLayout(0).FrameLength, ptr.Length);
         Assert.Equal(SizedPtr.MaxOffset + ptr.Length + RbfLayout.FenceSize, file.TailOffset);
     }
 

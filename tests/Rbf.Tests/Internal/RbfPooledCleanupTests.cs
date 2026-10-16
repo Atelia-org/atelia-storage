@@ -125,7 +125,7 @@ public sealed class RbfPooledCleanupTests {
     }
 
     private sealed class ControlledReader(Microsoft.Win32.SafeHandles.SafeFileHandle handle)
-        : RandomAccessReader(handle, profile: RbfProfile.Rbf3) {
+        : RandomAccessReader(handle) {
         internal long? ShortReadOffset { get; set; }
 
         protected override int ReadWithCache(long offset, Span<byte> buffer) {

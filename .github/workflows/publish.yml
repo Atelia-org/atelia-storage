@@ -6,13 +6,6 @@ on:
         description: New immutable core package version, for example 0.3.0-rbf3-preview.1
         required: true
         type: string
-      project:
-        description: Publish the Primitives/Data/Rbf/Binary/FrameStore/HeadStore package set
-        required: true
-        type: choice
-        default: All
-        options:
-          - All
 permissions:
   contents: read
   id-token: write
@@ -41,9 +34,7 @@ jobs:
         shell: pwsh
         env:
           STORAGE_VERSION: ${{ inputs.version }}
-          STORAGE_PROJECT: ${{ inputs.project }}
         run: |
-          if ($env:STORAGE_PROJECT -cne 'All') { throw 'Main publishes only the six-package All set.' }
           dotnet build Atelia.Storage.slnx -c Release
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet test Atelia.Storage.slnx -c Release --no-build
@@ -60,10 +51,8 @@ jobs:
         shell: pwsh
         env:
           STORAGE_VERSION: ${{ inputs.version }}
-          STORAGE_PROJECT: ${{ inputs.project }}
           NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
         run: |
-          if ($env:STORAGE_PROJECT -cne 'All') { throw 'Main publishes only the six-package All set.' }
           $manifestName = "manifest.$env:STORAGE_VERSION.json"
           $manifest = Get-Content (Join-Path './artifacts/feed' $manifestName) -Raw | ConvertFrom-Json
           $revision = (& git rev-parse HEAD | Out-String).Trim()
@@ -85,9 +74,8 @@ jobs:
         shell: pwsh
         env:
           STORAGE_VERSION: ${{ inputs.version }}
-          STORAGE_PROJECT: ${{ inputs.project }}
         run: |
-          ./eng/Verify-Published.ps1 -Project $env:STORAGE_PROJECT -Version $env:STORAGE_VERSION -FeedDirectory ./artifacts/feed -WorkDirectory (Join-Path '${{ runner.temp }}' 'storage-public-smoke')
+          ./eng/Verify-Published.ps1 -Version $env:STORAGE_VERSION -FeedDirectory ./artifacts/feed -WorkDirectory (Join-Path '${{ runner.temp }}' 'storage-public-smoke')
       - uses: actions/upload-artifact@v4
         if: always()
         with:

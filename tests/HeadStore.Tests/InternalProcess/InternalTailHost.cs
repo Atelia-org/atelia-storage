@@ -37,7 +37,7 @@ internal static class InternalTailHost {
     internal static byte[] NewPayload() {
         byte[] bytes = Enumerable.Range(0, 64).Select(index => (byte)(0xa0 + index)).ToArray();
         // An aligned plaintext Fence forces the production writer's XOR escape path.
-        RbfLayout.GetFence(RbfProfile.Rbf3).CopyTo(bytes.AsSpan(8));
+        RbfLayout.Fence.CopyTo(bytes.AsSpan(8));
         return bytes;
     }
 

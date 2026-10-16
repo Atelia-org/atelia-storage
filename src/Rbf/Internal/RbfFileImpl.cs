@@ -36,7 +36,6 @@ internal sealed class RbfFileImpl : IRbfFile {
     private long _tailOffset;
     private bool _disposed;
     private readonly bool _readOnly;
-    private readonly RbfProfile _profile;
     private readonly ArrayPool<byte> _appendPool;
     private byte[]? _appendScratch;
     private readonly Action _markWriteFaulted;
@@ -68,20 +67,18 @@ internal sealed class RbfFileImpl : IRbfFile {
     /// <param name="cancellationToken">读取取消信号，包括缓存命中路径。</param>
     /// <param name="readOnly">普通文件只读打开；不建立离线固定 EOF candidate。</param>
     /// <param name="appendPool">非零键大帧输出 scratch 的池；默认共享池。</param>
-    /// <param name="profile">文件格式；仅支持 RBF3。</param>
     /// <param name="builderPool">Builder 缓冲区的池；默认共享池，仅供内部测试注入。</param>
     internal RbfFileImpl(SafeFileHandle handle, long tailOffset, RbfCacheMode cacheMode = RbfCacheMode.Slots16,
         bool readOnlyCandidate = false, Action<int>? beforeRead = null, CancellationToken cancellationToken = default,
-        bool readOnly = false, ArrayPool<byte>? appendPool = null, RbfProfile profile = RbfProfile.Rbf3,
+        bool readOnly = false, ArrayPool<byte>? appendPool = null,
         ArrayPool<byte>? builderPool = null) {
         _handle = handle ?? throw new ArgumentNullException(nameof(handle));
         _readOnly = readOnly || readOnlyCandidate;
-        _profile = profile;
         _appendPool = appendPool ?? ArrayPool<byte>.Shared;
         long? fixedEof = readOnlyCandidate ? tailOffset : null;
         _reader = cacheMode == RbfCacheMode.Off
-            ? new RandomAccessReader(handle, fixedEof, beforeRead, cancellationToken, profile)
-            : new ReverseReadCache(handle, (int)cacheMode, fixedEof, beforeRead, cancellationToken, profile);
+            ? new RandomAccessReader(handle, fixedEof, beforeRead, cancellationToken)
+            : new ReverseReadCache(handle, (int)cacheMode, fixedEof, beforeRead, cancellationToken);
         _markWriteFaulted = _reader.MarkWriteFaulted;
         _tailOffset = tailOffset;
 
@@ -164,7 +161,7 @@ internal sealed class RbfFileImpl : IRbfFile {
 
         FrameLayout? declaredLayout = null;
         if (payloadLength.HasValue) {
-            var layoutResult = FrameLayout.TryCreate(_profile, payloadLength.Value, tailMetaLength);
+            var layoutResult = FrameLayout.TryCreate(payloadLength.Value, tailMetaLength);
             if (layoutResult.IsFailure) {
                 string parameterName = payloadLength.Value < 0
                     ? nameof(payloadLength)
@@ -310,7 +307,7 @@ internal sealed class RbfFileImpl : IRbfFile {
         }
 
         // 3a. 资源上限校验 (Decision 7.F) - 方案 D：返回 Failure
-        int maxPayloadAndMetaLength = RbfLayout.GetMaxPayloadAndMetaLength(_profile);
+        int maxPayloadAndMetaLength = FrameLayout.MaxPayloadAndMetaLength;
         if (payloadAndMetaLength > maxPayloadAndMetaLength) {
             return new RbfArgumentError(
                 $"Payload + TailMeta length ({payloadAndMetaLength}) exceeds maximum ({maxPayloadAndMetaLength}).",
@@ -332,7 +329,7 @@ internal sealed class RbfFileImpl : IRbfFile {
 
         // 4. 计算 FrameLayout
         int payloadLength = (int)payloadAndMetaLength - effectiveTailMetaLength;
-        var layoutResult = FrameLayout.TryCreate(_profile, payloadLength, effectiveTailMetaLength);
+        var layoutResult = FrameLayout.TryCreate(payloadLength, effectiveTailMetaLength);
         if (layoutResult.IsFailure) { return layoutResult.Error!; }
         var layout = layoutResult.Value;
 
@@ -364,10 +361,10 @@ internal sealed class RbfFileImpl : IRbfFile {
             RbfFrameWriteCore.WritePlaintextTail(tailSpan, in layout, tag, isTombstone: false, payloadCrc);
             _builderWriter.Advance(RbfFrameWriteCore.PlaintextTailSize);
             beforeEscape?.Invoke(); // Internal per-call selection-stage failure seam; no production callback.
-            uint key = _builderWriter.XorEscapeSinceReservationEnd(_builderHeadLenReservationToken, RbfLayout.GetFenceWord(_profile));
+            uint key = _builderWriter.XorEscapeSinceReservationEnd(_builderHeadLenReservationToken, RbfLayout.FenceWord);
             var closure = _builderWriter.GetSpan(2 * sizeof(uint));
             BinaryPrimitives.WriteUInt32LittleEndian(closure, key);
-            BinaryPrimitives.WriteUInt32LittleEndian(closure[sizeof(uint)..], RbfLayout.GetFenceWord(_profile));
+            BinaryPrimitives.WriteUInt32LittleEndian(closure[sizeof(uint)..], RbfLayout.FenceWord);
             _builderWriter.Advance(2 * sizeof(uint));
             BinaryPrimitives.WriteUInt32LittleEndian(headLenSpan, layout.WireFrameLength);
         }

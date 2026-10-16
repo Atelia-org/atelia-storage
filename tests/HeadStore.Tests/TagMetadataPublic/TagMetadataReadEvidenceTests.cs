@@ -3,12 +3,77 @@ using System.Reflection;
 using Atelia.Data;
 using Atelia.HeadStore.Tests.TagFaults;
 using Atelia.HeadStore.Tests.TagPublicationFaults;
+using Atelia.HeadStore.Tests.Tags;
 using Xunit;
 
 namespace Atelia.HeadStore.Tests.TagMetadataPublic;
 
 /// <summary>生产目录 backend 和真实 RBF 读取日志的窄接线证据；公开工厂闭环另由 Public 测试验证。</summary>
 public sealed class TagMetadataReadEvidenceTests {
+    [Theory]
+    [InlineData(2)]
+    [InlineData(4096)]
+    public void ReadTagRejectsTrustedCountLengthMismatchBeforeRentingOrReadingTheCompleteFrame(int actualCount) {
+        using var fixture = new TagPublicationFaultFixture(readOnly: true);
+        // Both the RBF frame and every independently assembled member are legal. Only
+        // the trusted count disagrees, so a generic 12-byte alignment guard cannot reject it.
+        byte[] members = TagTestWire.MemberSequence(actualCount);
+        var record = new TagFaultRecord(members, TagFaultFixture.Metadata(entryCount: 1));
+        SizedPtr ticket = Assert.Single(fixture.SeedBucket(record).Tickets);
+        int completeFrameRents = 0;
+        fixture.Tags.ConfigureOpen = file => file.BeforeRent = length => {
+            if (length == ticket.Length) { completeFrameRents++; }
+        };
+
+        Assert.Equal(1, fixture.Store.ReadTagInfo(TagPublicationFaultFixture.Name).Unwrap().EntryCount);
+        Assert.Equal(HeadSetTagScanEnd.Complete, fixture.Store.ScanTags(info => {
+            Assert.Equal(TagPublicationFaultFixture.Name, info.Name);
+            Assert.Equal(1, info.EntryCount);
+            return true;
+        }).Unwrap());
+
+        var result = fixture.Store.ReadTag(TagPublicationFaultFixture.Name);
+
+        Assert.Equal("HeadStore.InvalidTagEntries", result.Error!.ErrorCode);
+        Assert.Equal(0, completeFrameRents);
+        Assert.All(fixture.Tags.Opened, file => {
+            Assert.Equal(1, file.DisposeCalls);
+            Assert.DoesNotContain(ticket.Length, file.Rents);
+            Assert.DoesNotContain(file.Reads, read => read.Offset == ticket.Offset && read.Length == ticket.Length);
+        });
+        fixture.Store.EnsureUsable();
+    }
+
+    [Fact]
+    public void MatchingTrustedCountStillRequiresACompleteReadAndRejectsBadPayloadCrc() {
+        using var fixture = new TagPublicationFaultFixture(readOnly: true);
+        const int count = 4096;
+        byte[] members = TagTestWire.MemberSequence(count);
+        var record = new TagFaultRecord(members, TagFaultFixture.Metadata(entryCount: count));
+        SizedPtr ticket = Assert.Single(fixture.SeedBucket(record).Tickets);
+        fixture.CorruptRoot(ticket); // Preserve framing and independent metadata, corrupt the table's RBF CRC.
+        int completeFrameRents = 0;
+        fixture.Tags.ConfigureOpen = file => file.BeforeRent = length => {
+            if (length == ticket.Length) { completeFrameRents++; }
+        };
+
+        Assert.Equal(count, fixture.Store.ReadTagInfo(TagPublicationFaultFixture.Name).Unwrap().EntryCount);
+        Assert.Equal(HeadSetTagScanEnd.Complete, fixture.Store.ScanTags(info => {
+            Assert.Equal(count, info.EntryCount);
+            return true;
+        }).Unwrap());
+        Assert.Equal(0, completeFrameRents);
+
+        var result = fixture.Store.ReadTag(TagPublicationFaultFixture.Name);
+
+        Assert.Equal("Rbf.CrcMismatch", result.Error!.ErrorCode);
+        Assert.Equal(1, completeFrameRents);
+        TagPublicationFile completeReader = fixture.Tags.Opened[^1];
+        Assert.Contains(completeReader.Reads, read => read.Offset == ticket.Offset && read.Length == ticket.Length);
+        Assert.All(fixture.Tags.Opened, file => Assert.Equal(1, file.DisposeCalls));
+        fixture.Store.EnsureUsable();
+    }
+
     [Theory]
     [InlineData(false, 0)]
     [InlineData(false, 1048577)]

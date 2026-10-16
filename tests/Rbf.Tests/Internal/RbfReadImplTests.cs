@@ -56,7 +56,7 @@ public class RbfReadImplTests : IDisposable {
     /// RBF3 布局：[HeadLen][Payload][TailMeta][Padding][PayloadCrc][TrailerCodeword][TailKey]
     /// </remarks>
     private static byte[] CreateValidFrameBytes(uint tag, ReadOnlySpan<byte> payload, bool isTombstone = false) {
-        var layout = new FrameLayout(RbfProfile.Rbf3, payload.Length);
+        var layout = new FrameLayout(payload.Length);
         int frameLen = layout.FrameLength;
 
         byte[] frame = new byte[frameLen];
@@ -117,7 +117,7 @@ public class RbfReadImplTests : IDisposable {
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
         using var reader = new RandomAccessReader(handle);
 
-        int frameLen = new FrameLayout(RbfProfile.Rbf3, payload.Length).FrameLength;
+        int frameLen = new FrameLayout(payload.Length).FrameLength;
         var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
 
         // Act
@@ -203,7 +203,7 @@ public class RbfReadImplTests : IDisposable {
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
         using var reader = new RandomAccessReader(handle);
 
-        int frameLen = new FrameLayout(RbfProfile.Rbf3, payload.Length).FrameLength;
+        int frameLen = new FrameLayout(payload.Length).FrameLength;
         var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
 
         // Act
@@ -225,7 +225,7 @@ public class RbfReadImplTests : IDisposable {
 
         // 修改 TrailerCodeword 中的 TailLen 字段为错误值
         int frameOffset = RbfLayout.FenceSize;
-        var layout = new FrameLayout(RbfProfile.Rbf3, payload.Length);
+        var layout = new FrameLayout(payload.Length);
         int frameLen = layout.FrameLength;
         // TrailerCodeword 内 TailLen 偏移 = TrailerCodewordOffset + 12
         int tailLenOffset = frameOffset + layout.TrailerCodewordOffset + 12;
@@ -258,7 +258,7 @@ public class RbfReadImplTests : IDisposable {
 
         // 修改 FrameDescriptor 的保留位（bit 28-16）
         int frameOffset = RbfLayout.FenceSize;
-        var layout = new FrameLayout(RbfProfile.Rbf3, payload.Length);
+        var layout = new FrameLayout(payload.Length);
         int frameLen = layout.FrameLength;
         // FrameDescriptor 偏移 = TrailerCodewordOffset + 4
         int descriptorOffset = frameOffset + layout.TrailerCodewordOffset + 4;
@@ -300,7 +300,7 @@ public class RbfReadImplTests : IDisposable {
 
         // 修改 PayloadCrc 字段为错误值
         int frameOffset = RbfLayout.FenceSize;
-        var layout = new FrameLayout(RbfProfile.Rbf3, payload.Length);
+        var layout = new FrameLayout(payload.Length);
         int frameLen = layout.FrameLength;
         int payloadCrcOffset = frameOffset + layout.PayloadCrcOffset;
         BinaryPrimitives.WriteUInt32LittleEndian(
@@ -332,7 +332,7 @@ public class RbfReadImplTests : IDisposable {
 
         // 修改 TrailerCrc 字段为错误值（TrailerCodeword 的前 4 字节，BE）
         int frameOffset = RbfLayout.FenceSize;
-        var layout = new FrameLayout(RbfProfile.Rbf3, payload.Length);
+        var layout = new FrameLayout(payload.Length);
         int frameLen = layout.FrameLength;
         int trailerCrcOffset = frameOffset + layout.TrailerCodewordOffset;
         BinaryPrimitives.WriteUInt32BigEndian(
@@ -379,7 +379,7 @@ public class RbfReadImplTests : IDisposable {
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
         using var reader = new RandomAccessReader(handle);
 
-        int frameLen = new FrameLayout(RbfProfile.Rbf3, payload.Length).FrameLength;
+        int frameLen = new FrameLayout(payload.Length).FrameLength;
         var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
 
         // Act
@@ -408,7 +408,7 @@ public class RbfReadImplTests : IDisposable {
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
         using var reader = new RandomAccessReader(handle);
 
-        int frameLen = new FrameLayout(RbfProfile.Rbf3, payload.Length).FrameLength;
+        int frameLen = new FrameLayout(payload.Length).FrameLength;
         var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
 
         // Act: 提供太小的 buffer（只有 10 字节，但需要 frameLen 字节）
@@ -437,7 +437,7 @@ public class RbfReadImplTests : IDisposable {
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
         using var reader = new RandomAccessReader(handle);
 
-        int frameLen = new FrameLayout(RbfProfile.Rbf3, payload.Length).FrameLength;
+        int frameLen = new FrameLayout(payload.Length).FrameLength;
         var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
 
         // Act: 提供足够大的 buffer

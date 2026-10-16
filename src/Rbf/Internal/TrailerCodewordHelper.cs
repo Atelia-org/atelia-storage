@@ -164,12 +164,8 @@ internal static class TrailerCodewordHelper {
         return trailer;
     }
 
-    internal static AteliaResult<int> ComputePayloadLength(uint tailLen, int tailMetaLen, int paddingLen) {
-        return ComputePayloadLength(RbfProfile.Rbf3, tailLen, tailMetaLen, paddingLen);
-    }
-
     /// <summary>tailLen 已在 codec 边界归一为 bytes。</summary>
-    internal static AteliaResult<int> ComputePayloadLength(RbfProfile profile, uint tailLen, int tailMetaLen, int paddingLen) {
+    internal static AteliaResult<int> ComputePayloadLength(uint tailLen, int tailMetaLen, int paddingLen) {
         if (tailLen > int.MaxValue) {
             return new RbfFramingError(
                 $"TailLen is too large for int: {tailLen}.",
@@ -177,7 +173,7 @@ internal static class TrailerCodewordHelper {
             );
         }
 
-        int payloadLength = (int)tailLen - RbfLayout.GetFixedOverhead(profile) - tailMetaLen - paddingLen;
+        int payloadLength = (int)tailLen - FrameLayout.FixedOverhead - tailMetaLen - paddingLen;
         if (payloadLength < 0) {
             return new RbfFramingError(
                 $"Computed PayloadLength is negative: {payloadLength} (TailLen={tailLen}, TailMetaLen={tailMetaLen}, PaddingLen={paddingLen}).",

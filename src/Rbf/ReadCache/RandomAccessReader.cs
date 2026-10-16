@@ -23,13 +23,12 @@ internal class RandomAccessReader : IDisposable {
     private readonly Action<int>? _beforeRead;
     private readonly CancellationToken _cancellationToken;
 
-    internal RandomAccessReader(SafeFileHandle file, long? fixedEof = null, Action<int>? beforeRead = null, CancellationToken cancellationToken = default, RbfProfile profile = RbfProfile.Rbf3) {
+    internal RandomAccessReader(SafeFileHandle file, long? fixedEof = null, Action<int>? beforeRead = null, CancellationToken cancellationToken = default) {
         _file = file ?? throw new ArgumentNullException(nameof(file));
         if (fixedEof < 0) { throw new ArgumentOutOfRangeException(nameof(fixedEof)); }
         _fixedEof = fixedEof;
         _beforeRead = beforeRead;
         _cancellationToken = cancellationToken;
-        Profile = profile;
         _logger = new ReadLogger();
     }
 
@@ -38,12 +37,12 @@ internal class RandomAccessReader : IDisposable {
         EnsureUsable();
         if (_fixedEof is not long eof) { return null; }
         _cancellationToken.ThrowIfCancellationRequested();
-        if (ticket.Offset < RbfLayout.FirstFrameOffset || ticket.Length < RbfLayout.GetMinFrameLength(Profile) ||
+        if (ticket.Offset < RbfLayout.FirstFrameOffset || ticket.Length < FrameLayout.MinFrameLength ||
             ticket.Offset > eof || (long)ticket.Length + RbfLayout.FenceSize > eof - ticket.Offset) {
             return new RbfArgumentError("Ticket and its complete Fence must lie within the fixed candidate EOF.");
         }
         Span<byte> fence = stackalloc byte[RbfLayout.FenceSize];
-        ReadOnlySpan<byte> expectedFence = RbfLayout.GetFence(Profile);
+        ReadOnlySpan<byte> expectedFence = RbfLayout.Fence;
         if (Read(fence, ticket.EndOffsetExclusive) != fence.Length || !fence.SequenceEqual(expectedFence)) {
             return new RbfFramingError("Candidate ticket Fence is missing or corrupted.");
         }
@@ -60,7 +59,6 @@ internal class RandomAccessReader : IDisposable {
     internal Action<int>? BufferRentObserver { get; set; }
 
     public SafeFileHandle File => _file;
-    internal RbfProfile Profile { get; }
     public bool IsDisposed => _disposed;
 
     public void SetupLogger(ReadLogger.Params loggerParams) {

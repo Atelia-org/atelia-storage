@@ -652,7 +652,7 @@ public class ReadTrailerBeforeTests : IDisposable {
 
         // 使用 RBF3 底层 reader 验证公开 writer 的输出。
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
-        using var reader = new RandomAccessReader(handle, profile: RbfProfile.Rbf3);
+        using var reader = new RandomAccessReader(handle);
         var result = RbfReadImpl.ReadTrailerBefore(reader, fileLength);
 
         // Assert

@@ -9,9 +9,7 @@ internal static class RbfTailRecovery {
     private const int ClosingBlockSize = TrailerCodewordHelper.Size + sizeof(uint) + RbfLayout.FenceSize;
     private const int FenceSearchChunkSize = 64 * 1024;
 
-    internal static RbfTailRecoveryReport Open(SafeFileHandle handle, bool writable) => Open(handle, writable, out _);
-
-    internal static RbfTailRecoveryReport Open(SafeFileHandle handle, bool writable, out RbfProfile profile) {
+    internal static RbfTailRecoveryReport Open(SafeFileHandle handle, bool writable) {
         long originalLength = RandomAccess.GetLength(handle);
         if (originalLength < RbfLayout.HeaderOnlyLength) { throw Invalid(0, "Incomplete HeaderFence."); }
         Span<byte> header = stackalloc byte[RbfLayout.FenceSize];
@@ -19,21 +17,20 @@ internal static class RbfTailRecovery {
         metrics?.HeaderRequested(header.Length);
         ReadExactly(handle, header, 0, measure: false);
         metrics?.HeaderReturned(header.Length);
-        if (!header.SequenceEqual(RbfLayout.GetFence(RbfProfile.Rbf3))) {
-            // RBF2 was an experimental byte-length format, never the production units profile.
+        if (!header.SequenceEqual(RbfLayout.Fence)) {
+            // Only the production RBF3 HeaderFence is admitted; retired and unknown headers are rejected.
             throw Invalid(0, "Unsupported HeaderFence.");
         }
-        profile = RbfProfile.Rbf3;
         return OpenNew(handle, originalLength, writable);
     }
 
     private static RbfTailRecoveryReport OpenNew(SafeFileHandle handle, long originalLength, bool writable) {
         if (originalLength == RbfLayout.HeaderOnlyLength) { return None(originalLength); }
-        long minClosedLength = RbfLayout.HeaderOnlyLength + RbfLayout.GetMinFrameLength(RbfProfile.Rbf3) + RbfLayout.FenceSize;
+        long minClosedLength = RbfLayout.HeaderOnlyLength + FrameLayout.MinFrameLength + RbfLayout.FenceSize;
         if ((originalLength & RbfLayout.AlignmentMask) == 0 && originalLength >= minClosedLength) {
             Span<byte> closing = stackalloc byte[ClosingBlockSize];
             ReadExactly(handle, closing, originalLength - closing.Length);
-            if (closing[^RbfLayout.FenceSize..].SequenceEqual(RbfLayout.GetFence(RbfProfile.Rbf3))) {
+            if (closing[^RbfLayout.FenceSize..].SequenceEqual(RbfLayout.Fence)) {
                 // A complete EOF Fence is the first candidate. Its bad structure must not fall back.
                 ValidateClosedFrame(handle, originalLength, closing);
                 return None(originalLength);
@@ -56,7 +53,7 @@ internal static class RbfTailRecovery {
         Span<byte> head = stackalloc byte[sizeof(uint)];
         ReadExactly(handle, head, start);
         uint units = BinaryPrimitives.ReadUInt32LittleEndian(head);
-        var decodedLength = RbfWireCodec.DecodeFrameLength(RbfProfile.Rbf3, units);
+        var decodedLength = RbfWireCodec.DecodeFrameLength(units);
         if (decodedLength.IsFailure) { throw Invalid(start, decodedLength.Error!.ToString()); }
         int frameLength = decodedLength.Value;
         if (present < frameLength - sizeof(uint)) {
@@ -76,7 +73,7 @@ internal static class RbfTailRecovery {
 
         Span<byte> expected = stackalloc byte[sizeof(uint) + RbfLayout.FenceSize];
         BinaryPrimitives.WriteUInt32LittleEndian(expected, key);
-        RbfLayout.GetFence(RbfProfile.Rbf3).CopyTo(expected[sizeof(uint)..]);
+        RbfLayout.Fence.CopyTo(expected[sizeof(uint)..]);
         int existing = checked((int)(present - (frameLength - sizeof(uint))));
         if (existing != 0) {
             Span<byte> actual = stackalloc byte[sizeof(uint) + RbfLayout.FenceSize];
@@ -106,7 +103,7 @@ internal static class RbfTailRecovery {
     }
 
     private static void ReadClosedFrame(SafeFileHandle handle, long fenceEnd) {
-        if (fenceEnd < RbfLayout.HeaderOnlyLength + RbfLayout.GetMinFrameLength(RbfProfile.Rbf3) + RbfLayout.FenceSize ||
+        if (fenceEnd < RbfLayout.HeaderOnlyLength + FrameLayout.MinFrameLength + RbfLayout.FenceSize ||
             (fenceEnd & RbfLayout.AlignmentMask) != 0) {
             throw Invalid(fenceEnd, "Fence has no complete predecessor frame.");
         }
@@ -116,7 +113,7 @@ internal static class RbfTailRecovery {
     }
 
     private static void ValidateClosedFrame(SafeFileHandle handle, long fenceEnd, ReadOnlySpan<byte> closing) {
-        if (!closing[^RbfLayout.FenceSize..].SequenceEqual(RbfLayout.GetFence(RbfProfile.Rbf3))) {
+        if (!closing[^RbfLayout.FenceSize..].SequenceEqual(RbfLayout.Fence)) {
             throw Invalid(fenceEnd - RbfLayout.FenceSize, "Trailing Fence mismatch.");
         }
         uint key = BinaryPrimitives.ReadUInt32LittleEndian(closing.Slice(TrailerCodewordHelper.Size, sizeof(uint)));
@@ -127,10 +124,10 @@ internal static class RbfTailRecovery {
         RequireFrameStart(start);
         Span<byte> left = stackalloc byte[RbfLayout.FenceSize + sizeof(uint)];
         ReadExactly(handle, left, start - RbfLayout.FenceSize);
-        if (!left[..RbfLayout.FenceSize].SequenceEqual(RbfLayout.GetFence(RbfProfile.Rbf3))) {
+        if (!left[..RbfLayout.FenceSize].SequenceEqual(RbfLayout.Fence)) {
             throw Invalid(start - RbfLayout.FenceSize, "Left Fence mismatch.");
         }
-        var headLength = RbfWireCodec.DecodeFrameLength(RbfProfile.Rbf3, BinaryPrimitives.ReadUInt32LittleEndian(left[RbfLayout.FenceSize..]));
+        var headLength = RbfWireCodec.DecodeFrameLength(BinaryPrimitives.ReadUInt32LittleEndian(left[RbfLayout.FenceSize..]));
         if (headLength.IsFailure || headLength.Value != frameLength) { throw Invalid(start, "HeadLenUnits/TailLenUnits mismatch."); }
         ValidatePadding(handle, start, frameLength, key, parsed.Value.PaddingLen);
     }
@@ -159,7 +156,7 @@ internal static class RbfTailRecovery {
         lower = (lower + RbfLayout.AlignmentMask) & ~(long)RbfLayout.AlignmentMask;
         long end = eof & ~(long)RbfLayout.AlignmentMask;
         byte[] chunk = new byte[FenceSearchChunkSize];
-        uint fence = RbfLayout.GetFenceWord(RbfProfile.Rbf3);
+        uint fence = RbfLayout.FenceWord;
         while (end > lower) {
             int count = (int)Math.Min(chunk.Length, end - lower);
             long offset = end - count;

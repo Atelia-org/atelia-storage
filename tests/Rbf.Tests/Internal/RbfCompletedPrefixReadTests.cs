@@ -20,7 +20,7 @@ public sealed class RbfCompletedPrefixReadTests : IDisposable {
     public void ActiveBuilder_AllRandomReadRoutesReadHistoricalFrames_ThenContinueBuilding(bool sized, RbfCacheMode cacheMode) {
         using var file = RbfFile.CreateNew(_path, cacheMode);
         // An aligned Fence word forces actual XOR decoding instead of only exercising key zero.
-        byte[] payload = RbfLayout.GetFence(RbfProfile.Rbf3).ToArray()
+        byte[] payload = RbfLayout.Fence.ToArray()
             .Concat(Enumerable.Range(0, 23).Select(i => (byte)i)).ToArray();
         byte[] meta = new byte[] { 31, 32, 33 };
         var historical = file.Append(7, payload, meta).Unwrap();

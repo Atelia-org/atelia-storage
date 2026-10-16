@@ -164,7 +164,7 @@ public sealed class RbfReverseBoundaryTests : IDisposable {
         SizedPtr anchor = tickets[^1];
         RbfScanBoundary boundary;
         using (var file = RbfFile.OpenReadOnlyExisting(_path)) { boundary = file.GetScanBoundaryAfter(anchor).Unwrap(); }
-        var layout = new FrameLayout(RbfProfile.Rbf3, 4);
+        var layout = new FrameLayout(4);
         byte[] bytes = File.ReadAllBytes(_path);
         long offset = corruption switch {
             0 => anchor.Offset,
@@ -201,7 +201,7 @@ public sealed class RbfReverseBoundaryTests : IDisposable {
         RbfScanBoundary boundary;
         using (var file = RbfFile.OpenReadOnlyExisting(_path)) { boundary = file.GetScanBoundaryAfter(anchor).Unwrap(); }
         byte[] bytes = File.ReadAllBytes(_path);
-        var layout = new FrameLayout(RbfProfile.Rbf3, 4);
+        var layout = new FrameLayout(4);
         var trailer = bytes.AsSpan((int)anchor.Offset + layout.TrailerCodewordOffset, 16);
         uint key = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan((int)anchor.EndOffsetExclusive - 4));
         for (int i = 0; i < trailer.Length; i++) { trailer[i] ^= (byte)(key >> ((i & 3) * 8)); }
@@ -225,7 +225,7 @@ public sealed class RbfReverseBoundaryTests : IDisposable {
         RbfScanBoundary boundary;
         using (var file = RbfFile.OpenReadOnlyExisting(_path)) { boundary = file.GetScanBoundaryAfter(tickets[1]).Unwrap(); }
         byte[] bytes = File.ReadAllBytes(_path);
-        var layout = new FrameLayout(RbfProfile.Rbf3, 4);
+        var layout = new FrameLayout(4);
         bytes[tickets[0].Offset + (framingDamage ? layout.TrailerCodewordOffset : FrameLayout.PayloadOffset)] ^= 1;
         File.WriteAllBytes(_path, bytes);
         using (var file = RawRbfTestFile.OpenExisting(_path)) {
@@ -445,7 +445,7 @@ public sealed class RbfReverseBoundaryTests : IDisposable {
     }
 
     private static byte[] BuildFrame(uint tag, byte[] payload, byte[] meta, bool tombstone) {
-        var layout = new FrameLayout(RbfProfile.Rbf3, payload.Length, meta.Length);
+        var layout = new FrameLayout(payload.Length, meta.Length);
         byte[] bytes = new byte[layout.FrameLength];
         BinaryPrimitives.WriteUInt32LittleEndian(bytes, layout.WireFrameLength);
         payload.CopyTo(bytes.AsSpan(FrameLayout.PayloadOffset));

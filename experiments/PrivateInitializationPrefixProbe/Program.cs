@@ -20,7 +20,7 @@ byte[] Payload(bool markers, uint id = 1) {
     for (int i = 0; i < 16; i++) { bytes[4 + i] = (byte)(i + 1); }
     if (markers) {
         for (uint i = 0; i < 4; i++) {
-            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4 + (int)i * 4), RbfLayout.GetFenceWord(RbfProfile.Rbf3) ^ i);
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4 + (int)i * 4), RbfLayout.FenceWord ^ i);
         }
     }
     BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(20), id);
@@ -116,7 +116,7 @@ foreach (var fixture in fixtures) {
     Check(!MatchesInitialFramePrefix("RBF1"u8, 0, fixture.Header), "reject RBF1");
     byte[] forbiddenKeyPrefix = image.AsSpan(0, 12).ToArray();
     BinaryPrimitives.WriteUInt32LittleEndian(forbiddenKeyPrefix.AsSpan(8),
-        BinaryPrimitives.ReadUInt32LittleEndian(fixture.Header) ^ RbfLayout.GetFenceWord(RbfProfile.Rbf3));
+        BinaryPrimitives.ReadUInt32LittleEndian(fixture.Header) ^ RbfLayout.FenceWord);
     Check(!MatchesInitialFramePrefix(forbiddenKeyPrefix, 0, fixture.Header), "reject inferred raw fence key");
 
     // A prefix with fewer than four encoded body bytes does not uniquely determine a key.
@@ -183,12 +183,12 @@ Console.WriteLine($"PASS {groups.Values.Sum()} assertions; {initializationLength
 // The proposed production public predicate has not been added to RbfFile.
 static bool MatchesInitialFramePrefix(ReadOnlySpan<byte> prefix, uint tag, ReadOnlySpan<byte> payload) {
     if (payload.Length > 232) { throw new ArgumentOutOfRangeException(nameof(payload)); }
-    FrameLayout layout = FrameLayout.TryCreate(RbfProfile.Rbf3, payload.Length, 0).Unwrap();
+    FrameLayout layout = FrameLayout.TryCreate(payload.Length, 0).Unwrap();
     int bodyLength = layout.FrameLength - FrameLayout.HeadLenSize - RbfLayout.TailKeySize;
     int total = RbfLayout.HeaderOnlyLength + layout.FrameLength + RbfLayout.FenceSize;
     if (prefix.Length > total) { return false; }
     Span<byte> image = stackalloc byte[268];
-    RbfLayout.GetFence(RbfProfile.Rbf3).CopyTo(image);
+    RbfLayout.Fence.CopyTo(image);
     BinaryPrimitives.WriteUInt32LittleEndian(image[RbfLayout.FirstFrameOffset..], layout.WireFrameLength);
     int bodyStart = RbfLayout.FirstFrameOffset + FrameLayout.HeadLenSize;
     int fixedLength = Math.Min(bodyStart, prefix.Length);
@@ -207,7 +207,7 @@ static bool MatchesInitialFramePrefix(ReadOnlySpan<byte> prefix, uint tag, ReadO
     }
     uint key = BinaryPrimitives.ReadUInt32LittleEndian(prefix[bodyStart..])
         ^ BinaryPrimitives.ReadUInt32LittleEndian(plain);
-    uint fence = RbfLayout.GetFenceWord(RbfProfile.Rbf3);
+    uint fence = RbfLayout.FenceWord;
     if (key == fence) { return false; }
     Span<byte> encoded = image.Slice(bodyStart, bodyLength);
     XorEscape.Copy(plain, encoded, key);
@@ -216,6 +216,6 @@ static bool MatchesInitialFramePrefix(ReadOnlySpan<byte> prefix, uint tag, ReadO
     }
     int keyStart = bodyStart + bodyLength;
     BinaryPrimitives.WriteUInt32LittleEndian(image[keyStart..], key);
-    RbfLayout.GetFence(RbfProfile.Rbf3).CopyTo(image[(keyStart + RbfLayout.TailKeySize)..]);
+    RbfLayout.Fence.CopyTo(image[(keyStart + RbfLayout.TailKeySize)..]);
     return prefix.SequenceEqual(image[..prefix.Length]);
 }

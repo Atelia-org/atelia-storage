@@ -266,7 +266,7 @@ public sealed class Rbf3TailRecoveryTests : IDisposable {
         RbfWriteInstrumentation.Current = new() {
             AfterFlush = _ => RandomAccess.Write(handle, new byte[] { (byte)(complete[^24] ^ 1) }, complete.Length - 24)
         };
-        try { Assert.Throws<InvalidDataException>(() => { _ = RbfTailRecovery.Open(handle, writable: true, out _); }); }
+        try { Assert.Throws<InvalidDataException>(() => { _ = RbfTailRecovery.Open(handle, writable: true); }); }
         finally { RbfWriteInstrumentation.Current = null; }
     }
 

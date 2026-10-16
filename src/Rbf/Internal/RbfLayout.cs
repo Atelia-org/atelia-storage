@@ -19,24 +19,7 @@ internal static class RbfLayout {
     internal const int FenceSize = sizeof(uint);
     internal const int TailKeySize = sizeof(uint);
 
-    internal static ReadOnlySpan<byte> GetFence(RbfProfile profile) => profile switch {
-        RbfProfile.Rbf3 => "RBF3"u8,
-        _ => throw new ArgumentOutOfRangeException(nameof(profile), profile, "Unknown RBF profile.")
-    };
-
-    internal static uint GetFenceWord(RbfProfile profile) => profile switch {
-        RbfProfile.Rbf3 => 0x33464252u,
-        _ => throw new ArgumentOutOfRangeException(nameof(profile), profile, "Unknown RBF profile.")
-    };
-
-    internal static int GetTailKeySize(RbfProfile profile) => profile switch {
-        RbfProfile.Rbf3 => TailKeySize,
-        _ => throw new ArgumentOutOfRangeException(nameof(profile), profile, "Unknown RBF profile.")
-    };
-
-    internal static int GetFixedOverhead(RbfProfile profile) => FrameLayout.FixedOverhead;
-    internal static int GetMinFrameLength(RbfProfile profile) => GetFixedOverhead(profile);
-    internal static int GetMaxPayloadAndMetaLength(RbfProfile profile) => SizedPtr.MaxLength - GetFixedOverhead(profile);
+    internal const uint FenceWord = 0x33464252u;
 
     // === Header ===
     internal const int HeaderFenceOffset = 0;
@@ -76,10 +59,7 @@ internal readonly struct FrameLayout {
     private readonly int _paddingLength;
 
     /// <summary>校验调用方长度并计算布局；写入和公开尺寸计算共用此入口。</summary>
-    internal static AteliaResult<FrameLayout> TryCreate(RbfProfile profile, int payloadLength, int tailMetaLength) {
-        if (profile is not RbfProfile.Rbf3) {
-            return new RbfArgumentError("Unknown RBF profile.");
-        }
+    internal static AteliaResult<FrameLayout> TryCreate(int payloadLength, int tailMetaLength) {
         if (payloadLength < 0) {
             return new RbfArgumentError("Payload length must be non-negative.",
                 RecoveryHint: "Supply the final stored payload byte length.");
@@ -90,19 +70,19 @@ internal readonly struct FrameLayout {
         }
 
         long payloadAndMetaLength = (long)payloadLength + tailMetaLength;
-        int maxPayloadAndMetaLength = RbfLayout.GetMaxPayloadAndMetaLength(profile);
+        int maxPayloadAndMetaLength = FrameLayout.MaxPayloadAndMetaLength;
         long alignedLength = (payloadAndMetaLength + RbfLayout.AlignmentMask) & ~(long)RbfLayout.AlignmentMask;
-        long frameLength = RbfLayout.GetFixedOverhead(profile) + alignedLength;
+        long frameLength = FrameLayout.FixedOverhead + alignedLength;
         if (payloadAndMetaLength > maxPayloadAndMetaLength || frameLength > MaxFrameLength) {
-            return new RbfArgumentError($"Payload + TailMeta exceeds the {profile} frame capacity of {maxPayloadAndMetaLength} bytes.",
+            return new RbfArgumentError($"Payload + TailMeta exceeds the Rbf3 frame capacity of {maxPayloadAndMetaLength} bytes.",
                 RecoveryHint: "Reduce the payload or split it across multiple frames.");
         }
 
-        return new FrameLayout(profile, payloadLength, tailMetaLength);
+        return new FrameLayout(payloadLength, tailMetaLength);
     }
 
     /// <summary>以相同布局规则反算含尾 Fence 的追加预算。</summary>
-    internal static bool TryGetMaxPayloadLengthForAppendBudget(RbfProfile profile, long byteBudget, int tailMetaLength, out int payloadLength) {
+    internal static bool TryGetMaxPayloadLengthForAppendBudget(long byteBudget, int tailMetaLength, out int payloadLength) {
         ArgumentOutOfRangeException.ThrowIfNegative(byteBudget);
         if (tailMetaLength < 0 || tailMetaLength > MaxTailMetaLength) {
             throw new ArgumentOutOfRangeException(nameof(tailMetaLength), tailMetaLength,
@@ -110,24 +90,21 @@ internal readonly struct FrameLayout {
         }
 
         payloadLength = 0;
-        FrameLayout minimum = TryCreate(profile, 0, tailMetaLength).Unwrap();
+        FrameLayout minimum = TryCreate(0, tailMetaLength).Unwrap();
         if (byteBudget < (long)minimum.FrameLength + RbfLayout.FenceSize) { return false; }
 
         // First cap the frame budget in wide arithmetic, then round the body down to its alignment.
         long frameBudget = Math.Min(byteBudget - RbfLayout.FenceSize, MaxFrameLength);
-        long bodyBudget = (frameBudget - RbfLayout.GetFixedOverhead(profile)) & ~(long)RbfLayout.AlignmentMask;
+        long bodyBudget = (frameBudget - FrameLayout.FixedOverhead) & ~(long)RbfLayout.AlignmentMask;
         payloadLength = (int)(bodyBudget - tailMetaLength);
         return true;
     }
 
-    internal FrameLayout(int payloadLength, int tailMetaLength = 0) : this(RbfProfile.Rbf3, payloadLength, tailMetaLength) { }
-
-    internal FrameLayout(RbfProfile profile, int payloadLength, int tailMetaLength = 0) {
-        Profile = profile;
+    internal FrameLayout(int payloadLength, int tailMetaLength = 0) {
         Debug.Assert(0 <= tailMetaLength, "tailMetaLength must be non-negative");
         Debug.Assert(tailMetaLength <= MaxTailMetaLength, "tailMetaLength exceeds MaxTailMetaLength");
         Debug.Assert(0 <= payloadLength, "payloadLength must be non-negative");
-        Debug.Assert((long)payloadLength + tailMetaLength <= RbfLayout.GetMaxPayloadAndMetaLength(profile), "payloadLength exceeds MaxPayloadLength");
+        Debug.Assert((long)payloadLength + tailMetaLength <= FrameLayout.MaxPayloadAndMetaLength, "payloadLength exceeds MaxPayloadLength");
 
         _payloadLength = payloadLength;
         _tailMetaLength = tailMetaLength;
@@ -159,14 +136,11 @@ internal readonly struct FrameLayout {
     internal const int TrailerCodewordSize = RbfLayout.TrailerCodewordSize;
     internal const int TailLenSize = FrameLenSize;
     internal const int TailKeySize = RbfLayout.TailKeySize;
-
-    internal RbfProfile Profile { get; }
-    internal int TailKeyLength => RbfLayout.GetTailKeySize(Profile);
-    internal uint WireFrameLength => RbfWireCodec.EncodeFrameLength(Profile, FrameLength);
-    internal int EncodedBodyLength => FrameLength - HeadLenSize - TailKeyLength;
+    internal uint WireFrameLength => RbfWireCodec.EncodeFrameLength(FrameLength);
+    internal int EncodedBodyLength => FrameLength - HeadLenSize - TailKeySize;
 
     /// <summary>以 bytes 表示的帧总长度，含 raw TailKey。</summary>
-    internal int FrameLength => RbfLayout.GetFixedOverhead(Profile) + _payloadLength + _tailMetaLength + _paddingLength;
+    internal int FrameLength => FrameLayout.FixedOverhead + _payloadLength + _tailMetaLength + _paddingLength;
     #endregion
 
     #region Statistics
@@ -214,14 +188,9 @@ internal readonly struct FrameLayout {
 
     #region TrailerCodeword 操作
 
-    /// <summary>从完整 RBF3 帧解析 TrailerCodeword 并构造 FrameLayout。</summary>
-    internal static AteliaResult<FrameLayout> ResultFromTrailer(scoped ReadOnlySpan<byte> frameBuffer, out TrailerCodewordData trailer) {
-        return ResultFromTrailer(RbfProfile.Rbf3, frameBuffer, out trailer);
-    }
-
     /// <summary>从完整帧的 plaintext body 解析 Trailer；RBF3 raw TailKey 仍在帧末尾。</summary>
-    internal static AteliaResult<FrameLayout> ResultFromTrailer(RbfProfile profile, scoped ReadOnlySpan<byte> frameBuffer, out TrailerCodewordData trailer) {
-        int minimum = RbfLayout.GetMinFrameLength(profile);
+    internal static AteliaResult<FrameLayout> ResultFromTrailer(scoped ReadOnlySpan<byte> frameBuffer, out TrailerCodewordData trailer) {
+        int minimum = FrameLayout.MinFrameLength;
         if (frameBuffer.Length < minimum) {
             trailer = default;
             return new RbfFramingError(
@@ -230,8 +199,8 @@ internal readonly struct FrameLayout {
             );
         }
 
-        int trailerOffset = frameBuffer.Length - RbfLayout.GetTailKeySize(profile) - TrailerCodewordSize;
-        var trailerResult = RbfWireCodec.ParseTrailer(profile, frameBuffer.Slice(trailerOffset, TrailerCodewordSize));
+        int trailerOffset = frameBuffer.Length - RbfLayout.TailKeySize - TrailerCodewordSize;
+        var trailerResult = RbfWireCodec.ParseTrailer(frameBuffer.Slice(trailerOffset, TrailerCodewordSize));
         if (!trailerResult.IsSuccess) {
             trailer = default;
             return trailerResult.Error!;
@@ -246,15 +215,15 @@ internal readonly struct FrameLayout {
             );
         }
 
-        var payloadLengthResult = TrailerCodewordHelper.ComputePayloadLength(profile, trailer.TailLen, trailer.TailMetaLen, trailer.PaddingLen);
+        var payloadLengthResult = TrailerCodewordHelper.ComputePayloadLength(trailer.TailLen, trailer.TailMetaLen, trailer.PaddingLen);
         if (!payloadLengthResult.IsSuccess) { return payloadLengthResult.Error!; }
 
         int payloadLength = payloadLengthResult.Value;
 
-        return new FrameLayout(profile, payloadLength, trailer.TailMetaLen);
+        return new FrameLayout(payloadLength, trailer.TailMetaLen);
     }
 
-    /// <summary>填充 plaintext TrailerCodeword，按 profile 写入原始 wire 长度。</summary>
+    /// <summary>填充 plaintext TrailerCodeword，按 RBF3 写入原始 wire 长度。</summary>
     /// <param name="buffer">目标 buffer，MUST 至少 16 字节。</param>
     /// <param name="tag">帧标签。</param>
     /// <param name="isTombstone">是否为墓碑帧。</param>

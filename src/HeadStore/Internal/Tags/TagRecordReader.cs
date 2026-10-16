@@ -174,6 +174,12 @@ internal static class TagRecordReader {
         if (info.Ticket.Offset < header.RecordsOffset || !TagRecordCodec.IsEntriesShape(info)) {
             return new TagEntriesError("The TagRecord member table length, kind, metadata size, or frame size is invalid.");
         }
+        // Named lookup already checked the independent metadata. Reject its known
+        // length contradiction before renting or reading the complete member table.
+        if (expectedMetadata is TagMetadata declared
+            && info.PayloadLength != (long)TagEntriesCodec.MemberEncodedSize * declared.EntryCount) {
+            return new TagEntriesError("The member table length does not match its trusted entry count.");
+        }
 
         // 完整帧尺寸在取得 lease 前受公共 RBF 自然容量约束。
         var read = info.ReadPooledFrame();

@@ -32,7 +32,7 @@ $version = "0.3.0-rbf3-dev.$([DateTime]::UtcNow.ToString('yyyyMMddHHmmss'))"
 
 solution build/test 覆盖 main 底座、Binary、FrameStore 和 HeadStore；旧栈项目、冻结包配置及专属 assets 检查已随 RBF1 退役移除。
 
-`eng/Pack.ps1` 是主线生产包清单和 pack 顺序的唯一入口，当前输出 Primitives、Data、Rbf、Binary、FrameStore、HeadStore 六包及对应 symbols/manifest。Pack 要求干净已提交树、明确 Version/OutputDirectory 和正确 origin；相同版本只能复用来源与 hash 匹配的产物，不覆盖 feed 中已有内容。默认 All 指当前六包；旧栈 selective 发布和额外 segment smoke 不属于 main 入口，历史命令从 RBF1 分支及交付记录查阅。
+`eng/Pack.ps1` 是主线生产包清单和 pack 顺序的唯一入口，固定输出 Primitives、Data、Rbf、Binary、FrameStore、HeadStore 六包及对应 symbols/manifest，不提供项目选择参数。Pack 要求干净已提交树、明确 Version/OutputDirectory 和正确 origin；相同版本只能复用来源与 hash 匹配的产物，不覆盖 feed 中已有内容。旧栈 selective 发布和额外 segment smoke 的历史命令从 RBF1 分支及交付记录查阅。
 
 `eng/Test-Package.ps1` 在尚不存在的仓外目录建立独立 NuGet cache/config 与 MSBuild 边界，四个独立 consumer 分别直接精确 PackageReference Rbf、Binary、FrameStore、HeadStore；检查 Rbf 三包、Binary + K4os 两包、FrameStore 五个 Atelia + K4os、HeadStore 六个 Atelia + K4os 的闭包与 public API。包 manifest、静态 Source Link 和本地源码 checksum 检查保留；源码测试不替代包消费，远端 Source Link、真实应用旧数据兼容和公开发布各自需要证据。验证 workspace 保留日志、assets 与 manifest。
 

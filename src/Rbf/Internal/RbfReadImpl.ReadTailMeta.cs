@@ -22,7 +22,7 @@ internal static partial class RbfReadImpl {
         SizedPtr ticket,
         Span<byte> buffer
     ) {
-        // 1. 先获取 profile 帧元信息。
+        // 1. 先获取 RBF3 帧元信息。
         var infoResult = ReadFrameInfo(reader, ticket);
         if (!infoResult.IsSuccess) { return infoResult.Error!; }
 
@@ -42,7 +42,7 @@ internal static partial class RbfReadImpl {
         RandomAccessReader reader,
         SizedPtr ticket
     ) {
-        // 1. 先获取 profile 帧元信息。
+        // 1. 先获取 RBF3 帧元信息。
         var infoResult = ReadFrameInfo(reader, ticket);
         if (!infoResult.IsSuccess) { return infoResult.Error!; }
 

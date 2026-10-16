@@ -58,7 +58,7 @@ internal static class ThresholdProbe {
         Directory.CreateDirectory(Path.Combine(output, "io"));
         var cases = Cases();
         foreach (var item in cases) {
-            var layout = new FrameLayout(RbfProfile.Rbf3, item.PayloadBytes, item.MetaBytes);
+            var layout = new FrameLayout(item.PayloadBytes, item.MetaBytes);
             Program.Require(layout.FrameLength + RbfLayout.FenceSize == item.TotalBytes &&
                 item.TotalBytes == ((item.PayloadBytes + item.MetaBytes + 3) & ~3) + 32, "RBF3 boundary layout mismatch.");
         }

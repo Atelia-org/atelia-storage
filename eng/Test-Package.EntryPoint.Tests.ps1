@@ -134,11 +134,10 @@ function Assert-RestoredEnvironment([string]$Name) {
     Assert ($env:NUGET_PACKAGES -eq $originalPackages -and $env:NUGET_HTTP_CACHE_PATH -eq $originalHttpCache -and $env:DOTNET_CLI_UI_LANGUAGE -eq $originalUiLanguage) "$Name did not restore environment."
     Assert ((Get-Location).Path -ceq $originalLocation) "$Name did not restore working directory."
 }
-function Run-Case([string]$Name, [bool]$ExplicitAll) {
+function Run-Case([string]$Name) {
     $global:StoragePackageEntryMock.Calls.Clear()
     $work = Join-Path $evidence $Name
-    if ($ExplicitAll) { & $entry -Project All -Version $version -FeedDirectory $feed -WorkDirectory $work }
-    else { & $entry -Version $version -FeedDirectory $feed -WorkDirectory $work }
+    & $entry -Version $version -FeedDirectory $feed -WorkDirectory $work
     Assert ($global:StoragePackageEntryMock.Calls.Count -eq 10) "$Name command count changed."
     foreach ($call in $global:StoragePackageEntryMock.Calls) {
         Assert ($call.location -eq $work) "$Name ran outside isolated workspace."
@@ -172,9 +171,9 @@ function Run-Case([string]$Name, [bool]$ExplicitAll) {
 function Assert-ParameterRejection([string]$Name, [scriptblock]$Invoke, [string]$UnexpectedDirectory) {
     $before = $global:StoragePackageEntryMock.GitCalls
     $global:StoragePackageEntryMock.Calls.Clear()
-    $message = ''
-    try { & $Invoke } catch { $message = $_.Exception.Message }
-    Assert ($message.Length -gt 0) "$Name did not reject the legacy parameter."
+    $failure = $null
+    try { & $Invoke } catch { $failure = $_ }
+    Assert ($null -ne $failure -and $failure.FullyQualifiedErrorId -like 'NamedParameterNotFound*') "$Name did not reject the removed parameter during binding."
     Assert ($global:StoragePackageEntryMock.GitCalls -eq $before -and $global:StoragePackageEntryMock.Calls.Count -eq 0) "$Name called external commands before rejection."
     Assert (!(Test-Path -LiteralPath $UnexpectedDirectory)) "$Name created a directory before rejection."
     Assert-RestoredEnvironment $Name
@@ -194,16 +193,14 @@ try {
     $copied = Join-Path $copyWork 'CopyFixture'
     Assert ((Test-Path (Join-Path $copied 'Program.cs')) -and (Test-Path (Join-Path $copied 'CopyFixture.csproj'))) 'Source-copy fixture lost top-level source files.'
     Assert (!(Test-Path (Join-Path $copied 'bin')) -and !(Test-Path (Join-Path $copied 'obj'))) 'Source-copy fixture imported stale bin/obj output.'
-    Run-Case 'all-default' $false
-    Run-Case 'all-explicit' $true
-    foreach ($project in @('EventJournal', 'RbfSegmentStore')) {
-        $path = Join-Path $evidence "reject-pack-$project"
-        Assert-ParameterRejection "pack-$project" { & $pack -Project $project -Version $version -OutputDirectory $path } $path
-        $path = Join-Path $evidence "reject-test-$project"
-        Assert-ParameterRejection "test-$project" { & $entry -Project $project -Version $version -FeedDirectory 'missing-feed' -WorkDirectory $path } $path
-        $path = Join-Path $evidence "reject-verify-$project"
-        Assert-ParameterRejection "verify-$project" { & $verify -Project $project -Version $version -FeedDirectory 'missing-feed' -WorkDirectory $path } $path
-    }
+    Run-Case 'six-packages'
+    # CmdletBinding rejects removed names before any filesystem or external-command work.
+    $path = Join-Path $evidence 'reject-pack-project'
+    Assert-ParameterRejection 'pack-project' { & $pack -Project All -Version $version -OutputDirectory $path } $path
+    $path = Join-Path $evidence 'reject-test-project'
+    Assert-ParameterRejection 'test-project' { & $entry -Project All -Version $version -FeedDirectory 'missing-feed' -WorkDirectory $path } $path
+    $path = Join-Path $evidence 'reject-verify-project'
+    Assert-ParameterRejection 'verify-project' { & $verify -Project All -Version $version -FeedDirectory 'missing-feed' -WorkDirectory $path } $path
     foreach ($enabled in @($true, $false)) {
         $path = Join-Path $evidence "reject-additional-$enabled"
         Assert-ParameterRejection "additional-$enabled" { & $entry -Version $version -FeedDirectory 'missing-feed' -WorkDirectory $path -AdditionalSegmentSmoke:$enabled } $path
@@ -214,7 +211,7 @@ try {
     }
     # Pack's immutable schema 1 reuse path must bind all six IDs/hashes, without packing.
     $global:StoragePackageEntryMock.Calls.Clear()
-    & $pack -Project All -Version $version -OutputDirectory $feed | Out-Host
+    & $pack -Version $version -OutputDirectory $feed | Out-Host
     Assert ($global:StoragePackageEntryMock.Calls.Count -eq 1 -and $global:StoragePackageEntryMock.Calls[0].arguments[0] -eq '--version') 'Immutable core reuse unexpectedly attempted restore/pack.'
     foreach ($failure in @('frame-store-missing', 'head-store-filename', 'head-store-symbols-hash', 'legacy-replacement')) {
         $broken = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
@@ -227,7 +224,7 @@ try {
         $broken | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $manifestPath -Encoding utf8NoBOM
         $global:StoragePackageEntryMock.Calls.Clear()
         $message = ''
-        try { & $pack -Project All -Version $version -OutputDirectory $feed | Out-Null } catch { $message = $_.Exception.Message }
+        try { & $pack -Version $version -OutputDirectory $feed | Out-Null } catch { $message = $_.Exception.Message }
         Assert ($message.Length -gt 0 -and $global:StoragePackageEntryMock.Calls.Count -eq 1 -and $global:StoragePackageEntryMock.Calls[0].arguments[0] -eq '--version') "$failure immutable candidate rejection attempted restore/pack."
         Assert-RestoredEnvironment "reuse-$failure"
         $manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $manifestPath -Encoding utf8NoBOM
@@ -343,7 +340,7 @@ try {
         Assert ($message -like '*dotnet failed*' -and $global:StoragePackageEntryMock.Calls.Count -eq $expectedCalls) 'Failed smoke did not stop metadata execution.'
         Assert-RestoredEnvironment 'failed-smoke'
     }
-    "Passed: parser, source-only copy excluding stale bin/obj, default/explicit six-package All and seven-argument metadata CLI, ten legacy parameter rejections, immutable six-package reuse and four reuse rejections, two source checkout rejections, $malformedAssetsCount malformed consumer assets (four closures, transitive versions, exact references, K4os, project rejection and cache isolation), $($manifestFailures.Count) malformed manifests, four smoke failure environment restorations. All git/dotnet commands mocked; no package consumption proven." |
+    "Passed: parser, source-only copy excluding stale bin/obj, fixed six-package set and seven-argument metadata CLI, seven removed-parameter binding rejections, immutable six-package reuse and four reuse rejections, two source checkout rejections, $malformedAssetsCount malformed consumer assets (four closures, transitive versions, exact references, K4os, project rejection and cache isolation), $($manifestFailures.Count) malformed manifests, four smoke failure environment restorations. All git/dotnet commands mocked; no package consumption proven." |
         Set-Content -LiteralPath (Join-Path $evidence 'result.txt') -Encoding utf8NoBOM
     Write-Host "MOCK entrypoint tests passed. Evidence: $evidence"
 }

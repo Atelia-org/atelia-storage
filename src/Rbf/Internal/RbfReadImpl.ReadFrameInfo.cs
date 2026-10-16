@@ -30,7 +30,7 @@ partial class RbfReadImpl {
         }
 
         uint headLen = BinaryPrimitives.ReadUInt32LittleEndian(headLenBuffer);
-        var lengthResult = RbfWireCodec.DecodeFrameLength(reader.Profile, headLen);
+        var lengthResult = RbfWireCodec.DecodeFrameLength(headLen);
         if (lengthResult.IsFailure) {
             return lengthResult.Error!;
         }
@@ -47,7 +47,7 @@ partial class RbfReadImpl {
 
         Span<byte> fence = stackalloc byte[RbfLayout.FenceSize];
         int fenceBytesRead = reader.Read(fence, frameEnd);
-        if (fenceBytesRead < RbfLayout.FenceSize || !fence.SequenceEqual(RbfLayout.GetFence(reader.Profile))) {
+        if (fenceBytesRead < RbfLayout.FenceSize || !fence.SequenceEqual(RbfLayout.Fence)) {
             return new RbfFramingError(
                 "Expected profile Fence not found after frame.",
                 RecoveryHint: "The frame boundary marker is missing or corrupted."
@@ -75,7 +75,7 @@ partial class RbfReadImpl {
         if (candidateError != null) { return candidateError; }
         // 1. 基本参数校验
         int ticketLength = ticket.Length;
-        int minimum = RbfLayout.GetMinFrameLength(reader.Profile);
+        int minimum = FrameLayout.MinFrameLength;
         if (ticketLength < minimum) {
             return new RbfArgumentError(
                 $"Ticket length ({ticketLength}) is less than minimum frame length ({minimum}).",
@@ -83,8 +83,8 @@ partial class RbfReadImpl {
             );
         }
 
-        // 2. 按 profile 读取完整固定尾块。
-        int tailSize = TrailerCodewordHelper.Size + RbfLayout.GetTailKeySize(reader.Profile);
+        // 2. 按 RBF3 读取完整固定尾块。
+        int tailSize = TrailerCodewordHelper.Size + RbfLayout.TailKeySize;
         long trailerOffset = ticket.Offset + ticketLength - tailSize;
         Span<byte> trailerBuffer = stackalloc byte[tailSize];
         int bytesRead = reader.Read(trailerBuffer, trailerOffset);
@@ -97,7 +97,7 @@ partial class RbfReadImpl {
         }
 
         // 3. 验证并解析 TrailerCodeword（CRC + reserved bits）
-        var trailerResult = ParseTailBlock(reader.Profile, trailerBuffer, out uint key);
+        var trailerResult = ParseTailBlock(trailerBuffer, out uint key);
         if (!trailerResult.IsSuccess) { return trailerResult.Error!; }
 
         var trailer = trailerResult.Value;
@@ -111,7 +111,7 @@ partial class RbfReadImpl {
         }
 
         // 7. 计算 PayloadLength
-        int payloadLen = ticketLength - RbfLayout.GetFixedOverhead(reader.Profile) - trailer.TailMetaLen - trailer.PaddingLen;
+        int payloadLen = ticketLength - FrameLayout.FixedOverhead - trailer.TailMetaLen - trailer.PaddingLen;
 
         // 8. 构造 RbfFrameInfo（绑定 reader）
         return new RbfFrameInfo(

@@ -36,7 +36,7 @@ public class RbfReadTailMetaTests : IDisposable {
 
     /// <summary>构造一个有效帧的字节数组（RBF3 格式，带 TailMeta）。</summary>
     private static byte[] CreateFrameBytes(uint tag, ReadOnlySpan<byte> payload, ReadOnlySpan<byte> tailMeta, bool isTombstone = false) {
-        var layout = new FrameLayout(RbfProfile.Rbf3, payload.Length, tailMeta.Length);
+        var layout = new FrameLayout(payload.Length, tailMeta.Length);
         int frameLen = layout.FrameLength;
 
         byte[] frame = new byte[frameLen];

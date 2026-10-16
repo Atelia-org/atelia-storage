@@ -10,7 +10,7 @@ internal static class RawRbfTestFile {
     internal static IRbfFile OpenExisting(string path, long? tailOffset = null, RbfCacheMode cacheMode = RbfCacheMode.Off) {
         SafeFileHandle handle = File.OpenHandle(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
         try {
-            return new RbfFileImpl(handle, tailOffset ?? RandomAccess.GetLength(handle), cacheMode, profile: RbfProfile.Rbf3);
+            return new RbfFileImpl(handle, tailOffset ?? RandomAccess.GetLength(handle), cacheMode);
         }
         catch {
             handle.Dispose();
@@ -37,7 +37,7 @@ internal static class RawRbfTestFile {
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(layout.PayloadCrcOffset), crc);
         layout.FillTrailer(bytes.AsSpan(layout.TrailerCodewordOffset, 16), tag, isTombstone);
         for (int offset = 4; offset < layout.TailKeyOffset; offset += 4) {
-            if (BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(offset, 4)) == RbfLayout.GetFenceWord(RbfProfile.Rbf3)) {
+            if (BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(offset, 4)) == RbfLayout.FenceWord) {
                 throw new InvalidOperationException("The Key=0 fixture body must not contain an aligned RBF3 Fence.");
             }
         }

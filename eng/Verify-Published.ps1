@@ -1,6 +1,5 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('All')][string]$Project = 'All',
     [Parameter(Mandatory)][string]$Version,
     [Parameter(Mandatory)][string]$FeedDirectory,
     [Parameter(Mandatory)][string]$WorkDirectory

@@ -26,7 +26,7 @@ internal static partial class RbfReadImpl {
         static abstract long GetOffset(scoped in TInput input);
 
         /// <summary>验证并解析帧数据。</summary>
-        static abstract AteliaResult<RbfFrame> ValidateAndParse(scoped in TInput input, int ticketLength, Span<byte> frameBuffer, RbfProfile profile);
+        static abstract AteliaResult<RbfFrame> ValidateAndParse(scoped in TInput input, int ticketLength, Span<byte> frameBuffer);
     }
 
     /// <summary>SizedPtr 输入的读取策略。</summary>
@@ -50,8 +50,8 @@ internal static partial class RbfReadImpl {
 
         public static long GetOffset(scoped in SizedPtr input) => input.Offset;
 
-        public static AteliaResult<RbfFrame> ValidateAndParse(scoped in SizedPtr input, int ticketLength, Span<byte> frameBuffer, RbfProfile profile) =>
-            ValidateAndParseCore(ticketLength, frameBuffer, input, profile);
+        public static AteliaResult<RbfFrame> ValidateAndParse(scoped in SizedPtr input, int ticketLength, Span<byte> frameBuffer) =>
+            ValidateAndParseCore(ticketLength, frameBuffer, input);
     }
 
     /// <summary>RbfFrameInfo 输入的读取策略。</summary>
@@ -62,8 +62,8 @@ internal static partial class RbfReadImpl {
 
         public static long GetOffset(scoped in RbfFrameInfo input) => input.Ticket.Offset;
 
-        public static AteliaResult<RbfFrame> ValidateAndParse(scoped in RbfFrameInfo input, int ticketLength, Span<byte> frameBuffer, RbfProfile profile) =>
-            ValidateAndParseCoreFromInfo(ticketLength, frameBuffer, in input, profile);
+        public static AteliaResult<RbfFrame> ValidateAndParse(scoped in RbfFrameInfo input, int ticketLength, Span<byte> frameBuffer) =>
+            ValidateAndParseCoreFromInfo(ticketLength, frameBuffer, in input);
     }
 
     #endregion
@@ -110,7 +110,7 @@ internal static partial class RbfReadImpl {
 
         int ticketLength = TPolicy.GetTicketLength(in input);
         long offset = TPolicy.GetOffset(in input);
-        error = CheckProfileTicketLength(reader.Profile, ticketLength);
+        error = CheckTicketLength(ticketLength);
         if (error != null) { return error; }
         error = reader.ValidateTicket(SizedPtr.Create(offset, ticketLength));
         if (error != null) { return error; }
@@ -165,7 +165,7 @@ internal static partial class RbfReadImpl {
     /// </remarks>
     public static AteliaResult<RbfFrame> ReadFrame(RandomAccessReader reader, SizedPtr ticket, Span<byte> buffer) {
         reader.EnsureUsable();
-        var error = SizedPtrReadPolicy.ValidateInput(in ticket) ?? CheckProfileTicketLength(reader.Profile, ticket.Length) ?? reader.ValidateTicket(ticket) ?? CheckBufferLength(ticket.Length, buffer.Length);
+        var error = SizedPtrReadPolicy.ValidateInput(in ticket) ?? CheckTicketLength(ticket.Length) ?? reader.ValidateTicket(ticket) ?? CheckBufferLength(ticket.Length, buffer.Length);
         if (error != null) { return error; }
 
         int ticketLength = ticket.Length;
@@ -183,7 +183,7 @@ internal static partial class RbfReadImpl {
     public static AteliaResult<RbfFrame> ReadFrame(RandomAccessReader reader, scoped in RbfFrameInfo info, Span<byte> buffer) {
         reader.EnsureUsable();
         int ticketLength = info.Ticket.Length;
-        var error = CheckProfileTicketLength(reader.Profile, ticketLength) ?? reader.ValidateTicket(info.Ticket) ?? CheckBufferLength(ticketLength, buffer.Length);
+        var error = CheckTicketLength(ticketLength) ?? reader.ValidateTicket(info.Ticket) ?? CheckBufferLength(ticketLength, buffer.Length);
         if (error != null) { return error; }
 
         return ReadFrameCore<RbfFrameInfo, FrameInfoReadPolicy>(reader, in info, info.Ticket.Offset, ticketLength, buffer[..ticketLength]);
@@ -218,14 +218,14 @@ internal static partial class RbfReadImpl {
         }
 
         // 4. 委托策略执行验证与解析
-        return TPolicy.ValidateAndParse(in input, ticketLength, frameBuffer, reader.Profile);
+        return TPolicy.ValidateAndParse(in input, ticketLength, frameBuffer);
     }
 
     #endregion
 
     #region Buffer Validation
-    private static AteliaError? CheckProfileTicketLength(RbfProfile profile, int ticketLength) {
-        int minimum = RbfLayout.GetMinFrameLength(profile);
+    private static AteliaError? CheckTicketLength(int ticketLength) {
+        int minimum = FrameLayout.MinFrameLength;
         return ticketLength < minimum
             ? new RbfArgumentError($"Length ({ticketLength}) is less than minimum frame length ({minimum}).")
             : null;
@@ -250,9 +250,9 @@ internal static partial class RbfReadImpl {
     #region Validate and Parse (Phase 3: Shared Helpers)
 
     /// <summary>验证 HeadLen == ticketLength。</summary>
-    private static AteliaError? ValidateHeadLen(ReadOnlySpan<byte> frameBuffer, int ticketLength, RbfProfile profile) {
+    private static AteliaError? ValidateHeadLen(ReadOnlySpan<byte> frameBuffer, int ticketLength) {
         uint headLen = BinaryPrimitives.ReadUInt32LittleEndian(frameBuffer[..FrameLayout.HeadLenSize]);
-        var lengthResult = RbfWireCodec.DecodeFrameLength(profile, headLen);
+        var lengthResult = RbfWireCodec.DecodeFrameLength(headLen);
         if (lengthResult.IsFailure || lengthResult.Value != ticketLength) {
             return new RbfFramingError(
                 $"HeadLen mismatch: file has {headLen}, expected {ticketLength}.",
@@ -290,17 +290,17 @@ internal static partial class RbfReadImpl {
     /// - TrailerCrc32C 校验通过
     /// - PayloadLength &gt;= 0
     /// </remarks>
-    private static AteliaResult<RbfFrame> ValidateAndParseCore(int ticketLength, Span<byte> frameBuffer, SizedPtr ticket, RbfProfile profile) {
+    private static AteliaResult<RbfFrame> ValidateAndParseCore(int ticketLength, Span<byte> frameBuffer, SizedPtr ticket) {
         // 1. 准备
         Debug.Assert(ticketLength == frameBuffer.Length);
 
         // 2. 验证基本帧格式：HeadLen == ticketLength
-        var headLenError = ValidateHeadLen(frameBuffer, ticketLength, profile);
+        var headLenError = ValidateHeadLen(frameBuffer, ticketLength);
         if (headLenError != null) { return headLenError; }
 
         // 3. 从 TrailerCodeword 解析并验证（v0.40）
-        int tailSize = TrailerCodewordHelper.Size + RbfLayout.GetTailKeySize(profile);
-        var trailerResult = ParseTailBlock(profile, frameBuffer[^tailSize..], out uint key);
+        int tailSize = TrailerCodewordHelper.Size + RbfLayout.TailKeySize;
+        var trailerResult = ParseTailBlock(frameBuffer[^tailSize..], out uint key);
         if (!trailerResult.IsSuccess) { return trailerResult.Error!; }
         var trailer = trailerResult.Value;
 
@@ -312,8 +312,8 @@ internal static partial class RbfReadImpl {
             );
         }
 
-        int payloadLength = ticketLength - RbfLayout.GetFixedOverhead(profile) - trailer.TailMetaLen - trailer.PaddingLen;
-        var layout = new FrameLayout(profile, payloadLength, trailer.TailMetaLen);
+        int payloadLength = ticketLength - FrameLayout.FixedOverhead - trailer.TailMetaLen - trailer.PaddingLen;
+        var layout = new FrameLayout(payloadLength, trailer.TailMetaLen);
         // The reader/cache copied encoded bytes into the caller's owned buffer.
         // Header and raw Key stay outside the continuous XOR body.
         XorEscape.InPlace(frameBuffer.Slice(FrameLayout.PayloadOffset, ticketLength - 8), key);
@@ -345,11 +345,11 @@ internal static partial class RbfReadImpl {
     /// 正常文件的已提交帧不可修改，复用 info 已验证的 TrailerCRC/Key/元信息。
     /// 本次仍校验 HeadLen 和完整 PayloadCRC。
     /// </remarks>
-    private static AteliaResult<RbfFrame> ValidateAndParseCoreFromInfo(int ticketLength, Span<byte> frameBuffer, scoped in RbfFrameInfo info, RbfProfile profile) {
+    private static AteliaResult<RbfFrame> ValidateAndParseCoreFromInfo(int ticketLength, Span<byte> frameBuffer, scoped in RbfFrameInfo info) {
         Debug.Assert(ticketLength == frameBuffer.Length);
-        var headLenError = ValidateHeadLen(frameBuffer, ticketLength, profile);
+        var headLenError = ValidateHeadLen(frameBuffer, ticketLength);
         if (headLenError != null) { return headLenError; }
-        var layout = new FrameLayout(profile, info.PayloadLength, info.TailMetaLength);
+        var layout = new FrameLayout(info.PayloadLength, info.TailMetaLength);
         if (layout.FrameLength != ticketLength) {
             return new RbfFramingError(
                 $"Frame length derived from RbfFrameInfo does not match ticket length: derived={layout.FrameLength}, ticket={ticketLength}.",

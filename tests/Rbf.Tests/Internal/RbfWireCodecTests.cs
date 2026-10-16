@@ -7,16 +7,15 @@ namespace Atelia.Rbf.Internal.Tests;
 /// <summary>独立 byte/bit scalar 向量验证 wire 单位、CRC 端序与 XOR phase。</summary>
 public class RbfWireCodecTests {
     [Fact]
-    public void Profile_UsesRbf3DefaultsAndProductionHeader() {
+    public void Layout_UsesRbf3ConstantsAndProductionHeader() {
         Assert.Equal("RBF3"u8.ToArray(), RbfLayout.Fence.ToArray());
-        Assert.Equal("RBF3"u8.ToArray(), RbfLayout.GetFence(RbfProfile.Rbf3).ToArray());
-        Assert.Equal(0x33464252u, RbfLayout.GetFenceWord(RbfProfile.Rbf3));
-        Assert.Equal(0x33464252u, BinaryPrimitives.ReadUInt32LittleEndian(RbfLayout.GetFence(RbfProfile.Rbf3)));
+        Assert.Equal(0x33464252u, RbfLayout.FenceWord);
+        Assert.Equal(0x33464252u, BinaryPrimitives.ReadUInt32LittleEndian(RbfLayout.Fence));
         Assert.Equal(28, FrameLayout.FixedOverhead);
         Assert.Equal(28, new FrameLayout(0).FrameLength);
-        Assert.Equal(28, RbfLayout.GetMinFrameLength(RbfProfile.Rbf3));
-        Assert.Equal(4, RbfLayout.GetTailKeySize(RbfProfile.Rbf3));
-        Assert.Equal(SizedPtr.MaxLength - 28, RbfLayout.GetMaxPayloadAndMetaLength(RbfProfile.Rbf3));
+        Assert.Equal(28, FrameLayout.MinFrameLength);
+        Assert.Equal(4, RbfLayout.TailKeySize);
+        Assert.Equal(SizedPtr.MaxLength - 28, FrameLayout.MaxPayloadAndMetaLength);
     }
 
     [Theory]
@@ -27,10 +26,10 @@ public class RbfWireCodecTests {
     [InlineData(11u, 44)]
     [InlineData(0x03FFFFFFu, 268435452)]
     public void Rbf3Length_UnitsNeedNotHaveZeroLowBits(uint units, int bytes) {
-        var decoded = RbfWireCodec.DecodeFrameLength(RbfProfile.Rbf3, units);
+        var decoded = RbfWireCodec.DecodeFrameLength(units);
         Assert.True(decoded.IsSuccess);
         Assert.Equal(bytes, decoded.Value);
-        Assert.Equal(units, RbfWireCodec.EncodeFrameLength(RbfProfile.Rbf3, bytes));
+        Assert.Equal(units, RbfWireCodec.EncodeFrameLength(bytes));
     }
 
     [Theory]
@@ -45,7 +44,7 @@ public class RbfWireCodecTests {
     [InlineData(0x40000007u)]
     [InlineData(0xFFFFFFFFu)]
     public void Rbf3Length_RejectsFullWireValueBeforeShift(uint units) {
-        var result = RbfWireCodec.DecodeFrameLength(RbfProfile.Rbf3, units);
+        var result = RbfWireCodec.DecodeFrameLength(units);
         Assert.True(result.IsFailure);
         Assert.IsType<RbfFramingError>(result.Error);
     }
@@ -59,14 +58,14 @@ public class RbfWireCodecTests {
     [InlineData(268435456)]
     [InlineData(int.MaxValue)]
     public void Rbf3Length_EncodingRejectsInvalidByteLengths(int bytes) {
-        Assert.Throws<ArgumentOutOfRangeException>(() => RbfWireCodec.EncodeFrameLength(RbfProfile.Rbf3, bytes));
+        Assert.Throws<ArgumentOutOfRangeException>(() => RbfWireCodec.EncodeFrameLength(bytes));
     }
 
     [Fact]
     public void Rbf3MaximumFrame_StoresMaximumUnitsAndPreservesMaximumMeta() {
         const int metaLength = 65535;
         const int payloadLength = 268435452 - 28 - metaLength;
-        var layout = new FrameLayout(RbfProfile.Rbf3, payloadLength, metaLength);
+        var layout = new FrameLayout(payloadLength, metaLength);
         byte[] trailer = new byte[16];
         layout.FillTrailer(trailer, uint.MaxValue);
         Assert.Equal(ScalarTrailer(65535, uint.MaxValue, 0x03FFFFFF), trailer);
@@ -75,7 +74,7 @@ public class RbfWireCodecTests {
         Assert.Equal(268435452u, parsed.Value.TailLen);
         Assert.Equal(metaLength, parsed.Value.TailMetaLen);
         Assert.Equal(0, parsed.Value.PaddingLen);
-        Assert.Equal(payloadLength, TrailerCodewordHelper.ComputePayloadLength(RbfProfile.Rbf3, parsed.Value.TailLen, metaLength, 0).Value);
+        Assert.Equal(payloadLength, TrailerCodewordHelper.ComputePayloadLength(parsed.Value.TailLen, metaLength, 0).Value);
     }
 
     [Theory]
@@ -89,7 +88,7 @@ public class RbfWireCodecTests {
     public void Rbf3Layout_OffsetsAndCapacityIncludeOnlyOneRawKey(int payloadLength, int metaLength) {
         int padding = (-(payloadLength + metaLength)) & 3;
         int coverage = payloadLength + metaLength + padding;
-        var layout = new FrameLayout(RbfProfile.Rbf3, payloadLength, metaLength);
+        var layout = new FrameLayout(payloadLength, metaLength);
         Assert.Equal(28 + coverage, layout.FrameLength);
         Assert.Equal((uint)(28 + coverage) / 4, layout.WireFrameLength);
         Assert.Equal(4, FrameLayout.PayloadOffset);
@@ -99,7 +98,7 @@ public class RbfWireCodecTests {
         Assert.Equal(4 + coverage, layout.PayloadCrcOffset);
         Assert.Equal(8 + coverage, layout.TrailerCodewordOffset);
         Assert.Equal(24 + coverage, layout.TailKeyOffset);
-        Assert.Equal(4, layout.TailKeyLength);
+        Assert.Equal(4, FrameLayout.TailKeySize);
         Assert.Equal(20 + coverage, layout.EncodedBodyLength);
         Assert.Equal(coverage, layout.PayloadCrcCoverageLength);
     }
@@ -110,14 +109,14 @@ public class RbfWireCodecTests {
     [InlineData(5, 3, 0xFFFFFFFFu, false)]
     [InlineData(7, 65535, 0u, true)]
     public void FillTrailer_UsesScalarCrcOverOriginalLittleEndianUnits(int payloadLength, int metaLength, uint tag, bool tombstone) {
-        var layout = new FrameLayout(RbfProfile.Rbf3, payloadLength, metaLength);
+        var layout = new FrameLayout(payloadLength, metaLength);
         uint descriptor = (tombstone ? 0x80000000u : 0) | ((uint)layout.PaddingLength << 29) | (uint)metaLength;
         byte[] expected = ScalarTrailer(descriptor, tag, (uint)layout.FrameLength / 4);
         byte[] actual = new byte[16];
         layout.FillTrailer(actual, tag, tombstone);
         Assert.Equal(expected, actual);
 
-        var parsed = RbfWireCodec.ParseTrailer(RbfProfile.Rbf3, actual);
+        var parsed = RbfWireCodec.ParseTrailer(actual);
         Assert.True(parsed.IsSuccess);
         Assert.Equal((uint)layout.FrameLength, parsed.Value.TailLen);
         Assert.Equal(metaLength, parsed.Value.TailMetaLen);
@@ -131,7 +130,7 @@ public class RbfWireCodecTests {
         // Scalar CRC32C, consuming bytes 15..4, yields BE 6A47EC8E for this LE(U=7) vector.
         byte[] trailer = Convert.FromHexString("6A47EC8E000000004433221107000000");
         byte[] original = trailer.ToArray();
-        var parsed = RbfWireCodec.ParseTrailer(RbfProfile.Rbf3, trailer);
+        var parsed = RbfWireCodec.ParseTrailer(trailer);
         Assert.True(parsed.IsSuccess);
         Assert.Equal(0x6A47EC8Eu, parsed.Value.TrailerCrc32C);
         Assert.Equal(0x11223344u, parsed.Value.FrameTag);
@@ -141,16 +140,16 @@ public class RbfWireCodecTests {
 
         // Replacing U with L before checking the unchanged CRC is invalid.
         BinaryPrimitives.WriteUInt32LittleEndian(trailer.AsSpan(12), 28);
-        Assert.IsType<RbfCrcMismatchError>(RbfWireCodec.ParseTrailer(RbfProfile.Rbf3, trailer).Error);
+        Assert.IsType<RbfCrcMismatchError>(RbfWireCodec.ParseTrailer(trailer).Error);
     }
 
     [Fact]
     public void ParseTrailer_ChecksCrcBeforeInvalidUnitsAndDoesNotMutateInput() {
         byte[] trailer = ScalarTrailer(0, 1, 0x40000007u);
-        Assert.IsType<RbfFramingError>(RbfWireCodec.ParseTrailer(RbfProfile.Rbf3, trailer).Error);
+        Assert.IsType<RbfFramingError>(RbfWireCodec.ParseTrailer(trailer).Error);
         trailer[0] ^= 1;
         byte[] original = trailer.ToArray();
-        Assert.IsType<RbfCrcMismatchError>(RbfWireCodec.ParseTrailer(RbfProfile.Rbf3, trailer).Error);
+        Assert.IsType<RbfCrcMismatchError>(RbfWireCodec.ParseTrailer(trailer).Error);
         Assert.Equal(original, trailer);
     }
 
@@ -161,7 +160,7 @@ public class RbfWireCodecTests {
     [InlineData(0x20000000u)]
     public void ParseTrailer_RejectsReservedBitsOrImpossibleMetaPadding(uint descriptor) {
         byte[] trailer = ScalarTrailer(descriptor, 0, 7);
-        Assert.IsType<RbfFramingError>(RbfWireCodec.ParseTrailer(RbfProfile.Rbf3, trailer).Error);
+        Assert.IsType<RbfFramingError>(RbfWireCodec.ParseTrailer(trailer).Error);
     }
 
     [Theory]
@@ -235,7 +234,7 @@ public class RbfWireCodecTests {
     [InlineData(15)]
     public void ParseTrailer_TruncationReturnsFramingFailure(int count) {
         byte[] truncated = new byte[count];
-        Assert.IsType<RbfFramingError>(RbfWireCodec.ParseTrailer(RbfProfile.Rbf3, truncated).Error);
+        Assert.IsType<RbfFramingError>(RbfWireCodec.ParseTrailer(truncated).Error);
         Assert.IsType<RbfFramingError>(RbfWireCodec.ParseEncodedTrailer(truncated, 0).Error);
     }
 
@@ -246,7 +245,7 @@ public class RbfWireCodecTests {
         BinaryPrimitives.WriteUInt32LittleEndian(frame, 9);
         ScalarTrailer(0x40000003u, 0xFEDCBA98u, 9).CopyTo(frame, 16);
         BinaryPrimitives.WriteUInt32LittleEndian(frame.AsSpan(32), 0xFFFFFFFFu);
-        var parsed = FrameLayout.ResultFromTrailer(RbfProfile.Rbf3, frame, out var trailer);
+        var parsed = FrameLayout.ResultFromTrailer(frame, out var trailer);
         Assert.True(parsed.IsSuccess);
         Assert.Equal(36u, trailer.TailLen);
         Assert.Equal(3, parsed.Value.PayloadLength);
@@ -255,7 +254,7 @@ public class RbfWireCodecTests {
         Assert.Equal(32, parsed.Value.TailKeyOffset);
 
         ScalarTrailer(0x40000003u, 0xFEDCBA98u, 10).CopyTo(frame, 16);
-        Assert.IsType<RbfFramingError>(FrameLayout.ResultFromTrailer(RbfProfile.Rbf3, frame, out _).Error);
+        Assert.IsType<RbfFramingError>(FrameLayout.ResultFromTrailer(frame, out _).Error);
     }
 
     private static byte[] ScalarTrailer(uint descriptor, uint tag, uint wireLength) {

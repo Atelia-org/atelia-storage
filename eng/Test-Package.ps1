@@ -1,15 +1,10 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('All')][string]$Project = 'All',
     [Parameter(Mandatory)][string]$Version,
     [Parameter(Mandatory)][string]$FeedDirectory,
-    [Parameter(Mandatory)][string]$WorkDirectory,
-    [switch]$AdditionalSegmentSmoke
+    [Parameter(Mandatory)][string]$WorkDirectory
 )
 $ErrorActionPreference = 'Stop'
-if ($PSBoundParameters.ContainsKey('AdditionalSegmentSmoke')) {
-    throw [ArgumentException]::new('Main delivers only Primitives/Data/Rbf/Binary/FrameStore/HeadStore. AdditionalSegmentSmoke is maintained on the RBF1 branch.', 'AdditionalSegmentSmoke')
-}
 $repo = Split-Path $PSScriptRoot -Parent
 . (Join-Path $PSScriptRoot 'PackageMetadataCheck/ConsumerContracts.ps1')
 $consumers = @(Get-PackageSmokeContracts)

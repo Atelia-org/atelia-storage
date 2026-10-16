@@ -18,10 +18,10 @@ partial class RbfReadImpl {
         long fenceEndOffset
     ) {
         reader.EnsureUsable();
-        int trailerAndFenceSize = TrailerCodewordHelper.Size + RbfLayout.GetTailKeySize(reader.Profile) + RbfLayout.FenceSize;
+        int trailerAndFenceSize = TrailerCodewordHelper.Size + RbfLayout.TailKeySize + RbfLayout.FenceSize;
 
         // 1. 边界检查：fenceEndOffset 必须 >= MinFirstFrameFenceEnd
-        int minimumFenceEnd = RbfLayout.HeaderOnlyLength + RbfLayout.GetMinFrameLength(reader.Profile) + RbfLayout.FenceSize;
+        int minimumFenceEnd = RbfLayout.HeaderOnlyLength + FrameLayout.MinFrameLength + RbfLayout.FenceSize;
         if (fenceEndOffset < minimumFenceEnd || (fenceEndOffset & RbfLayout.AlignmentMask) != 0) {
             return new RbfFramingError(
                 $"No frame before offset {fenceEndOffset}: minimum required is {minimumFenceEnd}, with 4B alignment.",
@@ -42,7 +42,7 @@ partial class RbfReadImpl {
         }
 
         // 3. 验证 Fence（末尾 4 字节）
-        if (!buffer[^RbfLayout.FenceSize..].SequenceEqual(RbfLayout.GetFence(reader.Profile))) {
+        if (!buffer[^RbfLayout.FenceSize..].SequenceEqual(RbfLayout.Fence)) {
             return new RbfFramingError(
                 "Expected profile Fence not found.",
                 RecoveryHint: "The frame boundary marker is missing or corrupted."
@@ -50,7 +50,7 @@ partial class RbfReadImpl {
         }
 
         // 4. 验证并解析 TrailerCodeword（前 16 字节，CRC + reserved bits）
-        var trailerResult = ParseTailBlock(reader.Profile, buffer[..^RbfLayout.FenceSize], out uint key);
+        var trailerResult = ParseTailBlock(buffer[..^RbfLayout.FenceSize], out uint key);
         if (!trailerResult.IsSuccess) { return trailerResult.Error!; }
 
         var trailer = trailerResult.Value;
@@ -69,7 +69,7 @@ partial class RbfReadImpl {
         // 9. 计算 PayloadLength
         // PayloadLength = TailLen - FixedOverhead - TailMetaLen - PaddingLen
         // RBF3 fixed overhead additionally includes raw TailKey4.
-        int payloadLen = (int)trailer.TailLen - RbfLayout.GetFixedOverhead(reader.Profile) - trailer.TailMetaLen - trailer.PaddingLen;
+        int payloadLen = (int)trailer.TailLen - FrameLayout.FixedOverhead - trailer.TailMetaLen - trailer.PaddingLen;
 
         // 10. 构造 RbfFrameInfo（绑定 reader）
         var ticket = SizedPtr.Create(frameStart, (int)trailer.TailLen);
