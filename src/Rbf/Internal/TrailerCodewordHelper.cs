@@ -165,7 +165,7 @@ internal static class TrailerCodewordHelper {
     }
 
     internal static AteliaResult<int> ComputePayloadLength(uint tailLen, int tailMetaLen, int paddingLen) {
-        return ComputePayloadLength(RbfProfile.Rbf1, tailLen, tailMetaLen, paddingLen);
+        return ComputePayloadLength(RbfProfile.Rbf3, tailLen, tailMetaLen, paddingLen);
     }
 
     /// <summary>tailLen 已在 codec 边界归一为 bytes。</summary>

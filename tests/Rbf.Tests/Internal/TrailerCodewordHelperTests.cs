@@ -270,12 +270,12 @@ public class TrailerCodewordHelperTests {
         // 这个测试确保 CRC 算法不会意外变更
 
         byte[] buffer = new byte[16];
-        // 使用简单的已知值
-        uint crc = TrailerCodewordHelper.Serialize(buffer, 0u, 1u, 24u);
+        // RBF3 最小帧 28 bytes 对应 TailLen = 7 units
+        uint crc = TrailerCodewordHelper.Serialize(buffer, 0u, 1u, 7u);
 
         // 重新计算应该得到相同结果
         byte[] buffer2 = new byte[16];
-        uint crc2 = TrailerCodewordHelper.Serialize(buffer2, 0u, 1u, 24u);
+        uint crc2 = TrailerCodewordHelper.Serialize(buffer2, 0u, 1u, 7u);
 
         Assert.Equal(crc, crc2);
 
@@ -312,7 +312,7 @@ public class TrailerCodewordHelperTests {
     #region Roundtrip Tests
 
     [Theory]
-    [InlineData(false, 0, 0, 0x00000001u, 24u)]
+    [InlineData(false, 0, 0, 0x00000001u, 7u)]
     [InlineData(true, 3, 65535, 0xFFFFFFFFu, 0x00100000u)]
     [InlineData(false, 2, 1000, 0x42u, 100u)]
     [InlineData(true, 1, 123, 0xDEADBEEFu, 0x1234u)]

@@ -26,15 +26,13 @@ def write_json(path, value):
     path.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
 
 
-def encode(payload, meta, tag, key, legacy=False):
+def encode(payload, meta, tag, key):
     pad = (-(len(payload) + len(meta))) & 3
     coverage = payload + meta + bytes(pad)
-    length = len(coverage) + (24 if legacy else 28)
-    units = length if legacy else length // 4
+    length = len(coverage) + 28
+    units = length // 4
     fields = struct.pack("<III", (pad << 29) | len(meta), tag, units)
     body = coverage + struct.pack("<I", crc(coverage)) + struct.pack(">I", crc(fields[::-1])) + fields
-    if legacy:
-        return b"RBF1" + struct.pack("<I", length) + body + b"RBF1"
     assert key != F
     encoded = b"".join(struct.pack("<I", struct.unpack_from("<I", body, i)[0] ^ key)
                        for i in range(0, len(body), 4))
@@ -86,14 +84,16 @@ def fixtures(output):
         manifest.append(dict(Name=name, File=name + ".rbf", Profile="RBF3", Key=key,
                              Tag=tag, Length=len(wire)-8, PayloadHex=payload.hex(), MetaHex=meta.hex(),
                              Sha256=hashlib.sha256(wire).hexdigest()))
-    wire = encode(b"old", b"m", 37, 0, legacy=True)
+    # Frozen RBF1 vector from the pre-removal oracle at 043f77aa68700568499ceb965c049f8362e4253f.
+    # Only a rejection input: main has no RBF1 encoder or supported legacy reader.
+    wire = bytes.fromhex("524246311c0000006f6c646dfea1f64b0940f16e01000000250000001c00000052424631")
     (folder / "legacy.rbf").write_bytes(wire)
     manifest.append(dict(Name="legacy", File="legacy.rbf", Profile="RBF1", Key=0,
                          Tag=37, Length=len(wire)-8, PayloadHex=b"old".hex(), MetaHex=b"m".hex(),
                          Sha256=hashlib.sha256(wire).hexdigest()))
     write_json(folder / "manifest.json", manifest)
     write_json(output / "python-fixtures.json", dict(Passed=True, Fixtures=len(manifest),
-               Oracle="Independent bitwise CRC32C and RBF3 units encoding; RBF1 byte wire separate"))
+               Oracle="Independent bitwise CRC32C and RBF3 units encoding; frozen RBF1 rejection vector"))
 
 
 def verify(output):

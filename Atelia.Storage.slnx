@@ -6,27 +6,19 @@
     <Project Path="src/Rbf/Rbf.csproj" />
     <Project Path="src/FrameStore/FrameStore.csproj" />
     <Project Path="src/HeadStore/HeadStore.csproj" />
-    <Project Path="src/RbfSegmentStore/RbfSegmentStore.csproj" />
-    <Project Path="src/EventJournal/EventJournal.csproj" />
   </Folder>
   <Folder Name="/tools/">
-    <Project Path="tools/EventJournal.Toolkit/EventJournal.Toolkit.csproj" />
     <Project Path="tools/HeadStore.Smoke/HeadStore.Smoke.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/EventJournal.Validation/EventJournal.Validation.csproj" />
-    <Project Path="tests/EventJournal.Toolkit.Tests/EventJournal.Toolkit.Tests.csproj" />
     <Project Path="tests/Primitives.Tests/Primitives.Tests.csproj" />
     <Project Path="tests/Data.Tests/Data.Tests.csproj" />
     <Project Path="tests/Binary.Tests/Binary.Tests.csproj" />
     <Project Path="tests/Rbf.Tests/Rbf.Tests.csproj" />
     <Project Path="tests/FrameStore.Tests/FrameStore.Tests.csproj" />
     <Project Path="tests/HeadStore.Tests/HeadStore.Tests.csproj" />
-    <Project Path="tests/RbfSegmentStore.Tests/RbfSegmentStore.Tests.csproj" />
-    <Project Path="tests/EventJournal.Tests/EventJournal.Tests.csproj" />
   </Folder>
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/Data.Benchmarks/Data.Benchmarks.csproj" />
-    <Project Path="benchmarks/Rbf.Benchmarks/Rbf.Benchmarks.csproj" />
   </Folder>
 </Solution>

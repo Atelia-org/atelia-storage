@@ -68,11 +68,11 @@ internal sealed class RbfFileImpl : IRbfFile {
     /// <param name="cancellationToken">读取取消信号，包括缓存命中路径。</param>
     /// <param name="readOnly">普通文件只读打开；不建立离线固定 EOF candidate。</param>
     /// <param name="appendPool">非零键大帧输出 scratch 的池；默认共享池。</param>
-    /// <param name="profile">文件已经分派的格式；默认 RBF1 仅用于内部旧格式 fixtures。</param>
+    /// <param name="profile">文件格式；仅支持 RBF3。</param>
     /// <param name="builderPool">Builder 缓冲区的池；默认共享池，仅供内部测试注入。</param>
     internal RbfFileImpl(SafeFileHandle handle, long tailOffset, RbfCacheMode cacheMode = RbfCacheMode.Slots16,
         bool readOnlyCandidate = false, Action<int>? beforeRead = null, CancellationToken cancellationToken = default,
-        bool readOnly = false, ArrayPool<byte>? appendPool = null, RbfProfile profile = RbfProfile.Rbf1,
+        bool readOnly = false, ArrayPool<byte>? appendPool = null, RbfProfile profile = RbfProfile.Rbf3,
         ArrayPool<byte>? builderPool = null) {
         _handle = handle ?? throw new ArgumentNullException(nameof(handle));
         _readOnly = readOnly || readOnlyCandidate;
@@ -90,11 +90,7 @@ internal sealed class RbfFileImpl : IRbfFile {
     }
 
     /// <inheritdoc />
-    public RbfFormat Format => _profile switch {
-        RbfProfile.Rbf1 => RbfFormat.Rbf1,
-        RbfProfile.Rbf3 => RbfFormat.Rbf3,
-        _ => throw new ArgumentOutOfRangeException(nameof(_profile), _profile, "Unknown RBF profile.")
-    };
+    public RbfFormat Format => RbfFormat.Rbf3;
 
     /// <inheritdoc />
     public long TailOffset => _tailOffset;
@@ -142,17 +138,9 @@ internal sealed class RbfFileImpl : IRbfFile {
         InvalidateCacheFrom(tailOffset);
         // 门面层只负责：持有句柄 + 维护 TailOffset。
         // 失败时 RbfAppendImpl 保证不修改 tailOffset
-        AteliaResult<SizedPtr> result;
-        if (_profile == RbfProfile.Rbf3) {
-            // RBF3 marks fault at its output boundary; CRC/search/RNG/pool failures remain prepublication failures.
-            result = RbfAppendImpl.AppendRbf3(_handle, ref tailOffset, payload, tailMeta, tag,
-                ref _appendScratch, _appendPool, _markWriteFaulted, selectKey);
-        }
-        else {
-            // Internal legacy fixtures retain the old writer. Public factories never open RBF1 for writing.
-            try { result = RbfAppendImpl.Append(_handle, ref tailOffset, payload, tailMeta, tag); }
-            catch { _reader.MarkWriteFaulted(); throw; }
-        }
+        // CRC/search/RNG/pool failures precede publication; output failures fault this owner.
+        var result = RbfAppendImpl.AppendRbf3(_handle, ref tailOffset, payload, tailMeta, tag,
+            ref _appendScratch, _appendPool, _markWriteFaulted, selectKey);
         if (result.IsSuccess) {
             _tailOffset = tailOffset;
             _reader.NotifyFileLengthChanged(_tailOffset);
@@ -372,22 +360,15 @@ internal sealed class RbfFileImpl : IRbfFile {
                 _builderWriter.Advance(layout.PaddingLength);
             }
             uint payloadCrc = crcRaw ^ RollingCrc.DefaultFinalXor;
-            if (_profile == RbfProfile.Rbf3) {
-                var tailSpan = _builderWriter.GetSpan(RbfFrameWriteCore.PlaintextTailSize);
-                RbfFrameWriteCore.WritePlaintextTail(tailSpan, in layout, tag, isTombstone: false, payloadCrc);
-                _builderWriter.Advance(RbfFrameWriteCore.PlaintextTailSize);
-                beforeEscape?.Invoke(); // Internal per-call selection-stage failure seam; no production callback.
-                uint key = _builderWriter.XorEscapeSinceReservationEnd(_builderHeadLenReservationToken, RbfLayout.GetFenceWord(_profile));
-                var closure = _builderWriter.GetSpan(2 * sizeof(uint));
-                BinaryPrimitives.WriteUInt32LittleEndian(closure, key);
-                BinaryPrimitives.WriteUInt32LittleEndian(closure[sizeof(uint)..], RbfLayout.GetFenceWord(_profile));
-                _builderWriter.Advance(2 * sizeof(uint));
-            }
-            else {
-                var tailSpan = _builderWriter.GetSpan(RbfFrameWriteCore.TailSize);
-                RbfFrameWriteCore.WriteTail(tailSpan, in layout, tag, isTombstone: false, payloadCrc);
-                _builderWriter.Advance(RbfFrameWriteCore.TailSize);
-            }
+            var tailSpan = _builderWriter.GetSpan(RbfFrameWriteCore.PlaintextTailSize);
+            RbfFrameWriteCore.WritePlaintextTail(tailSpan, in layout, tag, isTombstone: false, payloadCrc);
+            _builderWriter.Advance(RbfFrameWriteCore.PlaintextTailSize);
+            beforeEscape?.Invoke(); // Internal per-call selection-stage failure seam; no production callback.
+            uint key = _builderWriter.XorEscapeSinceReservationEnd(_builderHeadLenReservationToken, RbfLayout.GetFenceWord(_profile));
+            var closure = _builderWriter.GetSpan(2 * sizeof(uint));
+            BinaryPrimitives.WriteUInt32LittleEndian(closure, key);
+            BinaryPrimitives.WriteUInt32LittleEndian(closure[sizeof(uint)..], RbfLayout.GetFenceWord(_profile));
+            _builderWriter.Advance(2 * sizeof(uint));
             BinaryPrimitives.WriteUInt32LittleEndian(headLenSpan, layout.WireFrameLength);
         }
         catch { AbortBuilder(epoch); throw; }

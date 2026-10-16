@@ -19,12 +19,6 @@ internal static class RbfTailRecovery {
         metrics?.HeaderRequested(header.Length);
         ReadExactly(handle, header, 0, measure: false);
         metrics?.HeaderReturned(header.Length);
-        if (header.SequenceEqual(RbfLayout.GetFence(RbfProfile.Rbf1))) {
-            profile = RbfProfile.Rbf1;
-            if (writable) { throw Invalid(0, "RBF1 supports read-only open; writable open requires RBF3."); }
-            ValidateLegacyChain(handle, originalLength);
-            return None(originalLength);
-        }
         if (!header.SequenceEqual(RbfLayout.GetFence(RbfProfile.Rbf3))) {
             // RBF2 was an experimental byte-length format, never the production units profile.
             throw Invalid(0, "Unsupported HeaderFence.");
@@ -178,36 +172,6 @@ internal static class RbfTailRecovery {
             end = offset;
         }
         throw Invalid(lower, "No aligned Fence within the single-tail scan bound.");
-    }
-
-    private static void ValidateLegacyChain(SafeFileHandle handle, long length) {
-        long start = RbfLayout.FirstFrameOffset;
-        Span<byte> small = stackalloc byte[TrailerCodewordHelper.Size];
-        while (start < length) {
-            RequireFrameStart(start);
-            if (length - start < sizeof(uint)) { throw Invalid(start, "Incomplete RBF1 HeadLen."); }
-            ReadExactly(handle, small[..sizeof(uint)], start);
-            var decodedLength = RbfWireCodec.DecodeFrameLength(RbfProfile.Rbf1, BinaryPrimitives.ReadUInt32LittleEndian(small));
-            if (decodedLength.IsFailure) { throw Invalid(start, decodedLength.Error!.ToString()); }
-            int frameLength = decodedLength.Value;
-            long frameEnd = start + frameLength;
-            if (length - frameEnd < RbfLayout.FenceSize) { throw Invalid(start, "Incomplete RBF1 terminal frame or Fence."); }
-            ReadExactly(handle, small, frameEnd - small.Length);
-            var parsed = RbfWireCodec.ParseTrailer(RbfProfile.Rbf1, small);
-            if (parsed.IsFailure) { throw Invalid(frameEnd - small.Length, parsed.Error!.ToString()); }
-            if (parsed.Value.TailLen != (uint)frameLength) { throw Invalid(start, "RBF1 HeadLen/TailLen mismatch."); }
-            int paddingLength = parsed.Value.PaddingLen;
-            if (paddingLength != 0) {
-                long paddingOffset = frameEnd - TrailerCodewordHelper.Size - sizeof(uint) - paddingLength;
-                ReadExactly(handle, small[..paddingLength], paddingOffset);
-                for (int i = 0; i < paddingLength; i++) {
-                    if (small[i] != 0) { throw Invalid(paddingOffset + i, "Nonzero RBF1 padding."); }
-                }
-            }
-            ReadExactly(handle, small[..RbfLayout.FenceSize], frameEnd);
-            if (!small[..RbfLayout.FenceSize].SequenceEqual(RbfLayout.GetFence(RbfProfile.Rbf1))) { throw Invalid(frameEnd, "RBF1 trailing Fence mismatch."); }
-            start = frameEnd + RbfLayout.FenceSize;
-        }
     }
 
     private static void RequireFrameStart(long start) {

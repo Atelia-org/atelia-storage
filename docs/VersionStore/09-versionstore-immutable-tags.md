@@ -28,7 +28,7 @@ CreateTag 的两个 bytes 入口与 ResolveTag 唯一消费11：CreateTag 返回
 
 TagName MUST 为 non-null .NET string，按 `string.Length` 接受 **1..1024 个 UTF-16 code units**。HeadStore 提供 `public const int MaxTagNameCodeUnits = 1024`，不提供实例配置；两个 CreateTag 入口、ResolveTag 与 ReadTagInfo 在文件 I/O 前共用准入，超长查询不能探桶后报 TagNotFound。相等使用 StringComparer.Ordinal；Release 与 release 可以分别创建。MUST 原样保留 code units，不 trim、normalize、大小写转换或 replacement。空串被拒绝；非空空白、NUL、控制符、路径分隔符、U+FEFF 与未配对 surrogate 均合法。长度单位不是 scalar、grapheme 或编码字节数。
 
-名称是字段，不成为路径组件，不继承 branch 或冻结旧栈的 ASCII、128B、文件名字符限制。匿名 tag 已有公开源码持久化闭环，尚无包消费验收，不增加旧 tag 兼容义务。
+名称是字段，不成为路径组件，不继承 branch 或历史旧栈的 ASCII、128B、文件名字符限制。匿名 tag 已有公开源码持久化闭环，尚无包消费验收，不增加旧 tag 兼容义务。
 
 ### spec [F-VS-TAG-NAME-BPV1] 名称复用普通无损字符串
 
@@ -189,4 +189,4 @@ named请求仍做路径资格与O(目标桶记录数+checked meta bytes)扫描�
 
 **施工与成熟度：** 本合同的V3-A/B/C已完成codec、惰性空桶、发布/解析、关联及元信息公面；匿名与关联writer共用发布路径和schema。现有公开RBF TailMeta读取及RollingCrc已经够用，不新增底层scanner/索引接口。V4-A已接通只读完整Audit，V4-B至V4-F的具名进程、两平台与有限规模证据分别见实施计划；V4-E取得独立源码Accepted。包消费资格仍缺，有限规模观察不代表任意负载SLO。
 
-依据：既有tag合同从35d6c2d的S5迁入；[S5](05-versionstore-names-and-indexes.md)保留导航与历史互操作。[S4](04-versionstore-publication.md)、[RBF接口](../Rbf/rbf-interface.md)、[公共尺寸](../../src/Rbf/RbfFile.cs)、[小TailMeta读取与解escape](../../src/Rbf/RbfFrameInfo.cs)、[RollingCrc封口/检查](../../src/Data/Hashing/RollingCrc.cs)、[BPV字符串选择](../../src/Binary/BareValueEncoding.Strings.cs)、[分配前限制](../../src/Binary/BareValueReader.Strings.cs)、[VarInt](../../src/Binary/BareValueReader.cs)、[SizedPtr](../../src/Data/SizedPtr.cs)为机制依据。[RBF正扫测试](../../tests/Rbf.Tests/Internal/RbfScanForwardTests.cs)为底座证据；冻结旧栈[不可变tag测试](../../tests/EventJournal.Tests/ImmutableTagTests.cs)与[书签消费者](../../../durable-graph/tests/DurableGraph.Persistence.Tests/RepositoryTagTests.cs)仅作工作流背景，不引入旧API/格式，不构成本专项验收。
+依据：既有tag合同从35d6c2d的S5迁入；[S5](05-versionstore-names-and-indexes.md)保留导航与历史互操作。[S4](04-versionstore-publication.md)、[RBF接口](../Rbf/rbf-interface.md)、[公共尺寸](../../src/Rbf/RbfFile.cs)、[小TailMeta读取与解escape](../../src/Rbf/RbfFrameInfo.cs)、[RollingCrc封口/检查](../../src/Data/Hashing/RollingCrc.cs)、[BPV字符串选择](../../src/Binary/BareValueEncoding.Strings.cs)、[分配前限制](../../src/Binary/BareValueReader.Strings.cs)、[VarInt](../../src/Binary/BareValueReader.cs)、[SizedPtr](../../src/Data/SizedPtr.cs)为机制依据。[RBF正扫测试](../../tests/Rbf.Tests/Internal/RbfScanForwardTests.cs)为底座证据；归档旧栈[不可变tag测试](https://github.com/Atelia-org/atelia-storage/blob/043f77aa68700568499ceb965c049f8362e4253f/tests/EventJournal.Tests/ImmutableTagTests.cs)与[书签消费者](../../../durable-graph/tests/DurableGraph.Persistence.Tests/RepositoryTagTests.cs)仅作工作流背景，不引入旧API/格式，不构成本专项验收。

@@ -29,7 +29,7 @@ partial class RbfReadImpl {
             );
         }
 
-        // 2. 一次读取 Trailer、可选 raw Key 和 Fence（RBF1 20B / RBF3 24B）。
+        // 2. 一次读取 Trailer、raw Key 和 Fence（RBF3 24B）。
         Span<byte> buffer = stackalloc byte[trailerAndFenceSize];
         long readOffset = fenceEndOffset - trailerAndFenceSize;
         int bytesRead = reader.Read(buffer, readOffset);

@@ -354,8 +354,8 @@ public sealed class Rbf3WriterFaultTests {
     }
 
     [Fact]
-    public void ReadOnlyLegacyFacade_RejectsAllWriteEntrypointsWithoutBytesChanging() {
-        using var fixture = new Rbf3WriterFixture(profile: RbfProfile.Rbf1, readOnly: true);
+    public void ReadOnlyFacade_RejectsAllWriteEntrypointsWithoutBytesChanging() {
+        using var fixture = new Rbf3WriterFixture(readOnly: true);
         byte[] before = fixture.ReadBytes();
         Assert.Throws<InvalidOperationException>(() => fixture.File.Append(11, ReadOnlySpan<byte>.Empty, ReadOnlySpan<byte>.Empty));
         Assert.Throws<InvalidOperationException>(() => fixture.File.BeginAppend());

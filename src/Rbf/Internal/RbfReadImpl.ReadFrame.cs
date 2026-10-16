@@ -278,9 +278,9 @@ internal static partial class RbfReadImpl {
         return null;
     }
 
-    /// <summary>解析并验证帧数据（v0.40 布局）。</summary>
+    /// <summary>解析并验证 RBF3 帧数据。</summary>
     /// <remarks>
-    /// v0.40 帧布局：[HeadLen][Payload][TailMeta][Padding][PayloadCrc][TrailerCodeword]
+    /// 帧布局：[HeadLenUnits][XOR(Payload, TailMeta, Padding, PayloadCrc, TrailerCodeword)][TailKey]
     /// Framing 校验清单：
     /// - HeadLen == TailLen
     /// - FrameDescriptor 保留位 (bit 28-16) 为 0
@@ -314,13 +314,11 @@ internal static partial class RbfReadImpl {
 
         int payloadLength = ticketLength - RbfLayout.GetFixedOverhead(profile) - trailer.TailMetaLen - trailer.PaddingLen;
         var layout = new FrameLayout(profile, payloadLength, trailer.TailMetaLen);
-        if (profile == RbfProfile.Rbf3) {
-            // The reader/cache copied encoded bytes into the caller's owned buffer.
-            // Header and raw Key stay outside the continuous XOR body.
-            XorEscape.InPlace(frameBuffer.Slice(FrameLayout.PayloadOffset, ticketLength - 8), key);
-            foreach (byte value in frameBuffer.Slice(layout.PaddingOffset, layout.PaddingLength)) {
-                if (value != 0) { return new RbfFramingError("Nonzero frame padding."); }
-            }
+        // The reader/cache copied encoded bytes into the caller's owned buffer.
+        // Header and raw Key stay outside the continuous XOR body.
+        XorEscape.InPlace(frameBuffer.Slice(FrameLayout.PayloadOffset, ticketLength - 8), key);
+        foreach (byte value in frameBuffer.Slice(layout.PaddingOffset, layout.PaddingLength)) {
+            if (value != 0) { return new RbfFramingError("Nonzero frame padding."); }
         }
 
         // 5. PayloadCrc32C 校验
@@ -358,11 +356,9 @@ internal static partial class RbfReadImpl {
                 RecoveryHint: "The RbfFrameInfo does not identify this frame layout."
             );
         }
-        if (profile == RbfProfile.Rbf3) {
-            XorEscape.InPlace(frameBuffer.Slice(FrameLayout.PayloadOffset, ticketLength - 8), info.EscapeKey);
-            foreach (byte value in frameBuffer.Slice(layout.PaddingOffset, layout.PaddingLength)) {
-                if (value != 0) { return new RbfFramingError("Nonzero frame padding."); }
-            }
+        XorEscape.InPlace(frameBuffer.Slice(FrameLayout.PayloadOffset, ticketLength - 8), info.EscapeKey);
+        foreach (byte value in frameBuffer.Slice(layout.PaddingOffset, layout.PaddingLength)) {
+            if (value != 0) { return new RbfFramingError("Nonzero frame padding."); }
         }
         var payloadCrcError = ValidatePayloadCrc(frameBuffer, in layout);
         if (payloadCrcError != null) { return payloadCrcError; }

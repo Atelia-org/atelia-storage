@@ -112,8 +112,8 @@ public sealed class RbfScanBoundaryTests : IDisposable {
 
     [Theory]
     [InlineData(0)] // HeadLen
-    [InlineData(4)] // payload CRC
-    [InlineData(-16)] // trailer CRC
+    [InlineData(8)] // payload CRC (one-byte payload + three padding bytes)
+    [InlineData(-20)] // trailer CRC (before the 4-byte TailKey)
     [InlineData(-1)] // tail Fence
     public void AnchorAndTailCorruption_FailsWithoutChangingBytes(int corruption) {
         SizedPtr ticket;
@@ -144,7 +144,7 @@ public sealed class RbfScanBoundaryTests : IDisposable {
     [Fact]
     public void TombstoneAnchorAndSuffix_PreserveWitnessAndFiltering() {
         SizedPtr anchor, suffix;
-        using (var file = RawRbfTestFile.CreateLegacy(_path)) {
+        using (var file = RawRbfTestFile.Create(_path)) {
             anchor = file.Append(7, [1, 2, 3], [4]).Unwrap();
             suffix = file.Append(8, [5]).Unwrap();
         }

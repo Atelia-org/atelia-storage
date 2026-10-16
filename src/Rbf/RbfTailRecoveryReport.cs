@@ -5,10 +5,6 @@ namespace Atelia.Rbf;
 /// <summary>Successful ordinary open's single terminal-frame recovery action.</summary>
 public enum RbfTailRecoveryAction {
     None = 0,
-    /// <summary>Historical RBF1 report value; ordinary open no longer produces it.</summary>
-    CompletedFence = 1,
-    /// <summary>Historical RBF1 report value; ordinary open no longer produces it.</summary>
-    CompletedTombstone = 2,
     Truncated = 3,
     CompletedTail = 4
 }

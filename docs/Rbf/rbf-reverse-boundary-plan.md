@@ -32,7 +32,7 @@ Malformed 参数返回 `RbfArgumentError`；framing、完整 CRC 与内容见证
 
 VersionStore 在自己的已 checked 身份上下文中，依据已签发 `RefRevision`，或自身协议写入并从 checked header 读取的 `ForkOrigin`，结合已发布历史不删除/复用、单 driver 串行及无外部改写模型使用旧位置。目标自身的完整 CRC、kind/meta、容量与 root bytes 资格不能因已有位置值而省略；来源 byte clone 等 VS 语义仍由 VS 检查。
 
-RBF3 的 marker-free 正常 writer 前缀保证全局对齐 Fence 只在真实边界出现，依据为 [RBF3 格式](rbf-format.md) `[F-RBF3-XOR-MARKER-FREE]` 的写出约束。它只支撑正常 writer 的 ProcessCrashOnly 模型，不认证任意位损坏、手工重新 seal、断电或设备乱序镜像；本计划不扩大这份证明。RBF1 可沿其现有 profile 结构规则支持该通用重载，但不新增 RBF1 的局部 anchor 成员承诺，也不改变其只读及全结构冷开资格。
+RBF3 的 marker-free 正常 writer 前缀保证全局对齐 Fence 只在真实边界出现，依据为 [RBF3 格式](rbf-format.md) `[F-RBF3-XOR-MARKER-FREE]` 的写出约束。它只支撑正常 writer 的 ProcessCrashOnly 模型，不认证任意位损坏、手工重新 seal、断电或设备乱序镜像；本计划不扩大这份证明。主线仅接受 RBF3，RBF1 由 factory 拒绝；移除边界见[退役记录](../rbf1-retirement.md)。
 
 本计划不新增持久见证、格式字段、索引、裸文件导入或绕过普通 factory 的能力。公开 factory 仍检查当前 EOF 并按自身合同恢复/拒绝；坏当前尾可能使冷开失败，不能宣称历史旧点因此必然可冷读。“不解析 suffix”只描述新重载自身，factory 成本与资格单列。
 
@@ -52,7 +52,7 @@ RBF3 的 marker-free 正常 writer 前缀保证全局对齐 Fence 只在真实�
 | anchor 损坏 | 目标 HeadLen、CRC、结构或尾 Fence 坏均拒绝且不改 bytes；不越过坏 anchor 找更早好帧 |
 | 无关 prefix 内容坏 | 好 anchor 可以准入；之后扫到坏 payload 的结构扫描与完整读取分别遵守既有 CRC 职责，不提前全审计 |
 | 状态与资源 | Dispose、Building、共享 fault、I/O、pool 归还及异常退出沿既有规则；枚举错误不伪装正常 EOF |
-| profile 与冷开 | RBF1 沿既定只读/profile 检查，不增加成员承诺；RBF3 正常 writer 嵌套 payload 向量；坏当前尾仍受 factory 拒绝/恢复约束 |
+| profile 与冷开 | 非 RBF3 Header 在修改前拒绝；RBF3 正常 writer 嵌套 payload 向量；坏当前尾仍受 factory 拒绝/恢复约束 |
 | VS 接线 | 已签发旧 revision 与持久来源分别使用其既定资格；真实重复完整读全部计历史预算，早停不访问更早初始或下一来源 |
 
-公共入口和针对性测试见 [RbfReverseBoundaryTests](../../tests/Rbf.Tests/Internal/RbfReverseBoundaryTests.cs)，VS 接线与预算/资源测试见 [V2-A 实施与验证](../VersionStore/12-versionstore-implementation-plan.md)。`rbf-interface.md` 已同步可用接口、anchor 完整核验与结构枚举的 CRC 职责区分。RBF1 向量只检验既有只读 profile 支持，不修改冻结旧栈的包依赖；Linux、真实进程终止与新增 API 的包消费资格单列后续验证。
+公共入口和针对性测试见 [RbfReverseBoundaryTests](../../tests/Rbf.Tests/Internal/RbfReverseBoundaryTests.cs)，VS 接线与预算/资源测试见 [V2-A 实施与验证](../VersionStore/12-versionstore-implementation-plan.md)。`rbf-interface.md` 已同步可用接口、anchor 完整核验与结构枚举的 CRC 职责区分。当时的 RBF1 向量与冻结旧栈包依赖检查属于历史基线，已随退役移除；Linux、真实进程终止与新增 API 的包消费资格单列后续验证。

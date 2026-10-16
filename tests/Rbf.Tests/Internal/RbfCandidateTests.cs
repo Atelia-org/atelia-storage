@@ -172,13 +172,19 @@ public sealed class RbfCandidateTests : IDisposable {
 
     private sealed class BudgetStop : Exception { }
 
-    [Fact]
-    public void CandidateRejectsExperimentalRbf2Header_AndReleasesHandle() {
+    [Theory]
+    [InlineData("RBF1")]
+    [InlineData("RBF2")]
+    [InlineData("RBF4")]
+    public void CandidateRejectsUnsupportedHeader_AndReleasesHandle(string magic) {
         var (_, _, eof) = WriteFrames();
         byte[] bytes = File.ReadAllBytes(_path);
-        "RBF2"u8.CopyTo(bytes);
+        System.Text.Encoding.ASCII.GetBytes(magic).CopyTo(bytes, 0);
         File.WriteAllBytes(_path, bytes);
-        Assert.Throws<InvalidDataException>(() => RbfFile.OpenReadOnlyCandidate(_path, eof));
+        foreach (var mode in new[] { RbfCacheMode.Off, RbfCacheMode.Slots16 }) {
+            Assert.Throws<InvalidDataException>(() => RbfFile.OpenReadOnlyCandidate(_path, eof, mode));
+            Assert.Throws<InvalidDataException>(() => RbfFile.OpenReadOnlyCandidate(_path, 4, mode));
+        }
         Assert.Equal(bytes, File.ReadAllBytes(_path));
         using var handle = File.OpenHandle(_path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
     }

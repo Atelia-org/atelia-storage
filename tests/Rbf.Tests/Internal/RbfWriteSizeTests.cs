@@ -73,17 +73,6 @@ public sealed class RbfWriteSizeTests : IDisposable {
         Assert.IsType<RbfArgumentError>(RbfFile.MeasureWriteSize(payloadLength + 1, metaLength).Error);
     }
 
-    [Fact]
-    public void SharedLayoutValidation_PreservesLegacyCapacityWithoutExposingLegacyMeasure() {
-        var legacy = FrameLayout.TryCreate(RbfProfile.Rbf1, 268435428, 0);
-
-        Assert.True(legacy.IsSuccess);
-        Assert.Equal(268435452, legacy.Value.FrameLength);
-        Assert.IsType<RbfArgumentError>(FrameLayout.TryCreate(RbfProfile.Rbf1, 268435429, 0).Error);
-        Assert.IsType<RbfArgumentError>(FrameLayout.TryCreate(RbfProfile.Rbf3, 268435428, 0).Error);
-        Assert.IsType<RbfArgumentError>(RbfFile.MeasureWriteSize(268435428).Error);
-    }
-
     // The budget includes the closing Fence, unlike SizedPtr.Length.
     [Theory]
     [InlineData(0L, 0, false, 0)]

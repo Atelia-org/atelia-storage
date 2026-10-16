@@ -34,7 +34,7 @@ public class ReadTrailerBeforeTests : IDisposable {
 
     #region 辅助方法
 
-    /// <summary>构造一个有效帧的字节数组（v0.40 格式）。</summary>
+    /// <summary>构造一个有效帧的字节数组（RBF3 格式，TailKey = 0）。</summary>
     private static byte[] CreateValidFrameBytes(uint tag, ReadOnlySpan<byte> payload, bool isTombstone = false) {
         var layout = new FrameLayout(payload.Length);
         int frameLen = layout.FrameLength;
@@ -43,7 +43,7 @@ public class ReadTrailerBeforeTests : IDisposable {
         Span<byte> span = frame;
 
         // HeadLen
-        BinaryPrimitives.WriteUInt32LittleEndian(span[..FrameLayout.HeadLenSize], (uint)frameLen);
+        BinaryPrimitives.WriteUInt32LittleEndian(span[..FrameLayout.HeadLenSize], layout.WireFrameLength);
         // Payload
         payload.CopyTo(span.Slice(FrameLayout.PayloadOffset, payload.Length));
         // Padding（清零）
@@ -54,6 +54,7 @@ public class ReadTrailerBeforeTests : IDisposable {
         var payloadCrcCoverage = span.Slice(FrameLayout.PayloadCrcCoverageStart, layout.PayloadCrcCoverageLength);
         uint payloadCrc = RollingCrc.CrcForward(payloadCrcCoverage);
         BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(layout.PayloadCrcOffset, FrameLayout.PayloadCrcSize), payloadCrc);
+        // TailKey 保持为 0，因此 body 无需 XOR 编码。
         // TrailerCodeword
         layout.FillTrailer(span.Slice(layout.TrailerCodewordOffset, TrailerCodewordHelper.Size), tag, isTombstone);
 
@@ -112,7 +113,7 @@ public class ReadTrailerBeforeTests : IDisposable {
         Assert.Equal(expectedFrameLen, frameInfo.Ticket.Length);
     }
 
-    /// <summary>验证空 payload 帧（最小帧 24B）的 ReadTrailerBefore。</summary>
+    /// <summary>验证空 payload 帧（最小帧 28B）的 ReadTrailerBefore。</summary>
     [Fact]
     public void ReadTrailerBefore_EmptyPayload_Succeeds() {
         // Arrange
@@ -137,7 +138,7 @@ public class ReadTrailerBeforeTests : IDisposable {
         Assert.Equal(tag, frameInfo.Tag);
         Assert.Equal(0, frameInfo.PayloadLength);
         Assert.False(frameInfo.IsTombstone);
-        Assert.Equal(FrameLayout.MinFrameLength, frameInfo.Ticket.Length); // 最小帧 24B
+        Assert.Equal(FrameLayout.MinFrameLength, frameInfo.Ticket.Length); // 最小帧 28B
     }
 
     /// <summary>验证墓碑帧的 ReadTrailerBefore。</summary>
@@ -297,7 +298,7 @@ public class ReadTrailerBeforeTests : IDisposable {
 
         byte[] fileContent = CreateValidFileWithFrame(tag, payload);
 
-        // 损坏 TrailerCrc（TrailerCodeword 的前 4 字节，位于 Fence 之前 16 字节处）
+        // 损坏 TrailerCrc（TrailerCodeword 的前 4 字节，位于 Fence 之前 20 字节处）
         var layout = new FrameLayout(payload.Length);
         int trailerCrcOffset = RbfLayout.FenceSize + layout.TrailerCodewordOffset;
         BinaryPrimitives.WriteUInt32BigEndian(fileContent.AsSpan(trailerCrcOffset, 4), 0xDEADBEEF);
@@ -362,9 +363,9 @@ public class ReadTrailerBeforeTests : IDisposable {
         int trailerOffset = RbfLayout.FenceSize + layout.TrailerCodewordOffset;
         Span<byte> trailerSpan = fileContent.AsSpan(trailerOffset, TrailerCodewordHelper.Size);
 
-        // 构建无效的 TrailerCodeword（TailLen = 20，小于 MinFrameLength = 24）
+        // 构建无效的 TrailerCodeword（TailLen = 6 units = 24 bytes，小于 MinFrameLength = 28）
         uint descriptor = TrailerCodewordHelper.BuildDescriptor(false, layout.PaddingLength, 0);
-        TrailerCodewordHelper.Serialize(trailerSpan, descriptor, tag, 20); // 无效 TailLen
+        TrailerCodewordHelper.Serialize(trailerSpan, descriptor, tag, 6); // 无效 TailLen units
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
@@ -395,7 +396,7 @@ public class ReadTrailerBeforeTests : IDisposable {
         Span<byte> trailerSpan = fileContent.AsSpan(trailerOffset, TrailerCodewordHelper.Size);
 
         // TailLen 设置为超大值，使 frameStart 越过 HeaderFence
-        uint hugeTailLen = (uint)(fileContent.Length); // 等于整个文件长度
+        uint hugeTailLen = (uint)fileContent.Length / 4; // 解码后等于整个文件长度
         uint descriptor = TrailerCodewordHelper.BuildDescriptor(false, layout.PaddingLength, 0);
         TrailerCodewordHelper.Serialize(trailerSpan, descriptor, tag, hugeTailLen);
 
@@ -412,9 +413,9 @@ public class ReadTrailerBeforeTests : IDisposable {
         Assert.Contains("HeaderFence", result.Error!.Message);
     }
 
-    /// <summary>验证 TailLen 非 4B 对齐时返回 FramingError。</summary>
+    /// <summary>验证 TailLen units 超过 wire 上限时返回 FramingError。</summary>
     [Fact]
-    public void ReadTrailerBefore_TailLenNotAligned_ReturnsFramingError() {
+    public void ReadTrailerBefore_TailLenUnitsAboveLimit_ReturnsFramingError() {
         // Arrange
         var path = GetTempFilePath();
         byte[] payload = [0x01, 0x02, 0x03];
@@ -422,14 +423,14 @@ public class ReadTrailerBeforeTests : IDisposable {
 
         byte[] fileContent = CreateValidFileWithFrame(tag, payload);
 
-        // 手动构造 TailLen 非对齐的 TrailerCodeword
+        // 手动构造超出 RBF3 长度上限的 TrailerCodeword
         var layout = new FrameLayout(payload.Length);
         int trailerOffset = RbfLayout.FenceSize + layout.TrailerCodewordOffset;
         Span<byte> trailerSpan = fileContent.AsSpan(trailerOffset, TrailerCodewordHelper.Size);
 
-        // TailLen = 25（非 4B 对齐）
+        // TailLen = 2^26 units（不在合法 wire 值域内）
         uint descriptor = TrailerCodewordHelper.BuildDescriptor(false, layout.PaddingLength, 0);
-        TrailerCodewordHelper.Serialize(trailerSpan, descriptor, tag, 25);
+        TrailerCodewordHelper.Serialize(trailerSpan, descriptor, tag, 1u << 26);
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
@@ -516,7 +517,7 @@ public class ReadTrailerBeforeTests : IDisposable {
 
         // 设置保留位（bit 28-16）
         uint invalidDescriptor = 0x0010_0000; // bit 20 = 1（保留位）
-        TrailerCodewordHelper.Serialize(trailerSpan, invalidDescriptor, tag, (uint)layout.FrameLength);
+        TrailerCodewordHelper.Serialize(trailerSpan, invalidDescriptor, tag, layout.WireFrameLength);
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
@@ -531,14 +532,10 @@ public class ReadTrailerBeforeTests : IDisposable {
         Assert.Contains("reserved bits", result.Error!.Message);
     }
 
-    /// <summary>验证 TailLen &gt; int.MaxValue 时返回 FramingError。</summary>
-    /// <remarks>
-    /// Task 6.7 验收标准：TailLen &gt; int.MaxValue 必须失败。
-    /// </remarks>
+    /// <summary>验证 TailLen units 高位非零时必须先校验，不能左移后别名为合法长度。</summary>
     [Fact]
-    public void ReadTrailerBefore_TailLenExceedsIntMax_ReturnsFramingError() {
-        // Arrange: 构造一个大文件模拟 TailLen > int.MaxValue
-        // 由于无法真正创建 2GB+ 文件，我们手动构造 TrailerCodeword
+    public void ReadTrailerBefore_TailLenUnitsWithHighBits_ReturnsFramingError() {
+        // Arrange: 构造左移两位后会溢出为 28 bytes 的非法 wire 值
         var path = GetTempFilePath();
 
         // 创建一个最小有效帧，然后篡改 TailLen
@@ -550,8 +547,8 @@ public class ReadTrailerBeforeTests : IDisposable {
         int trailerOffset = RbfLayout.FenceSize + layout.TrailerCodewordOffset;
         Span<byte> trailerSpan = fileContent.AsSpan(trailerOffset, TrailerCodewordHelper.Size);
 
-        // TailLen = uint.MaxValue - 3 (> int.MaxValue，且 4B 对齐)
-        uint hugeTailLen = uint.MaxValue - 3; // 0xFFFFFFFC
+        // 0x40000007 << 2 会截断为 28；必须在移位之前拒绝。
+        uint hugeTailLen = 0x40000007;
         uint descriptor = TrailerCodewordHelper.BuildDescriptor(false, layout.PaddingLength, 0);
         TrailerCodewordHelper.Serialize(trailerSpan, descriptor, tag, hugeTailLen);
 
@@ -565,12 +562,7 @@ public class ReadTrailerBeforeTests : IDisposable {
         // Assert
         Assert.False(result.IsSuccess);
         Assert.IsType<RbfFramingError>(result.Error);
-        // 应该因为 TailLen > int.MaxValue 或 frameStart 越界而失败
-        Assert.True(
-            result.Error!.Message.Contains("TailLen") || result.Error!.Message.Contains("HeaderFence") ||
-                result.Error!.Message.Contains("length", StringComparison.OrdinalIgnoreCase),
-            $"Expected error about TailLen or HeaderFence, got: {result.Error!.Message}"
-        );
+        Assert.Contains("length", result.Error!.Message.ToLowerInvariant());
     }
 
     /// <summary>验证 PayloadLength 计算为负数时返回 FramingError。</summary>
@@ -590,9 +582,9 @@ public class ReadTrailerBeforeTests : IDisposable {
         Span<byte> trailerSpan = fileContent.AsSpan(trailerOffset, TrailerCodewordHelper.Size);
 
         // 保持 TailLen 不变，但把 TailMetaLen 设为最大值 (65535)
-        // PayloadLength = TailLen - 24 - 65535 - PaddingLen << 0
+        // PayloadLength = TailLen - 28 - 65535 - PaddingLen << 0
         uint descriptor = TrailerCodewordHelper.BuildDescriptor(false, layout.PaddingLength, 65535);
-        TrailerCodewordHelper.Serialize(trailerSpan, descriptor, tag, (uint)layout.FrameLength);
+        TrailerCodewordHelper.Serialize(trailerSpan, descriptor, tag, layout.WireFrameLength);
 
         File.WriteAllBytes(path, fileContent);
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
@@ -658,7 +650,7 @@ public class ReadTrailerBeforeTests : IDisposable {
             fileLength = new FileInfo(path).Length;
         }
 
-        // 使用明确 RBF3 profile 的底层 reader（旧 raw fixtures 仍默认 RBF1）。
+        // 使用 RBF3 底层 reader 验证公开 writer 的输出。
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
         using var reader = new RandomAccessReader(handle, profile: RbfProfile.Rbf3);
         var result = RbfReadImpl.ReadTrailerBefore(reader, fileLength);

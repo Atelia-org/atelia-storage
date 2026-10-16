@@ -9,9 +9,9 @@ produce_by:
 **文档定位**：Layer 0，定义 RBF 文件的线格式（wire format）。
 文档层级与规范遵循见 [README.md](README.md)。
 
-**状态**：RBF1/RBF3合同及生产源码已同步，源码/测试/正式证据已独立复核 | **版本**：0.41 | **创建日期**：2025-12-22
+**状态**：主线仅支持 RBF3；移除边界与当前验证见[退役记录](../rbf1-retirement.md) | **版本**：0.42 | **创建日期**：2025-12-22
 
-2026-10-03：用户授权落实RBF3，源码0999851对应内容的Release RBF测试670/670与正式生产探针已通过；身份、精确结果及范围见[实施记录§11](rbf-open-fast-path-refactoring.md#11-本轮最终实施与验收记录)。历史RBF1布局与byte向量保留；历史实验RBF2不是生产格式，旧实验hash/结果不得重标为RBF3证据。独立参考及生产资格见[测试向量§8](rbf-test-vectors.md#8-rbf3独立向量与生产资格)。
+2026-10-03：用户授权落实RBF3，源码0999851对应内容的Release RBF测试670/670与正式生产探针已通过；身份、精确结果及范围见[实施记录§11](rbf-open-fast-path-refactoring.md#11-本轮最终实施与验收记录)。历史 RBF1 布局与 byte 向量见[移除前快照](https://github.com/Atelia-org/atelia-storage/blob/043f77aa68700568499ceb965c049f8362e4253f/docs/Rbf/rbf-format.md)；历史实验RBF2不是生产格式，旧实验hash/结果不得重标为RBF3证据。独立参考及生产资格见[测试向量§8](rbf-test-vectors.md#8-rbf3独立向量与生产资格)。
 
 ## 1. 范围与分层
 本文档（Layer 0）只定义：
@@ -30,14 +30,6 @@ produce_by:
 本节定义 @`Fence` 的线格式常量值。
 关于 @`Fence` 的布局模式与 @`HeaderFence` 定义，参见 @[F-FENCE-IS-SEPARATOR-NOT-FRAME](rbf-decisions.md)。
 
-## spec [F-FENCE-RBF1-ASCII-4B] Fence值定义
-
-| 属性 | 值 |
-|------|-----|
-| 值（Value） | `RBF1`（ASCII: `52 42 46 31`） |
-| 长度 | 4 字节 |
-| 编码 | ASCII 字节序列写入（非 u32 端序），读取时按字节匹配 |
-
 ### spec [F-FENCE-RBF3-ASCII-4B] RBF3 Fence值定义
 
 | 属性 | 值 |
@@ -48,34 +40,15 @@ produce_by:
 
 ### spec [F-HEADER-PROFILE-DISPATCH] 文件级profile分派
 
-文件HeaderFence MUST 完整匹配RBF1或RBF3，并由owned handle一次确定整个文件的profile；MUST NOT 用EOF、试解码或payload magic派发。新建文件 MUST 只使用RBF3；RBF1只读保留原字节、旧ticket与容量，普通可写打开在修改前拒绝。未知Header、0–3B Header及实验RBF2 MUST 拒绝。流中所有Fence MUST 与HeaderFence相同；不支持mixed，也不提供公共codec配置或长度模式。
+文件 HeaderFence MUST 完整匹配 RBF3，并由 owned handle 一次验证；MUST NOT 用 EOF、试解码或 payload magic 猜格式。所有打开入口 MUST 在修改前拒绝 RBF1、未知 Header、0–3B Header 及实验 RBF2。流中所有 Fence MUST 与 HeaderFence 相同；不提供公共 codec 配置或长度模式。
 
 ---
 
 ## 3. Wire Layout
 
 ### spec [F-FRAMEBYTES-LAYOUT] FrameBytes布局
-FrameBytes从raw头长度字段开始，不包含前后Fence。profile MUST 由 @[F-HEADER-PROFILE-DISPATCH] 确定：下表保留RBF1 byte布局，RBF3采用 @[F-RBF3-FRAMEBYTES-LAYOUT]。两者public ticket、offset、buffer与内容长度均以bytes表示。
+FrameBytes 从 raw 头长度字段开始，不包含前后 Fence。Header MUST 通过 @[F-HEADER-PROFILE-DISPATCH]；布局采用 @[F-RBF3-FRAMEBYTES-LAYOUT]。public ticket、offset、buffer 与内容长度均以 bytes 表示。
 *FrameBytes **不包含** 前后 Fence。*
-
-#### RBF1：旧byte长度布局
-
-PayloadCodeword:
-| 字段 | 类型 | 长度 | 说明 |
-|------|------|------|------|
-| HeadLen | u32 LE | 4 | FrameBytes 总长度（不含 Fence） |
-| Payload | bytes | N | `N >= 0`；业务数据 |
-| TailMeta | bytes | M | `M >= 0`；用户元数据（原 PayloadTrailer） |
-| Padding | bytes | 0-3 | 为对齐进行的填充 |
-| PayloadCrc32C | u32 LE | 4 | Crc32C(Payload+TailMeta+Padding) |
-
-TrailerCodeword (Fixed 16 Bytes):
-| 字段 | 类型 | 长度 | 说明 |
-|------|------|------|------|
-| TrailerCrc32C | u32 **BE** | 4 | Crc32C(FrameDescriptor+FrameTag+TailLen) |
-| FrameDescriptor| u32 LE | 4 | 描述符：Tombstone, PaddingLen, TailMetaLen |
-| FrameTag | u32 LE | 4 | 帧类型标识符（见 @[F-FRAME-TAG-WIRE-ENCODING]） |
-| TailLen | u32 LE | 4 | MUST 等于 HeadLen |
 
 ### spec [F-RBF3-FRAMEBYTES-LAYOUT] RBF3单尾Key布局
 
@@ -88,7 +61,7 @@ raw TailKey LE(K) 4B
 后接 RBF3 Fence 4B（不计入L）
 ```
 
-TrailerCodeword明文仍为16B：`TrailerCRC BE || FrameDescriptor LE || FrameTag LE || TailLenUnits LE(U)`。HeadLenUnits不参与XOR，TailLenUnits及两项存储CRC参与连续body XOR。新固定开销为28B，payload起点仍为frame+4；相同物理上限下payload+TailMeta最大容量比RBF1少4B。相邻帧共享一个Fence。
+TrailerCodeword明文仍为16B：`TrailerCRC BE || FrameDescriptor LE || FrameTag LE || TailLenUnits LE(U)`。HeadLenUnits不参与XOR，TailLenUnits及两项存储CRC参与连续body XOR。固定开销为28B，payload起点为frame+4。相邻帧共享一个Fence。
 
 | 区域 | 相对FrameBytes起点的byte范围 |
 | --- | --- |
@@ -118,7 +91,7 @@ Open只检查其已读取的encoded Trailer words不等于F，不遍历完整bod
 
 ### spec [S-RBF-PAYLOADLENGTH-FORMULA] 物理布局与内容容量
 
-两profile均先得到合法物理长度L，再计算：`PayloadLength=L-FixedOverhead-TailMetaLength-PaddingLength`，结果 MUST 非负；`TailMetaLength≤65535`，`PaddingLength≤3`。RBF1 FixedOverhead=24B、最小L=24；RBF3 FixedOverhead=28B、最小L=28。物理L最大均为SizedPtr.MaxLength，最大payload+TailMeta分别为M-24与M-28。Padding仍由 @[F-PADDING-CALCULATION] 计算，存储值必须为零。
+先得到合法物理长度 L，再计算：`PayloadLength=L-28-TailMetaLength-PaddingLength`，结果 MUST 非负；`TailMetaLength≤65535`，`PaddingLength≤3`。RBF3 固定开销为 28B、最小 L=28，物理 L 最大为 SizedPtr.MaxLength，最大 payload+TailMeta 为 M-28。Padding 由 @[F-PADDING-CALCULATION] 计算，存储值必须为零。
 
 ### spec [F-FRAME-TAG-WIRE-ENCODING] FrameTag线格式编码
 FrameTag 是 4 字节 u32 LE 帧类型标识符，位于 Frame 尾部。
@@ -149,7 +122,7 @@ FrameDescriptor 是 Frame 尾部 TrailerCodeword 中的 4 字节控制字（u32 
 `TrailerCrc32C` MUST 覆盖 TrailerCodeword 中除自身以外的所有字段。
 > TrailerCrc32C = crc32c_backward(FrameDescriptor LE + FrameTag LE + profile尾长度 LE)
 
-- MUST 覆盖实际plaintext wire bytes：FrameDescriptor (4B) + FrameTag (4B) + profile尾长度 (4B)。RBF1尾长度存L，RBF3尾长度存U；RBF3覆盖的是LE(U)，MUST NOT 先把末字段改写成L再验CRC。
+- MUST 覆盖实际plaintext wire bytes：FrameDescriptor (4B) + FrameTag (4B) + profile尾长度 (4B)。RBF3尾长度存U，覆盖的是LE(U)，MUST NOT 先把末字段改写成L再验CRC。
 - MUST NOT 覆盖：HeadLen、Payload、TailMeta、Padding、CRC32C、TrailerCrc32C 本身、任何 Fence。
 
 CRC先在plaintext上计算并存储，然后才对完整body XOR；读端先解码Trailer再按其原wire字节验证。PayloadCRC按覆盖字节正向计算；TrailerCRC从末尾向前逐byte计算，其结果按BE存储。遍历方向与字段存储端序是两个独立规则。
@@ -203,7 +176,7 @@ Reader MUST 按已确定profile验证{§2、§3、§4}中的结构、对齐与�
 CRC32C 校验不匹配 MUST 视为帧损坏。
 Reader MUST NOT 将损坏帧作为有效数据返回。
 
-普通Open只做结构资格，不验证PayloadCRC；RBF1仅只读全结构链，RBF3可写按[接口合同](rbf-interface.md#spec-s-rbf-open-recovers-single-incomplete-tail-普通打开与单尾帧恢复)截掉未完成body或补原Key/Fence后缀。完整body通过TrailerCRC及结构后，MUST 以 `K*=LE_u32(encoded TailLenUnits) XOR U` 重建原Key，并验证已有Key/Fence前缀；MUST NOT 补零或合成墓碑。内容CRC错误由checked-read拒绝，不能借此丢帧；已呈现完整结构错误仍拒绝且不修改。
+普通Open只做结构资格，不验证PayloadCRC；RBF3可写按[接口合同](rbf-interface.md#spec-s-rbf-open-recovers-single-incomplete-tail-普通打开与单尾帧恢复)截掉未完成body或补原Key/Fence后缀。完整body通过TrailerCRC及结构后，MUST 以 `K*=LE_u32(encoded TailLenUnits) XOR U` 重建原Key，并验证已有Key/Fence前缀；MUST NOT 补零或合成墓碑。内容CRC错误由checked-read拒绝，不能借此丢帧；已呈现完整结构错误仍拒绝且不修改。
 
 ---
 
@@ -230,16 +203,9 @@ Reverse Scan MUST 满足：
 - 大帧场景下，逆向扫描只需读取尾部附近的定长 TrailerCodeword 即可迭代元信息，避免对 payload 的读取。
 - 用 `TrailerCrc32C` 替代 `HeadLen == TailLen`，将可靠性焦点移到“尾部元信息”的可验证性。
 
-### 6.2 Resync 规则
+### 6.2 离线救援边界
 
-### spec [R-RESYNC-SCAN-BACKWARD-4B-TO-HEADER-FENCE] Resync行为规则
-Resync 为“恢复/修复工具路径”的能力：用于在存在损坏数据时尽可能找回后续 Fence 边界。
-
-- 当工具选择执行 Resync 时，MUST NOT 信任损坏候选的 TailLen 做跳跃。
-- Resync 模式 MUST 以 4 字节为步长向前搜索 Fence。
-- Resync 扫描 MUST 在抵达 HeaderFence（偏移 0）时停止。
-
-本轮离线RbfRecovery/Fence search/Trailer search/显式truncate工具只保留RBF1语义，对RBF3及未知Header MUST 显式拒绝；未来RBF3离线救援另案。普通RBF3 Open的真实边界定位与单尾动作不属于坏候选fallback Resync。
+主线不提供离线 `RbfRecovery`、Fence/Trailer 搜索或显式 truncate API。旧 RBF1 工具随旧栈移出主线，来源见[退役记录](../rbf1-retirement.md)。普通 RBF3 Open 的真实边界定位与单尾动作不属于坏候选 fallback Resync；未来独立救援能力另行设计。
 
 ---
 
@@ -251,12 +217,12 @@ Resync 为“恢复/修复工具路径”的能力：用于在存在损坏数据
 ### spec [S-RBF-SIZEDPTR-WIRE-MAPPING] SizedPtr与FrameBytes映射
 当上层以 @`SizedPtr` 表示一个 Frame 的位置与长度时：
 - `OffsetBytes` MUST 指向该Frame的raw头长度字段起点（即FrameBytes起点）。
-- `LengthBytes` MUST 等于物理FrameBytes长度L，不含Fence：RBF1为HeadLen，RBF3为 `4*HeadLenUnits`。
+- `LengthBytes` MUST 等于物理FrameBytes长度L，不含Fence，为 `4*HeadLenUnits`。
 - `OffsetBytes`与L均须4B对齐，起点不超过SizedPtr.MaxOffset；末帧末端及外部Fence MAY 超过MaxOffset，MUST NOT 额外限制合法起点/容量。
 
 ### derived [H-RBF-SCANREVERSE-TAILLEN-IS-SSOT] 逆向扫描以TailLen为长度SSOT
 为满足 @[S-RBF-DECISION-REVERSESCAN-TAIL-ORIENTED](rbf-decisions.md)，逆向扫描在定位上一帧时 MAY 以 `TailLen` 作为长度 SSOT。
-这允许Reverse Scan不读取raw头字段：RBF1直接从TailLen得到L，RBF3从TailKey解码TailLenUnits、先验范围后得到L。随机读取的权威映射是SizedPtr.Length等于物理L（RBF3为4U），不是等于wire U。
+这允许Reverse Scan不读取raw头字段：从TailKey解码TailLenUnits、先验范围后得到L。随机读取的权威映射是SizedPtr.Length等于物理L（RBF3为4U），不是等于wire U。
 
 ---
 
@@ -264,6 +230,7 @@ Resync 为“恢复/修复工具路径”的能力：用于在存在损坏数据
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.42 | 2026-10-16 | 主线仅支持 RBF3；删除 RBF1 布局与离线救援合同，旧 Header 在修改前拒绝。历史验收不重标。 |
 | 0.41 | 2026-10-03 | RBF1只读旧byte布局保留；增加RBF3 Header、4B units、单尾Key、28B开销、marker-free与原LE(U) TrailerCRC；同步结构Open/补原后缀和byte ticket映射；本轮源码/测试/正式证据见实施记录§11 |
 | 0.40 | 2026-01-24 | **Wire Format Breaking Change**: 重构 Trailer 结构 为固定 16 字节的 `TrailerCodeword`；引入 `FrameDescriptor` (u32) 统一管理 Padding/TailMetaLen/Tombstone；重命名 PayloadTrailer 为 TailMeta；引入 `PayloadCrc32C` 与 `TrailerCrc32C` 双校验机制 |
 | 0.32 | 2026-01-10 | 修正 @[F-CRC32C-CASTAGNOLI-REFLECTED]：删除对不存在的 `.NET System.IO.Hashing.Crc32C` 的引用，改为引用 RFC 3720；添加 `BitOperations.Crc32C` 作为非规范性实现提示 |

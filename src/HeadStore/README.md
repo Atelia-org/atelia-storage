@@ -109,4 +109,4 @@ Audit 不解码应用 bytes、不遍历 data、不把 tag Related 注记变成�
 
 写入内核按实际 slice 捕获私有 bytes，在 data barrier/发布输出前完成确定检查；先 `data.ConfirmDurable()`，再正式追加和 flush。`PublishHeads(changes, out outcome)` 不信任输入 Count/comparer，全部副本与枚举器清理完成后按实际数量分流；CU 全部完成且全部文件 flush 返回才先写 Confirmed，再交付整个自有只读 EntryId 字典，没有部分成功。`out PublicationOutcome` 区分未尝试、未知和已确认，异常不得抹掉证据。HS 停用会受控清理文件与锁（含短期 CU peer 槽），不 Dispose 借入 data；自有结果可跨 owner Dispose 保留。当前值对未提交 CU 继续向前，必要坏记录/peer 错误传播，不解码应用内容或预读无关历史。普通 PublishHead 覆盖仅检查本地物理 head，不强制验证旧组 peer；lazy CompletedTail 解释见07。
 
-项目仅引用 main 的 FrameStore/Binary/Rbf/Data/Primitives，不引用冻结 RBF1 库或业务包。独立完整校验的源码验收与进程终止、两平台、包资格按实施计划分别记录。
+项目仅引用 main 的 FrameStore/Binary/Rbf/Data/Primitives。main 仅支持 RBF3，旧栈维护与归档见 [RBF1 退役记录](../../docs/rbf1-retirement.md)。独立完整校验的源码验收与进程终止、两平台、包资格按实施计划分别记录。

@@ -3,9 +3,9 @@ using Xunit;
 
 namespace Atelia.Rbf.Internal.Tests;
 
-/// <summary>测试向量验证（对应 rbf-test-vectors.md v0.40）。</summary>
+/// <summary>测试向量验证（RBF3 布局与通用读取契约）。</summary>
 /// <remarks>
-/// 本文件专注于"规范验证"，与 rbf-test-vectors.md 形成 1:1 对应。
+/// 保留布局、描述符、CRC、墓碑过滤及冷重开覆盖；长度采用 RBF3 wire units。
 /// </remarks>
 public class RbfTestVectorTests : IDisposable {
     #region RBF_LEN_* 帧长度计算测试（§1.4）
@@ -14,15 +14,15 @@ public class RbfTestVectorTests : IDisposable {
     /// <remarks>
     /// 公式：
     /// - PaddingLen = (4 - ((PayloadLen + TailMetaLen) % 4)) % 4
-    /// - FrameLength = 24 + PayloadLen + TailMetaLen + PaddingLen
-    /// 其中 24 = HeadLen(4) + PayloadCrc(4) + TrailerCodeword(16)
+    /// - FrameLength = 28 + PayloadLen + TailMetaLen + PaddingLen
+    /// 其中 28 = HeadLen(4) + PayloadCrc(4) + TrailerCodeword(16) + TailKey(4)
     /// </remarks>
     [Theory]
-    [InlineData(0, 0, 24)]  // PayloadLen=0 → PaddingLen=0, FrameLength=24
-    [InlineData(1, 3, 28)]  // PayloadLen=1 → PaddingLen=3, FrameLength=28
-    [InlineData(2, 2, 28)]  // PayloadLen=2 → PaddingLen=2, FrameLength=28
-    [InlineData(3, 1, 28)]  // PayloadLen=3 → PaddingLen=1, FrameLength=28
-    [InlineData(4, 0, 28)]  // PayloadLen=4 → PaddingLen=0, FrameLength=28
+    [InlineData(0, 0, 28)]  // PayloadLen=0 → PaddingLen=0, FrameLength=28
+    [InlineData(1, 3, 32)]  // PayloadLen=1 → PaddingLen=3, FrameLength=32
+    [InlineData(2, 2, 32)]  // PayloadLen=2 → PaddingLen=2, FrameLength=32
+    [InlineData(3, 1, 32)]  // PayloadLen=3 → PaddingLen=1, FrameLength=32
+    [InlineData(4, 0, 32)]  // PayloadLen=4 → PaddingLen=0, FrameLength=32
     public void RBF_LEN_001_PayloadLen_PaddingLen_FrameLength(
         int payloadLen,
         int expectedPaddingLen,
@@ -81,15 +81,15 @@ public class RbfTestVectorTests : IDisposable {
         Assert.Equal(0, (payloadLen + tailMetaLen + layout.PaddingLength) % 4);
     }
 
-    /// <summary>RBF_LEN_003：PayloadLen=10, TailMetaLen=5 → FrameLength=40。</summary>
+    /// <summary>RBF_LEN_003：PayloadLen=10, TailMetaLen=5 → FrameLength=44。</summary>
     /// <remarks>
     /// 计算过程：
     /// - 10 + 5 = 15
     /// - 15 % 4 = 3 → PaddingLen = 1
-    /// - FrameLength = 24 + 10 + 5 + 1 = 40
+    /// - FrameLength = 28 + 10 + 5 + 1 = 44
     /// </remarks>
     [Fact]
-    public void RBF_LEN_003_PayloadLen10_TailMetaLen5_FrameLength40() {
+    public void RBF_LEN_003_PayloadLen10_TailMetaLen5_FrameLength44() {
         // Arrange
         const int payloadLen = 10;
         const int tailMetaLen = 5;
@@ -99,7 +99,7 @@ public class RbfTestVectorTests : IDisposable {
 
         // Assert
         Assert.Equal(1, layout.PaddingLength);  // (10+5)%4=3 → padding=1
-        Assert.Equal(40, layout.FrameLength);   // 24 + 10 + 5 + 1 = 40
+        Assert.Equal(44, layout.FrameLength);   // 28 + 10 + 5 + 1 = 44
     }
 
     /// <summary>验证 FrameLength 始终是 4B 对齐。</summary>
@@ -198,8 +198,8 @@ public class RbfTestVectorTests : IDisposable {
     /// 规范引用：
     /// - @[F-PAYLOAD-CRC-COVERAGE] - PayloadCrc 覆盖 Payload + TailMeta + Padding
     /// - @[R-REVERSE-SCAN-USES-TRAILER-CRC] - ScanReverse 只校验 TrailerCrc
-    /// 帧布局：[HeadLen(4)][Payload(N)][TailMeta(M)][Padding(P)][PayloadCrc32C(4)][TrailerCodeword(16)]
-    /// PayloadCrc32C 位于帧末尾倒数 20-17 字节处（TrailerCodeword 16 字节 + PayloadCrc 4 字节）。
+    /// 帧布局：[HeadLen(4)][Payload(N)][TailMeta(M)][Padding(P)][PayloadCrc32C(4)][TrailerCodeword(16)][TailKey(4)]
+    /// PayloadCrc32C 位于帧末尾倒数 24-21 字节处（TailKey 4 字节 + TrailerCodeword 16 字节 + PayloadCrc 4 字节）。
     /// </remarks>
     [Fact]
     public void READFRAME_CRC_001_TrailerCrcOk_PayloadCrcCorrupted_ReadFrameFails() {
@@ -216,8 +216,8 @@ public class RbfTestVectorTests : IDisposable {
         }
 
         // 篡改 PayloadCrc（位于 TrailerCodeword 前 4 字节）
-        // 帧布局：[HeadLen(4)][Payload(8)][Padding(0)][PayloadCrc(4)][TrailerCodeword(16)]
-        // PayloadCrc 偏移 = framePtr.Offset + framePtr.Length - 16 - 4 = framePtr.Offset + framePtr.Length - 20
+        // 帧布局：[HeadLen(4)][Payload(8)][Padding(0)][PayloadCrc(4)][TrailerCodeword(16)][TailKey(4)]
+        // PayloadCrc 偏移 = framePtr.Offset + framePtr.Length - 4 - 16 - 4 = framePtr.Offset + framePtr.Length - 24
         {
             using var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite);
             var layout = new FrameLayout(payload.Length);
@@ -487,8 +487,8 @@ public class RbfTestVectorTests : IDisposable {
         uint tag2 = 0x22222222;  // Tombstone
         uint tag3 = 0x33333333;
 
-        // RBF1 历史墓碑 fixture；公开新 writer 不创建或修复旧墓碑。
-        using (var fixture = RawRbfTestFile.CreateLegacy(path)) {
+        // RBF3 原始墓碑 fixture；公开 writer 不暴露墓碑写入接口。
+        using (var fixture = RawRbfTestFile.Create(path)) {
             Assert.True(fixture.Append(tag1, payload1).IsSuccess);
             Assert.True(fixture.Append(tag2, payload2, isTombstone: true).IsSuccess);
             Assert.True(fixture.Append(tag3, payload3).IsSuccess);
@@ -706,14 +706,14 @@ public class RbfTestVectorTests : IDisposable {
     /// 2. PaddingLen 不一致 → 通过 ScanReverse 后 ReadFrame 验证数据不匹配
     /// </remarks>
     [Fact]
-    public void RBF_BAD_007_PaddingLenMismatch_LeadsToFramingOrDataError() {
+    public void RBF_BAD_007_PaddingLenMismatch_RejectsNonzeroDecodedPadding() {
         // Arrange: 写入正常帧
         var path = GetTempFilePath();
         byte[] payload = [0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE]; // 6 字节 → 正确 PaddingLen = 2
         uint tag = 0x12345678;
         Atelia.Data.SizedPtr framePtr;
 
-        using (var rbf = RawRbfTestFile.CreateLegacy(path)) {
+        using (var rbf = RawRbfTestFile.Create(path)) {
             var appendResult = rbf.Append(tag, payload);
             Assert.True(appendResult.IsSuccess, "Append should succeed");
             framePtr = appendResult.Value!;
@@ -741,23 +741,17 @@ public class RbfTestVectorTests : IDisposable {
         // PayloadLength 应该被错误计算为 5（因为 PaddingLen 被篡改为 3，多减了 1）
         Assert.Equal(payload.Length - 1, frameInfo.PayloadLength); // 6 - 1 = 5（错误值）
 
-        // ReadPooledFrame 仍然会成功（因为 PayloadCrc 覆盖的是实际数据）
-        // 但读取的 Payload 长度会是错误的 5 字节
+        // RBF3 checks decoded padding bytes: the stolen payload byte is nonzero.
         var readResult = RbfReadImpl.ReadPooledFrame(reader, in frameInfo);
-        Assert.True(readResult.IsSuccess, "ReadPooledFrame should succeed (PayloadCrc covers actual data)");
-
-        using var frame = readResult.Value!;
-        // 验证读取的数据长度与预期的错误值匹配
-        Assert.Equal(5, frame.PayloadAndMeta.Length); // 应该是 5（错误计算结果）
-        // 前 5 字节应该正确
-        Assert.Equal(payload[..5], frame.PayloadAndMeta.ToArray());
+        Assert.IsType<RbfFramingError>(readResult.Error);
+        Assert.Contains("Nonzero frame padding", readResult.Error!.Message);
     }
 
     /// <summary>RBF-BAD-007 扩展：PaddingLen 过大导致 PayloadLength 负数。</summary>
     /// <remarks>
     /// 规范引用：@[F-PADDING-CALCULATION]
     /// 场景：最小帧（PayloadLen=0, TailMetaLen=0, 正确 PaddingLen=0）但 FrameDescriptor 声明 PaddingLen=3。
-    /// 预期：PayloadLength = TailLen(24) - FixedOverhead(24) - TailMetaLen(0) - PaddingLen(3) = -3 → FramingError
+    /// 预期：PayloadLength = TailLen(28) - FixedOverhead(28) - TailMetaLen(0) - PaddingLen(3) = -3 → FramingError
     /// </remarks>
     [Fact]
     public void RBF_BAD_007_PaddingLenTooLarge_NegativePayloadLength_FramingError() {
@@ -767,7 +761,7 @@ public class RbfTestVectorTests : IDisposable {
         uint tag = 0xDEADBEEF;
         Atelia.Data.SizedPtr framePtr;
 
-        using (var rbf = RawRbfTestFile.CreateLegacy(path)) {
+        using (var rbf = RawRbfTestFile.Create(path)) {
             var appendResult = rbf.Append(tag, payload);
             Assert.True(appendResult.IsSuccess, "Append should succeed");
             framePtr = appendResult.Value!;
@@ -776,7 +770,7 @@ public class RbfTestVectorTests : IDisposable {
         // 验证最小帧的 PaddingLen
         var correctLayout = new FrameLayout(payload.Length);
         Assert.Equal(0, correctLayout.PaddingLength);
-        Assert.Equal(FrameLayout.MinFrameLength, correctLayout.FrameLength); // 24 字节
+        Assert.Equal(FrameLayout.MinFrameLength, correctLayout.FrameLength); // 28 字节
 
         // 篡改 FrameDescriptor 的 PaddingLen 为 3（非法值，会导致 PayloadLength 计算为 -3）
         TamperFrameDescriptorPaddingLen(path, framePtr, newPaddingLen: 3);
@@ -798,8 +792,8 @@ public class RbfTestVectorTests : IDisposable {
         byte[] fileContent = File.ReadAllBytes(path);
 
         // 计算 TrailerCodeword 在文件中的偏移
-        // TrailerCodeword 位于帧末尾 16 字节
-        int trailerOffset = (int)framePtr.Offset + framePtr.Length - TrailerCodewordHelper.Size;
+        // TailKey 位于帧末尾 4 字节，TrailerCodeword 位于其前 16 字节
+        int trailerOffset = (int)framePtr.Offset + framePtr.Length - FrameLayout.TailKeySize - TrailerCodewordHelper.Size;
 
         // 读取当前 TrailerCodeword
         var trailerSpan = fileContent.AsSpan(trailerOffset, TrailerCodewordHelper.Size);

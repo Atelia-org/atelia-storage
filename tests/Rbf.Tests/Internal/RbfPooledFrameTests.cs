@@ -7,7 +7,7 @@ using Xunit;
 
 namespace Atelia.Rbf.Internal.Tests;
 
-/// <summary>RbfPooledFrame 和 ReadPooledFrame 测试（v0.40 格式）。</summary>
+/// <summary>RbfPooledFrame 和 ReadPooledFrame 测试（RBF3 格式）。</summary>
 /// <remarks>
 /// 测试内容：
 /// - ReadPooledFrame 成功路径
@@ -35,19 +35,19 @@ public class RbfPooledFrameTests : IDisposable {
 
     // ========== 辅助方法 ==========
 
-    /// <summary>构造一个有效帧的字节数组（v0.40 格式）。</summary>
+    /// <summary>构造一个有效帧的字节数组（RBF3 格式）。</summary>
     /// <remarks>
-    /// v0.40 布局：[HeadLen][Payload][TailMeta][Padding][PayloadCrc][TrailerCodeword]
+    /// RBF3 布局：[HeadLen][Payload][TailMeta][Padding][PayloadCrc][TrailerCodeword][TailKey]
     /// </remarks>
     private static byte[] CreateValidFrameBytes(uint tag, ReadOnlySpan<byte> payload, bool isTombstone = false) {
-        var layout = new FrameLayout(payload.Length);
+        var layout = new FrameLayout(RbfProfile.Rbf3, payload.Length);
         int frameLen = layout.FrameLength;
 
         byte[] frame = new byte[frameLen];
         Span<byte> span = frame;
 
         // 1. HeadLen (offset 0)
-        BinaryPrimitives.WriteUInt32LittleEndian(span[..FrameLayout.HeadLenSize], (uint)frameLen);
+        BinaryPrimitives.WriteUInt32LittleEndian(span[..FrameLayout.HeadLenSize], layout.WireFrameLength);
 
         // 2. Payload (offset 4)
         payload.CopyTo(span.Slice(FrameLayout.PayloadOffset, payload.Length));
@@ -64,6 +64,8 @@ public class RbfPooledFrameTests : IDisposable {
 
         // 5. TrailerCodeword
         layout.FillTrailer(span.Slice(layout.TrailerCodewordOffset, TrailerCodewordHelper.Size), tag, isTombstone);
+        // TailKey = 0，测试数据的 body 不含 Fence，故无需 XOR 转换。
+        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(layout.TailKeyOffset, FrameLayout.TailKeySize), 0);
 
         return frame;
     }
@@ -207,7 +209,7 @@ public class RbfPooledFrameTests : IDisposable {
         using var reader = new RandomAccessReader(handle);
 
         // 尝试从超出文件尾的位置读取（会导致短读错误）
-        var ptr = SizedPtr.Create(1000, 20);
+        var ptr = SizedPtr.Create(1000, 28);
 
         // Act
         var result = RbfReadImpl.ReadPooledFrame(reader, ptr);
@@ -283,7 +285,7 @@ public class RbfPooledFrameTests : IDisposable {
         using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read);
         using var reader = new RandomAccessReader(handle);
 
-        int frameLen = new FrameLayout(payload.Length).FrameLength;
+        int frameLen = new FrameLayout(RbfProfile.Rbf3, payload.Length).FrameLength;
         var ptr = SizedPtr.Create(RbfLayout.FenceSize, frameLen);
 
         // Act

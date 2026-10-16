@@ -236,7 +236,7 @@ public sealed class RbfScanForwardTests : IDisposable {
         byte[] frame = new byte[layout.FrameLength];
         Span<byte> span = frame;
 
-        BinaryPrimitives.WriteUInt32LittleEndian(span[..FrameLayout.HeadLenSize], (uint)layout.FrameLength);
+        BinaryPrimitives.WriteUInt32LittleEndian(span[..FrameLayout.HeadLenSize], layout.WireFrameLength);
         payload.CopyTo(span.Slice(FrameLayout.PayloadOffset, payload.Length));
         if (layout.PaddingLength > 0) { span.Slice(layout.PaddingOffset, layout.PaddingLength).Clear(); }
 
@@ -250,7 +250,7 @@ public sealed class RbfScanForwardTests : IDisposable {
 
     private static void CorruptTrailerCrc(string path, SizedPtr ticket) {
         using var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
-        stream.Position = ticket.Offset + ticket.Length - TrailerCodewordHelper.Size;
+        stream.Position = ticket.Offset + ticket.Length - sizeof(uint) - TrailerCodewordHelper.Size;
         int original = stream.ReadByte();
         stream.Position--;
         stream.WriteByte((byte)(original ^ 0xFF));

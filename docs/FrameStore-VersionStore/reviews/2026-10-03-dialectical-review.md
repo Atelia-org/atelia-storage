@@ -66,10 +66,10 @@ FrameStore 每实例单流。VersionStore 借 data、拥有私有 control，持�
 
 | 问题 | 当前证据 | 修正 |
 | --- | --- | --- |
-| sealed 只读拒绝 RBF1 没有 public 格式入口 | [IRbfFile](../../../src/Rbf/IRbfFile.cs)、[internal RbfProfile](../../../src/Rbf/Internal/RbfProfile.cs)、[factory](../../../src/Rbf/RbfFile.cs) | S1 提供 immutable 格式属性；不复制 Header、不用 writable open 探测 |
+| sealed 只读拒绝 RBF1 没有 public 格式入口 | [IRbfFile](../../../src/Rbf/IRbfFile.cs)、[internal RbfProfile](https://github.com/Atelia-org/atelia-storage/blob/043f77aa68700568499ceb965c049f8362e4253f/src/Rbf/Internal/RbfProfile.cs)、[factory](../../../src/Rbf/RbfFile.cs) | S1 提供 immutable 格式属性；不复制 Header、不用 writable open 探测 |
 | early ticket 只锁当前 Builder，不能独自保证未来批次位置 | [Begin/Commit](../../../src/Rbf/Internal/RbfFileImpl.cs) | S3 owned plan 控制后续位置，完整前缀可 orphan、旧构建状态失效 |
 | checked ticket 不证明主链 | [RBF 接口](../../Rbf/rbf-interface.md)、[forward scan](../../../src/Rbf/RbfForwardEnumerator.cs) | Inspect 从真实主链验证，不依旧 ticket length/cached catalog absence |
-| 旧 GetHead 并非每次 CRC root | [GetHead/LoadRefState](../../../src/EventJournal/EventJournal.Refs.cs)、[ResolveTag](../../../src/EventJournal/EventJournal.Tags.cs) | 不把旧目标校验经验泛化为新元信息查询强制全读 |
+| 旧 GetHead 并非每次 CRC root | [GetHead/LoadRefState](https://github.com/Atelia-org/atelia-storage/blob/043f77aa68700568499ceb965c049f8362e4253f/src/EventJournal/EventJournal.Refs.cs)、[ResolveTag](https://github.com/Atelia-org/atelia-storage/blob/043f77aa68700568499ceb965c049f8362e4253f/src/EventJournal/EventJournal.Tags.cs) | 不把旧目标校验经验泛化为新元信息查询强制全读 |
 | MemoryInstalled 混用库投影与应用 graph | 当前用户协议 + 原 S4 状态图 | 明确两责任；应用异常不凭空 fault 健康库，也不撤销 Confirmed |
 | StoreId 绑定被误解为裸地址来源证明 | 局部 FrameAddress 候选 | 同数字可跨 store 合法；上下文/来源前提明确，不声称自动推断 caller 意图 |
 

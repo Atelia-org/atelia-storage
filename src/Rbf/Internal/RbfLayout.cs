@@ -6,7 +6,7 @@ namespace Atelia.Rbf.Internal;
 /// <summary>RBF wire format 的偏移与长度定义（集中管理）。</summary>
 /// <remarks>
 /// 规范引用：
-/// - @[F-FENCE-RBF1-ASCII-4B]
+/// - @[F-FENCE-RBF3-ASCII-4B]
 /// - @[F-FRAMEBYTES-LAYOUT]
 /// </remarks>
 internal static class RbfLayout {
@@ -15,29 +15,26 @@ internal static class RbfLayout {
     internal const int AlignmentMask = Alignment - 1;
 
     // === Fence ===
-    internal static ReadOnlySpan<byte> Fence => "RBF1"u8;
+    internal static ReadOnlySpan<byte> Fence => "RBF3"u8;
     internal const int FenceSize = sizeof(uint);
     internal const int TailKeySize = sizeof(uint);
 
     internal static ReadOnlySpan<byte> GetFence(RbfProfile profile) => profile switch {
-        RbfProfile.Rbf1 => Fence,
         RbfProfile.Rbf3 => "RBF3"u8,
         _ => throw new ArgumentOutOfRangeException(nameof(profile), profile, "Unknown RBF profile.")
     };
 
     internal static uint GetFenceWord(RbfProfile profile) => profile switch {
-        RbfProfile.Rbf1 => 0x31464252u,
         RbfProfile.Rbf3 => 0x33464252u,
         _ => throw new ArgumentOutOfRangeException(nameof(profile), profile, "Unknown RBF profile.")
     };
 
     internal static int GetTailKeySize(RbfProfile profile) => profile switch {
-        RbfProfile.Rbf1 => 0,
         RbfProfile.Rbf3 => TailKeySize,
         _ => throw new ArgumentOutOfRangeException(nameof(profile), profile, "Unknown RBF profile.")
     };
 
-    internal static int GetFixedOverhead(RbfProfile profile) => MinFrameLength + GetTailKeySize(profile);
+    internal static int GetFixedOverhead(RbfProfile profile) => FrameLayout.FixedOverhead;
     internal static int GetMinFrameLength(RbfProfile profile) => GetFixedOverhead(profile);
     internal static int GetMaxPayloadAndMetaLength(RbfProfile profile) => SizedPtr.MaxLength - GetFixedOverhead(profile);
 
@@ -59,15 +56,15 @@ internal static class RbfLayout {
     internal const int PayloadCrcSize = sizeof(uint);
 
     // === MinFrameLength (v0.40) ===
-    /// <summary>最小帧长度 = HeadLen(4) + PayloadCrc(4) + TrailerCodeword(16) = 24 字节。
+    /// <summary>最小帧长度 = HeadLenUnits(4) + PayloadCrc(4) + TrailerCodeword(16) + TailKey(4) = 28 字节。
     /// 参见 @[F-FRAMEBYTES-LAYOUT]。</summary>
-    internal const int MinFrameLength = sizeof(uint) + PayloadCrcSize + TrailerCodewordSize;
+    internal const int MinFrameLength = sizeof(uint) + PayloadCrcSize + TrailerCodewordSize + TailKeySize;
 }
 
-/// <summary>帧布局计算器，默认构造保留 RBF1 byte-wire 语义。</summary>
+/// <summary>帧布局计算器，采用 RBF3 unit-wire 语义。</summary>
 /// <remarks>
 /// 关于数据长度命名：定长又不可分的用 Size，变长或复合的用 Length。
-/// v0.40 布局：[HeadLen][Payload][TailMeta][Padding][PayloadCrc][TrailerCodeword]
+/// 布局：[HeadLenUnits][XOR(Payload, TailMeta, Padding, PayloadCrc, TrailerCodeword)][TailKey]
 /// 规范引用：
 /// - @[F-FRAMEBYTES-LAYOUT]
 /// - @[F-PAYLOAD-CRC-COVERAGE]
@@ -80,7 +77,7 @@ internal readonly struct FrameLayout {
 
     /// <summary>校验调用方长度并计算布局；写入和公开尺寸计算共用此入口。</summary>
     internal static AteliaResult<FrameLayout> TryCreate(RbfProfile profile, int payloadLength, int tailMetaLength) {
-        if (profile is not RbfProfile.Rbf1 and not RbfProfile.Rbf3) {
+        if (profile is not RbfProfile.Rbf3) {
             return new RbfArgumentError("Unknown RBF profile.");
         }
         if (payloadLength < 0) {
@@ -123,7 +120,7 @@ internal readonly struct FrameLayout {
         return true;
     }
 
-    internal FrameLayout(int payloadLength, int tailMetaLength = 0) : this(RbfProfile.Rbf1, payloadLength, tailMetaLength) { }
+    internal FrameLayout(int payloadLength, int tailMetaLength = 0) : this(RbfProfile.Rbf3, payloadLength, tailMetaLength) { }
 
     internal FrameLayout(RbfProfile profile, int payloadLength, int tailMetaLength = 0) {
         Profile = profile;
@@ -168,13 +165,13 @@ internal readonly struct FrameLayout {
     internal uint WireFrameLength => RbfWireCodec.EncodeFrameLength(Profile, FrameLength);
     internal int EncodedBodyLength => FrameLength - HeadLenSize - TailKeyLength;
 
-    /// <summary>以 bytes 表示的帧总长度，RBF3 另含 raw TailKey。</summary>
+    /// <summary>以 bytes 表示的帧总长度，含 raw TailKey。</summary>
     internal int FrameLength => RbfLayout.GetFixedOverhead(Profile) + _payloadLength + _tailMetaLength + _paddingLength;
     #endregion
 
     #region Statistics
-    /// <summary>固定开销 = HeadLen(4) + PayloadCrc(4) + TrailerCodeword(16) = 24。</summary>
-    internal const int FixedOverhead = HeadLenSize + PayloadCrcSize + TrailerCodewordSize;
+    /// <summary>固定开销 = HeadLenUnits(4) + PayloadCrc(4) + TrailerCodeword(16) + TailKey(4) = 28。</summary>
+    internal const int FixedOverhead = HeadLenSize + PayloadCrcSize + TrailerCodewordSize + TailKeySize;
 
     internal const int MinFrameLength = FixedOverhead;
     internal const int MaxFrameLength = SizedPtr.MaxLength;
@@ -200,7 +197,7 @@ internal readonly struct FrameLayout {
     /// <summary>TrailerCodeword 偏移。</summary>
     internal int TrailerCodewordOffset => PayloadCrcOffset + PayloadCrcSize;
 
-    /// <summary>RBF3 raw TailKey 起始偏移；RBF1 中等于帧结束位置。</summary>
+    /// <summary>raw TailKey 起始偏移。</summary>
     internal int TailKeyOffset => TrailerCodewordOffset + TrailerCodewordSize;
     #endregion
 
@@ -213,14 +210,13 @@ internal readonly struct FrameLayout {
 
     /// <summary>PayloadCrc 覆盖长度 = Payload + TailMeta + Padding。</summary>
     internal int PayloadCrcCoverageLength => _payloadLength + _tailMetaLength + _paddingLength;
-    internal const int LengthAfterPayloadCrcCoverage = PayloadCrcSize + TrailerCodewordSize;
     #endregion
 
     #region TrailerCodeword 操作
 
-    /// <summary>从完整 RBF1 帧解析 TrailerCodeword 并构造 FrameLayout。</summary>
+    /// <summary>从完整 RBF3 帧解析 TrailerCodeword 并构造 FrameLayout。</summary>
     internal static AteliaResult<FrameLayout> ResultFromTrailer(scoped ReadOnlySpan<byte> frameBuffer, out TrailerCodewordData trailer) {
-        return ResultFromTrailer(RbfProfile.Rbf1, frameBuffer, out trailer);
+        return ResultFromTrailer(RbfProfile.Rbf3, frameBuffer, out trailer);
     }
 
     /// <summary>从完整帧的 plaintext body 解析 Trailer；RBF3 raw TailKey 仍在帧末尾。</summary>
@@ -268,7 +264,7 @@ internal readonly struct FrameLayout {
     /// [0-3]   TrailerCrc32C   (u32 BE)  ← SealTrailerCrc 计算并写入
     /// [4-7]   FrameDescriptor (u32 LE)
     /// [8-11]  FrameTag        (u32 LE)
-    /// [12-15] TailLen         (u32 LE)  ← RBF1 bytes / RBF3 units
+    /// [12-15] TailLen         (u32 LE)  ← RBF3 units
     /// </code>
     /// 规范引用：
     /// - @[F-TRAILER-CRC-BIG-ENDIAN]: TrailerCrc 按 BE 存储

@@ -1,3 +1,5 @@
+> 历史范围：本文保留当时源码、测试与设计事实。2026-10-16 主线已移除 RBF1 及其离线救援能力，当前行为以[接口](rbf-interface.md)、[格式](rbf-format.md)和[退役记录](../rbf1-retirement.md)为准；文中的旧格式能力、命令和统计不作为当前主线要求。
+
 # S1 单文件尺寸与提前 ticket 验收记录
 
 > 后续合同变更说明（2026-10-07）：本文保留 `8ab98bf` 的原始验收证据；当时的门面 Building 读取规则已由 RBF `[S-RBF-RANDOM-READ-COMPLETED-PREFIX]` 放宽为允许指定 ticket 读取已完成前缀。新改进资格另见[本轮记录](../FrameStore-VersionStore/reviews/2026-10-07-completed-output-improvements.md)，不重标本文测试为新合同验收。

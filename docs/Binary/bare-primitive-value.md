@@ -111,7 +111,7 @@ ReadBytes 返回借入输入的 ReadOnlySpan，不分配 owned 数组，不延�
 
 采用本公共可空 profile 的字段 MUST 使用 `00=null`，无后续值；`01=非 null 原文`，后跟该字段的完整普通 Bare value。存在性不通过 string/blob 长度 +1 表示，不缩小原始数值或长度 header 的可表示范围。不可空字段仍直接使用普通 Bare value，无 control 成本；是否可空与字段类型由 schema 指定。
 nullable 标量只允许 00/01；可用现有 ReadBoolean/WriteBoolean 与 Bare 标量组合，不为每个 Fixed/Var/浮点宽度复制一套 helper。两次独立 Read 不自动组成原子事务，调用方按 `[A-BPV-CURSOR-ATOMIC]` 复制 reader。压缩态不是 Boolean true，下面的受控 reader 使用专门 switch；普通 Boolean 仍拒绝 02 等值。
-SJ/DG 旧 `0=null，present=rawHeader+1` 是不同 schema 的既有经验，不是本 profile 的另一种表示；新 reader 不猜测旧格式。本轮不改这些库、冻结 EJ 或增加 adapter，后续实际接入明确选择记录版本和可空 profile。
+SJ/DG 旧 `0=null，present=rawHeader+1` 是不同 schema 的既有经验，不是本 profile 的另一种表示；新 reader 不猜测旧格式。本轮不改这些库、RBF1 分支中的 EJ 或增加 adapter，后续实际接入明确选择记录版本和可空 profile。
 
 ## 显式受控 string/bytes 与压缩
 
@@ -317,7 +317,7 @@ public static class BareValueEncoding {
 
 当前目标仍是 net10.0，有效方法为 None/Brotli/Lz4Block 与 00/01/02/03；LZ4 增量不等待 BCL 升级。后续施工 TODO：
 
-1. .NET 11 正式发布后同步 global.json、主线目标框架、测试、两个隔离 consumer，以及 eng 中显式 net10.0 的包 assets/metadata 检查；保持冻结 RBF1 PackageReference 边界。用实际 GA 的 ref/source 与包消费证明资格，不把 SDK 升级当成目标框架升级。
+1. .NET 11 正式发布后同步 global.json、主线目标框架、测试、两个隔离 consumer，以及 eng 中显式 net10.0 的包 assets/metadata 检查；保持 main 仅支持 RBF3、旧栈由 RBF1 分支维护的边界。用实际 GA 的 ref/source 与包消费证明资格，不把 SDK 升级当成目标框架升级。
 2. 先增加 ValueCompression.Zstandard 和 Deflate，并显式映射各自的新 control；对应接入 BCL ZstandardEncoder/Decoder 与 DeflateEncoder/Decoder。Deflate 固定为 RFC 1951 裸 DEFLATE；若另加 RFC 1950 的 ZLib，使用单独成员/control，不猜包装。候选名称已确定，尚不分配数字或声明实际支持。
 3. 各方法仅支持一个自足流；不引入外部字典、prefix 或跨字段上下文。control 不编码 quality/level，writer 参数继续内部调优；默认仍为 None，只尝试显式指定的一种方法。
 4. 从 GA 实例 API 核对真正完成、实际输入/输出计数、无进展与资源/异常处理；Zstandard 明确 decoder window 上限并与 writer/方法支持范围相容。按 Binary 合同分类底层格式错误，保留 allocation/系统异常。
@@ -336,7 +336,7 @@ LZ4 增量依据：[标准 Block 格式](https://github.com/lz4/lz4/blob/v1.9.4/
 - 既定 [FrameAddress codec](../FrameStore/02-framestore-core.md) 与 [RBF 尺寸/early ticket](../Rbf/01-rbf-sized-append.md) 由消费层继续拥有，本层不重复其格式常量或身份保证。
 - [CBOR RFC 8949 §4.1](https://www.rfc-editor.org/rfc/rfc8949.html#section-4.1) 区分 preferred writer 与接受其他表示的 decoder；这是设计参照，本方案不是 CBOR 子集/兼容格式。
 - BCL 的 [IBufferWriter](https://learn.microsoft.com/en-us/dotnet/api/system.buffers.ibufferwriter-1?view=net-10.0) 定义 sink 协议；[Encoder.Convert](https://learn.microsoft.com/en-us/dotnet/api/system.text.encoder.convert?view=net-10.0) 可用于有状态分块编码。具体 fast path 仍需施工验收。
-- 冻结参考 [EventPayloadCodec](../../src/EventJournal/EventPayloadCodec.cs) 的实际方法为 Brotli/Zlib，q3/w22、Zlib Optimal 与收益阈值是旧 writer 经验；本草案不依赖 EventJournal，也不照抄其解压资格或旧方法编号。
+- Git 归档中的 [EventPayloadCodec](https://github.com/Atelia-org/atelia-storage/blob/043f77aa68700568499ceb965c049f8362e4253f/src/EventJournal/EventPayloadCodec.cs) 的实际方法为 Brotli/Zlib，q3/w22、Zlib Optimal 与收益阈值是旧 writer 经验；本草案不依赖 EventJournal，也不照抄其解压资格或旧方法编号。
 - [RFC 7932](https://www.rfc-editor.org/rfc/rfc7932.html) 定义 Brotli 流；[BrotliDecoder.Decompress](https://learn.microsoft.com/en-us/dotnet/api/system.io.compression.brotlidecoder.decompress?view=net-10.0) 提供状态及输入/输出计数。[.NET v10.0.0 DeflateStream](https://github.com/dotnet/runtime/blob/v10.0.0/src/libraries/System.IO.Compression/src/System/IO/Compression/DeflateZLib/DeflateStream.cs#L266) 展示默认截断检查受全局 switch 控制及输入预读，不能用 BaseStream.Position 证明实际流消费。
 
 ## 首次基础草案辩证审阅（Informative）

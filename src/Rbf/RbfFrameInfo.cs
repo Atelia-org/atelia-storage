@@ -34,7 +34,7 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
     /// <summary>关联的读取器（非拥有引用）。</summary>
     internal RandomAccessReader Reader { get; }
 
-    /// <summary>新 profile 的尾部转义键；旧 profile 恒为零。</summary>
+    /// <summary>RBF3 尾部转义键。</summary>
     internal uint EscapeKey { get; }
 
     /// <summary>内部构造函数（只能由验证路径调用）。</summary>
@@ -104,7 +104,7 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
             );
         }
 
-        if (reader.Profile == RbfProfile.Rbf3) { XorEscape.InPlace(tailMetaBuffer, EscapeKey, PayloadLength & 3); }
+        XorEscape.InPlace(tailMetaBuffer, EscapeKey, PayloadLength & 3);
 
         // 6. 构造并返回 RbfTailMeta
         return new RbfTailMeta(Ticket, Tag, tailMetaBuffer, IsTombstone);
@@ -151,7 +151,7 @@ public readonly struct RbfFrameInfo : IEquatable<RbfFrameInfo> {
                 );
             }
 
-            if (reader.Profile == RbfProfile.Rbf3) { XorEscape.InPlace(tailMetaBuffer, EscapeKey, PayloadLength & 3); }
+            XorEscape.InPlace(tailMetaBuffer, EscapeKey, PayloadLength & 3);
 
             // 6. 成功：构造 RbfPooledTailMeta
             var result = new RbfPooledTailMeta(ownedBuffer, Ticket, Tag, tailMetaLen, IsTombstone);

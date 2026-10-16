@@ -22,7 +22,6 @@ jobs:
         run: |
           dotnet build Atelia.Storage.slnx -c Release
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          ./eng/Test-Rbf1ReferenceAssets.ps1
           dotnet test Atelia.Storage.slnx -c Release --no-build
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           ./eng/Test-Package.EntryPoint.Tests.ps1 -EvidenceDirectory (Join-Path '${{ runner.temp }}' 'storage-entry-tests')

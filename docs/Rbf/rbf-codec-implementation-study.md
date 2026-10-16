@@ -4,6 +4,8 @@ status: "Measured recommendation / Data and RBF3 integration implemented / produ
 normative: false
 ---
 
+> 历史范围：本文保留当时源码、测试与设计事实。2026-10-16 主线已移除 RBF1 及其离线救援能力，当前行为以[接口](rbf-interface.md)、[格式](rbf-format.md)和[退役记录](../rbf1-retirement.md)为准；文中的旧格式能力、命令和统计不作为当前主线要求。
+
 # RBF 尾 EscapeKey 编码的 writer / reader 实现专项
 
 日期：2026-10-02，2026-10-03补ZeroThenRandom/Data资格。历史生产基线 `5711c4706509eb3b144299a75f83c09aa75da75f`，随机补测基线 `0e0df096ab7c0afcca20f29ab86c6b996dfde7d0`。本文补充[主方案](rbf-open-fast-path-refactoring.md)的writer/reader成本与接点，旧实验代码见[RbfCodecCost](../../experiments/RbfCodecCost/README.md)。2026-10-03已实施生产RBF3（LE0x33464252），源码0999851、Release RBF测试670/670及正式W:证据通过并独立复核；新结果归[实施记录§11](rbf-open-fast-path-refactoring.md#11-本轮最终实施与验收记录)，旧RBF1/byte RBF2实测不重标为RBF3结果。

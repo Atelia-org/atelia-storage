@@ -38,7 +38,7 @@ normative: false
 - [RbfFileImpl.CommitFromBuilder](../../src/Rbf/Internal/RbfFileImpl.cs)在唯一HeadLen reservation阻塞下保存整帧，随后Commit发布。
 - [SinkReservableWriter.GetCrcSinceReservationEnd](../../src/Data/SinkReservableWriter.cs)已有受token、唯一pending reservation、无未Advance借用约束的只读遍历；GetActiveChunks为private。
 - [SinkReservableWriterCrcTests](../../tests/Data.Tests/SinkReservableWriterCrcTests.cs)覆盖跨chunks、旧token、Reset、多个reservation及未Advance。它们支持借用边界，不能代替新Key/XOR资格。
-- [PrototypeCodec](../../experiments/RbfCodecCost/PrototypeCodec.cs)与[XorTransform](../../experiments/RbfCodecCost/XorTransform.cs)已有算法原型，但byte[][]不是生产输入协议；实验包装对象、策略enum、统计和重叠兼容分支不应直接搬入生产。
+- [PrototypeCodec](https://github.com/Atelia-org/atelia-storage/blob/043f77aa68700568499ceb965c049f8362e4253f/experiments/RbfCodecCost/PrototypeCodec.cs)与[XorTransform](https://github.com/Atelia-org/atelia-storage/blob/043f77aa68700568499ceb965c049f8362e4253f/experiments/RbfCodecCost/XorTransform.cs)已有算法原型，但byte[][]不是生产输入协议；实验包装对象、策略enum、统计和重叠兼容分支不应直接搬入生产。
 
 ## 3. 选定的归属与最小公开面
 

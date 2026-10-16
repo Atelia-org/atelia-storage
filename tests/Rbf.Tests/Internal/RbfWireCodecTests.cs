@@ -7,20 +7,15 @@ namespace Atelia.Rbf.Internal.Tests;
 /// <summary>独立 byte/bit scalar 向量验证 wire 单位、CRC 端序与 XOR phase。</summary>
 public class RbfWireCodecTests {
     [Fact]
-    public void Profiles_KeepLegacyDefaultsAndUseDistinctProductionHeader() {
-        Assert.Equal("RBF1"u8.ToArray(), RbfLayout.Fence.ToArray());
-        Assert.Equal("RBF1"u8.ToArray(), RbfLayout.GetFence(RbfProfile.Rbf1).ToArray());
+    public void Profile_UsesRbf3DefaultsAndProductionHeader() {
+        Assert.Equal("RBF3"u8.ToArray(), RbfLayout.Fence.ToArray());
         Assert.Equal("RBF3"u8.ToArray(), RbfLayout.GetFence(RbfProfile.Rbf3).ToArray());
-        Assert.Equal(0x31464252u, RbfLayout.GetFenceWord(RbfProfile.Rbf1));
         Assert.Equal(0x33464252u, RbfLayout.GetFenceWord(RbfProfile.Rbf3));
         Assert.Equal(0x33464252u, BinaryPrimitives.ReadUInt32LittleEndian(RbfLayout.GetFence(RbfProfile.Rbf3)));
-        Assert.Equal(24, FrameLayout.FixedOverhead);
-        Assert.Equal(24, new FrameLayout(0).FrameLength);
-        Assert.Equal(RbfProfile.Rbf1, new FrameLayout(0).Profile);
+        Assert.Equal(28, FrameLayout.FixedOverhead);
+        Assert.Equal(28, new FrameLayout(0).FrameLength);
         Assert.Equal(28, RbfLayout.GetMinFrameLength(RbfProfile.Rbf3));
-        Assert.Equal(0, RbfLayout.GetTailKeySize(RbfProfile.Rbf1));
         Assert.Equal(4, RbfLayout.GetTailKeySize(RbfProfile.Rbf3));
-        Assert.Equal(SizedPtr.MaxLength - 24, RbfLayout.GetMaxPayloadAndMetaLength(RbfProfile.Rbf1));
         Assert.Equal(SizedPtr.MaxLength - 28, RbfLayout.GetMaxPayloadAndMetaLength(RbfProfile.Rbf3));
     }
 
@@ -65,19 +60,6 @@ public class RbfWireCodecTests {
     [InlineData(int.MaxValue)]
     public void Rbf3Length_EncodingRejectsInvalidByteLengths(int bytes) {
         Assert.Throws<ArgumentOutOfRangeException>(() => RbfWireCodec.EncodeFrameLength(RbfProfile.Rbf3, bytes));
-    }
-
-    [Fact]
-    public void Rbf1Length_PreservesByteUnitAndItsLargerPayloadCapacity() {
-        foreach (int bytes in new[] { 24, 28, SizedPtr.MaxLength }) {
-            Assert.Equal((uint)bytes, RbfWireCodec.EncodeFrameLength(RbfProfile.Rbf1, bytes));
-            Assert.Equal(bytes, RbfWireCodec.DecodeFrameLength(RbfProfile.Rbf1, (uint)bytes).Value);
-        }
-        foreach (uint invalid in new[] { 0u, 23u, 25u, (uint)SizedPtr.MaxLength + 4, uint.MaxValue }) {
-            Assert.IsType<RbfFramingError>(RbfWireCodec.DecodeFrameLength(RbfProfile.Rbf1, invalid).Error);
-        }
-        Assert.Equal(SizedPtr.MaxLength, new FrameLayout(SizedPtr.MaxLength - 24).FrameLength);
-        Assert.Equal(SizedPtr.MaxLength, new FrameLayout(RbfProfile.Rbf3, SizedPtr.MaxLength - 28).FrameLength);
     }
 
     [Fact]
@@ -160,16 +142,6 @@ public class RbfWireCodecTests {
         // Replacing U with L before checking the unchanged CRC is invalid.
         BinaryPrimitives.WriteUInt32LittleEndian(trailer.AsSpan(12), 28);
         Assert.IsType<RbfCrcMismatchError>(RbfWireCodec.ParseTrailer(RbfProfile.Rbf3, trailer).Error);
-    }
-
-    [Fact]
-    public void ParseTrailer_LegacyGoldenVectorRetainsByteLength() {
-        byte[] trailer = Convert.FromHexString("605F43DC000000004433221118000000");
-        var parsed = RbfWireCodec.ParseTrailer(RbfProfile.Rbf1, trailer);
-        Assert.True(parsed.IsSuccess);
-        Assert.Equal(24u, parsed.Value.TailLen);
-        Assert.Equal(0x605F43DCu, parsed.Value.TrailerCrc32C);
-        Assert.Equal(0x11223344u, parsed.Value.FrameTag);
     }
 
     [Fact]

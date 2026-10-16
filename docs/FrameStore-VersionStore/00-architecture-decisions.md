@@ -30,7 +30,7 @@ FrameStore 坐标系中定位一个 frame 的地址，候选代码名为 `FrameA
 ### decision [S-NEW-STORAGE-PROJECTS] 新能力由新项目承载
 
 MUST 新建 FrameStore、HeadStore 两个生产项目及分别配套的单元测试项目。
-新栈 MUST 不依赖 `Atelia.RbfSegmentStore` 或 `Atelia.EventJournal`。二者在 main 保留为冻结参考，维护和公开交付归 `RBF1` 分支；不得借本方案向旧库加入新职能或替换其存储实现。
+新栈 MUST 不依赖 `Atelia.RbfSegmentStore` 或 `Atelia.EventJournal`。二者已从 main 退役，维护和公开交付归 `RBF1` 分支；历史源码由 Git 归档保留，见[退役记录](../rbf1-retirement.md)。
 
 2026-10-04 用户确认：main 的旧源码、测试和 toolkit 保留原目录，底层 Rbf/Data/Primitives 精确 PackageReference `[0.2.0-rbf1-preview.1]`，不跟随 main 底层源码、不新增运行时适配。当前 solution 保留新旧两组测试；主线 pack 仅 Primitives → Data → Rbf，两个旧库 IsPackable=false。实施与 assets/包验收见[参考代码过渡方案](../rbf1-reference-transition.md)，这不代表 FrameStore/HeadStore 已创建。
 
@@ -166,8 +166,8 @@ Head/fork/tag 空桶初始化 MUST 串行共用 `creating/pending.rbf`；该专�
 
 ### decision [S-LEGACY-READ-ONLY] 主线旧格式只读且无转写
 
-主线 RBF 的 RBF1 MUST 保留底层只读兼容；新栈的帧写入 MUST 使用纯 RBF3 新文件。新栈不向旧库追加、不在一个库内建立 RBF1/RBF3 混合续写、不进行 RBF1 → RBF3 转写或旧地址迁移。本条不限制 RBF1 维护线及其固定包按原合同写入旧栈。
-旧消费者继续按各自固定版本及原支持范围运行。RBF 可读兼容不等于 FrameStore 能直接打开旧 EventJournal/SegmentStore 目录；新栈有自己的格式身份。
+主线 RBF MUST 仅支持 RBF3；打开 RBF1 文件必须拒绝。新栈的帧写入 MUST 使用纯 RBF3 新文件。新栈不向旧库追加、不在一个库内建立 RBF1/RBF3 混合续写、不进行 RBF1 → RBF3 转写或旧地址迁移。本条不限制 RBF1 维护线及其固定包按原合同写入旧栈。
+旧消费者继续按各自固定版本及原支持范围运行。main 不提供 RBF1 可读兼容，FrameStore 不能直接打开旧 EventJournal/SegmentStore 目录；新栈有自己的格式身份。
 
 ### decision [S-STAGES-FLOW-FORWARD] 阶段依赖单向
 
@@ -195,7 +195,7 @@ flowchart TD
     V --> D
 ```
 
-箭头表示 C# 项目依赖；Primitives/Data 的直接引用按实际使用决定。FrameStore 变长地址与 S4 NamedFrameMap 复用 Binary 普通基元；Binary 仍独立于 Primitives/Data/Rbf，当前另有精确 K4os.Compression.LZ4 `[1.3.8]` 依赖，不因本图省略它便声称纯 BCL 闭包。新生产库不得引用 atelia 业务项目、其 Analyzer 或旧存储库。旧栈依赖闭包保持独立。
+箭头表示 C# 项目依赖；Primitives/Data 的直接引用按实际使用决定。FrameStore 变长地址与 S4 NamedFrameMap 复用 Binary 普通基元；Binary 仍独立于 Primitives/Data/Rbf，当前另有精确 K4os.Compression.LZ4 `[1.3.8]` 依赖，不因本图省略它便声称纯 BCL 闭包。新生产库不得引用 atelia 业务项目、其 Analyzer 或旧存储库。旧栈依赖闭包由 RBF1 分支维护。
 
 | 事实或资格 | 唯一负责层 | 其他层的使用方式 |
 | --- | --- | --- |
@@ -239,11 +239,11 @@ IO/发布尝试后结果可能 Unknown；完整记录可在重开后存在。首
 
 ## 旧库维护边界
 
-当前 [根 README](../../README.md) 区分 main RBF3 新栈、main 冻结参考和已公开 RBF1 系列。[历史调查](../Rbf/rbf3-adaptation-baseline-investigation.md)记录旧源码直接跟随 RBF3 的编译/语义断点，不作为本轮依赖拆分测试结果。
+当前 [根 README](../../README.md) 区分 main RBF3 新栈与 RBF1 维护分支。[历史调查](../Rbf/rbf3-adaptation-baseline-investigation.md)记录旧源码直接跟随 RBF3 的编译/语义断点，不作为本轮依赖拆分测试结果。
 
-旧栈维护首先选定 RBF1 分支中受支持的具体源码/包基线，再修复该基线的问题；main 仅保留冻结参考及独立回归。不把新栈自动恢复、批次或版本协议写回旧库，也不通过 `out _` 或其他运行时适配把旧 strict 打开改成 RBF3 恢复打开。
+旧栈维护首先选定 RBF1 分支中受支持的具体源码/包基线，再修复该基线的问题；main 已移除旧栈参考及其独立回归，见[退役记录](../rbf1-retirement.md)。不把新栈自动恢复、批次或版本协议写回旧库，也不通过 `out _` 或其他运行时适配把旧 strict 打开改成 RBF3 恢复打开。
 
-本轮按[过渡方案](../rbf1-reference-transition.md)冻结底层三个公开包，已 Accepted。Release solution build、完整 solution `--no-build` 1525/1525、每组实际 assets 及 W: 三包候选消费均已核对，来源见[验收记录](../rbf1-reference-transition.md#6-验收记录)；没有删除旧项目或跳过测试。旧库继续保留但 IsPackable=false。本轮不切换消费应用、不迁移磁盘数据。
+2026-10-04 按[过渡方案](../rbf1-reference-transition.md)冻结底层三个公开包的阶段已 Accepted。Release solution build、完整 solution `--no-build` 1525/1525、每组实际 assets 及 W: 三包候选消费均已核对，来源见[验收记录](../rbf1-reference-transition.md#6-验收记录)；当时没有删除旧项目或跳过测试，旧库保留但 IsPackable=false。这些是退役前历史证据，不代表当前源码或包资格。2026-10-16 退役不切换消费应用、不迁移磁盘数据。
 
 ## 当前已证实与未证实
 
@@ -251,7 +251,7 @@ IO/发布尝试后结果可能 Unknown；完整记录可在重开后存在。首
 | --- | --- |
 | RBF3 create/open/recovery 及串行、资源异常边界 | 当前 [接口规范](../Rbf/rbf-interface.md)和 [70d1009 随附验收](../Rbf/rbf3-review-repairs-acceptance.md)；本次未重跑 |
 | 精确尺寸公共 API、提前 ticket Builder、格式投影 | [S1](../Rbf/01-rbf-sized-append.md) 已 Accepted；实现 `8ab98bf`、RBF 818/818 与 W: public 源码消费等身份见[阶段验收](../Rbf/01-rbf-sized-append-acceptance.md) |
-| main 参考依赖拆分及三包交付入口 | [过渡验收](../rbf1-reference-transition.md#6-验收记录) Accepted；1525/1525、七个旧栈 assets 图及 `4db3b8f` 的 W: 三包候选消费通过，不重标 S1 历史结果 |
+| 历史 main 参考依赖拆分及三包交付入口 | [过渡验收](../rbf1-reference-transition.md#6-验收记录) Accepted；1525/1525、七个旧栈 assets 图及 `4db3b8f` 的 W: 三包候选消费通过，不重标 S1 历史结果 |
 | FrameStore 与其测试项目 / HeadStore | S2/S3 与 S4/S5 既有源码资格分别见两份最终验收；已纳入[旧六包本地候选](13-local-package-delivery.md)，该来源不含 CU。本轮 CU 源码与新增资格另列 |
 | 新根发布模型 | 普通 Head、历史、fork、声明图、tag 与 Audit 的既有实现及源码证据见[实施计划](../VersionStore/12-versionstore-implementation-plan.md)；CU 正式接纳，新增实际结果见[07 验收](../VersionStore/07-versionstore-cross-ref-conditional-update-acceptance.md) |
 | DurableGraph 当前接口及接入 | 2026-10-04 已定位兄弟仓；生产代码仍使用未知尺寸 Begin/End，无新 API 接入证据，不以历史 tag 文档代替实证 |

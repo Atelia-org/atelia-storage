@@ -66,12 +66,10 @@ public sealed class RbfReverseBoundaryTests : IDisposable {
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void EofBoundary_MatchesExistingReverseOrder(bool legacy, bool showTombstone) {
-        SizedPtr[] tickets = WriteFixture(legacy, (1, [1], [], false), (2, [2], [], true), (3, [3], [], false));
+    [InlineData(false)]
+    [InlineData(true)]
+    public void EofBoundary_MatchesExistingReverseOrder(bool showTombstone) {
+        SizedPtr[] tickets = WriteFixture((1, [1], [], false), (2, [2], [], true), (3, [3], [], false));
         using var file = RbfFile.OpenReadOnlyExisting(_path);
         var boundary = file.GetScanBoundaryAfter(tickets[^1]).Unwrap();
         var bounded = file.ScanReverse(boundary, showTombstone).Unwrap().GetEnumerator();
@@ -137,16 +135,14 @@ public sealed class RbfReverseBoundaryTests : IDisposable {
         Assert.Equal(before, File.ReadAllBytes(_path));
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void CrcValidResealedAnchor_MustStillMatchOriginalWitness(bool legacy) {
-        var anchor = WriteFixture(legacy, (7, [1, 2, 3], [4], false))[0];
+    [Fact]
+    public void CrcValidResealedAnchor_MustStillMatchOriginalWitness() {
+        var anchor = WriteFixture((7, [1, 2, 3], [4], false))[0];
         RbfScanBoundary original;
         using (var file = RbfFile.OpenReadOnlyExisting(_path)) { original = file.GetScanBoundaryAfter(anchor).Unwrap(); }
         byte[] bytes = File.ReadAllBytes(_path);
         // Valid frame, same physical length, changed unpadded content.
-        BuildFrame(legacy, 7, [9, 2, 3], [4], false).CopyTo(bytes.AsSpan((int)anchor.Offset));
+        BuildFrame(7, [9, 2, 3], [4], false).CopyTo(bytes.AsSpan((int)anchor.Offset));
         File.WriteAllBytes(_path, bytes);
         using (var file = RbfFile.OpenReadOnlyExisting(_path)) {
             using var frame = file.ReadPooledFrame(anchor).Unwrap();
@@ -158,22 +154,17 @@ public sealed class RbfReverseBoundaryTests : IDisposable {
     }
 
     [Theory]
-    [InlineData(false, 0)] // HeadLen
-    [InlineData(false, 1)] // payload
-    [InlineData(false, 2)] // payload CRC
-    [InlineData(false, 3)] // Trailer CRC
-    [InlineData(false, 4)] // tail Fence
-    [InlineData(true, 0)]
-    [InlineData(true, 1)]
-    [InlineData(true, 2)]
-    [InlineData(true, 3)]
-    [InlineData(true, 4)]
-    public void CorruptAnchor_IsRejectedWithoutSkippingToEarlierFrame(bool legacy, int corruption) {
-        SizedPtr[] tickets = WriteFixture(legacy, (1, [1], [], false), (2, [2, 3, 4, 5], [], false));
+    [InlineData(0)] // HeadLen
+    [InlineData(1)] // payload
+    [InlineData(2)] // payload CRC
+    [InlineData(3)] // Trailer CRC
+    [InlineData(4)] // tail Fence
+    public void CorruptAnchor_IsRejectedWithoutSkippingToEarlierFrame(int corruption) {
+        SizedPtr[] tickets = WriteFixture((1, [1], [], false), (2, [2, 3, 4, 5], [], false));
         SizedPtr anchor = tickets[^1];
         RbfScanBoundary boundary;
         using (var file = RbfFile.OpenReadOnlyExisting(_path)) { boundary = file.GetScanBoundaryAfter(anchor).Unwrap(); }
-        var layout = new FrameLayout(legacy ? RbfProfile.Rbf1 : RbfProfile.Rbf3, 4);
+        var layout = new FrameLayout(RbfProfile.Rbf3, 4);
         byte[] bytes = File.ReadAllBytes(_path);
         long offset = corruption switch {
             0 => anchor.Offset,
@@ -204,17 +195,15 @@ public sealed class RbfReverseBoundaryTests : IDisposable {
         Assert.IsType<RbfFramingError>(file.ScanReverse(boundary).Error);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void CrcValidInvalidAnchorStructure_IsRejectedAsFramingError(bool legacy) {
-        var anchor = WriteFixture(legacy, (1, [1, 2, 3, 4], [], false))[0];
+    [Fact]
+    public void CrcValidInvalidAnchorStructure_IsRejectedAsFramingError() {
+        var anchor = WriteFixture((1, [1, 2, 3, 4], [], false))[0];
         RbfScanBoundary boundary;
         using (var file = RbfFile.OpenReadOnlyExisting(_path)) { boundary = file.GetScanBoundaryAfter(anchor).Unwrap(); }
         byte[] bytes = File.ReadAllBytes(_path);
-        var layout = new FrameLayout(legacy ? RbfProfile.Rbf1 : RbfProfile.Rbf3, 4);
+        var layout = new FrameLayout(RbfProfile.Rbf3, 4);
         var trailer = bytes.AsSpan((int)anchor.Offset + layout.TrailerCodewordOffset, 16);
-        uint key = legacy ? 0 : BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan((int)anchor.EndOffsetExclusive - 4));
+        uint key = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan((int)anchor.EndOffsetExclusive - 4));
         for (int i = 0; i < trailer.Length; i++) { trailer[i] ^= (byte)(key >> ((i & 3) * 8)); }
         uint descriptor = BinaryPrimitives.ReadUInt32LittleEndian(trailer[4..]) | 0x00010000u;
         BinaryPrimitives.WriteUInt32LittleEndian(trailer[4..], descriptor);
@@ -229,16 +218,14 @@ public sealed class RbfReverseBoundaryTests : IDisposable {
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void UnrelatedPrefixDamage_IsDeferredToEnumerationOrFullRead(bool legacy, bool framingDamage) {
-        SizedPtr[] tickets = WriteFixture(legacy, (1, [1, 2, 3, 4], [], false), (2, [5], [], false), (3, [6], [], false));
+    [InlineData(false)]
+    [InlineData(true)]
+    public void UnrelatedPrefixDamage_IsDeferredToEnumerationOrFullRead(bool framingDamage) {
+        SizedPtr[] tickets = WriteFixture((1, [1, 2, 3, 4], [], false), (2, [5], [], false), (3, [6], [], false));
         RbfScanBoundary boundary;
         using (var file = RbfFile.OpenReadOnlyExisting(_path)) { boundary = file.GetScanBoundaryAfter(tickets[1]).Unwrap(); }
         byte[] bytes = File.ReadAllBytes(_path);
-        var layout = new FrameLayout(legacy ? RbfProfile.Rbf1 : RbfProfile.Rbf3, 4);
+        var layout = new FrameLayout(RbfProfile.Rbf3, 4);
         bytes[tickets[0].Offset + (framingDamage ? layout.TrailerCodewordOffset : FrameLayout.PayloadOffset)] ^= 1;
         File.WriteAllBytes(_path, bytes);
         using (var file = RawRbfTestFile.OpenExisting(_path)) {
@@ -266,12 +253,10 @@ public sealed class RbfReverseBoundaryTests : IDisposable {
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void TombstoneAnchor_PreservesDecodedWitnessAndFiltering(bool legacy, bool showTombstone) {
-        SizedPtr[] tickets = WriteFixture(legacy, (1, [1], [], false), (7, [2, 3, 4], [5], true), (3, [6], [], false));
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TombstoneAnchor_PreservesDecodedWitnessAndFiltering(bool showTombstone) {
+        SizedPtr[] tickets = WriteFixture((1, [1], [], false), (7, [2, 3, 4], [5], true), (3, [6], [], false));
         using var file = RbfFile.OpenReadOnlyExisting(_path);
         var boundary = file.GetScanBoundaryAfter(tickets[1]).Unwrap();
         Assert.Equal(RollingCrc.CrcForward(new byte[] { 7, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 2, 3, 4, 5 }), boundary.AnchorContentCrc32C);
@@ -393,7 +378,7 @@ public sealed class RbfReverseBoundaryTests : IDisposable {
 
     [Fact]
     public void BadCurrentTail_StillFailsPublicColdOpenDespiteHealthyOldAnchor() {
-        SizedPtr[] tickets = WriteFixture(false, (1, [1], [], false), (2, [2], [], false), (3, [3], [], false));
+        SizedPtr[] tickets = WriteFixture((1, [1], [], false), (2, [2], [], false), (3, [3], [], false));
         RbfScanBoundary boundary;
         using (var file = RbfFile.OpenReadOnlyExisting(_path)) { boundary = file.GetScanBoundaryAfter(tickets[1]).Unwrap(); }
         byte[] bytes = File.ReadAllBytes(_path);
@@ -413,27 +398,9 @@ public sealed class RbfReverseBoundaryTests : IDisposable {
     }
 
     [Fact]
-    public void Rbf1PublicFile_RemainsReadOnlyAfterBoundaryScan() {
-        SizedPtr[] tickets = WriteFixture(true, (1, [1], [], false), (2, [2], [], false));
-        byte[] before = File.ReadAllBytes(_path);
-        using (var file = RbfFile.OpenReadOnlyExisting(_path)) {
-            Assert.Equal(RbfFormat.Rbf1, file.Format);
-            var scan = file.ScanReverse(file.GetScanBoundaryAfter(tickets[0]).Unwrap()).Unwrap().GetEnumerator();
-            Assert.True(scan.MoveNext());
-            Assert.Equal(tickets[0], scan.Current.Ticket);
-            Assert.False(scan.MoveNext());
-            Assert.Throws<InvalidOperationException>(() => { file.Append(3, [3]); });
-            Assert.Throws<InvalidOperationException>(() => { file.BeginAppend(); });
-        }
-        Assert.Equal(before, File.ReadAllBytes(_path));
-    }
-
-    [Fact]
     public void Rbf3NormalWriter_NestedImagesInPayloadDoNotBecomeScanMembers() {
-        byte[] legacyFrame = BuildFrame(true, 71, [1, 2, 3], [], false);
-        byte[] currentFrame = BuildFrame(false, 72, [4, 5, 6], [], false);
-        byte[] payload = "RBF1"u8.ToArray().Concat(legacyFrame).Concat("RBF1"u8.ToArray())
-            .Concat("RBF3"u8.ToArray()).Concat(currentFrame).Concat("RBF3"u8.ToArray()).ToArray();
+        byte[] currentFrame = BuildFrame(72, [4, 5, 6], [], false);
+        byte[] payload = "RBF3"u8.ToArray().Concat(currentFrame).Concat("RBF3"u8.ToArray()).ToArray();
         SizedPtr first, anchor;
         RbfScanBoundary boundary;
         using (var file = RbfFile.CreateNew(_path)) {
@@ -463,13 +430,13 @@ public sealed class RbfReverseBoundaryTests : IDisposable {
         Assert.Null(scan.TerminationError);
     }
 
-    private SizedPtr[] WriteFixture(bool legacy, params (uint Tag, byte[] Payload, byte[] Meta, bool Tombstone)[] frames) {
+    private SizedPtr[] WriteFixture(params (uint Tag, byte[] Payload, byte[] Meta, bool Tombstone)[] frames) {
         using var stream = new FileStream(_path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-        ReadOnlySpan<byte> fence = legacy ? "RBF1"u8 : "RBF3"u8;
+        ReadOnlySpan<byte> fence = "RBF3"u8;
         stream.Write(fence);
         var tickets = new List<SizedPtr>();
         foreach (var frame in frames) {
-            byte[] wire = BuildFrame(legacy, frame.Tag, frame.Payload, frame.Meta, frame.Tombstone);
+            byte[] wire = BuildFrame(frame.Tag, frame.Payload, frame.Meta, frame.Tombstone);
             tickets.Add(SizedPtr.Create(stream.Position, wire.Length));
             stream.Write(wire);
             stream.Write(fence);
@@ -477,8 +444,7 @@ public sealed class RbfReverseBoundaryTests : IDisposable {
         return tickets.ToArray();
     }
 
-    private static byte[] BuildFrame(bool legacy, uint tag, byte[] payload, byte[] meta, bool tombstone) {
-        if (legacy) { return RawRbfTestFile.LegacyFrame(tag, payload, meta, tombstone); }
+    private static byte[] BuildFrame(uint tag, byte[] payload, byte[] meta, bool tombstone) {
         var layout = new FrameLayout(RbfProfile.Rbf3, payload.Length, meta.Length);
         byte[] bytes = new byte[layout.FrameLength];
         BinaryPrimitives.WriteUInt32LittleEndian(bytes, layout.WireFrameLength);

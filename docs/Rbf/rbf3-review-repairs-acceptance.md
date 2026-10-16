@@ -4,6 +4,8 @@ status: "Accepted for the Data/RBF source and test scope"
 normative: false
 ---
 
+> 历史范围：本文保留当时源码、测试与设计事实。2026-10-16 主线已移除 RBF1 及其离线救援能力，当前行为以[接口](rbf-interface.md)、[格式](rbf-format.md)和[退役记录](../rbf1-retirement.md)为准；文中的旧格式能力、命令和统计不作为当前主线要求。
+
 # RBF3 审阅修复验收
 
 后续pooled读取C3与8KiB打包输出已完成，见[独立后续验收](rbf3-resource-and-output-acceptance.md)；本页的c4377fd测试、binary与历史资格保持原身份。

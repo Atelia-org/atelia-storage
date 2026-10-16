@@ -4,6 +4,8 @@ status: "Review complete; fixes and improvements proposed"
 normative: false
 ---
 
+> 历史范围：本文保留当时源码、测试与设计事实。2026-10-16 主线已移除 RBF1 及其离线救援能力，当前行为以[接口](rbf-interface.md)、[格式](rbf-format.md)和[退役记录](../rbf1-retirement.md)为准；文中的旧格式能力、命令和统计不作为当前主线要求。
+
 # RBF3 代码设计审阅：0999851
 
 后续[辩证裁决](rbf3-review-findings-disposition.md)已收窄 R1/R2 的承诺及严重度，保留 Commit catch，并补入普通 Dispose 可触发的 Data 重复 Return 证据。窄修复已完成，提交及实际验证身份见[修复验收记录](rbf3-review-repairs-acceptance.md)；本文保留0999851的原始发现和历史建议，不作为当前待办或新验收证据。

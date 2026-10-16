@@ -1,3 +1,5 @@
+> 历史范围：本文保留当时源码、测试与设计事实。2026-10-16 主线已移除 RBF1 及其离线救援能力，当前行为以[接口](rbf-interface.md)、[格式](rbf-format.md)和[退役记录](../rbf1-retirement.md)为准；文中的旧格式能力、命令和统计不作为当前主线要求。
+
 
 ## Page-Cache行为
 默认情况下（未使用 O_DIRECT / 未显式禁用缓存），Linux 的 page cache 以页为单位缓存文件数据。你用 .NET 的 RandomAccess.Read 读取任意 20B 时，内核会把涉及到的整页放进 page cache；如果 20B 全在同一页里，就缓存那一页；如果跨两个相邻页，就会把这两页都缓存（有时还可能触发少量 readahead，但随机读通常不会扩大很多）。

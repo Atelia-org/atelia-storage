@@ -55,7 +55,7 @@ RBF 数据流 MUST 符合如下交替布局模式：
 RBF wire format 的以下三个信息 MUST 以 **4 字节对齐**为基础不变量（根设计决策）：
 - `[Fence]` 的起始地址（byte offset）
 - `[Frame]` 的起始地址（即 @`Frame` 头部字段位置）
-- `lengthOf([Frame])`（物理FrameBytes长度L；RBF1为byte HeadLen，RBF3为 `4 * HeadLenUnits`；wire U本身不要求低2bits为零）
+- `lengthOf([Frame])`（物理FrameBytes长度L；RBF3为 `4 * HeadLenUnits`；wire U本身不要求低2bits为零）
 
 该不变量用于支撑：
 - 逆向扫描/Resync 以 4B 步进寻找 Fence；
@@ -83,7 +83,7 @@ RBF 的逆向扫描（Reverse Scan / `ScanReverse`）MUST 以“尽量只触碰 
 
 **状态**：TABLED（2026-02-21）
 
-**问题**：SizedPtr 作为帧 ticket 时 Length 包含 FixedOverhead(24B)，使得 VarInt 序列化时 Length 分量偏大。可在 Rbf 内部引入 `RbfFrameTicket` 包装类型，构造时减去 FixedOverhead，访问时加回来，使内部 SizedPtr 存储的 Length 更小从而改善 VarInt 编码紧凑性。
+**问题**：SizedPtr 作为帧 ticket 时 Length 包含 FixedOverhead（当时 RBF1 为 24B；当前 RBF3 为 28B），使得 VarInt 序列化时 Length 分量偏大。可在 Rbf 内部引入 `RbfFrameTicket` 包装类型，构造时减去 FixedOverhead，访问时加回来，使内部 SizedPtr 存储的 Length 更小从而改善 VarInt 编码紧凑性。
 
 **评估过的候选方案**：
 

@@ -40,7 +40,7 @@ public static class RbfFile {
         long byteBudget, int tailMetaLength, out int payloadLength);
 }
 
-public enum RbfFormat { Rbf1 = 1, Rbf3 = 3 }
+public enum RbfFormat { Rbf3 = 3 }
 
 public interface IRbfFile {
     RbfFormat Format { get; }
@@ -65,7 +65,7 @@ RbfWriteSize 是计算结果，不是执行凭据；default 的零值没有已�
 
 MeasureWriteSize MUST 无 I/O、确定计算，输入是最终 stored payload 和 TailMeta 的字节长度。负数、meta 超过 RbfFile.MaxTailMetaLength、合计超过 RbfFile.MaxPayloadAndMetaLength 或容量算术不合法时返回 RbfArgumentError。
 参数验证和 layout MUST 与实际 Append/Builder 共用内部实现，不能只包装依赖 Debug.Assert 的布局构造器；合计先以宽整数计算，避免输入相加溢出。
-结果 MUST 区分 frame 长度和追加占用；下游无需知道 EscapeKey、长度单位或固定开销。新 writer 只采用 RBF3，无公共 profile 参数；RBF1 读取保留原容量。
+结果 MUST 区分 frame 长度和追加占用；下游无需知道 EscapeKey、长度单位或固定开销。主线仅读写 RBF3，无公共 profile 参数。
 
 （Informative）当前 RBF3 为 `L = 28 + Align4(payload + meta)`、追加推进 `L + 4`。此公式供格式验收核对；应用和普通测试 fixture 应调用公共计算入口。独立 wire golden 测试继续保有自己的格式预期，避免生产实现与测试同时算错。
 
@@ -80,11 +80,8 @@ TryGetMaxPayloadLengthForAppendBudget MUST 在固定 tailMetaLength 下，返回
 
 ### spec [A-RBF-EXPOSE-OPENED-FORMAT] 提供已打开文件的格式信息
 
-IRbfFile.Format MUST 是只读、不可变的 RbfFormat.Rbf1 或 RbfFormat.Rbf3；0/default 未定义，成功打开的文件不返回它。
-复用 Header 分派结果，不另读文件，不选择 writer profile。内部 RbfProfile 与公开 enum 的数值不同，须显式映射，不能直接强转。
-空文件两个格式的长度也相同；下游不能以只读状态、长度或可写探测替代格式资格。属性允许新库明确拒绝 RBF1，同时保留底层历史读取能力。
-
-这是打开后检查；RBF1 可能先付出原有 O(历史) 只读资格成本。本阶段不增加 factory 的 expected-format guard。格式属性可独立实施，尺寸计算不依赖文件存在。
+IRbfFile.Format MUST 是只读、不可变的 RbfFormat.Rbf3；0/default 未定义，成功打开的文件不返回它。
+所有 factory 在 owned handle 上验证 RBF3 Header；RBF1 及其他 Header 均在修改前拒绝。Format 投影不另读文件，也不选择 writer profile。尺寸计算不依赖文件存在。
 
 ### spec [A-RBF-EARLY-TICKET] 已知尺寸 Builder 提前给出 ticket
 
@@ -150,7 +147,7 @@ var completed = builder.EndAppend(tag).Unwrap();
 
 | 使用位置 | 暴露的需求 | 本阶段处理 |
 | --- | --- | --- |
-| [EventJournal.Refs](../../src/EventJournal/EventJournal.Refs.cs) 的 catalog 容量预检与固定尺寸限制 | 下游复制开销，仍有 RBF1 的旧计算 | 提供正向 Measure；旧库适配独立处理 |
+| [EventJournal.Refs](https://github.com/Atelia-org/atelia-storage/blob/043f77aa68700568499ceb965c049f8362e4253f/src/EventJournal/EventJournal.Refs.cs) 的 catalog 容量预检与固定尺寸限制 | 历史下游复制开销与 RBF1 旧计算 | 提供正向 Measure 的历史动机；旧库由 RBF1 分支维护 |
 | [Rbf3SmallAppendOutputTests](../../tests/Rbf.Tests/Internal/Rbf3SmallAppendOutputTests.cs) 的目标 total length fixture | 从追加预算求最大 payload | fixture 已接入公共逆向预算入口；保留独立 wire golden 预期，包含在 818/818 验收中 |
 | [ThresholdProbe](../../experiments/RbfFastOpen/Rbf3ProductionProbe/ThresholdProbe.cs) 的尺寸构造 | 实验也依赖固定开销和内部 layout | 新实验可用公共入口；既有实验及证据不在本轮重写 |
 
@@ -171,7 +168,7 @@ var completed = builder.EndAppend(tag).Unwrap();
 | A/B 两文件先取 ticket 再互引 | 固定宽度引用；成功 ticket 相等，完整读取及冷重开后引用一致 |
 | A 完成、B 取消、C 重用 B 的地址 | A 可存在；B 无完成资格，裸 ticket 不能识别尝试更替 |
 | 最终输出中断、完成后资源异常 | 现有取消/fault 和重开合同保持，不追认提前 ticket 为成功 |
-| RBF1/RBF3 空/非空只读打开 | Format 明确，RBF1 原读取容量不变，Measure 只计算新写 RBF3 |
+| RBF3 空/非空只读打开及非 RBF3 Header | 成功时 Format=Rbf3；旧格式拒绝且 bytes 不变；Measure 计算 RBF3 |
 
 1. S1-A：实现尺寸 DTO、正向/逆向纯计算及共享 runtime 验证、公开 XML 和边界测试。格式 enum/属性可在本片独立提交。
 2. S1-B：在现有 owner/epoch 路径实现分立声明、out ticket、两个 End 重载、Advance/ReserveSpan 预算及输出前 guards。

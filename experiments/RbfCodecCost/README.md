@@ -1,73 +1,9 @@
-# RBF writer / reader 编码成本专项
+# RBF 历史编码成本证据
 
-支撑 [实施专项文档](../../docs/Rbf/rbf-codec-implementation-study.md)与[普通打开重构方案](../../docs/Rbf/rbf-open-fast-path-refactoring.md)。只含实验，生产仍为 RBF1。比较有界 Key 搜索、XOR / uint32加减法、普通解码与融合CRC，使用生产CRC和cache；RBF1真实API作参照。
+运行代码已从 main 移除：这些实验比较 RBF1 生产 API 与历史 byte-length RBF2 原型，Data 专项也使用该历史 wire fixture，不能直接运行来验收当前 RBF3。
 
-证据边界（2026-10-03）：已提交原型及快照仍把HeadLen/TailLen存为byte长度；最新重构方案已采纳4B units与Fence≥2^26。旧代码/数值/hash保持原样，不直接重解释旧实验RBF2文件。后续新units的wire、LE(U) TrailerCRC及缺Key恢复须新增独立向量与结果；Data基础入口已实施，见[实现方案§9](../../docs/Data/xor-escape-key-refactoring.md#9-基础切片实施结果)。新增Data探针验证生产入口及实际writer成本，明确使用历史byte-length fixture。
+完整代码、运行说明及 writer/reader 审查笔记保存在 [固定历史 revision](https://github.com/Atelia-org/atelia-storage/tree/043f77aa68700568499ceb965c049f8362e4253f/experiments/RbfCodecCost)。需要复现实验时使用该 revision 的独立 checkout。
 
-固定 .NET10.0.201、Python3标准库、PowerShell7。从仓库根串行执行：
+[results](results/) 的不可变测量快照继续保留，为 [编码成本研究](../../docs/Rbf/rbf-codec-implementation-study.md) 和 RBF3 设计决策提供历史证据。其格式、源码 hash、环境及验收边界沿用原始身份，不作为当前主线的运行资格。
 
-```powershell
-./experiments/RbfCodecCost/Run-Probe.ps1 -OutputDirectory W:/RbfCodecCost/my-new-run
-# 较短的正确性和I/O冒烟
-./experiments/RbfCodecCost/Run-Probe.ps1 -OutputDirectory W:/RbfCodecCost/my-quick-run -Quick
-# 独立复测修正后的I/O / 轮转读核与实际最大帧
-./experiments/RbfCodecCost/Run-Probe.ps1 -OutputDirectory W:/RbfCodecCost/my-io-run -IoOnly
-./experiments/RbfCodecCost/Run-Probe.ps1 -OutputDirectory W:/RbfCodecCost/my-focused-run -Focused
-# 独立ZeroThenRandom / 两次有效随机候选后bitmap比较
-./experiments/RbfCodecCost/Run-Probe.ps1 -OutputDirectory W:/RbfCodecCost/my-random-run -RandomSearch
-# Zero失败后，EscapePayload≤256B使用一个ulong；独立CPU专项
-./experiments/RbfCodecCost/Run-Probe.ps1 -OutputDirectory W:/RbfCodecCost/my-tiny-run -TinyKey
-# Data生产三spans与实际owned writer、Shared Pool；CPU/同步sink专项
-./experiments/RbfCodecCost/Run-Probe.ps1 -OutputDirectory W:/RbfCodecCost/my-data-run -DataEscape
-```
-
-输出必须是W:新/空目录。runner先Release build、禁用tiered compilation、运行C#、Python独立wire互证、记录CPU/SDK/NTFS卷及源码hash；日志在根，数据在 `data/`。失败文件保留；没有递归清理。普通完整run测CPU+I/O+meta；`-Focused`另跑7样本轮转读核和一个真实约256MiB最大帧。
-
-| 文件 | 作用 |
-| --- | --- |
-| PrototypeCodec.cs | 七Key策略、plaintext CRC/footer、完整body禁Key、跨chunk carry、可选连续Serialize |
-| XorTransform.cs | 相位正确的Vector/ulong XOR、融合coverage CRC；独立uint加减对照 |
-| StreamCodec.cs | 借用输入、有界输出、Key0 direct-write、小帧合写；本地完整checked-read |
-| CpuProbe.cs / Measurement.cs | 34 workloads、15ops、5样本，校准与allocation计量；连续reader核不消耗chunk列表 |
-| IoProbe.cs | W:顺序append+独立batch durable，生产Append/旧Builder参照，轮转warm checked-read；metrics计时外 |
-| MetadataProbe.cs | 使用真实生产reader/cache读20B footer与meta；重复读取后尾/meta encoded bytes未改 |
-| FocusedProbe.cs | 同plaintext与copy工作的轮转读核；Key301、meta65535、最大FrameBytes真实W:round-trip |
-| RandomSearchProbe.cs / RandomSearchCorrectness.cs | 系统CSPRNG搜索、无bitmap/两次有效随机候选后fallback，7轮转样本和强制失败反例 |
-| TinyKeyProbe.cs / export_tiny_snapshot.py | 256B分帧区间内一个ulong标记、跨chunk/边界/shift别名反例；7轮转CPU证据与快照导出 |
-| DataEscapeProbe.cs / export_data_snapshot.py | Data真实三借用spans、owned chunks与完整Pool生命周期；189/40行、7样本与全Data源码hash守护 |
-| verify_data_vectors.py | Data输出的历史byte-length fixture，独立Python bitwise CRC/XOR裁判；不验收units新wire |
-| verify_random_vectors.py / export_random_snapshot.py | 独立bitwise CRC32C显式Key wire裁判；原始hash守护后的新不可变快照导出 |
-| Correctness.cs / verify_vectors.py | guards/alias/phase/carry/CRC失败；四策略wire一致及Python独立语言裁判 |
-| WRITER-NOTES.md / READER-NOTES.md | agent局部源审查与原型契约；最终裁决以专项文档为准 |
-
-固定汇总：[codec-cost-5711c47-20261002.json](results/codec-cost-5711c47-20261002.json)。原始W:目录、sourcehash及阶段差异在汇总中；旧阶段不替换或声称全部hash匹配当前入口。源码hash针对运行时工作树原始字节；Git依 `.gitattributes` 转换换行的重新checkout可能改变字节hash，不能据此推断逻辑变化。最初byte-XOR短测和不对等metrics I/O被排除，CPU工作核保持，修正I/O与补测分别记录。
-
-CPU的Split/连续destination是计时外fixture；Prepare的Footer/PreparedFrame与bitmap是实验heap分配，不等于生产必要分配。输出workspace在计时前获得，尚未计Pool获取/归还。wire cache复用不等于已实现生产RBF2 API；Builder真实接点以Data方案的具体writer fused方法为准，旧visitor/专用guard候选已删除。加法未测完整writer/非对齐preview真实I/O。所有读取标为OS warm，不证明物理cold SSD、断电、生产恢复、包消费或solution通过。
-
-ZeroThenRandom 新证据：[zero-then-random-0e0df09-20261003.json](results/zero-then-random-0e0df09-20261003.json)，正式run在 `W:/RbfCodecCost/random-formal-20261003`。185 CPU/20 I/O记录，均7样本轮转；0成功无RNG，失败后 `RandomNumberGenerator.Fill` 抽全uint32并拒绝0/Fence。无bitmap版一直完整检测到成功，比较版最多两次有效随机候选扫描后fallback；rejection draws不受这个扫描预算约束。
-
-新CPU的Key/扫描/bitmap分布属于额外未计时准备，不是计时实例的Key；旧入口Environment.Samples=5为未使用的旧阶段默认，实际7样本由数组和快照 `MeasuredProtocol` 明确。旧四种策略仍保持wire相同；新随机策略只要求marker-free、decode和CRC相同。旧MetadataProbe的高Key meta/cache资格、全uint随机writer的进程恢复模型尚未补测；实验完整读已改为raw Key!=Fence，不改旧FastOpen或旧immutable结果。
-
-导出正式新快照：
-
-```powershell
-python -B experiments/RbfCodecCost/export_random_snapshot.py W:/RbfCodecCost/my-random-run experiments/RbfCodecCost/results/my-new-snapshot.json
-```
-
-exporter拒绝覆盖已有快照，核对185/20行、7样本和全部测量源码hash；其自身允许运行后仅证据派生说明变化，并明确记录。使用 `-RandomSearch -Quick` 可缩短为小/中帧与8MiB I/O冒烟，不做最大帧，也不满足正式导出的185/20门槛。
-
-小帧标量bitmap正式证据：[tiny-ulong-7667b9c-20261003.json](results/tiny-ulong-7667b9c-20261003.json)。`-TinyKey`仅运行CPU专项（固定7轮转样本），不测磁盘吞吐；104行/26workloads/4策略，新增448帧与112个Python独立wire向量。EscapePayload包含raw HeadLen，阈值按`FrameLength-4≤256`判定，实际编码body最多252B/63words。Zero成功仍直接返回；失败后一个ulong完整标记0..63、取最小可用值，超过阈值仍系统随机。标量及carry属于固定局部状态，ScratchBytes/BitmapBytes均不计数组分配；所有策略共同的PreparedFrame/Footer分配仍计时。
-
-```powershell
-python -B experiments/RbfCodecCost/export_tiny_snapshot.py W:/RbfCodecCost/my-tiny-run experiments/RbfCodecCost/results/my-new-tiny-snapshot.json
-```
-
-该exporter拒绝覆盖并核对104行、7样本、448帧和全部测量源码hash；正式目录`W:/RbfCodecCost/tiny-ulong-formal-20261003`。阈值内非零键收益及Zero路径波动见专项§3.2，不声称256B是跨平台最优阈值。
-
-Data生产入口正式证据：[data-escape-00329fd-20261003.json](results/data-escape-00329fd-20261003.json)，源码提交 `00329fd`，目录 `W:/RbfCodecCost/data-escape-formal-20261003`。复用26 tiny/37 random工作量标签、固定当前meta=min(input,3)，189条同工作量Prepare记录、40条实际writer记录均7样本；不与旧ns直接比较。Data三spansPrepare全为0B allocation；owned fused的最大case保留平均1160B原始观测，其余为0。完整生命周期包含存量Pool成本，大帧copy-encode与owned-transform拓扑不同；详见[专项§3.3](../../docs/Rbf/rbf-codec-implementation-study.md#33-data生产入口与真实writer资格)。
-
-```powershell
-python -B experiments/RbfCodecCost/export_data_snapshot.py W:/RbfCodecCost/my-data-run experiments/RbfCodecCost/results/my-new-data-snapshot.json --test-trx <Data.trx> --test-trx <Rbf.trx>
-```
-
-导出器拒绝覆盖并核对45个测量源码文件、63/10输入case、189/40行、7样本、Pool平衡、原工作量集合、38个Python向量及可选TRX。`-DataEscape -Quick`只作47/9 case冒烟，不满足正式导出门槛；本专项没有SSD吞吐或新units RBF验收。
+当前生产实验入口见 [RBF3 production probe](../RbfFastOpen/Rbf3ProductionProbe/README.md)。

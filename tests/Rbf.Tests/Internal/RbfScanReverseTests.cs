@@ -37,7 +37,7 @@ public class RbfScanReverseTests : IDisposable {
     [InlineData(true)]
     public void ScanReverse_RejectsUnrepresentableTicketWithoutThrowing(bool invalidStart) {
         string path = GetTempFilePath();
-        uint tailLength = invalidStart ? 24u : (uint)SizedPtr.MaxLength + 4u;
+        uint tailLength = invalidStart ? 28u : (uint)SizedPtr.MaxLength + 4u;
         long start = invalidStart ? SizedPtr.MaxOffset + 4 : 4;
         long end = start + tailLength + 4;
         // Mark sparse before extending on Windows, just like the existing maximum-offset tests.
@@ -45,10 +45,11 @@ public class RbfScanReverseTests : IDisposable {
         using (var stream = new FileStream(path, FileMode.Open, FileAccess.Write)) {
             stream.Write(RbfLayout.Fence);
             stream.SetLength(end);
-            stream.Position = end - 20;
+            stream.Position = end - 24;
             Span<byte> trailer = stackalloc byte[16];
-            TrailerCodewordHelper.Serialize(trailer, 0, 7, tailLength);
+            TrailerCodewordHelper.Serialize(trailer, 0, 7, tailLength >> 2);
             stream.Write(trailer);
+            stream.Write(new byte[sizeof(uint)]); // TailKey = 0
             stream.Write(RbfLayout.Fence);
         }
         using var file = RawRbfTestFile.OpenExisting(path);
@@ -98,7 +99,7 @@ public class RbfScanReverseTests : IDisposable {
         throw new NotImplementedException("Use path variable directly");
     }
 
-    /// <summary>构造一个有效帧的字节数组（v0.40 格式）。</summary>
+    /// <summary>构造一个有效帧的字节数组（RBF3 格式，TailKey 为 0）。</summary>
     private static byte[] CreateFrameBytes(uint tag, ReadOnlySpan<byte> payload, bool isTombstone = false) {
         var layout = new FrameLayout(payload.Length);
         int frameLen = layout.FrameLength;
@@ -107,7 +108,7 @@ public class RbfScanReverseTests : IDisposable {
         Span<byte> span = frame;
 
         // HeadLen
-        BinaryPrimitives.WriteUInt32LittleEndian(span[..FrameLayout.HeadLenSize], (uint)frameLen);
+        BinaryPrimitives.WriteUInt32LittleEndian(span[..FrameLayout.HeadLenSize], layout.WireFrameLength);
         // Payload
         payload.CopyTo(span.Slice(FrameLayout.PayloadOffset, payload.Length));
         // Padding（清零）
@@ -523,7 +524,7 @@ public class RbfScanReverseTests : IDisposable {
         Assert.False(frames[0].IsTombstone);
     }
 
-    /// <summary>验证最小帧（空 payload，24B）的逆向扫描。</summary>
+    /// <summary>验证最小帧（空 payload，28B）的逆向扫描。</summary>
     [Fact]
     public void ScanReverse_MinimalFrame_EmptyPayload() {
         // Arrange: 空 payload 帧
@@ -721,7 +722,7 @@ public class RbfScanReverseTests : IDisposable {
 
         // 篡改 Frame 2 的 payload（不动 trailer）
         byte[] fileContent = File.ReadAllBytes(path);
-        // Ticket 始终是 byte 地址；不从旧 24B 开销推测后继帧起点。
+        // Ticket 始终是 byte 地址；直接使用 Append 返回的位置定位 payload。
         int frame2PayloadOffset = checked((int)frame2.Offset + 4);
         fileContent[frame2PayloadOffset] ^= 0xFF; // 翻转一个字节
         File.WriteAllBytes(path, fileContent);
@@ -751,33 +752,29 @@ public class RbfScanReverseTests : IDisposable {
 
     #region 写入边界测试
 
-    /// <summary>验证 ScanReverse 能处理跨缓冲区边界的帧（使用 RbfAppendImpl 边界向量）。</summary>
+    /// <summary>验证 ScanReverse 能处理 RBF3 8 KiB 写入缓冲区两侧的帧。</summary>
     [Fact]
     public void ScanReverse_AcrossBufferBoundaries_WorksCorrectly() {
-        // Arrange: 使用 RbfAppendImpl 的边界向量
-        var edgeCases = RbfAppendImpl.GetPayloadEdgeCase();
-        // edgeCases: [OneMax, TwoMin, TwoMax, ThreeMin]
-        // OneMax = 4KB - 24 = 4072 (单次写入最大)
-        // TwoMin = OneMax + 1 (触发两次写入)
-
+        // RBF3 frame + Fence = align4(payload) + 32；8160/8161 跨过 8 KiB 阈值。
+        int[] payloadLengths = [8156, 8157, 8159, 8160, 8161, 8192];
         var path = GetTempFilePath();
         using (var rbf = RbfFile.CreateNew(path)) {
-            // 写入边界大小的帧
-            Assert.True(rbf.Append(1, new byte[edgeCases[0]]).IsSuccess); // OneMax: 单次写入最大
-            Assert.True(rbf.Append(2, new byte[edgeCases[1]]).IsSuccess); // TwoMin: 触发两次写入
+            for (int i = 0; i < payloadLengths.Length; i++) {
+                Assert.True(rbf.Append((uint)i, new byte[payloadLengths[i]]).IsSuccess);
+            }
         }
 
-        // Act
-        using var rbfRead = RbfFile.OpenReadOnlyExisting(path);
-        var frames = new List<(uint tag, int payloadLen)>();
-        foreach (var info in rbfRead.ScanReverse()) {
-            frames.Add((info.Tag, info.PayloadLength));
+        using var reader = RbfFile.OpenReadOnlyExisting(path);
+        var scan = reader.ScanReverse().GetEnumerator();
+        for (int i = payloadLengths.Length - 1; i >= 0; i--) {
+            Assert.True(scan.MoveNext());
+            Assert.Equal((uint)i, scan.Current.Tag);
+            Assert.Equal(payloadLengths[i], scan.Current.PayloadLength);
+            using var frame = scan.Current.ReadPooledFrame().Unwrap();
+            Assert.Equal(payloadLengths[i], frame.PayloadAndMeta.Length);
         }
-
-        // Assert
-        Assert.Equal(2, frames.Count);
-        Assert.Equal((2u, edgeCases[1]), frames[0]); // TwoMin
-        Assert.Equal((1u, edgeCases[0]), frames[1]); // OneMax
+        Assert.False(scan.MoveNext());
+        Assert.Null(scan.TerminationError);
     }
 
     #endregion

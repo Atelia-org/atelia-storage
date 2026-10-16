@@ -4,6 +4,8 @@ status: "RBF3 implemented / source, tests and production evidence independently 
 normative: false
 ---
 
+> 历史范围：本文保留当时源码、测试与设计事实。2026-10-16 主线已移除 RBF1 及其离线救援能力，当前行为以[接口](rbf-interface.md)、[格式](rbf-format.md)和[退役记录](../rbf1-retirement.md)为准；文中的旧格式能力、命令和统计不作为当前主线要求。
+
 # RBF 普通打开快路径实施记录
 
 日期：2026-10-01。历史调查源码基线：`5711c4706509eb3b144299a75f83c09aa75da75f`。2026-10-03用户完整授权RBF实施：生产Header/Fence确定为 **RBF3（LE 0x33464252）**，以区别历史byte RBF2实验。源码已提交 `0999851207978fe947ecabccb1093e5774d007df`；对应源码树最终Release RBF资格670/670通过，提交后的clean源码重新构建并完成正式生产探针，证据见§11。源码、测试身份与正式证据已独立复核；旧实验不重标为RBF3结果。
@@ -51,7 +53,7 @@ normative: false
 
 [RbfTailRecovery.Open](../../src/Rbf/Internal/RbfTailRecovery.cs) 无条件从 Header 循环按 HeadLen 前进，检查长度、TrailerCodeword、descriptor、padding、HeadLen/TailLen 与 Fence，然后完整校验最后相关帧。可写、只读以及 Action=None 均执行。历史 payload 不全部读取，但每个已闭合帧约有 24–27B 小范围读取与对应调用成本。
 
-当前实现直接进行每帧 3 次小读，有 padding 时再多一次；工厂资格读取发生在正式 cache 建立之前。[生产探针](../../experiments/RbfFastOpen/ProductionProbe/Program.cs) 实测零 payload、无 padding、`CacheMode.Off` 的只读打开：
+当前实现直接进行每帧 3 次小读，有 padding 时再多一次；工厂资格读取发生在正式 cache 建立之前。[生产探针](https://github.com/Atelia-org/atelia-storage/blob/043f77aa68700568499ceb965c049f8362e4253f/experiments/RbfFastOpen/ProductionProbe/Program.cs) 实测零 payload、无 padding、`CacheMode.Off` 的只读打开：
 
 | 历史帧数 N | Read / RawRead calls | RawReturnedBytes |
 | ---: | ---: | ---: |
@@ -255,7 +257,7 @@ Header一次分派、两组具体wire布局：RBF1保留byte字段，RBF3是4B u
 
 本节所有已有RBF2候选模型、成本原型与wire快照都使用 **byte HeadLen/TailLen**，包括高位Key和缺Key代数验证。它们支持算法、成本与结构/内容分工的论证；units格式的TrailerCRC、所有切断点及再次恢复仍须用新codec/独立向量验收。不得直接重标旧hash、覆盖快照或把候选名称相同当作wire相同。
 
-历史基线复现命令（针对5711c47源码，不在本轮新生产源码上重测或用于RBF3资格）：
+历史基线复现命令（针对 5711c47 源码；脚本已从 main 移除，须从[归档快照](https://github.com/Atelia-org/atelia-storage/blob/043f77aa68700568499ceb965c049f8362e4253f/experiments/RbfFastOpen/run_probes.py)及其依赖恢复到独立历史检出，不能在当前 main 上执行或用作 RBF3 资格）：
 
 ```text
 python -B experiments/RbfFastOpen/run_probes.py --assert-baseline-5711c47

@@ -2,9 +2,9 @@ using Xunit;
 
 namespace Atelia.Rbf.Internal.Tests;
 
-/// <summary>FrameLayout 单元测试（v0.40 格式）。</summary>
+/// <summary>FrameLayout 单元测试（RBF3 格式）。</summary>
 /// <remarks>
-/// v0.40 布局：[HeadLen][Payload][TailMeta][Padding][PayloadCrc][TrailerCodeword]
+/// RBF3 布局：[HeadLen][Payload][TailMeta][Padding][PayloadCrc][TrailerCodeword][TailKey]
 /// 规范引用：
 /// - @[F-FRAMEBYTES-LAYOUT]
 /// - @[F-PADDING-CALCULATION]
@@ -12,7 +12,7 @@ namespace Atelia.Rbf.Internal.Tests;
 public class FrameLayoutTests {
     #region PaddingLength Tests
 
-    /// <summary>验证完整的 4 周期循环模式（v0.40 padding 公式）。
+    /// <summary>验证完整的 4 周期循环模式（RBF3 padding 公式）。
     /// PaddingLen = (4 - ((payloadLen + tailMetaLen) % 4)) % 4</summary>
     [Theory]
     [InlineData(0, 0)]  // (4 - 0 % 4) % 4 = 0
@@ -59,23 +59,23 @@ public class FrameLayoutTests {
 
     #region FrameLength Tests
 
-    /// <summary>验证最小帧长度：空 payload/tailMeta 时为 24 字节。
-    /// FrameLength = HeadLen(4) + Payload(0) + TailMeta(0) + Padding(0) + PayloadCrc(4) + TrailerCodeword(16) = 24</summary>
+    /// <summary>验证最小帧长度：空 payload/tailMeta 时为 28 字节。
+    /// FrameLength = HeadLen(4) + Payload(0) + TailMeta(0) + Padding(0) + PayloadCrc(4) + TrailerCodeword(16) + TailKey(4) = 28</summary>
     [Fact]
-    public void FrameLength_EmptyPayload_Returns24() {
+    public void FrameLength_EmptyPayload_Returns28() {
         // Act
         int result = new FrameLayout(0).FrameLength;
 
         // Assert
-        Assert.Equal(24, result);
+        Assert.Equal(28, result);
         Assert.Equal(FrameLayout.MinFrameLength, result);
     }
 
     /// <summary>验证帧长度计算：包含 payload 但无 tailMeta。</summary>
     [Theory]
-    [InlineData(1, 28)]   // 4 + 1 + 3(padding) + 4 + 16 = 28
-    [InlineData(4, 28)]   // 4 + 4 + 0(padding) + 4 + 16 = 28
-    [InlineData(100, 124)] // 4 + 100 + 0(padding) + 4 + 16 = 124
+    [InlineData(1, 32)]   // 4 + 1 + 3(padding) + 4 + 16 + 4 = 32
+    [InlineData(4, 32)]   // 4 + 4 + 0(padding) + 4 + 16 + 4 = 32
+    [InlineData(100, 128)] // 4 + 100 + 0(padding) + 4 + 16 + 4 = 128
     public void FrameLength_WithPayload_CalculatesCorrectly(int payloadLen, int expectedFrameLen) {
         // Act
         int result = new FrameLayout(payloadLen).FrameLength;
@@ -117,6 +117,8 @@ public class FrameLayoutTests {
         Assert.Equal(4, layout.PaddingOffset);     // 4 + 0 + 0
         Assert.Equal(4, layout.PayloadCrcOffset);  // 4 + 0 + 0 + 0
         Assert.Equal(8, layout.TrailerCodewordOffset); // 4 + 0 + 0 + 0 + 4
+        Assert.Equal(24, layout.TailKeyOffset);
+        Assert.Equal(7u, layout.WireFrameLength);
     }
 
     /// <summary>验证各字段偏移的计算（带 payload）。</summary>
@@ -132,6 +134,8 @@ public class FrameLayoutTests {
         Assert.Equal(9, layout.PaddingOffset);      // 4 + 5 + 0
         Assert.Equal(12, layout.PayloadCrcOffset);  // 4 + 5 + 0 + 3
         Assert.Equal(16, layout.TrailerCodewordOffset); // 12 + 4
+        Assert.Equal(32, layout.TailKeyOffset);
+        Assert.Equal(9u, layout.WireFrameLength);
     }
 
     /// <summary>验证各字段偏移的计算（带 payload 和 tailMeta）。</summary>
@@ -147,6 +151,8 @@ public class FrameLayoutTests {
         Assert.Equal(0, layout.PaddingLength);
         Assert.Equal(12, layout.PayloadCrcOffset);  // 4 + 5 + 3 + 0
         Assert.Equal(16, layout.TrailerCodewordOffset); // 12 + 4
+        Assert.Equal(32, layout.TailKeyOffset);
+        Assert.Equal(9u, layout.WireFrameLength);
     }
 
     #endregion

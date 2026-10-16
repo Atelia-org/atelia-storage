@@ -4,7 +4,7 @@ using Xunit;
 
 namespace Atelia.Rbf.Internal.Tests;
 
-/// <summary>Public Open, real prefix-write faults, and explicit legacy read-only responsibility.</summary>
+/// <summary>Public RBF3 Open and real prefix-write faults.</summary>
 public sealed class RbfTailRecoveryAcceptanceTests : IDisposable {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), $"rbf-tail-acceptance-{Guid.NewGuid():N}");
     private string ImagePath => Path.Combine(_directory, "image.rbf");
@@ -155,12 +155,12 @@ public sealed class RbfTailRecoveryAcceptanceTests : IDisposable {
     }
 
     [Fact]
-    public void ConsecutiveLegacyTombstones_AreReadOnlyPhysicalMembers_AndHiddenFromNormalStream() {
-        using (var legacy = RawRbfTestFile.CreateLegacy(ImagePath)) {
-            legacy.Append(1, "prior"u8).Unwrap();
-            legacy.Append(0, "first"u8, isTombstone: true).Unwrap();
-            legacy.Append(0, "second"u8, isTombstone: true).Unwrap();
-            legacy.Append(4, "last"u8).Unwrap();
+    public void ConsecutiveTombstones_ArePhysicalMembers_AndHiddenFromNormalStream() {
+        using (var fixture = RawRbfTestFile.Create(ImagePath)) {
+            fixture.Append(1, "prior"u8).Unwrap();
+            fixture.Append(0, "first"u8, isTombstone: true).Unwrap();
+            fixture.Append(0, "second"u8, isTombstone: true).Unwrap();
+            fixture.Append(4, "last"u8).Unwrap();
         }
         byte[] before = File.ReadAllBytes(ImagePath);
         using (var file = RbfFile.OpenReadOnlyExisting(ImagePath)) {
@@ -172,7 +172,9 @@ public sealed class RbfTailRecoveryAcceptanceTests : IDisposable {
             using var tombstone = physical[1].ReadPooledFrame().Unwrap();
             Assert.Equal("first"u8.ToArray(), tombstone.PayloadAndMeta.ToArray());
         }
-        Assert.Throws<InvalidDataException>(() => RbfFile.OpenExisting(ImagePath, out _));
+        using (var reopened = RbfFile.OpenExisting(ImagePath, out var report)) {
+            Assert.Equal(RbfTailRecoveryAction.None, report.Action);
+        }
         Assert.Equal(before, File.ReadAllBytes(ImagePath));
     }
 
@@ -260,19 +262,6 @@ public sealed class RbfTailRecoveryAcceptanceTests : IDisposable {
     }
 
     [Fact]
-    public void LegacyEarlierStructure_IsEagerlyChecked_WithoutRepairingOrSkippingDamage() {
-        using (var legacy = RawRbfTestFile.CreateLegacy(ImagePath)) {
-            legacy.Append(1, "prior"u8).Unwrap();
-            legacy.Append(2, "tail"u8).Unwrap();
-        }
-        byte[] bytes = File.ReadAllBytes(ImagePath); bytes[4] ^= 1;
-        File.WriteAllBytes(ImagePath, bytes);
-        Assert.Throws<InvalidDataException>(() => RbfFile.OpenReadOnlyExisting(ImagePath));
-        Assert.Throws<InvalidDataException>(() => RbfFile.OpenExisting(ImagePath, out _));
-        Assert.Equal(bytes, File.ReadAllBytes(ImagePath));
-    }
-
-    [Fact]
     public void OpenDefersHistoricalAndTailPayloadCrc_ToExplicitCheckedRead() {
         var (complete, prior, tail) = CreateImage(12);
         complete[checked((int)prior.Offset + 4)] ^= 1;
@@ -283,22 +272,6 @@ public sealed class RbfTailRecoveryAcceptanceTests : IDisposable {
         Assert.Equal(2, Collect(file, false).Count);
         Assert.IsType<RbfCrcMismatchError>(file.ReadPooledFrame(prior).Error);
         Assert.IsType<RbfCrcMismatchError>(file.ReadPooledFrame(tail).Error);
-    }
-
-    [Fact]
-    public void LegacyEmbeddedCompleteFrameAtEof_IsNotExposedAsAMainSequenceMember() {
-        byte[] embedded = "RBF1"u8.ToArray().Concat(RawRbfTestFile.LegacyFrame(8, "inner"u8))
-            .Concat("RBF1"u8.ToArray()).ToArray();
-        SizedPtr outer;
-        using (var legacy = RawRbfTestFile.CreateLegacy(ImagePath)) {
-            legacy.Append(1, "prior"u8).Unwrap();
-            outer = legacy.Append(2, embedded).Unwrap();
-        }
-        byte[] bytes = File.ReadAllBytes(ImagePath)[..checked((int)outer.Offset + 4 + embedded.Length)];
-        File.WriteAllBytes(ImagePath, bytes);
-        Assert.Throws<InvalidDataException>(() => RbfFile.OpenReadOnlyExisting(ImagePath));
-        Assert.Throws<InvalidDataException>(() => RbfFile.OpenExisting(ImagePath, out _));
-        Assert.Equal(bytes, File.ReadAllBytes(ImagePath));
     }
 
     [Fact]

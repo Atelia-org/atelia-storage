@@ -23,6 +23,17 @@ internal static class Correctness {
             string path = Path.Combine(folder, fixture.File);
             var original = File.ReadAllBytes(path);
             Program.Require(Convert.ToHexStringLower(SHA256.HashData(original)) == fixture.Sha256, "Independent fixture hash mismatch.");
+            if (fixture.Profile == "RBF1") {
+                foreach (var cache in new[] { RbfCacheMode.Off, RbfCacheMode.Slots16 }) {
+                    foreach (bool writable in new[] { false, true }) {
+                        bool rejected = false;
+                        try { using var file = writable ? RbfFile.OpenExisting(path, out _, cache) : RbfFile.OpenReadOnlyExisting(path, cache); }
+                        catch (InvalidDataException) { rejected = true; }
+                        Program.Require(rejected && original.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "Legacy open must reject unchanged.");
+                    }
+                }
+                continue;
+            }
             byte[] combined = [..Convert.FromHexString(fixture.PayloadHex), ..Convert.FromHexString(fixture.MetaHex)];
             int metaLength = fixture.MetaHex.Length / 2;
             var ticket = SizedPtr.Create(4, fixture.Length);
@@ -41,20 +52,14 @@ internal static class Correctness {
                 Program.Require(!file.ReadFrameInfoImmediatelyAfter(ticket).Unwrap().HasValue, "Unexpected successor.");
                 checks++;
             }
-            if (fixture.Profile == "RBF1") {
-                bool rejected = false;
-                try { using var rejectedFile = RbfFile.OpenExisting(path, out var ignoredReport); }
-                catch (InvalidDataException) { rejected = true; }
-                Program.Require(rejected && original.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "Legacy writable open must reject unchanged.");
-            }
-            else {
+            {
                 using var file = RbfFile.OpenExisting(path, out var report);
                 Program.Require(report.Action == RbfTailRecoveryAction.None, "Healthy fixed-Key fixture repaired unexpectedly.");
                 Program.VerifyFrame(file, ticket, combined, metaLength, fixture.Tag);
             }
         }
         return new { Passed = true, Fixtures = fixtures.Length, CheckedCacheViews = checks,
-            Scope = "Independent Python wire -> production caller/pooled read, info/meta, both scans, boundary and legacy read-only ticket; fixed full-uint keys." };
+            Scope = "Independent Python wire -> production caller/pooled read, info/meta, both scans and boundary; fixed full-uint keys; legacy read-only/writable rejection without modification." };
     }
 
     internal static (byte[] Bytes, long Start, SizedPtr Ticket) MakeCanonical(string path, bool builder) {

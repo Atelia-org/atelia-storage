@@ -34,7 +34,7 @@ internal sealed class ReverseReadCache : RandomAccessReader {
     private ulong _refBits; // per-slot "referenced" bit for Clock second-chance
     #endregion
 
-    public ReverseReadCache(SafeFileHandle file, int slotCountShift = 4, long? fixedEof = null, Action<int>? beforeRead = null, CancellationToken cancellationToken = default, RbfProfile profile = RbfProfile.Rbf1)
+    public ReverseReadCache(SafeFileHandle file, int slotCountShift = 4, long? fixedEof = null, Action<int>? beforeRead = null, CancellationToken cancellationToken = default, RbfProfile profile = RbfProfile.Rbf3)
         : base(file, fixedEof, beforeRead, cancellationToken, profile) {
         Debug.Assert(MinSlotCountShift <= slotCountShift && slotCountShift <= MaxSlotCountShift);
         slotCountShift = Math.Clamp(slotCountShift, MinSlotCountShift, MaxSlotCountShift);

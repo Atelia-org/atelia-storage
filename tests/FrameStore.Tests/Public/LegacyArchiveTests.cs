@@ -14,21 +14,15 @@ public class LegacyArchiveTests {
             store.ConfirmDurable();
         }
         File.WriteAllBytes(fixture.Archive(1), "RBF1"u8.ToArray());
-        using (var rbf = RbfFile.OpenReadOnlyExisting(fixture.Archive(1), RbfCacheMode.Off)) {
-            Assert.Equal(RbfFormat.Rbf1, rbf.Format);
-        }
         var before = fixture.Snapshot();
+        Assert.Throws<InvalidDataException>(() => RbfFile.OpenReadOnlyExisting(fixture.Archive(1), RbfCacheMode.Off));
+        Assert.Throws<InvalidDataException>(() => RbfFile.OpenExisting(fixture.Archive(1), out _));
         // Opening discovers archive names; content qualification is deferred until read/inspection.
         using (var store = Store.OpenReadOnly(fixture.Root)) {
-            var read = store.ReadFrame(address);
-            var inventory = store.Inventory(_ => Assert.Fail("No user frame is qualified."));
-            var audit = store.Audit(_ => Assert.Fail("No file report is qualified."));
-            foreach (var error in new[] { read.Error, inventory.Error, audit.Error }) {
-                Assert.NotNull(error);
-                Assert.Equal("FrameStore.InvalidHeader", error.ErrorCode);
-                // Distinguish format rejection from merely rejecting this empty file's absent header.
-                Assert.Equal("Data files must use RBF3.", error.Message);
-            }
+            // RBF rejects the unsupported header before FrameStore can qualify its own header.
+            Assert.Throws<InvalidDataException>(() => store.ReadFrame(address));
+            Assert.Throws<InvalidDataException>(() => store.Inventory(_ => Assert.Fail("No user frame is qualified.")));
+            Assert.Throws<InvalidDataException>(() => store.Audit(_ => Assert.Fail("No file report is qualified.")));
         }
         fixture.AssertUnchanged(before);
     }

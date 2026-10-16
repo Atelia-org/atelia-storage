@@ -23,7 +23,7 @@ internal class RandomAccessReader : IDisposable {
     private readonly Action<int>? _beforeRead;
     private readonly CancellationToken _cancellationToken;
 
-    internal RandomAccessReader(SafeFileHandle file, long? fixedEof = null, Action<int>? beforeRead = null, CancellationToken cancellationToken = default, RbfProfile profile = RbfProfile.Rbf1) {
+    internal RandomAccessReader(SafeFileHandle file, long? fixedEof = null, Action<int>? beforeRead = null, CancellationToken cancellationToken = default, RbfProfile profile = RbfProfile.Rbf3) {
         _file = file ?? throw new ArgumentNullException(nameof(file));
         if (fixedEof < 0) { throw new ArgumentOutOfRangeException(nameof(fixedEof)); }
         _fixedEof = fixedEof;

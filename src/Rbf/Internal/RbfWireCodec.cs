@@ -11,12 +11,6 @@ internal static class RbfWireCodec {
     /// <summary>先验证完整 wire 值，再转换为 byte 长度。</summary>
     internal static AteliaResult<int> DecodeFrameLength(RbfProfile profile, uint wireLength) {
         switch (profile) {
-            case RbfProfile.Rbf1:
-                if (wireLength < FrameLayout.MinFrameLength || wireLength > FrameLayout.MaxFrameLength ||
-                    (wireLength & RbfLayout.AlignmentMask) != 0) {
-                    return new RbfFramingError($"Invalid RBF1 frame byte length: {wireLength}.");
-                }
-                return (int)wireLength;
             case RbfProfile.Rbf3:
                 // Range-check U before shifting: 0x40000007 must not alias the valid length 28.
                 if (wireLength < Rbf3MinLengthUnits || wireLength >= Rbf3LengthUnitsLimit) {
@@ -34,7 +28,7 @@ internal static class RbfWireCodec {
             (frameLength & RbfLayout.AlignmentMask) != 0) {
             throw new ArgumentOutOfRangeException(nameof(frameLength), frameLength, "Frame length must be in the profile's aligned byte range.");
         }
-        return profile == RbfProfile.Rbf3 ? (uint)frameLength >> 2 : (uint)frameLength;
+        return (uint)frameLength >> 2;
     }
 
     /// <summary>验证 plaintext Trailer 的原始 CRC，然后将 TailLen 归一为 bytes。</summary>

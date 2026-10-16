@@ -53,7 +53,23 @@ using (IRbfFile reopened = RbfFile.OpenExisting(pathA, out var recovery)) {
     if (recovery.Action != RbfTailRecoveryAction.None) { throw new InvalidDataException("Healthy reopen must not repair the tail."); }
     Verify(reopened, ticketA, ticketB, 101, meta);
 }
-Console.WriteLine("Rbf public package smoke passed: sizing, inverse budget, early tickets, split TailMeta, mutual references, reads and cold reopen.");
+// RBF1 is maintained on its own branch. Both public open modes must reject it without repair.
+string legacyPath = Path.Combine(directory, "unsupported-rbf1.rbf");
+byte[] legacyBytes = "RBF1"u8.ToArray();
+File.WriteAllBytes(legacyPath, legacyBytes);
+foreach (bool readOnly in new[] { true, false }) {
+    bool rejected = false;
+    try {
+        using IRbfFile unexpected = readOnly
+            ? RbfFile.OpenReadOnlyExisting(legacyPath)
+            : RbfFile.OpenExisting(legacyPath, out _);
+    }
+    catch (InvalidDataException) { rejected = true; }
+    if (!rejected || !File.ReadAllBytes(legacyPath).SequenceEqual(legacyBytes)) {
+        throw new InvalidDataException("Unsupported RBF1 must be rejected without modifying the file.");
+    }
+}
+Console.WriteLine("Rbf public package smoke passed: sizing, inverse budget, early tickets, split TailMeta, mutual references, reads, cold reopen and RBF1 rejection.");
 Console.WriteLine($"Retained smoke files: {directory}");
 
 static byte[] Encode(SizedPtr ticket) {

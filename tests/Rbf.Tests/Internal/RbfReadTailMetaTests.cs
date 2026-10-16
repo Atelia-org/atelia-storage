@@ -34,16 +34,16 @@ public class RbfReadTailMetaTests : IDisposable {
 
     #region 辅助方法
 
-    /// <summary>构造一个有效帧的字节数组（v0.40 格式，带 TailMeta）。</summary>
+    /// <summary>构造一个有效帧的字节数组（RBF3 格式，带 TailMeta）。</summary>
     private static byte[] CreateFrameBytes(uint tag, ReadOnlySpan<byte> payload, ReadOnlySpan<byte> tailMeta, bool isTombstone = false) {
-        var layout = new FrameLayout(payload.Length, tailMeta.Length);
+        var layout = new FrameLayout(RbfProfile.Rbf3, payload.Length, tailMeta.Length);
         int frameLen = layout.FrameLength;
 
         byte[] frame = new byte[frameLen];
         Span<byte> span = frame;
 
         // HeadLen
-        BinaryPrimitives.WriteUInt32LittleEndian(span[..FrameLayout.HeadLenSize], (uint)frameLen);
+        BinaryPrimitives.WriteUInt32LittleEndian(span[..FrameLayout.HeadLenSize], layout.WireFrameLength);
         // Payload
         payload.CopyTo(span.Slice(FrameLayout.PayloadOffset, payload.Length));
         // TailMeta
@@ -60,6 +60,8 @@ public class RbfReadTailMetaTests : IDisposable {
         BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(layout.PayloadCrcOffset, FrameLayout.PayloadCrcSize), payloadCrc);
         // TrailerCodeword
         layout.FillTrailer(span.Slice(layout.TrailerCodewordOffset, TrailerCodewordHelper.Size), tag, isTombstone);
+        // TailKey = 0，测试数据的 body 不含 Fence，故无需 XOR 转换。
+        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(layout.TailKeyOffset, FrameLayout.TailKeySize), 0);
 
         return frame;
     }

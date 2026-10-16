@@ -330,7 +330,7 @@ public sealed class HeadRecordReaderTests : IDisposable {
     [Fact]
     public void HeaderQualificationRejectsAnUnsupportedFormatBeforeScanning() {
         using var file = RbfFile.CreateNew(_path, RbfCacheMode.Off);
-        var wrapper = new ObservedRbfFile(file) { ReportedFormat = RbfFormat.Rbf1 };
+        var wrapper = new ObservedRbfFile(file) { ReportedFormat = (RbfFormat)0 };
         Assert.Equal("HeadStore.InvalidHeadHeader", HeadRecordReader.CheckHeader(wrapper, Identity, Id).Error!.ErrorCode);
         Assert.False(wrapper.ForwardShowTombstone);
     }

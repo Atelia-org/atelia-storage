@@ -1,6 +1,6 @@
 # RBF3：有界初始帧前缀核验
 
-状态：**Implemented；2026-10-09 已提供生产 public API，Windows 与 WSL Linux 源码构建/测试通过，具体证据见下文**。本合同只新增纯核验能力，不修改已 Accepted 的 S1、现有 Open/恢复或 RBF1/RBF3 格式。前置为 [RBF 接口](rbf-interface.md)、[RBF3 格式](rbf-format.md)与现有 Data CRC/XOR 核。
+状态：**Implemented；2026-10-09 已提供生产 public API，Windows 与 WSL Linux 源码构建/测试通过，具体证据见下文**。本合同只新增纯核验能力，不修改已 Accepted 的 S1、现有 RBF3 Open/恢复或 wire 格式。前置为 [RBF 接口](rbf-interface.md)、[RBF3 格式](rbf-format.md)与现有 Data CRC/XOR 核。
 
 ## 必要性与范围
 

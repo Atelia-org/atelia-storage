@@ -258,27 +258,6 @@ public sealed class Rbf3ReaderTests : IDisposable {
         Assert.True(image.Length > eof);
     }
 
-    [Fact]
-    public void OfflineRecovery_RejectsRbf3FenceRollingCrcAndTruncateWithoutChangingBytes() {
-        byte[] wire = BuildFrame(Bytes(3), [], uint.MaxValue);
-        byte[] image = WriteImage(wire);
-        Assert.Throws<NotSupportedException>(() => RbfRecovery.OpenReadOnly(_path));
-        RbfRecoveryHit hit;
-        using (var handle = File.OpenHandle(_path, FileMode.Open, FileAccess.Read))
-        using (var reader = new RandomAccessReader(handle, profile: RbfProfile.Rbf3)) {
-            var info = RbfReadImpl.ReadFrameInfo(reader, SizedPtr.Create(4, wire.Length)).Unwrap();
-            hit = new RbfRecoveryHit(info, 4 + wire.Length, RbfRecoveryConfidence.FrameBoundary);
-            foreach (var strategy in new[] { RbfRecoveryBoundarySearchStrategy.Fence, RbfRecoveryBoundarySearchStrategy.RollingCrc }) {
-                Assert.Throws<NotSupportedException>(() => {
-                    var scan = new RbfRecoveryEnumerator(reader, image.Length, new() { BoundarySearchStrategy = strategy });
-                    scan.MoveNext();
-                });
-            }
-        }
-        Assert.Throws<NotSupportedException>(() => RbfRecovery.TruncateToSuggestedTail(_path, hit));
-        Assert.Equal(image, File.ReadAllBytes(_path));
-    }
-
     private byte[] WriteImage(params byte[][] frames) {
         byte[] image = new byte[4 + frames.Sum(frame => frame.Length + 4)];
         BinaryPrimitives.WriteUInt32LittleEndian(image, Fence);

@@ -4,6 +4,8 @@ status: "Implemented; follow-up triggers recorded"
 normative: false
 ---
 
+> 历史范围：本文保留当时源码、测试与设计事实。2026-10-16 主线已移除 RBF1 及其离线救援能力，当前行为以[接口](rbf-interface.md)、[格式](rbf-format.md)和[退役记录](../rbf1-retirement.md)为准；文中的旧格式能力、命令和统计不作为当前主线要求。
+
 # RBF3 读取资源与输出成本重构记录
 
 本方案已实施：两处 pooled 读取采用局部 ownership 与唯一 finally；RBF3 的一次打包输出上限为 **total 8192B**。两组 W: 成对实验、JIT 栈检查、696/696 RBF 测试和实际构建身份见[实施验收](rbf3-resource-and-output-acceptance.md)。已完成步骤从活动 backlog 移出。

@@ -13,7 +13,7 @@ public static class RbfFile {
     /// 该上限由 <see cref="SizedPtr.MaxLength"/> 减去 RBF3 帧固定开销推导而来，
     /// 是 <see cref="IRbfFile.Append"/> 与 <see cref="RbfFrameBuilder.EndAppend(uint, int)"/> 的公开容量契约。
     /// </remarks>
-    public const int MaxPayloadAndMetaLength = FrameLayout.MaxPayloadAndMetaLength - sizeof(uint);
+    public const int MaxPayloadAndMetaLength = FrameLayout.MaxPayloadAndMetaLength;
     public const int MaxTailMetaLength = FrameLayout.MaxTailMetaLength;
 
     /// <summary>计算新 RBF3 帧的精确物理尺寸，不进行 I/O 或预留文件位置。</summary>
@@ -23,7 +23,6 @@ public static class RbfFile {
     /// 成功时返回不含尾 Fence 的帧长度与包含尾 Fence 的追加占用；
     /// 负长度、TailMeta 超限或合计超限时返回错误码 <c>Rbf.ArgumentError</c>。
     /// </returns>
-    /// <remarks>只计算新 writer 使用的 RBF3 布局，不用于重算历史 RBF1 帧。</remarks>
     public static AteliaResult<RbfWriteSize> MeasureWriteSize(int payloadLength, int tailMetaLength = 0) {
         var layoutResult = FrameLayout.TryCreate(RbfProfile.Rbf3, payloadLength, tailMetaLength);
         if (layoutResult.IsFailure) { return layoutResult.Error!; }
@@ -121,10 +120,10 @@ public static class RbfFile {
             using (var headerReader = new ReadCache.RandomAccessReader(handle, eof, beforeRead, token)) {
                 if (headerReader.Read(fence, 0) != fence.Length) { throw new InvalidDataException("Incomplete candidate HeaderFence."); }
             }
-            RbfProfile profile;
-            if (fence.SequenceEqual(RbfLayout.GetFence(RbfProfile.Rbf1))) { profile = RbfProfile.Rbf1; }
-            else if (fence.SequenceEqual(RbfLayout.GetFence(RbfProfile.Rbf3))) { profile = RbfProfile.Rbf3; }
-            else { throw new InvalidDataException("Unknown candidate HeaderFence."); }
+            if (!fence.SequenceEqual(RbfLayout.GetFence(RbfProfile.Rbf3))) {
+                throw new InvalidDataException("Unsupported candidate HeaderFence.");
+            }
+            const RbfProfile profile = RbfProfile.Rbf3;
             using (var reader = new ReadCache.RandomAccessReader(handle, eof, beforeRead, token, profile)) {
                 if (eof != RbfLayout.HeaderOnlyLength) {
                     var tail = RbfReadImpl.ReadTrailerBefore(reader, eof);

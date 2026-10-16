@@ -17,7 +17,7 @@ depends_on:
 
 本文档定义 RBF 子系统的核心类型设计。
 
-2026-10-03接点同步：内部只保留RBF1/RBF3两组具体wire布局，不新增公共codec模式或assembly。工厂在owned handle一次Header分派，RBF1只读；RBF3在解析边界先验U再转换成byte布局，FrameInfo、cache范围、Data输入与ticket仍为bytes。详细合同以[接口](rbf-interface.md)、[格式](rbf-format.md)为准；源码0999851及独立复核的测试/正式证据见[实施记录§11](rbf-open-fast-path-refactoring.md#11-本轮最终实施与验收记录)。
+2026-10-16：内部仅保留 RBF3 wire 布局。工厂在 owned handle 上验证 RBF3 Header；在解析边界先验 U 再转换为 byte 布局，FrameInfo、cache 范围、Data 输入与 ticket 仍为 bytes。详细合同以[接口](rbf-interface.md)、[格式](rbf-format.md)为准。旧源码与验收保留各自历史身份，移除范围见[退役记录](../rbf1-retirement.md)。
 
 ---
 
@@ -180,7 +180,7 @@ depends: "@[S-RBF-BUILDER-DISPOSE-ABORTS-UNCOMMITTED-FRAME](rbf-interface.md)"
 **工厂方法**：
 - `RbfFile.CreateNew(string path)` — 创建纯RBF3（FailIfExists）
 - `RbfFile.OpenExisting(string path, out RbfTailRecoveryReport recovery, RbfCacheMode cacheMode = RbfCacheMode.Slots16)` — 只接受RBF3，独占结构打开及单尾截断/补原Key+Fence；不校验PayloadCRC、不补墓碑
-- `RbfFile.OpenReadOnlyExisting(string path, RbfCacheMode cacheMode = RbfCacheMode.Slots16)` — RBF1完整结构主链，RBF3局部结构快开；需恢复时拒绝，不修改
+- `RbfFile.OpenReadOnlyExisting(string path, RbfCacheMode cacheMode = RbfCacheMode.Slots16)` — 仅 RBF3 局部结构快开；需恢复时拒绝，不修改
 
 HeadLen的4B reservation仅存最终raw U，不属于XOR范围。Data fused操作的范围是reservation之后的完整已写body；调用前不能追加raw Key/Fence。全部可预见拒绝在首次footer修改前结束；从首次padding/footer修改到最终Commit调用前的准备异常尝试Reset取消当前Builder，禁止同Builder重试。Reset正常完成时健康File可开始新Builder；Reset自身的资源异常不保证同一File可继续，也不保证保留原异常。最终Commit开始尝试发布后，任何异常都由外层catch保守标记永久fault；即使Push尚未证明写出，或Push完成但Return回收失败且TailOffset未推进，也不能认为安全恢复。普通ticket完整读每次两CRC；FrameInfo完整读复用创建时已验证Trailer/Key，每次检查PayloadCRC，仍受owner生命周期/fault约束；离线共享Write输入另须冻结。
 

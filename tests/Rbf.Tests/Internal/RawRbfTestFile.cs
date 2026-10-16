@@ -10,10 +10,7 @@ internal static class RawRbfTestFile {
     internal static IRbfFile OpenExisting(string path, long? tailOffset = null, RbfCacheMode cacheMode = RbfCacheMode.Off) {
         SafeFileHandle handle = File.OpenHandle(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
         try {
-            Span<byte> header = stackalloc byte[4];
-            int headerBytes = RandomAccess.Read(handle, header, 0);
-            RbfProfile profile = headerBytes == 4 && header.SequenceEqual("RBF3"u8) ? RbfProfile.Rbf3 : RbfProfile.Rbf1;
-            return new RbfFileImpl(handle, tailOffset ?? RandomAccess.GetLength(handle), cacheMode, profile: profile);
+            return new RbfFileImpl(handle, tailOffset ?? RandomAccess.GetLength(handle), cacheMode, profile: RbfProfile.Rbf3);
         }
         catch {
             handle.Dispose();
@@ -26,37 +23,42 @@ internal static class RawRbfTestFile {
         RandomAccess.SetLength(handle, length);
     }
 
-    /// <summary>旧格式只由 fixture 写入器生成；不重新开放生产 RBF1 writer。</summary>
-    internal static LegacyWriter CreateLegacy(string path) => new(path);
+    /// <summary>受控 RBF3 Key=0 fixture，允许构造墓碑与损坏输入。</summary>
+    internal static FixtureWriter Create(string path) => new(path);
 
-    internal static byte[] LegacyFrame(uint tag, ReadOnlySpan<byte> payload, ReadOnlySpan<byte> meta = default,
+    internal static byte[] Frame(uint tag, ReadOnlySpan<byte> payload, ReadOnlySpan<byte> meta = default,
         bool isTombstone = false) {
         var layout = new FrameLayout(payload.Length, meta.Length);
         byte[] bytes = new byte[layout.FrameLength];
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes, (uint)layout.FrameLength);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes, layout.WireFrameLength);
         payload.CopyTo(bytes.AsSpan(4));
         meta.CopyTo(bytes.AsSpan(4 + payload.Length));
         uint crc = RollingCrc.CrcForward(bytes.AsSpan(4, layout.PayloadCrcCoverageLength));
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(layout.PayloadCrcOffset), crc);
         layout.FillTrailer(bytes.AsSpan(layout.TrailerCodewordOffset, 16), tag, isTombstone);
+        for (int offset = 4; offset < layout.TailKeyOffset; offset += 4) {
+            if (BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(offset, 4)) == RbfLayout.GetFenceWord(RbfProfile.Rbf3)) {
+                throw new InvalidOperationException("The Key=0 fixture body must not contain an aligned RBF3 Fence.");
+            }
+        }
         return bytes;
     }
 
-    internal sealed class LegacyWriter : IDisposable {
+    internal sealed class FixtureWriter : IDisposable {
         private readonly FileStream _stream;
         internal long TailOffset => _stream.Position;
 
-        internal LegacyWriter(string path) {
+        internal FixtureWriter(string path) {
             _stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-            _stream.Write("RBF1"u8);
+            _stream.Write("RBF3"u8);
         }
 
         internal AteliaResult<SizedPtr> Append(uint tag, ReadOnlySpan<byte> payload,
             ReadOnlySpan<byte> meta = default, bool isTombstone = false) {
-            byte[] frame = LegacyFrame(tag, payload, meta, isTombstone);
+            byte[] frame = Frame(tag, payload, meta, isTombstone);
             var ticket = SizedPtr.Create(TailOffset, frame.Length);
             _stream.Write(frame);
-            _stream.Write("RBF1"u8);
+            _stream.Write("RBF3"u8);
             return ticket;
         }
 

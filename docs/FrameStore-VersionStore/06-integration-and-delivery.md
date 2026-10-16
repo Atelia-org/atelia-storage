@@ -19,7 +19,7 @@ DurableGraph 是需求来源；S0 已记录兄弟仓的定位观察，实际接�
 
 两个模型用同一套 public API 写 data、自动或指定 CreateHead、PublishHead/ReadHead，枚举旧快照、创建 tag 并冷重开。固定角色用预留号，动态目录保存 LocalId 并在正确库 checked 定位。所选真实 EntryId 经自动/指定 ForkHead 建立精确 ForkOrigin 与初始 SingleEntry，一次 file rename 发布；只传 roots 表示无来源起点。ReadHeadHistory 遍历继承前缀，ListHeadOrigins 查询全部声明边；无 CreateCommit/PreparedPublication 或默认多对象事务。
 覆盖相同字典的重复发布、新旧 EntryId 分离与多个 tag；ReadHeadHistory 固定完成上界，经同步 visitor 交付自有 HeadEntry，调用结束后旧字典仍可使用。rewind 追加旧字典，保留全部既有完整记录。不同 Builder 申请/完成次序构建相同逻辑图时，只按返回地址取回，不依靠文件选择或大小排序。
-仓内已提供可独立运行的 [HeadStore.Smoke](../../tools/HeadStore.Smoke/README.md)：多根/循环图、历史选点/fork/rewind/tag 由新进程冷读验证。Windows 两层锁与六个公开停点的实际强杀见 [V4-B 记录](../VersionStore/12-versionstore-implementation-plan.md#v4-b-验证记录2026-10-11)。这不是 DurableGraph 接入、内部写入窗口或整张 S6 矩阵完成的证据。 WSL2/ext4与Windows的有限资源消费者、平台用例及原生锁实测见 [V4-C记录](../VersionStore/12-versionstore-linux-resource-acceptance.md)；冻结EventJournal单独tmpfs回归与新栈ext4资格分开。
+仓内已提供可独立运行的 [HeadStore.Smoke](../../tools/HeadStore.Smoke/README.md)：多根/循环图、历史选点/fork/rewind/tag 由新进程冷读验证。Windows 两层锁与六个公开停点的实际强杀见 [V4-B 记录](../VersionStore/12-versionstore-implementation-plan.md#v4-b-验证记录2026-10-11)。这不是 DurableGraph 接入、内部写入窗口或整张 S6 矩阵完成的证据。 WSL2/ext4与Windows的有限资源消费者、平台用例及原生锁实测见 [V4-C记录](../VersionStore/12-versionstore-linux-resource-acceptance.md)；历史 EventJournal 单独 tmpfs 回归与新栈 ext4 资格分开，旧栈已从 main 退役。
 
 ## 两类需求的最小消费者
 
@@ -79,9 +79,9 @@ CU 组合必须包含：全部 fresh 成员完成前缀/排列及至少两个既
 
 ### spec [S-DELIVERY-PACK-OWNER] 包入口有单一负责人
 
-新增生产包清单及 pack 顺序 MUST 只在 `eng/Pack.ps1` 注册。当前 main 为 Primitives/Data/Rbf/Binary/FrameStore/HeadStore；Binary 独立于前三包，FrameStore 因变长地址直接依赖 Binary，HeadStore 继续依赖 FrameStore/Rbf/Binary。2026-10-11 用户明确进入本地包交付，两库包注册与候选资格见[交付记录](13-local-package-delivery.md)。不得重新将冻结参考 EventJournal/RbfSegmentStore 加入 main pack。
+新增生产包清单及 pack 顺序 MUST 只在 `eng/Pack.ps1` 注册。当前 main 为 Primitives/Data/Rbf/Binary/FrameStore/HeadStore；Binary 独立于前三包，FrameStore 因变长地址直接依赖 Binary，HeadStore 继续依赖 FrameStore/Rbf/Binary。2026-10-11 用户明确进入本地包交付，两库包注册与候选资格见[交付记录](13-local-package-delivery.md)。不得重新将已退役的 EventJournal/RbfSegmentStore 加入 main pack。
 同时适配 package-mode 依赖、smoke、metadata/assets/Source Link 校验与 CI。按 main 实际 All/manifest 入口审查扩展，不沿用历史五包/selective 选择假设，也不能只增加项目名字就声称完成。
-旧栈维护与公开发布使用 RBF1 分支；main 参考项目的固定包回归与新栈源码/包资格分别报告。
+旧栈维护与公开发布使用 RBF1 分支；main 已移除旧参考项目、固定包回归和底层 RBF1 读取兼容，见[退役记录](../rbf1-retirement.md)。历史旧栈回归与新栈源码/包资格分别报告。
 
 ### spec [S-DELIVERY-ISOLATED-SMOKE] 隔离包消费必需
 
@@ -106,7 +106,7 @@ CU 组合必须包含：全部 fresh 成员完成前缀/排列及至少两个既
 | `eng/Test-Package.ps1`、metadata helper | S6 在当前纯 Rbf 三包及纯 Binary 两包隔离验证基础上增加新闭包 smoke，不削弱来源/资产校验 |
 | `eng/Verify-Published.ps1`、发布 workflow/CI | 若纳入公开交付，按实际授权和新 manifest 形态适配 |
 | 根 README / AGENTS.md | 项目实际存在、交付事实变化后更新；FrameStore/HeadStore 与测试项目均已创建，两库已纳入本地候选包清单；HeadStore 已接通普通 Head 真实目录闭环，历史读取、精确 ForkHead 与 ListHeadOrigins 已接通，tag 公开持久化闭环、关联注记及元信息公面已接通，V4-A 已补只读完整校验 Audit |
-| 旧库维护 | RBF1 分支工作包；main 冻结参考及固定包合同不得为新栈改写 |
+| 旧库维护 | RBF1 分支工作包；main 不再保留旧栈代码、固定包回归或兼容实现 |
 
 ## 实施片
 
@@ -117,7 +117,7 @@ CU 组合必须包含：全部 fresh 成员完成前缀/排列及至少两个既
 5. S6-E：定位并评估 DurableGraph 接缝；只有接入范围已明确时修改消费者、固定包/revision 和验证领域恢复。
 
 每片允许独立评审/返工。所有 .NET 重命令串行；先 build Release，再同配置 `dotnet test ... -c Release --no-build`。package smoke 使用既有脚本的独立输出边界。
-最终应运行完整 solution 的适当验收；若任一组失败，记录其实际依赖与失败范围，不删除项目、不替换测试含义、不制造干净树。旧参考回归失败按固定 RBF1 基线或维护线处理，不在 main 为它引入 RBF3 适配。
+最终应运行当前 main 完整 solution 的适当验收；若任一组失败，记录其实际依赖与失败范围，不通过删除项目或替换测试含义规避失败。RBF1 旧栈已依单独授权退役，其维护和回归属于 RBF1 分支。
 
 ## Ready 阻断项与出口
 

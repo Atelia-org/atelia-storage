@@ -4,6 +4,8 @@ status: "Repairs accepted; deferred boundaries retained"
 normative: false
 ---
 
+> 历史范围：本文保留当时源码、测试与设计事实。2026-10-16 主线已移除 RBF1 及其离线救援能力，当前行为以[接口](rbf-interface.md)、[格式](rbf-format.md)和[退役记录](../rbf1-retirement.md)为准；文中的旧格式能力、命令和统计不作为当前主线要求。
+
 # RBF3 审阅 finding 裁决
 
 最小模型是：**初始化成功才发布 Builder；未初始化 FrameInfo 明确拒绝；同一 File 的共享操作由调用方串行；两个 Data writer 的每次 chunk 租赁至多尝试一次 Return；进入最终 Commit 后的异常仍保守停止实例。** 沿用现有状态机、epoch、Reader fault 和 `IsRented`，不增加公开 API、发布状态或租赁框架。

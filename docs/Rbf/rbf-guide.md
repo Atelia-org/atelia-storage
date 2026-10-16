@@ -9,11 +9,11 @@ produce_by:
 **本文档性质**：Informative（非规范性），提供常见场景的代码范例。
 规范性定义请见 [rbf-interface.md](rbf-interface.md)。
 
-本轮示例按已实施的RBF1/RBF3合同同步；源码0999851对应内容的Release RBF测试670/670与正式生产证据见[实施记录§11](rbf-open-fast-path-refactoring.md#11-本轮最终实施与验收记录)。示例不是独立测试产物。
+本页示例按 RBF3 当前合同同步。历史源码 0999851 的测试与正式生产证据见[实施记录§11](rbf-open-fast-path-refactoring.md#11-本轮最终实施与验收记录)，不自动成为此次 RBF1 移除的验证。此次边界见[退役记录](../rbf1-retirement.md)。示例不是独立测试产物。
 
 ## 打开、兼容与单尾恢复
 
-`RbfFile.CreateNew(path)` 只创建RBF3；`OpenReadOnlyExisting` 读取RBF1或RBF3，保留RBF1原字节、旧ticket与旧容量。`OpenExisting` 只接受RBF3，并在同一独占handle上按结构修复单个残尾；RBF1可写、历史实验RBF2与未知Header拒绝。没有公共格式配置，也不自动转码。
+`RbfFile.CreateNew(path)` 只创建 RBF3；`OpenReadOnlyExisting` 和 `OpenExisting` 只接受 RBF3。可写打开在同一独占 handle 上按结构修复单个残尾。RBF1、历史实验 RBF2、未知或不足 4B 的 Header 均在修改前拒绝。没有公共格式配置，也不自动转码。
 
 ```csharp
 using var file = RbfFile.OpenExisting(path, out var recovery);
