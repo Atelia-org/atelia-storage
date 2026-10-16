@@ -5,7 +5,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Xml.Linq;
 
-if (args.Length != 7) { throw new ArgumentException("Expected manifest, source root, Rbf assets, Binary assets, FrameStore assets, VersionStore assets, expected version."); }
+if (args.Length != 7) { throw new ArgumentException("Expected manifest, source root, Rbf assets, Binary assets, FrameStore assets, HeadStore assets, expected version."); }
 string manifestPath = Path.GetFullPath(args[0]);
 string feed = Path.GetDirectoryName(manifestPath)!;
 string sourceRoot = Path.GetFullPath(args[1]);
@@ -20,7 +20,7 @@ string repository = manifest.GetProperty("repositoryUrl").GetString()!;
 Require(repository == "https://github.com/Atelia-org/atelia-storage", "Unexpected repository origin.");
 string sourcePrefix = repository.Replace("https://github.com/", "https://raw.githubusercontent.com/", StringComparison.Ordinal) + "/" + revision + "/";
 var expected = manifest.GetProperty("packages").EnumerateArray().Select(p => p.GetProperty("id").GetString()!).ToHashSet(StringComparer.Ordinal);
-string[] storageIds = ["Atelia.Primitives", "Atelia.Data", "Atelia.Rbf", "Atelia.Binary", "Atelia.FrameStore", "Atelia.VersionStore"];
+string[] storageIds = ["Atelia.Primitives", "Atelia.Data", "Atelia.Rbf", "Atelia.Binary", "Atelia.FrameStore", "Atelia.HeadStore"];
 Require(manifest.GetProperty("packages").GetArrayLength() == storageIds.Length && expected.SetEquals(storageIds),
     "Unexpected candidate package set.");
 var expectedVersions = storageIds.ToDictionary(id => id, _ => version, StringComparer.OrdinalIgnoreCase);
@@ -59,7 +59,7 @@ foreach (var package in manifest.GetProperty("packages").EnumerateArray()) {
     string[] expectedDependencies = id switch {
         "Atelia.Rbf" => ["Atelia.Primitives", "Atelia.Data"],
         "Atelia.FrameStore" => ["Atelia.Primitives", "Atelia.Data", "Atelia.Rbf", "Atelia.Binary"],
-        "Atelia.VersionStore" => ["Atelia.Primitives", "Atelia.Data", "Atelia.Rbf", "Atelia.Binary", "Atelia.FrameStore"],
+        "Atelia.HeadStore" => ["Atelia.Primitives", "Atelia.Data", "Atelia.Rbf", "Atelia.Binary", "Atelia.FrameStore"],
         _ => []
     };
     Require(internalDependencies.Length == expectedDependencies.Length &&
@@ -116,7 +116,7 @@ foreach (var package in manifest.GetProperty("packages").EnumerateArray()) {
 CheckConsumer(args[2], "Atelia.Rbf", ["Atelia.Primitives", "Atelia.Data", "Atelia.Rbf"]);
 CheckConsumer(args[3], "Atelia.Binary", ["Atelia.Binary"]);
 CheckConsumer(args[4], "Atelia.FrameStore", ["Atelia.Primitives", "Atelia.Data", "Atelia.Rbf", "Atelia.Binary", "Atelia.FrameStore"]);
-CheckConsumer(args[5], "Atelia.VersionStore", storageIds);
+CheckConsumer(args[5], "Atelia.HeadStore", storageIds);
 Console.WriteLine($"Six-package metadata and four isolated dependency graphs passed; {checkedSourceDocuments} local source documents checked. Remote Source Link download is not tested.");
 
 void CheckConsumer(string assetsPath, string directId, string[] closureIds) {

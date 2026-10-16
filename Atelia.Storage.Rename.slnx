@@ -1,0 +1,20 @@
+<Solution>
+  <!-- Temporary HeadStore rename workspace. Delete together with .rename/ after use. -->
+  <Folder Name="/src/">
+    <Project Path="src/Primitives/Primitives.csproj" />
+    <Project Path="src/Data/Data.csproj" />
+    <Project Path="src/Rbf/Rbf.csproj" />
+    <Project Path="src/Binary/Binary.csproj" />
+    <Project Path="src/FrameStore/FrameStore.csproj" />
+    <Project Path="src/HeadStore/HeadStore.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/HeadStore.Tests/HeadStore.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/HeadStore.Smoke/HeadStore.Smoke.csproj" />
+  </Folder>
+  <Folder Name="/examples/">
+    <Project Path=".rename/HeadStorePackageSmoke.Source.csproj" />
+  </Folder>
+</Solution>

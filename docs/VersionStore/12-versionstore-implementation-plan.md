@@ -1,4 +1,8 @@
-# VersionStore 分片实施与续接
+# HeadStore 当前续接与 VersionStore 历史实施记录
+
+2026-10-16 当前续接：行为保持的 HeadStore 重命名已完成 Windows Release 源码验收，公共符号、namespace、工程和活跃文档统一到 HeadStore/Head/Entry，具体对照与本轮验证见[13 重命名记录](13-headstore-renaming-plan.md)。[14 HeadSetTag 成员表](14-named-head-snapshots-plan.md)尚未实施；当前 `CreateTag / ResolveTag / TagInfo / RootPayload` 仍保存任意 bytes 与可选 Related 注记。
+
+下文保留 2026-10-10/11 各片实施及验证的 VersionStore 原名、命令、统计和 revision，作为历史记录，不是待重做的队列或 HeadStore 新包资格。当前合同请从[模块入口](README.md)读取；生产指南为 [Atelia.HeadStore](../../src/HeadStore/README.md)。
 
 更新：2026-10-11。本文是实施导航，不增加设计权威。行为以 [S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)、[07 CU](07-versionstore-cross-ref-conditional-update.md)、[08](08-versionstore-record-metadata.md) 至 [11](11-versionstore-root-payload-bytes-api.md) 为准；[S6](../FrameStore-VersionStore/06-integration-and-delivery.md) 管组合与交付。CU 已正式接纳、实施并取得独立源码验收 Accepted，新增证据另列；[既有最终源码验收](12-versionstore-final-acceptance.md)和[六包候选](../FrameStore-VersionStore/13-local-package-delivery.md)保持原来源，不含 CU。
 
@@ -136,7 +140,7 @@
 
 ## V4-B：公开组合消费者与真实进程边界（2026-10-11）
 
-本轮从 `4fb6008` 的干净树开始，新增独立、非打包的 [VersionStore.Smoke](../../tools/VersionStore.Smoke/README.md) 与 SystemIntegration 父进程测试。消费者仅直接 ProjectReference VersionStore，使用 public API；不依赖测试程序集的 IVT、反射或生产故障接缝。没有修改生产协议、存储格式或 pack 清单。
+本轮从 `4fb6008` 的干净树开始，新增独立、非打包的 [VersionStore.Smoke](https://github.com/Atelia-org/atelia-storage/blob/3de8fb050d81d35ee1c36d1b978024cbc42cb455/tools/VersionStore.Smoke/README.md) 与 SystemIntegration 父进程测试。消费者仅直接 ProjectReference VersionStore，使用 public API；不依赖测试程序集的 IVT、反射或生产故障接缝。没有修改生产协议、存储格式或 pack 清单。
 
 - 多根/循环图：两类应用记录、四个 RootMap 根、三种追加、提前地址/交错完成及软轮转；真实新进程遍历 A↔B/self、历史选点、两种 fork/fork-of-fork、rewind、匿名/关联 tag 与元信息查询，分别执行应用引用闭包和两层 Audit。
 - 跨进程锁：分别验证全栈和 VersionStore 独立 reader/writer 矩阵；后者仅在所有 seed owner 关闭后复制 data 夹具，保持 StoreId、隔离 data 锁，断言已成功打开 data 后才被 versionstore.lock 拒绝。这是测试隔离，不新增生产克隆能力。

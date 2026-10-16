@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../FrameStore/FrameStore.csproj" />
+    <ProjectReference Include="../Binary/Binary.csproj" />
+    <ProjectReference Include="../Rbf/Rbf.csproj" />
+    <ProjectReference Include="../Data/Data.csproj" />
+    <ProjectReference Include="../Primitives/Primitives.csproj" />
+    <InternalsVisibleTo Include="Atelia.HeadStore.Tests" />
+  </ItemGroup>
+</Project>

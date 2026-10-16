@@ -17,12 +17,12 @@ $feed = Join-Path $evidence 'synthetic-feed'
 New-Item -ItemType Directory -Path $feed | Out-Null
 $version = '0.2.0-dev.mock'
 $revision = '1111111111111111111111111111111111111111'
-$ids = @('Atelia.Primitives', 'Atelia.Data', 'Atelia.Rbf', 'Atelia.Binary', 'Atelia.FrameStore', 'Atelia.VersionStore')
+$ids = @('Atelia.Primitives', 'Atelia.Data', 'Atelia.Rbf', 'Atelia.Binary', 'Atelia.FrameStore', 'Atelia.HeadStore')
 $contracts = [ordered]@{
     RbfPackageSmoke = @{ DirectId = 'Atelia.Rbf'; Closure = @('Atelia.Primitives', 'Atelia.Data', 'Atelia.Rbf') }
     BinaryPackageSmoke = @{ DirectId = 'Atelia.Binary'; Closure = @('Atelia.Binary') }
     FrameStorePackageSmoke = @{ DirectId = 'Atelia.FrameStore'; Closure = @('Atelia.Primitives', 'Atelia.Data', 'Atelia.Rbf', 'Atelia.Binary', 'Atelia.FrameStore') }
-    VersionStorePackageSmoke = @{ DirectId = 'Atelia.VersionStore'; Closure = @('Atelia.Primitives', 'Atelia.Data', 'Atelia.Rbf', 'Atelia.Binary', 'Atelia.FrameStore', 'Atelia.VersionStore') }
+    HeadStorePackageSmoke = @{ DirectId = 'Atelia.HeadStore'; Closure = @('Atelia.Primitives', 'Atelia.Data', 'Atelia.Rbf', 'Atelia.Binary', 'Atelia.FrameStore', 'Atelia.HeadStore') }
 }
 $consumerNames = @($contracts.Keys)
 $manifest = [ordered]@{
@@ -58,7 +58,7 @@ function git {
     $global:StoragePackageEntryMock.GitCalls++
     $global:LASTEXITCODE = 0
     if ($args -contains 'rev-parse') { return $global:StoragePackageEntryMock.Revision }
-    if ($args -contains 'status') { if ($global:StoragePackageEntryMock.GitDirty) { return ' M src/VersionStore/VersionStore.csproj' }; return }
+    if ($args -contains 'status') { if ($global:StoragePackageEntryMock.GitDirty) { return ' M src/HeadStore/HeadStore.csproj' }; return }
     if ($args -contains 'get-url') { return 'https://github.com/Atelia-org/atelia-storage.git' }
     throw "Unexpected mocked git command: $args"
 }
@@ -92,7 +92,7 @@ function dotnet {
             'project' { $libraries["$directId/$version"] = @{ type = 'project' } }
             'missing' { $libraries.Remove("$directId/$version") }
             'libraries-empty' { $libraries.Clear() }
-            'cross' { $crossId = if ($project -eq 'RbfPackageSmoke') { 'Atelia.Binary' } elseif ($project -eq 'BinaryPackageSmoke') { 'Atelia.Rbf' } elseif ($project -eq 'FrameStorePackageSmoke') { 'Atelia.VersionStore' } else { 'Atelia.Diagnostics' }; $libraries["$crossId/$version"] = @{ type = 'package' } }
+            'cross' { $crossId = if ($project -eq 'RbfPackageSmoke') { 'Atelia.Binary' } elseif ($project -eq 'BinaryPackageSmoke') { 'Atelia.Rbf' } elseif ($project -eq 'FrameStorePackageSmoke') { 'Atelia.HeadStore' } else { 'Atelia.Diagnostics' }; $libraries["$crossId/$version"] = @{ type = 'package' } }
             'external-extra' { $libraries['Unapproved.Codec/1.0.0'] = @{ type = 'package' } }
             'external-version' { $libraries.Remove('K4os.Compression.LZ4/1.3.8'); $libraries['K4os.Compression.LZ4/1.3.7'] = @{ type = 'package' } }
             'external-missing' { $libraries.Remove('K4os.Compression.LZ4/1.3.8') }
@@ -166,7 +166,7 @@ function Run-Case([string]$Name, [bool]$ExplicitAll) {
     Assert (Test-Path (Join-Path $work 'logs/rbf-assets.log')) "$Name failed to retain assets check."
     Assert (Test-Path (Join-Path $work 'logs/binary-assets.log')) "$Name failed to retain Binary assets check."
     Assert (Test-Path (Join-Path $work 'logs/frame-store-assets.log')) "$Name failed to retain FrameStore assets check."
-    Assert (Test-Path (Join-Path $work 'logs/version-store-assets.log')) "$Name failed to retain VersionStore assets check."
+    Assert (Test-Path (Join-Path $work 'logs/head-store-assets.log')) "$Name failed to retain HeadStore assets check."
     Assert-RestoredEnvironment $Name
 }
 function Assert-ParameterRejection([string]$Name, [scriptblock]$Invoke, [string]$UnexpectedDirectory) {
@@ -216,13 +216,13 @@ try {
     $global:StoragePackageEntryMock.Calls.Clear()
     & $pack -Project All -Version $version -OutputDirectory $feed | Out-Host
     Assert ($global:StoragePackageEntryMock.Calls.Count -eq 1 -and $global:StoragePackageEntryMock.Calls[0].arguments[0] -eq '--version') 'Immutable core reuse unexpectedly attempted restore/pack.'
-    foreach ($failure in @('frame-store-missing', 'version-store-filename', 'version-store-symbols-hash', 'legacy-replacement')) {
+    foreach ($failure in @('frame-store-missing', 'head-store-filename', 'head-store-symbols-hash', 'legacy-replacement')) {
         $broken = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
         switch ($failure) {
             'frame-store-missing' { $broken.packages = @($broken.packages | Where-Object id -CNE 'Atelia.FrameStore') }
-            'version-store-filename' { ($broken.packages | Where-Object id -CEQ 'Atelia.VersionStore').file = 'Atelia.VersionStore.0.0.0.nupkg' }
-            'version-store-symbols-hash' { ($broken.packages | Where-Object id -CEQ 'Atelia.VersionStore').symbolsSha256 = '0' * 64 }
-            'legacy-replacement' { ($broken.packages | Where-Object id -CEQ 'Atelia.VersionStore').id = 'Atelia.EventJournal' }
+            'head-store-filename' { ($broken.packages | Where-Object id -CEQ 'Atelia.HeadStore').file = 'Atelia.HeadStore.0.0.0.nupkg' }
+            'head-store-symbols-hash' { ($broken.packages | Where-Object id -CEQ 'Atelia.HeadStore').symbolsSha256 = '0' * 64 }
+            'legacy-replacement' { ($broken.packages | Where-Object id -CEQ 'Atelia.HeadStore').id = 'Atelia.EventJournal' }
         }
         $broken | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $manifestPath -Encoding utf8NoBOM
         $global:StoragePackageEntryMock.Calls.Clear()
@@ -249,8 +249,8 @@ try {
         $global:StoragePackageEntryMock.FailureConsumer = $consumer
         $failures = @('version', 'extra', 'legacy-segment', 'project', 'missing', 'target', 'direct', 'framework', 'cross', 'libraries-empty', 'target-empty', 'direct-empty', 'external-extra', 'external-direct', 'direct-minimum', 'direct-version', 'direct-project', 'extra-framework', 'extra-target', 'cache-missing', 'cache-shared', 'cache-extra')
         if ($contracts[$consumer].Closure -contains 'Atelia.Binary') { $failures += @('external-version', 'external-missing', 'external-target') }
-        if ($consumer -in @('FrameStorePackageSmoke', 'VersionStorePackageSmoke')) { $failures += @('transitive-version', 'transitive-missing') }
-        if ($consumer -eq 'VersionStorePackageSmoke') { $failures += 'transitive-project' }
+        if ($consumer -in @('FrameStorePackageSmoke', 'HeadStorePackageSmoke')) { $failures += @('transitive-version', 'transitive-missing') }
+        if ($consumer -eq 'HeadStorePackageSmoke') { $failures += 'transitive-project' }
         foreach ($failure in $failures) {
             $malformedAssetsCount++
             $global:StoragePackageEntryMock.AssetsFailure = $failure
@@ -292,7 +292,7 @@ try {
                 'transitive-project' { Assert ($badAssets.libraries["Atelia.FrameStore/$version"].type -ceq 'project') "$consumer fixture did not change transitive FrameStore to a project reference." }
                 'framework' { Assert (!$badAssets.targets.Contains('net10.0')) "$consumer framework fixture did not remove net10.0." }
                 'cross' {
-                    $crossId = if ($consumer -eq 'RbfPackageSmoke') { 'Atelia.Binary' } elseif ($consumer -eq 'BinaryPackageSmoke') { 'Atelia.Rbf' } elseif ($consumer -eq 'FrameStorePackageSmoke') { 'Atelia.VersionStore' } else { 'Atelia.Diagnostics' }
+                    $crossId = if ($consumer -eq 'RbfPackageSmoke') { 'Atelia.Binary' } elseif ($consumer -eq 'BinaryPackageSmoke') { 'Atelia.Rbf' } elseif ($consumer -eq 'FrameStorePackageSmoke') { 'Atelia.HeadStore' } else { 'Atelia.Diagnostics' }
                     Assert ($badAssets.libraries.Contains("$crossId/$version")) "$consumer cross fixture did not add the other consumer package."
                 }
             }
@@ -300,7 +300,7 @@ try {
         }
     }
     $global:StoragePackageEntryMock.AssetsFailure = ''
-    $manifestFailures = @('version', 'filename', 'missing', 'binary-filename', 'binary-missing', 'frame-store-filename', 'frame-store-missing', 'version-store-filename', 'version-store-missing', 'extra', 'replace-with-legacy', 'duplicate', 'schema', 'origin', 'revision', 'hash', 'symbols-hash', 'symbols-filename')
+    $manifestFailures = @('version', 'filename', 'missing', 'binary-filename', 'binary-missing', 'frame-store-filename', 'frame-store-missing', 'head-store-filename', 'head-store-missing', 'extra', 'replace-with-legacy', 'duplicate', 'schema', 'origin', 'revision', 'hash', 'symbols-hash', 'symbols-filename')
     foreach ($failure in $manifestFailures) {
         $broken = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
         switch ($failure) {
@@ -311,17 +311,17 @@ try {
             'binary-missing' { $broken.packages = @($broken.packages | Where-Object id -CNE 'Atelia.Binary') }
             'frame-store-filename' { ($broken.packages | Where-Object id -CEQ 'Atelia.FrameStore').file = 'Atelia.FrameStore.0.0.0.nupkg' }
             'frame-store-missing' { $broken.packages = @($broken.packages | Where-Object id -CNE 'Atelia.FrameStore') }
-            'version-store-filename' { ($broken.packages | Where-Object id -CEQ 'Atelia.VersionStore').file = 'Atelia.VersionStore.0.0.0.nupkg' }
-            'version-store-missing' { $broken.packages = @($broken.packages | Where-Object id -CNE 'Atelia.VersionStore') }
+            'head-store-filename' { ($broken.packages | Where-Object id -CEQ 'Atelia.HeadStore').file = 'Atelia.HeadStore.0.0.0.nupkg' }
+            'head-store-missing' { $broken.packages = @($broken.packages | Where-Object id -CNE 'Atelia.HeadStore') }
             'extra' { $broken.packages += [pscustomobject]@{ id = 'Atelia.EventJournal'; file = 'extra.nupkg' } }
-            'replace-with-legacy' { ($broken.packages | Where-Object id -CEQ 'Atelia.VersionStore').id = 'Atelia.EventJournal' }
-            'duplicate' { ($broken.packages | Where-Object id -CEQ 'Atelia.VersionStore').id = 'Atelia.FrameStore' }
+            'replace-with-legacy' { ($broken.packages | Where-Object id -CEQ 'Atelia.HeadStore').id = 'Atelia.EventJournal' }
+            'duplicate' { ($broken.packages | Where-Object id -CEQ 'Atelia.HeadStore').id = 'Atelia.FrameStore' }
             'schema' { $broken.schemaVersion = 2 }
             'origin' { $broken.repositoryUrl = 'https://github.com/other/storage' }
             'revision' { $broken.sourceRevision = 'not-a-git-revision' }
             'hash' { ($broken.packages | Where-Object id -CEQ 'Atelia.FrameStore').sha256 = '0' * 64 }
-            'symbols-hash' { ($broken.packages | Where-Object id -CEQ 'Atelia.VersionStore').symbolsSha256 = '0' * 64 }
-            'symbols-filename' { ($broken.packages | Where-Object id -CEQ 'Atelia.VersionStore').symbolsFile = '../escape.snupkg' }
+            'symbols-hash' { ($broken.packages | Where-Object id -CEQ 'Atelia.HeadStore').symbolsSha256 = '0' * 64 }
+            'symbols-filename' { ($broken.packages | Where-Object id -CEQ 'Atelia.HeadStore').symbolsFile = '../escape.snupkg' }
         }
         $broken | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $manifestPath -Encoding utf8NoBOM
         $path = Join-Path $evidence "bad-manifest-$failure"

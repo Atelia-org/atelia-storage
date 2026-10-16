@@ -14,7 +14,7 @@ function Get-PackageSmokeContracts {
         [pscustomobject]@{ Name = 'RbfPackageSmoke'; DirectId = 'Atelia.Rbf'; Closure = @('Atelia.Primitives', 'Atelia.Data', 'Atelia.Rbf'); LogPrefix = 'primary'; AssetsLog = 'rbf-assets.log'; DataDirectory = 'rbf-files' },
         [pscustomobject]@{ Name = 'BinaryPackageSmoke'; DirectId = 'Atelia.Binary'; Closure = @('Atelia.Binary'); LogPrefix = 'binary'; AssetsLog = 'binary-assets.log'; DataDirectory = '' },
         [pscustomobject]@{ Name = 'FrameStorePackageSmoke'; DirectId = 'Atelia.FrameStore'; Closure = @('Atelia.Primitives', 'Atelia.Data', 'Atelia.Rbf', 'Atelia.Binary', 'Atelia.FrameStore'); LogPrefix = 'frame-store'; AssetsLog = 'frame-store-assets.log'; DataDirectory = 'frame-store-files' },
-        [pscustomobject]@{ Name = 'VersionStorePackageSmoke'; DirectId = 'Atelia.VersionStore'; Closure = @('Atelia.Primitives', 'Atelia.Data', 'Atelia.Rbf', 'Atelia.Binary', 'Atelia.FrameStore', 'Atelia.VersionStore'); LogPrefix = 'version-store'; AssetsLog = 'version-store-assets.log'; DataDirectory = 'version-store-files' }
+        [pscustomobject]@{ Name = 'HeadStorePackageSmoke'; DirectId = 'Atelia.HeadStore'; Closure = @('Atelia.Primitives', 'Atelia.Data', 'Atelia.Rbf', 'Atelia.Binary', 'Atelia.FrameStore', 'Atelia.HeadStore'); LogPrefix = 'head-store'; AssetsLog = 'head-store-assets.log'; DataDirectory = 'head-store-files' }
     )
 }
 

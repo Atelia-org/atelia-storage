@@ -2,7 +2,7 @@
 
 设计、当前计划与验收索引见 [FrameStore 文档](../../docs/FrameStore/README.md)。
 
-FrameStore 已实现 [S2](../../docs/FrameStore/02-framestore-core.md) 的公开持久化闭环：真实目录 `Create/Open/OpenReadOnly`、三种追加、交错 Builder、随机读取、同步耐久确认及归档。S2/S3 已取得[独立源码验收](../../docs/FrameStore/02-framestore-final-acceptance.md)。项目参加 solution 构建和测试，已纳入主线本地候选包清单；VersionStore 已完成 ref/history/fork/tag/Audit。包试用入口及限定资格见[本地交付记录](../../docs/FrameStore-VersionStore/13-local-package-delivery.md)。
+FrameStore 已实现 [S2](../../docs/FrameStore/02-framestore-core.md) 的公开持久化闭环：真实目录 `Create/Open/OpenReadOnly`、三种追加、交错 Builder、随机读取、同步耐久确认及归档。S2/S3 已取得[独立源码验收](../../docs/FrameStore/02-framestore-final-acceptance.md)。项目参加 solution 构建和测试，已纳入主线本地候选包清单；HeadStore 已完成 Head/history/fork/tag/Audit。包试用入口及限定资格见[本地交付记录](../../docs/FrameStore-VersionStore/13-local-package-delivery.md)。
 
 ```csharp
 using Atelia.FrameStore;

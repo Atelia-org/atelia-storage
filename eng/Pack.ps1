@@ -7,13 +7,13 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 if ($PSBoundParameters.ContainsKey('DependencyVersions')) {
-    throw [ArgumentException]::new('Main delivers only the Primitives/Data/Rbf/Binary/FrameStore/VersionStore package set. Selective delivery and DependencyVersions are maintained on the RBF1 branch.', 'DependencyVersions')
+    throw [ArgumentException]::new('Main delivers only the Primitives/Data/Rbf/Binary/FrameStore/HeadStore package set. Selective delivery and DependencyVersions are maintained on the RBF1 branch.', 'DependencyVersions')
 }
 $repo = Split-Path $PSScriptRoot -Parent
 $feed = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputDirectory)
 $repositoryUrl = 'https://github.com/Atelia-org/atelia-storage'
 # The production package list and pack algorithm have one owner: this script.
-$projects = @('Primitives', 'Data', 'Rbf', 'Binary', 'FrameStore', 'VersionStore')
+$projects = @('Primitives', 'Data', 'Rbf', 'Binary', 'FrameStore', 'HeadStore')
 function Git-Value([string[]]$Arguments) {
     $value = & git -C $repo @Arguments
     if ($LASTEXITCODE -ne 0) { throw "git failed: $Arguments" }

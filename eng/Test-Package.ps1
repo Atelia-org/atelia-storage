@@ -8,7 +8,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 if ($PSBoundParameters.ContainsKey('AdditionalSegmentSmoke')) {
-    throw [ArgumentException]::new('Main delivers only Primitives/Data/Rbf/Binary/FrameStore/VersionStore. AdditionalSegmentSmoke is maintained on the RBF1 branch.', 'AdditionalSegmentSmoke')
+    throw [ArgumentException]::new('Main delivers only Primitives/Data/Rbf/Binary/FrameStore/HeadStore. AdditionalSegmentSmoke is maintained on the RBF1 branch.', 'AdditionalSegmentSmoke')
 }
 $repo = Split-Path $PSScriptRoot -Parent
 . (Join-Path $PSScriptRoot 'PackageMetadataCheck/ConsumerContracts.ps1')

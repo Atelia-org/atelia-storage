@@ -74,7 +74,7 @@ function Invoke-ProbeCase([string]$Case, [string]$Root, [string]$VerifyScript) {
     $probeWorkDirectory = Join-Path ([IO.Path]::GetTempPath()) ('storage-published-resource-probe-' + $Case + '-' + [Guid]::NewGuid().ToString('N'))
     [void][IO.Directory]::CreateDirectory($probeFeedDirectory)
     $probeVersion = '0.3.0-resource-probe'
-    $probeIds = @('Atelia.Primitives', 'Atelia.Data', 'Atelia.Rbf', 'Atelia.Binary', 'Atelia.FrameStore', 'Atelia.VersionStore')
+    $probeIds = @('Atelia.Primitives', 'Atelia.Data', 'Atelia.Rbf', 'Atelia.Binary', 'Atelia.FrameStore', 'Atelia.HeadStore')
     [byte[]]$probeValidZip = New-ProbeZipBytes
     [byte[]]$probeBadZip = [Text.Encoding]::UTF8.GetBytes('Resource probe: deliberately not a ZIP archive.')
     $probeRecords = @($probeIds | ForEach-Object {
