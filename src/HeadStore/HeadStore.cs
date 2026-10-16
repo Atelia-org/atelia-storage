@@ -376,6 +376,9 @@ public sealed partial class HeadStore : IDisposable {
 
     private AteliaError? GetMutationRejection() {
         EnsureOwnerUsable();
+        if (_tagCreateActive) {
+            return new HeadStoreRuntimeError("TagCreateActive", "Mutations are not allowed during active tag creation.");
+        }
         if (_tagScanActive) { return TagScanActive(); }
         return _historyActive
             ? new HeadStoreRuntimeError("HistoryActive", "Mutations are not allowed during an active history visitor.")
@@ -397,6 +400,7 @@ public sealed partial class HeadStore : IDisposable {
             CloseConditionalPeer(ref errors);
             CloseHistoryTemporary(ref errors);
             CloseTagOperation(ref errors);
+            CloseTagDependency(ref errors);
             IRbfFile? pending = _pendingHead;
             _pendingHead = null;
             try { pending?.Dispose(); }

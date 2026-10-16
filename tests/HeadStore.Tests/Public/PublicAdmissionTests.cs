@@ -33,7 +33,7 @@ public sealed class PublicAdmissionTests {
         switch (kind) {
             case "trailing": gate = [.. gate, 0]; break;
             case "crc": gate[^1] ^= 1; break;
-            case "version": BinaryPrimitives.WriteUInt32LittleEndian(gate, 2); RollingCrc.SealCodewordForward(gate); break;
+            case "version": BinaryPrimitives.WriteUInt32LittleEndian(gate, 1); RollingCrc.SealCodewordForward(gate); break;
             case "zero-hs-id": gate.AsSpan(4, 16).Clear(); RollingCrc.SealCodewordForward(gate); break;
             case "zero-data-id": gate.AsSpan(20, 16).Clear(); RollingCrc.SealCodewordForward(gate); break;
             case "invalid-reservation": BinaryPrimitives.WriteUInt32LittleEndian(gate.AsSpan(36), uint.MaxValue); RollingCrc.SealCodewordForward(gate); break;

@@ -141,9 +141,7 @@ public sealed class InternalTailProcessTests(ITestOutputHelper output) : IDispos
             JsonElement info = facts.GetProperty("tagInfo");
             Assert.Equal(InternalTailHost.TagName, info.GetProperty("name").GetString());
             Assert.Equal(InternalTailHost.RecordedAt, info.GetProperty("recordedAtUnixMs").GetInt64());
-            Assert.Equal(InternalTailHost.LocalHeadId, info.GetProperty("relatedHeadId").GetUInt32());
-            Assert.Equal(stop.GetProperty("oldTicketOffset").GetInt64(), info.GetProperty("relatedTicketOffset").GetInt64());
-            Assert.Equal(stop.GetProperty("oldTicketLength").GetInt32(), info.GetProperty("relatedTicketLength").GetInt32());
+            Assert.Equal(1, info.GetProperty("entryCount").GetInt32());
         }
         else { Assert.Equal(JsonValueKind.Null, facts.GetProperty("tagInfo").ValueKind); }
     }

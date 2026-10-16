@@ -71,7 +71,7 @@ public sealed class RecoveryReportFailureTests {
         byte[] repaired = RecoveryReportFailureFixture.PartialNextFrame(f.TagPath);
         var store = f.Open();
 
-        Assert.Equal("HeadStore.InvalidTagBucketHeader", store.ResolveTag(RecoveryReportFailureFixture.TagName).Error!.ErrorCode);
+        Assert.Equal("HeadStore.InvalidTagBucketHeader", store.ReadTag(RecoveryReportFailureFixture.TagName).Error!.ErrorCode);
 
         var report = Assert.Single(store.RecoveryReports);
         Assert.Equal(HeadStoreRecoveryFileKind.TagBucket, report.FileKind);
@@ -96,7 +96,7 @@ public sealed class RecoveryReportFailureTests {
         var saved = store.RecoveryReports;
         f.Operations.Locks[0].DisposeFailure = lockFailure;
 
-        var error = Assert.Throws<AggregateException>(() => store.ResolveTag(RecoveryReportFailureFixture.TagName));
+        var error = Assert.Throws<AggregateException>(() => store.ReadTag(RecoveryReportFailureFixture.TagName));
 
         Assert.Collection(ErrorsInObservationOrder(error),
             primary => Assert.Contains("initialization prefix", Assert.IsType<InvalidDataException>(primary).Message),
@@ -127,7 +127,7 @@ public sealed class RecoveryReportFailureTests {
         var primary = new IOException("tag visitor");
         using var cancellation = new CancellationTokenSource();
         int delivered = 0;
-        bool Visit(TagInfo _) {
+        bool Visit(HeadSetTagInfo _) {
             delivered++;
             Assert.Single(saved);
             if (termination == "visitor") { throw primary; }
@@ -286,7 +286,7 @@ public sealed class RecoveryReportFailureTests {
         };
         var store = f.OpenWithLog(log);
 
-        if (tag) { Assert.True(store.ResolveTag(RecoveryReportFailureFixture.TagName).IsSuccess); }
+        if (tag) { Assert.True(store.ReadTag(RecoveryReportFailureFixture.TagName).IsSuccess); }
         else { Assert.True(store.ReadHead(f.Initial[1].HeadId).IsSuccess); }
 
         Assert.Equal(1, factoryEntries);

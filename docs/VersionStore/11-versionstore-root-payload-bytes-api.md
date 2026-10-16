@@ -1,6 +1,6 @@
 # HeadStore：root payload bytes 公面与所有权
 
-命名更新：2026-10-16 活跃合同采用 HeadStore/Head/Entry；既有 Accepted 仍对应原 VersionStore revision，本轮重命名验证见[13记录](13-headstore-renaming-plan.md)。格式版本、路径与 Clause-ID 不变；[14 HeadSetTag](14-headset-tags-plan.md)尚未实施。
+HeadSetTag 更新：2026-10-16 本轮实施格式2与具名成员表替换，待[独立验收](14-headset-tags-acceptance.md)。既有 Accepted 保持原 VersionStore/格式1来源；[13重命名记录](13-headstore-renaming-plan.md)不覆盖本行为变化。路径与既有 Clause-ID 保持，普通 Head/CU 的记录形状不变。
 
 日期：2026-10-11。状态：**既有 Head/历史/fork/tag 的 source-only 源码资格 Accepted；批量 CU 已正式接纳并取得本轮独立源码验收 Accepted**。既有范围见[最终源码验收](12-versionstore-final-acceptance.md)，新增 `A-VS-BYTES-BATCH` 接线与证据见[CU 验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。本篇是 S4/S5/tag/CU 的 bytes API 与长度/生命周期唯一权威；不改变身份、根锁、单 driver、ProcessCrashOnly、data-first 或三态证据。旧六包候选不含本轮 CU，程序集拆分另行设计。
 
@@ -48,26 +48,11 @@ owner/mutation/参数准入后先按实际 Span.Length 检查 1..1,048,576B；�
 
 读取时先完成必要 framing/CRC/尺寸/发布资格，再从 pooled 帧复制实际 root bytes，并在交付前归还 pooled 帧。结果在调用结束、后续查询、owner fault/Dispose 后有效，不需要 Dispose；对象/Span 正常引用保持数组存活，最终由 GC 回收。只读 Span 是访问视图，GC 自有 buffer 才是生命周期来源。应用要放入需要 ReadOnlyMemory/Stream 的处理链时可自行 ToArray，不为这类未来接口提前增加租借结果。
 
-ResolveTag 只交付 root bytes，使用窄共享 payload 容器，不造假的 default EntryId。tag 的时间、可选关联坐标及只读取元信息的 TagInfo / ReadTagInfo / ScanTags 公面由 [09 专项](09-versionstore-immutable-tags.md)定义，不加入 RootPayload：
+## HeadSetTag 的独立成员表边界
 
-~~~csharp
-public sealed class RootPayload {
-    private readonly byte[] _bytes; // 由内部构造接收自有数组
-    public int Length => _bytes.Length;
-    public ReadOnlySpan<byte> Bytes => _bytes;
-}
-AteliaResult<bool> CreateTag(
-    string name, ReadOnlySpan<byte> payload,
-    out PublicationOutcome outcome);
-AteliaResult<bool> CreateTag(
-    string name, ReadOnlySpan<byte> payload,
-    HeadEntryId relatedRevision, out PublicationOutcome outcome);
-AteliaResult<RootPayload> ResolveTag(string name);
-~~~
+版本2删除旧bytes tag的CreateTag两个overload、ResolveTag和RootPayload。HeadSetTag只保存HeadId到HeadEntryId的固定表，不保存或复制应用payload；成员输入slice捕获、自然容量、自有不可变表及HeadSetTagInfo/ScanTags的唯一合同见[09](09-versionstore-immutable-tags.md)。HeadEntry继续直接持有GC自有bytes，不新增HeadEntryPayload包装。
 
-RootPayload 同样由库内部构造并持有自有 GC array；不新增 identity、version、equals/hash 或 Dispose。HeadEntry 的内部 buffer 表示由实现选择，不要求再分配 RootPayload 容器或重复 bytes。两个 CreateTag 入口均捕获调用方传入的实际 bytes，不回显输入，成功值恒为 true；同名拒绝为失败，不引入 false 成功、幂等或 no-op。原入口产生无关联 tag；新入口只记录同库、nondefault、库签发 relatedRevision 的关联注记，在 I/O 前拒绝非法关联值。它不从源帧取 bytes、不比较 payload、不重读或确认源文件；名称、关联及读取资格唯一消费09，不能由相同 bytes 推出精确来源。
-
-ResolveTag 交付前仍完整校验命中记录的 RBF 内容 CRC 与 root-payload envelope；仅通过独立元信息 CRC 的 TagInfo 不能替代这份 bytes 资格。健康 missing 仍是 TagNotFound；存在名称无法确认的坏记录且零命中时，按09报告缺失不确定，不返回 TagNotFound。
+`CreateTag(name, heads, out outcome)` 捕获非空HeadId集合的当前位置；返回HeadSetTag。`ReadTag(name)` 检查完整成员表后交付自有表，其EntryId可供ReadEntry/ForkHead精确使用，但表成功不证明成员当前健康。`ReadTagInfo`/`ScanTags`只交付Name/RecordedAtUnixMs/EntryCount，不读取表或Entry，也不签发成员ID。tag容量不再与MaxHeadEntryPayloadLength耦合。
 
 ### spec [A-VS-BYTES-BATCH] 批量输入只增加可放入集合的视图
 
@@ -83,6 +68,6 @@ ReadOnlyMemory 仅用于放入普通集合，不转移 ownership；调用方在�
 
 ## 验收与成本
 
-覆盖1B/1MiB/0B/超限、只复制 slice、输入修改与归池、stackalloc/数组/池来源；read/历史/tag 结果在 pooled 归还与 owner Dispose 后仍有效，后续读取不改变旧结果。证明所有核心路径不调用 NamedFrameMap decoder，并覆盖 JSON UTF-8、有界随机 bytes 与内容 codec 失败独立于 CRC/事务资格。批次实际重复/错上下文、同一 buffer 多个slice、捕获失败先于输出、整批 Outcome/确认后结果安装异常与 CU 元数据独立定位均须验证；纯输入失败与同时发生 owned 清理失败的停用差异也须覆盖。
+覆盖1B/1MiB/0B/超限、只复制 slice、输入修改与归池、stackalloc/数组/池来源；read/历史结果在 pooled 归还与 owner Dispose 后仍有效；tag自有表与info按09独立验证，后续读取不改变旧结果。证明所有核心路径不调用 NamedFrameMap decoder，并覆盖 JSON UTF-8、有界随机 bytes 与内容 codec 失败独立于 CRC/事务资格。批次实际重复/错上下文、同一 buffer 多个slice、捕获失败先于输出、整批 Outcome/确认后结果安装异常与 CU 元数据独立定位均须验证；纯输入失败与同时发生 owned 清理失败的停用差异也须覆盖。
 
 小根对象下选择捕获/交付复制以换取简单 ownership；没有零复制、公开 Builder、streaming、Lease/Dispose、codec callback 或通用预算框架。测量发现复制/RSS 成为实际瓶颈后再单独评估。普通 Head、历史、精确 fork 与 tag 的既有接线见实施计划；CU 已正式接纳，本轮接线/独立源码资格见 [07 验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。RBF pooled 生命周期与 FrameStore FrameRead 是底座参考，不替代本结果模型的实际证据。

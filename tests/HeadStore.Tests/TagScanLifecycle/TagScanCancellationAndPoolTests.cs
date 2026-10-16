@@ -20,7 +20,7 @@ public sealed class TagScanCancellationAndPoolTests {
         Assert.Empty(f.Operations.Enumerators);
         Assert.Empty(f.Tags.Opened);
         Assert.Equal(0, f.Lock.DisposeCalls);
-        Assert.Equal(TagScanEnd.Complete, f.Store.ScanTags(_ => true).Unwrap());
+        Assert.Equal(HeadSetTagScanEnd.Complete, f.Store.ScanTags(_ => true).Unwrap());
     }
 
     [Theory]
@@ -51,7 +51,7 @@ public sealed class TagScanCancellationAndPoolTests {
         if (stage == "move") { Assert.Equal(0, Assert.Single(f.Operations.Enumerators).CurrentCalls); }
         Assert.Equal(0, f.Lock.DisposeCalls);
         f.Operations.ConfigureEnumerator = null;
-        Assert.Equal(TagScanEnd.Complete, f.Store.ScanTags(_ => true).Unwrap());
+        Assert.Equal(HeadSetTagScanEnd.Complete, f.Store.ScanTags(_ => true).Unwrap());
     }
 
     [Theory]
@@ -82,7 +82,7 @@ public sealed class TagScanCancellationAndPoolTests {
         Assert.Equal(1, file.DisposeCalls);
         Assert.Equal(0, f.Lock.DisposeCalls);
         f.Tags.ConfigureOpen = null;
-        Assert.Equal(TagScanEnd.Complete, f.Store.ScanTags(_ => true).Unwrap());
+        Assert.Equal(HeadSetTagScanEnd.Complete, f.Store.ScanTags(_ => true).Unwrap());
     }
 
     [Fact]
@@ -94,12 +94,12 @@ public sealed class TagScanCancellationAndPoolTests {
         f.Order(TagScanFaultFixture.Name);
         using var pool = new MetadataPoolListener();
         f.Tags.ConfigureOpen = file => file.BeforeRent = length => {
-            Assert.InRange(length, 15, 3104);
+            Assert.InRange(length, 18, 3093);
             pool.BeginMetadata();
         };
-        var retained = new List<TagInfo>();
+        var retained = new List<HeadSetTagInfo>();
 
-        Assert.Equal(TagScanEnd.Complete, f.Store.ScanTags(info => {
+        Assert.Equal(HeadSetTagScanEnd.Complete, f.Store.ScanTags(info => {
             // BCL pool events describe the actual Shared buffer, including reads via RbfFrameInfo.
             // This does not count proxy ReadPooledTailMeta calls that the scanner never uses.
             pool.AssertReturnedBeforeVisitor();

@@ -1,6 +1,6 @@
 # HeadSetTag 具名成员表替换旧 bytes tag
 
-日期：2026-10-16。状态：经两轮辩证审阅完善的实施候选，尚未实施；不替代当前有效的 [09 tag 规范](09-versionstore-immutable-tags.md)或已有验收。[重命名方案](13-headstore-renaming-plan.md)先行（行为保持重命名已通过 Windows Release 源码验收，范围以该篇第6节为准），本篇用目标名称描述新合同。设计审阅不是源码、进程或包消费验收。
+日期：2026-10-16。状态：实施中，待独立验收；当前目标合同已归入 [09 tag 规范](09-versionstore-immutable-tags.md)，本篇记录决策和施工范围，不另立第二份合同。实际结果见[14验收记录](14-headset-tags-acceptance.md)，不沿用旧bytes tag资格。[重命名方案](13-headstore-renaming-plan.md)先行（行为保持重命名已通过 Windows Release 源码验收，范围以该篇第6节为准），本篇用目标名称描述新合同。设计审阅不是源码、进程或包消费验收。
 
 ## 1. 最小模型与需求账本
 
@@ -26,9 +26,9 @@
 
 方法采用 `CreateTag / ReadTag / ReadTagInfo / ScanTags`；完整对象及辅助类型采用 `HeadSetTag / HeadSetTagInfo / HeadSetTagScanEnd`。已有 `TagCount / TagBucketCount / TagBucket / MaxTagNameCodeUnits` 和内部桶、记录的 `Tag` 词根保留；不为统一前缀额外重命名整个桶实现。本文文件名采用 `14-headset-tags-plan.md`，仓内引用同步更新。旧提案中的 `HeadSnapshot` 名称不再作为目标 API。
 
-**同名不等于兼容：** 新 `CreateTag` 接收 HeadId 集合并返回 HeadSetTag，替换旧任意 bytes / Related overload；新成员表与格式版本2仍须完整实施。此前选择 HeadSetTag 名称的修订仅调整目标标识符；本文待实施的范围包含下述创建、确认、校验、故障与交付行为变化。
+**同名不等于兼容：** 新 `CreateTag` 接收 HeadId 集合并返回 HeadSetTag，替换旧任意 bytes / Related overload；新成员表与格式版本2仍须完整实施。此前选择 HeadSetTag 名称的修订仅调整目标标识符；本轮实施范围包含下述创建、确认、校验、故障与交付行为变化。
 
-候选签名（设计，不是当前可执行 API）：
+本轮公开签名（源码接线与运行资格待验收）：
 
 ```csharp
 AteliaResult<HeadSetTag> CreateTag(
@@ -115,19 +115,19 @@ data.ConfirmDurable()
 | Payload | 按非零 LocalHeadId 严格递增的成员项；每项 uint32 LE LocalHeadId + uint64 LE 完整 Packed SizedPtr |
 | TailMeta | 依次 int64 LE RecordedAtUnixMs、uint32 LE EntryCount、BPV ordinary BareString 名称、uint32 独立 MetaCRC codeword |
 
-EntryCount 只在元信息保存一次；完整读取要求 PayloadLength == 12 × EntryCount。ticket 使用 Packed/FromPacked 的完整8B表示，不改用 offset 或时间戳。先按实际长度和上限检查再分配，拒绝重复/乱序/零 ID、default或零长度 ticket、截短和多余 bytes；记录存在性、具体kind/尺寸与主链资格由 ReadEntry/Audit 精确检查。Store 身份由 checked 桶 header 绑定，不在每个成员重复保存。
+EntryCount 只在元信息保存一次；完整读取要求 PayloadLength == 12 × EntryCount。ticket 使用 Packed/FromPacked 的完整8B表示，不改用 offset 或时间戳。先按实际长度和上限检查再分配，拒绝重复/乱序/零 ID、default或零长度 ticket、截短和多余 bytes；记录存在性、具体kind/尺寸、完整内容与必要CU资格由ReadEntry/Audit按既有协议检查。普通ReadEntry/Fork的成员来源依赖库签发/完整表恢复、完整位置不删除复用与无外部改写，不新增前缀或后缀全链扫描。RBF3正常writer保持marker-free；离线构造内嵌frame不构成正常过程反例，不据此扩大普通精确读取。Audit仍保持既有全库物理、真实主链与引用健康检查强度。Store 身份由 checked 桶 header 绑定，不在每个成员重复保存。
 
 不增加任意成员数硬限或 MaxTagEntries 公共常量。令 n 为真实成员数、t 为实际合法 TailMeta 长度，要求 n > 0、checked long 的 `12*n+t <= RbfFile.MaxPayloadAndMetaLength`，并通过 `MeasureWriteSize(12*n,t)` 和真实追加位置的 SizedPtr 检查。该容量独立于 MaxHeadEntryPayloadLength。名称编码接受域沿用09，名称 codeword 为2..3077B，因此新 TailMeta 为18..3093B；codec 在解码分配前按该界和真实帧尺寸拒绝不可能值。元信息声明 n 也先按其真实 t 校验可编码容量，不能直接按未检查的 count 分配集合。正常可编码输入仍可能 OOM，不承诺固定 RSS，不新增可配置预算、流式公面或压缩。
 
-完整表的 RBF CRC 保护成员内容；独立 MetaCRC 只支持名称查重与轻量信息。沿现有 Related 元信息模式，CRC、精确字段结构、名称/路由和 count 语义全部合格后，才取得可信名称；count为0或超自然容量使整份meta不合格，named查询按unknownName分流，Scan失败，不从半合法meta抢救名字，不增加第二个CRC或可信等级。
+完整表的 RBF CRC 保护成员内容；独立 MetaCRC 只支持名称查重与轻量信息。沿旧Related元信息的整体准入模式，CRC、精确字段结构、名称/路由和 count 语义全部合格后，才取得可信名称；count为0或超自然容量使整份meta不合格，named查询按unknownName分流，Scan失败，不从半合法meta抢救名字，不增加第二个CRC或可信等级。
 
-**元信息整体合格**而成员表损坏、实际payload长度不等于12*n时，名字仍占用，Info可交付元信息声明；ReadTag/Audit拒绝坏表，不能覆盖或以健康同名记录替代。可信名称唯一性、未知名、局部元信息错误和结构/I/O错误的分流沿用09，不把真正 I/O 错误吞为局部坏项。
+**元信息整体合格**而成员表损坏、实际payload长度不等于12*n时，名字仍占用，Info可交付元信息声明；ReadTag/Audit拒绝坏表，不能覆盖或以健康同名记录替代。可信名称唯一性、未知名、局部元信息错误和结构/I/O错误的分流沿用09，不把真正I/O错误吞为局部坏项。这里要求唯一可信目标名，允许同桶unknownName在前或在后；unknownName只使零可信命中时缺失不确定，不能阻断唯一可信目标的Info/ReadTag。重复可信目标必须失败，不能用健康副本替代。
 
 ## 6. 读取、扫描、Audit 的资格
 
 | 操作 | 验证范围 | 不证明的内容 |
 | --- | --- | --- |
-| ReadTagInfo | 名称唯一性与独立元信息 | 成员表及成员内容健康 |
+| ReadTagInfo | 唯一可信目标名称命中与独立元信息 | 未知名记录中的隐藏重名、成员表及成员内容健康 |
 | ScanTags | 实际桶的元信息遍历、取消/visitor/资源规则 | 全局唯一性、完整成员表、成员可读 |
 | ReadTag | 名称、完整帧、元信息与 canonical 成员表 | 本次未遍历成员文件，不证明各 Entry 当前健康 |
 | ReadEntry | 精确定位、完整内容、Fence 与 CU 资格 | 不解释业务 payload，不回退 |
@@ -135,7 +135,7 @@ EntryCount 只在元信息保存一次；完整读取要求 PayloadLength == 12 
 
 HeadEntryId 有三种内部交付来源：完成发布、checked Entry read、checked HeadSetTag 成员表恢复。第三种是本片对旧 RefRevision 签发合同的有意扩展；其来源受完整记录格式与 CRC 约束，不开放裸 HeadId+ticket 公开构造。ID 是定位值，不是健康证书。ReadTag 成功与随后 ReadEntry 失败可以同时成立，不能误报整个库仍健康。ForkHead 接受这种 ID 时仍重新验证 exact 来源，不因已经内部签发而跳检。
 
-Audit 复用内部精确读取，不复制一套 CU 判据，也不循环公开 ReadEntry 填充 owner 的永久文件缓存。复用既有 Audit 的短期成员槽，桶扫描句柄与成员句柄分开，CU peer沿既有短期槽逐个检查/关闭。内部 exact helper 按现有 ReadPublication 模式传递 cancellation/state检查和 deferOwnedCleanup，保证所有局部 pooled lease/文件先清理、根锁最后清理。不得新增常驻已接受Entry索引或审计证明缓存。
+Audit 复用内部精确读取，不复制一套 CU 判据，也不循环公开 ReadEntry 填充 owner 的永久文件缓存。复用既有 Audit 的短期成员槽，桶扫描句柄与成员句柄分开，CU peer沿既有短期槽逐个检查/关闭。内部 exact helper 按现有 ReadPublication 模式传递 cancellation/state检查和 deferOwnedCleanup，保证所有局部 pooled lease/文件先清理、根锁最后清理。不得新增常驻已接受Entry索引或审计证明缓存。取消/状态检查必须进入成员exact与CU peer工作，覆盖成员间、打开前后、完整读/peer工作前及最终交付；取消后无完整计数，Dispose/fault后无后续I/O。主异常优先，lease/member/peer/bucket/cursor资源一次清理且根锁最后；纯取消不fault，owned cleanup失败仍停用。
 
 Audit 的 EntryCount 保留旧已发布记录计数，TagCount/TagBucketCount 表示具名记录与桶数；验证HeadSetTag成员时不重复增加EntryCount。所有统计只在完整遍历、引用检查和必要清理成功后交付。成员表正确而指向不存在ticket/未成立CU仍是Audit失败；全库每个物理文件各自健康不证明引用完整性。
 
@@ -171,7 +171,10 @@ DG 必须独立安排历史书签模型后再升级 pin；可研究把书签放�
 | 未成立 CU、peer 位置复用、peer 损坏 | 不把候选当已发布；必要错误不能降级 |
 | data/依赖确认、空桶初始化、Append、flush、确认后交付失败 | outcome 与重开事实相符，无正式半表，完整帧保留 |
 | Info/Scan/ReadTag；非法count与合法meta坏表 | 不读取成员payload；非法meta沿unknownName/扫描失败，合法meta坏表保持占名 |
-| 完整 Audit、缺失/损坏/未成立成员 | Audit 失败，普通轻量查询不被扩大为全库审计 |
+| 完整 Audit、缺失/损坏/未成立成员 | Audit失败，普通轻量查询不被扩大为全库审计；两轮Audit不填永久cache、不重复计EntryCount |
+| Audit成员/peer读取取消，与member/peer/bucket/cursor/cached/根锁清理失败组合 | 取消/状态传入内部exact/CU；取消优先、不返回统计、锁最后且一次清理，普通取消后owner可复用 |
+| 实际kill：dependencies-confirmed / record-appended / confirmed | 独立进程核对必要CU依赖确认顺序、outcome窗口与冷开成员；确认后捕获表固定，测试事实单独记载 |
+| 实际短写kill：tag-body-partial / tag-body-complete | 新12B成员表记录截尾/完成尾后按格式2重验；RO拒绝不改字节，RW恢复后fresh RO/ReadTag/ReadEntry/Audit一致 |
 | fork 子入口 | 捕获子 Entry 身份，不折叠为源 Entry |
 | 格式1与格式2；版本2门下混入旧header | 拒绝旧门或访问时拒绝混入文件，不猜转换，不静默重建 |
 | 所有返回对象跨 owner 生命周期保留 | 无 lease，正常接口与 cast 不可改写 |
@@ -210,7 +213,7 @@ DG 必须独立安排历史书签模型后再升级 pin；可研究把书签放�
 | [07 CU](07-versionstore-cross-ref-conditional-update.md)、[ConditionalRead](../../src/HeadStore/HeadStore.ConditionalRead.cs) | 指定peer共同判据、合法否定见证、惰性恢复与不递归后来组 |
 | [CU发布故障测试](../../tests/HeadStore.Tests/ConditionalUpdateFaults/ConditionalUpdatePublicationFaultTests.cs) `AllCompleteEndsRemainUnknownAfterAnyHeadFlushFailureAndColdReadAcceptsTheWholeGroup` | 已成立可与旧调用Unknown并存，不等于此前全部确认 |
 | [主类](../../src/HeadStore/HeadStore.cs)、[Fork](../../src/HeadStore/HeadStore.Fork.cs) | mutation guard、data/source确认、精确克隆和资源清理 |
-| [Tags](../../src/HeadStore/HeadStore.Tags.cs)、[09](09-versionstore-immutable-tags.md)、[Related测试](../../tests/HeadStore.Tests/TagMetadataPublic/PublicRelatedTagTests.cs) | 被替换的任意bytes/Related语义、meta查重与桶复用基础 |
+| [Tags](../../src/HeadStore/HeadStore.Tags.cs)、[09](09-versionstore-immutable-tags.md)、[HeadSetTag公开测试](../../tests/HeadStore.Tests/HeadSetTagPublic/HeadSetTagBehaviorTests.cs) | 当前成员表行为、meta查重与桶复用；旧bytes/Related证据保留原revision |
 | [Entry](../../src/HeadStore/HeadStore.Entry.cs)、[HeadEntryId](../../src/HeadStore/HeadEntryId.cs)、[Audit](../../src/HeadStore/HeadStore.Audit.cs) | ID签发变化、精确读取与局部审计资源，不用公共读取填永久缓存 |
 | [FormatGate](../../src/HeadStore/Internal/Format/FormatGateCodec.cs)、[HeadHeader](../../src/HeadStore/Internal/Format/HeadHeaderCodec.cs)、[BucketHeader](../../src/HeadStore/Internal/Tags/TagBucketHeaderCodec.cs) | 统一版本已经是共享权威，v2无需增加版本机制 |
 | [TagMetadata](../../src/HeadStore/Internal/Tags/TagMetadataCodec.cs)、[RbfFile](../../src/Rbf/RbfFile.cs)、[11 bytes合同](11-versionstore-root-payload-bytes-api.md) | 名称编码尺寸、自然容量、捕获/自有结果与OOM边界 |

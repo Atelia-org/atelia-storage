@@ -15,7 +15,7 @@ public sealed class RecoveryReportsViewTests {
             var view = seed.RecoveryReports;
             Assert.Empty(view);
             current = seed.CreateHead(7, [0xff], out _).Unwrap();
-            seed.CreateTag(name, [0xfe], out _).Unwrap();
+            seed.CreateTag(name, [current.HeadId], out _).Unwrap();
             Assert.Empty(view);
             AssertReadOnlySurface(view);
         }
@@ -27,11 +27,11 @@ public sealed class RecoveryReportsViewTests {
             Assert.Equal(current, store.ReadEntry(current).Unwrap().Id);
             Assert.Equal(HeadHistoryEnd.Complete, store.ReadHeadHistory(current.HeadId, RecoveryReportsFixture.Unlimited, _ => true).Unwrap());
             Assert.Empty(store.ListHeadOrigins(1).Unwrap());
-            Assert.Equal(new byte[] { 0xfe }, store.ResolveTag(name).Unwrap().Bytes.ToArray());
+            Assert.Equal(current, Assert.Single(store.ReadTag(name).Unwrap().Entries).Value);
             Assert.Equal(name, store.ReadTagInfo(name).Unwrap().Name);
-            Assert.Equal(TagScanEnd.Complete, store.ScanTags(_ => true).Unwrap());
+            Assert.Equal(HeadSetTagScanEnd.Complete, store.ScanTags(_ => true).Unwrap());
             Assert.True(store.ReadHead(8u).IsFailure);
-            Assert.True(store.ResolveTag("missing-recovery-report-tag").IsFailure);
+            Assert.True(store.ReadTag("missing-recovery-report-tag").IsFailure);
             Assert.Empty(view);
             Assert.Empty(store.RecoveryReports);
         }
@@ -46,7 +46,7 @@ public sealed class RecoveryReportsViewTests {
         using (var seed = fixture.Create()) {
             first = seed.CreateHead(7, [1], out _).Unwrap();
             second = seed.CreateHead(19, [2], out _).Unwrap();
-            seed.CreateTag(name, [3], out _).Unwrap();
+            seed.CreateTag(name, [first.HeadId], out _).Unwrap();
         }
         TailImage firstImage = RecoveryReportsFixture.Damage(fixture.HeadPath(first.HeadId.LocalId), completeTail: true);
         TailImage secondImage = RecoveryReportsFixture.Damage(fixture.HeadPath(second.HeadId.LocalId), completeTail: false, prefixLength: 3);
@@ -65,7 +65,7 @@ public sealed class RecoveryReportsViewTests {
         firstImage.AssertReport(Assert.Single(firstInterval), HeadStoreRecoveryFileKind.Head, first.HeadId.LocalId);
 
         int beforeTag = view.Count;
-        Assert.Equal(new byte[] { 3 }, store.ResolveTag(name).Unwrap().Bytes.ToArray());
+        Assert.Equal(first, Assert.Single(store.ReadTag(name).Unwrap().Entries).Value);
         int afterTag = view.Count;
         Assert.Equal(1, afterTag - beforeTag);
         tagImage.AssertReport(Assert.Single(Interval(view, beforeTag, afterTag)), HeadStoreRecoveryFileKind.TagBucket, bucket);

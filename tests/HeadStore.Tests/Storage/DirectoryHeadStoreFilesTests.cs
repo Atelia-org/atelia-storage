@@ -102,7 +102,7 @@ public sealed class DirectoryHeadStoreFilesTests {
         byte[] corrupt = valid.ToArray(); corrupt[40] ^= 1; invalid.Add(corrupt);
         foreach (int offset in new[] { 0, 4, 20, 36 }) {
             byte[] bad = valid.ToArray();
-            if (offset == 0) { BinaryPrimitives.WriteUInt32LittleEndian(bad, 2); }
+            if (offset == 0) { BinaryPrimitives.WriteUInt32LittleEndian(bad, 1); }
             else if (offset == 36) { BinaryPrimitives.WriteUInt32LittleEndian(bad.AsSpan(offset), uint.MaxValue); }
             else { bad.AsSpan(offset, 16).Clear(); }
             RollingCrc.SealCodewordForward(bad);

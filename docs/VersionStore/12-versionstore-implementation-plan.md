@@ -1,6 +1,6 @@
 # HeadStore 当前续接与 VersionStore 历史实施记录
 
-2026-10-16 当前续接：行为保持的 HeadStore 重命名已完成 Windows Release 源码验收，公共符号、namespace、工程和活跃文档统一到 HeadStore/Head/Entry，具体对照与本轮验证见[13 重命名记录](13-headstore-renaming-plan.md)。[14 HeadSetTag 成员表](14-headset-tags-plan.md)尚未实施；当前 `CreateTag / ResolveTag / TagInfo / RootPayload` 仍保存任意 bytes 与可选 Related 注记。
+2026-10-16 当前续接：[13行为保持重命名](13-headstore-renaming-plan.md)已取得其独立源码/Windows Release资格；本轮按[14 HeadSetTag方案](14-headset-tags-plan.md)实施格式2成员表替换，删除bytes/Related API。当前合同归09及相关S4/S5/07–11，实际源码、故障、进程与包结果统一填入[14验收记录](14-headset-tags-acceptance.md)，现为实施中待验收。
 
 下文保留 2026-10-10/11 各片实施及验证的 VersionStore 原名、命令、统计和 revision，作为历史记录，不是待重做的队列或 HeadStore 新包资格。当前合同请从[模块入口](README.md)读取；生产指南为 [Atelia.HeadStore](../../src/HeadStore/README.md)。
 

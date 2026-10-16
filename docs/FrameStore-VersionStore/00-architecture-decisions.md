@@ -11,7 +11,7 @@
 
 ## term `HeadStore` 基于 Head 身份的根发布与版本控制库
 
-新项目 `Atelia.HeadStore` 发布应用编码的完整 root-payload bytes。Head 以稳定 HeadId 定位可更新内容，tag 命名不可变内容；库不提供 branch 名称或 alias。应用自行管理名称/富元数据到 HeadId 的映射，选择和解释内容 schema；NamedFrameMap 是首个可选 codec，也可自行提供 JSON UTF-8，无独立 Commit 或通用 parent。
+新项目 `Atelia.HeadStore` 发布应用编码的完整 root-payload bytes。Head 以稳定 HeadId 定位可更新内容，HeadSetTag命名不可变的所选Head当前位置表；库不提供 branch 名称或 alias。应用自行管理名称/富元数据到 HeadId 的映射，选择和解释内容 schema；NamedFrameMap 是首个可选 codec，也可自行提供 JSON UTF-8，无独立 Commit 或通用 parent。
 
 ## term `Frame-Address` 中性帧地址
 
@@ -130,7 +130,7 @@ tag 创建后不改；Head rewind 追加旧 payload 的新快照，不截掉已�
 
 2026-10-10 用户采用：普通 SingleEntry 与 CU MUST 在 TailMeta 保存固定 8B 有符号 Unix 毫秒时间，不另存 record version 字节；元信息形状按实际 TailMetaLength 判别，未来只向末尾追加确定宽度字段。记录时间用于展示/诊断，不承担 EntryId 身份、发布顺序、fork 因果或事务资格。
 
-时间语义、一次私有取时、Head/CU 的精确形状与完整内容资格唯一见 [S4 元信息专项](../VersionStore/08-versionstore-record-metadata.md)。S4 负责公开结果/普通宿主尺寸，S5/CU 直接复用；专项不是后序阶段，不给 data/header 增加时间。CU 每批只取时一次，时间不扩充共同判据。2026-10-11 用户采用 tag 的记录时间、可选 Related 关联注记及独立元信息 CRC；tag 只复用时间意义，独立 schema、资格与元信息公面唯一见 [09 专项](../VersionStore/09-versionstore-immutable-tags.md)，不套用 Head 的固定8B形状。
+时间语义、一次私有取时、Head/CU 的精确形状与完整内容资格唯一见 [S4 元信息专项](../VersionStore/08-versionstore-record-metadata.md)。S4 负责公开结果/普通宿主尺寸，S5/CU 直接复用；专项不是后序阶段，不给 data/header 增加时间。CU 每批只取时一次，时间不扩充共同判据。2026-10-11旧格式1曾采用tag记录时间、Related注记及独立meta CRC；2026-10-16格式2删除Related、增加EntryCount与固定成员表，tag继续只复用时间意义，独立 schema、资格与元信息公面唯一见 [09 专项](../VersionStore/09-versionstore-immutable-tags.md)，不套用 Head 的固定8B形状。
 
 ### decision [S-VS-CROSS-REF-CU] 多个既有 Head 以共同成员判据发布
 
@@ -148,7 +148,7 @@ S5 MUST 通过按 EntryId fork 内部校验源发布记录并原样 clone root-p
 
 ### decision [S-VS-REF-ID-ONLY] Head 不命名，以固定预留区与自动编号定位
 
-2026-10-10 用户采用 uint32 LocalHeadId；格式门上界与 Head 自身/ForkOrigin 来源/CU 成员字段固定 4B LittleEndian，ticket 字段固定完整 8B。值及 Head/CU 字段合同见 S4 `[F-VS-REF-ID-4B]`，不提供旧 8B ID 草案兼容。2026-10-11 tag Related 注记采用09独立规定的有界 VarUInt32 / Serialize+VarUInt64，不改变这些已实施 Head 字段。
+2026-10-10 用户采用 uint32 LocalHeadId；格式门上界与 Head 自身/ForkOrigin 来源/CU 成员字段固定 4B LittleEndian，ticket 字段固定完整 8B。值及 Head/CU 字段合同见 S4 `[F-VS-REF-ID-4B]`，不提供旧 8B ID 草案兼容。2026-10-11旧格式1 Related注记曾采用VarUInt32/Serialize+VarUInt64；本轮格式2将其删除，HeadSetTag成员改为4B LocalHeadId+8B Packed LE，不改变既有Head/CU字段。
 
 2026-10-10 用户采用：**去掉 branch 名称；创建 HeadStore 时持久预留低号区；CreateHead/ForkHead 提供自动或指定目标两种入口；指定目标只能来自预留区，不支持任意指定 ID。** 应用管理名称、枚举角色、摘要/缩略图等语义；库不提供 branch 绑定、alias、名称索引或原子命名 fork。
 
@@ -219,11 +219,9 @@ HeadStore 借入一个 data FrameStore，拥有独立发布目录；44B 格式�
 
 完整 payload 使当前值无需 replay 历史或递归祖先；历史沿本地帧链/ForkOrigin 遍历发布前缀，返回自有 bytes。自动/指定 ForkHead 同文件发布精确来源与完整初始快照；CreateHead(payload) 是独立起点。全分叉图从正式首帧派生，应用名称映射不产生新边。
 
-HeadId 是稳定对象身份；HeadEntryId 只表示已完成快照的位置，不提前签发，不用作 Unknown 尝试 token。同步历史调用期间首版禁止 owner mutation，调用结束后可用所选自有快照 fork/tag/rewind。跨重开的 NamedFrameMap 字典书签可使用 tag；可选 Related 仅为关联注记，不签发精确 Head 来源或证明 tag bytes 来自该点，也不要求先提供随机 EntryId 读取或持久扫描 cursor。
-HeadId 完整上下文/default及 Head/CU 内部 4B 字段见 S4 `[F-VS-REF-ID-4B]`；LocalId 导出与库上下文 checked 定位见 `[A-VS-LOCAL-REF-LOOKUP]`。HeadEntryId 保存完整 HeadId/ticket，无 owner/epoch 或整体 codec。创建编号见 `[S-VS-REF-ID-DOMAINS]`：持久 L 划分手动低号/自动高号，冷开完整发现恢复 H，自动 H+1，低号不推进 H，无持久 next counter；已发布身份不复用，Max 仅拒绝自动创建。实际根/工作区/随机身份/初始化合同已定，具体窄平台复用与代码/中断资格留实施；ListHeads只发现正式路径身份，不审计快照。
-bytes 公面与所有权唯一见 [11专项](../VersionStore/11-versionstore-root-payload-bytes-api.md)：同步 Span 输入、屏障前私有捕获，CreateHead/PublishHead/ForkHead 返回 HeadEntryId，ReadHead/历史交付 HeadEntry，ResolveTag 交付 RootPayload，CreateTag 成功返回 true。无结果 Dispose、公开可写 backing、codec callback 或猜格式。NamedFrameMapCodec 的输入/冻结解码、Unicode与wire独立见 [10专项](../VersionStore/10-versionstore-rootmap-payload.md)，发布核心不调用它。Head header24/36、opaque SingleEntry与meta、恢复后完整准入见 S4；tag 桶合同见09。方案定稿与既有探针不构成新库运行/平台/资源资格。
+HeadId是稳定对象身份；HeadEntryId定位已接受发布，不作Unknown尝试token。来源可以是完成发布、checked Entry读取或完整HeadSetTag表恢复；表读取不证明成员当前健康，ReadEntry/Fork保留既有exact协议。历史返回后可fork/rewind；CreateTag只捕获调用时当前Heads，不接受历史ID任意组合。旧bytes/Related书签退出，DG历史图书签由其迁移任务另行设计。
 
-CreateHead/PublishHead/CreateTag/ForkHead 在发布 root payload 前同步 data ConfirmDurable，无可复用 receipt；无关 Builder 不阻断，应用保证必要依赖完成。tag 每次沿目标桶可靠帧结构扫描，以独立 checked 元信息裁决请求名称，Resolve 命中后才完整读取 root；不保留全名集合或跨调用索引。用户采用固定1024桶、名称/时间/Related注记的元信息读取与同步扫描；名称上限、容量、CRC信任边界、局部损坏隔离、header 初始化、唯一性及 callback guard 唯一见 [S5-B 专项](../VersionStore/09-versionstore-immutable-tags.md)，不保证名称查询 O(1)或时间查询无需全库扫描。元信息公面安排在tag发布闭环之后，不阻断前面的 Head/history/fork 或 tag 内核实施。
+CreateHead/PublishHead/ForkHead在发布root payload前同步data ConfirmDurable，无可复用receipt；无关Builder不阻断，应用保证必要依赖完成。CreateTag先捕获当前成员，data确认后逐个确认去重必要发布文件（成立CU含完整同组依赖），再写正式表。tag沿目标桶可靠结构扫描，以独立checked meta裁决唯一可信目标名；其他unknownName不阻断唯一可信命中，零命中时才使缺失不确定。ReadTag检查完整canonical表，Info/Scan只交Name/time/EntryCount。1024桶、自然容量、CRC信任边界、初始化、稳定捕获、guard与Audit引用检查唯一见[09](../VersionStore/09-versionstore-immutable-tags.md)，不保留跨调用索引或保证O(1)。本轮统一格式2拒绝格式1，新资格见[14验收](../VersionStore/14-headset-tags-acceptance.md)。
 
 HeadStore 内部投影安装与消费者安装应用状态分别负责。发布已确认后前者失败仍保留 Confirmed 并停用库实例，完整受控teardown先失效、非锁owned资源单次逐一清理、锁最后；应用安装失败时，从实际已发布 bytes 自行解码重新加载，不撤销发布、不要求业务 callback。同步 mutation 的 Result/必选 out PublicationOutcome 及公开 Append/flush/rename 证据边界由 S4 `[A-VS-PUBLICATION-EVIDENCE]` 定稿；该证据不持久化，自动创建异常不保证交付丢失的 HeadId。外部工具 exactly-once 和模拟确定性不是存储层保证。
 

@@ -1,3 +1,4 @@
+using Atelia.HeadStore.Tests.Tags;
 using Atelia.Rbf;
 using Atelia.Data.Hashing;
 using Atelia.HeadStore.Internal.Tags;
@@ -34,16 +35,17 @@ public sealed class TagErrorPropagationTests {
         Assert.True(lookup.UnknownName);
         Assert.Equal(1, lookup.MatchCount);
         Assert.Equal(TagFaultFixture.TargetName, lookup.GetUniqueMetadata().Unwrap().Name);
-        Assert.True(TagRecordReader.ResolveNamed(f.File, header, TagFaultFixture.TargetName).IsSuccess);
+        Assert.True(TagRecordReader.ReadNamed(f.File, header, TagFaultFixture.TargetName).IsSuccess);
         Assert.Equal("HeadStore.TagLookupUncertain",
             TagRecordReader.ReadNamedMetadata(f.File, header, TagFaultFixture.OtherName).Error!.ErrorCode);
     }
 
     [Fact]
     public void CodecTruncationInsideACompletelyReadMetadataBufferIsLocalUnknownName() {
-        byte[] truncated = new byte[15];
-        truncated[9] = 13; // UTF-8 BPV declares six name bytes; only one precedes the CRC.
-        truncated[10] = (byte)'t';
+        byte[] truncated = new byte[18];
+        truncated[8] = 1;
+        truncated[12] = 13; // UTF-8 BPV declares six name bytes; only one precedes the CRC.
+        truncated[13] = (byte)'t';
         RollingCrc.SealCodewordForward(truncated);
         using var f = new TagFaultFixture(new TagFaultRecord(TagFaultFixture.Payload(), truncated));
         f.Open();
@@ -53,8 +55,8 @@ public sealed class TagErrorPropagationTests {
         Assert.True(lookup.UnknownName);
         Assert.Equal("HeadStore.TagLookupUncertain", lookup.GetUniqueMetadata().Error!.ErrorCode);
         f.Close();
-        Assert.Contains(f.LoggedReads(), read => read.Offset == f.Records[0].Offset + 4 + 4096
-            && read.Length == 15 && read.Returned == 15);
+        Assert.Contains(f.LoggedReads(), read => read.Offset == f.Records[0].Offset + 4 + 12
+            && read.Length == 18 && read.Returned == 18);
     }
 
     [Theory]
@@ -85,7 +87,7 @@ public sealed class TagErrorPropagationTests {
         var scan = TagRecordReader.ScanNamed(f.File, header, TagFaultFixture.TargetName);
         Assert.True(scan.IsFailure);
         Assert.Equal(expected, scan.Error);
-        Assert.Equal(expected, TagRecordReader.ResolveNamed(f.File, header, TagFaultFixture.TargetName).Error);
+        Assert.Equal(expected, TagRecordReader.ReadNamed(f.File, header, TagFaultFixture.TargetName).Error);
         f.Close();
         Assert.DoesNotContain(f.LoggedReads(), read => read.Offset == f.Records[1].Offset
             && read.Length == f.Records[1].Length);
@@ -108,11 +110,11 @@ public sealed class TagErrorPropagationTests {
         using var f = new TagFaultFixture(new TagFaultRecord(TagFaultFixture.Payload(), TagFaultFixture.Metadata()));
         f.Open(writable: true);
         CheckedTagBucketHeader header = f.CheckHeader();
-        long metaOffset = f.Records[0].Offset + 4 + 4096;
+        long metaOffset = f.Records[0].Offset + 4 + 12;
         bool injected = false;
         f.BeginObservation();
         f.BeforeRead = (offset, length, raw) => {
-            if (!raw && offset == metaOffset && length == 20 && !injected) {
+            if (!raw && offset == metaOffset && length == 23 && !injected) {
                 injected = true;
                 f.TruncateOwnedFile(metaOffset + 7);
             }
@@ -122,7 +124,7 @@ public sealed class TagErrorPropagationTests {
         Assert.Equal("Rbf.ArgumentError", result.Error!.ErrorCode);
         Assert.Contains("Short read for TailMeta", result.Error.Message);
         f.Close();
-        Assert.Contains(f.LoggedReads(), read => read.Offset == metaOffset && read.Length == 20 && read.Returned == 7);
+        Assert.Contains(f.LoggedReads(), read => read.Offset == metaOffset && read.Length == 23 && read.Returned == 7);
     }
 
     [Fact]
@@ -153,16 +155,16 @@ public sealed class TagErrorPropagationTests {
         f.BeforeRead = (offset, length, raw) => {
             if (!raw && offset == f.Records[0].Offset && length == f.Records[0].Length && !injected) {
                 injected = true;
-                f.TruncateOwnedFile(offset + 64);
+                f.TruncateOwnedFile(offset + 32);
             }
         };
-        var result = TagRecordReader.ResolveNamed(f.File, header, TagFaultFixture.TargetName);
+        var result = TagRecordReader.ReadNamed(f.File, header, TagFaultFixture.TargetName);
         Assert.True(injected);
         Assert.Equal("Rbf.ArgumentError", result.Error!.ErrorCode);
         Assert.Contains("Short read", result.Error.Message);
         f.Close();
         Assert.Contains(f.LoggedReads(), read => read.Offset == f.Records[0].Offset
-            && read.Length == f.Records[0].Length && read.Returned == 64);
+            && read.Length == f.Records[0].Length && read.Returned == 32);
     }
 
     [Theory]
@@ -182,9 +184,9 @@ public sealed class TagErrorPropagationTests {
             "eof-exception" => new EndOfStreamException("actual meta read"),
             _ => new OutOfMemoryException("actual meta read")
         };
-        long targetMeta = f.Records[1].Offset + 4 + 4096;
+        long targetMeta = f.Records[1].Offset + 4 + 12;
         f.BeforeRead = (offset, length, raw) => {
-            if (raw && offset == targetMeta && length == 20) { throw primary; }
+            if (raw && offset == targetMeta && length == 23) { throw primary; }
         };
         Assert.Same(primary, Assert.ThrowsAny<Exception>(() =>
             TagRecordReader.ScanNamed(f.File, header, TagFaultFixture.TargetName)));
@@ -202,12 +204,12 @@ public sealed class TagErrorPropagationTests {
         CheckedTagBucketHeader header = f.CheckHeader();
         var primary = new OutOfMemoryException(fullFrame ? "full frame rent" : "meta rent");
         f.BeforeRent = length => {
-            if (length == (fullFrame ? f.Records[0].Length : 20)) { throw primary; }
+            if (length == (fullFrame ? f.Records[0].Length : 23)) { throw primary; }
         };
         Assert.Same(primary, Assert.Throws<OutOfMemoryException>(() =>
-            TagRecordReader.ResolveNamed(f.File, header, TagFaultFixture.TargetName)));
+            TagRecordReader.ReadNamed(f.File, header, TagFaultFixture.TargetName)));
         f.BeforeRent = null;
-        Assert.True(TagRecordReader.ResolveNamed(f.File, header, TagFaultFixture.TargetName).IsSuccess);
+        Assert.True(TagRecordReader.ReadNamed(f.File, header, TagFaultFixture.TargetName).IsSuccess);
     }
 
     [Theory]
@@ -222,7 +224,7 @@ public sealed class TagErrorPropagationTests {
             if (raw && offset == f.Records[0].Offset && length == f.Records[0].Length) { throw primary; }
         };
         Assert.Same(primary, Assert.ThrowsAny<Exception>(() =>
-            TagRecordReader.ResolveNamed(f.File, header, TagFaultFixture.TargetName)));
+            TagRecordReader.ReadNamed(f.File, header, TagFaultFixture.TargetName)));
         f.BeforeRead = null;
         Assert.True(TagRecordReader.ReadNamedMetadata(f.File, header, TagFaultFixture.TargetName).IsSuccess);
     }
@@ -283,14 +285,14 @@ public sealed class TagErrorPropagationTests {
             if (operation == "resolve" && offset == f.Records[0].Offset && length == f.Records[0].Length) {
                 completedLastRead = true;
             }
-            else if (operation == "metadata" && offset == f.Records[0].Offset + 4 + 4096 && length == 20) {
+            else if (operation == "metadata" && offset == f.Records[0].Offset + 4 + 12 && length == 23) {
                 completedLastRead = true;
             }
         };
         Action guard = () => { if (completedLastRead) { throw primary; } };
         if (operation == "resolve") {
             Assert.Same(primary, Assert.Throws<ObjectDisposedException>(() =>
-                TagRecordReader.ResolveNamed(f.File, header, TagFaultFixture.TargetName, guard)));
+                TagRecordReader.ReadNamed(f.File, header, TagFaultFixture.TargetName, guard)));
         }
         else {
             Assert.Same(primary, Assert.Throws<ObjectDisposedException>(() =>

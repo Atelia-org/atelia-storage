@@ -1,10 +1,10 @@
 # HeadStore：Head 记录时间与 TailMeta 格式
 
-命名更新：2026-10-16 活跃合同采用 HeadStore/Head/Entry；既有 Accepted 仍对应原 VersionStore revision，本轮重命名验证见[13记录](13-headstore-renaming-plan.md)。格式版本、路径与 Clause-ID 不变；[14 HeadSetTag](14-headset-tags-plan.md)尚未实施。
+HeadSetTag 更新：2026-10-16 本轮实施格式2与具名成员表替换，待[独立验收](14-headset-tags-acceptance.md)。既有 Accepted 保持原 VersionStore/格式1来源；[13重命名记录](13-headstore-renaming-plan.md)不覆盖本行为变化。路径与既有 Clause-ID 保持，普通 Head/CU 的记录形状不变。
 
 日期：2026-10-10–11。状态：**既有 Head/tag 的 source-only 源码资格 Accepted；CU 已正式接纳，本轮接线通过独立源码验收 Accepted**。既有映射见[最终源码验收](12-versionstore-final-acceptance.md)，CU 增量见[本轮验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。Head/CU 使用固定 8B Unix 毫秒时间及精确 TailMeta 长度判形；tag 已实施并复用时间意义，其独立 schema/CRC 与元信息公面由09定义。组合/包资格见[实施计划](12-versionstore-implementation-plan.md)，旧六包候选不含 CU。
 
-本文是 S4 的 Head/CU 记录元信息子合同，不是新增实施阶段。规范底座为 [RBF 接口](../Rbf/rbf-interface.md)与[RBF 格式](../Rbf/rbf-format.md)。[S4](04-versionstore-publication.md)负责普通 Head 的 kind、header、root-payload envelope、结果定位及完整宿主尺寸；[S5](05-versionstore-names-and-indexes.md)负责历史/fork；[CU](07-versionstore-cross-ref-conditional-update.md)负责联合提交资格。它们引用本合同，不各自定义时间编码。[09 tag 专项](09-versionstore-immutable-tags.md)仅复用 RecordedAtUnixMs 的意义、取时及8B编码；其变长元信息、独立CRC资格和TagInfo/扫描合同不受本文固定形状规则约束。
+本文是 S4 的 Head/CU 记录元信息子合同，不是新增实施阶段。规范底座为 [RBF 接口](../Rbf/rbf-interface.md)与[RBF 格式](../Rbf/rbf-format.md)。[S4](04-versionstore-publication.md)负责普通 Head 的 kind、header、root-payload envelope、结果定位及完整宿主尺寸；[S5](05-versionstore-names-and-indexes.md)负责历史/fork；[CU](07-versionstore-cross-ref-conditional-update.md)负责联合提交资格。它们引用本合同，不各自定义时间编码。[09 tag 专项](09-versionstore-immutable-tags.md)仅复用 RecordedAtUnixMs 的意义、取时及8B编码；其变长元信息、独立CRC资格和HeadSetTagInfo/扫描合同不受本文固定形状规则约束。
 
 ## 需求与范围
 
@@ -44,7 +44,7 @@ CreateHead、ForkHead、PublishHead（含同值重发/rewind）MUST 为本次新
 
 HeadStore 格式门/Head header 选择本层格式规则；记录形状由文件上下文、FrameTag 和 RbfFrameInfo.TailMetaLength 共同判别。TailMetaLength 不在 meta 中重复编码，不增加 version、flags、presence、padding 预留、Magic 或独立 CRC。现行 SingleEntry 的 payload 是不透明 root bytes；CU payload 仍由自身 schema 定义，不能把 meta 长度当成所有 payload schema 的通用版本。
 
-对本次需要完整资格化的 SingleEntry/CU，reader MUST 精确接受 8B；0B、短/长形状与其他未知长度报错，不回退旧 head、不当 CU 事务不完整、不自动截出已知前缀接受未知扩展。HeadHeader 的 0B 由其 kind 合同另行允许，不表示无时间 SingleEntry。首版 HeadStoreFormatVersion 为 1，不增加旧无时间草案兼容。
+对本次需要完整资格化的 SingleEntry/CU，reader MUST 精确接受 8B；0B、短/长形状与其他未知长度报错，不回退旧 head、不当 CU 事务不完整、不自动截出已知前缀接受未知扩展。HeadHeader 的 0B 由其 kind 合同另行允许，不表示无时间 SingleEntry。当前 HeadStoreFormatVersion 为 2，不增加旧无时间草案兼容。
 
 **Head/CU 以后扩展的约束。** 同一记录 kind 的新 meta schema 只可在现有末尾追加确定宽度字段，每种已定义形状具有唯一长度，先前字段保持不变。当前不分配未来长度/字段，也不实现注册表、版本协商或动态可选字段。新 reader 接受哪些旧长度需在届时 schema 中列明；旧 reader 对未知长度仍拒绝。改变既有字段意义或不兼容 payload 时，须另作 FrameTag/所属格式版本决策，不能复用相同 meta 长度冒充同一形状。tag 的独立变长 schema 不消费本条长度判形/演进规则。
 
@@ -54,7 +54,7 @@ reader MUST 从经校验的实际 RbfFrameInfo 或完整 RBF 帧取得 TailMetaL
 
 本条只约束本次需要完整资格化的记录。CU 已以实际异长 ticket 与必要结构否定旧成员、已取得不完整见证而未访问的其他 peer，均不因此增加 HeadStore meta 判形或内容审计；S5 旧 fork 点采用精确读取/边界逆扫，不访问源在分叉点之后的后缀，CU 异长消歧仍可能结构扫描 peer 后缀。其已观察到的 RBF 结构/I/O 错误仍按既有路径传播。未知 meta 长度不能把本地/同 ticket 必要记录的解码错误降成 CU 不完整，也不能反向扩大已有结构定位的职责。
 
-RBF ReadTailMeta/ReadPooledTailMeta 自身仅提供 L2 预览：TrailerCRC 保护长度描述符，不保护 meta bytes；PayloadCRC 覆盖 payload、TailMeta 和 padding。仅凭 RBF 预览不能签发 checked 时间/HeadEntry/HeadEntryId，也不能决定 CU 生效。普通 Head/CU 的 checked 读取已经完整验证整帧，不再为时间字段添加一份 CRC 或额外 I/O。09 对 tag decoded meta 定义独立CRC及语义资格，允许权威元信息读取/名称裁决而延迟 root 读取；这不改变 RBF 自身的信任级别，也不把元信息成功变成 root 内容资格。
+RBF ReadTailMeta/ReadPooledTailMeta 自身仅提供 L2 预览：TrailerCRC 保护长度描述符，不保护 meta bytes；PayloadCRC 覆盖 payload、TailMeta 和 padding。仅凭 RBF 预览不能签发 checked 时间/HeadEntry/HeadEntryId，也不能决定 CU 生效。普通 Head/CU 的 checked 读取已经完整验证整帧，不再为时间字段添加一份 CRC 或额外 I/O。09 对 tag decoded meta 定义独立CRC及语义资格，允许权威元信息读取/名称裁决而延迟成员表读取；这不改变 RBF 自身的信任级别，也不把元信息成功变成成员表或成员Entry资格。
 
 ## 尺寸与实施出口
 

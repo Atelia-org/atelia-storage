@@ -3,7 +3,7 @@
 命名更新：2026-10-16 活跃合同采用 HeadStore/Head/Entry；既有验收与历史包仍保持 VersionStore 来源身份，本轮验证见[重命名记录](../VersionStore/13-headstore-renaming-plan.md)。
 
 状态：**S6-C/D Accepted（既有六包本地候选；Windows 与 WSL2/ext4 隔离包消费）；公开交付与真实接入未取得资格。** 实际候选版本、来源及限定平台见[本地交付记录](13-local-package-delivery.md)。该不可变候选不含本轮 CU；CU 已正式接纳，其新源码/进程/平台资格见[07 验收](../VersionStore/07-versionstore-cross-ref-conditional-update-acceptance.md)，本轮不自动重新打包或发布。FrameStore S2/S3 与 HeadStore S4/S5 的既有源码验收、V4-B/C/D 的组合/有限资源/应用策略、V4-F 的具名内部进程证据保留各自身份；V4-E 的反例修正及逐条裁决见[HeadStore 源码验收](../VersionStore/12-versionstore-final-acceptance.md)。公开发布与真实消费者切换另行确定范围。
-前置：[S0](00-architecture-decisions.md)、[S1](../Rbf/01-rbf-sized-append.md)、[S2](../FrameStore/02-framestore-core.md)、[S3](../FrameStore/03-framestore-interleaved-builders-and-durability.md)、[S4](../VersionStore/04-versionstore-publication.md)、[S5](../VersionStore/05-versionstore-names-and-indexes.md)。本篇只负责组合、包与交付证据，不反向定义前序协议；Head/history/fork先验证，09 tag施工后补齐完整组合。FrameAddress变长增量资格见[实施记录](../FrameStore/02-framestore-varint-address-implementation.md)。
+前置：[S0](00-architecture-decisions.md)、[S1](../Rbf/01-rbf-sized-append.md)、[S2](../FrameStore/02-framestore-core.md)、[S3](../FrameStore/03-framestore-interleaved-builders-and-durability.md)、[S4](../VersionStore/04-versionstore-publication.md)、[S5](../VersionStore/05-versionstore-names-and-indexes.md)。本轮HeadSetTag新增依赖确认、member/peer取消与真实进程窗口见[14验收](../VersionStore/14-headset-tags-acceptance.md)，当前待验收。本篇只负责组合、包与交付证据，不反向定义前序协议；Head/history/fork先验证，09 tag施工后补齐完整组合。FrameAddress变长增量资格见[实施记录](../FrameStore/02-framestore-varint-address-implementation.md)。
 
 ## 本阶段目标
 
@@ -30,7 +30,7 @@ DurableGraph 是需求来源；S0 已记录兄弟仓的定位观察，实际接�
 | LLM tool-loop | NamedFrameMap 同时保存 runtime/history/tasks/context；发布 Prepared/Started 后模拟外发，发布结果后重开 | 冻结请求和执行阶段可恢复；Started 无结果进入应用 uncertain 路径，不证明任意外部调用 exactly-once |
 | 异步任务合并 | A/B 结果交由单 driver，依据最新 operationId/generation 串行合并，再发布字典 | 过期回包不覆盖新状态；不宣称 HeadStore 提供通用 CAS 或多线程 writer |
 | Gym 历史与扇出 | visitor 选中非末快照并停止，返回后分别创建两个自动或预留区指定 fork，再独立推进 | 每次仅一个新 Head 文件原子发布；两个 fork 不是整批事务，对象隔离由应用负责 |
-| rewind/tag | 旧快照追加新 EntryId，再保存 tag、推进 Head 后冷重开 | 历史保留、同值不合并 EntryId、tag 字典固定，不把 Head 历史当业务因果 |
+| rewind/tag | 旧快照追加新 EntryId，再保存 tag、推进 Head 后冷重开 | 历史保留、同值不合并 EntryId、tag成员表固定，不把 Head 历史当业务因果 |
 
 V4-D 已由 [public consumer 应用示例](../../tools/HeadStore.Smoke/README.md#应用策略示例)接通前两项：tool-loop 三个应用停点真实kill后冷恢复，generation 用受控Task完成顺序驱动串行合并；具体平台、反例与取证边界见[实施记录](../VersionStore/12-versionstore-implementation-plan.md#v4-d-验证记录2026-10-11)。外部receipt是模拟服务，结果结算是应用发布状态内的计入，不代表真实外部支付或任意backend的exactly-once。
 
@@ -54,7 +54,7 @@ tool-loop 首次/新 attempt 外发之前 MUST 正常确认该 attempt 的冻结
 | [S2/S3最终源码验收](../FrameStore/02-framestore-final-acceptance.md)、[变长地址增量](../FrameStore/02-framestore-varint-address-implementation.md) | 三种追加/交错Builder、两份地址codec、路径/发号、门/锁/私有data、轮转/恢复、FrameRead及Inventory/Audit；已Accepted结果保持其来源身份 |
 | [S4实施与验收](../VersionStore/04-versionstore-publication.md#实施与验收) | HS借入guard/模式/绑定、建库/锁/唯一pending、Head身份/路径/两域发号/ListHeads、实际需要的 header/head 与恢复后完整性、检查范围、data-first/Outcome及受控清理 |
 | [S5实施与验收](../VersionStore/05-versionstore-names-and-indexes.md#实施与验收) | 固定历史上界/预算/停止/回调、直接精确fork来源及byte clone、指定边界继承历史、ListHeadOrigins header/完整声明图/额度/自有结果 |
-| [08时间](../VersionStore/08-versionstore-record-metadata.md)、[09tag](../VersionStore/09-versionstore-immutable-tags.md)、[10可选NamedFrameMap](../VersionStore/10-versionstore-rootmap-payload.md)、[11bytes](../VersionStore/11-versionstore-root-payload-bytes-api.md) | 所属格式向量、初始化/扫描、长度/捕获/结果生命周期与内容解释边界；Head固定meta与tag独立meta资格分别保持，tag元信息成功不证明root健康或精确来源 |
+| [08时间](../VersionStore/08-versionstore-record-metadata.md)、[09tag](../VersionStore/09-versionstore-immutable-tags.md)、[10可选NamedFrameMap](../VersionStore/10-versionstore-rootmap-payload.md)、[11bytes](../VersionStore/11-versionstore-root-payload-bytes-api.md) | 所属格式向量、初始化/扫描、长度/捕获/结果生命周期与内容解释边界；Head固定meta与tag独立meta资格分别保持，tag元信息成功不证明成员表或Entry健康 |
 
 FrameStore既有资格不覆盖新增公共EnsureUsable或HS组合；先取得其新增源码/public证据再接入。S5继承历史使用已实施的[RBF 指定边界逆扫公共重载](../Rbf/rbf-reverse-boundary-plan.md)，V2-A 源码验证单独记录；既有Accepted不自动包含此增量，S6须补充其包消费与组合资格。public消费者不能借反射、internal入口或旧类型补能力；底座合成探针不代替新库/header/身份门或组合实证。
 
@@ -65,15 +65,15 @@ FrameStore既有资格不覆盖新增公共EnsureUsable或HS组合；先取得�
 | data构建/完成/barrier及active发布/归档/恢复 | 完整未发布data不改变Head/tag；A依赖完成而无关B Building仍可发布，leased文件旧dirty被确认，B后续完成需新屏障；B后来取消/中断不撤销A，data flush失败无根输出。跨文件/同文件历史随机读与交错构建只按实际地址取回，不依赖分配/完成次序 |
 | Head创建/fork的pending、flush/close、rename前后 | 两种编号入口均为未创建或完整正式Head；private不公开/不续作，RO保留。正式缺/坏必要帧报错；Windows/Linux严格不覆盖rename由HS真实入口取证，不用FrameStore移动结果替代。源确认失败无子输出，不向源登记孩子 |
 | 普通Head追加/flush与恢复 | 当前值为完整旧bytes或完整新bytes，NamedFrameMap例子不混搭Key；最新必要head坏时不回退；未访问的坏初始/旧记录不阻断健康head，独立完整校验仍报告。初始和后续残尾按S4接受恢复后完整性，RO需要修尾即拒绝；初始化中断与人为截短的格式恢复向量分开 |
-| tag目录/空桶/pending/rename及首条或后续Append | 正式合法空桶与未创建tag可共存，空桶rename不确认首tag；header初始化保护、独立meta CRC及请求名称裁决按09。截断首body保留空桶，CompletedTail后重新扫描裁决；坏root的可信非目标不阻断健康目标，可信同名仍已占，Resolve命中才完整校验root；meta名称不确定时拒绝missing/Create，结构、I/O及close失败仍传播 |
+| tag目录/空桶/pending/rename及首条或后续Append | 正式合法空桶与未创建tag可共存，空桶rename不确认首tag；header初始化保护、独立meta CRC及请求名称裁决按09。截断首body保留空桶，CompletedTail后重新扫描裁决；坏表的可信非目标不阻断健康目标，可信同名仍已占，ReadTag命中才完整校验表；唯一可信目标可与unknownName共存，只有零命中且有unknownName时拒绝missing/Create，结构、I/O及close失败仍传播 |
 | 发布确认前后、库内交付及应用安装 | public out在原异常/OOM/助手异常后可见，正常失败NotAttempted、未确认尝试Unknown、确认后结果/清理失败Confirmed。进程终止无out，重开只读实际事实；自动丢结果可发现而不能按同值认领，指定号码不证明旧attempt。健康借入data不因HS失败或Dispose被关闭 |
 | 应用外发与独立目录登记 | Started无结果、外部已执行但结果未发布、结果已发布、过期generation分别走应用策略；不由存储盲重试/补发Started。固定槽/动态LocalId与正确库关联，独立目录二次发布可留未登记Head，不声称跨Head事务或exactly-once |
 
-**public端到端组合。** 完成前述最小模型与应用场景，再验证Encode→bytes发布→自有读取→Decode、历史选点后fork/tag/rewind、旧结果跨查询/owner关闭保留及坏data的应用失败。禁用NamedFrameMap decoder验证核心路径，JSON/随机bytes同样可发布/读取/fork/tag；fork保留exact源bytes，历史实际校验来源一致性而ListHeadOrigins只检查header与声明图。坏初始/健康head的ReadHead成功与历史提前停止、实际走到坏节点失败分别验证；源大量后续更新不增加旧fork点定位/历史接续的扫描步骤。合法末帧越过MaxOffset的末端与下一次追加拒绝分别验证；库绑定拒错data与裸地址来源的应用责任分开。
+**public端到端组合。** 完成前述最小模型与应用场景，再验证Encode→bytes发布→自有读取→Decode、历史选点后fork/rewind、调用时当前Heads捕获tag、旧结果跨查询/owner关闭保留及坏data的应用失败。禁用NamedFrameMap decoder验证核心路径，JSON/随机bytes同样可发布/读取/fork，其Entry可被tag引用；fork保留exact源bytes，历史实际校验来源一致性而ListHeadOrigins只检查header与声明图。坏初始/健康head的ReadHead成功与历史提前停止、实际走到坏节点失败分别验证；源大量后续更新不增加旧fork点定位/历史接续的扫描步骤。合法末帧越过MaxOffset的末端与下一次追加拒绝分别验证；库绑定拒错data与裸地址来源的应用责任分开。
 
-tag 元信息组合在[实施计划](../VersionStore/12-versionstore-implementation-plan.md)的V3-C接通后补齐：ReadTagInfo可读取root损坏但meta健康的记录；ScanTags以visitor完成名称枚举、时间段及Related Head筛选，不读root、不签发来源EntryId或证明bytes一致，也不证明整体名称唯一。所到坏meta失败，false立即VisitorStopped，不访问后缀；回调副作用不因后来失败回滚。Related创建仍只执行既定data-first发布，不重读/flush注记Head。
+HeadSetTag元信息组合由[09](../VersionStore/09-versionstore-immutable-tags.md)与[14验收](../VersionStore/14-headset-tags-acceptance.md)负责：ReadTagInfo可读取表损坏但meta健康的记录；ScanTags按Name/time/EntryCount逐条交付，不读表/Entry、不签发成员ID，也不证明全局唯一。所到坏meta失败，false不访问后缀，取消/Dispose/cleanup优先。ReadTag完整表恢复成员ID，Audit验证其精确引用；CreateTag先data再去重必要发布文件确认，CU subset/pair与fork子身份须冷重开复验。
 
-single-driver/HistoryActive/TagScanActive、取消/回调Dispose及必要清理规则按所属阶段在public调用中复验；历史callback可进入ScanTags并使用独立临时桶槽，tag扫描callback拒绝mutation、递归扫描与进入历史，允许的日常读取按09执行。这些串行轨迹不改标为并发资格。实际Open/正式发现成本、history源anchor及必要前缀读取、ListHeadOrigins规模、tag请求范围桶扫描/连续创建、全桶元信息扫描、bytes复制与资源峰值另测，不把增桶预计记录下降称为端到端提速，也不用codec算术或预算替代性能/平台证据。[07 CU](../VersionStore/07-versionstore-cross-ref-conditional-update.md)已正式接纳，新增组合矩阵与实际结果独立列在[07 验收](../VersionStore/07-versionstore-cross-ref-conditional-update-acceptance.md)，不重标前轮 public 停点或历史探针。
+single-driver/HistoryActive/TagScanActive/TagCreateActive、取消/回调Dispose及必要清理规则按所属阶段在public调用中复验；历史callback可进入ScanTags并使用独立临时桶槽，tag扫描callback拒绝mutation、递归扫描与进入历史，允许的日常读取按09执行。这些串行轨迹不改标为并发资格。实际Open/正式发现成本、history源anchor及必要前缀读取、ListHeadOrigins规模、tag请求范围桶扫描/连续创建、全桶元信息扫描、bytes复制与资源峰值另测，不把增桶预计记录下降称为端到端提速，也不用codec算术或预算替代性能/平台证据。[07 CU](../VersionStore/07-versionstore-cross-ref-conditional-update.md)已正式接纳，新增组合矩阵与实际结果独立列在[07 验收](../VersionStore/07-versionstore-cross-ref-conditional-update-acceptance.md)，不重标前轮 public 停点或历史探针。
 
 CU 组合必须包含：全部 fresh 成员完成前缀/排列及至少两个既有 Head 的 public 冷重开、data-first 与逐文件完成/flush/确认后安装窗口、未提交 CU 跳过且历史不泄漏、普通覆盖后的旧组资格、同/异长位置复用与必要结构错误、lazy CompletedTail、CU 来源的普通子 SingleEntry byte clone、peer 预算/清理、Audit 已发布计数。真实进程终止、受控异常、镜像截断各自标明证据类别；ProcessCrashOnly 不外推为断电。整组成功只共同确认发布资格，不保证跨调用快照隔离或当前 heads 永远同步。
 
@@ -105,7 +105,7 @@ CU 组合必须包含：全部 fresh 成员完成前缀/排列及至少两个既
 | `eng/Pack.ps1` | S6 注册包和明确选择/版本算法 |
 | `eng/Test-Package.ps1`、metadata helper | S6 在当前纯 Rbf 三包及纯 Binary 两包隔离验证基础上增加新闭包 smoke，不削弱来源/资产校验 |
 | `eng/Verify-Published.ps1`、发布 workflow/CI | 若纳入公开交付，按实际授权和新 manifest 形态适配 |
-| 根 README / AGENTS.md | 项目实际存在、交付事实变化后更新；FrameStore/HeadStore 与测试项目均已创建，两库已纳入本地候选包清单；HeadStore 已接通普通 Head 真实目录闭环，历史读取、精确 ForkHead 与 ListHeadOrigins 已接通，tag 公开持久化闭环、关联注记及元信息公面已接通，V4-A 已补只读完整校验 Audit |
+| 根 README / AGENTS.md | 项目实际存在、交付事实变化后更新；FrameStore/HeadStore 与测试项目均已创建，两库已纳入本地候选包清单；HeadStore 已接通普通 Head 真实目录闭环，历史读取、精确 ForkHead 与 ListHeadOrigins 已接通，旧tag闭环已有历史证据，本轮改为格式2 HeadSetTag并独立验收，V4-A 已补只读完整校验 Audit |
 | 旧库维护 | RBF1 分支工作包；main 不再保留旧栈代码、固定包回归或兼容实现 |
 
 ## 实施片

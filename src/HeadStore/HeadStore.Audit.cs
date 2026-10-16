@@ -261,7 +261,7 @@ public sealed partial class HeadStore {
         return null;
     }
 
-    private static AteliaError? AuditTagFrames(AuditResources resources, CheckedTagBucketHeader header,
+    private AteliaError? AuditTagFrames(AuditResources resources, CheckedTagBucketHeader header,
         Action checkState) {
         checkState();
         var forward = resources.File!.ScanForward(showTombstone: true).GetEnumerator();
@@ -280,11 +280,32 @@ public sealed partial class HeadStore {
             bool hasRecord = forward.MoveNext();
             checkState();
             if (!hasRecord) { return forward.TerminationError; }
-            var metadata = TagRecordReader.CheckCompleteRecord(forward.Current, header, checkState);
+            var read = TagRecordReader.CheckCompleteRecord(forward.Current, header, checkState);
             checkState();
-            if (metadata.IsFailure) { return metadata.Error!; }
-            if (!names.Add(metadata.Value.Name)) {
+            if (read.IsFailure) { return read.Error!; }
+            HeadSetTag tag = read.Value!;
+            if (!names.Add(tag.Name)) {
                 return new TagDuplicateNameError("The formal tag bucket contains multiple Ordinal-equal names.");
+            }
+            foreach (HeadEntryId entryId in tag.Entries.Values) {
+                checkState();
+                AteliaError? BeforeMemberWork() { checkState(); return null; }
+                var resolved = _files.ResolveHead(entryId.HeadId.LocalId, _markOwnedCleanupFault);
+                checkState();
+                if (resolved.IsFailure) { return resolved.Error!; }
+                resources.Child = _files.OpenHead(resolved.Value, readOnly: true, _markOwnedCleanupFault);
+                checkState();
+                var memberHeader = HeadRecordReader.CheckHeader(resources.Child, _identity, entryId.HeadId,
+                    BeforeMemberWork, checkState);
+                if (memberHeader.IsFailure) { return memberHeader.Error!; }
+                var member = ReadExactPublication(resources.Child, memberHeader.Value, entryId.Ticket,
+                    checkState, deferOwnedCleanup: true);
+                if (member.IsFailure) { return member.Error!; }
+                if (member.Value.Entry is null) {
+                    return new HeadRecordError("A HeadSetTag member is not a published Entry.");
+                }
+                CloseAuditResource(ref resources.Child);
+                checkState();
             }
             resources.TagCount = checked(resources.TagCount + 1);
         }

@@ -9,7 +9,7 @@ public sealed class AuditResourceTests {
     public void WritableOwnerRejectsBeforeAnyAuditIo() {
         using var f = new AuditFaultFixture(readOnly: false);
         f.SeedHead(1);
-        f.SeedTagBucket(AuditFaultFixture.TagName, new TagPublicRecord(AuditFaultFixture.TagName, [1]));
+        f.SeedTagBucket(AuditFaultFixture.TagName, new TagPublicRecord(AuditFaultFixture.TagName, f.TagMembers()));
 
         var result = f.Store.Audit();
 
@@ -40,7 +40,7 @@ public sealed class AuditResourceTests {
     [InlineData(true, "current")]
     public void ActualDirectoryAccessExceptionWithHealthyCleanupPreservesOwner(bool tag, string stage) {
         using var f = new AuditFaultFixture();
-        if (tag) { f.SeedTagBucket(AuditFaultFixture.TagName, new TagPublicRecord(AuditFaultFixture.TagName, [1])); }
+        if (tag) { f.SeedTagBucket(AuditFaultFixture.TagName, new TagPublicRecord(AuditFaultFixture.TagName, f.TagMembers())); }
         else { f.SeedHead(1); }
         var primary = new IOException("directory " + stage);
         f.Operations.ConfigureCursor = (isTag, cursor) => {
@@ -64,7 +64,7 @@ public sealed class AuditResourceTests {
     [InlineData(true)]
     public void ReadOnlyFactoryExceptionWithHealthyCleanupPreservesOwner(bool tag) {
         using var f = new AuditFaultFixture();
-        if (tag) { f.SeedTagBucket(AuditFaultFixture.TagName, new TagPublicRecord(AuditFaultFixture.TagName, [1])); }
+        if (tag) { f.SeedTagBucket(AuditFaultFixture.TagName, new TagPublicRecord(AuditFaultFixture.TagName, f.TagMembers())); }
         else { f.SeedHead(1); }
         var primary = new IOException("read-only factory open");
         if (tag) { f.Files.TagOpenFailure = primary; }
@@ -73,7 +73,7 @@ public sealed class AuditResourceTests {
         Assert.Same(primary, Assert.Throws<IOException>(() => f.Store.Audit()));
 
         Assert.All(f.Operations.Cursors, entry => Assert.Equal(1, entry.Cursor.DisposeCalls));
-        Assert.Empty(f.Files.Opened);
+        Assert.DoesNotContain(f.Files.Opened, file => file.IsTag == tag);
         Assert.Equal(0, f.Lock.DisposeCalls);
         f.Files.TagOpenFailure = null;
         f.Files.HeadOpenFailure = null;
@@ -89,7 +89,7 @@ public sealed class AuditResourceTests {
     public void ExceptionAtActualCompleteReadOrRentPreservesOriginalExceptionAndOwner(bool tag, string stage) {
         using var f = new AuditFaultFixture();
         Atelia.Data.SizedPtr ticket = tag
-            ? f.SeedTagBucket(AuditFaultFixture.TagName, new TagPublicRecord(AuditFaultFixture.TagName, new byte[8192])).Tickets[0]
+            ? f.SeedTagBucket(AuditFaultFixture.TagName, new TagPublicRecord(AuditFaultFixture.TagName, f.TagMembers())).Tickets[0]
             : f.SeedHead(1, null, new byte[8192]).Tickets[0];
         var primary = new IOException("actual " + stage);
         f.Files.ConfigureOpen = file => {
@@ -135,7 +135,7 @@ public sealed class AuditResourceTests {
         using var f = new AuditFaultFixture();
         string path;
         if (tag) {
-            f.SeedTagBucket(AuditFaultFixture.TagName, new TagPublicRecord(AuditFaultFixture.TagName, [1]));
+            f.SeedTagBucket(AuditFaultFixture.TagName, new TagPublicRecord(AuditFaultFixture.TagName, f.TagMembers()));
             path = f.BucketPath(AuditFaultFixture.TagName);
         }
         else { f.SeedHead(1); path = f.Storage.HeadPath(1); }
@@ -147,7 +147,7 @@ public sealed class AuditResourceTests {
 
         Assert.Equal(incomplete, File.ReadAllBytes(path));
         Assert.Equal(0, f.Lock.DisposeCalls);
-        Assert.Empty(f.Files.Opened);
+        Assert.DoesNotContain(f.Files.Opened, file => file.IsTag == tag);
         Assert.All(f.Operations.Cursors, entry => Assert.Equal(1, entry.Cursor.DisposeCalls));
         File.WriteAllBytes(path, complete);
         Assert.True(f.Store.Audit().IsSuccess);
@@ -164,7 +164,7 @@ public sealed class AuditResourceTests {
         AuditFile cached = Assert.Single(f.Files.Opened);
         if (tag) {
             f.OrderHeads();
-            f.SeedTagBucket(AuditFaultFixture.TagName, new TagPublicRecord(AuditFaultFixture.TagName, [1]));
+            f.SeedTagBucket(AuditFaultFixture.TagName, new TagPublicRecord(AuditFaultFixture.TagName, f.TagMembers()));
         }
         else { f.OrderHeads(cachedSeed); }
         var close = new IOException("audit reader close");
@@ -186,7 +186,7 @@ public sealed class AuditResourceTests {
         f.Store.ReadHead(cachedSeed.HeadId).Unwrap();
         if (tag) {
             f.OrderHeads();
-            f.SeedTagBucket(AuditFaultFixture.TagName, new TagPublicRecord(AuditFaultFixture.TagName, [1]));
+            f.SeedTagBucket(AuditFaultFixture.TagName, new TagPublicRecord(AuditFaultFixture.TagName, f.TagMembers()));
         }
         else { f.OrderHeads(cachedSeed); }
         var close = new IOException("audit cursor close");
@@ -209,7 +209,7 @@ public sealed class AuditResourceTests {
         Atelia.Data.SizedPtr ticket;
         if (tag) {
             f.OrderHeads();
-            ticket = f.SeedTagBucket(AuditFaultFixture.TagName, new TagPublicRecord(AuditFaultFixture.TagName, [1])).Header;
+            ticket = f.SeedTagBucket(AuditFaultFixture.TagName, new TagPublicRecord(AuditFaultFixture.TagName, f.TagMembers())).Header;
         }
         else { f.OrderHeads(cachedSeed); ticket = cachedSeed.Header; }
         var primary = new IOException("actual header read");
@@ -333,7 +333,7 @@ public sealed class AuditResourceTests {
         byte[] opaque = AuditFaultFixture.OpaquePayload();
         Assert.True(NamedFrameMapCodec.Decode(opaque).IsFailure);
         f.SeedHead(1, null, opaque);
-        f.SeedTagBucket(AuditFaultFixture.TagName, new TagPublicRecord(AuditFaultFixture.TagName, opaque));
+        f.SeedTagBucket(AuditFaultFixture.TagName, new TagPublicRecord(AuditFaultFixture.TagName, f.TagMembers()));
         using var builder = f.Data.BeginAppend(3, 0, out _);
         var writer = builder.PayloadAndMeta;
         new byte[] { 1, 2, 3 }.CopyTo(writer.GetSpan(3));

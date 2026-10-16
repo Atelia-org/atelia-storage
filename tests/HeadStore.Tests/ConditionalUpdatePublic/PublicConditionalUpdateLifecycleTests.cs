@@ -156,12 +156,13 @@ public sealed class PublicConditionalUpdateLifecycleTests {
             rootB = NamedFrameMapCodec.Encode(new Dictionary<string, FrameAddress> { ["state"] = addressB }).Unwrap();
             group = store.PublishHeads(ConditionalUpdatePublicFixture.Changes((b0.HeadId, rootB), (a0.HeadId, rootA)), out var outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
+            store.CreateTag("old-cu", [a0.HeadId], out outcome).Unwrap();
+            Assert.Equal(PublicationOutcome.Confirmed, outcome);
             a2 = store.PublishHead(a0.HeadId, [0xa2], out outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
             Assert.Equal(group[b0.HeadId], store.ReadHead(b0.HeadId).Unwrap().Id);
             Assert.Equal(new[] { a2, group[a0.HeadId], a0 }, ConditionalUpdatePublicFixture.History(store, a0.HeadId).Select(entry => entry.Id));
-            Assert.True(store.CreateTag("old-cu", rootA, group[a0.HeadId], out outcome).Unwrap());
-            Assert.Equal(PublicationOutcome.Confirmed, outcome);
+
         }
         fixture.Data.Dispose();
         using (var data = DataStore.Open(fixture.DataRoot))
@@ -194,13 +195,13 @@ public sealed class PublicConditionalUpdateLifecycleTests {
             Assert.Equal(a2, cold.ReadHead(a0.HeadId).Unwrap().Id);
             Assert.Equal(group[b0.HeadId], cold.ReadHead(b0.HeadId).Unwrap().Id);
             Assert.Equal(rootB, cold.ReadHead(b0.HeadId).Unwrap().Payload.ToArray());
-            Assert.Equal(rootA, cold.ResolveTag("old-cu").Unwrap().Bytes.ToArray());
-            TagInfo info = cold.ReadTagInfo("old-cu").Unwrap();
-            Assert.Equal(a0.HeadId, info.RelatedRefId);
-            Assert.Equal(group[a0.HeadId].Ticket, info.RelatedTicket);
-            Assert.Equal(TagScanEnd.Complete, cold.ScanTags(tag => {
+            Assert.Equal(group[a0.HeadId], cold.ReadTag("old-cu").Unwrap().Entries[a0.HeadId]);
+            Assert.Equal(rootA, cold.ReadEntry(cold.ReadTag("old-cu").Unwrap().Entries[a0.HeadId]).Unwrap().Payload.ToArray());
+            HeadSetTagInfo info = cold.ReadTagInfo("old-cu").Unwrap();
+            Assert.Equal(1, info.EntryCount);
+            Assert.Equal(HeadSetTagScanEnd.Complete, cold.ScanTags(tag => {
                 Assert.Equal(info.Name, tag.Name);
-                Assert.Equal(info.RelatedTicket, tag.RelatedTicket);
+                Assert.Equal(info.EntryCount, tag.EntryCount);
                 return true;
             }).Unwrap());
             using var frameA = data.ReadFrame(NamedFrameMapCodec.Decode(cold.ReadHead(child.HeadId).Unwrap().Payload).Unwrap()["state"]).Unwrap();

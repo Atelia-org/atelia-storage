@@ -38,11 +38,11 @@ public sealed class AuditActiveGuardTests {
     public void TagVisitorAuditRejectionDoesNotCloseCurrentBucketOrCursor() {
         using var f = new AuditFaultFixture();
         f.SeedTagBucket(AuditFaultFixture.TagName,
-            new TagPublicRecord(AuditFaultFixture.TagName, [1]),
-            new TagPublicRecord(AuditFaultFixture.SameBucketName, [2]));
+            new TagPublicRecord(AuditFaultFixture.TagName, f.TagMembers()),
+            new TagPublicRecord(AuditFaultFixture.SameBucketName, f.TagMembers()));
         int visits = 0;
 
-        TagScanEnd end = f.Store.ScanTags(_ => {
+        HeadSetTagScanEnd end = f.Store.ScanTags(_ => {
             visits++;
             AuditFile bucket = Assert.Single(f.Files.Opened);
             var cursor = Assert.Single(f.Operations.Cursors).Cursor;
@@ -58,7 +58,7 @@ public sealed class AuditActiveGuardTests {
             return true;
         }).Unwrap();
 
-        Assert.Equal(TagScanEnd.Complete, end);
+        Assert.Equal(HeadSetTagScanEnd.Complete, end);
         Assert.Equal(2, visits);
         Assert.Equal(1, Assert.Single(f.Files.Opened).DisposeCalls);
         Assert.Equal(1, Assert.Single(f.Operations.Cursors).Cursor.DisposeCalls);

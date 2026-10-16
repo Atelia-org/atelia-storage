@@ -1,6 +1,6 @@
 # FrameStore / HeadStore 跨层决策与交付
 
-2026-10-16 活跃入口已同步 HeadStore 名称；历史验收与候选仍保持 VersionStore 的来源身份。本轮重命名验证见[重命名记录](../VersionStore/13-headstore-renaming-plan.md)，HeadSetTag 行为替换尚未实施。文档目录、basename 与既有 Clause-ID 保持原样。
+2026-10-16 活跃入口已同步 HeadStore 名称；历史验收与候选仍保持 VersionStore 的来源身份。本轮重命名验证见[重命名记录](../VersionStore/13-headstore-renaming-plan.md)，HeadSetTag格式2行为替换正在实施，实际新增源码/进程/包资格见[14验收记录](../VersionStore/14-headset-tags-acceptance.md)，当前待验收。文档目录、basename 与既有 Clause-ID 保持原样。
 
 2026-10-11 文档按模块归类。查某个库的设计或继续实施，从对应模块入口开始；本目录保留跨层决策、组合验收和包交付。
 

@@ -175,9 +175,7 @@ internal static class ProcessScenario {
                     RequireConfirmed(outcome);
                     break;
                 case "tag-confirmed":
-                    expectedPayload = AppendOpaque(data, generation: 1);
-                    Require(heads.CreateTag(CrashTag, expectedPayload, baseline.Id, out outcome).Unwrap(),
-                        "CreateTag returned false.");
+                    heads.CreateTag(CrashTag, [baseline.Id.HeadId], out outcome).Unwrap();
                     RequireConfirmed(outcome);
                     break;
             }
@@ -272,14 +270,14 @@ internal static class ProcessScenario {
         else { Require(forks.Count == 0, "An unrelated operation created a fork."); }
 
         if (checkpoint == "tag-confirmed") {
-            RootPayload tag = heads.ResolveTag(CrashTag).Unwrap();
-            ValidateOpaque(data, tag.Bytes, expectedPayload, 1);
-            TagInfo info = heads.ReadTagInfo(CrashTag).Unwrap();
-            Require(info.RelatedRefId == current.Id.HeadId
-                && info.RelatedTicket?.Packed == seed.BaselineTicket, "Tag Related coordinates differ from the supplied entryId.");
+            HeadSetTag tag = heads.ReadTag(CrashTag).Unwrap();
+            Require(tag.Entries.Count == 1 && tag.Entries[current.Id.HeadId] == current.Id, "Tag captured another Entry.");
+            ValidateOpaque(data, heads.ReadEntry(tag.Entries[current.Id.HeadId]).Unwrap().Payload, expectedPayload, 0);
+            HeadSetTagInfo info = heads.ReadTagInfo(CrashTag).Unwrap();
+            Require(info.EntryCount == 1, "Tag metadata member count differs.");
         }
         else {
-            var tag = heads.ResolveTag(CrashTag);
+            var tag = heads.ReadTag(CrashTag);
             Require(tag.IsFailure && tag.Error!.ErrorCode == "HeadStore.TagNotFound", "An unpublished tag became visible.");
         }
     }

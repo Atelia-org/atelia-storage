@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Text;
 using Atelia.Data;
 using Atelia.FrameStore;
@@ -15,7 +16,7 @@ if (Directory.Exists(directory) || File.Exists(directory)) {
 Directory.CreateDirectory(directory);
 string dataPath = Path.Combine(directory, "data");
 string headsPath = Path.Combine(directory, "heads");
-const string relatedTag = "selected/历史😀";
+const string selectedTag = "selected/历史😀";
 const string opaqueTag = "opaque/bytes";
 byte[] opaqueInitialBytes = [0xFF, 0x00, 0xC0, 0x80, 0x01];
 byte[] opaqueLatestBytes = [0x00, 0xFF, 0xFE, 0x41, 0x00, 0x42];
@@ -31,8 +32,9 @@ HeadEntryId opaqueLatest;
 HeadEntryId reservedFork;
 HeadEntryId automaticFork;
 HeadEntry selected;
-RootPayload retainedTag;
-TagInfo retainedInfo;
+HeadSetTag retainedTag;
+HeadEntry retainedTagEntry;
+HeadSetTagInfo retainedInfo;
 FrameAddress afterDispose;
 using (var data = DataStore.Create(dataPath, rotationThresholdBytes: 128)) {
     dataIdentity = data.StoreId.ToArray();
@@ -49,6 +51,8 @@ using (var data = DataStore.Create(dataPath, rotationThresholdBytes: 128)) {
         selectedEntryId = heads.PublishHead(initial.HeadId, initialRoots.Payload, out outcome).Unwrap();
         Confirmed(outcome);
         Require(selectedEntryId != initial, "Equal bytes must retain distinct publication entryIds.");
+        retainedTag = heads.CreateTag(selectedTag, [initial.HeadId, opaqueInitial.HeadId], out outcome).Unwrap();
+        Confirmed(outcome);
         latestRoots = WriteRoots(data, generation: 1);
         latest = heads.PublishHead(initial.HeadId, latestRoots.Payload, out outcome).Unwrap();
         Confirmed(outcome);
@@ -75,32 +79,33 @@ using (var data = DataStore.Create(dataPath, rotationThresholdBytes: 128)) {
         VerifyForkHistory(heads, reservedFork, selectedEntryId, initial, initialRoots.Payload);
         VerifyForkHistory(heads, automaticFork, selectedEntryId, initial, initialRoots.Payload);
 
-        Require(heads.CreateTag(relatedTag, selected.Payload, selected.Id, out outcome).Unwrap(), "Related tag creation failed.");
-        Confirmed(outcome);
-        Require(heads.CreateTag(opaqueTag, opaqueInitialBytes, out outcome).Unwrap(), "Anonymous opaque tag creation failed.");
+        heads.CreateTag(opaqueTag, [opaqueInitial.HeadId, reservedFork.HeadId], out outcome).Unwrap();
         Confirmed(outcome);
         opaqueLatest = heads.PublishHead(opaqueInitial.HeadId, opaqueLatestBytes, out outcome).Unwrap();
         Confirmed(outcome);
         Require(heads.ReadHead(opaqueInitial.HeadId).Unwrap().Payload.SequenceEqual(opaqueLatestBytes), "Opaque root bytes were interpreted or changed.");
-        var duplicate = heads.CreateTag(relatedTag, latestRoots.Payload, out outcome);
+        var duplicate = heads.CreateTag(selectedTag, [initial.HeadId], out outcome);
         Require(duplicate.IsFailure && duplicate.Error!.ErrorCode == "HeadStore.DuplicateTagName"
             && outcome == PublicationOutcome.NotAttempted, "An immutable tag was overwritten or attempted publication.");
-        retainedTag = heads.ResolveTag(relatedTag).Unwrap();
-        retainedInfo = heads.ReadTagInfo(relatedTag).Unwrap();
-        Require(retainedTag.Bytes.SequenceEqual(selected.Payload), "The related tag changed after newer publication.");
-        VerifyTags(heads, relatedTag, opaqueTag, selectedEntryId, initialRoots.Payload, opaqueInitialBytes);
+        retainedTag = heads.ReadTag(selectedTag).Unwrap();
+        retainedTagEntry = heads.ReadEntry(retainedTag.Entries[selectedEntryId.HeadId]).Unwrap();
+        retainedInfo = heads.ReadTagInfo(selectedTag).Unwrap();
+        Require(retainedTagEntry.Payload.SequenceEqual(selected.Payload), "The tagged historical Entry changed after newer publication.");
+        VerifyTags(heads, selectedTag, opaqueTag, selectedEntryId, opaqueInitial, reservedFork, initialRoots.Payload, opaqueInitialBytes);
         VerifyRoots(data, heads.ReadHead(initial.HeadId).Unwrap().Payload, latestRoots);
-        VerifyRoots(data, retainedTag.Bytes, initialRoots);
+        VerifyRoots(data, retainedTagEntry.Payload, initialRoots);
     }
     // The caller owns borrowed data. Closing VS leaves it usable for further work.
     data.EnsureUsable();
     afterDispose = data.Append(99, "after-versionstore-dispose"u8).Unwrap();
     data.ConfirmDurable();
 }
-Require(selected.Id == selectedEntryId && selected.Payload.SequenceEqual(retainedTag.Bytes),
+Require(selected.Id == selectedEntryId && selected.Payload.SequenceEqual(retainedTagEntry.Payload),
     "Owned entry/tag bytes depend on either disposed owner.");
-VerifyRelated(retainedInfo, relatedTag, selectedEntryId);
-Require(NamedFrameMapCodec.Decode(retainedTag.Bytes).Unwrap()["工作区/😀"] == initialRoots.Roots["工作区/😀"],
+Require(retainedTag.Entries.Count == 2 && retainedTag.Entries[selectedEntryId.HeadId] == selectedEntryId
+    && retainedTag.Entries[opaqueInitial.HeadId] == opaqueInitial, "The retained member table depends on disposed owners.");
+VerifyInfo(retainedInfo, selectedTag, 2);
+Require(NamedFrameMapCodec.Decode(retainedTagEntry.Payload).Unwrap()["工作区/😀"] == initialRoots.Roots["工作区/😀"],
     "Owned decoded addresses changed after Dispose.");
 
 HeadStoreAudit audit;
@@ -128,8 +133,8 @@ using (var data = DataStore.OpenReadOnly(dataPath)) {
         Require(opaque.Id == opaqueLatest && opaque.Payload.SequenceEqual(opaqueLatestBytes), "Cold opaque root bytes changed.");
         Require(History(heads, opaqueInitial.HeadId).Select(entry => entry.Id)
             .SequenceEqual(new[] { opaqueLatest, opaqueInitial }), "Cold opaque history changed.");
-        VerifyTags(heads, relatedTag, opaqueTag, selectedEntryId, initialRoots.Payload, opaqueInitialBytes);
-        VerifyRoots(data, heads.ResolveTag(relatedTag).Unwrap().Bytes, initialRoots);
+        VerifyTags(heads, selectedTag, opaqueTag, selectedEntryId, opaqueInitial, reservedFork, initialRoots.Payload, opaqueInitialBytes);
+        VerifyRoots(data, heads.ReadEntry(heads.ReadTag(selectedTag).Unwrap().Entries[selectedEntryId.HeadId]).Unwrap().Payload, initialRoots);
         audit = heads.Audit().Unwrap();
         Require(audit.HeadCount == 4 && audit.EntryCount == 7 && audit.OriginCount == 2 && audit.TagCount == 2
             && audit.TagBucketCount is >= 1 and <= 2, "Complete read-only Audit returned unexpected physical totals.");
@@ -144,8 +149,8 @@ using (var data = DataStore.OpenReadOnly(dataPath)) {
 }
 HeadStoreAudit batchAudit = VerifyBatchPublication(directory);
 VerifyReservableWriters();
-Console.WriteLine($"HeadStore public package smoke passed: {audit.HeadCount} refs, {audit.EntryCount} entries, {audit.OriginCount} forks, {audit.TagCount} tags, {dataFrames} data frames; NamedFrameMap/opaque publish, exact history, immutable tags and cold read-only Audit.");
-Console.WriteLine($"HeadStore package increments passed: {batchAudit.HeadCount} isolated refs, {batchAudit.EntryCount} entries; single/CU PublishHeads, exact ReadEntry, both-layer cold reopen, EnsureUsable, healthy RecoveryReports and transitive Data borrow/cancel.");
+Console.WriteLine($"HeadStore public package smoke passed: {audit.HeadCount} heads, {audit.EntryCount} entries, {audit.OriginCount} forks, {audit.TagCount} tags, {dataFrames} data frames; named member tables, exact tagged history/fork identities and cold read-only Audit.");
+Console.WriteLine($"HeadStore package increments passed: {batchAudit.HeadCount} isolated heads, {batchAudit.EntryCount} entries; format 2, CU subset/pair tags, single/CU PublishHeads, exact ReadEntry, both-layer cold reopen, EnsureUsable, healthy RecoveryReports and transitive Data borrow/cancel.");
 Console.WriteLine($"Retained smoke files: {directory}");
 
 static HeadStoreAudit VerifyBatchPublication(string directory) {
@@ -194,6 +199,14 @@ static HeadStoreAudit VerifyBatchPublication(string directory) {
         Require(heads.ReadHead(cuA.HeadId).Unwrap().Id == cuA
             && heads.ReadHead(cuB.HeadId).Unwrap().Id == cuB, "CU did not install both member heads.");
 
+        HeadSetTag subset = heads.CreateTag("cu-subset", [cuA.HeadId], out outcome).Unwrap();
+        Confirmed(outcome);
+        Require(subset.Entries.Count == 1 && subset.Entries[cuA.HeadId] == cuA, "Unselected CU peer leaked into the tag.");
+        HeadSetTag pair = heads.CreateTag("cu-pair", [cuB.HeadId, cuA.HeadId], out outcome).Unwrap();
+        Confirmed(outcome);
+        Require(pair.Entries.Count == 2 && pair.Entries[cuA.HeadId] == cuA && pair.Entries[cuB.HeadId] == cuB,
+            "Tag tore a jointly published group.");
+
         // Cover one CU member with a later ordinary Entry; the old complete group remains readable.
         var latestPublication = heads.PublishHeads(new Dictionary<HeadId, ReadOnlyMemory<byte>> {
             [initialA.HeadId] = latestABytes
@@ -209,6 +222,7 @@ static HeadStoreAudit VerifyBatchPublication(string directory) {
         expected.Add(cuB, cuBBytes);
         expected.Add(latestA, latestABytes);
         VerifyBatchReads(heads, expected, latestA, cuB);
+        VerifyBatchTags(heads, cuA, cuB, cuABytes, cuBBytes);
         Require(retainedReports.Count == 0, "Healthy batch publication unexpectedly recovered a tail.");
     }
     Require(retainedReports.Count == 0, "The saved recovery view became unreadable or changed after Dispose.");
@@ -221,17 +235,28 @@ static HeadStoreAudit VerifyBatchPublication(string directory) {
     using (var data = DataStore.Open(dataPath))
     using (var heads = Heads.Open(headsPath, data)) {
         VerifyBatchReads(heads, expected, latestA, cuB);
+        VerifyBatchTags(heads, cuA, cuB, cuABytes, cuBBytes);
         Require(heads.RecoveryReports.Count == 0, "Healthy writable reopen unexpectedly repaired a ref.");
     }
     using (var data = DataStore.OpenReadOnly(dataPath))
     using (var heads = Heads.OpenReadOnly(headsPath, data)) {
         VerifyBatchReads(heads, expected, latestA, cuB);
+        VerifyBatchTags(heads, cuA, cuB, cuABytes, cuBBytes);
         HeadStoreAudit audit = heads.Audit().Unwrap();
         Require(audit.HeadCount == 2 && audit.EntryCount == 6 && audit.OriginCount == 0
-            && audit.TagCount == 0 && audit.TagBucketCount == 0, "Isolated batch Audit returned unexpected totals.");
+            && audit.TagCount == 2 && audit.TagBucketCount is >= 1 and <= 2, "Isolated batch Audit returned unexpected totals.");
         Require(heads.RecoveryReports.Count == 0, "Read-only batch verification reported a repair.");
         return audit;
     }
+}
+
+static void VerifyBatchTags(Heads heads, HeadEntryId a, HeadEntryId b, byte[] aBytes, byte[] bBytes) {
+    HeadSetTag subset = heads.ReadTag("cu-subset").Unwrap();
+    HeadSetTag pair = heads.ReadTag("cu-pair").Unwrap();
+    Require(subset.Entries.Count == 1 && subset.Entries[a.HeadId] == a, "Cold tag subset changed or included its CU peer.");
+    Require(pair.Entries.Count == 2 && pair.Entries[a.HeadId] == a && pair.Entries[b.HeadId] == b, "Cold CU tag changed its fixed positions.");
+    Require(heads.ReadEntry(pair.Entries[a.HeadId]).Unwrap().Payload.SequenceEqual(aBytes)
+        && heads.ReadEntry(pair.Entries[b.HeadId]).Unwrap().Payload.SequenceEqual(bBytes), "Cold tagged CU Entries were not exactly readable.");
 }
 
 static void VerifyBatchReads(Heads heads, IReadOnlyDictionary<HeadEntryId, byte[]> expected,
@@ -252,6 +277,12 @@ static void VerifyBatchReads(Heads heads, IReadOnlyDictionary<HeadEntryId, byte[
 static void VerifyPublicationKind(string headsPath, HeadEntryId entryId, uint expectedTag) {
     string headPath = Path.Combine(headsPath, "refs", $"{entryId.HeadId.LocalId:x8}.rbf");
     using var file = RbfFile.OpenReadOnlyExisting(headPath, RbfCacheMode.Off);
+    var scan = file.ScanForward().GetEnumerator();
+    Require(scan.MoveNext(), "Package-created Head is missing its header.");
+    using (var header = file.ReadPooledFrame(scan.Current.Ticket).Unwrap()) {
+        Require(header.Tag == 0 && BinaryPrimitives.ReadUInt32LittleEndian(header.PayloadAndMeta) == 2,
+            "The public package did not create HeadStore format 2.");
+    }
     using var frame = file.ReadPooledFrame(entryId.Ticket).Unwrap();
     Require(frame.Ticket == entryId.Ticket && frame.Tag == expectedTag && frame.TailMetaLength == 8
         && !frame.IsTombstone, "PublishHeads chose a different physical Entry/CU record kind.");
@@ -366,27 +397,30 @@ static void VerifyForks(Heads heads, HeadEntryId selected, HeadEntryId initial, 
     }
 }
 
-static void VerifyTags(Heads heads, string relatedName, string opaqueName, HeadEntryId selected,
-    byte[] relatedBytes, byte[] opaqueBytes) {
-    Require(heads.ResolveTag(relatedName).Unwrap().Bytes.SequenceEqual(relatedBytes), "Related immutable tag bytes changed.");
-    Require(heads.ResolveTag(opaqueName).Unwrap().Bytes.SequenceEqual(opaqueBytes), "Anonymous immutable tag bytes changed with its ref.");
-    VerifyRelated(heads.ReadTagInfo(relatedName).Unwrap(), relatedName, selected);
-    var scanned = new Dictionary<string, TagInfo>(StringComparer.Ordinal);
-    TagScanEnd end = heads.ScanTags(info => {
+static void VerifyTags(Heads heads, string selectedName, string opaqueName, HeadEntryId selected,
+    HeadEntryId opaque, HeadEntryId fork, byte[] selectedBytes, byte[] opaqueBytes) {
+    HeadSetTag selectedTag = heads.ReadTag(selectedName).Unwrap();
+    Require(selectedTag.Entries.Count == 2 && selectedTag.Entries[selected.HeadId] == selected
+        && selectedTag.Entries[opaque.HeadId] == opaque, "Selected member table changed after later publications.");
+    HeadSetTag forkTag = heads.ReadTag(opaqueName).Unwrap();
+    Require(forkTag.Entries.Count == 2 && forkTag.Entries[opaque.HeadId] == opaque
+        && forkTag.Entries[fork.HeadId] == fork, "Tag lost the fork child identity.");
+    Require(heads.ReadEntry(selectedTag.Entries[selected.HeadId]).Unwrap().Payload.SequenceEqual(selectedBytes), "Tagged historical Entry bytes changed.");
+    Require(heads.ReadEntry(forkTag.Entries[opaque.HeadId]).Unwrap().Payload.SequenceEqual(opaqueBytes), "Tagged opaque Entry bytes changed.");
+    Require(heads.ReadEntry(forkTag.Entries[fork.HeadId]).Unwrap().Payload.SequenceEqual(selectedBytes), "Tagged fork Entry bytes changed.");
+    VerifyInfo(heads.ReadTagInfo(selectedName).Unwrap(), selectedName, 2);
+    var scanned = new Dictionary<string, HeadSetTagInfo>(StringComparer.Ordinal);
+    HeadSetTagScanEnd end = heads.ScanTags(info => {
         Require(scanned.TryAdd(info.Name, info), "ScanTags repeated a tag name.");
         return true;
     }).Unwrap();
-    Require(end == TagScanEnd.Complete && scanned.Count == 2, "Tag metadata scan was incomplete.");
-    VerifyRelated(scanned[relatedName], relatedName, selected);
-    TagInfo anonymous = heads.ReadTagInfo(opaqueName).Unwrap();
-    Require(anonymous.Name == opaqueName && anonymous.RelatedRefId is null && anonymous.RelatedTicket is null
-        && scanned[opaqueName].RelatedRefId is null && scanned[opaqueName].RelatedTicket is null,
-        "Anonymous tag acquired a related coordinate.");
+    Require(end == HeadSetTagScanEnd.Complete && scanned.Count == 2, "Tag metadata scan was incomplete.");
+    VerifyInfo(scanned[selectedName], selectedName, 2);
+    VerifyInfo(scanned[opaqueName], opaqueName, 2);
 }
 
-static void VerifyRelated(TagInfo info, string name, HeadEntryId entryId) {
-    Require(info.Name == name && info.RelatedRefId == entryId.HeadId && info.RelatedTicket == entryId.Ticket,
-        "Tag metadata changed its optional related coordinate.");
+static void VerifyInfo(HeadSetTagInfo info, string name, int count) {
+    Require(info.Name == name && info.EntryCount == count, "Tag metadata changed its name or member count.");
 }
 
 static void Confirmed(PublicationOutcome outcome) {

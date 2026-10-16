@@ -1,14 +1,13 @@
 using System.Buffers;
 using Atelia.Binary;
-using Atelia.Data;
 using Atelia.Data.Hashing;
 using Atelia.HeadStore.Internal.Format;
 
 namespace Atelia.HeadStore.Internal.Tags;
 
-// 这些自有声明值没有源读取能力，也不能独立签发 HeadEntryId。
+// 这些独立元信息只声明成员数量；不能据此签发 HeadEntryId 或证明成员表健康。
 internal readonly record struct TagMetadata(
-    string Name, long RecordedAtUnixMs, HeadId? RelatedRefId, SizedPtr? RelatedTicket);
+    string Name, long RecordedAtUnixMs, int EntryCount);
 
 /// <summary>物化输出前保存的轻量名称计划与精确元信息尺寸。</summary>
 internal readonly struct TagMetadataEncodingPlan {
@@ -25,46 +24,39 @@ internal readonly struct TagMetadataEncodingPlan {
 
 /// <summary>独立 CRC 的可变 TailMeta；只处理已解 escape 的逻辑 buffer。</summary>
 internal static class TagMetadataCodec {
-    internal const int MinEncodedSize = 15;
-    internal const int MaxEncodedSize = 3104;
+    internal const int MinEncodedSize = 18;
+    internal const int MaxEncodedSize = 3093;
     internal const int MaxNamePayloadByteCount = 3072;
     internal const int MaxNameCodewordLength = 3077;
 
     internal static TagMetadataEncodingPlan Prepare(string name, long recordedAtUnixMs,
-        StoreIdentity identity, HeadId? relatedRefId = null, SizedPtr? relatedTicket = null) {
+        StoreIdentity identity, int entryCount) {
         StringEncodingPlan namePlan = TagNameCodec.PrepareName(name);
         if (identity == default) {
             throw new ArgumentException("A checked HeadStore identity is required.", nameof(identity));
         }
-        if (relatedRefId.HasValue != relatedTicket.HasValue
-            || (relatedRefId is HeadId headId && !headId.BelongsTo(identity))
-            || (relatedTicket is SizedPtr ticket && !IsValidDeclaredTicket(ticket))) {
-            throw new ArgumentException("Related coordinates must contain a same-store nondefault HeadId and a nonempty ticket.");
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(entryCount);
 
         long nameLength = namePlan.EncodedLength;
-        uint localId = relatedRefId?.LocalId ?? 0;
-        long encodedLength = checked(sizeof(long) + (long)BareValueEncoding.MeasureVarUInt32(localId)
-            + (relatedTicket is SizedPtr related ? BareValueEncoding.MeasureVarUInt64(related.Serialize()) : 0)
-            + nameLength + sizeof(uint));
+        long encodedLength = checked(sizeof(long) + sizeof(uint) + nameLength + sizeof(uint));
         if (nameLength > MaxNameCodewordLength || encodedLength is < MinEncodedSize or > MaxEncodedSize) {
             throw new ArgumentOutOfRangeException(nameof(name), "The prepared tag metadata exceeds the format capacity.");
         }
         return new TagMetadataEncodingPlan(
-            new TagMetadata(name, recordedAtUnixMs, relatedRefId, relatedTicket), namePlan, checked((int)encodedLength));
+            new TagMetadata(name, recordedAtUnixMs, entryCount), namePlan, checked((int)encodedLength));
     }
 
     // 调用方先消费 EncodedLength 完成公共 RBF 尺寸及真实起点预检，再物化最终 meta。
     internal static byte[] Encode(in TagMetadataEncodingPlan plan) {
-        if (plan.EncodedLength is < MinEncodedSize or > MaxEncodedSize) {
+        if (plan.EncodedLength is < MinEncodedSize or > MaxEncodedSize
+            || !TagRecordCodec.IsValidEntryCount((uint)plan.Metadata.EntryCount, plan.EncodedLength)) {
             throw new ArgumentException("An initialized tag metadata plan is required.", nameof(plan));
         }
         var output = new MetadataBuffer(plan.EncodedLength);
         var writer = new BareValueWriter(output);
         TagMetadata metadata = plan.Metadata;
         writer.WriteInt64LE(metadata.RecordedAtUnixMs);
-        writer.WriteVarUInt32(metadata.RelatedRefId?.LocalId ?? 0);
-        if (metadata.RelatedTicket is SizedPtr ticket) { writer.WriteVarUInt64(ticket.Serialize()); }
+        writer.WriteUInt32LE(checked((uint)metadata.EntryCount));
         StringEncodingPlan namePlan = plan.NamePlan;
         writer.WriteString(in namePlan);
         writer.WriteUInt32LE(0);
@@ -85,29 +77,21 @@ internal static class TagMetadataCodec {
         try {
             var reader = new BareValueReader(source[..^sizeof(uint)]);
             long recordedAtUnixMs = reader.ReadInt64LE();
-            uint localId = reader.ReadVarUInt32();
-            HeadId? relatedRefId = null;
-            SizedPtr? relatedTicket = null;
-            if (localId != 0) {
-                SizedPtr ticket = SizedPtr.Deserialize(reader.ReadVarUInt64());
-                if (!IsValidDeclaredTicket(ticket)) { return false; }
-                relatedRefId = HeadId.Create(identity, localId);
-                relatedTicket = ticket;
-            }
+            uint count = reader.ReadUInt32LE();
+            if (!TagRecordCodec.IsValidEntryCount(count, source.Length)) { return false; }
+            int entryCount = checked((int)count);
             int nameStart = reader.ConsumedCount;
             string name = reader.ReadString(MaxNamePayloadByteCount);
             int actualNameLength = reader.ConsumedCount - nameStart;
             reader.EnsureFullyConsumed();
             if (actualNameLength > MaxNameCodewordLength || !TagNameCodec.IsValidName(name)
                 || TagNameCodec.GetBucketId(name) != expectedBucketId) { return false; }
-            metadata = new TagMetadata(name, recordedAtUnixMs, relatedRefId, relatedTicket);
+            metadata = new TagMetadata(name, recordedAtUnixMs, entryCount);
             return true;
         }
         catch (InvalidDataException) { return false; }
         catch (EndOfStreamException) { return false; }
     }
-
-    private static bool IsValidDeclaredTicket(SizedPtr ticket) => ticket != default && ticket.Length > 0;
 
     // Scalar BPV writers request their maximum width. A 10B scratch satisfies a late hint
     // without growing the exact final meta array; only the actually advanced bytes are copied.

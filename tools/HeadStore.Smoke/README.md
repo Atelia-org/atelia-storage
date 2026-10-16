@@ -1,6 +1,6 @@
 # HeadStore source-only public consumer
 
-这是独立 console consumer，只直接 `ProjectReference` 主线 `HeadStore`，经其依赖使用 FrameStore、Rbf、Binary/Data 的 public API；`IsPackable=false`。没有 `InternalsVisibleTo`、反射、internal API、EventJournal/RbfSegmentStore 或业务依赖。它不是 PackageReference、公开包交付或 DurableGraph 接入证据。
+这是独立 console consumer，只直接 `ProjectReference` 主线 `HeadStore`，经其依赖使用 FrameStore、Rbf、Binary/Data 的 public API；`IsPackable=false`。没有 `InternalsVisibleTo`、反射、internal API、EventJournal/RbfSegmentStore 或业务依赖。它不是PackageReference、公开包交付或DurableGraph接入证据。本轮迁移格式2/HeadSetTag，当前待验收；实际运行与进程结果见[14记录](../../docs/VersionStore/14-headset-tags-acceptance.md)，旧统计仅保留原轮资格。
 
 先在仓根串行完成 Release 构建，然后用两个独立进程写入与冷读；`graph-write` 的应用 root 必须缺失或为空，不自动删除已有数据：
 
@@ -16,9 +16,9 @@ Linux 命令相同，换成 Linux 文件系统上的 fresh 路径。graph 成功
 
 已知尺寸 Builder 在写内容前取得地址，先写第一份 node 的前缀，再写/完成第二份 node，最后完成第一份 node；多代图交换 A/B 的申请顺序。每代同时覆盖普通 buffer `Append`、未知尺寸 `BeginAppend()` 与已知尺寸 `BeginAppend(..., out address)`，只依据实际返回地址读取，断言循环跨文件。采用128B软轮转阈值；六代图共24个应用帧。
 
-版本流程包括指定 Head 1、相同 bytes 重复发布及新旧 generation 分离；历史 visitor 停在非 head 的精确 EntryId，调用返回后分别创建预留 Head 2 与自动 Head 3，再独立推进。Head 2 的公开 head 再自动 fork 为 Head 4；来源后续推进不会扩大子 Head 的继承前缀。Head 1 rewind 追加旧 bytes，创建历史/rewind关联 tag 和分支匿名 tag，再推进来源。
+版本流程包括指定 Head 1、相同 bytes 重复发布及新旧 generation 分离；历史 visitor 停在非 head 的精确 EntryId，调用返回后分别创建预留 Head 2 与自动 Head 3，再独立推进。Head 2 的公开 head 再自动 fork 为 Head 4；来源后续推进不会扩大子 Head 的继承前缀。SelectedTag在duplicate仍为当前值时创建，之后历史读取选取该点；Head 1 rewind追加旧bytes后捕获其当前位置。BranchTag同时捕获branch2与deepFork子Head，随后来源推进不改各tag成员。
 
-冷读核对四个完整 NamedFrameMap、所有实际 node/self/peer 地址、完整继承历史、三条精确 ForkOrigin 声明、三份不可变 tag、`ReadTagInfo/ScanTags` 关联坐标及保存时间。独立只读 `HeadStore.Audit` 应得到4 Heads、11个物理本地 entries、3 forks、3 tags；随后 FrameStore `Audit` 校验24个图帧。返回的快照、RootPayload、TagInfo 和解码字典在两个 owner Dispose 后再次使用。
+冷读核对四个完整 NamedFrameMap、所有实际 node/self/peer 地址、完整继承历史、三条精确 ForkOrigin 声明、三份不可变 tag、`ReadTagInfo/ScanTags`成员数与保存时间，并用ReadTag成员ID精确读取原bytes。独立只读 `HeadStore.Audit` 应得到4 Heads、11个物理本地 entries、3 forks、3 tags；随后 FrameStore `Audit` 校验24个图帧。返回的HeadEntry、HeadSetTag、HeadSetTagInfo和解码字典在两个 owner Dispose 后再次使用。
 
 下游公面完善后，graph 场景还用 `ReadEntry` 精确重读历史选点并核对 identity/time/bytes，在保存根的使用前调用组合 `EnsureUsable()`，从 `FrameRead.Payload` 读取应用数据；交错 Builder 检查用户 `Length` 从0累计且重复 getter 不重置。本场景属于 public ProjectReference 验证，不代表这些增量已进入旧候选包。
 
@@ -48,7 +48,7 @@ dotnet test tests/HeadStore.Tests/HeadStore.Tests.csproj -c Release --no-build -
 
 [DynamicHeadScenario.cs](DynamicHeadScenario.cs) 用一个独立应用目录 Head 1 指向已登记对象 Head 2；公开自动创建 Head 3 返回 `Confirmed` 后，尚未调用目录 `PublishHead` 就输出 READY 并保持两层 owner。父测试核对 READY/当前 PID 并实际 kill。两个新进程分别以 RO 冷开，检查 `ListHeads` 含 Head 3、目录仍只指向 Head 2、目录与新对象的完整 ticket/bytes 保持原值，并从 Head 3 payload 识别业务 `ObjectId`。夹具 manifest 只记录实验预期，不增加目录协议或自动补登记策略。
 
-[TagGoldenScenario.cs](TagGoldenScenario.cs) 固定消费 [09](../../docs/VersionStore/09-versionstore-immutable-tags.md) 与 `TagNameTests` 的独立向量：`A → 00000351`、`Release → 00000174`、`release → 000001aa`、单 code unit `U+D800 → 00000265`，`tag-48/tag-65 → 00000106`。consumer 不复制 hash/路由算法；名称按原 UTF-16 code units/Ordinal 检查，输出 code unit hex 避免 JSON 替换 lone surrogate。writer 正常关闭双方 owner 并退出，两个独立新进程核对完整不同 payload、`ReadTagInfo/ScanTags` 时间及匿名/Related 元信息，以及源继续发布后保持的旧 Related 坐标；经 public RBF/Binary/CRC API 另观察固定路径、RBF3 桶头和每条完整记录至正常 EOF。父测试独立比对实际桶路径和固定 code units、writer/read 的 payload/metadata，并在每次冷读后比对整棵目录清单及 SHA-256 不变。
+[TagGoldenScenario.cs](TagGoldenScenario.cs) 固定消费 [09](../../docs/VersionStore/09-versionstore-immutable-tags.md) 与 `TagNameTests` 的独立向量：`A → 00000351`、`Release → 00000174`、`release → 000001aa`、单 code unit `U+D800 → 00000265`，`tag-48/tag-65 → 00000106`。consumer 不复制 hash/路由算法；名称按原 UTF-16 code units/Ordinal 检查，输出 code unit hex 避免 JSON 替换 lone surrogate。writer 正常关闭双方 owner 并退出，两个独立新进程核对六份单成员tag及各自exact Entry payload、`ReadTagInfo/ScanTags`时间与EntryCount，以及源继续发布后固定的旧成员坐标；经public RBF/Binary/CRC API另观察固定路径、版本2桶头、12B成员项与time/count/name/metaCRC至正常EOF。场景共6 tags/5 buckets/8 entries。父测试独立比对实际桶路径和固定 code units、writer/read 的 payload/metadata，并在每次冷读后比对整棵目录清单及 SHA-256 不变。
 
 ```powershell
 dotnet run --project tools/HeadStore.Smoke -c Release --no-build -- tag-golden-write E:/temp/headstore-tag-golden
@@ -91,8 +91,8 @@ dotnet run --project tools/HeadStore.Smoke -c Release --no-build -- resource-wri
 dotnet run --project tools/HeadStore.Smoke -c Release --no-build -- resource-read E:/temp/headstore-resource-64
 ```
 
-向量包括来源继续增长后的精确 fork 继承、同桶聚集的 tag、三次重复发现/历史/元信息/完整校验，以及独立 owner 上的全 Head 当前值缓存对照。 写进程另测关闭后的新 RW owner 打开与连续 CreateTag 批次（含 ReadHead 捕获）；ForkHead 创建本身未独立计时。输出单行 JSON 保留每次操作耗时、累计托管分配与区间外资源快照。Windows 的进程总 handle 和 Linux 的 fd 不具有相同口径；Linux 另检查指向夹具根的实际 fd。RSS、GC heap 与进程总句柄只作观察，不作为吞吐或任意规模无泄漏的保证；采样点不表示操作中的真实峰值。
+向量包括来源继续增长后的精确 fork 继承、同桶聚集的 tag、三次重复发现/历史/元信息/完整校验，以及独立 owner 上的全 Head 当前值缓存对照。 写进程另测关闭后的新 RW owner 打开与连续CreateTag批次（库内部捕获所选Heads当前位置）；ForkHead 创建本身未独立计时。输出单行 JSON 保留每次操作耗时、累计托管分配与区间外资源快照。Windows 的进程总 handle 和 Linux 的 fd 不具有相同口径；Linux 另检查指向夹具根的实际 fd。RSS、GC heap 与进程总句柄只作观察，不作为吞吐或任意规模无泄漏的保证；采样点不表示操作中的真实峰值。
 
 SystemIntegration 中16/64两档分别写一次、在两个新进程冷只读验证，并由父进程独立核对文件清单与SHA-256不变；256档可单独运行。具体测量范围、样本与平台结论见[实施计划](../../docs/VersionStore/12-versionstore-implementation-plan.md)。
 
-该模型只证明公开组合和应用自行解释的图。Audit 不替代应用引用闭包检查；tag 关联注记不授予 HeadEntryId/ForkHead 能力。真实进程终止、Windows/WSL2 Linux、资源规模、故障窗口、隔离包消费与断电资格分别取证，不能由普通图成功推定。
+该模型只证明公开组合和应用自行解释的图。Audit 不替代应用引用闭包检查；ReadTag恢复成员HeadEntryId，ReadEntry/Fork仍重验精确来源，表成功不证明成员健康。真实进程终止、Windows/WSL2 Linux、资源规模、故障窗口、隔离包消费与断电资格分别取证，不能由普通图成功推定。

@@ -65,11 +65,21 @@ internal sealed class AuditFaultFixture : IDisposable {
         return new AuditHeadSeed(id, headerTicket, tickets, payloads);
     }
 
+    internal byte[] TagMembers(uint localId = 1) {
+        string path = Storage.HeadPath(localId);
+        if (!File.Exists(path)) { SeedHead(localId); }
+        using IRbfFile file = RbfFile.OpenReadOnlyExisting(path, RbfCacheMode.Off);
+        foreach (var info in file.ScanReverse()) {
+            return TagPublicFixture.Members(localId, info.Ticket);
+        }
+        throw new InvalidOperationException("Missing seeded member publication.");
+    }
+
     internal AuditTagSeed SeedTagBucket(string name = TagName, params TagPublicRecord[] records) {
         Directory.CreateDirectory(Path.Combine(Storage.Root, "tags"));
         uint bucketId = TagPublicFixture.Bucket(name);
         var header = new byte[24];
-        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(header, 1);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(header, 2);
         Identity.TryWrite(header.AsSpan(4, 16));
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(20), bucketId);
         using IRbfFile file = RbfFile.CreateNew(BucketPath(name), RbfCacheMode.Off);

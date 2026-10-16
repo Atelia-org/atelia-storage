@@ -11,13 +11,12 @@ namespace Atelia.HeadStore.Tests.TagPublic;
 
 public sealed class PublicTagLifecycleTests {
     [Fact]
-    public void MissingOptionalDirectoryRemainsMissingAcrossReadOnlyOpenAndResolve() {
+    public void MissingOptionalDirectoryRemainsMissingAcrossReadOnlyOpenAndRead() {
         using var fixture = new TagPublicFixture();
-        Assert.False(Directory.Exists(fixture.TagsPath));
         var before = fixture.CaptureFiles();
         using (var store = fixture.Open(readOnly: true)) {
-            Assert.Equal("HeadStore.TagNotFound", store.ResolveTag("A").Error!.ErrorCode);
-            Assert.True(store.CreateTag("A", [1], out var outcome).IsFailure);
+            Assert.Equal("HeadStore.TagNotFound", store.ReadTag("A").Error!.ErrorCode);
+            Assert.True(store.CreateTag("A", [default], out var outcome).IsFailure);
             Assert.Equal(PublicationOutcome.NotAttempted, outcome);
         }
         fixture.AssertUnchanged(before);
@@ -27,58 +26,55 @@ public sealed class PublicTagLifecycleTests {
     [Theory]
     [InlineData(1)]
     [InlineData(Store.MaxHeadEntryPayloadLength)]
-    public void AnonymousOpaquePayloadIsCapturedAndSurvivesBothOwnersColdReopen(int length) {
+    public void SelectedEntryIsCapturedAndSurvivesBothOwnersColdReopen(int length) {
         using var fixture = new TagPublicFixture();
-        byte[] backing = new byte[length + 7];
-        new Random(313).NextBytes(backing);
-        backing[3] = 0xff; // Deliberately invalid NamedFrameMap; the bytes contract remains valid.
-        byte[] expected = backing.AsSpan(3, length).ToArray();
-        Assert.True(NamedFrameMapCodec.Decode(expected).IsFailure);
-        RootPayload retained;
+        byte[] expected = new byte[length];
+        new Random(313).NextBytes(expected);
+        HeadSetTag retained;
+        HeadEntryId initial;
         using (var store = fixture.Open()) {
-            Assert.True(store.CreateTag("A", backing.AsSpan(3, length), out var outcome).Unwrap());
+            initial = store.CreateHead(7, expected, out _).Unwrap();
+            HeadId[] backing = [default, initial.HeadId, default];
+            retained = store.CreateTag("A", backing.AsSpan(1, 1), out var outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            Array.Fill(backing, (byte)0x22);
-            retained = store.ResolveTag("A").Unwrap();
-            Assert.Equal(length, retained.Length);
-            Assert.Equal(expected, retained.Bytes.ToArray());
-            Assert.True(store.CreateTag("tag-48", [0x41], out outcome).Unwrap());
-            Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            Assert.Equal(new byte[] { 0x41 }, store.ResolveTag("tag-48").Unwrap().Bytes.ToArray());
-            Assert.True(store.CreateTag("A", expected, out outcome).IsFailure);
+            Array.Clear(backing);
+            store.PublishHead(initial.HeadId, [0x22], out _).Unwrap();
+            Assert.Equal(initial, retained.Entries[initial.HeadId]);
+            Assert.Equal(initial, store.ReadTag("A").Unwrap().Entries[initial.HeadId]);
+            Assert.Equal("HeadStore.DuplicateTagName", store.CreateTag("A", [initial.HeadId], out outcome).Error!.ErrorCode);
             Assert.Equal(PublicationOutcome.NotAttempted, outcome);
-            Assert.Empty(store.ListHeads().Unwrap());
+            Assert.Equal(new[] { initial.HeadId }, store.ListHeads().Unwrap());
         }
         fixture.Data.Dispose();
         using var coldData = DataStore.OpenReadOnly(fixture.DataRoot);
         using var cold = Store.OpenReadOnly(fixture.Root, coldData);
         Assert.Equal(fixture.Identity, cold.HeadStoreId.ToArray());
-        Assert.Equal(expected, cold.ResolveTag("A").Unwrap().Bytes.ToArray());
-        Assert.Equal(expected, retained.Bytes.ToArray());
-        Assert.True(NamedFrameMapCodec.Decode(retained.Bytes).IsFailure);
+        Assert.Equal(initial, cold.ReadTag("A").Unwrap().Entries[initial.HeadId]);
+        Assert.Equal(expected, cold.ReadEntry(retained.Entries[initial.HeadId]).Unwrap().Payload.ToArray());
     }
 
     [Fact]
-    public void ArrayPoolAndStackInputsCanBeReusedImmediatelyAfterConfirmedCreation() {
+    public void ArrayPoolAndStackHeadInputsCanBeReusedImmediatelyAfterConfirmedCreation() {
         using var fixture = new TagPublicFixture();
         using var store = fixture.Open();
-        byte[] rented = ArrayPool<byte>.Shared.Rent(128);
+        HeadEntryId initial = store.CreateHead(7, [0x31], out _).Unwrap();
+        HeadId[] rented = ArrayPool<HeadId>.Shared.Rent(128);
         try {
-            rented.AsSpan().Fill(0x31);
-            Assert.True(store.CreateTag("pooled", rented.AsSpan(17, 3), out var outcome).Unwrap());
+            rented[17] = initial.HeadId;
+            store.CreateTag("pooled", rented.AsSpan(17, 1), out var outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            rented.AsSpan().Fill(0x72);
+            Array.Clear(rented);
         }
-        finally { ArrayPool<byte>.Shared.Return(rented); }
-        Span<byte> stack = stackalloc byte[] { 0xff, 0, 0x81 };
-        Assert.True(store.CreateTag("stack", stack, out var stackOutcome).Unwrap());
+        finally { ArrayPool<HeadId>.Shared.Return(rented); }
+        Span<HeadId> stack = stackalloc HeadId[] { initial.HeadId };
+        store.CreateTag("stack", stack, out var stackOutcome).Unwrap();
         Assert.Equal(PublicationOutcome.Confirmed, stackOutcome);
         stack.Clear();
-        RootPayload saved = store.ResolveTag("pooled").Unwrap();
-        Assert.Equal(new byte[] { 0x31, 0x31, 0x31 }, saved.Bytes.ToArray());
-        Assert.Equal(new byte[] { 0xff, 0, 0x81 }, store.ResolveTag("stack").Unwrap().Bytes.ToArray());
+        HeadSetTag saved = store.ReadTag("pooled").Unwrap();
+        Assert.Equal(initial, saved.Entries[initial.HeadId]);
+        Assert.Equal(initial, store.ReadTag("stack").Unwrap().Entries[initial.HeadId]);
         store.Dispose();
-        Assert.Equal(new byte[] { 0x31, 0x31, 0x31 }, saved.Bytes.ToArray());
+        Assert.Equal(initial, saved.Entries[initial.HeadId]);
     }
 
     [Fact]
@@ -90,29 +86,29 @@ public sealed class PublicTagLifecycleTests {
             new string((char)0xD800, 1), new string((char)0xDC00, 1), new string((char)0xD800, 1024),
             string.Concat(Enumerable.Repeat("\uD83D\uDE00", 512))
         ];
+        HeadEntryId[] entries = new HeadEntryId[names.Length];
         using (var store = fixture.Open()) {
             for (int index = 0; index < names.Length; index++) {
-                Assert.True(store.CreateTag(names[index], [(byte)index], out var outcome).Unwrap());
+                entries[index] = store.CreateHead((uint)index + 1, [(byte)index], out _).Unwrap();
+                store.CreateTag(names[index], [entries[index].HeadId], out var outcome).Unwrap();
                 Assert.Equal(PublicationOutcome.Confirmed, outcome);
             }
             for (int index = 0; index < names.Length; index++) {
-                Assert.Equal(new[] { (byte)index }, store.ResolveTag(names[index]).Unwrap().Bytes.ToArray());
+                Assert.Equal(entries[index], Assert.Single(store.ReadTag(names[index]).Unwrap().Entries).Value);
             }
         }
-        Assert.True(File.Exists(Path.Combine(fixture.TagsPath, "00000351.rbf")));
-        Assert.True(File.Exists(Path.Combine(fixture.TagsPath, "00000174.rbf")));
-        Assert.True(File.Exists(Path.Combine(fixture.TagsPath, "000001aa.rbf")));
-        Assert.True(File.Exists(Path.Combine(fixture.TagsPath, "00000106.rbf")));
-        Assert.True(File.Exists(Path.Combine(fixture.TagsPath, "00000265.rbf")));
+        foreach (string bucket in new[] { "00000351.rbf", "00000174.rbf", "000001aa.rbf", "00000106.rbf", "00000265.rbf" }) {
+            Assert.True(File.Exists(Path.Combine(fixture.TagsPath, bucket)));
+        }
         Assert.Equal(names.Select(TagPublicFixture.Bucket).Distinct().Count(), Directory.GetFiles(fixture.TagsPath).Length);
         using var cold = fixture.Open(readOnly: true);
         for (int index = 0; index < names.Length; index++) {
-            Assert.Equal(new[] { (byte)index }, cold.ResolveTag(names[index]).Unwrap().Bytes.ToArray());
+            Assert.Equal(entries[index], Assert.Single(cold.ReadTag(names[index]).Unwrap().Entries).Value);
         }
     }
 
     [Fact]
-    public void InvalidNamesAndPayloadLengthsRejectBeforeOpeningPoisonedTargetBuckets() {
+    public void InvalidNamesAndEmptySelectionRejectBeforeOpeningPoisonedTargetBuckets() {
         using var fixture = new TagPublicFixture();
         string tooLong = new('A', 1025);
         Directory.CreateDirectory(fixture.TagsPath);
@@ -120,27 +116,27 @@ public sealed class PublicTagLifecycleTests {
         var before = fixture.CaptureFiles();
         using (var store = fixture.Open()) {
             foreach (string? name in new string?[] { null, "", tooLong, string.Concat(Enumerable.Repeat("\uD83D\uDE00", 513)) }) {
-                Assert.True(store.CreateTag(name!, [1], out var outcome).IsFailure);
+                Assert.True(store.CreateTag(name!, [default], out var outcome).IsFailure);
                 Assert.Equal(PublicationOutcome.NotAttempted, outcome);
-                Assert.True(store.ResolveTag(name!).IsFailure);
+                Assert.True(store.ReadTag(name!).IsFailure);
             }
-            foreach (int length in new[] { 0, Store.MaxHeadEntryPayloadLength + 1 }) {
-                Assert.True(store.CreateTag("A", new byte[length], out var outcome).IsFailure);
-                Assert.Equal(PublicationOutcome.NotAttempted, outcome);
-            }
+            Assert.True(store.CreateTag("A", [], out var rejected).IsFailure);
+            Assert.Equal(PublicationOutcome.NotAttempted, rejected);
             Assert.Empty(store.ListHeads().Unwrap());
         }
         fixture.AssertUnchanged(before);
         using var healthy = fixture.Open();
-        Assert.True(healthy.CreateTag("other", [1], out var confirmed).Unwrap());
+        HeadId head = healthy.CreateHead(1, [1], out _).Unwrap().HeadId;
+        healthy.CreateTag("other", [head], out var confirmed).Unwrap();
         Assert.Equal(PublicationOutcome.Confirmed, confirmed);
     }
 
     [Fact]
-    public void CreationWritesAnAnonymousRecordWithItsOwnPreparationTimeAndCheckedMetadata() {
+    public void CreationWritesFixedCountWithItsOwnPreparationTimeAndCheckedMetadata() {
         using var fixture = new TagPublicFixture();
+        HeadId head = fixture.SeedHead();
         long before = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        using (var store = fixture.Open()) { Assert.True(store.CreateTag("A", [0xff], out _).Unwrap()); }
+        using (var store = fixture.Open()) { store.CreateTag("A", [head], out _).Unwrap(); }
         long after = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         using IRbfFile file = RbfFile.OpenReadOnlyExisting(fixture.BucketPath("A"), RbfCacheMode.Off);
         var forward = file.ScanForward(showTombstone: true).GetEnumerator();
@@ -152,13 +148,14 @@ public sealed class PublicTagLifecycleTests {
         }
         Assert.True(forward.MoveNext());
         Assert.Equal(1u, forward.Current.Tag);
+        Assert.Equal(12, forward.Current.PayloadLength);
         using var metadata = forward.Current.ReadPooledTailMeta().Unwrap();
         Assert.True(RollingCrc.CheckCodewordForward(metadata.TailMeta));
         Assert.InRange(BinaryPrimitives.ReadInt64LittleEndian(metadata.TailMeta), before, after);
-        var fields = new BareValueReader(metadata.TailMeta[8..^4]);
-        Assert.Equal(0u, fields.ReadVarUInt32());
+        Assert.Equal(1u, BinaryPrimitives.ReadUInt32LittleEndian(metadata.TailMeta[8..]));
+        var fields = new BareValueReader(metadata.TailMeta[12..^4]);
         Assert.Equal("A", fields.ReadString(3072));
-        Assert.Equal(metadata.TailMeta.Length - 12, fields.ConsumedCount); // No RelatedTicket for id0.
+        Assert.Equal(metadata.TailMeta.Length - 16, fields.ConsumedCount);
         Assert.False(forward.MoveNext());
         Assert.Null(forward.TerminationError);
     }
@@ -170,7 +167,7 @@ public sealed class PublicTagLifecycleTests {
         using (var store = fixture.Open()) { initial = store.CreateHead(7, [0x41], out _).Unwrap(); }
         byte[] originalHead = File.ReadAllBytes(fixture.HeadPath(7));
         using (var store = fixture.Open()) {
-            Assert.True(store.CreateTag("A", [0x41], out _).Unwrap());
+            store.CreateTag("A", [initial.HeadId], out _).Unwrap();
             Assert.Equal(new[] { initial.HeadId }, store.ListHeads().Unwrap());
         }
         Assert.Equal(originalHead, File.ReadAllBytes(fixture.HeadPath(7)));
@@ -178,24 +175,24 @@ public sealed class PublicTagLifecycleTests {
         using (var store = fixture.Open()) {
             store.PublishHead(initial.HeadId, [0x42], out _).Unwrap();
             Assert.Equal(257u, store.CreateHead([0x43], out _).Unwrap().HeadId.LocalId);
-            Assert.Equal(new byte[] { 0x41 }, store.ResolveTag("A").Unwrap().Bytes.ToArray());
+            Assert.Equal(initial, store.ReadTag("A").Unwrap().Entries[initial.HeadId]);
         }
         Assert.Equal(originalTag, File.ReadAllBytes(fixture.BucketPath("A")));
     }
 
     [Fact]
-    public void HistoryCallbackCanResolveTagsAndRejectsTagMutationWithoutCreatingItsBucket() {
+    public void HistoryCallbackCanReadTagsAndRejectsTagMutationWithoutCreatingItsBucket() {
         using var fixture = new TagPublicFixture();
         using var store = fixture.Open();
         HeadEntryId initial = store.CreateHead(7, [1], out _).Unwrap();
         HeadEntryId latest = store.PublishHead(initial.HeadId, [2], out _).Unwrap();
-        store.CreateTag("A", [0xff, 0], out _).Unwrap();
+        store.CreateTag("A", [initial.HeadId], out _).Unwrap();
         var delivered = new List<HeadEntryId>();
         var result = store.ReadHeadHistory(initial.HeadId, new(8, 64), entry => {
             delivered.Add(entry.Id);
-            Assert.Equal(new byte[] { 0xff, 0 }, store.ResolveTag("A").Unwrap().Bytes.ToArray());
-            Assert.Equal("HeadStore.TagNotFound", store.ResolveTag("Release").Error!.ErrorCode);
-            Assert.Equal("HeadStore.HistoryActive", store.CreateTag("Release", [3], out var outcome).Error!.ErrorCode);
+            Assert.Equal(latest, store.ReadTag("A").Unwrap().Entries[initial.HeadId]);
+            Assert.Equal("HeadStore.TagNotFound", store.ReadTag("Release").Error!.ErrorCode);
+            Assert.Equal("HeadStore.HistoryActive", store.CreateTag("Release", [initial.HeadId], out var outcome).Error!.ErrorCode);
             Assert.Equal(PublicationOutcome.NotAttempted, outcome);
             Assert.Equal(latest, store.ReadHead(initial.HeadId).Unwrap().Id);
             return true;
@@ -203,7 +200,7 @@ public sealed class PublicTagLifecycleTests {
         Assert.Equal(HeadHistoryEnd.Complete, result.Unwrap());
         Assert.Equal(new[] { latest, initial }, delivered);
         Assert.False(File.Exists(fixture.BucketPath("Release")));
-        Assert.True(store.CreateTag("Release", [3], out var outcome).Unwrap());
+        store.CreateTag("Release", [initial.HeadId], out var outcome).Unwrap();
         Assert.Equal(PublicationOutcome.Confirmed, outcome);
         fixture.AssertBucketReleased("A");
     }
@@ -212,10 +209,11 @@ public sealed class PublicTagLifecycleTests {
     public void UnrelatedActiveDataBuilderRemainsActiveAfterTagPublicationAndOwnerDispose() {
         using var fixture = new TagPublicFixture();
         using var store = fixture.Open();
+        HeadEntryId initial = store.CreateHead(7, [0xff], out _).Unwrap();
         using var builder = fixture.Data.BeginAppend(1, 0, out var early);
-        Assert.True(store.CreateTag("A", [0xff], out var outcome).Unwrap());
+        store.CreateTag("A", [initial.HeadId], out var outcome).Unwrap();
         Assert.Equal(PublicationOutcome.Confirmed, outcome);
-        Assert.Equal(new byte[] { 0xff }, store.ResolveTag("A").Unwrap().Bytes.ToArray());
+        Assert.Equal(initial, store.ReadTag("A").Unwrap().Entries[initial.HeadId]);
         Assert.Throws<InvalidOperationException>(() => { fixture.Data.ReadFrame(early); });
         store.Dispose();
         var writer = builder.PayloadAndMeta;
@@ -228,19 +226,20 @@ public sealed class PublicTagLifecycleTests {
     }
 
     [Fact]
-    public void DisposedOwnerInitializesOutcomeBeforeThrowingAndRetainedPayloadRemainsOwned() {
+    public void DisposedOwnerInitializesOutcomeBeforeThrowingAndRetainedTagRemainsOwned() {
         using var fixture = new TagPublicFixture();
         var store = fixture.Open();
-        store.CreateTag("A", [0xff], out _).Unwrap();
-        RootPayload saved = store.ResolveTag("A").Unwrap();
+        HeadEntryId initial = store.CreateHead(7, [0xff], out _).Unwrap();
+        store.CreateTag("A", [initial.HeadId], out _).Unwrap();
+        HeadSetTag saved = store.ReadTag("A").Unwrap();
         store.Dispose();
         PublicationOutcome outcome = PublicationOutcome.Confirmed;
         Assert.Throws<ObjectDisposedException>(() => { store.CreateTag(null!, [], out outcome); });
         Assert.Equal(PublicationOutcome.NotAttempted, outcome);
-        Assert.Throws<ObjectDisposedException>(() => { store.ResolveTag(null!); });
-        Assert.Equal(new byte[] { 0xff }, saved.Bytes.ToArray());
+        Assert.Throws<ObjectDisposedException>(() => { store.ReadTag(null!); });
+        Assert.Equal(initial, saved.Entries[initial.HeadId]);
         fixture.Data.EnsureUsable();
         using var reopened = fixture.Open();
-        Assert.Equal(new byte[] { 0xff }, reopened.ResolveTag("A").Unwrap().Bytes.ToArray());
+        Assert.Equal(initial, reopened.ReadTag("A").Unwrap().Entries[initial.HeadId]);
     }
 }

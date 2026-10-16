@@ -13,8 +13,10 @@ public sealed class TagRecoveryReportsTests {
     public void EveryNamedBucketOpenReportsRecoveryAndHealthyReopensDoNotReplaceIt(string channel, bool completeTail) {
         using var fixture = new RecoveryReportsFixture();
         const string name = "recovery-named-tag";
+        HeadEntryId member;
         using (var seed = fixture.Create()) {
-            Assert.True(seed.CreateTag(name, [0xff, 2, 3], out var outcome).Unwrap());
+            member = seed.CreateHead(1, [0xff, 2, 3], out _).Unwrap();
+            seed.CreateTag(name, [member.HeadId], out var outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
             Assert.Empty(seed.RecoveryReports);
         }
@@ -24,7 +26,7 @@ public sealed class TagRecoveryReportsTests {
         var before = fixture.CaptureFiles();
         using (var readOnly = fixture.Open(readOnly: true)) {
             Assert.Throws<InvalidDataException>(() => {
-                if (channel == "resolve") { readOnly.ResolveTag(name); }
+                if (channel == "resolve") { readOnly.ReadTag(name); }
                 else { readOnly.ReadTagInfo(name); }
             });
             Assert.Empty(readOnly.RecoveryReports);
@@ -35,10 +37,10 @@ public sealed class TagRecoveryReportsTests {
             var view = writer.RecoveryReports;
             Assert.Empty(view);
             switch (channel) {
-                case "resolve": Assert.Equal(new byte[] { 0xff, 2, 3 }, writer.ResolveTag(name).Unwrap().Bytes.ToArray()); break;
+                case "resolve": Assert.Equal(member, Assert.Single(writer.ReadTag(name).Unwrap().Entries).Value); break;
                 case "info": Assert.Equal(name, writer.ReadTagInfo(name).Unwrap().Name); break;
                 case "create":
-                    Assert.Equal("HeadStore.DuplicateTagName", writer.CreateTag(name, [4], out var outcome).Error!.ErrorCode);
+                    Assert.Equal("HeadStore.DuplicateTagName", writer.CreateTag(name, [member.HeadId], out var outcome).Error!.ErrorCode);
                     Assert.Equal(PublicationOutcome.NotAttempted, outcome); // Physical repair is independent of publication.
                     break;
                 default: throw new ArgumentOutOfRangeException(nameof(channel));
@@ -46,9 +48,9 @@ public sealed class TagRecoveryReportsTests {
             image.AssertReport(Assert.Single(view), HeadStoreRecoveryFileKind.TagBucket, bucket);
             HeadStoreRecoveryReport saved = view[0];
             RecoveryReportsFixture.AssertReleased(path);
-            Assert.Equal(new byte[] { 0xff, 2, 3 }, writer.ResolveTag(name).Unwrap().Bytes.ToArray());
+            Assert.Equal(member, Assert.Single(writer.ReadTag(name).Unwrap().Entries).Value);
             Assert.Equal(name, writer.ReadTagInfo(name).Unwrap().Name);
-            Assert.Equal(TagScanEnd.Complete, writer.ScanTags(_ => true).Unwrap());
+            Assert.Equal(HeadSetTagScanEnd.Complete, writer.ScanTags(_ => true).Unwrap());
             Assert.Equal(new[] { saved }, view);
             RecoveryReportsFixture.AssertReleased(path);
         }
@@ -63,8 +65,10 @@ public sealed class TagRecoveryReportsTests {
     public void ScanReportsEndpointBucketBeforeVisitorAndNamedBorrowAddsNoAction(uint bucket, bool completeTail) {
         using var fixture = new RecoveryReportsFixture();
         string name = RecoveryReportsFixture.NameForBucket(bucket);
+        HeadEntryId member;
         using (var seed = fixture.Create()) {
-            Assert.True(seed.CreateTag(name, [0xfa, 9], out _).Unwrap());
+            member = seed.CreateHead(1, [0xfa, 9], out _).Unwrap();
+            seed.CreateTag(name, [member.HeadId], out _).Unwrap();
         }
         string path = fixture.OnlyTagPath();
         Assert.Equal(bucket, RecoveryReportsFixture.LocalId(path));
@@ -79,19 +83,19 @@ public sealed class TagRecoveryReportsTests {
             var view = writer.RecoveryReports;
             Assert.Empty(view);
             int visits = 0;
-            Assert.Equal(TagScanEnd.Complete, writer.ScanTags(info => {
+            Assert.Equal(HeadSetTagScanEnd.Complete, writer.ScanTags(info => {
                 visits++;
                 Assert.Equal(name, info.Name);
                 image.AssertReport(Assert.Single(view), HeadStoreRecoveryFileKind.TagBucket, bucket);
                 Assert.Equal(name, writer.ReadTagInfo(name).Unwrap().Name);
-                Assert.Equal(new byte[] { 0xfa, 9 }, writer.ResolveTag(name).Unwrap().Bytes.ToArray());
+                Assert.Equal(member, Assert.Single(writer.ReadTag(name).Unwrap().Entries).Value);
                 Assert.Single(view); // Both named reads borrow this scan's already-open bucket.
                 return true;
             }).Unwrap());
             Assert.Equal(1, visits);
             RecoveryReportsFixture.AssertReleased(path);
             HeadStoreRecoveryReport saved = view[0];
-            Assert.Equal(TagScanEnd.Complete, writer.ScanTags(_ => true).Unwrap());
+            Assert.Equal(HeadSetTagScanEnd.Complete, writer.ScanTags(_ => true).Unwrap());
             Assert.Equal(name, writer.ReadTagInfo(name).Unwrap().Name);
             Assert.Equal(new[] { saved }, view); // Fresh healthy opens retain the original action.
         }

@@ -14,13 +14,13 @@ public sealed class TagMetadataReadEvidenceTests {
     [InlineData(false, 1048577)]
     [InlineData(true, 0)]
     [InlineData(true, 1048577)]
-    public void InfoAndScanOnlyReadSmallMetadataEvenWhenTheOpaqueRootIsOutsideItsEnvelope(bool scan, int rootLength) {
+    public void InfoAndScanOnlyReadSmallMetadataEvenWhenTheMembersIsOutsideItsEnvelope(bool scan, int rootLength) {
         using var fixture = new TagPublicationFaultFixture(readOnly: true);
         var record = new TagFaultRecord(new byte[rootLength], TagFaultFixture.Metadata());
         TagBucketSeed seed = fixture.SeedBucket(record);
 
         if (scan) {
-            Assert.Equal(TagScanEnd.Complete, fixture.Store.ScanTags(info => {
+            Assert.Equal(HeadSetTagScanEnd.Complete, fixture.Store.ScanTags(info => {
                 Assert.Equal(TagPublicationFaultFixture.Name, info.Name);
                 return true;
             }).Unwrap());
@@ -33,21 +33,21 @@ public sealed class TagMetadataReadEvidenceTests {
             && read.Length == record.Metadata.Length);
         Assert.DoesNotContain(file.LoggedReads(), read => read.Offset == seed.Tickets[0].Offset && read.Length == seed.Tickets[0].Length);
         Assert.NotEmpty(file.Rents);
-        Assert.All(file.Rents, requested => Assert.InRange(requested, 1, 3104));
+        Assert.All(file.Rents, requested => Assert.InRange(requested, 1, 3093));
         Assert.Equal(0, file.AppendCalls);
         Assert.Equal(0, file.FlushCalls);
         Assert.DoesNotContain("data:confirm", fixture.Events);
     }
 
     [Fact]
-    public void ScanActuallyReadsEverySmallMetaAndNeverFullyReadsAnyRecordRoot() {
+    public void ScanActuallyReadsEverySmallMetaAndNeverFullyReadsAnyRecordTable() {
         using var fixture = new TagPublicationFaultFixture(readOnly: true);
         TagBucketSeed seed = fixture.SeedBucket(
             TagPublicationFaultFixture.Record(payload: TagFaultFixture.Payload(64 * 1024)),
             TagPublicationFaultFixture.Record(TagPublicationFaultFixture.OtherName, TagFaultFixture.Payload(128 * 1024)));
         int callbacks = 0;
 
-        Assert.Equal(TagScanEnd.Complete, fixture.Store.ScanTags(_ => { callbacks++; return true; }).Unwrap());
+        Assert.Equal(HeadSetTagScanEnd.Complete, fixture.Store.ScanTags(_ => { callbacks++; return true; }).Unwrap());
 
         Assert.Equal(2, callbacks);
         TagPublicationFile file = Assert.Single(fixture.Tags.Opened);
@@ -58,69 +58,40 @@ public sealed class TagMetadataReadEvidenceTests {
             Assert.Contains(reads, read => read.Offset == ticket.Offset + 4 + record.Payload.Length && read.Length == record.Metadata.Length);
             Assert.DoesNotContain(reads, read => read.Offset == ticket.Offset && read.Length == ticket.Length);
         }
-        Assert.All(file.Rents, requested => Assert.InRange(requested, 1, 3104));
+        Assert.All(file.Rents, requested => Assert.InRange(requested, 1, 3093));
     }
 
     [Fact]
-    public void RelatedAnnotationDoesNotReadOrFlushItsAlreadyOpenedSourceAndUsesActualInputBytes() {
+    public void CaptureReadsAndConfirmsItsCurrentHeadBeforePublishingTheName() {
         using var fixture = new TagPublicationFaultFixture();
-        HeadEntryId related = fixture.Store.ReadHead(fixture.SeedHead()).Unwrap().Id;
-        var source = fixture.Heads.Opened[related.HeadId.LocalId];
-        string log = Path.Combine(fixture.Storage.BasePath, "related-source-reads.csv");
-        source.SetupReadLog(log);
-        var sourceReads = new List<(long Offset, int Length)>();
-        const BindingFlags diagnosticMembers = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
-        object reader = source.Inner.GetType().GetField("_reader", diagnosticMembers)!.GetValue(source.Inner)!;
-        reader.GetType().GetProperty("ReadObserver", diagnosticMembers)!.SetValue(reader,
-            (Action<long, int, bool>)((offset, length, raw) => {
-                if (!raw) { sourceReads.Add((offset, length)); }
-            }));
-        // SetupReadLog is applied on the next actual read. Establish a nonempty real baseline,
-        // then keep the same reader/logger active throughout all tag operations.
-        using (var baseline = source.ReadPooledFrame(related.Ticket).Unwrap()) {
-            Assert.Equal(related.Ticket, baseline.Ticket);
-        }
-        Assert.NotEmpty(sourceReads);
-        Assert.Contains(sourceReads, read => read.Offset == related.Ticket.Offset && read.Length == related.Ticket.Length);
-        var baselineReads = sourceReads.ToArray();
+        HeadEntryId selected = fixture.Store.ReadHead(fixture.SeedHead()).Unwrap().Id;
+        var source = fixture.Heads.Opened[selected.HeadId.LocalId];
         int beforeFlush = source.FlushCalls;
         int beforeAppend = source.AppendCalls;
-        fixture.Events.Clear();
         fixture.SeedBucket();
-        byte[] input = [0xff, 0x81, 0, 0x57];
-
-        Assert.True(fixture.Store.CreateTag(TagPublicationFaultFixture.Name, input, related, out var outcome).Unwrap());
-
+        fixture.Events.Clear();
+        HeadSetTag tag = fixture.Store.CreateTag(TagPublicationFaultFixture.Name, [selected.HeadId], out var outcome).Unwrap();
         Assert.Equal(PublicationOutcome.Confirmed, outcome);
-        Assert.Equal(beforeFlush, source.FlushCalls);
+        Assert.Equal(selected, tag.Entries[selected.HeadId]);
+        Assert.Equal(beforeFlush + 1, source.FlushCalls);
         Assert.Equal(beforeAppend, source.AppendCalls);
-        Assert.DoesNotContain($"read:{related.HeadId.LocalId}", fixture.Events);
-        Assert.DoesNotContain($"flush:{related.HeadId.LocalId}", fixture.Events);
-        PublicRelatedTagTests.AssertInfo(fixture.Store.ReadTagInfo(TagPublicationFaultFixture.Name).Unwrap(), TagPublicationFaultFixture.Name, related);
-        Assert.Equal(input, fixture.Store.ResolveTag(TagPublicationFaultFixture.Name).Unwrap().Bytes.ToArray());
-        Assert.Equal(baselineReads, sourceReads.ToArray());
-        fixture.Store.Dispose();
-        var loggedReads = File.ReadAllLines(log)
-            .Where(line => !line.StartsWith('#') && !line.StartsWith("seq,", StringComparison.Ordinal))
-            .Select(line => line.Split(','))
-            .Select(fields => (Offset: long.Parse(fields[1], CultureInfo.InvariantCulture),
-                Length: int.Parse(fields[2], CultureInfo.InvariantCulture))).ToArray();
-        Assert.Equal(baselineReads, loggedReads);
+        Assert.Contains($"read:{selected.HeadId.LocalId}", fixture.Events);
+        Assert.Contains($"flush:{selected.HeadId.LocalId}", fixture.Events);
+        Assert.True(fixture.Events.IndexOf("data:confirm") < fixture.Events.IndexOf($"flush:{selected.HeadId.LocalId}"));
+        PublicHeadSetTagTests.AssertInfo(fixture.Store.ReadTagInfo(TagPublicationFaultFixture.Name).Unwrap(), TagPublicationFaultFixture.Name, 1);
     }
 
     [Fact]
-    public void DefaultForeignAndStructurallyInvalidRelatedValuesRejectBeforePathsClockDataOrOutput() {
+    public void DefaultForeignAndDuplicateHeadsRejectBeforePathsClockDataOrOutput() {
         using var fixture = new TagPublicationFaultFixture();
         using var foreignFixture = new TagPublicationFaultFixture();
-        HeadEntryId foreign = foreignFixture.Store.ReadHead(foreignFixture.SeedHead()).Unwrap().Id;
+        HeadId foreign = foreignFixture.SeedHead();
         HeadId local = fixture.SeedHead();
-        HeadEntryId[] invalid = [default, foreign, HeadEntryId.Create(local, default),
-            HeadEntryId.Create(local, SizedPtr.Create(60, 0)), HeadEntryId.Create(default, SizedPtr.Create(60, 40))];
+        HeadId[][] invalid = [[], [default], [foreign], [local, local]];
         fixture.Events.Clear();
-        foreach (HeadEntryId related in invalid) {
+        foreach (HeadId[] heads in invalid) {
             var outcome = PublicationOutcome.Confirmed;
-            Assert.Equal("HeadStore.ArgumentError",
-                fixture.Store.CreateTag(TagPublicationFaultFixture.Name, [1], related, out outcome).Error!.ErrorCode);
+            Assert.True(fixture.Store.CreateTag(TagPublicationFaultFixture.Name, heads, out outcome).IsFailure);
             Assert.Equal(PublicationOutcome.NotAttempted, outcome);
             Assert.Empty(fixture.Events);
         }
@@ -136,7 +107,7 @@ public sealed class TagMetadataReadEvidenceTests {
     [InlineData(null)]
     [InlineData("")]
     [InlineData("overlong")]
-    public void InfoAndRelatedMutationShareNameAdmissionBeforeAnyPathOrBarrier(string? name) {
+    public void InfoAndMutationShareNameAdmissionBeforeAnyPathOrBarrier(string? name) {
         using var fixture = new TagPublicationFaultFixture();
         HeadEntryId source = fixture.Store.ReadHead(fixture.SeedHead()).Unwrap().Id;
         fixture.Events.Clear();
@@ -144,7 +115,7 @@ public sealed class TagMetadataReadEvidenceTests {
         var outcome = PublicationOutcome.Confirmed;
 
         Assert.Equal("HeadStore.InvalidTagName", fixture.Store.ReadTagInfo(name!).Error!.ErrorCode);
-        Assert.Equal("HeadStore.InvalidTagName", fixture.Store.CreateTag(name!, [1], source, out outcome).Error!.ErrorCode);
+        Assert.Equal("HeadStore.InvalidTagName", fixture.Store.CreateTag(name!, [source.HeadId], out outcome).Error!.ErrorCode);
 
         Assert.Equal(PublicationOutcome.NotAttempted, outcome);
         Assert.Empty(fixture.Events);

@@ -8,37 +8,39 @@ namespace Atelia.HeadStore.Tests.Tags;
 public sealed class TagRecordCapacityTests {
     [Fact]
     public void AppendCapacityUsesPublicRbfMeasureAndAllowsLastLegalStart() {
-        var minimal = TagRecordCodec.MeasureAppend(1, 15, 60).Unwrap();
-        Assert.Equal(RbfFile.MeasureWriteSize(1, 15).Unwrap(), minimal);
-        var maximum = TagRecordCodec.MeasureAppend(HeadStore.MaxHeadEntryPayloadLength, 3104, SizedPtr.MaxOffset).Unwrap();
-        Assert.Equal(1051680, HeadStore.MaxHeadEntryPayloadLength + TagMetadataCodec.MaxEncodedSize);
-        Assert.Equal(RbfFile.MeasureWriteSize(1048576, 3104).Unwrap(), maximum);
+        var minimal = TagRecordCodec.MeasureAppend(12, 18, 60).Unwrap();
+        Assert.Equal(RbfFile.MeasureWriteSize(12, 18).Unwrap(), minimal);
+        int count = (RbfFile.MaxPayloadAndMetaLength - 3093) / 12;
+        int length = TagRecordCodec.MeasurePayloadLength(count, 3093).Unwrap();
+        var maximum = TagRecordCodec.MeasureAppend(length, 3093, SizedPtr.MaxOffset).Unwrap();
+        Assert.Equal(RbfFile.MeasureWriteSize(length, 3093).Unwrap(), maximum);
         Assert.True(SizedPtr.Create(SizedPtr.MaxOffset, maximum.FrameLength).EndOffsetExclusive > SizedPtr.MaxOffset);
+        Assert.True(TagRecordCodec.MeasurePayloadLength(count + 1, 3093).IsFailure);
     }
 
     [Theory]
-    [InlineData(0, 15, 60L)]
-    [InlineData(1048577, 15, 60L)]
-    [InlineData(1, 14, 60L)]
-    [InlineData(1, 3105, 60L)]
-    [InlineData(1, 15, -4L)]
-    [InlineData(1, 15, 61L)]
-    [InlineData(1, 15, 1099511627776L)]
-    public void InvalidCapacityOrActualStartCannotBecomeAnAppendPlan(int rootLength, int metadataLength, long offset) {
-        Assert.Equal("HeadStore.TagCapacityExceeded", TagRecordCodec.MeasureAppend(rootLength, metadataLength, offset).Error!.ErrorCode);
+    [InlineData(0, 18, 60L)]
+    [InlineData(13, 18, 60L)]
+    [InlineData(12, 17, 60L)]
+    [InlineData(12, 3094, 60L)]
+    [InlineData(12, 18, -4L)]
+    [InlineData(12, 18, 61L)]
+    [InlineData(12, 18, 1099511627776L)]
+    public void InvalidCapacityOrActualStartCannotBecomeAnAppendPlan(int length, int metadataLength, long offset) {
+        Assert.Equal("HeadStore.TagCapacityExceeded", TagRecordCodec.MeasureAppend(length, metadataLength, offset).Error!.ErrorCode);
     }
 
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
-    [InlineData(1048576)]
-    [InlineData(1048577)]
-    public void IdentityMetadataShapeDoesNotDependOnRootCapacity(int rootLength) {
+    [InlineData(12)]
+    [InlineData(24)]
+    public void IdentityMetadataShapeDoesNotDependOnMembersShape(int length) {
         using var fixture = new TagBucketFixture();
         using var file = fixture.Create(0x351);
-        SizedPtr ticket = TagBucketFixture.Append(file, "A", new byte[rootLength]);
+        SizedPtr ticket = TagBucketFixture.Append(file, "A", new byte[length]);
         RbfFrameInfo info = file.ReadFrameInfo(ticket).Unwrap();
         Assert.True(TagRecordCodec.IsMetadataShape(info));
-        Assert.Equal(rootLength is >= 1 and <= 1048576, TagRecordCodec.IsRootShape(info));
+        Assert.Equal(length > 0 && length % 12 == 0, TagRecordCodec.IsEntriesShape(info));
     }
 }

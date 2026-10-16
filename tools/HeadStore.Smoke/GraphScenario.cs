@@ -33,8 +33,9 @@ internal static class GraphScenario {
         Directory.CreateDirectory(root);
 
         HeadEntry selected;
-        RootPayload savedTag;
-        TagInfo savedInfo;
+        HeadSetTag savedTag;
+        HeadEntry savedTagEntry;
+        HeadSetTagInfo savedInfo;
         IReadOnlyDictionary<string, FrameAddress> savedRoots;
         HeadEntryId initialEntryId;
         HeadEntryId selectedEntryId;
@@ -47,6 +48,8 @@ internal static class GraphScenario {
                 HeadEntryId duplicate = heads.PublishHead(initialEntryId.HeadId, initialBytes, out outcome).Unwrap();
                 Confirmed(outcome);
                 Require(duplicate != initialEntryId, "Same bytes must create a distinct entryId.");
+                heads.CreateTag(SelectedTag, [initialEntryId.HeadId], out outcome).Unwrap();
+                Confirmed(outcome);
 
                 byte[] nextBytes = WriteGraph(data, 1, reverseAllocation: true);
                 HeadEntryId next = heads.PublishHead(initialEntryId.HeadId, nextBytes, out outcome).Unwrap();
@@ -91,13 +94,13 @@ internal static class GraphScenario {
                 HeadEntryId rewind = heads.PublishHead(initialEntryId.HeadId, selected.Payload, out outcome).Unwrap();
                 Confirmed(outcome);
                 Require(rewind != selectedEntryId && rewind != initialEntryId, "Rewind must append a new entryId.");
-                Require(heads.CreateTag(SelectedTag, selected.Payload, selectedEntryId, out outcome).Unwrap(), "Tag creation must return true.");
+                heads.CreateTag(RewindTag, [rewind.HeadId], out outcome).Unwrap();
                 Confirmed(outcome);
-                Require(heads.CreateTag(RewindTag, selected.Payload, rewind, out outcome).Unwrap(), "Rewind tag creation must return true.");
+                heads.CreateTag(BranchTag, [branchTwo.HeadId, deepFork.HeadId], out outcome).Unwrap();
                 Confirmed(outcome);
-                Require(heads.CreateTag(BranchTag, branchTwoBytes, out outcome).Unwrap(), "Anonymous tag creation must return true.");
-                Confirmed(outcome);
-                savedTag = heads.ResolveTag(SelectedTag).Unwrap();
+                savedTag = heads.ReadTag(SelectedTag).Unwrap();
+                savedTagEntry = heads.ReadEntry(savedTag.Entries.Single().Value).Unwrap();
+                Require(savedTagEntry.Id == selected.Id, "Tag changed its captured exact Entry identity.");
                 savedInfo = heads.ReadTagInfo(SelectedTag).Unwrap();
 
                 // Later source updates must not widen either exact inherited prefix.
@@ -107,15 +110,16 @@ internal static class GraphScenario {
                 byte[] finalBranchBytes = WriteGraph(data, 6, reverseAllocation: true);
                 heads.PublishHead(branchTwo.HeadId, finalBranchBytes, out outcome).Unwrap();
                 Confirmed(outcome);
-                Require(selected.Payload.SequenceEqual(savedTag.Bytes), "Later updates changed retained entry/tag bytes.");
+                Require(selected.Payload.SequenceEqual(savedTagEntry.Payload), "Later updates changed retained entry/tag bytes.");
             }
         }
 
         // These objects retain their values after both borrowed and owning stores close.
         Require(selected.Id == selectedEntryId && selectedEntryId != initialEntryId, "Retained entryId changed after Dispose.");
-        Require(selected.Payload.SequenceEqual(savedTag.Bytes), "Retained bytes depend on owner lifetime.");
-        Require(NamedFrameMapCodec.Decode(savedTag.Bytes).Unwrap()["A"] == savedRoots["A"], "Retained decoded frames changed after Dispose.");
-        ValidateRelated(savedInfo, selectedEntryId);
+        Require(savedTag.Entries.Count == 1 && savedTag.Entries[selectedEntryId.HeadId] == selectedEntryId, "Retained tag table depends on disposed owners.");
+        Require(selected.Payload.SequenceEqual(savedTagEntry.Payload), "Retained bytes depend on owner lifetime.");
+        Require(NamedFrameMapCodec.Decode(savedTagEntry.Payload).Unwrap()["A"] == savedRoots["A"], "Retained decoded frames changed after Dispose.");
+        ValidateInfo(savedInfo, 1);
         Require(branchTwoEntryId.HeadId.LocalId == 2, "Retained branch entryId changed after Dispose.");
         Console.WriteLine(JsonSerializer.Serialize(new {
             status = "ok", scenario = "graph-write", pid = Environment.ProcessId,
@@ -125,8 +129,9 @@ internal static class GraphScenario {
 
     private static void Read(string root) {
         List<HeadEntry> mainHistory;
-        RootPayload savedTag;
-        TagInfo savedInfo;
+        HeadSetTag savedTag;
+        HeadEntry savedTagEntry;
+        HeadSetTagInfo savedInfo;
         IReadOnlyDictionary<string, FrameAddress> savedRoots;
         HeadStoreAudit audit;
         long dataFrames;
@@ -174,29 +179,32 @@ internal static class GraphScenario {
                 ValidateFork(forks, 3, selected.Id);
                 ValidateFork(forks, 4, twoHistory[1].Id);
 
-                savedTag = heads.ResolveTag(SelectedTag).Unwrap();
-                Require(savedTag.Bytes.SequenceEqual(selected.Payload), "Historical tag changed after source advancement.");
-                RootPayload rewindTag = heads.ResolveTag(RewindTag).Unwrap();
-                Require(rewindTag.Bytes.SequenceEqual(mainHistory[1].Payload), "Rewind tag changed after source advancement.");
-                RootPayload branchTag = heads.ResolveTag(BranchTag).Unwrap();
-                Require(branchTag.Bytes.SequenceEqual(twoHistory[1].Payload), "Anonymous tag changed after branch advancement.");
-                savedRoots = NamedFrameMapCodec.Decode(savedTag.Bytes).Unwrap();
+                savedTag = heads.ReadTag(SelectedTag).Unwrap();
+                savedTagEntry = heads.ReadEntry(savedTag.Entries.Single().Value).Unwrap();
+                Require(savedTagEntry.Id == selected.Id, "Tag changed its captured exact Entry identity.");
+                Require(savedTagEntry.Payload.SequenceEqual(selected.Payload), "Historical tag changed after source advancement.");
+                HeadSetTag rewindTag = heads.ReadTag(RewindTag).Unwrap();
+                Require(rewindTag.Entries[main.Id.HeadId] == mainHistory[1].Id, "Rewind tag changed after source advancement.");
+                HeadSetTag branchTag = heads.ReadTag(BranchTag).Unwrap();
+                Require(branchTag.Entries.Count == 2 && branchTag.Entries[branchTwo.Id.HeadId] == twoHistory[1].Id
+                    && branchTag.Entries[deepFork.Id.HeadId] == deepFork.Id, "Anonymous tag changed after branch advancement.");
+                savedRoots = NamedFrameMapCodec.Decode(savedTagEntry.Payload).Unwrap();
                 ValidateGraph(data, savedRoots, 0);
-                ValidateGraph(data, NamedFrameMapCodec.Decode(branchTag.Bytes).Unwrap(), 2);
+                ValidateGraph(data, NamedFrameMapCodec.Decode(heads.ReadEntry(branchTag.Entries[branchTwo.Id.HeadId]).Unwrap().Payload).Unwrap(), 2);
                 savedInfo = heads.ReadTagInfo(SelectedTag).Unwrap();
-                ValidateRelated(savedInfo, selected.Id);
-                ValidateRelated(heads.ReadTagInfo(RewindTag).Unwrap(), mainHistory[1].Id);
-                TagInfo anonymous = heads.ReadTagInfo(BranchTag).Unwrap();
-                Require(anonymous.RelatedRefId is null && anonymous.RelatedTicket is null, "Anonymous tag acquired a related coordinate.");
-                var scanned = new Dictionary<string, TagInfo>(StringComparer.Ordinal);
-                TagScanEnd scanEnd = heads.ScanTags(info => {
+                ValidateInfo(savedInfo, 1);
+                ValidateInfo(heads.ReadTagInfo(RewindTag).Unwrap(), 1);
+                HeadSetTagInfo anonymous = heads.ReadTagInfo(BranchTag).Unwrap();
+                ValidateInfo(anonymous, 2);
+                var scanned = new Dictionary<string, HeadSetTagInfo>(StringComparer.Ordinal);
+                HeadSetTagScanEnd scanEnd = heads.ScanTags(info => {
                     Require(scanned.TryAdd(info.Name, info), "Tag scan returned a duplicate name.");
                     return true;
                 }).Unwrap();
-                Require(scanEnd == TagScanEnd.Complete && scanned.Count == 3, "Tag metadata scan did not complete.");
+                Require(scanEnd == HeadSetTagScanEnd.Complete && scanned.Count == 3, "Tag metadata scan did not complete.");
                 Require(scanned.ContainsKey(SelectedTag) && scanned.ContainsKey(RewindTag) && scanned.ContainsKey(BranchTag), "Tag metadata scan missed a name.");
                 Require(scanned[SelectedTag].RecordedAtUnixMs == savedInfo.RecordedAtUnixMs, "Tag time changed between metadata queries.");
-                ValidateRelated(scanned[SelectedTag], selected.Id);
+                ValidateInfo(scanned[SelectedTag], 1);
 
                 audit = heads.Audit().Unwrap();
                 Require(audit.HeadCount == 4 && audit.EntryCount == 11 && audit.OriginCount == 3 && audit.TagCount == 3, "Complete HeadStore audit counts changed.");
@@ -206,9 +214,11 @@ internal static class GraphScenario {
             }
         }
 
-        Require(mainHistory[3].Payload.SequenceEqual(savedTag.Bytes), "Cold-read objects depend on disposed owners.");
+        Require(mainHistory[3].Payload.SequenceEqual(savedTagEntry.Payload), "Cold-read objects depend on disposed owners.");
+        Require(savedTag.Entries.Count == 1 && savedTag.Entries[mainHistory[3].Id.HeadId] == mainHistory[3].Id,
+            "Cold-read tag table depends on disposed owners.");
         Require(NamedFrameMapCodec.Decode(mainHistory[3].Payload).Unwrap()["B"] == savedRoots["B"], "Cold-read root map depends on disposed owners.");
-        ValidateRelated(savedInfo, mainHistory[3].Id);
+        ValidateInfo(savedInfo, 1);
         Console.WriteLine(JsonSerializer.Serialize(new {
             status = "ok", scenario = "graph-read", pid = Environment.ProcessId,
             refs = audit.HeadCount, entries = audit.EntryCount, forks = audit.OriginCount,
@@ -337,8 +347,8 @@ internal static class GraphScenario {
         Require(fork.SourceHeadId == source.HeadId && fork.SourceEntryTicket.Packed == source.Ticket.Packed, "Fork header declares a different exact origin.");
     }
 
-    private static void ValidateRelated(TagInfo info, HeadEntryId entryId) {
-        Require(info.RelatedRefId == entryId.HeadId && info.RelatedTicket?.Packed == entryId.Ticket.Packed, "Tag metadata has a different related coordinate.");
+    private static void ValidateInfo(HeadSetTagInfo info, int count) {
+        Require(info.EntryCount == count, "Tag metadata has a different member count.");
     }
 
     private static void Confirmed(PublicationOutcome outcome) {

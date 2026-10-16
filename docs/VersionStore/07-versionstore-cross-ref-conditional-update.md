@@ -1,6 +1,6 @@
 # HeadStore：ConditionalUpdate 单帧跨 Head 条件发布
 
-命名更新：2026-10-16 活跃合同采用 HeadStore/Head/Entry；既有 Accepted 仍对应原 VersionStore revision，本轮重命名验证见[13记录](13-headstore-renaming-plan.md)。格式版本、路径与 Clause-ID 不变；[14 HeadSetTag](14-headset-tags-plan.md)尚未实施。
+HeadSetTag 更新：2026-10-16 本轮实施格式2与具名成员表替换，待[独立验收](14-headset-tags-acceptance.md)。既有 Accepted 保持原 VersionStore/格式1来源；[13重命名记录](13-headstore-renaming-plan.md)不覆盖本行为变化。路径与既有 Clause-ID 保持，普通 Head/CU 的记录形状不变。
 
 状态：**2026-10-11 CU 及附属重构已实施，独立源码验收 Accepted（Windows / WSL2 Linux）**。本文负责 CU 的记录、共同判据、位置复用与读取算法，已接入 S0/S4/S5；身份字段消费 S4，时间消费[08专项](08-versionstore-record-metadata.md)，批量 bytes 公面消费[11专项](11-versionstore-root-payload-bytes-api.md)。实际验证与资格见[本轮 CU 验收记录](07-versionstore-cross-ref-conditional-update-acceptance.md)。既有[最终源码验收](12-versionstore-final-acceptance.md)和[六包候选](../FrameStore-VersionStore/13-local-package-delivery.md)不包含 CU；新源码不得沿用其包资格。
 
@@ -16,6 +16,8 @@ CU 仅更新同一 HeadStore/绑定 data 中的多个 distinct 既有 Head，不
 
 fork 和继承历史只接受普通 SingleEntry 或满足共同判据的 CU；不完整 CU 不作为来源节点，exact fork anchor 指向不完整 CU 时必须拒绝，不能改选更旧来源。ForkOrigin 仍定位实际 Head/ticket，不追踪参与 Head 的当前 head；子文件的直接第二帧永远是普通 SingleEntry，只复制源 CU 的 root bytes。
 
+HeadSetTag创建复用本篇同一次current-read判据，取得已接受Entry及其必要CU发布文件；只选组内A时公开表只含A，但确认集合包含整个成立组。未成立组触及文件不自动成为确认依赖，必要peer仍先正常打开/恢复再裁决；ReadTag不读取成员，ReadEntry/Audit精确成员读取仍共用本篇判据，不递归peer后来的组。该引用/确认增量由[09](09-versionstore-immutable-tags.md)定义，不把CreateTag合并进PublishHeads事务，也不改变CU payload/FrameTag/meta8。
+
 ## 记录与尺寸规划
 
 ```text
@@ -30,7 +32,7 @@ ConditionalUpdate:
 
 各成员可以有不同 root-payload bytes 和帧尺寸，相同的是完整 Members 表。Count 为固定4B uint32 LE，每项为4B LocalHeadId + 8B Packed ticket；表后全部剩余 payload 是本 Head 的 root payload，不增加另一层 byte-length。完整 CRC 覆盖整个记录。发布/事务判据不调用 NamedFrameMap decoder；调用方在进入 PublishHeads 前自行编码，入口按11公面专项逐项复制 bytes。Members ticket 是对应 Head 文件的 SizedPtr，不能替换为 data FrameAddress。
 
-CU 消费 S4 `[F-VS-REF-ID-4B]`：LocalHeadId 固定 4B LE，公开值另携同一 HS 上下文，入口拒绝错上下文；ticket 固定 8B Packed LE，不使用 Serialize/VarUInt。Members 按非零 LocalHeadId 严格递增形成 canonical 表，重复、乱序及零 ID 均拒绝。root payload 直接消费 S4 `[A-VS-ROOT-PAYLOAD]` 的 bytes 范围，保持 1..1MiB；应用使用 NamedFrameMap 时才消费 [NamedFrameMap 专项](10-versionstore-rootmap-payload.md)。CU 的 FrameTag 固定为 2，完整 stored payload 上限为 `RbfFile.MaxPayloadAndMetaLength - 8 = 268435416B`，完整 frame 上限为 `SizedPtr.MaxLength = 268435452B`；不另增加任意成员数硬限。无新增 payload kind/version，格式门仍为 1；旧 SingleEntry/header 编码不变，旧 reader 遇到新增 kind 按未知 kind 拒绝。meta 消费专项，两定位字段的解码不证明发布。
+CU 消费 S4 `[F-VS-REF-ID-4B]`：LocalHeadId 固定 4B LE，公开值另携同一 HS 上下文，入口拒绝错上下文；ticket 固定 8B Packed LE，不使用 Serialize/VarUInt。Members 按非零 LocalHeadId 严格递增形成 canonical 表，重复、乱序及零 ID 均拒绝。root payload 直接消费 S4 `[A-VS-ROOT-PAYLOAD]` 的 bytes 范围，保持 1..1MiB；应用使用 NamedFrameMap 时才消费 [NamedFrameMap 专项](10-versionstore-rootmap-payload.md)。CU 的 FrameTag 固定为 2，完整 stored payload 上限为 `RbfFile.MaxPayloadAndMetaLength - 8 = 268435416B`，完整 frame 上限为 `SizedPtr.MaxLength = 268435452B`；不另增加任意成员数硬限。CU自身不新增payload kind/version；本轮HeadSetTag将统一门与header版本提升至2，SingleEntry/CU记录布局保持，旧版本门拒绝。meta 消费专项，两定位字段的解码不证明发布。
 
 在预测 CU tickets 前先捕获全部私有 root-payload bytes，长度 rᵢ 已确定。CU payload 长度精确为 4 + 12k + rᵢ，用 checked long 校验，再调用 MeasureWriteSize(payloadLength,8) 并以可信 TailOffset/SizedPtr 预测各 ticket。固定宽度的成员项不依赖 ticket 数值，root payload 的编码也不依赖 CU 自身 tickets，无尺寸循环；不引入成员 padding。相对原8B HeadId草案，每表少4k bytes，全组少4k² bytes。
 

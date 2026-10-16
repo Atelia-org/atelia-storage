@@ -20,7 +20,7 @@ internal sealed class AuditPublicFixture : IDisposable {
 
     internal byte[] Header(uint id, uint sourceId = 0, SizedPtr sourceTicket = default) {
         byte[] bytes = new byte[sourceId == 0 ? 24 : 36];
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes, 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes, 2);
         Storage.Identity.CopyTo(bytes, 4);
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(20), id);
         if (sourceId != 0) {
@@ -41,6 +41,16 @@ internal sealed class AuditPublicFixture : IDisposable {
         }
         file.DurableFlush();
         return tickets;
+    }
+
+    private readonly Dictionary<uint, SizedPtr> _tagMembers = [];
+
+    internal byte[] TagMembers(uint localId = 1) {
+        if (!_tagMembers.TryGetValue(localId, out SizedPtr ticket)) {
+            ticket = WriteHead(localId, records: [new AuditHeadRecord([(byte)localId])])[0];
+            _tagMembers.Add(localId, ticket);
+        }
+        return TagPublicFixture.Members(localId, ticket);
     }
 
     internal static byte[] Bytes(byte value = 0x51, int length = 128) => Enumerable.Repeat(value, length).ToArray();

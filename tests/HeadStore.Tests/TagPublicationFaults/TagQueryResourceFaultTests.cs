@@ -3,6 +3,7 @@ using Atelia.Rbf;
 using Atelia.HeadStore.Internal.Storage;
 using Atelia.HeadStore.Tests.Runtime;
 using Atelia.HeadStore.Tests.TagFaults;
+using Atelia.HeadStore.Tests.Tags;
 using Xunit;
 
 namespace Atelia.HeadStore.Tests.TagPublicationFaults;
@@ -11,22 +12,22 @@ public sealed class TagQueryResourceFaultTests {
     [Fact]
     public void ResolveUsesActualMetadataReadsAndOnlyTheUniqueTargetsCompleteRead() {
         using var f = new TagPublicationFaultFixture();
-        byte[] target = TagFaultFixture.Payload(8192, 3);
+        byte[] target = TagTestWire.MemberSequence(683);
         TagBucketSeed seed = f.SeedBucket(TagPublicationFaultFixture.Record(TagPublicationFaultFixture.OtherName),
             TagPublicationFaultFixture.Record(payload: target));
 
-        RootPayload retained = f.Store.ResolveTag(TagPublicationFaultFixture.Name).Unwrap();
+        HeadSetTag retained = f.Store.ReadTag(TagPublicationFaultFixture.Name).Unwrap();
 
         TagPublicationFile file = Assert.Single(f.Tags.Opened);
         TagReadRequest[] reads = file.LoggedReads();
         Assert.All(seed.Tickets, ticket => Assert.Contains(reads, read => read.Offset == ticket.Offset + 4
-            + seed.Records[Array.IndexOf(seed.Tickets, ticket)].Payload.Length && read.Length == 20));
+            + seed.Records[Array.IndexOf(seed.Tickets, ticket)].Payload.Length && read.Length == 23));
         Assert.DoesNotContain(reads, read => read.Offset == seed.Tickets[0].Offset && read.Length == seed.Tickets[0].Length);
         Assert.Single(reads, read => read.Offset == seed.Tickets[1].Offset && read.Length == seed.Tickets[1].Length);
-        Assert.Equal(new[] { 20, 20, seed.Tickets[1].Length }, file.Rents);
+        Assert.Equal(new[] { 23, 23, seed.Tickets[1].Length }, file.Rents);
         Assert.Equal(1, file.DisposeCalls);
         f.Store.Dispose();
-        Assert.Equal(target, retained.Bytes.ToArray());
+        Assert.Equal(target, retained.MemberBytes());
         f.Data.EnsureUsable();
     }
 
@@ -38,7 +39,7 @@ public sealed class TagQueryResourceFaultTests {
     [InlineData("root", "Rbf.")]
     public void OrdinaryContentFailureClosesItsReaderWithoutFaultingWriter(string reason, string code) {
         using var f = new TagPublicationFaultFixture();
-        if (reason == "header") { f.SeedBucketWithVersion(2); }
+        if (reason == "header") { f.SeedBucketWithVersion(1); }
         else if (reason == "duplicate") { f.SeedBucket(TagPublicationFaultFixture.Record(), TagPublicationFaultFixture.Record()); }
         else if (reason == "uncertain") {
             byte[] meta = TagFaultFixture.Metadata(TagPublicationFaultFixture.OtherName);
@@ -51,7 +52,7 @@ public sealed class TagQueryResourceFaultTests {
         }
         else { f.SeedBucket(); }
 
-        var result = f.Store.ResolveTag(TagPublicationFaultFixture.Name);
+        var result = f.Store.ReadTag(TagPublicationFaultFixture.Name);
 
         Assert.True(result.IsFailure);
         Assert.StartsWith(code, result.Error!.ErrorCode);
@@ -74,20 +75,20 @@ public sealed class TagQueryResourceFaultTests {
         Exception failure = stage == "rent" ? new OutOfMemoryException("full root rent") : new IOException(stage);
         f.Tags.ConfigureOpen = file => {
             file.BeforeRead = (offset, length, raw) => {
-                bool atMetadata = !raw && offset == seed.Tickets[0].Offset + 4 + 4096 && length == 20;
+                bool atMetadata = !raw && offset == seed.Tickets[0].Offset + 4 + 12 && length == 23;
                 bool atComplete = !raw && offset == seed.Tickets[0].Offset && length == seed.Tickets[0].Length;
                 if ((stage == "metadata" && atMetadata) || (stage == "complete" && atComplete)) { throw failure; }
             };
             file.BeforeRent = length => { if (stage == "rent" && length == seed.Tickets[0].Length) { throw failure; } };
         };
 
-        Assert.Same(failure, Record.Exception(() => f.Store.ResolveTag(TagPublicationFaultFixture.Name)));
+        Assert.Same(failure, Record.Exception(() => f.Store.ReadTag(TagPublicationFaultFixture.Name)));
 
         Assert.Equal(1, Assert.Single(f.Tags.Opened).DisposeCalls);
         Assert.Equal(0, f.Lock.DisposeCalls);
         f.Tags.ConfigureOpen = null;
-        Assert.Equal(seed.Records[0].Payload, f.Store.ResolveTag(TagPublicationFaultFixture.Name).Unwrap().Bytes.ToArray());
-        if (!readOnly) { Assert.True(f.Store.CreateTag(TagPublicationFaultFixture.OtherName, [1], out _).Unwrap()); }
+        Assert.Equal(seed.Records[0].Payload, f.Store.ReadTag(TagPublicationFaultFixture.Name).Unwrap().MemberBytes());
+        if (!readOnly) { Assert.NotNull(f.Store.CreateTag(TagPublicationFaultFixture.OtherName, [f.SelectedHead], out _).Unwrap()); }
     }
 
     [Theory]
@@ -99,7 +100,7 @@ public sealed class TagQueryResourceFaultTests {
         var close = new IOException("named close");
         f.Tags.ConfigureOpen = file => file.DisposeFailure = close;
 
-        Assert.Same(close, Assert.Throws<IOException>(() => f.Store.ResolveTag(TagPublicationFaultFixture.Name)));
+        Assert.Same(close, Assert.Throws<IOException>(() => f.Store.ReadTag(TagPublicationFaultFixture.Name)));
 
         f.AssertFaultedAndCleaned();
     }
@@ -115,14 +116,14 @@ public sealed class TagQueryResourceFaultTests {
         var lockClose = new IOException("owner lock close");
         f.Tags.ConfigureOpen = file => {
             file.BeforeRead = (offset, length, raw) => {
-                if (!raw && offset == seed.Tickets[0].Offset + 4 + 4096 && length == 20) { throw primary; }
+                if (!raw && offset == seed.Tickets[0].Offset + 4 + 12 && length == 23) { throw primary; }
             };
             file.DisposeFailure = bucketClose;
         };
         f.Heads.Opened[1].DisposeFailure = cachedClose;
         f.Lock.DisposeFailure = lockClose;
 
-        AggregateException observed = Assert.Throws<AggregateException>(() => f.Store.ResolveTag(TagPublicationFaultFixture.Name));
+        AggregateException observed = Assert.Throws<AggregateException>(() => f.Store.ReadTag(TagPublicationFaultFixture.Name));
 
         Assert.Equal(new Exception[] { primary, bucketClose, cachedClose, lockClose }, observed.Flatten().InnerExceptions);
         Assert.Equal(new[] { "bucket:close", "close:1", "lock:close" }, f.Events.Where(e => e.Contains("close", StringComparison.Ordinal)));
@@ -138,13 +139,13 @@ public sealed class TagQueryResourceFaultTests {
         if (cleanupFailure) { f.Tags.ResolveCleanupFailure = failure; }
         else { f.Tags.ResolveFailure = failure; }
 
-        Assert.Same(failure, Assert.Throws<IOException>(() => f.Store.ResolveTag(TagPublicationFaultFixture.Name)));
+        Assert.Same(failure, Assert.Throws<IOException>(() => f.Store.ReadTag(TagPublicationFaultFixture.Name)));
 
         if (cleanupFailure) { f.AssertFaultedAndCleaned(); }
         else {
             Assert.Equal(0, f.Lock.DisposeCalls);
             f.Tags.ResolveFailure = null;
-            Assert.True(f.Store.CreateTag(TagPublicationFaultFixture.Name, [1], out _).Unwrap());
+            Assert.NotNull(f.Store.CreateTag(TagPublicationFaultFixture.Name, [f.SelectedHead], out _).Unwrap());
         }
     }
 
@@ -157,7 +158,7 @@ public sealed class TagQueryResourceFaultTests {
         var failure = new IOException("open temporary close");
         f.Tags.OpenCleanupFailure = failure;
 
-        Assert.Same(failure, Assert.Throws<IOException>(() => f.Store.ResolveTag(TagPublicationFaultFixture.Name)));
+        Assert.Same(failure, Assert.Throws<IOException>(() => f.Store.ReadTag(TagPublicationFaultFixture.Name)));
 
         Assert.Empty(f.Tags.Opened);
         f.AssertFaultedAndCleaned();
@@ -174,7 +175,7 @@ public sealed class TagQueryResourceFaultTests {
         if (closeFails) { f.Tags.ConfigureOpen = file => file.DisposeFailure = close; }
         Func<HeadEntry, bool> visitor = _ => {
             Assert.Equal(id, f.Store.ReadHead(id).Unwrap().Id.HeadId);
-            f.Store.ResolveTag(TagPublicationFaultFixture.Name).Unwrap();
+            f.Store.ReadTag(TagPublicationFaultFixture.Name).Unwrap();
             return true;
         };
 
@@ -198,24 +199,24 @@ public sealed class TagQueryResourceFaultTests {
         var primary = new IOException("private header flush");
         f.Heads.ConfigurePending = file => { file.FlushFailure = primary; file.FlushThenThrow = true; };
         var outcome = PublicationOutcome.Confirmed;
-        Assert.Same(primary, Assert.Throws<IOException>(() => f.Store.CreateTag(TagPublicationFaultFixture.Name, [8], out outcome)));
+        Assert.Same(primary, Assert.Throws<IOException>(() => f.Store.CreateTag(TagPublicationFaultFixture.Name, [f.SelectedHead], out outcome)));
         Assert.Equal(PublicationOutcome.NotAttempted, outcome);
         f.AssertFaultedAndCleaned();
         byte[] pending = File.ReadAllBytes(f.PendingPath);
 
         using (var cold = HeadStore.OpenReadOnly(f.Storage.Root, f.Data)) {
-            Assert.Equal("HeadStore.TagNotFound", cold.ResolveTag(TagPublicationFaultFixture.Name).Error!.ErrorCode);
+            Assert.Equal("HeadStore.TagNotFound", cold.ReadTag(TagPublicationFaultFixture.Name).Error!.ErrorCode);
             Assert.Equal(pending, File.ReadAllBytes(f.PendingPath));
             Assert.False(File.Exists(f.BucketPath));
         }
         using (var cold = HeadStore.Open(f.Storage.Root, f.Data)) {
             Assert.False(File.Exists(f.PendingPath));
             Assert.False(File.Exists(f.BucketPath));
-            Assert.Equal("HeadStore.TagNotFound", cold.ResolveTag(TagPublicationFaultFixture.Name).Error!.ErrorCode);
-            Assert.True(cold.CreateTag(TagPublicationFaultFixture.Name, [9], out outcome).Unwrap());
+            Assert.Equal("HeadStore.TagNotFound", cold.ReadTag(TagPublicationFaultFixture.Name).Error!.ErrorCode);
+            Assert.NotNull(cold.CreateTag(TagPublicationFaultFixture.Name, [f.SelectedHead], out outcome).Unwrap());
         }
         using var resolved = HeadStore.OpenReadOnly(f.Storage.Root, f.Data);
-        Assert.Equal(new byte[] { 9 }, resolved.ResolveTag(TagPublicationFaultFixture.Name).Unwrap().Bytes.ToArray());
+        Assert.Equal(f.SelectedHead, Assert.Single(resolved.ReadTag(TagPublicationFaultFixture.Name).Unwrap().Entries).Key);
     }
 
     [Fact]
@@ -226,7 +227,7 @@ public sealed class TagQueryResourceFaultTests {
         Directory.CreateDirectory(Path.GetDirectoryName(f.BucketPath)!);
         File.WriteAllBytes(f.BucketPath, [0]);
 
-        Assert.Throws<InvalidDataException>(() => f.Store.ResolveTag(TagPublicationFaultFixture.Name));
+        Assert.Throws<InvalidDataException>(() => f.Store.ReadTag(TagPublicationFaultFixture.Name));
 
         Assert.Equal(1, operations.Probe!.DisposeCalls);
         Assert.Equal(0, operations.OpenCalls);
@@ -234,7 +235,7 @@ public sealed class TagQueryResourceFaultTests {
         Assert.Equal(new byte[] { 0 }, File.ReadAllBytes(f.BucketPath));
         File.Delete(f.BucketPath);
         f.SeedBucket();
-        Assert.Equal("HeadStore.TagNotFound", f.Store.ResolveTag(TagPublicationFaultFixture.Name).Error!.ErrorCode);
+        Assert.Equal("HeadStore.TagNotFound", f.Store.ReadTag(TagPublicationFaultFixture.Name).Error!.ErrorCode);
         TagPublicationWindowTests.AssertOrdered(f.Events, "probe:close", "rbf:open");
     }
 
@@ -246,14 +247,14 @@ public sealed class TagQueryResourceFaultTests {
         Directory.CreateDirectory(Path.GetDirectoryName(f.BucketPath)!);
         File.WriteAllBytes(f.BucketPath, new byte[512]); // Long enough for I, but not an RBF file.
 
-        Assert.Throws<InvalidDataException>(() => f.Store.ResolveTag(TagPublicationFaultFixture.Name));
+        Assert.Throws<InvalidDataException>(() => f.Store.ReadTag(TagPublicationFaultFixture.Name));
 
         if (!readOnly) { f.AssertFaultedAndCleaned(); }
         else {
             Assert.Equal(0, f.Lock.DisposeCalls);
             File.Delete(f.BucketPath);
             f.SeedBucket();
-            Assert.Equal("HeadStore.TagNotFound", f.Store.ResolveTag(TagPublicationFaultFixture.Name).Error!.ErrorCode);
+            Assert.Equal("HeadStore.TagNotFound", f.Store.ReadTag(TagPublicationFaultFixture.Name).Error!.ErrorCode);
         }
     }
 
@@ -266,7 +267,7 @@ public sealed class TagQueryResourceFaultTests {
         operations.Events = f.Events;
         f.SeedBucket();
 
-        AggregateException observed = Assert.Throws<AggregateException>(() => f.Store.ResolveTag(TagPublicationFaultFixture.Name));
+        AggregateException observed = Assert.Throws<AggregateException>(() => f.Store.ReadTag(TagPublicationFaultFixture.Name));
 
         Assert.Equal(new Exception[] { primary, close }, observed.Flatten().InnerExceptions);
         Assert.Equal(1, operations.Probe!.DisposeCalls);
@@ -287,7 +288,7 @@ public sealed class TagQueryResourceFaultTests {
         operations.Events = f.Events;
         f.SeedBucket();
 
-        Assert.Throws<InvalidDataException>(() => f.Store.ResolveTag(TagPublicationFaultFixture.Name));
+        Assert.Throws<InvalidDataException>(() => f.Store.ReadTag(TagPublicationFaultFixture.Name));
 
         Assert.Equal(1, operations.Returned!.DisposeCalls);
         Assert.Equal(new[] { "probe:close", "close:99", "lock:close" }, f.Events.Where(e => e.Contains("close", StringComparison.Ordinal)));

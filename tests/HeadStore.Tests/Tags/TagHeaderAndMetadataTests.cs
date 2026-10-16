@@ -10,7 +10,7 @@ namespace Atelia.HeadStore.Tests.Tags;
 public sealed class TagHeaderAndMetadataTests {
     [Fact]
     public void BucketHeaderMatchesIndependentCanonicalIdentityGolden() {
-        byte[] golden = Convert.FromHexString("010000000102030405060708090A0B0C0D0E0F1074010000");
+        byte[] golden = Convert.FromHexString("020000000102030405060708090A0B0C0D0E0F1074010000");
         Assert.Equal(24, TagBucketHeaderCodec.PayloadSize);
         Assert.True(TagBucketHeaderCodec.TryRead(golden, TagTestWire.Identity, 0x174, out TagBucketHeader header));
         Assert.Equal(0x174u, header.BucketId);
@@ -46,21 +46,16 @@ public sealed class TagHeaderAndMetadataTests {
         Assert.All(destination, value => Assert.Equal((byte)0xa5, value));
     }
 
-    [Theory]
-    [InlineData(false, TagTestWire.AnonymousAHex, 0x2d2680deu)]
-    [InlineData(true, TagTestWire.RelatedAHex, 0xc3834569u)]
-    public void MetadataMatchesIndependentAnonymousAndRelatedCrcGoldens(bool related, string hex, uint expectedCrc) {
-        byte[] golden = Convert.FromHexString(hex);
-        Assert.Equal(expectedCrc, BinaryPrimitives.ReadUInt32LittleEndian(golden.AsSpan(golden.Length - 4)));
+    [Fact]
+    public void MetadataMatchesIndependentFixedWidthCountAndNameWire() {
+        byte[] golden = Convert.FromHexString("000000000000000002000000034114A1102A");
+        Assert.Equal(Convert.FromHexString("0000000000000000020000000341"), golden[..^4]);
         Assert.True(RollingCrc.CheckCodewordForward(golden));
         Assert.True(TagMetadataCodec.TryRead(golden, TagTestWire.Identity, 0x351, out TagMetadata metadata));
         Assert.Equal("A", metadata.Name);
         Assert.Equal(0, metadata.RecordedAtUnixMs);
-        HeadId? relatedId = related ? HeadId.Create(TagTestWire.Identity, 1) : null;
-        SizedPtr? relatedTicket = related ? SizedPtr.Create(60, 40) : null;
-        Assert.Equal(relatedId, metadata.RelatedRefId);
-        Assert.Equal(relatedTicket, metadata.RelatedTicket);
-        TagMetadataEncodingPlan plan = TagMetadataCodec.Prepare("A", 0, TagTestWire.Identity, relatedId, relatedTicket);
+        Assert.Equal(2, metadata.EntryCount);
+        TagMetadataEncodingPlan plan = TagMetadataCodec.Prepare("A", 0, TagTestWire.Identity, 2);
         Assert.Equal(golden.Length, plan.EncodedLength);
         Assert.Equal(golden, TagMetadataCodec.Encode(in plan));
     }
@@ -78,7 +73,7 @@ public sealed class TagHeaderAndMetadataTests {
 
     [Fact]
     public void EveryMetadataFieldAndStoredChecksumIsProtectedByIndependentCrc() {
-        byte[] golden = Convert.FromHexString(TagTestWire.RelatedAHex);
+        byte[] golden = Convert.FromHexString("000000000000000002000000034114A1102A");
         for (int index = 0; index < golden.Length; index++) {
             byte[] changed = golden.ToArray();
             changed[index] ^= 1;
@@ -87,71 +82,53 @@ public sealed class TagHeaderAndMetadataTests {
     }
 
     [Fact]
-    public void ReaderAcceptsAlternateNameAndBoundedRedundantFieldPrefixes() {
-        SizedPtr ticket = SizedPtr.Create(60, 40);
+    public void ReaderAcceptsAlternateNameAndBoundedRedundantStringPrefixes() {
         foreach (byte[] name in new[] { TagTestWire.Utf16Name("A"), TagTestWire.Utf8Name("A", 5) }) {
-            byte[] wire = TagTestWire.Metadata("A", -9, uint.MaxValue, ticket, name,
-                TagTestWire.VarUInt(uint.MaxValue, 5), TagTestWire.VarUInt(ticket.Serialize(), 10));
+            byte[] wire = TagTestWire.Metadata("A", -9, 2, name);
             Assert.True(TagMetadataCodec.TryRead(wire, TagTestWire.Identity, 0x351, out TagMetadata metadata));
             Assert.Equal("A", metadata.Name);
             Assert.Equal(-9, metadata.RecordedAtUnixMs);
-            Assert.Equal(HeadId.Create(TagTestWire.Identity, uint.MaxValue), metadata.RelatedRefId);
-            Assert.Equal(ticket, metadata.RelatedTicket);
+            Assert.Equal(2, metadata.EntryCount);
         }
-        byte[] anonymous = TagTestWire.Metadata("A", nameWire: TagTestWire.Utf16Name("A", 5), idWire: TagTestWire.VarUInt(0, 5));
-        Assert.True(TagMetadataCodec.TryRead(anonymous, TagTestWire.Identity, 0x351, out TagMetadata noRelated));
-        Assert.Null(noRelated.RelatedRefId);
-        Assert.Null(noRelated.RelatedTicket);
     }
 
     [Fact]
-    public void ReaderAcceptsExact3104BytesUsingActualUtf8AndRedundantWidths() {
+    public void ReaderAcceptsExact3093BytesUsingActualUtf8AndRedundantStringWidth() {
         string name = new('\u0800', 1024);
-        SizedPtr maximumTicket = SizedPtr.Deserialize(ulong.MaxValue);
         byte[] nameWire = TagTestWire.Utf8Name(name, 5);
-        byte[] wire = TagTestWire.Metadata(name, long.MaxValue, uint.MaxValue, maximumTicket, nameWire,
-            TagTestWire.VarUInt(uint.MaxValue, 5), TagTestWire.VarUInt(ulong.MaxValue, 10));
+        byte[] wire = TagTestWire.Metadata(name, long.MaxValue, 1, nameWire);
         Assert.Equal(3077, nameWire.Length);
-        Assert.Equal(3104, wire.Length);
+        Assert.Equal(3093, wire.Length);
         Assert.Equal(3072, TagMetadataCodec.MaxNamePayloadByteCount);
         Assert.Equal(3077, TagMetadataCodec.MaxNameCodewordLength);
-        Assert.Equal(15, TagMetadataCodec.MinEncodedSize);
-        Assert.Equal(3104, TagMetadataCodec.MaxEncodedSize);
+        Assert.Equal(18, TagMetadataCodec.MinEncodedSize);
+        Assert.Equal(3093, TagMetadataCodec.MaxEncodedSize);
         uint bucket = TagNameCodec.GetBucketId(name);
         Assert.True(TagMetadataCodec.TryRead(wire, TagTestWire.Identity, bucket, out TagMetadata metadata));
         Assert.Equal(name, metadata.Name);
-        Assert.Equal(maximumTicket, metadata.RelatedTicket);
-        TagMetadataEncodingPlan writerPlan = TagMetadataCodec.Prepare(name, long.MaxValue, TagTestWire.Identity,
-            HeadId.Create(TagTestWire.Identity, uint.MaxValue), maximumTicket);
-        Assert.True(writerPlan.EncodedLength < wire.Length); // Writer chooses shorter UTF-16; reader must accept the larger actual codeword.
+        Assert.Equal(1, metadata.EntryCount);
+        TagMetadataEncodingPlan plan = TagMetadataCodec.Prepare(name, long.MaxValue, TagTestWire.Identity, 1);
+        Assert.True(plan.EncodedLength < wire.Length);
     }
 
-    [Fact]
-    public void RelatedTicketAcceptsPublicValuesWithoutEntryOrSourceQualification() {
-        foreach (SizedPtr ticket in new[] { SizedPtr.Create(0, 4), SizedPtr.Create(4, 4), SizedPtr.Create(SizedPtr.MaxOffset, SizedPtr.MaxLength) }) {
-            byte[] wire = TagTestWire.Metadata("A", id: 1, ticket: ticket);
-            Assert.True(TagMetadataCodec.TryRead(wire, TagTestWire.Identity, 0x351, out TagMetadata metadata));
-            Assert.Equal(ticket, metadata.RelatedTicket);
-        }
-        byte[] zeroLength = TagTestWire.Metadata("A", id: 1, ticket: SizedPtr.Create(60, 0));
-        byte[] defaultTicket = TagTestWire.Metadata("A", id: 1, ticket: default(SizedPtr));
-        Assert.False(TagMetadataCodec.TryRead(zeroLength, TagTestWire.Identity, 0x351, out _));
-        Assert.False(TagMetadataCodec.TryRead(defaultTicket, TagTestWire.Identity, 0x351, out _));
+    [Theory]
+    [InlineData(0u)]
+    [InlineData(uint.MaxValue)]
+    public void InvalidCountRejectsWholeMetadataEvenWithHealthyNameAndCrc(uint count) {
+        byte[] wire = TagTestWire.Metadata("A", count: count);
+        Assert.True(RollingCrc.CheckCodewordForward(wire));
+        Assert.False(TagMetadataCodec.TryRead(wire, TagTestWire.Identity, 0x351, out _));
     }
 
     [Fact]
     public void MetadataRejectsCheckedCrcButInvalidFieldsAndNonExactConsumption() {
-        byte[] golden = Convert.FromHexString(TagTestWire.AnonymousAHex);
+        byte[] golden = TagTestWire.Metadata("A");
         byte[][] invalid = [
             TagTestWire.Seal(TagTestWire.Join(golden[..^4], [0])),
             TagTestWire.Metadata("", nameWire: [0]),
             TagTestWire.Metadata("A", nameWire: [3, 0xff]),
             TagTestWire.Metadata("A", nameWire: [5, 0xc0, 0x80]), // Overlong UTF-8.
-            TagTestWire.Metadata("A", nameWire: [0x83, 0x80]), // 15B total; passes size guard before the incomplete string prefix fails.
-            TagTestWire.Metadata("A", idWire: [0x80, 0x80, 0x80, 0x80, 0x80, 0]),
-            TagTestWire.Metadata("A", idWire: [0xff, 0xff, 0xff, 0xff, 0x10]),
-            TagTestWire.Metadata("A", id: 1, ticket: SizedPtr.Create(60, 40), ticketWire: [0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 2]),
-            TagTestWire.Metadata("A", id: 1, ticket: SizedPtr.Create(60, 40), ticketWire: TagTestWire.VarUInt(574, 11)),
+            TagTestWire.Metadata("A", nameWire: [0x83, 0x80]), // 18B total; passes size guard before the incomplete string prefix fails.
             TagTestWire.Metadata(new string('a', 3072), nameWire: TagTestWire.Utf8Name(new string('a', 3072))),
             TagTestWire.Metadata("A", nameWire: TagTestWire.VarUInt(3073 * 2 + 1))
         ];
@@ -161,20 +138,16 @@ public sealed class TagHeaderAndMetadataTests {
         }
         Assert.False(TagMetadataCodec.TryRead(golden, TagTestWire.Identity, 0x350, out _));
         Assert.False(TagMetadataCodec.TryRead(golden, default, 0x351, out _));
-        Assert.False(TagMetadataCodec.TryRead(new byte[14], TagTestWire.Identity, 0x351, out _));
-        Assert.False(TagMetadataCodec.TryRead(new byte[3105], TagTestWire.Identity, 0x351, out _));
+        Assert.False(TagMetadataCodec.TryRead(new byte[17], TagTestWire.Identity, 0x351, out _));
+        Assert.False(TagMetadataCodec.TryRead(new byte[3094], TagTestWire.Identity, 0x351, out _));
     }
 
     [Fact]
-    public void MetadataWriterRequiresRelatedFieldsTogetherAndInCheckedIdentity() {
-        HeadId local = HeadId.Create(TagTestWire.Identity, 1);
-        SizedPtr ticket = SizedPtr.Create(60, 40);
-        Assert.ThrowsAny<ArgumentException>(() => TagMetadataCodec.Prepare("A", 0, default));
-        Assert.ThrowsAny<ArgumentException>(() => TagMetadataCodec.Prepare("A", 0, TagTestWire.Identity, local));
-        Assert.ThrowsAny<ArgumentException>(() => TagMetadataCodec.Prepare("A", 0, TagTestWire.Identity, null, ticket));
-        Assert.ThrowsAny<ArgumentException>(() => TagMetadataCodec.Prepare("A", 0, TagTestWire.Identity, default(HeadId), ticket));
-        Assert.ThrowsAny<ArgumentException>(() => TagMetadataCodec.Prepare("A", 0, TagTestWire.Identity,
-            HeadId.Create(FormatTestValues.DataIdentity(), 1), ticket));
-        Assert.ThrowsAny<ArgumentException>(() => TagMetadataCodec.Prepare("A", 0, TagTestWire.Identity, local, default(SizedPtr)));
+    public void MetadataWriterRequiresCheckedIdentityAndPositiveNaturalCapacityCount() {
+        Assert.ThrowsAny<ArgumentException>(() => TagMetadataCodec.Prepare("A", 0, default, 1));
+        Assert.ThrowsAny<ArgumentException>(() => TagMetadataCodec.Prepare("A", 0, TagTestWire.Identity, 0));
+        TagMetadataEncodingPlan oversized = TagMetadataCodec.Prepare("A", 0, TagTestWire.Identity, int.MaxValue);
+        Assert.True(TagRecordCodec.MeasurePayloadLength(int.MaxValue, oversized.EncodedLength).IsFailure);
+        Assert.ThrowsAny<ArgumentException>(() => TagMetadataCodec.Encode(in oversized));
     }
 }

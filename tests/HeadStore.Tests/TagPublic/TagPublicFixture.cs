@@ -37,7 +37,7 @@ internal sealed class TagPublicFixture : IDisposable {
     // Independent published format assembly: public VSID + public BPV/CRC/RBF only.
     internal byte[] Header(string name) {
         byte[] bytes = new byte[24];
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes, 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes, 2);
         Identity.CopyTo(bytes, 4);
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(20), Bucket(name));
         return bytes;
@@ -59,17 +59,14 @@ internal sealed class TagPublicFixture : IDisposable {
         return tickets;
     }
 
-    internal static byte[] Metadata(string name, long time = 0) {
-        var fields = new ArrayBufferWriter<byte>();
-        var writer = new BareValueWriter(fields);
-        writer.WriteVarUInt32(0);
-        StringEncodingPlan plan = BareValueEncoding.PrepareString(name);
-        writer.WriteString(in plan);
-        byte[] bytes = new byte[8 + fields.WrittenCount + 4];
-        BinaryPrimitives.WriteInt64LittleEndian(bytes, time);
-        fields.WrittenSpan.CopyTo(bytes.AsSpan(8));
-        RollingCrc.SealCodewordForward(bytes);
-        return bytes;
+    internal static byte[] Metadata(string name, long time = 0, int entryCount = 1) =>
+        Tags.TagTestWire.Metadata(name, time, checked((uint)entryCount));
+
+    internal static byte[] Members(uint localId = 1, SizedPtr? ticket = null) => Tags.TagTestWire.Members(localId, ticket);
+
+    internal HeadId SeedHead() {
+        using var store = Open();
+        return store.CreateHead(1, [0x41], out _).Unwrap().HeadId;
     }
 
     internal static uint Bucket(string name) {

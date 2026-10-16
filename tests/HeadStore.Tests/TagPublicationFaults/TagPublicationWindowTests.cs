@@ -1,4 +1,5 @@
 using Atelia.HeadStore.Internal.Runtime;
+using Atelia.HeadStore.Tests.Tags;
 using Xunit;
 
 namespace Atelia.HeadStore.Tests.TagPublicationFaults;
@@ -10,7 +11,7 @@ public sealed class TagPublicationWindowTests {
         using var f = new TagPublicationFaultFixture();
         TagBucketSeed seed = f.SeedBucket(TagPublicationFaultFixture.Record(TagPublicationFaultFixture.OtherName));
 
-        Assert.True(f.Store.CreateTag(TagPublicationFaultFixture.Name, [2], out PublicationOutcome outcome).Unwrap());
+        Assert.NotNull(f.Store.CreateTag(TagPublicationFaultFixture.Name, [f.SelectedHead], out PublicationOutcome outcome).Unwrap());
 
         Assert.Equal(PublicationOutcome.Confirmed, outcome);
         Assert.Equal(1, f.Tags.OpenCalls);
@@ -29,12 +30,12 @@ public sealed class TagPublicationWindowTests {
     [Fact]
     public void MissingBucketPublishesEmptyHeaderBeforeTheTagAndCapturesInputBeforeTheBarrier() {
         using var f = new TagPublicationFaultFixture();
-        byte[] payload = [7, 8, 9];
-        byte[] expected = payload.ToArray();
+        HeadId[] payload = [f.SelectedHead];
+        HeadEntryId expected = f.Store.ReadHead(payload[0]).Unwrap().Id;
         var outcome = PublicationOutcome.Confirmed;
         f.Hooks.ConfirmDataDurable = () => {
             f.Events.Add("data:confirm");
-            Array.Fill(payload, (byte)0);
+            Array.Clear(payload);
             f.Data.ConfirmDurable();
         };
         f.Hooks.BeforeNewTagBucketRename = () => {
@@ -48,16 +49,16 @@ public sealed class TagPublicationWindowTests {
             Assert.False(File.Exists(f.PendingPath));
         };
 
-        Assert.True(f.Store.CreateTag(TagPublicationFaultFixture.Name, payload, out outcome).Unwrap());
+        Assert.NotNull(f.Store.CreateTag(TagPublicationFaultFixture.Name, payload, out outcome).Unwrap());
 
         Assert.Equal(PublicationOutcome.Confirmed, outcome);
         AssertOrdered(f.Events, "clock", "data:confirm", "tags:ensure", "pending:create", "append:0", "flush:0",
             "close:0", "bucket:rename", "bucket:open", "bucket:append", "bucket:flush", "bucket:close");
         Assert.Equal(1, f.Tags.OpenCalls); // Lookup and Append retain this same formal handle.
         TagPublicationFile formal = Assert.Single(f.Tags.Opened);
-        Assert.Equal(0, formal.AppendedMeta![8]); // Anonymous schema writes RelatedLocalRefId=0.
+        Assert.Equal(1u, System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(formal.AppendedMeta!.AsSpan(8)));
         Assert.Equal(1, formal.DisposeCalls);
-        Assert.Equal(expected, f.Store.ResolveTag(TagPublicationFaultFixture.Name).Unwrap().Bytes.ToArray());
+        Assert.Equal(expected, Assert.Single(f.Store.ReadTag(TagPublicationFaultFixture.Name).Unwrap().Entries).Value);
         Assert.Equal(0, f.Lock.DisposeCalls);
     }
 
@@ -72,7 +73,7 @@ public sealed class TagPublicationWindowTests {
         f.Hooks.ConfirmDataDurable = () => { f.Events.Add("data:confirm"); throw failure; };
         var outcome = PublicationOutcome.Confirmed;
 
-        Assert.Same(failure, Assert.Throws<IOException>(() => f.Store.CreateTag(TagPublicationFaultFixture.Name, [1], out outcome)));
+        Assert.Same(failure, Assert.Throws<IOException>(() => f.Store.CreateTag(TagPublicationFaultFixture.Name, [f.SelectedHead], out outcome)));
 
         Assert.Equal(PublicationOutcome.NotAttempted, outcome);
         Assert.Equal(0, f.Tags.EnsureCalls);
@@ -117,7 +118,7 @@ public sealed class TagPublicationWindowTests {
         if (stage == "before-rename") { f.Hooks.BeforeNewTagBucketRename = () => throw failure; }
         var outcome = PublicationOutcome.Confirmed;
 
-        Assert.Same(failure, Assert.Throws<IOException>(() => f.Store.CreateTag(TagPublicationFaultFixture.Name, [1], out outcome)));
+        Assert.Same(failure, Assert.Throws<IOException>(() => f.Store.CreateTag(TagPublicationFaultFixture.Name, [f.SelectedHead], out outcome)));
 
         Assert.Equal(PublicationOutcome.NotAttempted, outcome);
         Assert.Equal(0, f.Tags.RenameCalls);
@@ -132,7 +133,7 @@ public sealed class TagPublicationWindowTests {
         f.Heads.ConfigurePending = file => file.AppendError = new HeadStoreRuntimeError("InjectedPlanRejection", "Prepared header rejected.");
         var outcome = PublicationOutcome.Confirmed;
 
-        Assert.Throws<InvalidOperationException>(() => f.Store.CreateTag(TagPublicationFaultFixture.Name, [1], out outcome));
+        Assert.Throws<InvalidOperationException>(() => f.Store.CreateTag(TagPublicationFaultFixture.Name, [f.SelectedHead], out outcome));
 
         Assert.Equal(PublicationOutcome.NotAttempted, outcome);
         Assert.Equal(0, f.Tags.RenameCalls);
@@ -151,7 +152,7 @@ public sealed class TagPublicationWindowTests {
         f.Tags.RenameThenThrow = moved;
         var outcome = PublicationOutcome.Confirmed;
 
-        Assert.Same(failure, Assert.Throws<IOException>(() => f.Store.CreateTag(TagPublicationFaultFixture.Name, [1], out outcome)));
+        Assert.Same(failure, Assert.Throws<IOException>(() => f.Store.CreateTag(TagPublicationFaultFixture.Name, [f.SelectedHead], out outcome)));
 
         Assert.Equal(PublicationOutcome.NotAttempted, outcome);
         Assert.Equal(moved, File.Exists(f.BucketPath));
@@ -160,7 +161,7 @@ public sealed class TagPublicationWindowTests {
         f.AssertFaultedAndCleaned();
         using var cold = HeadStore.Open(f.Storage.Root, f.Data);
         Assert.False(File.Exists(f.PendingPath));
-        Assert.Equal("HeadStore.TagNotFound", cold.ResolveTag(TagPublicationFaultFixture.Name).Error!.ErrorCode);
+        Assert.Equal("HeadStore.TagNotFound", cold.ReadTag(TagPublicationFaultFixture.Name).Error!.ErrorCode);
     }
 
     [Theory]
@@ -173,14 +174,14 @@ public sealed class TagPublicationWindowTests {
         else { f.Hooks.AfterTagBucketPublished = () => throw failure; }
         var outcome = PublicationOutcome.Confirmed;
 
-        Assert.Same(failure, Assert.Throws<IOException>(() => f.Store.CreateTag(TagPublicationFaultFixture.Name, [1], out outcome)));
+        Assert.Same(failure, Assert.Throws<IOException>(() => f.Store.CreateTag(TagPublicationFaultFixture.Name, [f.SelectedHead], out outcome)));
 
         Assert.Equal(PublicationOutcome.NotAttempted, outcome);
         Assert.True(File.Exists(f.BucketPath));
         Assert.False(File.Exists(f.PendingPath));
         f.AssertFaultedAndCleaned();
         using var cold = HeadStore.OpenReadOnly(f.Storage.Root, f.Data);
-        Assert.Equal("HeadStore.TagNotFound", cold.ResolveTag(TagPublicationFaultFixture.Name).Error!.ErrorCode);
+        Assert.Equal("HeadStore.TagNotFound", cold.ReadTag(TagPublicationFaultFixture.Name).Error!.ErrorCode);
     }
 
     [Theory]
@@ -208,7 +209,7 @@ public sealed class TagPublicationWindowTests {
         };
         var outcome = PublicationOutcome.Confirmed;
 
-        Assert.Same(failure, Assert.Throws<IOException>(() => f.Store.CreateTag(TagPublicationFaultFixture.Name, [1], out outcome)));
+        Assert.Same(failure, Assert.Throws<IOException>(() => f.Store.CreateTag(TagPublicationFaultFixture.Name, [f.SelectedHead], out outcome)));
 
         Assert.Equal(PublicationOutcome.Unknown, outcome);
         Assert.Equal(1, Assert.Single(f.Tags.Opened).AppendCalls);
@@ -226,7 +227,7 @@ public sealed class TagPublicationWindowTests {
         f.Tags.ConfigureOpen = file => file.AppendError = rejection;
         var outcome = PublicationOutcome.Confirmed;
 
-        Assert.Same(rejection, f.Store.CreateTag(TagPublicationFaultFixture.Name, [1], out outcome).Error);
+        Assert.Same(rejection, f.Store.CreateTag(TagPublicationFaultFixture.Name, [f.SelectedHead], out outcome).Error);
 
         Assert.Equal(PublicationOutcome.NotAttempted, outcome);
         TagPublicationFile formal = Assert.Single(f.Tags.Opened);
@@ -235,8 +236,8 @@ public sealed class TagPublicationWindowTests {
         Assert.Equal(1, formal.DisposeCalls);
         Assert.Equal(0, f.Lock.DisposeCalls);
         f.Tags.ConfigureOpen = null;
-        Assert.Equal("HeadStore.TagNotFound", f.Store.ResolveTag(TagPublicationFaultFixture.Name).Error!.ErrorCode);
-        Assert.True(f.Store.CreateTag(TagPublicationFaultFixture.Name, [1], out outcome).Unwrap());
+        Assert.Equal("HeadStore.TagNotFound", f.Store.ReadTag(TagPublicationFaultFixture.Name).Error!.ErrorCode);
+        Assert.NotNull(f.Store.CreateTag(TagPublicationFaultFixture.Name, [f.SelectedHead], out outcome).Unwrap());
         Assert.Equal(PublicationOutcome.Confirmed, outcome);
     }
 
@@ -250,12 +251,14 @@ public sealed class TagPublicationWindowTests {
         else { f.Hooks.AfterPublicationConfirmed = () => throw failure; }
         var outcome = PublicationOutcome.NotAttempted;
 
-        Assert.Same(failure, Assert.Throws<OutOfMemoryException>(() => f.Store.CreateTag(TagPublicationFaultFixture.Name, [7, 8], out outcome)));
+        HeadId selected = f.SelectedHead;
+        HeadEntryId expected = f.Store.ReadHead(selected).Unwrap().Id;
+        Assert.Same(failure, Assert.Throws<OutOfMemoryException>(() => f.Store.CreateTag(TagPublicationFaultFixture.Name, [selected], out outcome)));
 
         Assert.Equal(PublicationOutcome.Confirmed, outcome);
         f.AssertFaultedAndCleaned();
         using var cold = HeadStore.OpenReadOnly(f.Storage.Root, f.Data);
-        Assert.Equal(new byte[] { 7, 8 }, cold.ResolveTag(TagPublicationFaultFixture.Name).Unwrap().Bytes.ToArray());
+        Assert.Equal(expected, Assert.Single(cold.ReadTag(TagPublicationFaultFixture.Name).Unwrap().Entries).Value);
     }
 
     [Fact]
@@ -272,7 +275,7 @@ public sealed class TagPublicationWindowTests {
         f.Lock.DisposeFailure = lockClose;
         var outcome = PublicationOutcome.Confirmed;
 
-        AggregateException observed = Assert.Throws<AggregateException>(() => f.Store.CreateTag(TagPublicationFaultFixture.Name, [1], out outcome));
+        AggregateException observed = Assert.Throws<AggregateException>(() => f.Store.CreateTag(TagPublicationFaultFixture.Name, [f.SelectedHead], out outcome));
 
         Assert.Equal(new Exception[] { primary, tagClose, headClose, lockClose }, observed.Flatten().InnerExceptions);
         Assert.Equal(PublicationOutcome.Unknown, outcome);

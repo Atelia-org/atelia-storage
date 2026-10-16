@@ -12,13 +12,13 @@ namespace Atelia.HeadStore.Smoke;
 /// <summary>Fixed 09/TagNameTests vectors; this consumer does not implement the routing algorithm.</summary>
 internal static class TagGoldenScenario {
     private static readonly Golden[] Goldens = [
-        new("A", "A", 0x351, false),
-        new("Release", "Release", 0x174, true),
-        new("release", "release", 0x1aa, false),
+        new("A", "A", 0x351),
+        new("Release", "Release", 0x174),
+        new("release", "release", 0x1aa),
         // Construct the lone surrogate at runtime; JSON and attribute encoders may replace it.
-        new("U+D800", new string((char)0xd800, 1), 0x265, false),
-        new("tag-48", "tag-48", 0x106, false),
-        new("tag-65", "tag-65", 0x106, true)
+        new("U+D800", new string((char)0xd800, 1), 0x265),
+        new("tag-48", "tag-48", 0x106),
+        new("tag-65", "tag-65", 0x106)
     ];
 
     internal static int Run(string[] args) {
@@ -44,17 +44,17 @@ internal static class TagGoldenScenario {
             for (int index = 0; index < Goldens.Length; index++) {
                 Golden golden = Goldens[index];
                 byte[] payload = Payload(index);
-                bool created = golden.Related
-                    ? heads.CreateTag(golden.Name, payload, source, out outcome).Unwrap()
-                    : heads.CreateTag(golden.Name, payload, out outcome).Unwrap();
-                Require(created, "CreateTag did not return true.");
+                HeadEntryId selected = heads.PublishHead(source.HeadId, payload, out outcome).Unwrap();
                 Confirmed(outcome);
-                TagInfo info = heads.ReadTagInfo(golden.Name).Unwrap();
+                HeadSetTag created = heads.CreateTag(golden.Name, [source.HeadId], out outcome).Unwrap();
+                Require(created.Entries.Count == 1 && created.Entries[source.HeadId] == selected, "CreateTag captured a different current Entry.");
+                Confirmed(outcome);
+                HeadSetTagInfo info = heads.ReadTagInfo(golden.Name).Unwrap();
                 Require(StringComparer.Ordinal.Equals(golden.Name, info.Name), "Writer changed the original name code units.");
                 entries.Add(new Entry(golden.Label, CodeUnits(info.Name), info.RecordedAtUnixMs,
-                    info.RelatedRefId?.LocalId, info.RelatedTicket?.Packed));
+                    info.EntryCount, selected.HeadId.LocalId, selected.Ticket.Packed));
             }
-            // Related notes retain the selected coordinates, even when the source advances.
+            // Each tag keeps its selected Entry, even when the same Head advances.
             _ = heads.PublishHead(source.HeadId, [0x42, 0x11], out outcome).Unwrap();
             Confirmed(outcome);
             manifest = new Manifest(Convert.ToBase64String(data.StoreId), Convert.ToBase64String(heads.HeadStoreId),
@@ -76,7 +76,7 @@ internal static class TagGoldenScenario {
                 && Convert.ToBase64String(heads.HeadStoreId) == manifest.HeadStoreId, "Cold identity changed.");
             ValidatePublic(heads, manifest);
             HeadStoreAudit audit = heads.Audit().Unwrap();
-            Require(audit.HeadCount == 1 && audit.EntryCount == 2 && audit.TagCount == 6
+            Require(audit.HeadCount == 1 && audit.EntryCount == 8 && audit.TagCount == 6
                 && audit.TagBucketCount == 5 && audit.OriginCount == 0, "Unexpected golden inventory.");
         }
         string[] paths = ValidatePaths(root);
@@ -93,43 +93,51 @@ internal static class TagGoldenScenario {
             && currentSource.Payload.SequenceEqual(new byte[] { 0x42, 0x11 }), "The related source did not retain its later head.");
         for (int index = 0; index < Goldens.Length; index++) {
             Golden golden = Goldens[index];
-            TagInfo info = heads.ReadTagInfo(golden.Name).Unwrap();
-            ValidateInfo(info, golden, manifest.Entries[index], manifest.SourceTicket);
-            Require(heads.ResolveTag(golden.Name).Unwrap().Bytes.SequenceEqual(Payload(index)), "The exact named root payload changed.");
+            HeadSetTagInfo info = heads.ReadTagInfo(golden.Name).Unwrap();
+            ValidateInfo(info, golden, manifest.Entries[index]);
+            ValidateTag(heads, golden.Name, manifest.Entries[index], index);
         }
         // Both case-distinct names and both colliding full names must remain separate.
-        Require(!heads.ResolveTag("Release").Unwrap().Bytes.SequenceEqual(heads.ResolveTag("release").Unwrap().Bytes)
-            && !heads.ResolveTag("tag-48").Unwrap().Bytes.SequenceEqual(heads.ResolveTag("tag-65").Unwrap().Bytes),
+        Require(heads.ReadTag("Release").Unwrap().Entries[currentSource.Id.HeadId] != heads.ReadTag("release").Unwrap().Entries[currentSource.Id.HeadId]
+            && heads.ReadTag("tag-48").Unwrap().Entries[currentSource.Id.HeadId] != heads.ReadTag("tag-65").Unwrap().Entries[currentSource.Id.HeadId],
             "Distinct Ordinal names were conflated.");
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        TagScanEnd end = heads.ScanTags(info => {
+        HeadSetTagScanEnd end = heads.ScanTags(info => {
             int index = Array.FindIndex(Goldens, golden => StringComparer.Ordinal.Equals(golden.Name, info.Name));
             Require(index >= 0 && seen.Add(info.Name), "Scan returned an unknown or repeated golden name.");
-            ValidateInfo(info, Goldens[index], manifest.Entries[index], manifest.SourceTicket);
-            Require(heads.ResolveTag(info.Name).Unwrap().Bytes.SequenceEqual(Payload(index)), "Scan/name routing returned a different root.");
+            ValidateInfo(info, Goldens[index], manifest.Entries[index]);
+            ValidateTag(heads, info.Name, manifest.Entries[index], index);
             return true;
         }).Unwrap();
-        Require(end == TagScanEnd.Complete && seen.Count == Goldens.Length, "Scan did not return the complete Ordinal name set.");
+        Require(end == HeadSetTagScanEnd.Complete && seen.Count == Goldens.Length, "Scan did not return the complete Ordinal name set.");
 
         // These independent BPV vectors decode to A; routing is observed through the public query.
         foreach (byte[] wire in new[] { new byte[] { 3, 65 }, new byte[] { 2, 65, 0 }, new byte[] { 0x83, 0, 65 } }) {
             var reader = new BareValueReader(wire);
             string name = reader.ReadString(3072);
             reader.EnsureFullyConsumed();
-            Require(StringComparer.Ordinal.Equals(name, "A") && heads.ResolveTag(name).Unwrap().Bytes.SequenceEqual(Payload(0)),
+            Require(StringComparer.Ordinal.Equals(name, "A"),
                 "An independently decoded A representation changed name routing.");
+            ValidateTag(heads, name, manifest.Entries[0], 0);
         }
     }
 
-    private static void ValidateInfo(TagInfo info, Golden golden, Entry entry, ulong sourceTicket) {
+    private static void ValidateInfo(HeadSetTagInfo info, Golden golden, Entry entry) {
         Require(entry.Label == golden.Label && entry.NameCodeUnits == CodeUnits(golden.Name)
             && StringComparer.Ordinal.Equals(info.Name, golden.Name) && info.RecordedAtUnixMs == entry.RecordedAtUnixMs,
             "The original name or recorded metadata changed across the process boundary.");
-        uint? expectedHead = golden.Related ? 1u : null;
-        ulong? expectedTicket = golden.Related ? sourceTicket : null;
-        Require(info.RelatedRefId?.LocalId == expectedHead && entry.RelatedRefId == expectedHead
-            && info.RelatedTicket?.Packed == expectedTicket && entry.RelatedTicket == expectedTicket,
-            "The complete Related metadata differs from the selected source coordinates.");
+        Require(info.EntryCount == 1 && entry.EntryCount == 1 && entry.LocalHeadId == 1,
+            "The tag member count changed.");
+    }
+
+    private static void ValidateTag(Heads heads, string name, Entry expected, int index) {
+        HeadSetTag tag = heads.ReadTag(name).Unwrap();
+        Require(tag.Name == name && tag.RecordedAtUnixMs == expected.RecordedAtUnixMs && tag.Entries.Count == 1,
+            "The complete tag differs from its metadata.");
+        var member = tag.Entries.Single();
+        Require(member.Key == member.Value.HeadId && member.Key.LocalId == expected.LocalHeadId
+            && member.Value.Ticket.Packed == expected.Ticket, "The exact tag member changed.");
+        Require(heads.ReadEntry(member.Value).Unwrap().Payload.SequenceEqual(Payload(index)), "The tagged historical Entry changed bytes.");
     }
 
     private static string[] ValidatePaths(string root) {
@@ -149,27 +157,29 @@ internal static class TagGoldenScenario {
             using (var header = file.ReadPooledFrame(scan.Current.Ticket).Unwrap()) {
                 ReadOnlySpan<byte> bytes = header.PayloadAndMeta;
                 Require(header.Tag == 0 && !header.IsTombstone && header.TailMetaLength == 0 && bytes.Length == 24
-                    && BinaryPrimitives.ReadUInt32LittleEndian(bytes) == 1
+                    && BinaryPrimitives.ReadUInt32LittleEndian(bytes) == 2
                     && bytes.Slice(4, 16).SequenceEqual(Convert.FromBase64String(manifest.HeadStoreId))
                     && BinaryPrimitives.ReadUInt32LittleEndian(bytes[20..]) == bucket, "Bucket header identity/format/id differs from its fixed golden path.");
             }
             var names = new HashSet<string>(StringComparer.Ordinal);
             while (scan.MoveNext()) {
                 using var frame = file.ReadPooledFrame(scan.Current.Ticket).Unwrap();
-                Require(frame.Tag == 1 && !frame.IsTombstone && frame.TailMetaLength >= 15, "Unexpected physical golden record shape.");
+                Require(frame.Tag == 1 && !frame.IsTombstone && frame.TailMetaLength >= 18, "Unexpected physical golden record shape.");
                 ReadOnlySpan<byte> meta = frame.PayloadAndMeta[^frame.TailMetaLength..];
                 Require(RollingCrc.CheckCodewordForward(meta), "Physical golden metadata CRC failed.");
                 var reader = new BareValueReader(meta[..^4]);
                 long time = reader.ReadInt64LE();
-                uint related = reader.ReadVarUInt32();
-                ulong? ticket = related == 0 ? null : SizedPtr.Deserialize(reader.ReadVarUInt64()).Packed;
+                uint count = reader.ReadUInt32LE();
                 string name = reader.ReadString(3072);
                 reader.EnsureFullyConsumed();
                 int index = Array.FindIndex(Goldens, golden => StringComparer.Ordinal.Equals(golden.Name, name));
                 Require(index >= 0 && Goldens[index].Bucket == bucket && names.Add(name), "Physical name was rewritten, duplicated or routed to the wrong golden bucket.");
                 Entry entry = manifest.Entries[index];
-                Require(time == entry.RecordedAtUnixMs && related == (entry.RelatedRefId ?? 0) && ticket == entry.RelatedTicket
-                    && frame.PayloadAndMeta[..^frame.TailMetaLength].SequenceEqual(Payload(index)), "Physical root or metadata differs from the public golden record.");
+                ReadOnlySpan<byte> members = frame.PayloadAndMeta[..^frame.TailMetaLength];
+                Require(time == entry.RecordedAtUnixMs && count == 1 && members.Length == 12
+                    && BinaryPrimitives.ReadUInt32LittleEndian(members) == entry.LocalHeadId
+                    && BinaryPrimitives.ReadUInt64LittleEndian(members[4..]) == entry.Ticket,
+                    "Physical member table or metadata differs from the public golden record.");
             }
             Require(scan.TerminationError is null && names.Count == Goldens.Count(golden => golden.Bucket == bucket),
                 "Golden bucket did not reach normal EOF with all expected records.");
@@ -193,9 +203,9 @@ internal static class TagGoldenScenario {
     private static void Require(bool condition, string message) {
         if (!condition) { throw new InvalidDataException(message); }
     }
-    private sealed record Golden(string Label, string Name, uint Bucket, bool Related) {
+    private sealed record Golden(string Label, string Name, uint Bucket) {
         internal string FileName => $"{Bucket:x8}.rbf";
     }
-    private sealed record Entry(string Label, string NameCodeUnits, long RecordedAtUnixMs, uint? RelatedRefId, ulong? RelatedTicket);
+    private sealed record Entry(string Label, string NameCodeUnits, long RecordedAtUnixMs, int EntryCount, uint LocalHeadId, ulong Ticket);
     private sealed record Manifest(string DataId, string HeadStoreId, ulong SourceTicket, Entry[] Entries);
 }

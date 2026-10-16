@@ -10,9 +10,9 @@ public sealed partial class HeadStore {
     private IEnumerator<QualifiedTagBucketTarget>? _tagScanTargets;
     private bool _tagScanActive;
 
-    /// <summary>流式交付全部实际已建桶的自有元信息，不读取 root 或证明全库名称唯一。</summary>
+    /// <summary>流式交付全部实际已建桶的自有元信息，不读取成员表或证明全库名称唯一。</summary>
     /// <remarks>所到坏元信息直接失败；visitor 的 false 接收当前项后正常停止，已交付值不回滚。</remarks>
-    public AteliaResult<TagScanEnd> ScanTags(Func<TagInfo, bool> visitor,
+    public AteliaResult<HeadSetTagScanEnd> ScanTags(Func<HeadSetTagInfo, bool> visitor,
         CancellationToken cancellationToken = default) {
         EnsureOwnerUsable();
         if (visitor is null) {
@@ -27,7 +27,7 @@ public sealed partial class HeadStore {
                 EnsureOwnerUsable();
                 cancellationToken.ThrowIfCancellationRequested();
             }
-            AteliaResult<TagScanEnd> result = default;
+            AteliaResult<HeadSetTagScanEnd> result = default;
             CleanupErrors errors = default;
             try { result = ScanTagsCore(visitor, CheckState); }
             catch (Exception error) { errors.Add(error); }
@@ -43,7 +43,7 @@ public sealed partial class HeadStore {
         finally { _tagScanActive = false; }
     }
 
-    private AteliaResult<TagScanEnd> ScanTagsCore(Func<TagInfo, bool> visitor, Action checkState) {
+    private AteliaResult<HeadSetTagScanEnd> ScanTagsCore(Func<HeadSetTagInfo, bool> visitor, Action checkState) {
         checkState();
         _tagScanTargets = GetTagFiles().EnumerateTagBucketTargets(checkState, _markOwnedCleanupFault);
         checkState();
@@ -51,7 +51,7 @@ public sealed partial class HeadStore {
             checkState();
             bool hasBucket = _tagScanTargets.MoveNext();
             checkState();
-            if (!hasBucket) { return TagScanEnd.Complete; }
+            if (!hasBucket) { return HeadSetTagScanEnd.Complete; }
             QualifiedTagBucketTarget target = _tagScanTargets.Current;
             checkState();
             _tagScanFile = GetTagFiles().OpenTagBucket(target, IsReadOnly, _markOwnedCleanupFault);
@@ -62,12 +62,12 @@ public sealed partial class HeadStore {
             var result = ScanTagBucket(_tagScanFile, _tagScanHeader, visitor, checkState);
             CloseTagScanBucket();
             checkState();
-            if (result.IsFailure || result.Value == TagScanEnd.VisitorStopped) { return result; }
+            if (result.IsFailure || result.Value == HeadSetTagScanEnd.VisitorStopped) { return result; }
         }
     }
 
-    private static AteliaResult<TagScanEnd> ScanTagBucket(IRbfFile file, CheckedTagBucketHeader header,
-        Func<TagInfo, bool> visitor, Action checkState) {
+    private static AteliaResult<HeadSetTagScanEnd> ScanTagBucket(IRbfFile file, CheckedTagBucketHeader header,
+        Func<HeadSetTagInfo, bool> visitor, Action checkState) {
         checkState();
         var forward = file.ScanForward(showTombstone: true).GetEnumerator();
         checkState();
@@ -84,15 +84,15 @@ public sealed partial class HeadStore {
             checkState();
             bool hasRecord = forward.MoveNext();
             checkState();
-            if (!hasRecord) { return forward.TerminationError is { } error ? error : TagScanEnd.Complete; }
+            if (!hasRecord) { return forward.TerminationError is { } error ? error : HeadSetTagScanEnd.Complete; }
             var metadata = TagRecordReader.ReadMetadata(forward.Current, header, checkState);
             if (metadata.IsFailure) { return metadata.Error!; }
             // ReadMetadata has returned its small pooled TailMeta before any application callback.
-            TagInfo info = CreateTagInfo(metadata.Value);
+            HeadSetTagInfo info = CreateTagInfo(metadata.Value);
             checkState();
             bool keepGoing = visitor(info);
             checkState();
-            if (!keepGoing) { return TagScanEnd.VisitorStopped; }
+            if (!keepGoing) { return HeadSetTagScanEnd.VisitorStopped; }
         }
     }
 

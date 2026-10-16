@@ -41,7 +41,7 @@ internal sealed class TagFaultFixture : IDisposable {
             throw new InvalidOperationException("Invalid fixture identity.");
         }
         byte[] header = new byte[24];
-        BinaryPrimitives.WriteUInt32LittleEndian(header, 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(header, 2);
         Identity.TryWrite(header.AsSpan(4, 16));
         BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(20), BucketId);
         using IRbfFile writer = RbfFile.CreateNew(PathName, RbfCacheMode.Off);
@@ -128,23 +128,13 @@ internal sealed class TagFaultFixture : IDisposable {
         instance.GetType().GetProperty(name, InstanceMembers)
         ?? throw new InvalidOperationException($"Missing production diagnostic property {name}.");
 
-    // Independent, short ASCII BPV wire: time64 LE, anonymous id0, UTF-8 length*2+1, text, CRC.
-    internal static byte[] Metadata(string name = TargetName, long recordedAt = -17) {
-        byte[] ascii = Encoding.ASCII.GetBytes(name);
-        if (name.Length is < 1 or > 63 || name.Any(value => value > 0x7F)) {
-            throw new ArgumentException("This fixture builds only short ASCII names.", nameof(name));
-        }
-        byte[] bytes = new byte[8 + 1 + 1 + ascii.Length + 4];
-        BinaryPrimitives.WriteInt64LittleEndian(bytes, recordedAt);
-        bytes[8] = 0;
-        bytes[9] = (byte)(ascii.Length * 2 + 1);
-        ascii.CopyTo(bytes, 10);
-        RollingCrc.SealCodewordForward(bytes);
-        return bytes;
-    }
+    // Independent field assembly shared with the format vectors.
+    internal static byte[] Metadata(string name = TargetName, long recordedAt = -17, int entryCount = 1) =>
+        Tags.TagTestWire.Metadata(name, recordedAt, checked((uint)entryCount));
 
-    internal static byte[] Payload(int length = 4096, int salt = 0) =>
-        Enumerable.Range(0, length).Select(index => (byte)(index + salt)).ToArray();
+    internal static byte[] Payload(int length = 12, int salt = 0) => length == 12
+        ? Tags.TagTestWire.Members(checked((uint)salt + 1))
+        : Enumerable.Range(0, length).Select(index => (byte)(index + salt)).ToArray();
 
     public void Dispose() {
         try { Close(); }

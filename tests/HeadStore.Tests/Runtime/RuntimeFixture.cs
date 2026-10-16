@@ -37,7 +37,7 @@ internal sealed class RuntimeFixture : IDisposable {
     internal HeadId Seed(uint localId = 1, byte[]? payload = null, long recordedAt = 123) {
         string path = Path.Combine(Root, localId.ToString("x8") + ".rbf");
         Span<byte> header = stackalloc byte[24];
-        BinaryPrimitives.WriteUInt32LittleEndian(header, 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(header, 2);
         Identity.TryWrite(header[4..20]);
         BinaryPrimitives.WriteUInt32LittleEndian(header[20..], localId);
         Span<byte> meta = stackalloc byte[8];

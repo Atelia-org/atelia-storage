@@ -159,7 +159,7 @@ public sealed class HeadRecordReaderTests : IDisposable {
     public void FullRbfCrcDoesNotPermitAdoptingUnexpectedHeaderFields(string field) {
         byte[] payload = Header();
         switch (field) {
-            case "version": BinaryPrimitives.WriteUInt32LittleEndian(payload, 2); break;
+            case "version": BinaryPrimitives.WriteUInt32LittleEndian(payload, 1); break;
             case "identity": payload[4] ^= 1; break;
             case "local": BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(20), 7); break;
             case "zeroLocal": BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(20), 0); break;

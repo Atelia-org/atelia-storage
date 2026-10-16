@@ -1,3 +1,4 @@
+using Atelia.HeadStore.Tests.Tags;
 using Atelia.Data;
 using Atelia.HeadStore.Tests.TagPublic;
 using Xunit;
@@ -12,11 +13,11 @@ public sealed class TagScanCallbackTests {
         using var f = new TagScanFaultFixture();
         HeadId sourceId = f.SeedHead();
         HeadEntryId entryId = f.Store.ReadHead(sourceId).Unwrap().Id;
-        f.SeedBucket(TagScanFaultFixture.Name, new TagPublicRecord(TagScanFaultFixture.Name, [1]));
+        f.SeedBucket(TagScanFaultFixture.Name, new TagPublicRecord(TagScanFaultFixture.Name, TagPublicFixture.Members(1)));
         f.Order(TagScanFaultFixture.Name);
         int callbacks = 0;
 
-        Assert.Equal(TagScanEnd.Complete, f.Store.ScanTags(_ => {
+        Assert.Equal(HeadSetTagScanEnd.Complete, f.Store.ScanTags(_ => {
             callbacks++;
             int events = f.Events.Count;
             PublicationOutcome outcome = PublicationOutcome.Confirmed;
@@ -30,9 +31,8 @@ public sealed class TagScanCallbackTests {
             outcome = PublicationOutcome.Confirmed;
             AssertGuard(f.Store.ForkHead(2, entryId, out outcome), outcome);
             outcome = PublicationOutcome.Confirmed;
-            AssertGuard(f.Store.CreateTag("new", [2], out outcome), outcome);
-            outcome = PublicationOutcome.Confirmed;
-            AssertGuard(f.Store.CreateTag("new", [2], entryId, out outcome), outcome);
+            AssertGuard(f.Store.CreateTag("new", [sourceId], out outcome), outcome);
+
             Assert.Equal("HeadStore.TagScanActive", f.Store.ScanTags(_ => true).Error!.ErrorCode);
             Assert.Equal("HeadStore.TagScanActive",
                 f.Store.ReadHeadHistory(sourceId, UnlimitedHistory, _ => true).Error!.ErrorCode);
@@ -42,11 +42,11 @@ public sealed class TagScanCallbackTests {
 
         Assert.Equal(1, callbacks);
         Assert.Equal(0, f.Lock.DisposeCalls);
-        Assert.Equal(TagScanEnd.Complete, f.Store.ScanTags(_ => true).Unwrap());
+        Assert.Equal(HeadSetTagScanEnd.Complete, f.Store.ScanTags(_ => true).Unwrap());
         f.Operations.EntryPaths = null;
         Assert.True(f.Store.PublishHead(sourceId, [2], out var confirmed).IsSuccess);
         Assert.Equal(PublicationOutcome.Confirmed, confirmed);
-        Assert.True(f.Store.CreateTag("new", [2], entryId, out confirmed).Unwrap());
+        f.Store.CreateTag("new", [sourceId], out confirmed).Unwrap();
     }
 
     [Theory]
@@ -55,12 +55,12 @@ public sealed class TagScanCallbackTests {
     public void CallbackAllowsReadHeadInfoResolveAndForkQueryAndBorrowsCheckedCurrentBucket(bool readOnly) {
         using var f = new TagScanFaultFixture(readOnly);
         HeadId id = f.SeedHead();
-        var seed = f.SeedBucket(TagScanFaultFixture.Name, new TagPublicRecord(TagScanFaultFixture.Name, [0xff, 0]),
-            new TagPublicRecord(TagScanFaultFixture.SameBucketName, [3]));
+        var seed = f.SeedBucket(TagScanFaultFixture.Name, new TagPublicRecord(TagScanFaultFixture.Name, TagPublicFixture.Members(1)),
+            new TagPublicRecord(TagScanFaultFixture.SameBucketName, TagPublicFixture.Members(3)));
         f.Order(TagScanFaultFixture.Name);
-        var retained = new List<TagInfo>();
+        var retained = new List<HeadSetTagInfo>();
 
-        Assert.Equal(TagScanEnd.Complete, f.Store.ScanTags(info => {
+        Assert.Equal(HeadSetTagScanEnd.Complete, f.Store.ScanTags(info => {
             retained.Add(info);
             var scan = Assert.Single(f.Tags.Opened);
             Assert.Equal(0, scan.DisposeCalls);
@@ -73,8 +73,8 @@ public sealed class TagScanCallbackTests {
             Assert.Equal(current.Id, exact.Id);
             Assert.Equal(current.Payload.ToArray(), exact.Payload.ToArray());
             Assert.Equal(info.Name, f.Store.ReadTagInfo(info.Name).Unwrap().Name);
-            Assert.Equal(info.Name == TagScanFaultFixture.Name ? new byte[] { 0xff, 0 } : new byte[] { 3 },
-                f.Store.ResolveTag(info.Name).Unwrap().Bytes.ToArray());
+            Assert.Equal(info.Name == TagScanFaultFixture.Name ? TagPublicFixture.Members(1) : TagPublicFixture.Members(3),
+                f.Store.ReadTag(info.Name).Unwrap().MemberBytes());
             Assert.Empty(f.Store.ListHeadOrigins(1).Unwrap());
             Assert.Single(f.Tags.Opened);
             Assert.Single(scan.Reads, read => !read.Raw && read.Offset == seed.Header.Offset && read.Length == seed.Header.Length);
@@ -87,7 +87,7 @@ public sealed class TagScanCallbackTests {
         Assert.Equal(1, f.Tags.OpenCalls);
         f.Store.Dispose();
         Assert.Equal(new[] { TagScanFaultFixture.Name, TagScanFaultFixture.SameBucketName }, retained.Select(info => info.Name));
-        Assert.All(retained, info => { Assert.Null(info.RelatedRefId); Assert.Null(info.RelatedTicket); });
+        Assert.All(retained, info => Assert.Equal(1, info.EntryCount));
     }
 
     [Theory]
@@ -95,16 +95,16 @@ public sealed class TagScanCallbackTests {
     [InlineData("subdirectory")]
     public void SameBucketCallbackQueryStillRequiresAllDirectoryPathsBeforeBorrowing(string badName) {
         using var f = new TagScanFaultFixture();
-        f.SeedBucket(TagScanFaultFixture.Name, new TagPublicRecord(TagScanFaultFixture.Name, [1]));
+        f.SeedBucket(TagScanFaultFixture.Name, new TagPublicRecord(TagScanFaultFixture.Name, TagPublicFixture.Members(1)));
         string good = f.BucketPath(TagScanFaultFixture.Name);
         string bad = Path.Combine(Path.GetDirectoryName(good)!, badName);
         if (badName == "subdirectory") { Directory.CreateDirectory(bad); }
         else { File.WriteAllBytes(bad, [1]); }
         f.Operations.EntryPaths = [good, bad];
 
-        Assert.Equal(TagScanEnd.VisitorStopped, f.Store.ScanTags(info => {
+        Assert.Equal(HeadSetTagScanEnd.VisitorStopped, f.Store.ScanTags(info => {
             Assert.Throws<InvalidDataException>(() => f.Store.ReadTagInfo(info.Name));
-            Assert.Throws<InvalidDataException>(() => f.Store.ResolveTag(info.Name));
+            Assert.Throws<InvalidDataException>(() => f.Store.ReadTag(info.Name));
             Assert.Equal(0, Assert.Single(f.Tags.Opened).DisposeCalls);
             return false;
         }).Unwrap());
@@ -126,18 +126,18 @@ public sealed class TagScanCallbackTests {
     [InlineData(true)]
     public void CallbackQueriesAnotherBucketThroughAnIndependentHandleAndClosesOnlyThatHandle(bool readOnly) {
         using var f = new TagScanFaultFixture(readOnly);
-        f.SeedBucket(TagScanFaultFixture.Name, new TagPublicRecord(TagScanFaultFixture.Name, [1]));
-        f.SeedBucket(TagScanFaultFixture.OtherBucketName, new TagPublicRecord(TagScanFaultFixture.OtherBucketName, [2]));
+        f.SeedBucket(TagScanFaultFixture.Name, new TagPublicRecord(TagScanFaultFixture.Name, TagPublicFixture.Members(1)));
+        f.SeedBucket(TagScanFaultFixture.OtherBucketName, new TagPublicRecord(TagScanFaultFixture.OtherBucketName, TagPublicFixture.Members(2)));
         f.Order(TagScanFaultFixture.Name, TagScanFaultFixture.OtherBucketName);
 
-        Assert.Equal(TagScanEnd.VisitorStopped, f.Store.ScanTags(info => {
+        Assert.Equal(HeadSetTagScanEnd.VisitorStopped, f.Store.ScanTags(info => {
             Assert.Equal(TagScanFaultFixture.Name, info.Name);
             var scan = Assert.Single(f.Tags.Opened);
             Assert.Equal(TagScanFaultFixture.OtherBucketName, f.Store.ReadTagInfo(TagScanFaultFixture.OtherBucketName).Unwrap().Name);
             Assert.Equal(2, f.Tags.Opened.Count);
             Assert.Equal(1, f.Tags.Opened[1].DisposeCalls);
             Assert.Equal(0, scan.DisposeCalls);
-            Assert.Equal(new byte[] { 2 }, f.Store.ResolveTag(TagScanFaultFixture.OtherBucketName).Unwrap().Bytes.ToArray());
+            Assert.Equal(TagPublicFixture.Members(2), f.Store.ReadTag(TagScanFaultFixture.OtherBucketName).Unwrap().MemberBytes());
             Assert.Equal(3, f.Tags.Opened.Count);
             Assert.Equal(1, f.Tags.Opened[2].DisposeCalls);
             Assert.Equal(0, scan.DisposeCalls);
@@ -154,14 +154,14 @@ public sealed class TagScanCallbackTests {
     public void HistoryCallbackCanScanUsingIndependentBucketSlotAndBorrowItsActiveHead(bool cancelScan) {
         using var f = new TagScanFaultFixture();
         HeadId id = f.SeedHead(twoEntries: true);
-        f.SeedBucket(TagScanFaultFixture.Name, new TagPublicRecord(TagScanFaultFixture.Name, [1]));
+        f.SeedBucket(TagScanFaultFixture.Name, new TagPublicRecord(TagScanFaultFixture.Name, TagPublicFixture.Members(1)));
         f.Order(TagScanFaultFixture.Name);
         int visits = 0;
 
         Assert.Equal(HeadHistoryEnd.Complete, f.Store.ReadHeadHistory(id, UnlimitedHistory, _ => {
             visits++;
             using var cancellation = new CancellationTokenSource();
-            Func<TagInfo, bool> visitor = info => {
+            Func<HeadSetTagInfo, bool> visitor = info => {
                 Assert.Equal(TagScanFaultFixture.Name, info.Name);
                 Assert.Equal(id, f.Store.ReadHead(id).Unwrap().Id.HeadId);
                 Assert.Equal(0, f.Heads.Opened[id.LocalId].DisposeCalls);
@@ -172,7 +172,7 @@ public sealed class TagScanCallbackTests {
                 Assert.Equal(cancellation.Token,
                     Assert.Throws<OperationCanceledException>(() => f.Store.ScanTags(visitor, cancellation.Token)).CancellationToken);
             }
-            else { Assert.Equal(TagScanEnd.VisitorStopped, f.Store.ScanTags(visitor).Unwrap()); }
+            else { Assert.Equal(HeadSetTagScanEnd.VisitorStopped, f.Store.ScanTags(visitor).Unwrap()); }
             Assert.Equal(0, f.Heads.Opened[id.LocalId].DisposeCalls);
             Assert.All(f.Tags.Opened, file => Assert.Equal(1, file.DisposeCalls));
             return true;
@@ -183,9 +183,14 @@ public sealed class TagScanCallbackTests {
         Assert.Equal(1, f.Heads.Opened[id.LocalId].DisposeCalls);
         Assert.Equal(2, f.Tags.OpenCalls);
         Assert.Equal(0, f.Lock.DisposeCalls);
-        Assert.Equal(TagScanEnd.Complete, f.Store.ScanTags(_ => true).Unwrap());
+        Assert.Equal(HeadSetTagScanEnd.Complete, f.Store.ScanTags(_ => true).Unwrap());
         f.Operations.EntryPaths = null;
-        Assert.True(f.Store.CreateTag("history-finished", [4], out _).Unwrap());
+        // All history-handle cleanup assertions above have completed. The backend records
+        // one observed open per ID; reset its closed-history observation for this fresh owner-cache open.
+        f.Heads.Opened.Clear();
+        var captured = f.Store.CreateTag("history-finished", [id], out _).Unwrap();
+        Assert.Equal(id, Assert.Single(captured.Entries).Key);
+        Assert.Equal(0, Assert.Single(f.Heads.Opened).Value.DisposeCalls);
     }
 
     [Fact]
@@ -193,20 +198,19 @@ public sealed class TagScanCallbackTests {
         using var fixture = new TagPublicFixture();
         using var store = fixture.Open();
         HeadEntryId entryId = store.CreateHead(1, [1], out _).Unwrap();
-        store.CreateTag("A", [2], entryId, out _).Unwrap();
-        TagInfo? saved = null;
+        store.CreateTag("A", [entryId.HeadId], out _).Unwrap();
+        HeadSetTagInfo? saved = null;
         var primary = new IOException("visitor failure");
 
         Assert.Same(primary, Assert.Throws<IOException>(() => store.ScanTags(info => { saved = info; throw primary; })));
 
-        Assert.Equal(TagScanEnd.VisitorStopped, store.ScanTags(_ => false).Unwrap());
+        Assert.Equal(HeadSetTagScanEnd.VisitorStopped, store.ScanTags(_ => false).Unwrap());
         Assert.True(store.PublishHead(entryId.HeadId, [3], out _).IsSuccess);
-        Assert.True(store.CreateTag("Release", [4], out _).Unwrap());
+        store.CreateTag("Release", [entryId.HeadId], out _).Unwrap();
         store.Dispose();
         Assert.NotNull(saved);
         Assert.Equal("A", saved.Name);
-        Assert.Equal(entryId.HeadId, saved.RelatedRefId);
-        Assert.Equal(entryId.Ticket, saved.RelatedTicket);
+        Assert.Equal(1, saved.EntryCount);
         fixture.Data.EnsureUsable();
     }
 

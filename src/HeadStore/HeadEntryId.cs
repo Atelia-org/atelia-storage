@@ -19,7 +19,8 @@ public readonly struct HeadEntryId : IEquatable<HeadEntryId> {
     /// <summary>该Entry实际的完整位置与长度；default 返回 default。</summary>
     public SizedPtr Ticket => _ticket;
 
-    // 仅由完成发布或 checked-read 的真实成员交付路径调用。声明来源/结构扫描不能单独签发 entryId。
+    // 仅由完成发布、checked Entry read 或完整 checked HeadSetTag 成员表恢复调用。
+    // 结构扫描/来源注记不能单独签发；成员表恢复的坐标仍须在使用时精确检查。
     internal static HeadEntryId Create(HeadId headId, SizedPtr ticket) {
         return new HeadEntryId(headId, ticket);
     }

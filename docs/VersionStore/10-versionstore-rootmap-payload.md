@@ -1,10 +1,10 @@
 # HeadStore：Binary NamedFrameMap payload 专项
 
-命名更新：2026-10-16 活跃合同采用 HeadStore/Head/Entry；既有 Accepted 仍对应原 VersionStore revision，本轮重命名验证见[13记录](13-headstore-renaming-plan.md)。格式版本、路径与 Clause-ID 不变；[14 HeadSetTag](14-headset-tags-plan.md)尚未实施。
+HeadSetTag 更新：2026-10-16 本轮实施格式2与具名成员表替换，待[独立验收](14-headset-tags-acceptance.md)。既有 Accepted 保持原 VersionStore/格式1来源；[13重命名记录](13-headstore-renaming-plan.md)不覆盖本行为变化。路径与既有 Clause-ID 保持，普通 Head/CU 的记录形状不变。
 
-日期：2026-10-10–11。状态：**Accepted（独立 source-only 源码资格）**，证据见[最终源码验收](12-versionstore-final-acceptance.md)。NamedFrameMapCodec 为已实施的可选应用 codec，普通 Head/fork/tag 不解释其内容；JSON 名称映射不扩为 JSON 导入导出 API，CU 已正式接纳，本轮新增资格见[07验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。
+日期：2026-10-10–11。状态：**Accepted（独立 source-only 源码资格）**，证据见[最终源码验收](12-versionstore-final-acceptance.md)。NamedFrameMapCodec 为已实施的可选应用 codec，普通Head/fork不解释其内容，HeadSetTag只保存EntryId表；JSON 名称映射不扩为 JSON 导入导出 API，CU 已正式接纳，本轮新增资格见[07验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。
 
-本文内聚 NamedFrameMap 的 key、wire 与容量合同，供选择该 codec 的应用显式使用；[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)、[tag 专项](09-versionstore-immutable-tags.md)及 [CU](07-versionstore-cross-ref-conditional-update.md)只保存 opaque bytes。NamedFrameMap 是完整 string→FrameAddress 字典；NamedFrameMap 自有集合定义于本篇；bytes 自有结果由 11 公面专项定义；fork 来源一致性由 S5 `[A-VS-REF-HISTORY-CHECKED]` 定义，不消费字典内容比较，FrameAddress codec 由 S2 定义。
+本文内聚 NamedFrameMap 的 key、wire 与容量合同，供选择该 codec 的应用显式使用；[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)、[tag 专项](09-versionstore-immutable-tags.md)及 [CU](07-versionstore-cross-ref-conditional-update.md)按各自职责处理发布记录；Head/CU保存opaque bytes，tag只引用位置。NamedFrameMap 是完整 string→FrameAddress 字典；NamedFrameMap 自有集合定义于本篇；bytes 自有结果由 11 公面专项定义；fork 来源一致性由 S5 `[A-VS-REF-HISTORY-CHECKED]` 定义，不消费字典内容比较，FrameAddress codec 由 S2 定义。
 
 ## JSON 名称映射
 
@@ -51,7 +51,7 @@ Key MUST 为非 null 的有效 Unicode 字符串：UTF-16 中每个 high surroga
 
 Decode 入口先检查实际输入为1..1MiB，容量及消费 MUST 按 reader 的真实 ConsumedCount 计，包括合法冗余 count/string header 与地址字段，不能用 Measure(decoded) 重新推算。公开 Decode 只接收完整 NamedFrameMap codeword，并要求 exact-consume；尾随 bytes 返回失败，不公开 prefix/ConsumedCount API。内部局部 cursor 只是组合字段的实现，不承担 SingleEntry/tag/CU 定位。
 
-此1MiB codeword 界与 bytes API 的单项界一致；codec 不负责物理帧、追加起点或文件容量。应用将输出交发布层后，由 S4、tag 或 CU 按自己的 envelope 组合和公共 MeasureWriteSize 检查完整容量。
+此1MiB codeword 界与 bytes API 的单项界一致；codec 不负责物理帧、追加起点或文件容量。应用将输出交发布层后，由 S4或CU按自己的envelope 组合和公共 MeasureWriteSize 检查完整容量。
 
 （Informative）1MiB 是限制单项 root payload 的 MVP 工程选择，不保证合法输入不会 OOM；codec 捕获、编码、冻结解码与发布层复制仍有额外内存。实际工作集与峰值/吞吐留实施测量，不声称数字最优或方案最快。复用 Binary 增加其精确 K4os `[1.3.8]` 依赖。BPV1 [已实施验收](../Binary/bare-primitive-value-acceptance.md)及[基元独立 golden](../../tests/Binary.Tests/SchemaCompositionTests.cs)是底座证据；[RootMapCodecProbe](../../experiments/RootMapCodecProbe/README.md)原 fixed12 synthetic 地址版本的47项检查保留历史身份，不构成本次变长地址/Unicode接受域、独立公共codec、新库或发布恢复资格。新增 FrameAddress 能力见[实施记录](../FrameStore/02-framestore-varint-address-implementation.md)。
 

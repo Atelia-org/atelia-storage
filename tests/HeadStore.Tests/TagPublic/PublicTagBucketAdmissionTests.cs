@@ -1,3 +1,4 @@
+using Atelia.HeadStore.Tests.Tags;
 using System.Buffers.Binary;
 using Atelia.Rbf;
 using Xunit;
@@ -12,6 +13,7 @@ public sealed class PublicTagBucketAdmissionTests {
     [MemberData(nameof(ShortBucketLengths))]
     public void EveryPrefixBeforeInitializedHeaderRejectsRepeatedWritersWithoutRepairOrAdoption(int length) {
         using var fixture = new TagPublicFixture();
+        HeadId head = fixture.SeedHead();
         fixture.WriteMirror("A");
         byte[] image = File.ReadAllBytes(fixture.BucketPath("A"));
         Assert.Equal(TagPublicFixture.InitializedLength, image.Length);
@@ -21,11 +23,11 @@ public sealed class PublicTagBucketAdmissionTests {
         // Two cold owners prove no CompletedTail repair can turn the next attempt into adoption.
         for (int attempt = 0; attempt < 2; attempt++) {
             using (var writer = fixture.Open()) {
-                Assert.Throws<InvalidDataException>(() => { writer.ResolveTag("A"); });
+                Assert.Throws<InvalidDataException>(() => { writer.ReadTag("A"); });
                 var outcome = PublicationOutcome.Confirmed;
-                Assert.Throws<InvalidDataException>(() => { writer.CreateTag("A", [1], out outcome); });
+                Assert.Throws<InvalidDataException>(() => { writer.CreateTag("A", [head], out outcome); });
                 Assert.Equal(PublicationOutcome.NotAttempted, outcome);
-                Assert.Empty(writer.ListHeads().Unwrap());
+                Assert.Equal(new[] { head }, writer.ListHeads().Unwrap());
             }
             fixture.AssertUnchanged(before);
             fixture.AssertBucketReleased("A");
@@ -33,7 +35,7 @@ public sealed class PublicTagBucketAdmissionTests {
         using (var readOnly = fixture.Open(readOnly: true)) {
             // Bare Fence can open successfully in RBF and fail as a missing VS header;
             // a physically short RBF image is rejected by its public factory.
-            Exception? error = Record.Exception(() => { Assert.True(readOnly.ResolveTag("A").IsFailure); });
+            Exception? error = Record.Exception(() => { Assert.True(readOnly.ReadTag("A").IsFailure); });
             if (error is not null) { Assert.IsType<InvalidDataException>(error); }
         }
         fixture.AssertUnchanged(before);
@@ -42,16 +44,17 @@ public sealed class PublicTagBucketAdmissionTests {
     [Fact]
     public void HeaderOnlyFormalBucketIsHealthyMissingThenSupportsCreationInThatSameBucket() {
         using var fixture = new TagPublicFixture();
+        HeadId head = fixture.SeedHead();
         fixture.WriteMirror("A");
         byte[] headerImage = File.ReadAllBytes(fixture.BucketPath("A"));
         using (var readOnly = fixture.Open(readOnly: true)) {
-            Assert.Equal("HeadStore.TagNotFound", readOnly.ResolveTag("A").Error!.ErrorCode);
+            Assert.Equal("HeadStore.TagNotFound", readOnly.ReadTag("A").Error!.ErrorCode);
         }
         Assert.Equal(headerImage, File.ReadAllBytes(fixture.BucketPath("A")));
         using (var writer = fixture.Open()) {
-            Assert.True(writer.CreateTag("A", [0xff], out var outcome).Unwrap());
+            Assert.True(writer.CreateTag("A", [head], out var outcome).IsSuccess);
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            Assert.Equal(new byte[] { 0xff }, writer.ResolveTag("A").Unwrap().Bytes.ToArray());
+            Assert.Equal(writer.ReadHead(head).Unwrap().Id, Assert.Single(writer.ReadTag("A").Unwrap().Entries).Value);
         }
         Assert.Equal(headerImage, File.ReadAllBytes(fixture.BucketPath("A"))[..headerImage.Length]);
     }
@@ -63,20 +66,21 @@ public sealed class PublicTagBucketAdmissionTests {
     [InlineData("trailing")]
     public void FullSizedButWrongHeaderNeverGrantsBucketIdentity(string kind) {
         using var fixture = new TagPublicFixture();
+        HeadId head = fixture.SeedHead();
         byte[] header = fixture.Header("A");
         switch (kind) {
-            case "version": BinaryPrimitives.WriteUInt32LittleEndian(header, 2); break;
+            case "version": BinaryPrimitives.WriteUInt32LittleEndian(header, 1); break;
             case "identity": header.AsSpan(4, 16).Clear(); break;
             case "bucket": BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(20), TagPublicFixture.Bucket("Release")); break;
             case "trailing": header = [.. header, 0]; break;
         }
-        fixture.WriteMirrorHeader("A", header, new TagPublicRecord("A", [1]));
+        fixture.WriteMirrorHeader("A", header, new TagPublicRecord("A", TagTestWire.Members(1)));
         var before = fixture.CaptureFiles();
         foreach (bool readOnly in new[] { false, true }) {
             using (var store = fixture.Open(readOnly)) {
-                Assert.Equal("HeadStore.InvalidTagBucketHeader", store.ResolveTag("A").Error!.ErrorCode);
+                Assert.Equal("HeadStore.InvalidTagBucketHeader", store.ReadTag("A").Error!.ErrorCode);
                 if (!readOnly) {
-                    Assert.True(store.CreateTag("A", [2], out var outcome).IsFailure);
+                    Assert.True(store.CreateTag("A", [head], out var outcome).IsFailure);
                     Assert.Equal(PublicationOutcome.NotAttempted, outcome);
                 }
             }
@@ -89,7 +93,8 @@ public sealed class PublicTagBucketAdmissionTests {
     [InlineData(true)]
     public void OnlyTailAfterTheCompleteHeaderCanRecoverAndReadOnlyNeverChangesIt(bool completeRecordTail) {
         using var fixture = new TagPublicFixture();
-        if (completeRecordTail) { fixture.WriteMirror("A", new TagPublicRecord("A", [0xff, 0, 0x81])); }
+        HeadId head = fixture.SeedHead();
+        if (completeRecordTail) { fixture.WriteMirror("A", new TagPublicRecord("A", TagTestWire.Members(0xff))); }
         else { fixture.WriteMirror("A"); }
         string path = fixture.BucketPath("A");
         byte[] complete = File.ReadAllBytes(path);
@@ -98,22 +103,22 @@ public sealed class PublicTagBucketAdmissionTests {
         Assert.True(new FileInfo(path).Length >= TagPublicFixture.InitializedLength);
         var before = fixture.CaptureFiles();
         using (var readOnly = fixture.Open(readOnly: true)) {
-            Assert.Throws<InvalidDataException>(() => { readOnly.ResolveTag("A"); });
+            Assert.Throws<InvalidDataException>(() => { readOnly.ReadTag("A"); });
         }
         fixture.AssertUnchanged(before);
         using (var writer = fixture.Open()) {
             Assert.Equal(before[Path.GetRelativePath(fixture.Root, path)], File.ReadAllBytes(path)); // Still lazy.
             if (completeRecordTail) {
-                Assert.Equal(new byte[] { 0xff, 0, 0x81 }, writer.ResolveTag("A").Unwrap().Bytes.ToArray());
-                Assert.True(writer.CreateTag("A", [2], out var outcome).IsFailure);
+                Assert.Equal(TagTestWire.Members(0xff), writer.ReadTag("A").Unwrap().MemberBytes());
+                Assert.True(writer.CreateTag("A", [head], out var outcome).IsFailure);
                 Assert.Equal(PublicationOutcome.NotAttempted, outcome);
             }
-            else { Assert.Equal("HeadStore.TagNotFound", writer.ResolveTag("A").Error!.ErrorCode); }
+            else { Assert.Equal("HeadStore.TagNotFound", writer.ReadTag("A").Error!.ErrorCode); }
         }
         Assert.Equal(complete, File.ReadAllBytes(path));
         using var cold = fixture.Open(readOnly: true);
-        if (completeRecordTail) { Assert.Equal(new byte[] { 0xff, 0, 0x81 }, cold.ResolveTag("A").Unwrap().Bytes.ToArray()); }
-        else { Assert.Equal("HeadStore.TagNotFound", cold.ResolveTag("A").Error!.ErrorCode); }
+        if (completeRecordTail) { Assert.Equal(TagTestWire.Members(0xff), cold.ReadTag("A").Unwrap().MemberBytes()); }
+        else { Assert.Equal("HeadStore.TagNotFound", cold.ReadTag("A").Error!.ErrorCode); }
     }
 
     [Theory]
@@ -126,6 +131,7 @@ public sealed class PublicTagBucketAdmissionTests {
     [InlineData("subdir", true)]
     public void AllDirectItemNamesAndTypesAreAdmittedBeforeNamedContentAccess(string name, bool directory) {
         using var fixture = new TagPublicFixture();
+        HeadId head = fixture.SeedHead();
         Directory.CreateDirectory(fixture.TagsPath);
         string path = Path.Combine(fixture.TagsPath, name);
         if (directory) { Directory.CreateDirectory(path); }
@@ -133,10 +139,10 @@ public sealed class PublicTagBucketAdmissionTests {
         var before = fixture.CaptureFiles();
         foreach (bool readOnly in new[] { false, true }) {
             using (var store = fixture.Open(readOnly)) {
-                Assert.Throws<InvalidDataException>(() => { store.ResolveTag("A"); });
+                Assert.Throws<InvalidDataException>(() => { store.ReadTag("A"); });
                 if (!readOnly) {
                     var outcome = PublicationOutcome.Confirmed;
-                    Assert.Throws<InvalidDataException>(() => { store.CreateTag("A", [1], out outcome); });
+                    Assert.Throws<InvalidDataException>(() => { store.CreateTag("A", [head], out outcome); });
                     Assert.Equal(PublicationOutcome.NotAttempted, outcome);
                 }
             }
@@ -148,6 +154,7 @@ public sealed class PublicTagBucketAdmissionTests {
     public void TagDirectoryAliasAndFileAreRejectedDuringRootAdmission() {
         foreach (bool alias in new[] { false, true }) {
             using var fixture = new TagPublicFixture();
+        HeadId head = fixture.SeedHead();
             if (alias) { Directory.CreateDirectory(Path.Combine(fixture.Root, "Tags")); }
             else { File.WriteAllBytes(fixture.TagsPath, [1]); }
             var before = fixture.CaptureFiles();
@@ -160,11 +167,12 @@ public sealed class PublicTagBucketAdmissionTests {
     [Fact]
     public void CanonicalZeroBucketNameIsAllowedWithoutReadingItsUnrelatedContents() {
         using var fixture = new TagPublicFixture();
+        HeadId head = fixture.SeedHead();
         Directory.CreateDirectory(fixture.TagsPath);
         File.WriteAllBytes(Path.Combine(fixture.TagsPath, "00000000.rbf"), [0xff]);
         var before = fixture.CaptureFiles();
         using (var store = fixture.Open(readOnly: true)) {
-            Assert.Equal("HeadStore.TagNotFound", store.ResolveTag("A").Error!.ErrorCode);
+            Assert.Equal("HeadStore.TagNotFound", store.ReadTag("A").Error!.ErrorCode);
         }
         fixture.AssertUnchanged(before);
     }
@@ -172,20 +180,21 @@ public sealed class PublicTagBucketAdmissionTests {
     [Fact]
     public void PendingTagAttemptIsPreservedByReadOnlyAndCanceledWithoutAdoptionByWriter() {
         using var fixture = new TagPublicFixture();
+        HeadId head = fixture.SeedHead();
         File.WriteAllBytes(fixture.PendingPath, [0xff, 0, 0xfe]);
         var before = fixture.CaptureFiles();
         using (var readOnly = fixture.Open(readOnly: true)) {
-            Assert.Equal("HeadStore.TagNotFound", readOnly.ResolveTag("A").Error!.ErrorCode);
+            Assert.Equal("HeadStore.TagNotFound", readOnly.ReadTag("A").Error!.ErrorCode);
         }
         fixture.AssertUnchanged(before);
         using (var writer = fixture.Open()) {
             Assert.False(File.Exists(fixture.PendingPath));
             Assert.False(Directory.Exists(fixture.TagsPath));
-            Assert.Equal("HeadStore.TagNotFound", writer.ResolveTag("A").Error!.ErrorCode);
-            Assert.True(writer.CreateTag("A", [1], out var outcome).Unwrap());
+            Assert.Equal("HeadStore.TagNotFound", writer.ReadTag("A").Error!.ErrorCode);
+            Assert.True(writer.CreateTag("A", [head], out var outcome).IsSuccess);
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
         }
         using var cold = fixture.Open(readOnly: true);
-        Assert.Equal(new byte[] { 1 }, cold.ResolveTag("A").Unwrap().Bytes.ToArray());
+        Assert.Equal(cold.ReadHead(head).Unwrap().Id, Assert.Single(cold.ReadTag("A").Unwrap().Entries).Value);
     }
 }

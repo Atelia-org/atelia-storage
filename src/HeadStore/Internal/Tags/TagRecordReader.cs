@@ -47,7 +47,7 @@ internal static class TagRecordReader {
         return new CheckedTagBucketHeader(file, expectedIdentity, expectedBucketId, info.Ticket, recordsOffset);
     }
 
-    /// <summary>真实正扫至正常 EOF；局部坏项只增加 unknownName，不猜其名称或 root 内容。</summary>
+    /// <summary>真实正扫至正常 EOF；局部坏项只增加 unknownName，不猜其名称或成员表内容。</summary>
     internal static AteliaResult<TagNameLookup> ScanNamed(
         IRbfFile file, CheckedTagBucketHeader header, string name, Action? checkState = null
     ) {
@@ -112,7 +112,7 @@ internal static class TagRecordReader {
     /// <summary>严格读取一条小元信息；全桶扫描直接传播本层内容错误。</summary>
     /// <remarks>
     /// info 必须来自 header 所绑定句柄的本次真实主链枚举，不能混入其他文件的 FrameInfo。
-    /// root 长度或 CRC 不影响占名资格。底层读取失败原样返回，运行期异常不捕获。
+    /// 成员表长度或 CRC 不影响占名资格。底层读取失败原样返回，运行期异常不捕获。
     /// </remarks>
     internal static AteliaResult<TagMetadata> ReadMetadata(
         RbfFrameInfo info, CheckedTagBucketHeader header, Action? checkState = null
@@ -122,7 +122,7 @@ internal static class TagRecordReader {
             return new TagRecordError("The physical record has an invalid TagRecord kind, metadata size, or tombstone state.");
         }
 
-        // Capacity is bounded before renting only the small TailMeta; never rent the root here.
+        // Capacity is bounded before renting only the small TailMeta; never rent the member table here.
         var read = info.ReadPooledTailMeta();
         if (read.IsFailure) {
             checkState?.Invoke();
@@ -134,7 +134,7 @@ internal static class TagRecordReader {
             if (tail.Ticket != info.Ticket || tail.Tag != TagRecordCodec.RecordTag || tail.IsTombstone
                 || tail.TailMeta.Length != info.TailMetaLength
                 || !TagMetadataCodec.TryRead(tail.TailMeta, header.Identity, header.BucketId, out metadata)) {
-                return new TagRecordError("The independently checked tag metadata has invalid content, route, or related coordinates.");
+                return new TagRecordError("The independently checked tag metadata has invalid content, route, or member count.");
             }
         }
         checkState?.Invoke();
@@ -151,7 +151,7 @@ internal static class TagRecordReader {
         return result;
     }
 
-    internal static AteliaResult<RootPayload> ResolveNamed(
+    internal static AteliaResult<HeadSetTag> ReadNamed(
         IRbfFile file, CheckedTagBucketHeader header, string name, Action? checkState = null
     ) {
         var lookup = ScanNamed(file, header, name, checkState);
@@ -159,63 +159,48 @@ internal static class TagRecordReader {
         var unique = lookup.Value!.GetUniqueMetadata();
         checkState?.Invoke();
         if (unique.IsFailure) { return unique.Error; }
-        return ReadRoot(lookup.Value.UniqueTarget, header, unique.Value, checkState);
+        return ReadCompleteRecord(lookup.Value.UniqueTarget, header, unique.Value, checkState);
     }
 
-    /// <summary>完整检查一条实际主链 TagRecord 的 root 包络与独立元信息，不复制 opaque root bytes。</summary>
-    internal static AteliaResult<TagMetadata> CheckCompleteRecord(
+    /// <summary>完整检查主链 TagRecord 并恢复自有成员表；不读取成员文件。</summary>
+    internal static AteliaResult<HeadSetTag> CheckCompleteRecord(
         RbfFrameInfo info, CheckedTagBucketHeader header, Action? checkState = null
+    ) => ReadCompleteRecord(info, header, null, checkState);
+
+    private static AteliaResult<HeadSetTag> ReadCompleteRecord(
+        RbfFrameInfo info, CheckedTagBucketHeader header, TagMetadata? expectedMetadata, Action? checkState
     ) {
         checkState?.Invoke();
-        if (info.Ticket.Offset < header.RecordsOffset || !TagRecordCodec.IsRootShape(info)) {
-            return new TagRootError("The physical TagRecord has an invalid root length, kind, metadata size, or frame size.");
+        if (info.Ticket.Offset < header.RecordsOffset || !TagRecordCodec.IsEntriesShape(info)) {
+            return new TagEntriesError("The TagRecord member table length, kind, metadata size, or frame size is invalid.");
         }
+
+        // 完整帧尺寸在取得 lease 前受公共 RBF 自然容量约束。
         var read = info.ReadPooledFrame();
         if (read.IsFailure) {
             checkState?.Invoke();
             return read.Error;
         }
-        using RbfPooledFrame frame = read.Value!;
-        checkState?.Invoke();
-        int payloadLength = frame.PayloadAndMeta.Length - frame.TailMetaLength;
-        if (frame.Ticket != info.Ticket || frame.Tag != TagRecordCodec.RecordTag || frame.IsTombstone
-            || frame.TailMetaLength != info.TailMetaLength || payloadLength != info.PayloadLength
-            || !TagMetadataCodec.TryRead(frame.PayloadAndMeta[payloadLength..], header.Identity, header.BucketId,
-                out TagMetadata metadata)) {
-            return new TagRecordError("The completely checked tag envelope or independent metadata is invalid.");
-        }
-        return metadata;
-    }
-
-    private static AteliaResult<RootPayload> ReadRoot(
-        RbfFrameInfo info, CheckedTagBucketHeader header, TagMetadata expectedMetadata, Action? checkState
-    ) {
-        checkState?.Invoke();
-        if (!TagRecordCodec.IsRootShape(info)) {
-            return new TagRootError("The unique target's root length or physical frame size is invalid.");
-        }
-
-        // Complete frame capacity is checked only after normal EOF proved a unique target.
-        var read = info.ReadPooledFrame();
-        if (read.IsFailure) {
-            checkState?.Invoke();
-            return read.Error;
-        }
-        byte[] ownedBytes;
+        TagMetadata metadata;
+        Dictionary<HeadId, HeadEntryId> entries;
         using (RbfPooledFrame frame = read.Value!) {
             checkState?.Invoke();
             int payloadLength = frame.PayloadAndMeta.Length - frame.TailMetaLength;
             if (frame.Ticket != info.Ticket || frame.Tag != TagRecordCodec.RecordTag || frame.IsTombstone
                 || frame.TailMetaLength != info.TailMetaLength || payloadLength != info.PayloadLength
-                || !TagMetadataCodec.TryRead(frame.PayloadAndMeta[payloadLength..], header.Identity, header.BucketId, out TagMetadata metadata)
-                || metadata != expectedMetadata) {
-                return new TagRootError("The unique target's completely checked envelope or metadata is invalid.");
+                || !TagMetadataCodec.TryRead(frame.PayloadAndMeta[payloadLength..], header.Identity, header.BucketId, out metadata)) {
+                return new TagRecordError("The completely checked tag envelope or independent metadata is invalid.");
             }
-            ownedBytes = frame.PayloadAndMeta[..payloadLength].ToArray();
+            if (expectedMetadata is TagMetadata expected && metadata != expected) {
+                return new TagEntriesError("The unique target metadata differs from its trusted name declaration.");
+            }
+            if (!TagEntriesCodec.TryRead(frame.PayloadAndMeta[..payloadLength], header.Identity, metadata.EntryCount, out entries)) {
+                return new TagEntriesError("The complete member table does not match its count or canonical member encoding.");
+            }
         }
-        // Only independent GC bytes survive the pooled frame's disposal.
+        // 只有自有字典和值在 pooled frame 的归还后继续存活。
         checkState?.Invoke();
-        return new RootPayload(ownedBytes);
+        return new HeadSetTag(metadata.Name, metadata.RecordedAtUnixMs, entries);
     }
 
     private static void RequireHeader(IRbfFile file, CheckedTagBucketHeader header) {
@@ -226,5 +211,5 @@ internal static class TagRecordReader {
 
 internal sealed record TagHeaderError(string Detail) : AteliaError("HeadStore.InvalidTagBucketHeader", Detail);
 internal sealed record TagRecordError(string Detail) : AteliaError("HeadStore.InvalidTagRecord", Detail);
-internal sealed record TagRootError(string Detail) : AteliaError("HeadStore.InvalidTagRoot", Detail);
+internal sealed record TagEntriesError(string Detail) : AteliaError("HeadStore.InvalidTagEntries", Detail);
 internal sealed record TagNameError(string Detail) : AteliaError("HeadStore.InvalidTagName", Detail);

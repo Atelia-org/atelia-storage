@@ -18,7 +18,7 @@ public sealed partial class HeadStore {
     /// <summary>完整检查一条本地主链发布记录，并应用当前值和历史共用的 CU 判据。</summary>
     private AteliaResult<PublicationRead> ReadPublication(IRbfFile file, CheckedHeadHeader header,
         RbfFrameInfo info, Func<AteliaError?>? beforeWork = null, Action? checkState = null,
-        bool deferOwnedCleanup = false) {
+        bool deferOwnedCleanup = false, HashSet<uint>? dependencies = null) {
         RequireConditionalContext(file, header);
         CheckConditionalState(checkState);
         if (info.Ticket.Offset < header.InitialEntryOffset
@@ -53,6 +53,19 @@ public sealed partial class HeadStore {
                 if (committed.IsFailure) { result = committed.Error!; }
                 else if (!committed.Value) { result = new PublicationRead(null); }
                 else {
+                    // Capture dependencies from this same accepted record, while its checked
+                    // CU table is still leased. Rejected candidates contribute nothing.
+                    if (dependencies is not null) {
+                        dependencies.Add(header.HeadId.LocalId);
+                        if (frame.Tag == HeadRecordCodec.ConditionalUpdateTag) {
+                            ReadOnlySpan<byte> members = frame.PayloadAndMeta[..publication.PayloadLength];
+                            int count = ConditionalUpdateCodec.GetMemberCount(members);
+                            for (int index = 0; index < count; index++) {
+                                ConditionalUpdateCodec.GetMember(members, index, out uint localId, out _);
+                                dependencies.Add(localId);
+                            }
+                        }
+                    }
                     byte[] rootBytes = frame.PayloadAndMeta[publication.RootOffset..publication.PayloadLength].ToArray();
                     result = new PublicationRead(new HeadEntry(HeadEntryId.Create(header.HeadId, info.Ticket),
                         publication.RecordedAtUnixMs, rootBytes));
@@ -72,7 +85,8 @@ public sealed partial class HeadStore {
     }
 
     /// <summary>只跳过完整合法但未提交的 CU；已观察到的任何必要错误均阻断回退。</summary>
-    private AteliaResult<HeadEntry> ReadPublishedCurrent(IRbfFile file, CheckedHeadHeader header) {
+    private AteliaResult<HeadEntry> ReadPublishedCurrent(IRbfFile file, CheckedHeadHeader header,
+        HashSet<uint>? dependencies = null) {
         RequireConditionalContext(file, header);
         CheckConditionalState(null);
         var reverse = file.ScanReverse(showTombstone: true).GetEnumerator();
@@ -91,7 +105,7 @@ public sealed partial class HeadStore {
                 return new HeadRecordError("The current physical record must end at the actual EOF.");
             }
             first = false;
-            var publication = ReadPublication(file, header, info);
+            var publication = ReadPublication(file, header, info, dependencies: dependencies);
             if (publication.IsFailure) { return publication.Error!; }
             if (publication.Value.Entry is { } entry) { return entry; }
         }

@@ -76,13 +76,13 @@ internal static class InternalTailHost {
         if (tag) {
             Require(StoreIdentity.TryRead(store.HeadStoreId, out StoreIdentity identity), "Missing VS identity.");
             metaLength = TagMetadataCodec.Prepare(TagName, RecordedAt, identity,
-                source.Id.HeadId, source.Id.Ticket).EncodedLength;
+                1).EncodedLength;
             target = TagPath(root);
             Require(!File.Exists(target), "The tag bucket must be absent before the first tag request.");
             frameOffset = RbfScanBoundary.Empty.EndExclusive
                 + RbfFile.MeasureWriteSize(TagBucketHeaderCodec.PayloadSize).Unwrap().AppendLength;
         }
-        RbfWriteSize size = RbfFile.MeasureWriteSize(payload.Length, metaLength).Unwrap();
+        RbfWriteSize size = RbfFile.MeasureWriteSize(tag ? 12 : payload.Length, metaLength).Unwrap();
         bool completeBody = scenario.EndsWith("body-complete", StringComparison.Ordinal);
         long cutLength = completeBody ? frameOffset + size.FrameLength - sizeof(uint) : frameOffset + sizeof(uint) + 7;
         long completeLength = frameOffset + size.AppendLength;
@@ -119,7 +119,7 @@ internal static class InternalTailHost {
             BeforeFlush = request => { if (SamePath(request.Path, target)) { flushes++; } }
         };
         try {
-            if (tag) { store.CreateTag(TagName, payload, source.Id, out _).Unwrap(); }
+            if (tag) { store.CreateTag(TagName, [source.Id.HeadId], out _).Unwrap(); }
             else { store.PublishHead(source.Id.HeadId, payload, out _).Unwrap(); }
             throw new InvalidOperationException("The writer returned without parking inside its short-write observation.");
         }
@@ -159,36 +159,37 @@ internal static class InternalTailHost {
         object? tagInfo = null;
         bool metadataRechecked = false;
         if (tag && keepsNew) {
-            TagInfo info = infoResult.Unwrap();
+            HeadSetTagInfo info = infoResult.Unwrap();
             Require(info.Name == TagName && info.RecordedAtUnixMs == RecordedAt
-                && info.RelatedRefId == entry.Id.HeadId && info.RelatedTicket == entry.Id.Ticket,
+                && info.EntryCount == 1,
                 "CompletedTail tag metadata was not independently qualified by the VS reader.");
             long frameOffset = RbfScanBoundary.Empty.EndExclusive
                 + RbfFile.MeasureWriteSize(TagBucketHeaderCodec.PayloadSize).Unwrap().AppendLength;
             Require(StoreIdentity.TryRead(store.HeadStoreId, out StoreIdentity identity), "Missing VS identity.");
             int metaLength = TagMetadataCodec.Prepare(TagName, RecordedAt, identity,
-                entry.Id.HeadId, entry.Id.Ticket).EncodedLength;
+                1).EncodedLength;
             var firstTagOpen = operations.Opened.Single(open => SamePath(open.Path, TagPath(root)));
             metadataRechecked = firstTagOpen.Reads.Any(read => !read.Raw
-                && read.Offset == frameOffset + sizeof(uint) + NewPayload().Length && read.Length == metaLength);
+                && read.Offset == frameOffset + sizeof(uint) + 12 && read.Length == metaLength);
             Require(metadataRechecked, "The recovered tag's actual small TailMeta was not read by ReadTagInfo.");
             Require(!firstTagOpen.Reads.Any(read => !read.Raw && read.Offset == frameOffset
-                && read.Length == RbfFile.MeasureWriteSize(NewPayload().Length, metaLength).Unwrap().FrameLength),
+                && read.Length == RbfFile.MeasureWriteSize(12, metaLength).Unwrap().FrameLength),
                 "ReadTagInfo unexpectedly read the complete root frame.");
             tagInfo = new {
                 name = info.Name, recordedAtUnixMs = info.RecordedAtUnixMs,
-                relatedHeadId = info.RelatedRefId?.LocalId,
-                relatedTicketOffset = info.RelatedTicket?.Offset, relatedTicketLength = info.RelatedTicket?.Length
+                entryCount = info.EntryCount
             };
-            Require(store.ResolveTag(TagName).Unwrap().Bytes.SequenceEqual(NewPayload()), "Recovered tag root bytes differ.");
+            HeadSetTag recovered = store.ReadTag(TagName).Unwrap();
+            Require(recovered.Entries.Count == 1 && recovered.Entries[entry.Id.HeadId] == entry.Id, "Recovered tag member identity differs.");
+            Require(store.ReadEntry(recovered.Entries[entry.Id.HeadId]).Unwrap().Payload.SequenceEqual(OldPayload()), "Recovered tagged Entry bytes differ.");
         }
         else if (tag) {
             Require(infoResult.IsFailure && infoResult.Error is TagNotFoundError, "The truncated first tag must be absent.");
-            var resolve = store.ResolveTag(TagName);
+            var resolve = store.ReadTag(TagName);
             Require(resolve.IsFailure && resolve.Error is TagNotFoundError, "An empty bucket must not provide tag root bytes.");
         }
         var tagNames = new List<string>();
-        Require(store.ScanTags(info => { tagNames.Add(info.Name); return true; }).Unwrap() == TagScanEnd.Complete,
+        Require(store.ScanTags(info => { tagNames.Add(info.Name); return true; }).Unwrap() == HeadSetTagScanEnd.Complete,
             "Tag scan did not reach normal EOF.");
         Require(tagNames.Count == (tag && keepsNew ? 1 : 0), "Recovered tag count differs.");
         object? audit = null;

@@ -17,7 +17,7 @@ internal sealed class TagNameLookup {
         _metadata = metadata;
     }
 
-    /// <summary>只裁决请求名；唯一命中的元信息不授予 root 或 HeadEntryId 资格。</summary>
+    /// <summary>只裁决请求名；唯一命中的元信息不授予 成员表或 HeadEntryId 资格。</summary>
     internal AteliaResult<TagMetadata> GetUniqueMetadata() {
         if (MatchCount == 2) { return new TagDuplicateNameError("The requested tag name has multiple trusted declarations."); }
         if (MatchCount == 0) {

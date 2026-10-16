@@ -33,7 +33,7 @@ internal sealed class RecoveryReportFailureFixture : IDisposable {
             Assert.True(StoreIdentity.TryRead(store.HeadStoreId, out Identity));
             Initial.Add(1, store.CreateHead(1, [0x11], out _).Unwrap());
             Initial.Add(2, store.CreateHead(2, [0x22], out _).Unwrap());
-            store.CreateTag(TagName, [0x33], out _).Unwrap();
+            store.CreateTag(TagName, [Initial[1].HeadId], out _).Unwrap();
         }
         Operations = new RecoveryReportOperations(Events);
         Hooks.ConfirmDataDurable = () => {
@@ -74,7 +74,7 @@ internal sealed class RecoveryReportFailureFixture : IDisposable {
     internal void RewriteTagHeader(uint headerBucket) {
         File.Delete(TagPath);
         byte[] header = new byte[24];
-        BinaryPrimitives.WriteUInt32LittleEndian(header, 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(header, 2);
         Assert.True(Identity.TryWrite(header.AsSpan(4, 16)));
         BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(20), headerBucket);
         using var file = RbfFile.CreateNew(TagPath, RbfCacheMode.Off);

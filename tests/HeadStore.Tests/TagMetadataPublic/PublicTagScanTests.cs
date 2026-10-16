@@ -20,7 +20,7 @@ public sealed class PublicTagScanTests {
         var before = fixture.CaptureFiles();
         foreach (bool readOnly in new[] { false, true }) {
             using (var store = fixture.Open(readOnly)) {
-                Assert.Equal(TagScanEnd.Complete, store.ScanTags(_ => throw new InvalidOperationException("No records exist.")).Unwrap());
+                Assert.Equal(HeadSetTagScanEnd.Complete, store.ScanTags(_ => throw new InvalidOperationException("No records exist.")).Unwrap());
                 Assert.Equal("HeadStore.TagNotFound", store.ReadTagInfo("A").Error!.ErrorCode);
             }
             fixture.AssertUnchanged(before);
@@ -40,43 +40,41 @@ public sealed class PublicTagScanTests {
             .First(name => TagPublicFixture.Bucket(name) == 0);
         fixture.WriteMirror(zeroBucketName, new TagPublicRecord(zeroBucketName, [6]));
         var before = fixture.CaptureFiles();
-        List<TagInfo> retained = [];
+        List<HeadSetTagInfo> retained = [];
         using (var store = fixture.Open(readOnly: true)) {
-            Assert.Equal(TagScanEnd.Complete, store.ScanTags(info => { retained.Add(info); return true; }).Unwrap());
+            Assert.Equal(HeadSetTagScanEnd.Complete, store.ScanTags(info => { retained.Add(info); return true; }).Unwrap());
             Assert.Equal(6, retained.Count);
             Assert.Equal(new long[] { 12, -7, 12 }, retained.Where(info => info.Name == "A").Select(info => info.RecordedAtUnixMs));
             Assert.Equal(new[] { "A", "A", "A", "Release", "release", zeroBucketName }.Order(StringComparer.Ordinal),
                 retained.Select(info => info.Name).Order(StringComparer.Ordinal));
             Assert.Equal("HeadStore.DuplicateTagName", store.ReadTagInfo("A").Error!.ErrorCode);
-            Assert.All(retained, info => { Assert.Null(info.RelatedRefId); Assert.Null(info.RelatedTicket); });
+            Assert.All(retained, info => Assert.Equal(1, info.EntryCount));
         }
         fixture.AssertUnchanged(before);
         Assert.Equal(new long[] { 12, -7, 12 }, retained.Where(info => info.Name == "A").Select(info => info.RecordedAtUnixMs));
     }
 
     [Fact]
-    public void ScanCompleteDoesNotProveRootCrcRootSizeOrRelatedSourceQualification() {
+    public void ScanCompleteDoesNotProveMemberCrcSizeOrSourceQualification() {
         using var fixture = new TagPublicFixture();
         string oversizedName = TagPublicFixture.Collision("tag-48", "tag-65");
-        SizedPtr declared = SizedPtr.Create(0, 4);
-        var tickets = fixture.WriteMirror("tag-48", new("tag-48", new byte[128]),
-            new("tag-65", [], TagTestWire.Metadata("tag-65", id: uint.MaxValue, ticket: declared)),
+        var tickets = fixture.WriteMirror("tag-48", new("tag-48", TagTestWire.Members(1)),
+            new("tag-65", [], TagTestWire.Metadata("tag-65", count: 2)),
             new(oversizedName, new byte[HeadStore.MaxHeadEntryPayloadLength + 1]));
         fixture.FlipRoot("tag-48", tickets[0]);
         var before = fixture.CaptureFiles();
-        List<TagInfo> retained = [];
+        List<HeadSetTagInfo> retained = [];
         using (var store = fixture.Open(readOnly: true)) {
-            Assert.Equal(TagScanEnd.Complete, store.ScanTags(info => { retained.Add(info); return true; }).Unwrap());
+            Assert.Equal(HeadSetTagScanEnd.Complete, store.ScanTags(info => { retained.Add(info); return true; }).Unwrap());
             Assert.Equal(new[] { "tag-48", "tag-65", oversizedName }, retained.Select(info => info.Name));
-            Assert.Equal(uint.MaxValue, retained[1].RelatedRefId!.Value.LocalId);
-            Assert.Equal(declared, retained[1].RelatedTicket);
+            Assert.Equal(2, retained[1].EntryCount);
             Assert.Empty(store.ListHeads().Unwrap());
-            Assert.True(store.ResolveTag("tag-48").IsFailure);
-            Assert.Equal("HeadStore.InvalidTagRoot", store.ResolveTag("tag-65").Error!.ErrorCode);
-            Assert.Equal("HeadStore.InvalidTagRoot", store.ResolveTag(oversizedName).Error!.ErrorCode);
+            Assert.StartsWith("Rbf.", store.ReadTag("tag-48").Error!.ErrorCode);
+            Assert.Equal("HeadStore.InvalidTagEntries", store.ReadTag("tag-65").Error!.ErrorCode);
+            Assert.Equal("HeadStore.InvalidTagEntries", store.ReadTag(oversizedName).Error!.ErrorCode);
         }
         fixture.AssertUnchanged(before);
-        Assert.Equal(declared, retained[1].RelatedTicket);
+        Assert.Equal(2, retained[1].EntryCount);
     }
 
     [Theory]
@@ -86,8 +84,8 @@ public sealed class PublicTagScanTests {
     [InlineData("empty-name")]
     [InlineData("overlong-name")]
     [InlineData("wrong-route")]
-    [InlineData("default-ticket")]
-    [InlineData("zero-length-ticket")]
+    [InlineData("zero-count")]
+    [InlineData("excessive-count")]
     [InlineData("short-meta")]
     [InlineData("oversized-meta")]
     [InlineData("unknown-kind")]
@@ -104,10 +102,10 @@ public sealed class PublicTagScanTests {
             case "empty-name": metadata = TagPublicFixture.Metadata(""); break;
             case "overlong-name": metadata = TagPublicFixture.Metadata(new string('a', 1025)); break;
             case "wrong-route": metadata = TagPublicFixture.Metadata("Release"); break;
-            case "default-ticket": metadata = TagTestWire.Metadata("tag-65", id: 1, ticket: default(SizedPtr)); break;
-            case "zero-length-ticket": metadata = TagTestWire.Metadata("tag-65", id: 1, ticket: SizedPtr.Create(60, 0)); break;
-            case "short-meta": metadata = new byte[14]; break;
-            case "oversized-meta": metadata = new byte[3105]; break;
+            case "zero-count": metadata = TagTestWire.Metadata("tag-65", count: 0); break;
+            case "excessive-count": metadata = TagTestWire.Metadata("tag-65", count: uint.MaxValue); break;
+            case "short-meta": metadata = new byte[17]; break;
+            case "oversized-meta": metadata = new byte[3094]; break;
             case "unknown-kind": kind = 17; break;
             case "duplicate-header": kind = 0; break;
         }
@@ -115,12 +113,12 @@ public sealed class PublicTagScanTests {
             new("tag-65", [2], metadata, kind), new("tag-48", [3]));
         if (damage == "tombstone") { MakeTombstone(fixture.BucketPath("tag-48"), tickets[1]); }
         var before = fixture.CaptureFiles();
-        List<TagInfo> retained = [];
+        List<HeadSetTagInfo> retained = [];
         using (var store = fixture.Open(readOnly: true)) {
             var result = store.ScanTags(info => { retained.Add(info); return true; });
             Assert.True(result.IsFailure);
             Assert.Equal("HeadStore.InvalidTagRecord", result.Error!.ErrorCode);
-            TagInfo delivered = Assert.Single(retained);
+            HeadSetTagInfo delivered = Assert.Single(retained);
             Assert.Equal("tag-48", delivered.Name);
             Assert.Equal(-17, delivered.RecordedAtUnixMs);
             Assert.Equal("HeadStore.DuplicateTagName", store.ReadTagInfo("tag-48").Error!.ErrorCode);
@@ -140,7 +138,7 @@ public sealed class PublicTagScanTests {
         using var fixture = new TagPublicFixture();
         byte[] header = fixture.Header("A");
         switch (damage) {
-            case "version": BinaryPrimitives.WriteUInt32LittleEndian(header, 2); break;
+            case "version": BinaryPrimitives.WriteUInt32LittleEndian(header, 1); break;
             case "identity": header.AsSpan(4, 16).Clear(); break;
             case "bucket": BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(20), TagPublicFixture.Bucket("Release")); break;
             case "trailing": header = [.. header, 0]; break;

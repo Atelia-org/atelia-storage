@@ -33,6 +33,7 @@ internal static class InternalProcessHost {
                 throw new ArgumentException("Expected v4f-internal <command> <root> [scenario].");
             }
             args = args[1..];
+            if (args[0].StartsWith("set-tag.", StringComparison.Ordinal)) { return HeadSetTagProcessHost.Run(args); }
             if (args[0].StartsWith("cu-", StringComparison.Ordinal)) { return ConditionalUpdateProcessHost.Run(args); }
             if (args[0].StartsWith("tail.", StringComparison.Ordinal)) {
                 return InternalTailHost.Run(args);
@@ -104,10 +105,10 @@ internal static class InternalProcessHost {
         using (var store = Store.Create(VersionPath(root), data, 256)) {
             HeadEntryId initial = store.CreateHead(SourceId, Initial, out var outcome).Unwrap();
             Require(outcome == PublicationOutcome.Confirmed, "Seed initial was not confirmed.");
+            store.CreateTag(SeedTag, [initial.HeadId], out outcome).Unwrap();
+            Require(outcome == PublicationOutcome.Confirmed, "Seed tag was not confirmed.");
             store.PublishHead(initial.HeadId, Current, out outcome).Unwrap();
             Require(outcome == PublicationOutcome.Confirmed, "Seed head was not confirmed.");
-            store.CreateTag(SeedTag, Initial, out outcome).Unwrap();
-            Require(outcome == PublicationOutcome.Confirmed, "Seed tag was not confirmed.");
         }
         Complete("seed", new { sourceId = SourceId });
     }
@@ -192,9 +193,9 @@ internal static class InternalProcessHost {
                 case "fork-specified-private":
                 case "fork-specified-renamed": store.ForkHead(ForkId, OldSource(store), out _).Unwrap(); break;
                 case "tag-private":
-                case "tag-empty": store.CreateTag(NewTag, Created, out _).Unwrap(); break;
+                case "tag-empty": store.CreateTag(NewTag, [store.ReadHead(SourceId).Unwrap().Id.HeadId], out _).Unwrap(); break;
                 case "ref-append": store.PublishHead(store.ReadHead(SourceId).Unwrap().Id.HeadId, Appended, out _).Unwrap(); break;
-                case "tag-append": store.CreateTag(ExistingBucketTag, Appended, out _).Unwrap(); break;
+                case "tag-append": store.CreateTag(ExistingBucketTag, [store.ReadHead(SourceId).Unwrap().Id.HeadId], out _).Unwrap(); break;
                 default: throw new ArgumentException($"Unknown checkpoint {scenario}.");
             }
             throw new InvalidOperationException("Mutation returned instead of parking inside its checkpoint.");
@@ -235,9 +236,9 @@ internal static class InternalProcessHost {
                 }
                 else { Require(forks.Count == 0, "Ordinary creation gained fork origin."); }
             }
-            Require(store.ResolveTag(SeedTag).Unwrap().Bytes.SequenceEqual(Initial), "Existing seed tag changed.");
+            Require(store.ReadEntry(store.ReadTag(SeedTag).Unwrap().Entries.Single().Value).Unwrap().Payload.SequenceEqual(Initial), "Existing seed tag changed.");
             if (scenario is "tag-private" or "tag-empty") {
-                Require(store.ResolveTag(NewTag).Error is TagNotFoundError, "Unappended tag did not produce healthy missing.");
+                Require(store.ReadTag(NewTag).Error is TagNotFoundError, "Unappended tag did not produce healthy missing.");
                 Require(store.ReadTagInfo(NewTag).Error is TagNotFoundError, "Unappended tag metadata did not produce healthy missing.");
                 Require(File.Exists(TagPath(root, NewTag)) == (scenario == "tag-empty"), "Private/empty bucket formal state differs.");
                 if (scenario == "tag-empty") {
@@ -249,10 +250,10 @@ internal static class InternalProcessHost {
                 }
             }
             if (scenario == "tag-append") {
-                Require(store.ResolveTag(ExistingBucketTag).Unwrap().Bytes.SequenceEqual(Appended), "Full tag Append was not preserved.");
+                Require(store.ReadEntry(store.ReadTag(ExistingBucketTag).Unwrap().Entries.Single().Value).Unwrap().Payload.SequenceEqual(Current), "Full tag Append was not preserved.");
                 var info = store.ReadTagInfo(ExistingBucketTag).Unwrap();
                 Require(info.Name == ExistingBucketTag && info.RecordedAtUnixMs == RecordedAt
-                    && info.RelatedRefId is null && info.RelatedTicket is null,
+                    && info.EntryCount == 1,
                     "Full tag Append mixed payload and record metadata.");
             }
         }
@@ -271,8 +272,8 @@ internal static class InternalProcessHost {
             }
             else {
                 Require(scenario is "tag-private" or "tag-empty", "Only private/empty requests can be retried.");
-                store.CreateTag(NewTag, Created, out outcome).Unwrap();
-                Require(store.ResolveTag(NewTag).Unwrap().Bytes.SequenceEqual(Created), "Fresh tag request was not published.");
+                store.CreateTag(NewTag, [store.ReadHead(SourceId).Unwrap().Id.HeadId], out outcome).Unwrap();
+                Require(store.ReadEntry(store.ReadTag(NewTag).Unwrap().Entries.Single().Value).Unwrap().Payload.SequenceEqual(Current), "Fresh tag request was not published.");
             }
             Require(outcome == PublicationOutcome.Confirmed, "Fresh request was not confirmed.");
             Require(!File.Exists(PendingPath(root)), "Fresh request left private residue.");

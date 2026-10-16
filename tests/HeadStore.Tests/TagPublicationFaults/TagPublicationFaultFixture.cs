@@ -30,6 +30,7 @@ internal sealed class TagPublicationFaultFixture : IDisposable {
     internal DataStore Data => Storage.Data;
     internal string PendingPath => Storage.PendingPath;
     internal string BucketPath => Path.Combine(Storage.Root, "tags", "00000106.rbf");
+    internal HeadId SelectedHead => Heads.Paths.ContainsKey(1) ? HeadId.Create(Identity, 1) : SeedHead();
 
     internal TagPublicationFaultFixture(bool readOnly = false, HeadStoreFactoryOperations? operations = null) {
         byte[] identity = Storage.Create();
@@ -53,7 +54,7 @@ internal sealed class TagPublicationFaultFixture : IDisposable {
         return HeadId.Create(Identity, localId);
     }
 
-    internal TagBucketSeed SeedBucket(params TagFaultRecord[] records) => SeedBucketWithVersion(1, records);
+    internal TagBucketSeed SeedBucket(params TagFaultRecord[] records) => SeedBucketWithVersion(2, records);
 
     internal TagBucketSeed SeedBucketWithVersion(uint version, params TagFaultRecord[] records) {
         Directory.CreateDirectory(Path.GetDirectoryName(BucketPath)!);
@@ -69,7 +70,7 @@ internal sealed class TagPublicationFaultFixture : IDisposable {
     }
 
     internal static TagFaultRecord Record(string name = Name, byte[]? payload = null) =>
-        new(payload ?? TagFaultFixture.Payload(), TagFaultFixture.Metadata(name));
+        new(payload ?? TagFaultFixture.Payload(), TagFaultFixture.Metadata(name, entryCount: (payload?.Length ?? 12) / 12));
 
     internal void CorruptRoot(SizedPtr ticket) {
         using var file = new FileStream(BucketPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
@@ -80,7 +81,7 @@ internal sealed class TagPublicationFaultFixture : IDisposable {
     }
 
     internal void AssertFaultedAndCleaned() {
-        Assert.Throws<InvalidOperationException>(() => Store.ResolveTag(Name));
+        Assert.Throws<InvalidOperationException>(() => Store.ReadTag(Name));
         Assert.All(Tags.Opened, file => Assert.Equal(1, file.DisposeCalls));
         Assert.All(Heads.PendingFiles, file => Assert.Equal(1, file.DisposeCalls));
         Assert.All(Heads.Opened.Values, file => Assert.Equal(1, file.DisposeCalls));

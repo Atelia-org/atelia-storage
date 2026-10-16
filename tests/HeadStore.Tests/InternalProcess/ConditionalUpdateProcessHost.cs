@@ -117,10 +117,15 @@ internal static class ConditionalUpdateProcessHost {
                 InternalProcessHost.Require(forks[0].ChildHeadId.LocalId == 4 && forks[0].SourceHeadId == entryIds[1].HeadId
                     && forks[0].SourceEntryTicket == entryIds[1].Ticket, "CU fork lost its exact checked source.");
                 InternalProcessHost.Require(History(store, fork.Id.HeadId).Count == (partial ? 2 : 3), "CU fork inherited history differs.");
+                HeadSetTag captured = store.ReadTag("after-cu-reopen").Unwrap();
+                InternalProcessHost.Require(captured.Entries.Count == 2 && captured.Entries[entryIds[1].HeadId] == entryIds[1]
+                    && captured.Entries[fork.Id.HeadId] == fork.Id, "Cold tag did not retain the accepted CU and fork positions.");
+                InternalProcessHost.Require(store.ReadEntry(captured.Entries[entryIds[1].HeadId]).Unwrap().Payload.SequenceEqual(partial ? Old(1) : New(1)),
+                    "Cold tag member lost its exact accepted Entry.");
             }
             var audit = store.Audit().Unwrap();
             InternalProcessHost.Require(audit.HeadCount == (hasFork ? 4 : 3) && audit.EntryCount == (partial ? 3 : 6) + (hasFork ? 1 : 0)
-                && audit.OriginCount == (hasFork ? 1 : 0), "Cold CU Audit disagrees with published history.");
+                && audit.OriginCount == (hasFork ? 1 : 0) && audit.TagCount == (hasFork ? 1 : 0), "Cold CU Audit disagrees with published history.");
         }
         InternalProcessHost.Complete("cu-verify", new { scenario, allOld = IsPartial(scenario), allNew = !IsPartial(scenario),
             currentChecked = true, historyChecked = true, forksChecked = true, auditChecked = true });
@@ -134,6 +139,12 @@ internal static class ConditionalUpdateProcessHost {
             InternalProcessHost.Require(outcome == PublicationOutcome.Confirmed && fork.HeadId.LocalId == 4, "Fresh CU fork was not confirmed.");
             var child = store.ReadHead(fork.HeadId).Unwrap();
             InternalProcessHost.Require(child.Payload.SequenceEqual(IsPartial(scenario) ? Old(1) : New(1)), "Fork copied a CU envelope.");
+            // The old child was killed before/inside CU flush. This fresh request
+            // captures the accepted cold state and confirms all required peers.
+            HeadSetTag captured = store.CreateTag("after-cu-reopen", [source.Id.HeadId, fork.HeadId], out outcome).Unwrap();
+            InternalProcessHost.Require(outcome == PublicationOutcome.Confirmed && captured.Entries.Count == 2
+                && captured.Entries[source.Id.HeadId] == source.Id && captured.Entries[fork.HeadId] == fork,
+                "Tag creation after cold CU recovery changed its selected member set.");
         }
         InternalProcessHost.Complete("cu-fork", new { scenario, freshRequest = true, exactSource = true, clonedOnlyRoot = true });
     }

@@ -8,7 +8,7 @@ public sealed class AuditCancellationTests {
     public void PreCancelledRequestDoesNoEnumerationOrOpenAndKeepsReadOnlyOwnerUsable() {
         using var f = new AuditFaultFixture();
         f.SeedHead(1);
-        f.SeedTagBucket(AuditFaultFixture.TagName, new TagPublicRecord(AuditFaultFixture.TagName, [1]));
+        f.SeedTagBucket(AuditFaultFixture.TagName, new TagPublicRecord(AuditFaultFixture.TagName, f.TagMembers()));
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
 
@@ -37,7 +37,7 @@ public sealed class AuditCancellationTests {
         using var f = new AuditFaultFixture();
         using var cancellation = new CancellationTokenSource();
         if (tagDirectory) {
-            f.SeedTagBucket(AuditFaultFixture.TagName, new TagPublicRecord(AuditFaultFixture.TagName, [1]));
+            f.SeedTagBucket(AuditFaultFixture.TagName, new TagPublicRecord(AuditFaultFixture.TagName, f.TagMembers()));
             f.OrderTags(AuditFaultFixture.TagName);
         }
         else {
@@ -60,7 +60,7 @@ public sealed class AuditCancellationTests {
         Assert.Equal(1, targeted.DisposeCalls);
         Assert.All(f.Operations.Cursors, entry => Assert.Equal(1, entry.Cursor.DisposeCalls));
         Assert.All(f.Files.Opened, file => Assert.Equal(1, file.DisposeCalls));
-        if (stage is "move" or "current") { Assert.Empty(f.Files.Opened); }
+        if (stage is "move" or "current") { Assert.DoesNotContain(f.Files.Opened, file => file.IsTag == tagDirectory); }
         if (stage == "move") { Assert.Equal(0, targeted.CurrentCalls); }
         Assert.Equal(0, f.Files.ActiveFiles);
         Assert.Equal(0, f.Lock.DisposeCalls);
@@ -89,8 +89,8 @@ public sealed class AuditCancellationTests {
         Atelia.Data.SizedPtr later;
         if (tag) {
             AuditTagSeed seed = f.SeedTagBucket(AuditFaultFixture.TagName,
-                new TagPublicRecord(AuditFaultFixture.TagName, new byte[8192]),
-                new TagPublicRecord(AuditFaultFixture.SameBucketName, [2]));
+                new TagPublicRecord(AuditFaultFixture.TagName, f.TagMembers()),
+                new TagPublicRecord(AuditFaultFixture.SameBucketName, f.TagMembers()));
             first = seed.Tickets[0];
             later = seed.Tickets[1];
         }
@@ -147,7 +147,7 @@ public sealed class AuditCancellationTests {
         f.Lock.DisposeFailure = lockClose;
         if (tag) {
             f.OrderHeads();
-            f.SeedTagBucket(AuditFaultFixture.TagName, new TagPublicRecord(AuditFaultFixture.TagName, [1]));
+            f.SeedTagBucket(AuditFaultFixture.TagName, new TagPublicRecord(AuditFaultFixture.TagName, f.TagMembers()));
         }
         else { f.OrderHeads(cachedSeed); }
         f.Operations.ConfigureCursor = (isTag, cursor) => { if (isTag == tag) { cursor.DisposeFailure = cursorClose; } };

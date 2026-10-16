@@ -17,9 +17,9 @@ public sealed class TagScanResourceTests {
         f.SeedBucket(TagScanFaultFixture.OtherBucketName, new TagPublicRecord(TagScanFaultFixture.OtherBucketName, [3]));
         f.Order(TagScanFaultFixture.Name, TagScanFaultFixture.OtherBucketName);
         int readsAtCallback = 0;
-        TagInfo? retained = null;
+        HeadSetTagInfo? retained = null;
 
-        Assert.Equal(TagScanEnd.VisitorStopped, f.Store.ScanTags(info => {
+        Assert.Equal(HeadSetTagScanEnd.VisitorStopped, f.Store.ScanTags(info => {
             retained = info;
             readsAtCallback = Assert.Single(f.Tags.Opened).Reads.Count;
             return false;
@@ -63,7 +63,7 @@ public sealed class TagScanResourceTests {
         Assert.Equal(1, Assert.Single(f.Tags.Opened).DisposeCalls);
         Assert.Equal(1, Assert.Single(f.Operations.Enumerators).DisposeCalls);
         Assert.Equal(0, f.Lock.DisposeCalls);
-        Assert.Equal(TagScanEnd.Complete, f.Store.ScanTags(_ => true).Unwrap());
+        Assert.Equal(HeadSetTagScanEnd.Complete, f.Store.ScanTags(_ => true).Unwrap());
         Assert.True(f.Store.PublishHead(id, [3], out _).IsSuccess);
     }
 
@@ -81,14 +81,14 @@ public sealed class TagScanResourceTests {
             "oom" => new OutOfMemoryException("visitor OOM"),
             _ => new InvalidOperationException("visitor guard")
         };
-        TagInfo? retained = null;
+        HeadSetTagInfo? retained = null;
 
         Assert.Same(primary, Record.Exception(() => f.Store.ScanTags(info => { retained = info; throw primary; })));
 
         Assert.Equal(1, Assert.Single(f.Tags.Opened).DisposeCalls);
         Assert.Equal(1, Assert.Single(f.Operations.Enumerators).DisposeCalls);
         Assert.Equal(0, f.Lock.DisposeCalls);
-        Assert.Equal(TagScanEnd.Complete, f.Store.ScanTags(_ => true).Unwrap());
+        Assert.Equal(HeadSetTagScanEnd.Complete, f.Store.ScanTags(_ => true).Unwrap());
         Assert.True(f.Store.PublishHead(id, [2], out _).IsSuccess);
         f.Store.Dispose();
         Assert.Equal(TagScanFaultFixture.Name, retained!.Name);
@@ -104,7 +104,7 @@ public sealed class TagScanResourceTests {
         f.Store.ReadHead(cached).Unwrap();
         f.SeedBucket(TagScanFaultFixture.Name, new TagPublicRecord(TagScanFaultFixture.Name, [1]));
         f.Order(TagScanFaultFixture.Name);
-        TagInfo? retained = null;
+        HeadSetTagInfo? retained = null;
         Action scan = () => f.Store.ScanTags(info => { retained = info; f.Store.Dispose(); return false; });
 
         if (insideHistory) {
@@ -134,7 +134,7 @@ public sealed class TagScanResourceTests {
         f.Order(TagScanFaultFixture.Name, TagScanFaultFixture.OtherBucketName);
         var close = new IOException("nested named close");
         f.Tags.ConfigureOpen = file => { if (f.Tags.Opened.Count == 1) { file.DisposeFailure = close; } };
-        TagInfo? retained = null;
+        HeadSetTagInfo? retained = null;
 
         Assert.Throws<InvalidOperationException>(() => f.Store.ScanTags(info => {
             retained = info;
@@ -224,7 +224,7 @@ public sealed class TagScanResourceTests {
         Assert.Equal(1, Assert.Single(f.Operations.Enumerators).DisposeCalls);
         Assert.Equal(0, f.Lock.DisposeCalls);
         f.Operations.ConfigureEnumerator = null;
-        Assert.Equal(TagScanEnd.Complete, f.Store.ScanTags(_ => true).Unwrap());
+        Assert.Equal(HeadSetTagScanEnd.Complete, f.Store.ScanTags(_ => true).Unwrap());
         Assert.True(f.Store.PublishHead(id, [3], out _).IsSuccess);
     }
 
@@ -254,10 +254,10 @@ public sealed class TagScanResourceTests {
         Assert.Equal(1, Assert.Single(f.Operations.Enumerators).DisposeCalls);
         Assert.Equal(0, f.Lock.DisposeCalls);
         f.Tags.ConfigureOpen = null;
-        Assert.Equal(TagScanEnd.Complete, f.Store.ScanTags(_ => true).Unwrap());
+        Assert.Equal(HeadSetTagScanEnd.Complete, f.Store.ScanTags(_ => true).Unwrap());
         if (!readOnly) {
             f.Operations.EntryPaths = null;
-            Assert.True(f.Store.CreateTag("after-actual-read-error", [1], out _).Unwrap());
+            f.Store.CreateTag("after-actual-read-error", [f.SeedHead()], out _).Unwrap();
         }
     }
 
@@ -290,7 +290,7 @@ public sealed class TagScanResourceTests {
         Assert.Equal(0, f.Lock.DisposeCalls);
         File.WriteAllBytes(f.BucketPath(TagScanFaultFixture.Name), complete);
         f.Tags.ConfigureOpen = null;
-        Assert.Equal(TagScanEnd.Complete, f.Store.ScanTags(_ => true).Unwrap());
+        Assert.Equal(HeadSetTagScanEnd.Complete, f.Store.ScanTags(_ => true).Unwrap());
     }
 
     [Theory]
@@ -316,7 +316,7 @@ public sealed class TagScanResourceTests {
             expected = cursor.TerminationError;
         }
         Assert.NotNull(expected);
-        var retained = new List<TagInfo>();
+        var retained = new List<HeadSetTagInfo>();
 
         var result = f.Store.ScanTags(info => { retained.Add(info); return true; });
 

@@ -28,27 +28,29 @@ public sealed partial class HeadStore {
     }
 
     /// <summary>重验已签发 exact 位置；null 只表示完整合法但未成立的 CU。</summary>
-    private AteliaResult<PublicationRead> ReadExactPublication(IRbfFile file, CheckedHeadHeader header, SizedPtr ticket) {
+    private AteliaResult<PublicationRead> ReadExactPublication(IRbfFile file, CheckedHeadHeader header, SizedPtr ticket,
+        Action? checkState = null, bool deferOwnedCleanup = false) {
+        CheckConditionalState(checkState);
         if (ticket.Offset < header.InitialEntryOffset
             || file.GetPhysicalOffsetImmediatelyAfter(ticket) > file.TailOffset) {
             return new HeadRecordError("The exact publication lies outside the checked header's completed range.");
         }
 
         var readInfo = file.ReadFrameInfo(ticket);
-        EnsureOwnerUsable();
+        CheckConditionalState(checkState);
         if (readInfo.IsFailure) { return readInfo.Error!; }
         RbfFrameInfo info = readInfo.Value;
         if (!HeadRecordCodec.IsPublicationShape(info)
             || (ticket.Offset == header.InitialEntryOffset && !HeadRecordCodec.IsSingleEntryShape(info))) {
             return new HeadRecordError("The exact physical record has an invalid publication shape.");
         }
-        var read = ReadPublication(file, header, info, checkState: EnsureOwnerUsable);
+        var read = ReadPublication(file, header, info, checkState: checkState, deferOwnedCleanup: deferOwnedCleanup);
         if (read.IsFailure || read.Value.Entry is null) { return read; }
 
         // CRC does not cover the following Fence. Retain the successful exact anchor
         // check; a valid witness of nonpublication above does not require this work.
         var boundary = file.GetScanBoundaryAfter(ticket);
-        EnsureOwnerUsable();
+        CheckConditionalState(checkState);
         if (boundary.IsFailure) { return boundary.Error!; }
         return read;
     }

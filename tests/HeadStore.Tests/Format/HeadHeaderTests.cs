@@ -78,7 +78,7 @@ public class HeadHeaderTests {
     public void Header_InvalidFieldsCannotClaimMetadata(int mutation) {
         byte[] changed = Convert.FromHexString(FormatTestValues.ForkHeaderHex);
         switch (mutation) {
-            case 0: changed[0] = 2; break;
+            case 0: changed[0] = 1; break;
             case 1: changed.AsSpan(4, 16).Clear(); break;
             case 2: changed[19] ^= 1; break;
             case 3: changed.AsSpan(20, 4).Clear(); break;

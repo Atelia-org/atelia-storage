@@ -47,7 +47,7 @@ public sealed class PublicLifecycleTests {
                 Directory.EnumerateFileSystemEntries(fixture.Root).Select(Path.GetFileName).Order(StringComparer.Ordinal));
             byte[] gate = File.ReadAllBytes(fixture.GatePath);
             Assert.Equal(44, gate.Length);
-            Assert.Equal(1u, BinaryPrimitives.ReadUInt32LittleEndian(gate));
+            Assert.Equal(2u, BinaryPrimitives.ReadUInt32LittleEndian(gate));
             Assert.Equal(identity, gate.AsSpan(4, 16).ToArray());
             Assert.Equal(fixture.Data.StoreId.ToArray(), gate.AsSpan(20, 16).ToArray());
             Assert.Equal(256u, BinaryPrimitives.ReadUInt32LittleEndian(gate.AsSpan(36)));

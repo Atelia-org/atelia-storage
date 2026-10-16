@@ -1,5 +1,6 @@
 using Atelia.Data;
 using Atelia.HeadStore.Tests.TagFaults;
+using Atelia.HeadStore.Tests.Tags;
 using Xunit;
 
 namespace Atelia.HeadStore.Tests.TagPublicationFaults;
@@ -14,8 +15,8 @@ public sealed class TagPreflightFaultTests {
         if (name == "overlong") { name = new string('a', HeadStore.MaxTagNameCodeUnits + 1); }
         var outcome = PublicationOutcome.Confirmed;
 
-        Assert.True(f.Store.CreateTag(name!, [1], out outcome).IsFailure);
-        Assert.True(f.Store.ResolveTag(name!).IsFailure);
+        Assert.True(f.Store.CreateTag(name!, [f.SelectedHead], out outcome).IsFailure);
+        Assert.True(f.Store.ReadTag(name!).IsFailure);
 
         Assert.Equal(PublicationOutcome.NotAttempted, outcome);
         Assert.Empty(f.Events);
@@ -24,12 +25,12 @@ public sealed class TagPreflightFaultTests {
 
     [Theory]
     [InlineData(0)]
-    [InlineData(1048577)]
-    public void InvalidPayloadRejectsBeforePathClockAndBarrier(int length) {
+    [InlineData(1)]
+    public void EmptyOrDefaultSelectionRejectsBeforePathClockAndBarrier(int length) {
         using var f = new TagPublicationFaultFixture();
         var outcome = PublicationOutcome.Confirmed;
 
-        Assert.True(f.Store.CreateTag(TagPublicationFaultFixture.Name, new byte[length], out outcome).IsFailure);
+        Assert.True(f.Store.CreateTag(TagPublicationFaultFixture.Name, new HeadId[length], out outcome).IsFailure);
 
         Assert.Equal(PublicationOutcome.NotAttempted, outcome);
         Assert.Empty(f.Events);
@@ -41,7 +42,7 @@ public sealed class TagPreflightFaultTests {
         using var f = new TagPublicationFaultFixture(readOnly: true);
         var outcome = PublicationOutcome.Confirmed;
 
-        Assert.Equal("HeadStore.ReadOnly", f.Store.CreateTag(TagPublicationFaultFixture.Name, [1], out outcome).Error!.ErrorCode);
+        Assert.Equal("HeadStore.ReadOnly", f.Store.CreateTag(TagPublicationFaultFixture.Name, [f.SelectedHead], out outcome).Error!.ErrorCode);
 
         Assert.Equal(PublicationOutcome.NotAttempted, outcome);
         Assert.Empty(f.Events);
@@ -55,8 +56,8 @@ public sealed class TagPreflightFaultTests {
         f.Events.Clear();
         var outcome = PublicationOutcome.Confirmed;
 
-        Assert.Throws<ObjectDisposedException>(() => f.Store.CreateTag(TagPublicationFaultFixture.Name, [1], out outcome));
-        Assert.Throws<ObjectDisposedException>(() => f.Store.ResolveTag(TagPublicationFaultFixture.Name));
+        Assert.Throws<ObjectDisposedException>(() => f.Store.CreateTag(TagPublicationFaultFixture.Name, [f.SelectedHead], out outcome));
+        Assert.Throws<ObjectDisposedException>(() => f.Store.ReadTag(TagPublicationFaultFixture.Name));
 
         Assert.Equal(PublicationOutcome.NotAttempted, outcome);
         Assert.Empty(f.Events);
@@ -73,7 +74,7 @@ public sealed class TagPreflightFaultTests {
         var history = f.Store.ReadHeadHistory(id, new HeadHistoryBudget(100, 100), _ => {
             callbacks++;
             Assert.Equal("HeadStore.HistoryActive",
-                f.Store.CreateTag(TagPublicationFaultFixture.Name, [1], out outcome).Error!.ErrorCode);
+                f.Store.CreateTag(TagPublicationFaultFixture.Name, [f.SelectedHead], out outcome).Error!.ErrorCode);
             return true;
         });
 
@@ -107,7 +108,7 @@ public sealed class TagPreflightFaultTests {
         }
         var outcome = PublicationOutcome.Confirmed;
 
-        var result = f.Store.CreateTag(TagPublicationFaultFixture.Name, [3], out outcome);
+        var result = f.Store.CreateTag(TagPublicationFaultFixture.Name, [f.SelectedHead], out outcome);
 
         Assert.True(result.IsFailure);
         Assert.Equal(PublicationOutcome.NotAttempted, outcome);
@@ -130,14 +131,14 @@ public sealed class TagPreflightFaultTests {
         f.Hooks.GetRecordedAtUnixMs = () => throw failure;
         var outcome = PublicationOutcome.Confirmed;
 
-        Assert.Same(failure, Assert.Throws<OutOfMemoryException>(() => f.Store.CreateTag(TagPublicationFaultFixture.Name, [1], out outcome)));
+        Assert.Same(failure, Assert.Throws<OutOfMemoryException>(() => f.Store.CreateTag(TagPublicationFaultFixture.Name, [f.SelectedHead], out outcome)));
 
         Assert.Equal(PublicationOutcome.NotAttempted, outcome);
         AssertNoPublication(f);
         Assert.All(f.Tags.Opened, file => Assert.Equal(1, file.DisposeCalls));
         Assert.Equal(0, f.Lock.DisposeCalls);
         f.Hooks.GetRecordedAtUnixMs = null;
-        Assert.True(f.Store.CreateTag(TagPublicationFaultFixture.Name, [1], out _).Unwrap());
+        Assert.NotNull(f.Store.CreateTag(TagPublicationFaultFixture.Name, [f.SelectedHead], out _).Unwrap());
     }
 
     [Theory]
@@ -150,14 +151,14 @@ public sealed class TagPreflightFaultTests {
         else { f.Tags.ResolveFailure = failure; }
         var outcome = PublicationOutcome.Confirmed;
 
-        Assert.Same(failure, Assert.Throws<IOException>(() => f.Store.CreateTag(TagPublicationFaultFixture.Name, [1], out outcome)));
+        Assert.Same(failure, Assert.Throws<IOException>(() => f.Store.CreateTag(TagPublicationFaultFixture.Name, [f.SelectedHead], out outcome)));
 
         Assert.Equal(PublicationOutcome.NotAttempted, outcome);
         AssertNoPublication(f);
         Assert.Equal(0, f.Lock.DisposeCalls);
         f.Tags.PrepareFailure = null;
         f.Tags.ResolveFailure = null;
-        Assert.True(f.Store.CreateTag(TagPublicationFaultFixture.Name, [1], out outcome).Unwrap());
+        Assert.NotNull(f.Store.CreateTag(TagPublicationFaultFixture.Name, [f.SelectedHead], out outcome).Unwrap());
     }
 
     internal static void AssertNoPublication(TagPublicationFaultFixture f) {

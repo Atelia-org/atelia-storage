@@ -69,7 +69,8 @@ internal static class ResourceScenario {
                 Measure(root, "CreateTag.all.hotAndOrdinary", 1, () => {
                     for (uint id = 1; id <= size; id++) {
                         HeadEntry head = heads.ReadHead(id).Unwrap();
-                        Require(heads.CreateTag(names[id - 1], head.Payload, head.Id, out var outcome).Unwrap(), "Tag publication did not succeed.");
+                        HeadSetTag tag = heads.CreateTag(names[id - 1], [head.Id.HeadId], out var outcome).Unwrap();
+                        Require(tag.Entries.Count == 1 && tag.Entries[head.Id.HeadId] == head.Id, "Tag captured another Entry.");
                         Confirmed(outcome);
                     }
                     return size;
@@ -140,14 +141,14 @@ internal static class ResourceScenario {
                     Measure(root, "ScanTags", iteration, () => {
                         var seen = new HashSet<string>(StringComparer.Ordinal);
                         var buckets = new Dictionary<int, int>();
-                        TagScanEnd end = heads.ScanTags(info => {
+                        HeadSetTagScanEnd end = heads.ScanTags(info => {
                             Require(nameIds.TryGetValue(info.Name, out uint id) && seen.Add(info.Name), "Unexpected or repeated scanned tag.");
                             ValidateInfo(info, currentEntries[id - 1]);
                             int bucket = TagBucket(info.Name);
                             buckets[bucket] = buckets.GetValueOrDefault(bucket) + 1;
                             return true;
                         }).Unwrap();
-                        Require(end == TagScanEnd.Complete && seen.Count == size, "Tag scan did not complete.");
+                        Require(end == HeadSetTagScanEnd.Complete && seen.Count == size, "Tag scan did not complete.");
                         Require(buckets.Count == counts.ActualTagBuckets && buckets.Values.Max() == counts.MaxTagRecordsPerBucket, "Observed tag distribution differs.");
                         return seen.Count;
                     }, measurements);
@@ -161,16 +162,16 @@ internal static class ResourceScenario {
                     // Even IDs form the hot bucket. First/last hot and one ordinary name are bounded samples.
                     foreach (uint id in new uint[] { 2, (uint)size, 1 }) {
                         Measure(root, $"ReadTagInfo.ref-{id}", iteration, () => {
-                            TagInfo info = heads.ReadTagInfo(names[id - 1]).Unwrap();
+                            HeadSetTagInfo info = heads.ReadTagInfo(names[id - 1]).Unwrap();
                             Require(info.Name == names[id - 1], "Named tag metadata returned another name.");
                             ValidateInfo(info, currentEntries[id - 1]);
                             return info;
                         }, measurements);
-                        Measure(root, $"ResolveTag.ref-{id}", iteration, () => {
-                            RootPayload payload = heads.ResolveTag(names[id - 1]).Unwrap();
-                            ExpectedEntry expected = ExpectedHistory(id, size)[0];
-                            ValidatePayload(data, payload.Bytes, expected.Creator, expected.Generation);
-                            return payload;
+                        Measure(root, $"ReadTag.ref-{id}", iteration, () => {
+                            HeadSetTag tag = heads.ReadTag(names[id - 1]).Unwrap();
+                            Require(tag.Entries.Count == 1 && tag.Entries[currentEntries[id - 1].HeadId] == currentEntries[id - 1],
+                                "Tag member differs from the independently verified history.");
+                            return tag;
                         }, measurements);
                     }
                     ResourceSample traversed = Sample(root);
@@ -332,8 +333,8 @@ internal static class ResourceScenario {
 
     private static byte Pattern(int offset, uint creator, int generation) { return unchecked((byte)(offset * 17 + creator * 3 + generation)); }
 
-    private static void ValidateInfo(TagInfo info, HeadEntryId head) {
-        Require(info.RelatedRefId == head.HeadId && info.RelatedTicket?.Packed == head.Ticket.Packed, "Tag related coordinates differ from the frozen head.");
+    private static void ValidateInfo(HeadSetTagInfo info, HeadEntryId head) {
+        Require(info.EntryCount == 1, "Tag metadata member count differs.");
     }
 
     private static string[] TagNames(int size) {

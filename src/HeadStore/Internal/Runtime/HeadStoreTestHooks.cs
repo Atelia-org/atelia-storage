@@ -19,6 +19,11 @@ internal sealed class HeadStoreTestHooks {
     internal Action<uint>? BeforeConditionalUpdateEnd;
     internal Action<uint>? BeforeConditionalUpdateFlush;
     internal Action<SizedPtr>? AfterTagRecordAppended;
+    // Selection has accepted one Entry and captured its complete publication dependencies.
+    internal Action<HeadEntryId>? AfterTagHeadSelected;
+    internal Action<uint>? BeforeTagDependencyFlush;
+    // Data and all publication dependencies are confirmed; no TagRecord output has started.
+    internal Action? AfterTagDependenciesConfirmed;
     // 专门证明 Confirmed 先于结果交付异常；不构成公开发布 callback。
     internal Action? AfterPublicationConfirmed;
 }

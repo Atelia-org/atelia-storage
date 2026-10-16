@@ -83,14 +83,11 @@ public sealed class PublicCombinationProcessTests(ITestOutputHelper output) : ID
         Assert.Equal(6, metadata.Length);
         for (int index = 0; index < metadata.Length; index++) {
             Assert.Equal(GoldenCodeUnits[index], metadata[index].GetProperty("NameCodeUnits").GetString());
-            bool related = index is 1 or 5;
-            Assert.Equal(related ? JsonValueKind.Number : JsonValueKind.Null, metadata[index].GetProperty("RelatedRefId").ValueKind);
-            Assert.Equal(related ? JsonValueKind.Number : JsonValueKind.Null, metadata[index].GetProperty("RelatedTicket").ValueKind);
-            if (related) {
-                Assert.Equal(1u, metadata[index].GetProperty("RelatedRefId").GetUInt32());
-                Assert.Equal(result.GetProperty("sourceTicket").GetUInt64(), metadata[index].GetProperty("RelatedTicket").GetUInt64());
-            }
+            Assert.Equal(1, metadata[index].GetProperty("EntryCount").GetInt32());
+            Assert.Equal(1u, metadata[index].GetProperty("LocalHeadId").GetUInt32());
+            Assert.NotEqual(result.GetProperty("sourceTicket").GetUInt64(), metadata[index].GetProperty("Ticket").GetUInt64());
         }
+        Assert.Equal(6, metadata.Select(entry => entry.GetProperty("Ticket").GetUInt64()).Distinct().Count());
     }
 
     private async Task<JsonElement> Run(params string[] args) {

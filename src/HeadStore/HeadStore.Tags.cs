@@ -1,6 +1,7 @@
 using Atelia.Data;
 using Atelia.Rbf;
 using Atelia.HeadStore.Internal.Runtime;
+using Atelia.HeadStore.Internal.Records;
 using Atelia.HeadStore.Internal.Tags;
 
 namespace Atelia.HeadStore;
@@ -9,63 +10,66 @@ public sealed partial class HeadStore {
     // Named operations own one short-lived bucket handle, separate from history's head slot.
     private IRbfFile? _tagOperationFile;
 
-    /// <summary>按 Ordinal 名称 create-only 冻结一份完整 root payload，成功恒为 true。</summary>
-    /// <remarks>匿名 tag 不分配 head 身份；必选 out 在任何 guard 之前初始化。</remarks>
-    public AteliaResult<bool> CreateTag(string name, ReadOnlySpan<byte> payload, out PublicationOutcome outcome) {
-        outcome = PublicationOutcome.NotAttempted;
-        return CreateTagInput(name, payload, null, ref outcome);
-    }
+    private bool _tagCreateActive;
+    private IRbfFile? _tagDependencyFile;
 
-    /// <summary>冻结实际输入 bytes，并记录同库已签发 entryId 的可选关联注记。</summary>
-    /// <remarks>关联只保存坐标；不读取、比较或 flush 来源，也不授予精确 clone 资格。</remarks>
-    public AteliaResult<bool> CreateTag(string name, ReadOnlySpan<byte> payload, HeadEntryId relatedRevision,
+    /// <summary>按 Ordinal 名称 create-only 捕获非空 Head 集合的当前已接受 Entry。</summary>
+    /// <remarks>输入私有复制；结果不随 Head 移动，不持 owner 或 pooled lease。</remarks>
+    public AteliaResult<HeadSetTag> CreateTag(string name, ReadOnlySpan<HeadId> heads,
         out PublicationOutcome outcome) {
         outcome = PublicationOutcome.NotAttempted;
-        return CreateTagInput(name, payload, relatedRevision, ref outcome);
-    }
-
-    private AteliaResult<bool> CreateTagInput(string name, ReadOnlySpan<byte> payload, HeadEntryId? relatedRevision,
-        scoped ref PublicationOutcome outcome) {
         AteliaError? rejection = GetMutationRejection();
         if (rejection is not null) { return rejection; }
         if (IsReadOnly) { return new HeadStoreRuntimeError("ReadOnly", "This HeadStore owner is read-only."); }
         if (!TagNameCodec.IsValidName(name)) { return InvalidTagName(); }
-        if (relatedRevision is HeadEntryId related
-            && (!IsLocalEntryId(related) || related.Ticket.Length == 0)) { return InvalidEntryId(); }
-        if (payload.Length is < 1 or > MaxHeadEntryPayloadLength) {
-            return new HeadStoreRuntimeError("ArgumentError", "Root payload length must be between 1 and 1,048,576 bytes.");
-        }
 
-        // Prepare the lossless name and exact metadata width without allocating the final metadata.
-        // The timestamp is installed once after definite preparation and before the data barrier.
-        TagMetadataEncodingPlan plan = TagMetadataCodec.Prepare(name, 0, _identity,
-            relatedRevision?.HeadId, relatedRevision?.Ticket);
-        byte[] captured = payload.ToArray();
-        AteliaResult<bool> result = default;
-        CleanupErrors errors = default;
-        bool mutationStarted = false;
-        try { result = CreateTagCore(name, captured, plan, ref outcome, ref mutationStarted); }
-        catch (Exception error) {
-            if (mutationStarted) { _faulted = true; }
-            errors.Add(error);
+        _tagCreateActive = true;
+        try {
+            if (heads.IsEmpty) {
+                return new HeadStoreRuntimeError("ArgumentError", "A tag must select at least one Head.");
+            }
+            TagMetadataEncodingPlan plan = TagMetadataCodec.Prepare(name, 0, _identity, heads.Length);
+            var measured = TagRecordCodec.MeasurePayloadLength(heads.Length, plan.EncodedLength);
+            if (measured.IsFailure) { return measured.Error!; }
+            HeadId[] captured = heads.ToArray();
+            foreach (HeadId head in captured) {
+                if (!head.BelongsTo(_identity)) { return InvalidHead(); }
+            }
+            Array.Sort(captured, static (left, right) => left.LocalId.CompareTo(right.LocalId));
+            for (int index = 1; index < captured.Length; index++) {
+                if (captured[index - 1] == captured[index]) {
+                    return new HeadStoreRuntimeError("ArgumentError", "A tag cannot select the same Head twice.");
+                }
+            }
+
+            AteliaResult<HeadSetTag> result = default;
+            CleanupErrors errors = default;
+            bool mutationStarted = false;
+            try { result = CreateTagCore(name, captured, measured.Value, plan, ref outcome, ref mutationStarted); }
+            catch (Exception error) {
+                if (mutationStarted) { _faulted = true; }
+                errors.Add(error);
+            }
+            finally {
+                CloseTagDependency(ref errors);
+                CloseTagOperation(ref errors);
+                if (_faulted) { CleanupOwned(ref errors); }
+            }
+            errors.ThrowIfAny();
+            EnsureOwnerUsable();
+            return result;
         }
-        finally {
-            CloseTagOperation(ref errors);
-            if (_faulted) { CleanupOwned(ref errors); }
-        }
-        errors.ThrowIfAny();
-        EnsureOwnerUsable();
-        return result;
+        finally { _tagCreateActive = false; }
     }
 
-    /// <summary>解析唯一可信名称并读取完整 checked root bytes；结果自有且不需要 Dispose。</summary>
-    public AteliaResult<RootPayload> ResolveTag(string name) {
+    /// <summary>解析唯一可信名称并恢复完整 checked 成员表；不访问成员文件。</summary>
+    public AteliaResult<HeadSetTag> ReadTag(string name) {
         EnsureOwnerUsable();
         if (!TagNameCodec.IsValidName(name)) { return InvalidTagName(); }
 
-        AteliaResult<RootPayload> result = default;
+        AteliaResult<HeadSetTag> result = default;
         CleanupErrors errors = default;
-        try { result = ResolveTagCore(name); }
+        try { result = ReadTagCore(name); }
         catch (Exception error) { errors.Add(error); }
         finally {
             CloseTagOperation(ref errors);
@@ -76,12 +80,12 @@ public sealed partial class HeadStore {
         return result;
     }
 
-    /// <summary>读取唯一可信名称的自有元信息；不读取 root 或核验关联来源。</summary>
-    public AteliaResult<TagInfo> ReadTagInfo(string name) {
+    /// <summary>读取唯一可信名称的自有元信息；不读取成员表或成员文件。</summary>
+    public AteliaResult<HeadSetTagInfo> ReadTagInfo(string name) {
         EnsureOwnerUsable();
         if (!TagNameCodec.IsValidName(name)) { return InvalidTagName(); }
 
-        AteliaResult<TagInfo> result = default;
+        AteliaResult<HeadSetTagInfo> result = default;
         CleanupErrors errors = default;
         try {
             var opened = GetNamedTagBucket(name);
@@ -101,7 +105,8 @@ public sealed partial class HeadStore {
         return result;
     }
 
-    private AteliaResult<bool> CreateTagCore(string name, byte[] captured, TagMetadataEncodingPlan plan,
+    private AteliaResult<HeadSetTag> CreateTagCore(string name, HeadId[] captured, int payloadLength,
+        TagMetadataEncodingPlan plan,
         scoped ref PublicationOutcome outcome, scoped ref bool mutationStarted) {
         IHeadStoreTagFiles files = GetTagFiles();
         uint bucketId = TagNameCodec.GetBucketId(name);
@@ -141,14 +146,37 @@ public sealed partial class HeadStore {
             }
         }
 
-        var recordSize = TagRecordCodec.MeasureAppend(captured.Length, plan.EncodedLength, recordsOffset);
+        var recordSize = TagRecordCodec.MeasureAppend(payloadLength, plan.EncodedLength, recordsOffset);
         if (recordSize.IsFailure) { return recordSize.Error!; }
+        var dependencies = new HashSet<uint>();
+        var entries = new HeadEntryId[captured.Length];
+        var ownedEntries = new Dictionary<HeadId, HeadEntryId>(captured.Length);
+        AteliaError? BeforeHeadWork() { EnsureOwnerUsable(); return null; }
+        for (int index = 0; index < captured.Length; index++) {
+            HeadId head = captured[index];
+            var opened = GetOrOpen(head.LocalId);
+            if (opened.IsFailure) { return opened.Error!; }
+            IRbfFile source = opened.Value!;
+            var header = HeadRecordReader.CheckHeader(source, _identity, head,
+                BeforeHeadWork, EnsureOwnerUsable);
+            if (header.IsFailure) { return header.Error!; }
+            var current = ReadPublishedCurrent(source, header.Value, dependencies);
+            if (current.IsFailure) { return current.Error!; }
+            entries[index] = current.Value!.Id;
+            ownedEntries.Add(head, entries[index]);
+            _testHooks?.AfterTagHeadSelected?.Invoke(entries[index]);
+            EnsureOwnerUsable();
+        }
         long recordedAt = _testHooks?.GetRecordedAtUnixMs?.Invoke()
             ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var finalPlan = new TagMetadataEncodingPlan(new TagMetadata(name, recordedAt,
-            plan.Metadata.RelatedRefId, plan.Metadata.RelatedTicket),
+        EnsureOwnerUsable();
+        var finalPlan = new TagMetadataEncodingPlan(new TagMetadata(name, recordedAt, entries.Length),
             plan.NamePlan, plan.EncodedLength);
         byte[] tailMeta = TagMetadataCodec.Encode(in finalPlan);
+        byte[] payload = TagEntriesCodec.Encode(entries, _identity);
+        var result = new HeadSetTag(name, recordedAt, ownedEntries);
+        uint[] dependencyIds = dependencies.ToArray();
+        Array.Sort(dependencyIds);
         Span<byte> headerPayload = stackalloc byte[TagBucketHeaderCodec.PayloadSize];
         if (newBucket && !TagBucketHeaderCodec.TryWrite(_identity, bucketId, headerPayload)) {
             throw new InvalidOperationException("Cannot encode the prepared tag BucketHeader.");
@@ -158,12 +186,19 @@ public sealed partial class HeadStore {
         if (_testHooks?.ConfirmDataDurable is { } confirm) { confirm(); }
         else { _data.ConfirmDurable(); }
         EnsureOwnerUsable();
+        foreach (uint localId in dependencyIds) {
+            var confirmed = ConfirmTagDependency(localId);
+            if (confirmed.IsFailure) { return confirmed.Error!; }
+        }
+        _testHooks?.AfterTagDependenciesConfirmed?.Invoke();
+        EnsureOwnerUsable();
         if (newBucket) {
             files.EnsureTagsDirectory(_markOwnedCleanupFault);
             EnsureOwnerUsable();
             _pendingHead = _files.CreatePending(_markOwnedCleanupFault);
             EnsureOwnerUsable();
             _pendingHead.Append(TagRecordCodec.HeaderTag, headerPayload).Unwrap();
+            EnsureOwnerUsable();
             TagRecordReader.CheckHeader(_pendingHead, _identity, bucketId, EnsureOwnerUsable).Unwrap();
             if (_pendingHead.TailOffset != recordsOffset) {
                 throw new InvalidOperationException("The private BucketHeader did not end at its prepared initialization boundary.");
@@ -191,23 +226,27 @@ public sealed partial class HeadStore {
         }
 
         outcome = PublicationOutcome.Unknown;
-        var append = _tagOperationFile!.Append(TagRecordCodec.RecordTag, captured, tailMeta);
+        var append = _tagOperationFile!.Append(TagRecordCodec.RecordTag, payload, tailMeta);
         if (append.IsFailure) {
             // A public RBF rejection proves that the sole TagRecord output attempt did no I/O.
             outcome = PublicationOutcome.NotAttempted;
             return append.Error!;
         }
+        EnsureOwnerUsable();
         _testHooks?.AfterTagRecordAppended?.Invoke(append.Value);
+        EnsureOwnerUsable();
         _tagOperationFile.DurableFlush();
         outcome = PublicationOutcome.Confirmed;
+        EnsureOwnerUsable();
         _testHooks?.AfterPublicationConfirmed?.Invoke();
-        return true;
+        EnsureOwnerUsable();
+        return result;
     }
 
-    private AteliaResult<RootPayload> ResolveTagCore(string name) {
+    private AteliaResult<HeadSetTag> ReadTagCore(string name) {
         var opened = GetNamedTagBucket(name);
         if (opened.IsFailure) { return opened.Error!; }
-        return TagRecordReader.ResolveNamed(opened.Value.File, opened.Value.Header, name, EnsureOwnerUsable);
+        return TagRecordReader.ReadNamed(opened.Value.File, opened.Value.Header, name, EnsureOwnerUsable);
     }
 
     private AteliaResult<(IRbfFile File, CheckedTagBucketHeader Header)> GetNamedTagBucket(string name) {
@@ -231,8 +270,44 @@ public sealed partial class HeadStore {
         return (file, header.Value);
     }
 
-    private static TagInfo CreateTagInfo(TagMetadata metadata) =>
-        new(metadata.Name, metadata.RecordedAtUnixMs, metadata.RelatedRefId, metadata.RelatedTicket);
+    private static HeadSetTagInfo CreateTagInfo(TagMetadata metadata) =>
+        new(metadata.Name, metadata.RecordedAtUnixMs, metadata.EntryCount);
+
+    // Selected Heads may already be cached; CU peers are confirmed one at a time
+    // without turning this operation's dependency set into permanent owned state.
+    private AteliaResult<bool> ConfirmTagDependency(uint localId) {
+        EnsureOwnerUsable();
+        IRbfFile file;
+        if (_ownedHeads.TryGetValue(localId, out OwnedHead? owned)) { file = owned.File!; }
+        else {
+            var resolved = _files.ResolveHead(localId, _markOwnedCleanupFault);
+            EnsureOwnerUsable();
+            if (resolved.IsFailure) { return resolved.Error!; }
+            _tagDependencyFile = _files.OpenHead(resolved.Value, readOnly: false, _markOwnedCleanupFault);
+            EnsureOwnerUsable();
+            file = _tagDependencyFile;
+            AteliaError? BeforeHeadWork() { EnsureOwnerUsable(); return null; }
+            var header = HeadRecordReader.CheckHeader(file, _identity, HeadId.Create(_identity, localId),
+                BeforeHeadWork, EnsureOwnerUsable);
+            if (header.IsFailure) { return header.Error!; }
+        }
+        _testHooks?.BeforeTagDependencyFlush?.Invoke(localId);
+        EnsureOwnerUsable();
+        file.DurableFlush();
+        EnsureOwnerUsable();
+        CleanupErrors errors = default;
+        CloseTagDependency(ref errors);
+        errors.ThrowIfAny();
+        EnsureOwnerUsable();
+        return true;
+    }
+
+    private void CloseTagDependency(ref CleanupErrors errors) {
+        IRbfFile? toClose = _tagDependencyFile;
+        _tagDependencyFile = null;
+        try { toClose?.Dispose(); }
+        catch (Exception error) { _faulted = true; errors.Add(error); }
+    }
 
     private IHeadStoreTagFiles GetTagFiles() => _tagFiles
         ?? throw new InvalidOperationException("This internal HeadStore backend does not support tag files.");

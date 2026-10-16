@@ -1,6 +1,6 @@
 # S5：Head 历史、fork 与 tag 施工导航
 
-命名更新：2026-10-16 活跃合同采用 HeadStore/Head/Entry；既有 Accepted 仍对应原 VersionStore revision，本轮重命名验证见[13记录](13-headstore-renaming-plan.md)。格式版本、路径与 Clause-ID 不变；[14 HeadSetTag](14-headset-tags-plan.md)尚未实施。
+HeadSetTag 更新：2026-10-16 本轮实施格式2与具名成员表替换，待[独立验收](14-headset-tags-acceptance.md)。既有 Accepted 保持原 VersionStore/格式1来源；[13重命名记录](13-headstore-renaming-plan.md)不覆盖本行为变化。路径与既有 Clause-ID 保持，普通 Head/CU 的记录形状不变。
 
 状态：**既有历史/fork/tag 等范围的独立 source-only 源码资格 Accepted；CU 已正式接纳并取得本轮独立源码验收 Accepted**。历史 visitor/预算/清理、精确 ForkHead、ListHeadOrigins 及09的 tag 公开闭环的既有资格见[最终源码验收](12-versionstore-final-acceptance.md)。CU 来源、历史判据与预算增量见[07 验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。公开进程、受控故障、文件镜像与包消费分别记录，旧六包候选不含 CU；后续见[实施计划](12-versionstore-implementation-plan.md)。
 本文负责历史、fork 与声明图查询；Head 格式/身份/编号及发布协议消费 [S4](04-versionstore-publication.md)，记录时间见 [08 专项](08-versionstore-record-metadata.md)，bytes 结果见 [11 专项](11-versionstore-root-payload-bytes-api.md)。不可变 tag 由 [09 专项](09-versionstore-immutable-tags.md)定义，安排在 Head、历史与 fork 之后施工。
@@ -8,7 +8,7 @@
 
 ## 目标与最小公开操作
 
-每个 Head 的当前/历史值及 tag 内容都为应用解释的完整 root-payload bytes。Head 以 HeadId 定位，应用管理名称/元数据/固定角色；tag 冻结创建时 bytes，不跟踪 Head，不提供 branch 名称绑定。
+每个Head的当前/历史值为应用解释的完整root-payload bytes。Head以HeadId定位，应用管理名称/元数据/固定角色；HeadSetTag固定创建时所选Heads的EntryId，不保存payload、不随Head移动，也不提供branch名称绑定。
 
 | 候选操作 | 效果 | 首版持久单元 |
 | --- | --- | --- |
@@ -16,8 +16,8 @@
 | ForkHead(sourceEntryId) | 自动编号，从精确源快照创建 fork | header/ForkOrigin 与完整初始 SingleEntry，一次文件发布 |
 | ForkHead(destLocalHeadId, sourceEntryId) | 在空闲预留号创建 fork | 同上，指定目标 create-only |
 | ListHeadOrigins(maxHeads, cancellationToken) | 查询全部正式 Head 声明的创建来源边 | checked header 与完整图；单次自有只读结果，无跨调用缓存 |
-| CreateTag / ResolveTag | 创建/读取不可变完整 bytes；可选 Related 仅作关联注记 | 09 的目标桶元信息裁决与必要完整 root 读取 |
-| ReadTagInfo / ScanTags | 按名读取或同步逐项交付 tag 元信息 | 09 的独立 checked 元信息；不证明 root 健康或签发 EntryId |
+| CreateTag / ReadTag | 捕获所选Head当前位置或读取不可变成员表 | 09 的稳定捕获/依赖确认、唯一可信名裁决与完整canonical表读取 |
+| ReadTagInfo / ScanTags | 按名读取或同步逐项交付 tag 元信息 | 09 的独立 checked 元信息；不证明成员表/Entry健康或签发成员EntryId |
 | 无来源复制 / rewind 便利流程 | 旧 payload 新建独立 Head / 追加回原 Head | 调用 S4 CreateHead / PublishHead |
 
 历史入口/终止消费 `[A-VS-REF-HISTORY-CHECKED]`，ListHeadOrigins 结果/限额消费 `[A-VS-FORKS-CHECKED]`；mutation 统一用 S4 AteliaResult/必选 out PublicationOutcome。fork 只接收 EntryId，不接受自由组合 roots/origin 或凭同值补链接；无来源复制仍用 CreateHead。首版不删除/复用 Head，不修改/删除 tag，不提供差分/checkpoint；多个同库既有 Head 的共同发布由07定义，不包括创建或 tag。发布历史与应用因果谱系分别解释。
@@ -49,7 +49,7 @@ ForkHead 两种入口 MUST 接收本 HeadStore 的已发布 HeadEntryId，先消
 
 源 flush 失败时，本次 fork 尚未尝试公开事实，为 NotAttempted；源 RBF 按自身 fault，HeadStore 停用，不进入子输出。子私有文件/rename/内存安装的结果继续使用 S4 PublicationOutcome。只在子 header 写来源，不向源文件追加孩子列表、不改变源 head，避免源登记与子发布之间引入第二个一致性协议。
 
-子初始记录 MUST 为普通 SingleEntry，原样复制 exact 源的完整 root-payload bytes，不重新编码、不复制源 RBF 包络、TailMeta 或 CU Members；保留完整初始 SingleEntry 而非 header-only 引用。B0 与源 A2 即使内容相同也都是实际发布节点，历史保留二者及其不同 EntryId，不按内容去重。需要 bytes 时另行 ReadHead；无来源复制仍用 CreateHead，tag 同值不产生精确来源。CU 源的确认仍只在 data barrier 后确认 exact source 文件，沿 ProcessCrashOnly，不增加全部 peer flush 或断电保证。
+子初始记录 MUST 为普通 SingleEntry，原样复制 exact 源的完整 root-payload bytes，不重新编码、不复制源 RBF 包络、TailMeta 或 CU Members；保留完整初始 SingleEntry 而非 header-only 引用。B0 与源 A2 即使内容相同也都是实际发布节点，历史保留二者及其不同 EntryId，不按内容去重。需要 bytes 时另行 ReadHead；无来源复制仍用 CreateHead，HeadSetTag成员ID可作为精确来源，但成员表相同不能替代exact源重验。CU 源的确认仍只在 data barrier 后确认 exact source 文件，沿 ProcessCrashOnly，不增加全部 peer flush 或断电保证。
 
 ## Head 历史与反事实分支
 
@@ -68,9 +68,9 @@ AteliaResult<HeadHistoryEnd> ReadHeadHistory(
 
 每项完成 S4 发布资格后，按 [11 bytes 公面专项](11-versionstore-root-payload-bytes-api.md)构造自有 HeadEntry、归还 pooled 帧，再调用 visitor。结果所有权与内容解码边界不另定义；来源一致性检查不受 visitor 影响。应用可在 visitor 内解码，异常沿 callback 路径传播。HeadId/HeadEntryId 值与位置资格消费 S4。
 
-visitor 返回 true 表示继续，false 表示已接收当前项并正常选点停止。false 后 MUST 不再扫描旧帧或访问下一源；先完成健康/取消复检和必要清理，再返回 VisitorStopped，即使该项恰为起点也保持此结果。调用方可保存所选值，在方法返回后 fork/tag/rewind；需要列表时由调用方收集，不要求库保留整批历史。
+visitor 返回 true 表示继续，false 表示已接收当前项并正常选点停止。false 后 MUST 不再扫描旧帧或访问下一源；先完成健康/取消复检和必要清理，再返回 VisitorStopped，即使该项恰为起点也保持此结果。调用方可保存所选值，在方法返回后fork/rewind；CreateTag只捕获调用时当前位置，不能把所选历史ID直接做成tag。需要列表时由调用方收集，不要求库保留整批历史。
 
-**准入与固定上界。** MUST 先检查 owner disposed/fault、HeadId 参数、非 null visitor、两个预算均为正数及无其他活动历史读取，再做文件 I/O；09 的 TagScanActive 期间亦不得进入历史。无隐含预算默认值；long.MaxValue 可表示调用方不设置实际限额，default 的零预算无效。通过准入后设置一个 HistoryActive 位，整个同步调用拒绝递归 ReadHeadHistory 及本 HeadStore 的所有 mutation，包括发布、自动/指定 Head 或 fork 创建和 tag 创建；mutation 按 S4 先初始化 out，guard 拒绝先于 barrier/输出且不新增 fault。visitor 可串行读取当前值及 data，亦可按09调用 ResolveTag、ReadTagInfo 或 ScanTags，保留自有结果；历史与 tag 扫描使用独立临时槽。同文件 Head 查询复用当前可用的 RBF 句柄，不重复独占打开。owner Dispose 仍是受控清理，不作为发布 mutation 拒绝。首版无并发调用或外部改写，不建跨实例 entry 协议。
+**准入与固定上界。** MUST 先检查 owner disposed/fault、HeadId 参数、非 null visitor、两个预算均为正数及无其他活动历史读取，再做文件 I/O；09 的 TagScanActive 期间亦不得进入历史。无隐含预算默认值；long.MaxValue 可表示调用方不设置实际限额，default 的零预算无效。通过准入后设置一个 HistoryActive 位，整个同步调用拒绝递归 ReadHeadHistory 及本 HeadStore 的所有 mutation，包括发布、自动/指定 Head 或 fork 创建和 tag 创建；mutation 按 S4 先初始化 out，guard 拒绝先于 barrier/输出且不新增 fault。visitor 可串行读取当前值及 data，亦可按09调用 ReadTag、ReadTagInfo 或 ScanTags，保留自有结果；历史与 tag 扫描使用独立临时槽。同文件 Head 查询复用当前可用的 RBF 句柄，不重复独占打开。owner Dispose 仍是受控清理，不作为发布 mutation 拒绝。首版无并发调用或外部改写，不建跨实例 entry 协议。
 进入本 Head 时 MUST 用公共正向扫描只完整检查首 header，保存 exact header ticket、checked ForkOrigin 与 header 物理后界给出的预期初始起点，不预读第二帧 payload。随后从实际完成尾部取得逆向扫描器，以该物理完成上界固定本次遍历；依次完整校验普通 SingleEntry 或 CU，CU 复用07共同判据，未提交 CU 不交付且继续向前，成立 CU 与普通 SingleEntry 各交付一次自有快照。所有无输出的组验证与回退仍计工作步；必要错误不得转成未提交。只有逆扫实际到达预期初始起点时才完整读取该普通 SingleEntry。初始即末时只复制一次自有结果。后续不得重读 head 替换这个上界，不能调用未计费的 ReadHead 助手完成隐含资格工作；初始坏而 head 健康不阻断前面的健康交付或 visitor false 停止。
 
 **继承前缀。** 正反向枚举均使用 `showTombstone: true`。本地历史包含重复同值快照与 rewind，省略已检查的首 header 与07共同判据确认未提交的 CU；必要节点的未知 kind/格式版/meta 形状、tombstone、损坏均报错。历史按真实链交付记录原时间，不按时间排序或去重。首版逐文件循环，直接消费 public RBF API：
@@ -141,9 +141,9 @@ HeadOriginInfo 是普通非 record readonly struct，仅有三个只读属性及
 
 ## 不可变 tag 的独立施工片
 
-[S5-B：不可变 tag 专项](09-versionstore-immutable-tags.md)是名称、桶路径/格式、初始化保护、独立元信息资格、请求范围损坏裁决、CreateTag/ResolveTag/ReadTagInfo/ScanTags 与对应验收的唯一权威；原 `[S-VS-TAG-PAYLOAD-IMMUTABLE]` Clause-ID 随合同迁入，本文不保留第二份定义。
+[S5-B：不可变 tag 专项](09-versionstore-immutable-tags.md)是名称、桶路径/格式、初始化保护、独立元信息资格、请求范围损坏裁决、CreateTag/ReadTag/ReadTagInfo/ScanTags 与对应验收的唯一权威；原 `[S-VS-TAG-PAYLOAD-IMMUTABLE]` Clause-ID 随合同迁入，本文不保留第二份定义。
 
-tag 冻结所选 root payload，可选 Related 只是关联注记，不证明精确来源或内容相等。历史 visitor 可在调用期间 ResolveTag、ReadTagInfo 或 ScanTags，创建必须等历史调用结束；tag 扫描的反向重入限制与临时桶槽唯一见09。该施工片建议在 Head 闭环及历史/fork 后实施；元信息公面安排在 tag 发布闭环后，未完成 tag 不阻塞前面的路径。
+HeadSetTag固定所选Heads的当前EntryId，创建只接受HeadId slice；不接受历史EntryId任意组合。历史visitor可调用ReadTag、ReadTagInfo或ScanTags，创建必须等历史调用结束；得到的成员ID可在回调外供ForkHead，仍重验精确来源。tag扫描重入限制、TagCreateActive、临时桶/成员槽与必要依赖确认唯一见09。本轮完整替换旧bytes/Related合同，验收见14记录。
 
 ## 应用映射与固定槽位
 
@@ -181,14 +181,14 @@ Open MUST NOT 默认回放历史/data 图；惰性打开只延后资格检查，
 | --- | --- |
 | 历史路径 | 当前/非末 fork 点、源后续追加排除、fork-of-fork、多孩子及继承快照再 fork；子初始/源均交付不同 EntryId，同值重发/rewind 不去重。缺源/错身份/成员/length/CRC/envelope/meta、墓碑/未知 kind/TerminationError、循环及子/源 bytes 不符失败，不作正常终止 |
 | 历史预算/停止 | 第k项 false 后不扫描旧坏内容或下一源；初始 CRC 坏/head 好时首项 false 成功，继续到坏初始失败。初始 visitor false 不验证其来源，true 后才跳源。返回数恰在无来源起点耗尽为 Complete，有来源且需继续为预算失败；进入Head/header资格/anchor及内部重复完整读/false扫描全计work，先扣费再动作；前缀/VisitorStopped/失败不称完整历史 |
-| 回调/资源 | 递归历史与全部 mutation 在 barrier/I/O 前拒绝，调用后 guard 释放；visitor可当前值/data读取及 ResolveTag/ReadTagInfo/ScanTags/ListHeadOrigins，复用匹配 Head 句柄且 tag 使用独立槽；活动 ScanTags 拒绝进入历史。最后回调 false/true 时 Dispose/取消/异常，末 close失败，均不正常终止；跳转及所有退出资源单次归还，已交付自有值仍有效 |
+| 回调/资源 | 递归历史与全部 mutation 在 barrier/I/O 前拒绝，调用后 guard 释放；visitor可当前值/data读取及 ReadTag/ReadTagInfo/ScanTags/ListHeadOrigins，复用匹配 Head 句柄且 tag 使用独立槽；活动 ScanTags 拒绝进入历史。最后回调 false/true 时 Dispose/取消/异常，末 close失败，均不正常终止；跳转及所有退出资源单次归还，已交付自有值仍有效 |
 | fork byte clone | 两种目标均直接重读已签发 exact 源并在data后确认源，再发布单个完整子文件；源后来追加大量更新不增加本层定位扫描，源初始 payload 坏不妨碍健康旧点，但目标 CRC/envelope 或尾 Fence 坏必须失败，factory EOF 结构资格仍需通过。禁用/计数 decoder，用同值不同顺序/合法冗余BPV及JSON/随机bytes验证exact clone，不写源孩子表；源flush失败无子输出。子重新取时，源/子时间不参与比较 |
 | ListHeadOrigins集合/图 | 两编号域、无来源根、多层/兄弟分叉，creating排除；无来源同值复制/应用映射不产生边。初始/head 的 payload CRC 或 envelope 坏而 header 好、factory EOF 结构合格时仍能查询；缺/坏header、未知项/枚举、缺源/自链接/独立分量环失败，header-only不证明初始化。深链/共享祖先不递归或二次方重追；不逐边审计源ticket，实际历史访问坏来源另须失败 |
 | ListHeadOrigins额度/结果 | 零/负限额先于I/O；全部正式节点含无来源根计费，恰额EOF成功，超额不打开/读内容/扩表；全无来源成功空边。末close/取消/分配/图错误不交部分成功；三个自有字段/full ticket而非源EntryId、无稳定顺序、正常接口不能改backing，关owner后仍有效；visitor内查询不覆盖历史临时槽 |
-| 应用互操作 | 历史停止后 fork/tag/rewind或无来源CreateHead，应用解码/数据失败不回退；无关data Builder活跃仍能基于完成闭包fork/tag。固定槽与动态LocalId/正确库冷重开，富元数据整体发布；独立目录登记的未登记窗口由应用核对，不声称跨Head原子 |
+| 应用互操作 | 历史停止后fork/rewind或无来源CreateHead；CreateTag另捕获当时当前Heads，应用解码/数据失败不回退；无关data Builder活跃仍能基于完成闭包fork/tag。固定槽与动态LocalId/正确库冷重开，富元数据整体发布；独立目录登记的未登记窗口由应用核对，不声称跨Head原子 |
 
-时间与bytes验收按专项接线，继承项保留实际源时间，子初始/rewind重新取时但允许同值，时钟回退不改变链序。tag 复用08时间意义，独立元信息 schema/CRC、Related注记、名称/hash/请求范围损坏隔离及发布/元信息公面详细向量由09负责。
+时间与bytes验收按专项接线，继承项保留实际源时间，子初始/rewind重新取时但允许同值，时钟回退不改变链序。tag 复用08时间意义，独立元信息 schema/CRC、canonical成员表、名称/hash/请求范围损坏隔离及发布/元信息公面详细向量由09负责。
 
-[07 CU](07-versionstore-cross-ref-conditional-update.md)已正式接纳。新增向量包括成立 CU 作为来源/历史节点、跳过未提交组但 exact source anchor 必须拒绝、CU→普通子 SingleEntry 只 clone root bytes、成员校验及异长结构后继步骤先扣预算、peer 不加入继承 visited 与短期句柄单次清理。ForkOrigin 始终指向实际 Head/frame，ListHeadOrigins 仍只验证 header 声明图，tag Related 仍只是注记。旧 S5 Accepted 不覆盖本轮 CU，新增结果见[07 验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。
+[07 CU](07-versionstore-cross-ref-conditional-update.md)已正式接纳。新增向量包括成立 CU 作为来源/历史节点、跳过未提交组但 exact source anchor 必须拒绝、CU→普通子 SingleEntry 只 clone root bytes、成员校验及异长结构后继步骤先扣预算、peer 不加入继承 visited 与短期句柄单次清理。ForkOrigin 始终指向实际 Head/frame，ListHeadOrigins 仍只验证 header 声明图，HeadSetTag成员是正式引用，其创建确认集合与Audit检查按09执行，不改变fork只确认exact source文件的既有合同。旧 S5 Accepted 不覆盖本轮 CU，新增结果见[07 验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。
 
 以上支持实施交接；源码、进程中断、平台/规模与包资格仍须实际取证，不要求首版实现分段、checkpoint、业务谱系或精确尝试追踪。

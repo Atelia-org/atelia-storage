@@ -236,7 +236,7 @@ public sealed class PublicConditionalUpdateInputTests {
         using (var store = fixture.Create()) {
             a = store.CreateHead(7, [1], out _).Unwrap();
             b = store.CreateHead(19, [2], out _).Unwrap();
-            store.CreateTag("guard", [3], out _).Unwrap();
+            store.CreateTag("guard", [a.HeadId], out _).Unwrap();
         }
         var hostile = new EnumerationOnlyDictionary([], throwOnGetEnumerator: true);
         var before = fixture.CaptureFiles();
@@ -253,7 +253,7 @@ public sealed class PublicConditionalUpdateInputTests {
             Assert.Equal(PublicationOutcome.NotAttempted, outcome);
             return false;
         }).Unwrap());
-        Assert.Equal(TagScanEnd.VisitorStopped, writer.ScanTags(_ => {
+        Assert.Equal(HeadSetTagScanEnd.VisitorStopped, writer.ScanTags(_ => {
             var outcome = PublicationOutcome.Confirmed;
             Assert.Equal("HeadStore.TagScanActive", writer.PublishHeads(hostile, out outcome).Error!.ErrorCode);
             Assert.Equal(PublicationOutcome.NotAttempted, outcome);

@@ -12,12 +12,10 @@ namespace Atelia.HeadStore.Tests.Tags;
 // Independent field assembly: only the prescribed public CRC and BPV writer are reused.
 // Header and metadata goldens are fixed separately, and alternate BPV representations are assembled by hand.
 internal static class TagTestWire {
-    internal const string AnonymousAHex = "0000000000000000000341DE80262D";
-    internal const string RelatedAHex = "000000000000000001BE040341694583C3";
     internal static StoreIdentity Identity => FormatTestValues.Identity();
 
     internal static byte[] Header(uint bucketId) {
-        byte[] result = Convert.FromHexString("01000000" + FormatTestValues.IdentityHex + "00000000");
+        byte[] result = Convert.FromHexString("02000000" + FormatTestValues.IdentityHex + "00000000");
         BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(20), bucketId);
         return result;
     }
@@ -58,15 +56,24 @@ internal static class TagTestWire {
         return result.ToArray();
     }
 
-    internal static byte[] Metadata(
-        string name, long time = 0, uint id = 0, SizedPtr? ticket = null,
-        byte[]? nameWire = null, byte[]? idWire = null, byte[]? ticketWire = null
-    ) {
-        byte[] timeBytes = new byte[8];
-        BinaryPrimitives.WriteInt64LittleEndian(timeBytes, time);
-        return Seal(Join(timeBytes, idWire ?? VarUInt(id),
-            id == 0 ? [] : ticketWire ?? VarUInt(ticket!.Value.Serialize()), nameWire ?? Name(name)));
+    internal static byte[] Metadata(string name, long time = 0, uint count = 1, byte[]? nameWire = null) {
+        byte[] fields = new byte[12];
+        BinaryPrimitives.WriteInt64LittleEndian(fields, time);
+        BinaryPrimitives.WriteUInt32LittleEndian(fields.AsSpan(8), count);
+        return Seal(Join(fields, nameWire ?? Name(name)));
     }
+
+    internal static byte[] Members(uint localId = 1, SizedPtr? ticket = null) {
+        byte[] bytes = new byte[12];
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes, localId);
+        BinaryPrimitives.WriteUInt64LittleEndian(bytes.AsSpan(4), (ticket ?? SizedPtr.Create(60, 40)).Packed);
+        return bytes;
+    }
+
+    internal static byte[] MemberBytes(this HeadSetTag tag) => Join(tag.Entries.Values
+        .OrderBy(entry => entry.HeadId.LocalId).Select(entry => Members(entry.HeadId.LocalId, entry.Ticket)).ToArray());
+
+    internal static byte[] MemberSequence(int count) => Join(Enumerable.Range(1, count).Select(id => Members((uint)id)).ToArray());
 
     internal static byte[] Seal(ReadOnlySpan<byte> prefix) {
         byte[] result = new byte[prefix.Length + 4];

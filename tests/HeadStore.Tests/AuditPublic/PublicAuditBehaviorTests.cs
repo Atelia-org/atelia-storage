@@ -35,9 +35,9 @@ public sealed class PublicAuditBehaviorTests {
             child = store.ForkHead(12, initial, out _).Unwrap();
             store.PublishHead(child.HeadId, "{\"phase\":\"done\"}"u8, out _).Unwrap();
             nested = store.ForkHead(13, child, out _).Unwrap();
-            Assert.True(store.CreateTag(names[0], opaque, out _).Unwrap());
-            Assert.True(store.CreateTag(names[1], rootWithAbsentData, out _).Unwrap());
-            Assert.True(store.CreateTag(names[2], [0x81], initial, out _).Unwrap());
+            store.CreateTag(names[0], [nested.HeadId], out _).Unwrap();
+            store.CreateTag(names[1], [initial.HeadId], out _).Unwrap();
+            store.CreateTag(names[2], [initial.HeadId, child.HeadId], out _).Unwrap();
         }
         fixture.Data.Dispose();
         var before = fixture.CaptureFiles();
@@ -46,8 +46,8 @@ public sealed class PublicAuditBehaviorTests {
         using (var readOnly = Store.OpenReadOnly(fixture.Root, data)) {
             Assert.Equal(opaque, readOnly.ReadHead(nested.HeadId).Unwrap().Payload.ToArray());
             Assert.Equal(rootWithAbsentData, readOnly.ReadHead(initial.HeadId).Unwrap().Payload.ToArray());
-            Assert.Equal(opaque, readOnly.ResolveTag("Release").Unwrap().Bytes.ToArray());
-            Assert.Equal(rootWithAbsentData, readOnly.ResolveTag("release").Unwrap().Bytes.ToArray());
+            Assert.Equal(opaque, readOnly.ReadEntry(readOnly.ReadTag("Release").Unwrap().Entries[nested.HeadId]).Unwrap().Payload.ToArray());
+            Assert.Equal(rootWithAbsentData, readOnly.ReadEntry(readOnly.ReadTag("release").Unwrap().Entries[initial.HeadId]).Unwrap().Payload.ToArray());
             retained = readOnly.Audit().Unwrap();
             long bucketCount = names.Select(TagPublicFixture.Bucket).Distinct().LongCount();
             AuditPublicFixture.AssertCounts(retained, 3, 5, 2, bucketCount, 3);
@@ -91,18 +91,20 @@ public sealed class PublicAuditBehaviorTests {
     }
 
     [Fact]
-    public void TagRelatedCoordinatesRemainAnnotationsEvenWhenTheirSourceDoesNotExist() {
+    public void TagMembersAreFormalDependenciesEvenWhenMetadataAndTableRemainReadable() {
         using var fixture = new AuditPublicFixture();
         SizedPtr declared = SizedPtr.Create(SizedPtr.MaxOffset, 4);
-        fixture.Storage.WriteMirror("A", new TagPublicRecord("A", [0xff],
-            TagTestWire.Metadata("A", id: uint.MaxValue, ticket: declared)));
+        fixture.Storage.WriteMirror("A", new TagPublicRecord("A", TagTestWire.Members(uint.MaxValue, declared)));
         var before = fixture.CaptureFiles();
         using (var readOnly = fixture.OpenReadOnly()) {
-            TagInfo info = readOnly.ReadTagInfo("A").Unwrap();
-            Assert.Equal(uint.MaxValue, info.RelatedRefId!.Value.LocalId);
-            Assert.Equal(declared, info.RelatedTicket);
+            HeadSetTagInfo info = readOnly.ReadTagInfo("A").Unwrap();
+            Assert.Equal(1, info.EntryCount);
+            var member = Assert.Single(readOnly.ReadTag("A").Unwrap().Entries);
+            Assert.Equal(uint.MaxValue, member.Key.LocalId);
+            Assert.Equal(declared, member.Value.Ticket);
+            Assert.True(readOnly.ReadEntry(member.Value).IsFailure);
             Assert.Empty(readOnly.ListHeads().Unwrap());
-            AuditPublicFixture.AssertCounts(readOnly.Audit().Unwrap(), 0, 0, 0, 1, 1);
+            Assert.True(readOnly.Audit().IsFailure);
         }
         fixture.AssertUnchanged(before);
     }
@@ -119,7 +121,8 @@ public sealed class PublicAuditBehaviorTests {
                 path = fixture.HeadPath(7);
             }
             else {
-                store.CreateTag("A", AuditPublicFixture.Bytes(), out _).Unwrap();
+                var member = store.CreateHead(7, AuditPublicFixture.Bytes(), out _).Unwrap();
+                store.CreateTag("A", [member.HeadId], out _).Unwrap();
                 path = fixture.Storage.BucketPath("A");
             }
         }
@@ -127,7 +130,7 @@ public sealed class PublicAuditBehaviorTests {
         File.WriteAllBytes(path, complete[..^8]);
         var before = fixture.CaptureFiles();
         using (var readOnly = fixture.OpenReadOnly()) {
-            Assert.Equal(target == "ref" ? 1 : 0, readOnly.ListHeads().Unwrap().Count);
+            Assert.Single(readOnly.ListHeads().Unwrap());
             Assert.Throws<InvalidDataException>(() => { readOnly.Audit(); });
         }
         fixture.AssertUnchanged(before);

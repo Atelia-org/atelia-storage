@@ -87,7 +87,7 @@ public sealed class ConditionalEntryReadTests {
         IReadOnlyDictionary<HeadId, HeadEntryId> group;
         using (var writer = fixture.Open()) {
             group = Publish(writer, fixture, [3]);
-            writer.CreateTag("saved", [9], group[fixture.Id(1)], out _).Unwrap();
+            writer.CreateTag("saved", [fixture.Id(1)], out _).Unwrap();
         }
         using var owner = fixture.Open();
         int deliveries = 0;
@@ -98,7 +98,7 @@ public sealed class ConditionalEntryReadTests {
             owner.EnsureUsable();
             Assert.Equal(entry.Id, owner.ReadEntry(entry.Id).Unwrap().Id);
             Assert.Equal(group[fixture.Id(2)], owner.ReadEntry(group[fixture.Id(2)]).Unwrap().Id);
-            Assert.Equal(TagScanEnd.Complete, owner.ScanTags(_ => {
+            Assert.Equal(HeadSetTagScanEnd.Complete, owner.ScanTags(_ => {
                 tagDeliveries++;
                 owner.EnsureUsable();
                 Assert.Equal(entry.Id, owner.ReadEntry(entry.Id).Unwrap().Id);
