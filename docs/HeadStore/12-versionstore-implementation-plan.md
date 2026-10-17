@@ -1,5 +1,7 @@
 # HeadStore 当前续接与 VersionStore 历史实施记录
 
+2026-10-17 持久定位值与准确起点历史增量：HeadId/HeadEntryId 的4B/12B公开codec，以及 `ReadEntryHistory` 已接通；使用时资格由正常RBF3局部边界检查保证，跨库误用仍按紧凑Handle合同处理。规范归04/05/09/11，实际新增资格单列于[12验收](12-versionstore-final-acceptance.md)。本轮不修改格式4、FrameStore地址或DG依赖。
+
 2026-10-17 当前续接：紧凑Handle按现行[04](04-versionstore-publication.md)/[05](05-versionstore-names-and-indexes.md)/[07](07-versionstore-cross-ref-conditional-update.md)/[09](09-versionstore-immutable-tags.md)/[11](11-versionstore-root-payload-bytes-api.md)合同实施。统一格式4拒绝1/2/3；HeadId为4B上下文编码、本地号限制24bit，GetLocalHeadId替代HeadId.LocalId。引用初始化fork与16B独立tag key/value保持。本轮实际资格待[12新增验收](12-versionstore-final-acceptance.md)填写，不沿用格式3或更早Accepted；此前引用初始化fork的Windows源码、具名进程窗口及四个隔离包消费者通过记录，仍在12、[07 CU验收](07-versionstore-cross-ref-conditional-update-acceptance.md)、[16 tag验收](16-headset-tags-acceptance.md)保留当轮命令、来源与范围。以下V0–V4与2026-10-16格式2均保留历史来源；其克隆、单文件来源确认与12B同owner成员表描述不再是当前合同。
 
 下文保留 2026-10-10/11 各片实施及验证的 VersionStore 原名、命令、统计和 revision，作为历史记录，不是待重做的队列或 HeadStore 新包资格。当前合同请从[模块入口](README.md)读取；生产指南为 [Atelia.HeadStore](../../src/HeadStore/README.md)。

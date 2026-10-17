@@ -18,9 +18,24 @@ public sealed partial class HeadStore {
     /// 合法未成立 CU 不交付Entry，但其必要读取和 peer 访问仍消耗工作预算。
     /// </remarks>
     public AteliaResult<HeadHistoryEnd> ReadHeadHistory(HeadId headId, HeadHistoryBudget budget,
-        Func<HeadEntry, bool> visitor, CancellationToken cancellationToken = default) {
+        Func<HeadEntry, bool> visitor, CancellationToken cancellationToken = default) =>
+        ReadHistory(headId, null, budget, visitor, cancellationToken);
+
+    /// <summary>从准确 Entry（包含该项）向前交付自有发布记录，并沿 ForkOrigin 接续来源历史。</summary>
+    /// <remarks>
+    /// 起点必须是已成立发布，不能跳过或回退；后续合法未成立 CU 按普通历史规则跳过。
+    /// 每页重复的起点也消耗 Entry 与工作预算；visitor 返回 false 表示已经接收当前项。
+    /// 与 ReadHeadHistory 共用回调、取消、资源清理及 mutation 重入限制。
+    /// </remarks>
+    public AteliaResult<HeadHistoryEnd> ReadEntryHistory(HeadEntryId startInclusive, HeadHistoryBudget budget,
+        Func<HeadEntry, bool> visitor, CancellationToken cancellationToken = default) =>
+        ReadHistory(startInclusive.HeadId, startInclusive.Ticket, budget, visitor, cancellationToken);
+
+    private AteliaResult<HeadHistoryEnd> ReadHistory(HeadId headId, SizedPtr? startInclusive,
+        HeadHistoryBudget budget, Func<HeadEntry, bool> visitor, CancellationToken cancellationToken) {
         EnsureOwnerUsable();
         if (!headId.TryGetLocalId(_identity, out _)) { return InvalidHead(); }
+        if (startInclusive is { Length: <= 0 }) { return InvalidEntryId(); }
         if (visitor is null || budget.MaxEntries <= 0 || budget.MaxWorkSteps <= 0) {
             return new HeadStoreRuntimeError("ArgumentError", "A nonnull visitor and two positive history budgets are required.");
         }
@@ -35,7 +50,7 @@ public sealed partial class HeadStore {
             CleanupErrors errors = default;
             try {
                 var work = new HistoryWork(this, budget, cancellationToken);
-                result = ReadHistoryCore(headId, visitor, work);
+                result = ReadHistoryCore(headId, startInclusive, visitor, work);
             }
             catch (Exception error) { errors.Add(error); }
             finally {
@@ -50,10 +65,10 @@ public sealed partial class HeadStore {
         finally { _historyActive = false; }
     }
 
-    private AteliaResult<HeadHistoryEnd> ReadHistoryCore(HeadId headId, Func<HeadEntry, bool> visitor,
-        HistoryWork work) {
+    private AteliaResult<HeadHistoryEnd> ReadHistoryCore(HeadId headId, SizedPtr? exactStart,
+        Func<HeadEntry, bool> visitor, HistoryWork work) {
         var visited = new HashSet<HeadId>();
-        ForkOrigin? source = null;
+        bool declaredOrigin = false;
 
         while (true) {
             AteliaError? budgetError = work.CheckEntryAvailable();
@@ -71,11 +86,10 @@ public sealed partial class HeadStore {
             work.CheckState();
             long fixedTail = file.TailOffset;
             RbfReverseEnumerator reverse;
-            if (source is ForkOrigin origin) {
-                SizedPtr ticket = origin.SourceEntryTicket;
+            if (exactStart is SizedPtr ticket) {
                 if (ticket.Offset < header.RecordsOffset
                     || file.GetPhysicalOffsetImmediatelyAfter(ticket) > fixedTail) {
-                    return InvalidHistoryOrigin("The exact source Entry lies outside the checked header's completed range.");
+                    return InvalidHistoryAnchor(declaredOrigin, "The exact Entry lies outside the checked header's completed range.");
                 }
 
                 // The direct trailer read bounds kind/meta/payload dimensions before either helper's full read.
@@ -121,11 +135,11 @@ public sealed partial class HeadStore {
                 }
 
                 RbfFrameInfo info = reverse.Current;
-                bool isSourceAnchor = first && source.HasValue;
+                bool isExactAnchor = first && exactStart.HasValue;
                 if (first) {
-                    if (source is ForkOrigin exactSource) {
-                        if (info.Ticket.Packed != exactSource.SourceEntryTicket.Packed) {
-                            return InvalidHistoryOrigin("The bounded reverse scan did not start at the exact source Entry.");
+                    if (exactStart is SizedPtr requestedTicket) {
+                        if (info.Ticket.Packed != requestedTicket.Packed) {
+                            return InvalidHistoryAnchor(declaredOrigin, "The bounded reverse scan did not start at the exact Entry.");
                         }
                     }
                     else if (file.GetPhysicalOffsetImmediatelyAfter(info.Ticket) != fixedTail) {
@@ -137,7 +151,8 @@ public sealed partial class HeadStore {
                     if (header.Origin is not ForkOrigin nextSource) {
                         return new HeadRecordError("The root head's direct initial SingleEntry is missing.");
                     }
-                    source = nextSource;
+                    exactStart = nextSource.SourceEntryTicket;
+                    declaredOrigin = true;
                     headId = nextSource.SourceHeadId;
                     CloseHistoryTemporary();
                     work.CheckState();
@@ -152,8 +167,8 @@ public sealed partial class HeadStore {
                 if (read.IsFailure) { return read.Error!; }
                 HeadEntry? entry = read.Value.Entry;
                 if (entry is null) {
-                    if (isSourceAnchor) {
-                        return InvalidHistoryOrigin("The exact declared source CU is not a published entry.");
+                    if (isExactAnchor) {
+                        return InvalidHistoryAnchor(declaredOrigin, "The exact CU is not a published entry.");
                     }
                     continue;
                 }
@@ -221,6 +236,9 @@ public sealed partial class HeadStore {
 
     private static AteliaError InvalidHistoryOrigin(string detail) =>
         new HeadStoreRuntimeError("InvalidForkOrigin", detail);
+
+    private static AteliaError InvalidHistoryAnchor(bool declaredOrigin, string detail) =>
+        declaredOrigin ? InvalidHistoryOrigin(detail) : new HeadRecordError(detail);
 
     // A single call owns the counters; helper callbacks charge their actual MoveNext and complete read separately.
     private sealed class HistoryWork(HeadStore owner, HeadHistoryBudget budget, CancellationToken cancellationToken) {

@@ -3,6 +3,9 @@ namespace Atelia.HeadStore.Smoke;
 internal static class Program {
     private static int Main(string[] args) {
         try {
+            if (args.Length > 0 && args[0] is "handle-write" or "handle-read") {
+                return PersistentHandleScenario.Run(args);
+            }
             if (args.Length > 0 && args[0] is "dynamic-head-worker" or "dynamic-head-read") {
                 return DynamicHeadScenario.Run(args);
             }

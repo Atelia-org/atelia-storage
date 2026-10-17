@@ -22,7 +22,7 @@ Linux 命令相同，换成 Linux 文件系统上的 fresh 路径。graph 成功
 
 下游公面完善后，graph 场景还用 `ReadEntry` 精确重读历史选点并核对 identity/time/bytes，在保存根的使用前调用组合 `EnsureUsable()`，从 `FrameRead.Payload` 读取应用数据；交错 Builder 检查用户 `Length` 从0累计且重复 getter 不重置。本场景属于 public ProjectReference 验证，不代表这些增量已进入旧候选包。
 
-除 graph/resource/tool/generation/dynamic-head/tag-golden 场景外的 CLI 参数交给 `ProcessScenario.Run`；以下命令供父测试驱动，每行 JSON 都带真实 `pid`：
+除 graph/resource/tool/generation/dynamic-head/tag-golden/handle 场景外的 CLI 参数交给 `ProcessScenario.Run`；以下命令供父测试驱动，每行 JSON 都带真实 `pid`：
 
 | 命令 | 行为 |
 | --- | --- |
@@ -41,6 +41,20 @@ dotnet test tests/HeadStore.Tests/HeadStore.Tests.csproj -c Release --no-build -
 ```
 
 设置 `HEADSTORE_PROCESS_EVIDENCE_DIRECTORY` 后，父调度器可保存每个 child 的 transcript；这与本 consumer 的普通 stdout JSON 分开。
+
+## 持久 Handle 的两个进程
+
+[PersistentHandleScenario.cs](PersistentHandleScenario.cs) 提供 `handle-write <fresh-root>` 和 `handle-read <root>`。writer 创建 A 的 a0/a1、从a1引用初始化的空fork C，再把A推进到a2；关闭两层 owner 后，用公开 `TryWrite` 写出 `selected-head.v1.bin`（C，严格4B）和 `bookmarked-entry.v1.bin`（a1，严格12B）。`handle-schema.json` 是应用版本/字段种类与预期记录，不参与库的恢复或导入登记。
+
+writer 正常退出后，新的 reader 进程在任何 `Open` 之前读取应用schema并 `TryRead` 两种值、检查重新编码与等值/hash。之后打开原库，确认所选C和a1的实际owner A不同，在C保存两次同值仍产生不同EntryId，A保持a2，a1继续精确可读。组合验证包括旧点 `ReadEntry`/`ForkHead`/`ReadEntryHistory`、多层fork接续、与fork继承历史相同的准确前缀，以及五次inclusive分页：每页接收一个新项，跳过续页首个重复anchor，最后一次只有重复根anchor而Complete。第一页后C继续追加不改变固定历史。随后关闭两层、只读重开并核对4 Heads/7 entries/3 origins的Audit。
+
+```powershell
+dotnet run --project tools/HeadStore.Smoke -c Release --no-build -- handle-write E:/temp/headstore-handles
+dotnet run --project tools/HeadStore.Smoke -c Release --no-build -- handle-read E:/temp/headstore-handles
+dotnet test tests/HeadStore.Tests/HeadStore.Tests.csproj -c Release --no-build --filter FullyQualifiedName~PersistentHandleProcessTests
+```
+
+父测试 `EncodedSelectedHeadAndExactEntrySurviveWriterExitAndResumeInFreshProcess` 复用 `SmokeProcess`，先等待writer退出及释放，再启动reader；每条消息核对实际PID、正常退出码与空stderr。父测试独立检查4B/12B文件长度、两条codeword的head字段确实不同、writer/reader输出hex相等及书签文件未被覆盖。转录保留两个进程命令、PID、exitCode、完整codeword与完成标志；PID可以被OS复用，不用PID数值不相等冒充进程生命周期证明。父测试清理自己的GUID夹具目录；手工CLI运行保留文件。此场景证明正常退出的跨进程值恢复，不增加崩溃窗口或包消费资格。
 
 父测试包含原有19项、71个子进程（10次 READY 后实际 `Process.Kill()`），两档资源向量的2项、6个正常子进程，下述应用策略的7项、25个子进程（6次强杀、2次预期拒绝），以及公开组合补证的2项、6个子进程（1次强杀）。每个 child 都等待退出并核对结果。进程超时/失败也只清理自己持有的 Process。stdout/stderr、命令、PID、kill 与退出码可保留在上述证据目录；路径使用 fresh GUID 临时目录，父测试结束后清理夹具。具体一次运行的事实以实施计划的证据摘要为准。
 

@@ -1,5 +1,7 @@
 # FrameStore / HeadStore 跨层决策与交付
 
+HeadStore 的持久定位值增量提供4B/12B Handle encoding v1及准确Entry起点历史 `ReadEntryHistory`；现行合同归04/05/11，新增源码、跨进程和包资格见12新增轮次。FrameStore地址与格式未随之改变。
+
 2026-10-17 当前HeadStore采用格式4紧凑Handle与引用初始化fork，取消克隆Entry；HeadSetTag为16B独立key/value映射。合同见[04](../HeadStore/04-versionstore-publication.md)、[05](../HeadStore/05-versionstore-names-and-indexes.md)、[09](../HeadStore/09-versionstore-immutable-tags.md)，实际新增资格见[12验收](../HeadStore/12-versionstore-final-acceptance.md)及07/16对应新增轮次。下述格式2等结果保留历史来源。
 
 2026-10-16 活跃入口已同步 HeadStore 名称；历史验收与候选仍保持 VersionStore 的来源身份。本轮重命名验证见[重命名记录](../HeadStore/15-headstore-renaming-plan.md)，HeadSetTag格式2行为替换已实施，实际新增源码/进程/包资格见[16验收记录](../HeadStore/16-headset-tags-acceptance.md)，Windows源码、进程与本地包消费均已通过。文档目录已改为 `docs/FrameStore-HeadStore/` 与 `docs/HeadStore/`，重命名记录及 HeadSetTag 专项调整为 15、16 号；其余 basename 与既有 Clause-ID 保持。

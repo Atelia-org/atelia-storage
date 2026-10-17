@@ -5,12 +5,13 @@ using Atelia.HeadStore.Internal.Records;
 namespace Atelia.HeadStore;
 
 public sealed partial class HeadStore {
-    /// <summary>精确读取同库已签发 entryId 的自有 HeadEntry payload bytes、原时间与完整位置。</summary>
+    /// <summary>在当前库中精确读取 entryId 的自有 HeadEntry payload bytes、原时间与完整位置。</summary>
     /// <remarks>
     /// 不改选当前值或更旧记录，不额外确认 data/源文件。合法未成立 CU 返回读取错误。
     /// 可写 owner 的惰性打开仍可能执行物理尾恢复；
     /// 成功恢复动作记入 <see cref="RecoveryReports"/>，与业务发布结果独立。
-    /// 保存的 entryId 可用于同库重开 owner；不接受裸 ticket 或外部构造的位置。
+    /// entryId 可由公开 codec 无 owner 恢复；每次使用仍检查准确记录和发布资格。
+    /// 紧凑 Handle 仅概率检出跨库误用；调用方负责选择正确库。
     /// </remarks>
     public AteliaResult<HeadEntry> ReadEntry(HeadEntryId entryId) {
         EnsureOwnerUsable();
@@ -27,7 +28,7 @@ public sealed partial class HeadStore {
             : new HeadRecordError("The exact entryId CU is not a published entry.");
     }
 
-    /// <summary>重验已签发 exact 位置；null 只表示完整合法但未成立的 CU。</summary>
+    /// <summary>重验 exact 定位值；null 只表示完整合法但未成立的 CU。</summary>
     private AteliaResult<PublicationRead> ReadExactPublication(IRbfFile file, CheckedHeadHeader header, SizedPtr ticket,
         Action? checkState = null, bool deferOwnedCleanup = false, HashSet<uint>? dependencies = null) {
         CheckConditionalState(checkState);

@@ -1,6 +1,6 @@
 # HeadStore 文档入口
 
-待实施设计：[持久 Handle 与准确 Entry 起点历史](18-persistent-handles-and-entry-history-plan.md)。该方案回应下游 P1/P2/P3，基于已实施的格式4紧凑 Handle；公开 codec 和新历史入口尚未实现，不沿用既有验收资格。
+持久 Handle 与准确 Entry 起点历史已实施：HeadId/HeadEntryId提供4B/12B无owner codec，ReadEntryHistory提供准确inclusive起点；导入值在使用时执行正常RBF3局部资格检查。合同归[04](04-versionstore-publication.md)/[05](05-versionstore-names-and-indexes.md)/[11](11-versionstore-root-payload-bytes-api.md)，实际新增源码、跨进程与包资格见[12验收](12-versionstore-final-acceptance.md)。临时方案已归档进现有合同并删除，旧轮次资格不自动覆盖本增量。
 
 HeadStore 借入一个 FrameStore，发布应用解释的不透明 root-payload bytes，并提供Head、历史、fork、HeadSetTag与只读Audit。公开用法见 [Atelia.HeadStore](../../src/HeadStore/README.md)。本页只做导航，不增加合同或重标验收范围。
 

@@ -21,7 +21,7 @@ AteliaResult<HeadSetTagScanEnd> ScanTags(
 
 HeadSetTag 为 sealed、自有不可变对象，内部构造，具有 Name、RecordedAtUnixMs 和 `IReadOnlyDictionary<HeadId, HeadEntryId> Entries`。实际 backing 不经正常接口或集合 cast 暴露修改能力；不保留 owner、lease 或输入数组，不需要 Dispose。输入顺序不是语义，也不承诺 Entries 枚举顺序。正常 missing 返回 TagNotFound，不返回 null/default 成功。
 
-旧 `CreateTag(name, payload[, relatedRevision], out outcome)`、ResolveTag、RootPayload、TagInfo/TagScanEnd 及 Related 公面删除，不保留兼容 alias。原 `[A-VS-TAG-RELATED]` 条款随版本1退役；新成员是正式引用，不能按旧坐标注记解释。读取完整成员表可恢复 HeadEntryId，但 ID 仍是定位值，成员当前健康由 ReadEntry/Audit 另行检查。
+旧 `CreateTag(name, payload[, relatedRevision], out outcome)`、ResolveTag、RootPayload、TagInfo/TagScanEnd 及 Related 公面删除，不保留兼容 alias。原 `[A-VS-TAG-RELATED]` 条款随版本1退役；新成员是正式引用，不能按旧坐标注记解释。读取完整成员表是恢复HeadEntryId的来源之一，应用也可使用S4的公开Handle encoding v1独立保存/导入；ID仍是定位值，成员当前健康由ReadEntry/ReadEntryHistory/ForkHead使用时检查，Audit保持独立全链检查。
 
 ## 名称接受合同与 codec
 
@@ -43,7 +43,7 @@ BPV 保留完整 UTF-16 code units，未配对 surrogate 可走 UTF-16LE；默�
 
 TagRecord Payload 按 selected LocalHeadId 严格递增保存成员，每项为 `uint32 LE selected LocalHeadId + uint32 LE entry-owner LocalHeadId + uint64 LE SizedPtr.Packed`，恰为16B。两个 ID 均为1..MaxLocalHeadId，Store 身份由 checked 桶 header 绑定，不重复到每项。EntryCount 只在 TailMeta 保存一次；完整解码要求 `PayloadLength == 16L * EntryCount`，拒绝零/越界 ID、重复/乱序 selected ID、default/零长度 ticket、截短或尾随 bytes；不同 selected keys 可以引用同一 owner/ticket。ticket 保留完整 Packed bits，使用 Packed/FromPacked，不替换为 offset、时间或应用 FrameAddress。
 
-成员表解码只证明本条完整记录中的字段资格，不遍历成员文件。其内部 HeadEntryId 恢复依赖 checked 格式、身份、完整 RBF CRC 与正常写入协议；普通 ReadEntry/ForkHead 保持 S4 的精确读取和来源协议，不因本片增加全链定位扫描。Audit 保持全库物理与引用健康检查。
+成员表解码只证明本条完整记录中的字段资格，不遍历成员文件。其内部HeadEntryId恢复依赖checked格式、身份、完整RBF CRC与正常写入协议；公开codec恢复值走同一使用时检查路径，不建立来源登记或免检分支。ReadEntry/ForkHead/ReadEntryHistory消费S4正常RBF3模型下的局部成员证明，不增加全链定位扫描。Audit保持全库物理与引用健康检查。内部16B成员仍写raw-local selected/entry-owner与完整ticket，不改成公开4B/12B编码，不因新增codec改变格式4。
 
 ### spec [F-VS-TAG-METADATA] 独立 CRC 的可变长元信息
 

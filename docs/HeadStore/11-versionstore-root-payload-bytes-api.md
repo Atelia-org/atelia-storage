@@ -27,6 +27,12 @@ AteliaResult<HeadEntry> ReadHead(HeadId headId);
 AteliaResult<HeadEntry> ReadHead(uint localHeadId);
 AteliaResult<uint> GetLocalHeadId(HeadId headId);
 AteliaResult<HeadEntry> ReadEntry(HeadEntryId entryId);
+AteliaResult<HeadHistoryEnd> ReadHeadHistory(
+    HeadId headId, HeadHistoryBudget budget, Func<HeadEntry, bool> visitor,
+    CancellationToken cancellationToken = default);
+AteliaResult<HeadHistoryEnd> ReadEntryHistory(
+    HeadEntryId startInclusive, HeadHistoryBudget budget, Func<HeadEntry, bool> visitor,
+    CancellationToken cancellationToken = default);
 
 public sealed class HeadEntry {
     private readonly byte[] _bytes; // 由内部构造接收自有数组
@@ -40,7 +46,11 @@ public sealed class HeadEntry {
 
 ReadHead 返回实际 Entry 的 ID、原时间及 bytes：header-only fork 的结果可能属于来源 Head。调用方保存所选 HeadId 作为 PublishHead/PublishHeads 的目标，不能从 ReadHead(...).Id.HeadId 推导写入目标。fork 不新建 payload 或 Entry 时间，首次本地发布后返回本地真实 Entry。
 
-ReadEntry 只接受库签发的 nondefault EntryId；HeadId在当前owner上解码并检查范围，跨库误用只按S4的短Handle边界检测，不保证拒绝全部外库值。精确完成位置、完整 CRC/尾 Fence/CU 资格与无回退合同唯一消费 S4 `[A-VS-READ-REVISION]`；返回输入 EntryId、原时间及 root bytes，排除 TailMeta/CU Members，不确认 data 或控制数据。saved EntryId 可在同库重开后使用，裸位置与跨进程导入仍不开放。
+ReadEntry 接受 nondefault EntryId 定位值，包括公开codec导入值；HeadId在当前owner上解码并检查范围，跨库误用只按S4的短Handle边界检测，不保证拒绝全部外库值。精确完成位置、正常RBF3局部成员证明、完整CRC/尾Fence/CU资格及无回退合同唯一消费S4 `[A-VS-READ-REVISION]`；返回输入EntryId、原时间及root bytes，排除TailMeta/CU Members，不确认data或控制数据。值可外存并跨进程恢复，结构解析成功不证明目标健康。
+
+HeadId提供 `public const int EncodedSize = 4`，HeadEntryId提供 `public const int EncodedSize = 12`；两者均提供 `bool TryWrite(Span<byte> destination)` 和 `static bool TryRead(ReadOnlySpan<byte> source, out T value)`。准确签名与Handle encoding v1布局、失败原子性及外层version/kind责任唯一见S4 `[F-VS-HANDLE-ENCODING-V1]`；这是纯值codec，不增加结果owner或生命周期。
+
+ReadEntryHistory首项严格等于startInclusive，交付同一种自有HeadEntry；首项未成立CU拒绝，之后更早的未成立CU按普通历史规则跳过。两种历史共用S5 `[A-VS-REF-HISTORY-CHECKED]` 的预算、inclusive分页、活动guard和资源清理；visitor=false表示接收当前项后停止，不探测HasMore。先归还pooled帧再调用visitor，已交付结果在停止、后续失败和owner Dispose后仍有效。两类历史互相禁止嵌套，回调内mutation/fork拒绝；退出后保存的ID仍可fork。
 
 ### spec [A-VS-BYTES-INPUT] 同步捕获，调用方保持稳定
 

@@ -4,6 +4,8 @@
 
 紧凑Handle合同见[04](docs/HeadStore/04-versionstore-publication.md)：HeadId为4B上下文编码，本地编号上限0x00FFFFFF；跨库误用检测允许碰撞，GetLocalHeadId替代HeadId.LocalId。内部字段仍为raw local，完整128bit库身份保留在低频门/header；旧轮次资格不代表格式4已验证。
 
+HeadId/HeadEntryId 提供无 owner 的 `TryRead/TryWrite` 持久 codec（4B/12B，Handle encoding v1）；外层 schema 指定版本和种类，使用时验证目标。`ReadEntryHistory` 从准确 Entry（含自身）读取有界继承历史，与现有 Head 起点共用预算和回调边界。合同归[04](docs/HeadStore/04-versionstore-publication.md)/[05](docs/HeadStore/05-versionstore-names-and-indexes.md)，新增源码、跨进程和本地包资格独立见[12验收](docs/HeadStore/12-versionstore-final-acceptance.md)。
+
 Atelia 的 .NET 10 存储基础库，使用 MIT 许可证。main 面向 **RBF3 / FrameStore / HeadStore 新栈**：当前底座为 `Atelia.Primitives`、`Atelia.Data`、`Atelia.Rbf`，另有独立的 `Atelia.Binary` 基元 codec（BCL + 纯托管 K4os.Compression.LZ4 `[1.3.8]`）；FrameStore 已实现[公开持久化闭环](src/FrameStore/README.md)，Inventory/Audit 同步物理检查已实现、已纳入本地候选包清单；HeadStore 已接通普通 Head 公开持久化闭环、有界历史读取、精确 fork 创建与声明分叉图查询，并提供tag/元信息与独立只读Audit；本轮tag改为捕获所选Heads当前位置的HeadSetTag，ReadTag交付固定成员表，Audit检查成员引用，以及多 Head 条件提交 `PublishHeads`（见 [实施计划](docs/HeadStore/12-versionstore-implementation-plan.md)）。
 
 下游反馈驱动的公面增量也已实施：HS 精确 `ReadEntry`、组合 `EnsureUsable` 和惰性 `RecoveryReports`，FS 用户 `Length` 与 `Payload`/`TailMeta` 切片。获准队列已收束，分片源码与实际运行资格见[增量验收](docs/FrameStore-HeadStore/14-downstream-api-refinement-acceptance.md)；旧六包候选不含 CU 或这些 API，包交付另行验证。

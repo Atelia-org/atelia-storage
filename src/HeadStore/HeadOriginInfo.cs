@@ -16,6 +16,6 @@ public readonly struct HeadOriginInfo {
     /// <summary>本次完整 header 集合中存在的正式来源 head。</summary>
     public HeadId SourceHeadId { get; }
 
-    /// <summary>header 保存的完整来源位置；未包装为已检查的 HeadEntryId。</summary>
+    /// <summary>header 保存的完整来源位置；本查询不读取来源 Entry 或检查其发布资格。</summary>
     public SizedPtr SourceEntryTicket { get; }
 }

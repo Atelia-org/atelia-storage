@@ -7,7 +7,7 @@ using Atelia.HeadStore.Internal.Runtime;
 namespace Atelia.HeadStore;
 
 public sealed partial class HeadStore {
-    /// <summary>在自动区创建只含 header 的 fork，固定引用已签发的准确来源 Entry。</summary>
+    /// <summary>重验准确来源 Entry 后，在自动区创建只含 header 的 fork；来源位置可由公开 codec 恢复。</summary>
     public AteliaResult<HeadId> ForkHead(HeadEntryId sourceEntryId, out PublicationOutcome outcome) {
         outcome = PublicationOutcome.NotAttempted;
         AteliaError? rejection = GetMutationRejection();
@@ -20,7 +20,7 @@ public sealed partial class HeadStore {
         return ForkNewHead(checked(_autoHeadIdHighWatermark + 1), sourceEntryId, automatic: true, ref outcome);
     }
 
-    /// <summary>在空闲预留号 create-only 创建 fork；来源仍为已签发的 exact entryId。</summary>
+    /// <summary>在空闲预留号 create-only 创建 fork；每次使用均重验 exact entryId 的来源资格。</summary>
     public AteliaResult<HeadId> ForkHead(uint destLocalHeadId, HeadEntryId sourceEntryId,
         out PublicationOutcome outcome) {
         outcome = PublicationOutcome.NotAttempted;
@@ -57,7 +57,7 @@ public sealed partial class HeadStore {
     }
 
     private bool IsLocalEntryId(HeadEntryId entryId) =>
-        entryId.HeadId.TryGetLocalId(_identity, out _) && entryId.Ticket.Packed != 0;
+        entryId.HeadId.TryGetLocalId(_identity, out _) && entryId.Ticket.Length > 0;
 
     private static AteliaError InvalidEntryId() =>
         new HeadStoreRuntimeError("HeadNotFound", "The entry owner cannot be located in this HeadStore.");

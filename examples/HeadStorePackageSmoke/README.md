@@ -19,4 +19,8 @@ dotnet run --project HeadStorePackageSmoke.csproj -c Release --no-restore -p:Sto
 
 失败抛异常并返回非零，成功 stdout 仅给计数摘要和保留路径。包交付使用仓库 `eng/Test-Package.ps1` 的隔离 cache/config 和 assets/source 检查；本程序不是完整 API 验收。跨 Head 的失败/进程终止、物理恢复、断电、性能和应用恢复策略仍各自需要独立证据。
 
-紧凑 Handle 检查覆盖 `HeadId` 的4B和 `HeadEntryId` 的16B托管尺寸、24bit本地文件号上限，以及经传递依赖调用 Data 的 `ZeroPreservingXor32.Apply` 零保留与往返。文件号通过活的 owner 的 `GetLocalHeadId` 解释；冷重开后仍验证保留 Handle 的纯值身份、发现集合与精确 Entry。这个入口不提供独立的 Handle 持久化 codec。
+紧凑 Handle 检查覆盖 `HeadId` 的4B和 `HeadEntryId` 的16B托管尺寸、24bit本地文件号上限，以及经传递依赖调用 Data 的 `ZeroPreservingXor32.Apply` 零保留与往返。文件号通过活的 owner 的 `GetLocalHeadId` 解释；冷重开后仍验证保留 Handle 的纯值身份、发现集合与精确 Entry。
+
+独立 `handles-data/handles-heads` 场景覆盖 Handle encoding v1 的公开 codec：双方 owner 关闭后，分别把空 fork C 的 `HeadId` 和实际 owner A 的旧点 `HeadEntryId` 保存为 `selected-head.v1.bin`（4B）及 `bookmarked-entry.v1.bin`（12B）；应用 schema 文件说明版本和字段种类。重新打开双方 owner 前先从文件 `TryRead`，验证等值/hash及选择身份。对恢复的 C 分别调用 `PublishHead` 和单成员 `PublishHeads` 保存相同 bytes，得到不同 EntryId，同时 A 保持原位置。恢复的旧点用于 `ReadEntry`、`ForkHead` 和 `ReadEntryHistory`；从 C 的准确点得到 C→A 的固定历史，分页在后续追加后仍不吸收新后缀，续页只跳过首个重复 anchor，并覆盖根处仅含重复 anchor 的结束页。只读冷开重复检查历史及3 Heads/6 entries/2 origins的Audit。已有 batch 场景同时在热、RW和RO冷开中验证从 codec 恢复的普通及CU准确历史前缀、原bytes。
+
+这里的文件往返仍在同一 consumer 进程中；真正 writer 退出后启动 reader、无 owner 解码的进程证据由 [PersistentHandleProcessTests](../../tests/HeadStore.Tests/SystemIntegration/PersistentHandleProcessTests.cs) 与 [source-only smoke](../../tools/HeadStore.Smoke/README.md) 提供。新增公面是否进入包以本轮实际隔离消费结果为准。

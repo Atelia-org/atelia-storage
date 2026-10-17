@@ -4,7 +4,7 @@ using Atelia.Rbf;
 
 namespace Atelia.HeadStore.Internal.Format;
 
-// 来源只声明数值坐标，不能独立签发 HeadEntryId 或证明源成员/内容健康。
+// 来源只声明数值坐标；此 codec 不交付 HeadEntryId，也不证明源成员/内容健康。
 internal readonly record struct ForkOrigin(HeadId SourceHeadId, SizedPtr SourceEntryTicket);
 internal readonly record struct HeadHeader(HeadId HeadId, ForkOrigin? Origin);
 

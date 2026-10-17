@@ -151,10 +151,102 @@ using (var data = DataStore.OpenReadOnly(dataPath)) {
 }
 HeadStoreAudit batchAudit = VerifyBatchPublication(directory);
 VerifyReferenceForks(directory);
+VerifyPersistentHandles(directory);
 VerifyReservableWriters();
 Console.WriteLine($"HeadStore public package smoke passed: {audit.HeadCount} heads, {audit.EntryCount} entries, {audit.OriginCount} forks, {audit.TagCount} tags, {dataFrames} data frames; named member tables, exact tagged history/fork identities and cold read-only Audit.");
 Console.WriteLine($"HeadStore package increments passed: {batchAudit.HeadCount} isolated heads, {batchAudit.EntryCount} entries; format 4, CU subset/pair tags, single/CU PublishHeads, exact ReadEntry, both-layer cold reopen, EnsureUsable, healthy RecoveryReports and transitive Data borrow/cancel.");
 Console.WriteLine($"Retained smoke files: {directory}");
+
+// Public Handle encoding v1, using an application-owned schema and exact 4B/12B files.
+static void VerifyPersistentHandles(string directory) {
+    string dataPath = Path.Combine(directory, "handles-data");
+    string headsPath = Path.Combine(directory, "handles-heads");
+    string headFile = Path.Combine(directory, "selected-head.v1.bin");
+    string entryFile = Path.Combine(directory, "bookmarked-entry.v1.bin");
+    HeadId selected;
+    HeadEntryId initial, bookmark, sourceLatest;
+    using (var data = DataStore.Create(dataPath))
+    using (var heads = Heads.Create(headsPath, data)) {
+        initial = heads.CreateHead(new byte[] { 0x30 }, out var outcome).Unwrap(); Confirmed(outcome);
+        bookmark = heads.PublishHead(initial.HeadId, new byte[] { 0x31 }, out outcome).Unwrap(); Confirmed(outcome);
+        selected = heads.ForkHead(bookmark, out outcome).Unwrap(); Confirmed(outcome);
+        sourceLatest = heads.PublishHead(initial.HeadId, new byte[] { 0x32 }, out outcome).Unwrap(); Confirmed(outcome);
+    }
+    Require(HeadId.EncodedSize == 4 && HeadEntryId.EncodedSize == 12, "Public persistent Handle sizes changed.");
+    byte[] headBytes = new byte[HeadId.EncodedSize];
+    byte[] entryBytes = new byte[HeadEntryId.EncodedSize];
+    Require(selected.TryWrite(headBytes) && bookmark.TryWrite(entryBytes), "Owner-free Handle write failed.");
+    File.WriteAllBytes(headFile, headBytes);
+    File.WriteAllBytes(entryFile, entryBytes);
+    // Version and field kinds belong to the application container, not each compact value.
+    File.WriteAllText(Path.Combine(directory, "handles-schema.txt"), "Handle encoding v1\nselected-head: HeadId\nbookmarked-entry: HeadEntryId\n");
+    Require(HeadId.TryRead(File.ReadAllBytes(headFile), out HeadId restoredSelected), "Selected Head decode failed.");
+    Require(HeadEntryId.TryRead(File.ReadAllBytes(entryFile), out HeadEntryId restoredBookmark), "Entry decode failed.");
+    Require(restoredSelected == selected && restoredBookmark == bookmark && restoredSelected != restoredBookmark.HeadId,
+        "Persistent fields confused selected C with actual Entry owner A.");
+    var keys = new Dictionary<HeadEntryId, string> { [bookmark] = "save" };
+    Require(keys[restoredBookmark] == "save", "Restored Entry equality/hash changed.");
+
+    HeadEntryId first, second;
+    using (var data = DataStore.Open(dataPath))
+    using (var heads = Heads.Open(headsPath, data)) {
+        Require(heads.ReadHead(restoredSelected).Unwrap().Id == restoredBookmark,
+            "Restored empty fork did not resolve its actual source Entry.");
+        HeadEntry old = heads.ReadEntry(restoredBookmark).Unwrap();
+        Require(old.Id == bookmark && old.Payload.SequenceEqual(new byte[] { 0x31 }), "Restored old save changed.");
+        first = heads.PublishHead(restoredSelected, old.Payload, out var outcome).Unwrap(); Confirmed(outcome);
+        var published = heads.PublishHeads(new Dictionary<HeadId, ReadOnlyMemory<byte>> {
+            [restoredSelected] = old.Payload.ToArray()
+        }, out outcome).Unwrap(); Confirmed(outcome);
+        second = published[restoredSelected];
+        Require(first != second && first.HeadId == restoredSelected && second.HeadId == restoredSelected,
+            "Restored selected Head did not receive two distinct same-value saves.");
+        Require(heads.ReadHead(bookmark.HeadId).Unwrap().Id == sourceLatest, "Publishing selected C wrote source A.");
+        HeadEntryId[] expected = [second, first, bookmark, initial];
+        Require(EntryHistory(heads, second).Select(entry => entry.Id).SequenceEqual(expected),
+            "Accurate history included a later source suffix or merged same-value saves.");
+        HeadId fork = heads.ForkHead(restoredBookmark, out outcome).Unwrap(); Confirmed(outcome);
+        Require(History(heads, fork).Select(entry => entry.Id).SequenceEqual(new[] { bookmark, initial }),
+            "Fork of imported bookmark changed its exact inherited prefix.");
+
+        var pageOne = new List<HeadEntryId>();
+        Require(heads.ReadEntryHistory(second, new(2, 256), entry => {
+            pageOne.Add(entry.Id);
+            return pageOne.Count < 2;
+        }).Unwrap() == HeadHistoryEnd.VisitorStopped, "First fixed page did not stop after two entries.");
+        Require(pageOne.SequenceEqual(new[] { second, first }), "First fixed page changed its anchor.");
+        heads.PublishHead(restoredSelected, new byte[] { 0x33 }, out outcome).Unwrap(); Confirmed(outcome);
+        var continuation = new List<HeadEntryId>();
+        int visits = 0;
+        Require(heads.ReadEntryHistory(first, new(3, 256), entry => {
+            if (++visits == 1) { Require(entry.Id == first, "Continuation did not repeat its inclusive anchor."); }
+            else { continuation.Add(entry.Id); }
+            return true;
+        }).Unwrap() == HeadHistoryEnd.Complete, "Continuation did not reach the root.");
+        Require(pageOne.Concat(continuation).SequenceEqual(expected), "Paging lost, duplicated, or absorbed newer Entries.");
+        int rootVisits = 0;
+        Require(heads.ReadEntryHistory(initial, new(1, 256), entry => {
+            Require(entry.Id == initial, "Root continuation changed its duplicate anchor."); rootVisits++; return true;
+        }).Unwrap() == HeadHistoryEnd.Complete && rootVisits == 1, "Root continuation did not yield the final duplicate-only page.");
+        Require(heads.ReadEntry(restoredBookmark).Unwrap().Id == bookmark, "Bookmark changed after C advanced.");
+    }
+    using (var data = DataStore.OpenReadOnly(dataPath))
+    using (var heads = Heads.OpenReadOnly(headsPath, data)) {
+        Require(EntryHistory(heads, second).Select(entry => entry.Id).SequenceEqual(new[] { second, first, bookmark, initial }),
+            "Cold exact history changed its fixed prefix.");
+        Require(heads.ReadHead(bookmark.HeadId).Unwrap().Id == sourceLatest, "Source A changed across imported C writes.");
+        HeadStoreAudit audit = heads.Audit().Unwrap();
+        Require(audit.HeadCount == 3 && audit.EntryCount == 6 && audit.OriginCount == 2, "Persistent Handle Audit totals changed.");
+    }
+    Console.WriteLine("Persistent Handle package chain passed: 4B HeadId / 12B EntryId, owner-free disk decode, selected C writes, stable old save, exact history/fork and inclusive paging.");
+}
+
+static List<HeadEntry> EntryHistory(Heads heads, HeadEntryId start) {
+    var entries = new List<HeadEntry>();
+    Require(heads.ReadEntryHistory(start, new(16, 512), entry => { entries.Add(entry); return true; }).Unwrap()
+        == HeadHistoryEnd.Complete, "Exact Entry history did not complete.");
+    return entries;
+}
 
 
 // The selected Head is the write target; its resolved Entry belongs to its actual source.
@@ -315,6 +407,15 @@ static void VerifyBatchReads(Heads heads, IReadOnlyDictionary<HeadEntryId, byte[
         HeadEntry exact = heads.ReadEntry(entry.Key).Unwrap();
         Require(exact.Id == entry.Key && exact.Payload.SequenceEqual(entry.Value),
             "ReadEntry changed an exact old or current publication.");
+        byte[] codeword = new byte[HeadEntryId.EncodedSize];
+        Require(entry.Key.TryWrite(codeword) && HeadEntryId.TryRead(codeword, out _), "Published Entry codec failed.");
+        Require(HeadEntryId.TryRead(codeword, out HeadEntryId imported), "Published Entry could not decode.");
+        List<HeadEntry> history = EntryHistory(heads, imported);
+        HeadEntryId[] prefix = expected.Keys.Where(id => id.HeadId == imported.HeadId && id.Ticket.Offset <= imported.Ticket.Offset)
+            .OrderByDescending(id => id.Ticket.Offset).ToArray();
+        Require(history.Select(item => item.Id).SequenceEqual(prefix)
+            && history.All(item => item.Payload.SequenceEqual(expected[item.Id])),
+            "Imported ordinary/CU Entry history changed its exact prefix or payload.");
     }
     foreach (HeadEntryId entryId in new[] { latestA, latestB }) {
         HeadEntry current = heads.ReadHead(entryId.HeadId).Unwrap();

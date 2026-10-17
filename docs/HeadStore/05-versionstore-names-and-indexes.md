@@ -13,6 +13,7 @@
 | 候选操作 | 效果 | 首版持久单元 |
 | --- | --- | --- |
 | ReadHeadHistory(headId, budget, visitor, cancellationToken) | 从固定上界逐项交付本地及 ForkOrigin 接续的自有快照，可正常选点停止 | 同步 visitor；文件内真实链 + 首帧来源链接，无另写索引 |
+| ReadEntryHistory(startInclusive, budget, visitor, cancellationToken) | 从准确 Entry（含自身）继续继承历史 | 与 Head 起点共用内核/预算/资源，无持久 cursor |
 | ForkHead(sourceEntryId) | 自动编号，从精确源快照创建 fork | 仅 header/ForkOrigin，一次文件发布；返回新 HeadId |
 | ForkHead(destLocalHeadId, sourceEntryId) | 在空闲预留号创建 fork | 同上，指定目标 create-only |
 | ListHeadOrigins(maxHeads, cancellationToken) | 查询全部正式 Head 声明的创建来源边 | checked header 与完整图；单次自有只读结果，无跨调用缓存 |
@@ -41,7 +42,7 @@ Head header/普通 SingleEntry 的字段、来源判别与完整记录容量唯�
 
 ### spec [S-VS-FORK-FROM-REVISION] fork 在创建时建立精确来源资格
 
-ForkHead 两种入口 MUST 接收本 HeadStore 的已发布 HeadEntryId，先消费 S4 default/持久上下文前检及自动/指定目标前检，再定位正式源 Head、checked header，直接精确读取 ticket。成员来源消费库签发 EntryId、完整位置不删除/复用与无外部改写的协议；不从源 EOF 重新定位、不预读无关初始内容、不调用 ReadHead 选择可变末端。本次完整检查 CRC、kind、meta、尺寸及 GetScanBoundaryAfter anchor/尾 Fence；CU 来源须通过07共同判据，未成立直接返回 InvalidForkOrigin，不改选更旧节点。来源读取与 S4 `[A-VS-READ-REVISION]` 共用内核。
+ForkHead 两种入口 MUST 接收准确 HeadEntryId 定位值，包括公开 codec 恢复值；先消费 S4 default/持久上下文前检及自动/指定目标前检，再定位正式源 Head、checked header，直接精确读取 ticket。成员资格消费 S4 `[A-VS-READ-REVISION]` 的正常 RBF3 模型与局部证明；不从源 EOF 重新定位、不预读无关初始内容、不调用 ReadHead 选择可变末端。本次完整检查 CRC、kind、meta、尺寸及 GetScanBoundaryAfter anchor/尾 Fence；CU 来源须通过07共同判据，未成立直接返回 InvalidForkOrigin，不改选更旧节点。来源读取与 ReadEntry 共用内核；坏源不产生新 Head。
 
 两个重载均返回 `AteliaResult<HeadId>`，成功值只标识新 Head，保持必选 out PublicationOutcome；不产生子 EntryId 或子 Entry 时间。header 的 ForkOrigin 永久保存实际持有 payload 的 Entry 身份。基于未续写 fork 的 ReadHead 返回值再次 fork，会直接指向同一实际来源，不形成空分支的当前值解析链；多个 Head 可以引用同一准确 Entry。不按 payload 内容合并真实发布。
 
@@ -55,7 +56,7 @@ ForkHead 两种入口 MUST 接收本 HeadStore 的已发布 HeadEntryId，先消
 
 ### spec [A-VS-REF-HISTORY-CHECKED] 同步历史读取交付真实且自有的快照
 
-首版历史入口已实施如下；实际源码资格见实施计划，两种 ForkHead 与 ListHeadOrigins 亦已接通：
+两种历史入口如下；新增准确起点的实际源码/进程/包资格单列于[验收新增轮次](12-versionstore-final-acceptance.md)，不沿用旧历史 Accepted：
 
 ```csharp
 public readonly record struct HeadHistoryBudget(long MaxEntries, long MaxWorkSteps);
@@ -64,16 +65,23 @@ public enum HeadHistoryEnd { Complete, VisitorStopped }
 AteliaResult<HeadHistoryEnd> ReadHeadHistory(
     HeadId headId, HeadHistoryBudget budget, Func<HeadEntry, bool> visitor,
     CancellationToken cancellationToken = default);
+AteliaResult<HeadHistoryEnd> ReadEntryHistory(
+    HeadEntryId startInclusive, HeadHistoryBudget budget, Func<HeadEntry, bool> visitor,
+    CancellationToken cancellationToken = default);
 ```
 
 每项完成 S4 发布资格后，按 [11 bytes 公面专项](11-versionstore-root-payload-bytes-api.md)构造自有 HeadEntry、归还 pooled 帧，再调用 visitor。结果所有权与内容解码边界不另定义；准确来源资格仍按按需访问范围检查。应用可在 visitor 内解码，异常沿 callback 路径传播。HeadId/HeadEntryId 值与位置资格消费 S4。
 
 visitor 返回 true 表示继续，false 表示已接收当前项并正常选点停止。false 后 MUST 不再扫描旧帧或访问下一源；先完成健康/取消复检和必要清理，再返回 VisitorStopped，即使该项恰为起点也保持此结果。调用方可保存所选值，在方法返回后fork/rewind；CreateTag只捕获调用时当前位置，不能把所选历史ID直接做成tag。需要列表时由调用方收集，不要求库保留整批历史。
 
-**准入与固定上界。** MUST 先检查 owner disposed/fault、HeadId 参数、非 null visitor、两个预算均为正数及无其他活动历史读取，再做文件 I/O；09 的 TagScanActive 期间亦不得进入历史。无隐含预算默认值；long.MaxValue 可表示调用方不设置实际限额，default 的零预算无效。通过准入后设置一个 HistoryActive 位，整个同步调用拒绝递归 ReadHeadHistory 及本 HeadStore 的所有 mutation，包括发布、自动/指定 Head 或 fork 创建和 tag 创建；mutation 按 S4 先初始化 out，guard 拒绝先于 barrier/输出且不新增 fault。visitor 可串行读取当前值及 data，亦可按09调用 ReadTag、ReadTagInfo 或 ScanTags，保留自有结果；历史与 tag 扫描使用独立临时槽。同文件 Head 查询复用当前可用的 RBF 句柄，不重复独占打开。owner Dispose 仍是受控清理，不作为发布 mutation 拒绝。首版无并发调用或外部改写，不建跨实例 entry 协议。
-进入本 Head 时 MUST 用公共正向扫描只完整检查首 header，保存 exact header ticket、checked ForkOrigin 与 header 物理后界给出的本地记录起点，不预读第二帧 payload。随后从实际完成尾部取得逆向扫描器，以该物理完成上界固定本次遍历；依次完整校验普通 SingleEntry 或 CU，CU 复用07共同判据，未提交 CU 不交付且继续向前，成立 CU 与普通 SingleEntry 各交付一次自有快照。所有无输出的组验证与回退仍计工作步；必要错误不得转成未提交。无来源 root 在逆扫实际到达本地记录起点时必须读取普通初始 SingleEntry；有来源 fork 的第一条本地记录可为 SingleEntry/CU，也可以没有本地记录。初始即末时只复制一次自有结果。后续不得重读 head 替换这个上界，不能调用未计费的 ReadHead 助手完成隐含资格工作；初始坏而 head 健康不阻断前面的健康交付或 visitor false 停止。
+**共用准入与固定上界。** 两种入口 MUST 共用 owner disposed/fault、HeadId/EntryId 参数、非 null visitor、两个预算均为正数、取消及无其他活动历史的准入检查，在首次文件访问前完成；09 的 TagScanActive 期间亦不得进入历史。无隐含预算默认值；long.MaxValue 可表示调用方不设置实际限额，default 的零预算无效。通过准入后使用同一个 HistoryActive 位和 try/finally 清理路径，拒绝两类历史的全部四种嵌套及本 HeadStore 的所有 mutation，包括发布、自动/指定 Head 或 fork 创建和 tag 创建；mutation 按 S4 先初始化 out，guard 拒绝先于 barrier/输出且不新增 fault。visitor 可串行读取当前值、ReadEntry及 data，亦可按09调用 ReadTag、ReadTagInfo 或 ScanTags，保留自有结果；历史与 tag 扫描使用独立临时槽。同文件 Head 查询复用当前可用的 RBF 句柄，不重复独占打开。visitor自己的查询不计入外层预算；历史内核必要工作必须计费。owner Dispose 仍是受控清理，不作为发布 mutation 拒绝。首版无并发调用或外部改写，不建跨实例 entry 协议。
+进入本 Head 时 MUST 用公共正向扫描只完整检查首 header，保存 exact header ticket、checked ForkOrigin 与 header 物理后界给出的本地记录起点，不预读第二帧 payload。ReadHeadHistory的初始Head随后从实际完成尾部取得逆向扫描器，以该物理完成上界固定本次遍历；准确起点及ForkOrigin接续使用下述有界扫描路径；依次完整校验普通 SingleEntry 或 CU，CU 复用07共同判据，未提交 CU 不交付且继续向前，成立 CU 与普通 SingleEntry 各交付一次自有快照。所有无输出的组验证与回退仍计工作步；必要错误不得转成未提交。无来源 root 在逆扫实际到达本地记录起点时必须读取普通初始 SingleEntry；有来源 fork 的第一条本地记录可为 SingleEntry/CU，也可以没有本地记录。初始即末时只复制一次自有结果。后续不得重读 head 替换这个上界，不能调用未计费的 ReadHead 助手完成隐含资格工作；初始坏而 head 健康不阻断前面的健康交付或 visitor false 停止。
 
-**继承前缀。** 正反向枚举均使用 `showTombstone: true`。本地历史包含重复同值快照与 rewind，省略已检查的首 header 与07共同判据确认未提交的 CU；必要节点的未知 kind/格式版/meta 形状、tombstone、损坏均报错。历史按真实链交付记录原时间，不按时间排序或去重。首版逐文件循环，直接消费 public RBF API：
+**准确用户 anchor。** ReadEntryHistory 使用独立方法名，避免 ReadHeadHistory(default, ...) 重载歧义。内核接收起始 HeadId 和可选准确 ticket：无 ticket 表示上述当前尾起点，有 ticket 表示准确起点；ForkOrigin接续共用准确起点路径。准确起点直接 CheckHeader → 范围/ReadFrameInfo → GetScanBoundaryAfter → 有界 ScanReverse；首项 ReadPublication/CU 检查完成内容资格，不先调用公开 ReadEntry 重复装载 payload。首项完整 ticket 必须等于 startInclusive，交付原ID/时间/实际owner/payload；源或子Head后来追加不改变该历史前缀。
+
+用户 anchor 的范围、首项不符或合法未成立 CU 返回 InvalidHeadRecord；checked ForkOrigin 接续中的相同失败沿用 InvalidForkOrigin。RBF、必要peer、I/O、预算与清理错误保持原类；不把它们改当未成立CU。首项不得跳过或回退，成功交付后更早的未成立CU才按普通历史规则跳过；后续ForkOrigin均采用声明来源错误语义。这个区分只是扫描上下文，不是ID来源登记。无需另传所选世界线或判断某视图祖先；空fork C的current=a1，从a1起查沿A历史，后续写入仍须保存C的HeadId。
+
+**继承前缀。** 正反向枚举均使用 `showTombstone: true`。本地历史包含重复同值快照与 rewind，省略已检查的首 header 与07共同判据确认未提交的 CU；必要节点的未知 kind/格式版/meta 形状、tombstone、损坏均报错。历史按真实链交付记录原时间，不按时间排序或去重，也不新增Entry去重集合。首版逐文件循环，直接消费 public RBF API：
 
 1. 进入每个 Head 前加入路径 visited，重复 HeadId 为循环错误。root 到达 RecordsOffset 并完整校验普通初始 SingleEntry、visitor 返回 true 后即可 Complete；保持该快路径，不额外读取 header/EOF。有来源 fork 正常抵达已 checked header 时转向固定来源，header 不交付为 Entry；首个 CU 未成立时可没有任何本地交付。归还当前临时句柄再进入源，既有 owner 句柄不因跳转而关闭。
 2. 只定位正式 SourceHeadId，按 S4 访问模式打开/复用并完整检查源 header；不采用 creating、不预读源初始 payload。以 checked 不可变 ForkOrigin 的 exact SourceEntryTicket 直接定位，先检查 header 后范围及 SingleEntry/CU 尺寸，再完整验证 anchor 与尾 Fence，按边界逆扫合同从该点开始。不扫描源本地后来追加的后缀；CU peer 必要异长消歧仍按07执行。
@@ -82,12 +90,12 @@ visitor 返回 true 表示继续，false 表示已接收当前项并正常选点
 
 每个实际 MoveNext=false MUST 检查 TerminationError；非 null 传播底层失败，尚未到 root 初始记录或 fork checked header 的正常 false 也是非法序列/来源，不能伪装 Complete。无来源的 exact 初始 SingleEntry 已完整校验，且其 visitor 返回 true 时，header 后界与该节点起点已证明没有更早快照，可直接 Complete，不必额外推进到 header/EOF。Complete 只证明本次继承发布前缀，不审计被排除的源后缀或证明应用图健康；必要历史节点坏不能静默跳过。
 
-**预算与停止。** 两个上限只约束本次遍历，不持久化，不增加配置、cursor 或分页协议：
+**共用预算与停止。** 两个上限只约束本次遍历，不持久化，不增加配置或持久 cursor。两种入口及 ForkOrigin 接续使用下面唯一计费表，TakeWorkStep 必须先于实际动作：
 
 | 预算 | 计费与拒绝边界 |
 | --- | --- |
-| MaxEntries | 每次交付 checked 自有快照计一项；交付上限用完且起点尚未证成，继续遍历前即失败，不为探测下一项执行额外 I/O |
-| MaxWorkSteps | 每次进入一个 Head（含 CU peer 访问）、每次 forward/reverse MoveNext 尝试、每次完整帧读取各计一步；包括 header 资格、source anchor 核验、CU 无输出组验证/消歧、重复实际读取及返回 false 的尝试。同ticket CU peer在完整读取后以GetScanBoundaryAfter核验尾Fence，其再次完整读取另计一步，须先扣费，额度不足不得探测Fence。CU 异长定位的 ReadFrameInfoImmediatelyAfter 结构后继查询另计一步。GetScanBoundaryAfter 与边界逆扫重验 anchor 的每次完整读也在动作前分别扣费，不能以 helper 封装漏计；复用已读本地 CU 不重复计 peer 读取，不复制 RBF 帧长度/CRC 算法 |
+| MaxEntries | 每次交付 checked 自有快照计一项，包括每页重复的 inclusive anchor；交付上限用完且根起点尚未证成，继续遍历前即失败，不为探测下一项执行额外 I/O |
+| MaxWorkSteps | 每次进入 Head 的文件获取尝试（含 CU peer）、每次 forward/reverse MoveNext 尝试、每次完整帧读取各计一步，包含 header完整读取、用户/来源anchor、publication、CU无输出组工作及返回false尝试。同ticket CU peer的GetScanBoundaryAfter完整重读另计一步；准确起点的GetScanBoundaryAfter与有界ScanReverse构造时anchor完整重读分别计费。CU异长定位的ReadFrameInfoImmediatelyAfter结构后继查询另计一步。ReadFrameInfo等已有只检查剩余额度的动作维持口径，不另臆定固定磁盘读次数；复用已读本地CU不重复计peer读取，helper封装不得漏计 |
 
 额度不足返回错误码 `HeadStore.HistoryBudgetExceeded` 的失败 Result，不返回正常 BudgetExhausted/partial-success 或公开 usage 摘要。先复检 owner/fault/token，再判继续工作的额度；visitor false 优先正常停止，visitor true 且真实无来源起点已经证成则 Complete，返回数恰好用完不阻碍该结果。尚需资格检查才能证明起点时，所需步骤也必须有额度；禁止越额探测或根据数量猜祖先不存在。已交付前缀仍可保存，但预算失败、正常早停都不证明未访问历史完整。
 工作步是算法入口次数，不是物理 I/O bytes、耗时、单帧大小或 RSS 上界；工厂 Open 的内部结构检查/恢复、缓存预读和一次同步读/CRC/envelope解码不能被这些计数拆分或抢占。visitor 自己的查询/data 读取及结果积累另计。进入 Head 的一步约束访问 Head 数；文件打开前后、每个扫描/完整读和回调之间检查 cancellationToken。完整读取前先以已取得的 RbfFrameInfo 检查 S4 该版本的记录尺寸上限，不先租用超限全帧再拒绝；解码仍消费 S4 字段/容量检查，不能为满足工作预算取消它们。每查询全帧请求字节额度、硬内存/时限等独立预算留待真实大 payload 成本或调用方限额需求出现后设计。
@@ -96,7 +104,11 @@ visitor 返回 true 表示继续，false 表示已接收当前项并正常选点
 当前历史和短期 CU peer 句柄均登记在 owner 可清理槽位，连同 HeadId 可供同文件查询复用；peer 逐个访问/关闭，不装入全组长期缓存。正常跳转、所有退出及 owner Dispose 都 MUST 在调用 public Dispose 前先取出并清空相应槽位，关闭抛错也不重试。owner Dispose 先失效实例，尝试当前临时及其他 owned 资源，不 Dispose 借入 data；方法 finally 只清理仍在槽位的句柄，所有退出都清除 HistoryActive。既有 owned 文件继续遵守自身生命周期，不把借用句柄当临时句柄归还。
 每次 visitor 返回后、继续 I/O 前、必要关闭后及最终正常返回前 MUST 复检 owner disposed/fault 与 token；最后回调 Dispose owner、取消或抛异常，最后关闭失败，都不能返回 Complete/VisitorStopped。取消抛 OperationCanceledException，visitor/I/O 等异常原样传播；必要 CRC/envelope/长度/身份/成员错误返回所属层失败，不跳过坏记录、不回退。预算失败、普通读错误、纯读异常、取消或 visitor 异常本身不 fault 健康 writer；实际 owned 清理/恢复失败按 S4 停用规则，主异常优先并继续尝试清理，清理失败不能被正常停止遮蔽。
 
-**边界逆扫依赖。** [RBF 边界逆扫增量](../Rbf/rbf-reverse-boundary-plan.md)已提供 `ScanReverse(RbfScanBoundary boundary, bool showTombstone)`，复用现有 anchor/完整 CRC/尾 Fence 检查，从 anchor（含自身）向前。V2-A 直接使用该公共重载，独立底座测试与 HS 接线验证分别记录，不以 internal 文件视图、手写 Fence 或仍扫描无关后缀替代。RbfScanBoundary 本身是可构造数据而非成员凭证；本层来源资格来自已签发 EntryId 或自身创建协议写入的不可变 ForkOrigin、完整位置不复用及无外部改写模型。RBF3 正常 writer 的 marker-free 边界约束不认证任意损坏/手工镜像；失败仍按必要记录传播。同步 visitor 不承诺持久 cursor，底座工厂成本仍另计。
+**边界逆扫依赖。** [RBF 边界逆扫增量](../Rbf/rbf-reverse-boundary-plan.md)提供 `ScanReverse(RbfScanBoundary boundary, bool showTombstone)`，从 anchor（含自身）向前，复用完整 CRC/尾 Fence 检查。两类历史及来源接续直接使用该公共重载，不以 internal文件视图、手写Fence或扫描无关后缀替代。RbfScanBoundary和导入ID本身不是成员凭证；局部成员证明、正常writer/尾恢复模型及离线镜像边界唯一消费S4 `[A-VS-READ-REVISION]`。同步visitor不承诺持久cursor，工厂成本仍另计，Audit全链检查不弱化。
+
+**inclusive 最小分页。** 第一页从 e100 固定起点读到 e81，visitor返回false；下一页从 e81 开始，只过滤首个与e81相等的ID，再收集更早项。重复anchor及其资格工作照常收费，到根可有仅重复anchor的一次Complete调用，应用过滤后是空页。callback=false已接收当前项，不多读一项探测HasMore。筛选State/Event的应用必须保存最后处理的Entry，不能只存最后显示项。
+
+anchor资格可能耗尽工作预算而零回调；anchor已交付后，连续未成立CU也可能耗尽预算而没有新的可用继续位置。重复anchor不算新增进度，相同预算重试不保证前进；调用方可提高预算或中断。首版不保存这种物理扫描进度，不新增exclusive起点或跨页lease。已交付自有Entry仍可保存，预算/取消/错误均不能冒充遍历完成。
 
 （Informative）A 已有 A0/A1/A2/A3，B 从 A2 创建并更新 B1，C 从 B1 创建后更新 C1：`ReadHeadHistory(C)` 返回 `C1, B1, A2, A1, A0`；A3 不出现，fork 不产生 C0/B0。
 
@@ -147,7 +159,7 @@ HeadSetTag固定所选Heads的当前EntryId，创建只接受HeadId slice；不�
 
 ## 应用映射与固定槽位
 
-固定角色由应用常量/枚举选择预留号，动态 Head 由应用保存 LocalId，在正确库上下文ReadHead(local)取得checked当前Entry；更新/创建tag前用ListHeads按GetLocalHeadId返回值取得selected HeadId，不能用来源Entry.Id.HeadId代替；合同见 S4 `[A-VS-LOCAL-REF-LOOKUP]`。无独立 branch binding、全局应用名称查重或 name→Head 索引。
+固定角色由应用常量/枚举选择预留号，动态Head可保存公开编码的HeadId，冷开后TryRead恢复所选分支；也可只存LocalId，在正确库上下文ReadHead(local)读取当前Entry，更新/创建tag前用ListHeads按GetLocalHeadId匹配。不能用来源Entry.Id.HeadId代替所选Head；合同见 S4 `[A-VS-LOCAL-REF-LOOKUP]`。无独立 branch binding、全局应用名称查重或 name→Head 索引。
 
 摘要/缩略图/人物区域等元数据可作为 data 帧，与业务根一起放入同一 Head 的 NamedFrameMap 整体发布。独立目录 Head 登记动态对象若顺序调用单 Head 发布，创建后登记前中断仍可能留下未登记 Head；ListHeads 可发现实际集合，应用自行核对业务身份。07 CU 只可共同更新多个既有 Head，不把新 Head 创建与目录登记并为一批。
 
@@ -164,7 +176,7 @@ Open MUST NOT 默认回放历史/data 图；惰性打开只延后资格检查，
 | 操作 | 首版成本与边界 |
 | --- | --- |
 | ReadHead | 普通 head 为本地 header/末 SingleEntry 的 checked bytes；CU head 另检查指定 peer 完整帧/全表，未提交后缀可累积回退，异长 peer 消歧可扫描必要后缀/前驱。不预读无关初始 payload，底座 factory 成本另计，不能宣称 CU 查询成本恒定 |
-| ReadHeadHistory / ForkHead | exact 旧点直接读；历史从所选 anchor 继续更早前缀，不定位源本地后续帧。CU 另付07 peer 校验/消歧成本，所有历史工作先计费；fork 另确认准确来源及成立 CU 的直接成员文件，底座 factory 成本另计 |
+| ReadHeadHistory / ReadEntryHistory / ForkHead | exact 旧点直接读；历史从所选 anchor 继续更早前缀，不定位源本地后续帧。CU 另付07 peer 校验/消歧成本，所有历史工作先计费；fork 另确认准确来源及成立 CU 的直接成员文件，底座 factory 成本另计 |
 | ListHeadOrigins | N个正式 Head、F条边：通常哈希成本下 O(N+F+checked header bytes)，临时元数据 O(N)、结果 O(F)；不读初始 payload，maxHeads含无来源根 |
 | ListHeads / 可写冷开 H | 完整正式路径枚举，不打开全部快照；只读 Open 不因 pending 全扫 Head，直接整数定位无需 ID→path 或应用名称表 |
 | tag 查询/创建 | 目标桶结构扫描、请求名裁决、常数个名称状态与连续创建成本唯一见 [09专项](09-versionstore-immutable-tags.md)，分桶不构成 O(1)保证 |
@@ -179,9 +191,10 @@ Open MUST NOT 默认回放历史/data 图；惰性打开只延后资格检查，
 
 | 验证组 | 特有向量 |
 | --- | --- |
+| 准确起点与分页 | 导入anchor首项相等，旧点后缀排除，多层来源、同值真实发布与成立CU；用户未成立anchor为InvalidHeadRecord，声明来源为InvalidForkOrigin，普通旧节点跳过。inclusive重复anchor收费；根页可过滤为空；零回调与零新增进度分别验证，相同预算重试不承诺前进 |
 | 历史路径 | 当前/非末 fork 点、源后续追加排除、fork-of-fork、多孩子及继承快照再 fork；header-only fork 无本地交付，连续空 fork 直接引用实际源 Entry；同值重发/rewind 不去重。缺源/错身份/成员/length/CRC/envelope/meta、墓碑/未知 kind/TerminationError、循环失败，不作正常终止 |
 | 历史预算/停止 | 第k项 false 后不扫描旧坏内容或下一源；初始 CRC 坏/head 好时首项 false 成功，继续到坏初始失败。本地记录 visitor false 不访问更旧来源，抵达 fork header 后才跳源。返回数恰在无来源起点耗尽为 Complete，有来源且需继续为预算失败；进入Head/header资格/anchor及内部重复完整读/false扫描全计work，先扣费再动作；前缀/VisitorStopped/失败不称完整历史 |
-| 回调/资源 | 递归历史与全部 mutation 在 barrier/I/O 前拒绝，调用后 guard 释放；visitor可当前值/data读取及 ReadTag/ReadTagInfo/ScanTags/ListHeadOrigins，复用匹配 Head 句柄且 tag 使用独立槽；活动 ScanTags 拒绝进入历史。最后回调 false/true 时 Dispose/取消/异常，末 close失败，均不正常终止；跳转及所有退出资源单次归还，已交付自有值仍有效 |
+| 回调/资源 | 两类历史的四种嵌套与全部 mutation 在 barrier/I/O 前拒绝，调用后 guard 释放；visitor可当前值/data读取及 ReadTag/ReadTagInfo/ScanTags/ListHeadOrigins，复用匹配 Head 句柄且 tag 使用独立槽；活动 ScanTags 拒绝进入历史。最后回调 false/true 时 Dispose/取消/异常，末 close失败，均不正常终止；跳转及所有退出资源单次归还，已交付自有值仍有效 |
 | 引用初始化 fork | 两种目标只发布带来源 header，返回新 HeadId；准确来源/CRC/envelope/尾 Fence 及必要 CU 资格重验；目标占用先拒绝；data 后按 LocalId 确认来源及必要 peers，任一确认失败无子输出。连续空 fork/共享来源/父子同批 CU、冷开与首次本地 SingleEntry/CU；来源不随父推进，fork 不产生 Entry 时间，不修改源文件 |
 | ListHeadOrigins集合/图 | 两编号域、无来源根、多层/兄弟分叉，creating排除；无来源同值复制/应用映射不产生边。初始/head 的 payload CRC 或 envelope 坏而 header 好、factory EOF 结构合格时仍能查询；缺/坏header、未知项/枚举、缺源/自链接/独立分量环失败，有来源 header-only 可是完整 fork，声明图不证明来源健康。深链/共享祖先不递归或二次方重追；不逐边审计源ticket，实际历史访问坏来源另须失败 |
 | ListHeadOrigins额度/结果 | 零/负限额先于I/O；全部正式节点含无来源根计费，恰额EOF成功，超额不打开/读内容/扩表；全无来源成功空边。末close/取消/分配/图错误不交部分成功；三个自有字段/full ticket而非源EntryId、无稳定顺序、正常接口不能改backing，关owner后仍有效；visitor内查询不覆盖历史临时槽 |

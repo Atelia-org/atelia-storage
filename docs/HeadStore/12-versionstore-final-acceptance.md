@@ -159,3 +159,27 @@ Data 的15项映射测试通过，另有独立Python缩域穷举及32bit边界�
 ```
 
 manifest在上述feed目录；实际消费者assets和逐项日志保留在上述仓外workspace。参数与独立复核摘要为`artifacts/compact-handles/package-run.json`及`verification.json`。此前所有Accepted保留原revision；本轮未推送Git、公开发布包、更新DG依赖或验证远端Source Link下载。FrameStore接入紧凑Handle、公开Handle持久codec和准确起点历史均留给后续专项。
+
+## 2026-10-17 持久 Handle / 准确 Entry 起点历史增量
+
+本轮从 `8b67739` 开始，批准的临时方案保存于 `be210d5`；实施后删除临时18方案，将合同归入04/05/09/11和源码README。新增HeadId/HeadEntryId的4B/12B Handle encoding v1（无owner、外层version/kind、固定38:26 ticket位布局）及 `ReadEntryHistory`。格式仍为4，Head/tag内部raw-local字段、16B tag成员与FrameStore地址不变；公开API增加，包增量必须使用新版本。
+
+ReadEntry/Fork/两种历史不再依赖值仅由库签发。准确读取仍用完整范围、帧首尾长度/CRC、实际Fence及必要CU资格，在正常RBF3 writer/尾恢复模型内以局部检查确定真实记录，不增加全链定位扫描。任意离线重写镜像不成为日常定位的真实性保证；既有Audit检查保持。跨库误用沿用紧凑Handle弱身份，不宣称所有错库值必拒绝。
+
+### 源码与真实进程证据
+
+Windows Release build最终为 **0 warning / 0 error**；定向测试 **82 passed / 0 failed**；完整solution为 **3579 passed / 0 failed / 10 platform skips**，其中HeadStore **1630 passed / 6 skipped**。新增六个测试类共 **73** 个执行用例均通过；三类独立源码/合同/消费复核未发现阻断。首轮构建的一个新测试ReadOnlySpan误用及两个xUnit分析器警告保留于日志，修正后重建通过。
+
+| 覆盖 | 实际测试与关键结果 |
+|---|---|
+| codec与值语义 | `Values/HandleCodecTests`与更新的`HeadValueTests`：人工golden/逐位38:26/极值、4B/12B精确长度、失败输出及目标原子性、4B/16B托管尺寸、弱身份碰撞 |
+| 导入位置 | `Public/ImportedEntryValidationTests`：真实Fence结束但错误起点/长度、内部与跨帧坐标、正常writer转义完整嵌入小帧、非法envelope、缺失/CRC/Fence/CU；三入口无回退，fork保持NotAttempted且无输出 |
+| 历史/预算 | `History/EntryHistoryTests`、`ConditionalUpdateIntegration/EntryHistoryConditionalTests`：跨fork/同值/CU分页、排除新后缀；root准确首项7步、双成员CU首项12步及差一步失败；用户anchor/声明来源/更早CU三种语义 |
+| 清理与回调 | `HistoryFaults/EntryHistoryFaultTests`：四种递归、ScanTags准入、允许查询借用、预算中断、末回调取消/Dispose/异常、peer读错与close失败、单次关闭/主异常优先/锁最后/借入data可用 |
+| 跨进程保存 | `SystemIntegration/PersistentHandleProcessTests`：writer PID22912在owner关闭后编码4B/12B文件并正常退出；reader PID29300在任何Open前解码，逐字节复核相同codeword。空C写入不改源A，同值提交不同ID，准确旧点读/fork及五次分页（含一次重复根过滤后的空页），最后Audit为4Heads/7Entries/3Origins |
+
+上述PID对应本轮定向证据，不是跨运行固定值。日志、六份完整TRX、汇总与两个子进程JSON保留在 `artifacts/persistent-handles/`：`build-first.log`、`build-second.log`、`tests-targeted.log`/`tests-targeted/`、`tests-final.log`/`tests-final/`、`test-summary.json`及`process-evidence/`。两个独立PID与持久字节往返是实际进程证据；本场景不声称强杀、断电或新增Linux资格。
+
+### 本地包交付
+
+源码资格不替代包消费；本增量的干净提交来源、唯一版本和四个隔离PackageReference结果在完成本地交付后记于此处。旧候选、历史JSON和此前Accepted均保持原来源。本轮未授权公开发布、推送、DG pin/接线验收或远端Source Link下载。

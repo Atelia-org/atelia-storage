@@ -14,6 +14,7 @@
 | 用户 Length 与读取切片 | [FS S2](../FrameStore/02-framestore-core.md)；Length 从0累计用户 bytes，FrameRead.Payload/TailMeta 零复制且继承 Dispose guard |
 | 窄公共可用性检查 | S4 `[S-VS-DATA-BORROW]`；公共 EnsureUsable 组合检查 HS/data，内部纯查询继续 owner-only |
 | 惰性物理恢复报告 | S4 `[A-VS-RECOVERY-REPORTS]`，tag 覆盖由[09](../HeadStore/09-versionstore-immutable-tags.md)引用；所有正式可写打开共用非 None 成功动作台账，保存的只读追加视图跨 fault/Dispose 可读 |
+| 持久Handle与准确Entry起点历史 | 后续save-handles需求已接入[S4](../HeadStore/04-versionstore-publication.md) `[F-VS-HANDLE-ENCODING-V1]` / `[A-VS-READ-REVISION]`、[S5](../HeadStore/05-versionstore-names-and-indexes.md)和[11](../HeadStore/11-versionstore-root-payload-bytes-api.md)；4B/12B v1、弱身份与使用时资格、ReadEntryHistory共用预算。该新增范围的源码/进程/包资格只见[12新增轮次](../HeadStore/12-versionstore-final-acceptance.md)，不继承本计划旧验收 |
 
 公开用法见 [FS](../../src/FrameStore/README.md)、[HS](../../src/HeadStore/README.md)。恢复算法、ProcessCrashOnly、CU 共同资格、历史预算、发布证据和单次清理/锁最后不因新增报告改变。报告缺失不证明失败工厂未修改 bytes；完整失败取证不属于已交付保证。
 
@@ -25,11 +26,10 @@
 | --- | --- |
 | 无新增历史的确认 | defer：先明确 DG 要确认全库、当前 Head、exact EntryId、tag 或继承历史，以及启动/Unknown 后/每次保存的时机，再设计最窄入口。仅确认已缓存 Head 不是全库；若承诺确认完整 CU 发布，须确认全部成员。现有 fork 只确认 exact source，符合 S5 的 ProcessCrashOnly 合同，不借反馈扩大为断电保证 |
 | 有界 Head 缓存 | defer：当前 16/64/256 资源基线证明增长来自缓存、重复稳定且 Dispose 释放；长期 owner 的上千/上万 Head 或明确句柄预算出现时再实施。CU 批次和内部借用须 pin，缓存容量不能直接承诺总 handles 硬上限；不先指定 LRU 或公开 lease |
-| EntryId 导入/导出 | defer：用户或 DG 明确跨进程匿名选点需求后，另立完整上下文和真实成员资格合同；ReadEntry 不扩大到裸位置 |
 | writable 禁止恢复 | defer：消费者明确需要“继续写但遇残尾拒绝”才设计；现有严格 RO/Audit 足以承担当前只读取证入口 |
 | CAS、命名目录、业务 Parent | 保持下游职责；本轮反馈没有要求上移，HS 发布历史不替代 DG 业务链 |
 
-这些不是后续自动施工项，不重新写入已清空的 design-questions.md。DG 生产入口仍基于旧栈，反馈不是新栈迁移验收；等待真实需求/试用证据后再选片。
+EntryId导入/导出的重访条件已由后续跨进程匿名选点需求满足，队列在上述现行合同收束；完整128bit库身份要求由已接受的紧凑Handle弱身份合同替代，不另恢复为codec字段。其余延后事项不是自动施工项，不重新写入已清空的design-questions.md。DG反馈不代表新栈迁移验收；接线与包pin仍需消费方实证。
 
 ## 3. 后续交付
 

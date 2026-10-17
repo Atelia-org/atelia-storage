@@ -137,7 +137,7 @@ HeadStore 接收/返回完整、不透明的 root-payload bytes，整体替换�
 | 操作 | 必要内容与保证 |
 | --- | --- |
 | ReadHead | checked header 身份与逆向所访问 head 的完整资格；普通 SingleEntry 直接交付，CU 按07共同判据成立才交付，未成立继续向前；正常抵达 checked header 且无本地已接受 Entry 的 fork 精确读取固定来源，不预读无关初始/中间 payload |
-| ReadHeadHistory / ForkHead | S5 的按需历史节点、精确源及其发布资格；历史早停不访问更旧节点 |
+| ReadHeadHistory / ReadEntryHistory / ForkHead | S5 的按需历史节点、精确源及其发布资格；历史早停不访问更旧节点 |
 | ListHeadOrigins | 全部 header 声明与来源集合/环检查；不读初始或末 payload |
 | ReadTag / CreateTag / ReadTagInfo | 09 的唯一可信目标名裁决；ReadTag检查完整canonical成员表；CreateTag另捕获当前Entry并确认必要依赖；Info不证明表或成员健康 |
 | ScanTags | 09 的逐桶元信息扫描、Complete/VisitorStopped 与回调合同；不读成员表/Entry或证明全部名称唯一 |
@@ -184,42 +184,65 @@ HeadId MUST 为不透明、自有的非 positional `public readonly struct HeadI
 
 **内部字段 codec。** Head header 自身/ForkOrigin 来源、CU 成员仍保存原始 local 的4B LittleEndian，不写混合 Handle；tag 继续使用09的16B成员。decoder 要求精确4B和1..Max，结合 checked 宿主 key 签发 Handle；encoder 用预期宿主 key 反解并检查1..Max与目标至少4B。失败不提交消费、不写目标；成功只写前4B，余下不变。复合宿主负责完整身份、CRC、其余字段与 trailing bytes；不能从被检查 header 反向认领期望身份。两方向无 I/O/额外堆 buffer，可信私有构造不在发布确认后重新读取或校验自身文件。
 
-HeadId 可来自创建、checked 当前/历史读取、来源元数据或 ListHeads 的 checked 门与 canonical 正式路径。路径发现只证明占号，不证明内容；planned Handle 不在正式发布前交付。每库终身最多16,777,215个 Head，自动区 Max−L 个、预留区 L 个；不删除、不复用，不限制同一 Head 的更新次数。HeadId 为4B值，HeadEntryId 另带8B ticket，CLR 对齐可能使后者为16B；不将12B逻辑字段之和宣称为托管尺寸或公开持久编码。
+HeadId 可来自创建、checked 当前/历史读取、来源元数据、ListHeads 的 checked 门与 canonical 正式路径或公开 codec 导入。路径发现只证明占号，不证明内容；planned Handle 不在正式发布前交付。每库终身最多16,777,215个 Head，自动区 Max−L 个、预留区 L 个；不删除、不复用，不限制同一 Head 的更新次数。HeadId/HeadEntryId 的托管尺寸保持4B/16B，公开持久编码分别为4B/12B；不得转储 CLR padding。
 
-公开 HeadId/HeadEntryId 的独立持久 codec、任意旧 EntryId 导入和准确起点历史 API 留待下游 save-handles 专项；本次不借内部4B字段宣称已提供它们。应用仍在选定库上下文保存 local，经 ListHeads 与 GetLocalHeadId 匹配恢复 selected Head；ReadHead(local) 返回的 Entry 可能属于来源 owner，不能据此恢复所选分支。
+应用可独立保存并恢复所选 HeadId 与准确 HeadEntryId；ReadHead(local) 返回的 Entry 可能属于来源 owner，不能据此恢复所选分支。公开编码不复用上述需要 owner、读写 raw local 的内部字段 codec。
+
+### spec [F-VS-HANDLE-ENCODING-V1] 无 owner 的固定持久编码
+
+两个值类型分别公开 `EncodedSize` 常量、实例 `bool TryWrite(Span<byte> destination)` 和静态 `bool TryRead(ReadOnlySpan<byte> source, out T value)`；T 为对应值类型。它们无 owner、无 I/O、不分配数组，恢复定位值，不证明存在、发布成立、历史归属或业务角色。
+
+| 类型 | EncodedSize | Handle encoding v1 字节布局 |
+| --- | --- | --- |
+| HeadId | 4 | UInt32LE(encoded Handle) |
+| HeadEntryId | 12 | HeadId 的4B + UInt64LE(ticket bits) |
+
+v1 固定 `ticketBits = ((offset / 4) << 26) | (length / 4)`，高38bit为 offset/4，低26bit为 length/4；使用当前 SizedPtr.Packed 语义，不使用 Serialize 的交错表示或 VarInt。SizedPtr 未来的内部表示变化不得静默改变 v1。
+
+TryRead 要求输入恰为 EncodedSize，拒绝短输入和尾随 bytes，失败 out=default。HeadId 仅要求编码非零；HeadEntryId 另要求 ticket.Length > 0。Packed 确定非负、4B对齐与可表示范围；header 后界、记录最小长度、完成范围及 owner 上的24bit local 范围由实际使用检查。TryWrite 先完整检查值及容量，失败不改任何字节；成功只写前 EncodedSize，目标剩余部分不变。普通格式错误返回 false，不抛异常。default 可比较/hash，但不可编码或定位；无值用上层 nullable/字段状态表达。
+
+同一受支持编码满足 `Decode(Encode(id)) == id`。TryRead 没有消费游标，组合 reader 由应用切出精确字段并仅在成功后推进。两种完整 codeword 长度不同，不能整段交给另一 decoder；主动切错字段不属于可检测的类型认证。
+
+为保持4B/12B，每值不附 version/kind/CRC。字段 schema 决定种类，外层设置文件、数据库 schema 或应用记录显式保存编码版本；独立交换 blob 可保存 `(encodingVersion, kind, bytes)`。调用方先检查外层版本与种类，再调用对应 decoder；无版本参数的方法固定实现 v1，不能识别未来同长度但不同语义的编码，也不承诺拒绝所有未知版本。未来表示变化须提供明确区分的 codec 入口或明确宣布不兼容，不能改变既有 v1 的解释。
+
+编码不恢复被省略的完整库身份；不同库的值仍可能相等或误命中。应用选择正确库是主要上下文，健康目标 header 不证明值的原始库。不公开 raw uint 构造器、encoded 属性或任意 HeadId+ticket 便捷构造器；调用方仍可构造 codec 字节，这不是防伪边界。文本可由应用包装为 Base64，不新增 serializer 框架。
 
 ### spec [A-VS-LOCAL-REF-LOOKUP] 本地编号在显式库上下文定位已发布 Head
 
 HeadStore MUST 提供 `ReadHead(uint localHeadId)`，与 `ReadHead(HeadId)` 返回同一种自有 HeadEntry。先检查 owner disposed/fault 与编号在1..MaxLocalHeadId，再按 `[F-VS-REF-PATHS]` 直接定位并执行既有当前值资格；成功结果的 Id.HeadId 使用本 owner 已 checked 的 HandleKey 编码，但可能是固定来源 Entry 的所属 Head，与查询目标不同；调用方必须保存选定 HeadId 作为后续写入目标。missing/损坏/I/O/模式与恢复语义与 HeadId 入口相同，不以 default、空字典或自由构造 HeadId 代替 checked 读取。查询可访问预留区或自动区的已发布 Head，不受指定创建的上界限制，不存在目标时不创建。
 
-应用可用常量/枚举选择固定槽位，或保存自动创建结果的 LocalId，冷重开同一库后ReadHead(local)读取当前Entry。若要更新或创建tag，先在ListHeads结果中按GetLocalHeadId返回值取得选定HeadId；不能用当前Entry.Id.HeadId代替。该发现只证明正式路径身份，读取继续负责内容资格。这次读取不恢复旧EntryId或证明旧尝试Confirmed。纯 LocalId selector 由调用方显式选择库，不能检测将 A 的本地号误放入 B 的目录；应用 MUST 保持目录与正确库关联，跨库目录另核对其库归属。HeadId 入口采用上述上下文解码与范围门，允许跨库碰撞。
+应用可用常量/枚举选择固定槽位，或保存自动创建结果的LocalId，冷重开同一库后ReadHead(local)读取当前Entry。若只保存local而要更新或创建tag，先在ListHeads结果中按GetLocalHeadId返回值取得选定HeadId；若已保存HeadId公开编码则可直接TryRead恢复；不能用当前Entry.Id.HeadId代替。该发现只证明正式路径身份，读取继续负责内容资格。这次读取不恢复旧EntryId或证明旧尝试Confirmed。纯 LocalId selector 由调用方显式选择库，不能检测将 A 的本地号误放入 B 的目录；应用 MUST 保持目录与正确库关联，跨库目录另核对其库归属。HeadId 入口采用上述上下文解码与范围门，允许跨库碰撞。
 
-## term `HeadEntryId` 已接受快照的位置身份
+## term `HeadEntryId` 准确快照的定位值
 
-HeadId 由 `[F-VS-REF-ID-4B]` 定义，是正式 Head 文件的稳定身份；应用名称/业务标记不进入文件名或库内绑定。HeadEntryId 为库签发的自有位置值，绑定完整 HeadId 及实际快照位置/长度，不与 data FrameAddress、仅 offset 或 owner 引用互换。
-EntryId 从完成发布、实际checked Entry read，或完整checked HeadSetTag成员表恢复取得。前两种按既有发布/读取协议签发；第三种只证明本条成员表中的完整记录/字段资格，不先读取成员文件。ID是定位值，不是健康证书；ReadTag成功后ReadEntry仍可因成员损坏而失败。不同完整物理快照即使 NamedFrameMap 同值也具有不同 EntryId。它不是某次未完成调用的尝试 token；ReadEntry 只接受库签发值，不提供凭裸位置读取，也不以字典相同证明某次调用成功 flush。S5 的按 EntryId fork 与精确读取共用来源资格，不开放任意位置构造或导入。
+HeadId 由 `[F-VS-REF-ID-4B]` 定义；应用名称/业务标记不进入文件名或库内绑定。HeadEntryId 是自有定位值，组合完整编码 HeadId 及准确位置/长度，不与 data FrameAddress、仅 offset 或 owner 引用互换。
+EntryId 可从完成发布、checked Entry read、完整checked HeadSetTag成员表或公开 codec 取得。发布/读取按各自协议建立资格；成员表和 codec 的结构恢复不读取目标文件。ID不是健康证书，ReadTag/TryRead成功后ReadEntry仍可失败。不同完整物理快照即使 payload 同值也具有不同 EntryId。它不是未完成调用的尝试 token，也不以内容相同证明成功 flush。所有来源的 ID 在使用时走同一路径，不建来源登记、验证缓存或免检分支。
 
 ### spec [A-VS-REF-REVISION-VALUE] 自有 EntryId 复用身份与完整 ticket
 
-首版 MUST 使用非 positional `public readonly struct HeadEntryId : IEquatable<HeadEntryId>`，普通内部表示仅保存私有 HeadId 与 SizedPtr，不另存 HSID、DataStoreId、owner、epoch、Reader、NamedFrameMap 或耐久标志。提供 `Equals(HeadEntryId)`、`Equals(object?)`、`GetHashCode()`、`==` 与 `!=`；等值 MUST 比较 HeadId 的完整32bit编码及 ticket 的完整 Packed bits（含 length），相等值具有相同 hash。值操作不执行 I/O，不依赖 owner 健康/存活；hash 不持久化或保证跨进程稳定，不规定 CLR Pack/Size、sizeof 或数组步长。
+首版 MUST 使用非 positional `public readonly struct HeadEntryId : IEquatable<HeadEntryId>`，普通内部表示仅保存私有 HeadId 与 SizedPtr，不另存 HSID、DataStoreId、owner、epoch、Reader、NamedFrameMap 或耐久标志。提供 `Equals(HeadEntryId)`、`Equals(object?)`、`GetHashCode()`、`==` 与 `!=`；等值 MUST 比较 HeadId 的完整32bit编码及 ticket 的完整 Packed bits（含 length），相等值具有相同 hash。值操作不执行 I/O，不依赖 owner 健康/存活；hash 不持久化或保证跨进程稳定，16B托管尺寸不决定12B编码布局。
 
-公开只读属性为 `HeadId HeadId { get; }` 与 `SizedPtr Ticket { get; }`，返回快照实际所属 Head 与实际 ticket；继承历史的源快照不改绑到发起查询的子 Head。两者均为纯值投影，不触发读取或签发另一个 EntryId。default 是受支持公开构造路径中的唯一非法值，自等/比较/hash 和属性读取均合法，两属性分别返回 default；所有接受 HeadEntryId 的入口 MUST 在既有 owner 生命周期/模式 guard 后、任何目标发现 I/O 或 data barrier 前，拒绝 default 及其 HeadId 在本 owner 上解码越界的值（HeadNotFound）。确定参数拒绝不新增 fault，mutation 仍先初始化 outcome=NotAttempted。
+公开只读属性为 `HeadId HeadId { get; }` 与 `SizedPtr Ticket { get; }`，返回定位值声明的 Head 与 ticket，不执行目标验证；成功发布/读取交付值对应实际所属 Head，继承历史的源快照不改绑到发起查询的子 Head。两者均为纯值投影，不触发读取或签发另一个 EntryId。default 是无效定位值，自等/比较/hash 和属性读取均合法，两属性分别返回 default；codec恢复的非default值也必须在使用时检查目标资格；所有接受 HeadEntryId 的入口 MUST 在既有 owner 生命周期/模式 guard 后、任何目标发现 I/O 或 data barrier 前，拒绝 default 及其 HeadId 在本 owner 上解码越界的值（HeadNotFound）。确定参数拒绝不新增 fault，mutation 仍先初始化 outcome=NotAttempted。
 
-正常发布结果只在所需 flush/发现边界确认并先写回 Confirmed 后对外签发；当前/历史读取只在本次必要 header、真实成员及完整 CRC/kind/envelope/长度资格成立后交付。可信内部构造仅保存已资格化 HeadId/ticket，不在确认后的值构造中再验证、分配、扫描或读回自身文件。完整checked HeadSetTag成员表亦可按09恢复HeadEntryId；裸结构扫描的 RbfFrameInfo、ForkOrigin 声明、planned ticket、私有未发布快照均不能单独签发 HeadEntryId；值本身不持有 RbfFrameInfo/reader。
+正常发布结果只在所需 flush/发现边界确认并先写回 Confirmed 后对外交付；当前/历史读取只在本次必要 header、真实成员及完整 CRC/kind/envelope/长度资格成立后交付。可信内部构造仅保存已资格化 HeadId/ticket，不在确认后的值构造中再验证、分配、扫描或读回自身文件。完整成员表和公开 codec 亦可恢复定位值；裸结构扫描、ForkOrigin声明、planned ticket及私有未发布快照不证明目标已发布。值本身不持有 RbfFrameInfo/reader。
 
-已交付值在历史调用结束/提前停止/后续失败及 owner fault/Dispose 后仍可比较和保存；同一 HS 的重开 owner 可接受它，不按实例引用或 epoch 拒绝。实际 fork 消费 S5 `[S-VS-FORK-FROM-REVISION]` 的正式源/header 资格及 exact offset/length 完整内容重读与尾 Fence 检查，再执行本次 data/源确认。成员来源由已签发 EntryId 与完整位置不删除/复用、无外部改写的协议保证，不从源 EOF 再定位旧点；持有旧值仍不保证源存在/内容健康、当前 head 相同、本次耐久或旧调用曾 Confirmed。此规则不接受裸 SizedPtr 或增另一份成员见证；持久身份也不证明物理根唯一或认证同 HSID 拷贝。
+已交付或导入值在历史调用结束/提前停止/后续失败及 owner fault/Dispose 后仍可比较和保存；同一 HS 的重开 owner 可接受它，不按实例引用或 epoch 拒绝。实际 fork 消费 S5 `[S-VS-FORK-FROM-REVISION]` 的正式源/header、exact offset/length 完整内容与尾 Fence 资格，再执行本次 data/源确认。成员资格由下述正常 RBF3 存储模型内的局部检查建立，不从源 EOF 再定位旧点；持有旧值仍不保证目标存在/健康、当前值相同、本次耐久或旧调用曾 Confirmed。不另增成员见证；持久身份不证明物理根唯一或认证同 HSID 拷贝。
 
-不提供公开位置构造/转换、setter/init、Deconstruct、IsValid、算术/排序、规范文本或整个 HeadEntryId 的公开/持久 codec。ForkOrigin 仍组合宿主上下文、4B HeadId 字段与 8B Packed LE ticket；不能从这些元数据直接构造 checked EntryId，也不新增完整 EntryId 记录、版本或预留字段。暂不支持匿名精确 EntryId 独立外存后跨进程直接导入；09的HeadSetTag是具名完整记录中恢复ID的受控来源，不开放任意HeadId+ticket构造，也不接受历史ID任意组合创建。普通ReadEntry/Fork仍重验exact来源内容和CU资格，不以ID曾恢复而跳检。
+公开持久 codec 唯一消费 `[F-VS-HANDLE-ENCODING-V1]`，支持匿名准确 EntryId 外存及跨进程导入。不提供便捷位置构造器、setter/init、Deconstruct、IsValid、算术/排序或规范文本。ForkOrigin 仍保存内部 raw-local 4B与8B Packed LE ticket，不增加记录、版本或预留字段。HeadSetTag是恢复来源之一，创建仍不接受历史ID任意组合。ReadEntry/Fork/ReadEntryHistory均重验准确目标和必要CU资格。
 
-（Informative）只读投影是使现有历史与 ListHeadOrigins 来源边直接关联的工程选择，不是用户另行规定的 API；全私有值也能正确完成选点后 fork，声明边本身也能按 ticket 分组。A1/A2 同字典而分别分出 B/C 时，只比较 HeadId 或 NamedFrameMap 不能识别选中点的孩子，两属性允许直接比较已有 source 字段，无专用 MatchesLocation API。它们只观察首版单文件位置，未来分段需重审定位/观察合同，不承诺此 tuple 永远足够。无公开构造是窄签发表面，不是不可伪造安全机制；公开构造加严格 fork 校验也可正确，但当前没有裸位置请求消费者。旧 [CheckpointAddress](../../../durable-graph/src/DurableGraph.Persistence/CheckpointAddress.cs)及[重开失效测试](../../../durable-graph/tests/DurableGraph.Persistence.Tests/DB078EventQueryTests.cs)是实例绑定的另一模型，不成为本栈兼容义务；[结构扫描仍返回坏 payload 的测试](../../tests/Rbf.Tests/Internal/RbfScanReverseTests.cs)佐证内容资格不能只由 framing 代替，不构成新值类型或 HeadStore 实施资格。
+（Informative）只读投影是使现有历史与 ListHeadOrigins 来源边直接关联的工程选择，不是用户另行规定的 API；全私有值也能正确完成选点后 fork，声明边本身也能按 ticket 分组。A1/A2 同字典而分别分出 B/C 时，只比较 HeadId 或 NamedFrameMap 不能识别选中点的孩子，两属性允许直接比较已有 source 字段，无专用 MatchesLocation API。它们只观察首版单文件位置，未来分段需重审定位/观察合同，不承诺此 tuple 永远足够。保留私有构造器只限制便捷公面；公开codec字节可由应用构造，实际读取资格必须由操作检查，不把值来源当作防伪机制。旧 [CheckpointAddress](../../../durable-graph/src/DurableGraph.Persistence/CheckpointAddress.cs)及[重开失效测试](../../../durable-graph/tests/DurableGraph.Persistence.Tests/DB078EventQueryTests.cs)是实例绑定的另一模型，不成为本栈兼容义务；[结构扫描仍返回坏 payload 的测试](../../tests/Rbf.Tests/Internal/RbfScanReverseTests.cs)佐证内容资格不能只由 framing 代替，不构成新值类型或 HeadStore 实施资格。
 
-### spec [A-VS-READ-REVISION] 精确重读库签发的快照
+### spec [A-VS-READ-REVISION] 精确重读定位值指向的快照
 
 HeadStore MUST 提供 `AteliaResult<HeadEntry> ReadEntry(HeadEntryId entryId)`。先检查自身 owner disposed/fault，再在目标发现 I/O 前拒绝 default/当前owner解码越界的值，统一HeadNotFound；支持 RO/RW，按既有模式复用或惰性打开正式 Head。没有新发布、data barrier、源 flush 或 PublicationOutcome。
 
 本次 MUST 检查必要 header、header 后完成范围、目标 ReadFrameInfo 形状、完整 CRC/kind/envelope/meta/尺寸，以及成功目标的 GetScanBoundaryAfter 尾 Fence；CU 还须通过07共同判据。仅交付 root bytes、原 RecordedAtUnixMs 与等于输入的 Id，结果自有 bytes/生命周期消费11。合法未提交 exact CU 返回本层记录错误 HeadStore.InvalidHeadRecord，不能回退到别的节点；必要结构、CRC、peer、I/O 及清理错误按原合同传播，不能伪装为未提交。普通校验失败不新增 fault，实际 owned 可写打开恢复/清理失败仍按既有规则停用。
 
-目标成员来源消费库签发/完整tag表恢复值、完整位置不删除/复用与无外部改写的协议；不为重新定位本地旧点扫描来源后缀或重验前序链。完整帧 CRC 与后 Fence 本身不证明真实主链成员，不能据此开放裸 ticket。底层工厂当前 EOF 资格及 CU peer 必要消歧仍保留，不承诺 O(1) I/O。RBF3正常writer保持marker-free包络，离线构造内嵌frame属于外部改写，不能据此给普通精确读取增加全链证明要求；Audit仍保持已有真实主链/全库引用检查强度。保存值可交给同库重开 owner，不新增跨进程匿名 EntryId 导入/导出。
+**正常存储模型与局部成员证明。** 保证范围为正常 RBF3 writer 及其已支持的进程终止/尾恢复模型，完整记录不删除/复用。正常 frame 的非 Fence 部分不含全局4B对齐 Fence；writer 会转义 payload 中的 aligned Fence。请求末端的完整 aligned Fence 因而是真实边界，紧邻的真实 TailKey/Trailer 解出的 TailLen 必须等于 ticket.Length，完整读取再验证 HeadLen、CRC、padding 和 HeadStore envelope/meta。`offset = FenceOffset - TailLen` 唯一确定真实 frame 起点，内部子区间、跨帧拼接及伪造长度不能成为成功目标。ReadFrameInfo 单独不足，成功路径必须保留 GetScanBoundaryAfter 的实际尾 Fence 检查；无需加前置 Fence 或每次从 EOF/根全链扫描。
+
+证据路径为 [ReadFrameInfo](../../src/Rbf/Internal/RbfReadImpl.ReadFrameInfo.cs)、[ReadFrame](../../src/Rbf/Internal/RbfReadImpl.ReadFrame.cs)、[ScanBoundary](../../src/Rbf/Internal/RbfReadImpl.ScanBoundary.cs)及 [ReadExactPublication](../../src/HeadStore/HeadStore.Entry.cs)。任意离线改写、故意嵌入 Fence 并重封 CRC 的镜像不在日常定位的主链真实性保证内；Audit 保持已有全链/引用检查强度。随机损坏按实际访问范围检查，不承诺发现未访问损坏。工厂当前 EOF 资格/恢复及 CU peer 必要消歧仍保留，不承诺严格 O(1) 或 O(K) 物理 I/O。
+
+default、当前key解码越界与缺失沿用 HeadNotFound；HeadStore 自己裁决的完成范围/记录种类错误沿用 InvalidHeadRecord。RBF 对过短 ticket、长度不匹配等返回的 ArgumentError/FramingError，以及 CRC、I/O 和清理错误保留原类别，不统一改报 InvalidHeadRecord。合法未成立 CU：ReadEntry/ReadEntryHistory 用户 anchor 返回 InvalidHeadRecord，ForkHead 与历史声明来源返回 InvalidForkOrigin。ReadEntry/Fork 可在已证明 CU 未成立时先于成功目标 Fence 检查拒绝；准确历史先构造边界再判断首项 CU。多重故障不保证各入口相同首错，错误码不承担跨库诊断。
 
 历史/tag visitor 内允许串行调用并复用匹配已有句柄。visitor 自行发起的 ReadEntry 是独立操作，不自动计入外层 HeadHistoryBudget；历史内核仍对自身资格工作逐步计费，不借此入口绕开预算。Dispose、取消、异常与必要清理继续消费既有 callback/owner 合同。
 
@@ -306,7 +329,7 @@ HeadHeader 的 RBF decoded payload MUST 恰为 **24B 或 36B**，字段如下：
 
 | payload byte 范围（半开） | 字段 | 编码与校验 |
 | --- | --- | --- |
-| `[0,4)` | HeadStoreFormatVersion | uint32 LE，当前3，须与checked格式门的统一版本相等 |
+| `[0,4)` | HeadStoreFormatVersion | uint32 LE，当前4，须与checked格式门的统一版本相等 |
 | `[4,20)` | HeadStoreId | `[F-VS-OWN-FORMAT]` 的16B canonical身份，须与期望HSID逐字节相等 |
 | `[20,24)` | 本 Head 的 HeadId | `[F-VS-REF-ID-4B]` 的非零4B LE，须等于期望目标HeadId |
 | `[24,28)`，仅36B形状 | SourceHeadId | 同一内部4B codec，非零且不同于本Head，绑定期望HSID |
@@ -481,7 +504,9 @@ getter 返回只读、只追加的 live view，不复制全集。Count 可增长
 
 HeadId 值/字段独立向量覆盖0、1、Max、Max+1、key等于local、key=0及不同key高8bit相同/不同。内部字段为原始local LE；失败不提交消费/不写目标，短输入/零/越界拒绝。验证HeadId为4B、HeadEntryId实际托管尺寸、相同库重开、跨库可能相等/误命中，以及default/越界在I/O/barrier前统一HeadNotFound。GetLocalHeadId不访问文件或证明存在；checked来源/路径身份不签发Entry资格。
 
-HeadEntryId 向量覆盖完整编码/ticket、同 offset 不同 length、同值重发产生不同 EntryId，未续写 fork 返回源的同一 EntryId；default 属性/比较/hash 合法而作为输入拒绝。保存值结束查询、关 owner 并重开同 HS 后仍可 fork，直接重读 exact 内容并执行本次确认，不重新扫描源后缀；继承记录返回实际源 HeadId/Ticket 并能关联声明边。确认后构造只保存已资格化值，不重读自身；来源声明/提前 ticket 不能签发 EntryId。LocalId 持久保存与正确库 checked 查询独立验证。
+HeadEntryId 向量覆盖完整编码/ticket、同 offset 不同 length、同值重发产生不同 EntryId，未续写 fork 返回源的同一 EntryId；default 属性/比较/hash 合法而作为输入拒绝。保存值结束查询、关 owner 并重开同 HS 后仍可 fork，直接重读 exact 内容并执行本次确认，不重新扫描源后缀；继承记录返回实际源 HeadId/Ticket 并能关联声明边。确认后构造只保存已资格化值，不重读自身；来源声明/提前ticket不证明已接受发布；恢复定位值后仍在使用时检查。LocalId 持久保存与正确库 checked 查询独立验证。
+
+公开codec新增验收须包括独立人工4B/12B LE固定向量、38:26完整ticket而非Serialize、全部短长度/尾随、零Handle/零长度、失败out与目标不变、长目标后缀不变，以及真实两进程保存再读。紧凑身份矩阵同时覆盖key高8bit不同拒绝、同key不同完整身份误命中、同高8bit不同key映到另一合法local。导入值矩阵覆盖header、frame内部、跨frame拼接、错/过短长度、完成范围外、缺失、坏CRC/Fence、未成立CU；ReadEntry/Fork/ReadEntryHistory均不回退，坏源不产生新Head，错误类别保持所属层。保存空fork C的HeadId和来源a1的EntryId后，冷开写入仍选择C；普通包消费者须另验证旧点读/fork/历史组合，源码与包资格分别记录。
 
 格式门独立 golden：version=4，HSID bytes=`01..10`、DataID bytes=`11..20`（十六进制），L=256 编为 `00 01 00 00`；44B codeword 的末4B=`0A EB DE CE`（CRC32C=`0xcedeeb0a`）。不以相同 encoder round-trip 替代。
 

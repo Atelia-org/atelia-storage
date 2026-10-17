@@ -111,9 +111,9 @@ public class HeadValueTests {
     }
 
     [Fact]
-    public void Values_PublicSurfaceHasOnlyReadonlyProjectionsAndNoPositionConstructorsOrCodecs() {
-        AssertOpaqueValueSurface(typeof(HeadId));
-        AssertOpaqueValueSurface(typeof(HeadEntryId), "HeadId", "Ticket");
+    public void Values_PublicSurfaceHasOnlyReadonlyProjectionsAndV1CodecsWithoutRawConstructors() {
+        AssertOpaqueValueSurface(typeof(HeadId), 4);
+        AssertOpaqueValueSurface(typeof(HeadEntryId), 12, "HeadId", "Ticket");
         Assert.Equal(typeof(HeadId), typeof(HeadEntryId).GetProperty("HeadId")!.PropertyType);
         Assert.Equal(typeof(SizedPtr), typeof(HeadEntryId).GetProperty("Ticket")!.PropertyType);
     }
@@ -126,14 +126,25 @@ public class HeadValueTests {
         Assert.Equal(new[] { "NotAttempted", "Unknown", "Confirmed" }, Enum.GetNames<PublicationOutcome>());
     }
 
-    private static void AssertOpaqueValueSurface(Type type, params string[] expectedProperties) {
+    private static void AssertOpaqueValueSurface(Type type, int encodedSize, params string[] expectedProperties) {
         Assert.True(type.IsValueType);
         Assert.Empty(type.GetConstructors(BindingFlags.Public | BindingFlags.Instance));
-        Assert.Empty(type.GetFields(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static));
+        FieldInfo sizeField = Assert.Single(type.GetFields(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static));
+        Assert.Equal("EncodedSize", sizeField.Name);
+        Assert.True(sizeField.IsLiteral);
+        Assert.Equal(typeof(int), sizeField.FieldType);
+        Assert.Equal(encodedSize, sizeField.GetRawConstantValue());
         PropertyInfo[] properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
         Assert.Equal(expectedProperties.OrderBy(name => name), properties.Select(property => property.Name).OrderBy(name => name));
         Assert.All(properties, property => Assert.Null(property.SetMethod));
-        foreach (string absent in new[] { "Deconstruct", "IsValid", "TryRead", "TryWrite", "Parse", "CompareTo" }) {
+        MethodInfo read = Assert.Single(type.GetMethods(BindingFlags.Public | BindingFlags.Static), method => method.Name == "TryRead");
+        Assert.Equal(typeof(bool), read.ReturnType);
+        Assert.Equal(new[] { typeof(ReadOnlySpan<byte>), type.MakeByRefType() }, read.GetParameters().Select(parameter => parameter.ParameterType));
+        Assert.True(read.GetParameters()[1].IsOut);
+        MethodInfo write = Assert.Single(type.GetMethods(BindingFlags.Public | BindingFlags.Instance), method => method.Name == "TryWrite");
+        Assert.Equal(typeof(bool), write.ReturnType);
+        Assert.Equal(typeof(Span<byte>), Assert.Single(write.GetParameters()).ParameterType);
+        foreach (string absent in new[] { "Deconstruct", "IsValid", "Parse", "CompareTo" }) {
             Assert.Null(type.GetMethod(absent, BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static));
         }
 

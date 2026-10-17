@@ -1,6 +1,6 @@
 # 设计阶段待定问题：FrameStore 与 HeadStore
 
-2026-10-17 后续收敛：本文按日期保留既往问题与决定，clone/子初始Entry/ForkHead返回HeadEntryId/格式2均为当时语境。当前合同采用引用初始化fork、ForkHead返回HeadId及格式3/16B独立tag key/value，权威见[04](../HeadStore/04-versionstore-publication.md)、[05](../HeadStore/05-versionstore-names-and-indexes.md)、[09](../HeadStore/09-versionstore-immutable-tags.md)。
+2026-10-17 后续收敛：本文按日期保留既往问题与决定，clone/子初始Entry/ForkHead返回HeadEntryId/格式2均为当时语境。当前合同采用引用初始化fork、ForkHead返回HeadId及格式4/16B独立tag key/value；紧凑HeadId/HeadEntryId已增加4B/12B公开持久codec及ReadEntryHistory，早期“codec延期”“只接受已签发位置”不再是当前限制。权威见[04](../HeadStore/04-versionstore-publication.md)、[05](../HeadStore/05-versionstore-names-and-indexes.md)、[09](../HeadStore/09-versionstore-immutable-tags.md)。
 
 命名更新：2026-10-16 活跃合同采用 HeadStore/Head/Entry；既有验收与历史包仍保持 VersionStore 来源身份，本轮验证见[重命名记录](../HeadStore/15-headstore-renaming-plan.md)。
 
