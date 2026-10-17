@@ -53,4 +53,4 @@ solution build/test 覆盖 main 底座、Binary、FrameStore 和 HeadStore；旧
 - 协作约束见 [AGENTS.md](AGENTS.md)；当前 RBF1 维护边界、归档与验收见 [退役记录](docs/rbf1-retirement.md)。
 - 旧栈指南与 [EventJournal 历史设计](https://github.com/Atelia-org/atelia-storage/tree/043f77aa68700568499ceb965c049f8362e4253f/docs/EventJournal)保留在 Git 历史中，提供模型和事实背景，不是 main 新栈的规范权威。具体公开包以固定来源为准。
 - 来源与原始提取范围见 [extraction-origin](docs/extraction-origin.md)。历史讨论保留原始语境，不自动成为当前活动入口。
-- CI 与主线六包交付入口同步；`eng/Verify-Published.ps1` 核验六包来源及四个独立公开消费闭包，不能把本地候选消费当作公开源验证。仓库内不保存 token，网络发布须有明确会话授权。
+- CI 与主线六包交付入口同步；`eng/Verify-Published.ps1` 核验六包来源、全部非签名 ZIP 条目的唯一名称与内容，以及四个独立公开消费闭包。只有 `.signature.p7s` 允许为公开包新增条目，不能把本地候选消费当作公开源验证。仓库内不保存 token，网络发布须有明确会话授权。

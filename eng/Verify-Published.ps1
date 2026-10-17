@@ -47,11 +47,20 @@ foreach ($id in $ids) {
     try {
         $candidateArchive = [IO.Compression.ZipFile]::OpenRead($candidatePath)
         $publicArchive = [IO.Compression.ZipFile]::OpenRead($publicPath)
-        if ($candidateArchive.GetEntry('.signature.p7s')) { throw "Candidate is already signed: $id" }
-        $signature = $publicArchive.GetEntry('.signature.p7s')
-        if (!$signature -or $signature.Length -le 0) { throw "Downloaded public package is not repository signed: $id" }
-        $specEntry = $publicArchive.GetEntry("$id.nuspec")
-        if (!$specEntry) { throw "Published package has no $id nuspec." }
+        $candidateEntries = [Collections.Generic.Dictionary[string, IO.Compression.ZipArchiveEntry]]::new([StringComparer]::Ordinal)
+        $publicEntries = [Collections.Generic.Dictionary[string, IO.Compression.ZipArchiveEntry]]::new([StringComparer]::Ordinal)
+        foreach ($entry in $candidateArchive.Entries) {
+            if (!$candidateEntries.TryAdd($entry.FullName, $entry)) { throw "Duplicate candidate package entry: $($entry.FullName)" }
+        }
+        foreach ($entry in $publicArchive.Entries) {
+            if (!$publicEntries.TryAdd($entry.FullName, $entry)) { throw "Duplicate public package entry: $($entry.FullName)" }
+        }
+        if ($candidateEntries.ContainsKey('.signature.p7s')) { throw "Candidate is already signed: $id" }
+        if (!$publicEntries.ContainsKey('.signature.p7s') -or $publicEntries['.signature.p7s'].Length -le 0) {
+            throw "Downloaded public package is not repository signed: $id"
+        }
+        if (!$publicEntries.ContainsKey("$id.nuspec")) { throw "Published package has no $id nuspec." }
+        $specEntry = $publicEntries["$id.nuspec"]
         $reader = [IO.StreamReader]::new($specEntry.Open())
         try { [xml]$spec = $reader.ReadToEnd() } finally { $reader.Dispose() }
         $metadata = $spec.SelectSingleNode('/*[local-name()="package"]/*[local-name()="metadata"]')
@@ -63,9 +72,15 @@ foreach ($id in $ids) {
             throw "Published package source differs from candidate: $id"
         }
         foreach ($name in @("$id.nuspec", 'LICENSE', 'README.md', "lib/net10.0/$id.dll", "lib/net10.0/$id.xml")) {
-            $before = $candidateArchive.GetEntry($name)
-            $after = $publicArchive.GetEntry($name)
-            if (!$before -or !$after) { throw "Missing package asset: $name" }
+            if (!$candidateEntries.ContainsKey($name) -or !$publicEntries.ContainsKey($name)) { throw "Missing package asset: $name" }
+        }
+        # NuGet repository signing adds only .signature.p7s; existing entry payloads, including
+        # OPC metadata, remain unchanged. Compare decompressed entries, independent of ZIP layout.
+        if ($publicEntries.Count -ne $candidateEntries.Count + 1) { throw "Published package entry set differs from candidate: $id" }
+        foreach ($name in $candidateEntries.Keys) {
+            if (!$publicEntries.ContainsKey($name)) { throw "Published package entry set differs from candidate: $id" }
+            $before = $candidateEntries[$name]
+            $after = $publicEntries[$name]
             $beforeStream = $null
             $afterStream = $null
             try {
