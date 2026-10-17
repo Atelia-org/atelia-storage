@@ -123,3 +123,17 @@ V4-B/D 的实际 kill 在 public 返回/应用边界，观测到的 data 恢复�
 进程补充取证：以`HEADSTORE_PROCESS_EVIDENCE_DIRECTORY=artifacts/reference-fork/process-evidence`运行`ReferenceForkProcessTests|InternalTailProcessTests`筛选，12/12通过；66份独立进程记录、12个实际强杀PID/READY/exitCode见该目录与`process-summary.json`。新增六个首CU窗口为first-end、all-ends、flush-1/2/3、confirmed，另覆盖fork首个body partial/complete尾恢复；RO验证不改文件，RW恢复后再RO复验。不外推设备掉电。
 
 源码消费补充：`.rename/HeadStorePackageSmoke.Source.csproj` Release build及实际运行通过，日志为`artifacts/reference-fork/source-consumer-build.log`、`source-smoke.log`。包含DG风格连续空fork、共享来源tag、首次保存与两层冷开；源码消费不代替隔离包消费。
+
+
+### 本轮本地六包与隔离消费
+
+状态：**Accepted（限定Windows源码、具名进程窗口与本地包消费）**。实现及本地包来源：`474dbe4ddfc12898a894c157f72ac5a44a7bcc80`；后续验收文档提交不改变来源。统一候选版本：`0.6.0-referencefork-local.20261017062944`，与旧包使用不同版本，不覆盖既有feed产物。
+
+```powershell
+./eng/Pack.ps1 -Version 0.6.0-referencefork-local.20261017062944 -OutputDirectory artifacts/reference-fork/feed/0.6.0-referencefork-local.20261017062944
+./eng/Test-Package.ps1 -Version 0.6.0-referencefork-local.20261017062944 -FeedDirectory artifacts/reference-fork/feed/0.6.0-referencefork-local.20261017062944 -WorkDirectory W:/AteliaStorage-referencefork-0.6.0-referencefork-local.20261017062944
+```
+
+六包及对应symbols/manifest生成成功，12个包产物hash通过验证。四个实际隔离public PackageReference消费者各仅直接引用一个Atelia包，实际闭包分别为Rbf三包、Binary+K4os两包、FrameStore五个Atelia+K4os、HeadStore六个Atelia+K4os，全部通过；168份本地源码checksum、PDB、静态Source Link、来源及冻结cache bytes检查通过。HeadStore消费者覆盖共享来源tag、连续空fork、首次保存和两层冷重开，实际运行不借ProjectReference。
+
+manifest位于`artifacts/reference-fork/feed/0.6.0-referencefork-local.20261017062944/manifest.0.6.0-referencefork-local.20261017062944.json`；隔离assets和逐项日志保留在`W:/AteliaStorage-referencefork-0.6.0-referencefork-local.20261017062944/logs/`，包括`head-store-smoke.log`与`metadata-check.log`；运行参数另存`artifacts/reference-fork/package-run.json`。消费方可固定该版本或从对应source revision重新验收；日常PackageReference不会自动跟随兄弟仓源码。未推送Git、公开发布包、更新DG pin或取得Linux/断电/远端Source Link下载资格。
