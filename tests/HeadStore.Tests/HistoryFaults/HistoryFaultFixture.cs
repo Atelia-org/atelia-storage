@@ -37,7 +37,8 @@ internal sealed class HistoryFaultFixture : IDisposable {
 
     internal HistorySeed Seed(uint localId, params byte[][] payloads) => Seed(localId, null, payloads);
 
-    internal HistorySeed SeedFork(uint localId, HistorySeed source, int sourceIndex = 0) {
+    // A controlled fork mirror with one explicit local publication, not an automatically cloned Entry.
+    internal HistorySeed SeedPublishedFork(uint localId, HistorySeed source, int sourceIndex = 0) {
         var origin = new ForkOrigin(source.HeadId, source.Tickets[sourceIndex]);
         return Seed(localId, origin, [source.Payloads[sourceIndex]]);
     }

@@ -55,7 +55,7 @@ public sealed class TagErrorPropagationTests {
         Assert.True(lookup.UnknownName);
         Assert.Equal("HeadStore.TagLookupUncertain", lookup.GetUniqueMetadata().Error!.ErrorCode);
         f.Close();
-        Assert.Contains(f.LoggedReads(), read => read.Offset == f.Records[0].Offset + 4 + 12
+        Assert.Contains(f.LoggedReads(), read => read.Offset == f.Records[0].Offset + 4 + 16
             && read.Length == 18 && read.Returned == 18);
     }
 
@@ -110,7 +110,7 @@ public sealed class TagErrorPropagationTests {
         using var f = new TagFaultFixture(new TagFaultRecord(TagFaultFixture.Payload(), TagFaultFixture.Metadata()));
         f.Open(writable: true);
         CheckedTagBucketHeader header = f.CheckHeader();
-        long metaOffset = f.Records[0].Offset + 4 + 12;
+        long metaOffset = f.Records[0].Offset + 4 + 16;
         bool injected = false;
         f.BeginObservation();
         f.BeforeRead = (offset, length, raw) => {
@@ -184,7 +184,7 @@ public sealed class TagErrorPropagationTests {
             "eof-exception" => new EndOfStreamException("actual meta read"),
             _ => new OutOfMemoryException("actual meta read")
         };
-        long targetMeta = f.Records[1].Offset + 4 + 12;
+        long targetMeta = f.Records[1].Offset + 4 + 16;
         f.BeforeRead = (offset, length, raw) => {
             if (raw && offset == targetMeta && length == 23) { throw primary; }
         };
@@ -285,7 +285,7 @@ public sealed class TagErrorPropagationTests {
             if (operation == "resolve" && offset == f.Records[0].Offset && length == f.Records[0].Length) {
                 completedLastRead = true;
             }
-            else if (operation == "metadata" && offset == f.Records[0].Offset + 4 + 12 && length == 23) {
+            else if (operation == "metadata" && offset == f.Records[0].Offset + 4 + 16 && length == 23) {
                 completedLastRead = true;
             }
         };

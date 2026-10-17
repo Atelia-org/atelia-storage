@@ -1,5 +1,7 @@
 # HeadSetTag 具名成员表替换旧 bytes tag
 
+后续合同更新（2026-10-17）：本文保留当轮方案与证据语境。当前引用初始化 fork 采用格式3，取消初始克隆，ForkHead返回HeadId；HeadSetTag采用16B独立key/value映射。现行合同以[04](04-versionstore-publication.md)、[05](05-versionstore-names-and-indexes.md)、[09](09-versionstore-immutable-tags.md)为准；本文格式1/2、clone、key==owner及对应旧Accepted不覆盖该重构。
+
 日期：2026-10-16。状态：已实施，Windows源码、进程与本地包消费验收通过；当前合同已归入 [09 tag 规范](09-versionstore-immutable-tags.md)，本篇记录决策和施工范围，不另立第二份合同。实际结果见[16验收记录](16-headset-tags-acceptance.md)，不沿用旧bytes tag资格。[重命名方案](15-headstore-renaming-plan.md)先行（行为保持重命名已通过 Windows Release 源码验收，范围以该篇第6节为准），本篇用目标名称描述新合同。设计审阅不是源码、进程或包消费验收。
 
 ## 1. 最小模型与需求账本

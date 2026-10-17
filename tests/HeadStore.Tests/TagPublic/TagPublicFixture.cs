@@ -37,7 +37,7 @@ internal sealed class TagPublicFixture : IDisposable {
     // Independent published format assembly: public VSID + public BPV/CRC/RBF only.
     internal byte[] Header(string name) {
         byte[] bytes = new byte[24];
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes, 2);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes, 3);
         Identity.CopyTo(bytes, 4);
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(20), Bucket(name));
         return bytes;

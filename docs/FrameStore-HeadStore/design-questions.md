@@ -1,5 +1,7 @@
 # 设计阶段待定问题：FrameStore 与 HeadStore
 
+2026-10-17 后续收敛：本文按日期保留既往问题与决定，clone/子初始Entry/ForkHead返回HeadEntryId/格式2均为当时语境。当前合同采用引用初始化fork、ForkHead返回HeadId及格式3/16B独立tag key/value，权威见[04](../HeadStore/04-versionstore-publication.md)、[05](../HeadStore/05-versionstore-names-and-indexes.md)、[09](../HeadStore/09-versionstore-immutable-tags.md)。
+
 命名更新：2026-10-16 活跃合同采用 HeadStore/Head/Entry；既有验收与历史包仍保持 VersionStore 来源身份，本轮验证见[重命名记录](../HeadStore/15-headstore-renaming-plan.md)。
 
 日期：2026-10-04–11；既有定稿移出设计队列；D3 的建库/根锁/唯一 pending/ListHeads 与停用清理已定于 S4。不可变 tag 的名称/容量、1024桶路由、独立元信息CRC、时间/count及元信息公面已定于 [S5-B 专项](../HeadStore/09-versionstore-immutable-tags.md)，D8 不回到待定队列；当前没有设计阶段待定项，后续转交相应实施片与验收。状态：**Informative / Derived；问题导航，不是新增实施阶段或规范输入**。

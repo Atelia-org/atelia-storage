@@ -157,7 +157,7 @@ internal static class TagGoldenScenario {
             using (var header = file.ReadPooledFrame(scan.Current.Ticket).Unwrap()) {
                 ReadOnlySpan<byte> bytes = header.PayloadAndMeta;
                 Require(header.Tag == 0 && !header.IsTombstone && header.TailMetaLength == 0 && bytes.Length == 24
-                    && BinaryPrimitives.ReadUInt32LittleEndian(bytes) == 2
+                    && BinaryPrimitives.ReadUInt32LittleEndian(bytes) == 3
                     && bytes.Slice(4, 16).SequenceEqual(Convert.FromBase64String(manifest.HeadStoreId))
                     && BinaryPrimitives.ReadUInt32LittleEndian(bytes[20..]) == bucket, "Bucket header identity/format/id differs from its fixed golden path.");
             }
@@ -176,9 +176,10 @@ internal static class TagGoldenScenario {
                 Require(index >= 0 && Goldens[index].Bucket == bucket && names.Add(name), "Physical name was rewritten, duplicated or routed to the wrong golden bucket.");
                 Entry entry = manifest.Entries[index];
                 ReadOnlySpan<byte> members = frame.PayloadAndMeta[..^frame.TailMetaLength];
-                Require(time == entry.RecordedAtUnixMs && count == 1 && members.Length == 12
+                Require(time == entry.RecordedAtUnixMs && count == 1 && members.Length == 16
                     && BinaryPrimitives.ReadUInt32LittleEndian(members) == entry.LocalHeadId
-                    && BinaryPrimitives.ReadUInt64LittleEndian(members[4..]) == entry.Ticket,
+                    && BinaryPrimitives.ReadUInt32LittleEndian(members[4..]) == entry.LocalHeadId
+                    && BinaryPrimitives.ReadUInt64LittleEndian(members[8..]) == entry.Ticket,
                     "Physical member table or metadata differs from the public golden record.");
             }
             Require(scan.TerminationError is null && names.Count == Goldens.Count(golden => golden.Bucket == bucket),

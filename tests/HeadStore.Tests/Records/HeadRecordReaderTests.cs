@@ -110,8 +110,8 @@ public sealed class HeadRecordReaderTests : IDisposable {
         CheckedHeadHeader header = HeadRecordReader.CheckHeader(file, Identity, Id).Unwrap();
         Assert.Equal(Id, header.HeadId);
         Assert.Equal(headerTicket, header.HeaderTicket);
-        Assert.Equal(file.GetPhysicalOffsetImmediatelyAfter(headerTicket), header.InitialEntryOffset);
-        Assert.Equal(expectedOffset, header.InitialEntryOffset);
+        Assert.Equal(file.GetPhysicalOffsetImmediatelyAfter(headerTicket), header.RecordsOffset);
+        Assert.Equal(expectedOffset, header.RecordsOffset);
         Assert.Equal(origin, header.Origin);
 
         SizedPtr initial = AppendEntry(file, new byte[] { 0xff });

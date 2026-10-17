@@ -1,5 +1,7 @@
 # VersionStore 独立源码验收与条款映射（V4-E / V4-F）
 
+2026-10-17 引用初始化 fork 的新增资格见本文末节；下述 V4-E/V4-F 保持原 revision、名称与范围，不作为格式3证据。
+
 日期：2026-10-11。V4-E审查基线：`9e751d4`；V4-F组合增量基线：`3274558`。本记录消费 [S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)、[08](08-versionstore-record-metadata.md)–[11](11-versionstore-root-payload-bytes-api.md) 的已实施合同及 [S6](../FrameStore-HeadStore/06-integration-and-delivery.md) 的分层取证要求；不增加协议或重标历史运行结果。
 
 状态：**Accepted（独立 source-only 源码资格）。** S4/S5及08–11的已实施 ref/历史/fork/tag/Audit/可选 RootMap 合同取得本记录限定的资格；V4-E发现的P2已修复并通过两平台回归。V4-F的具名内部窗口和组合增量单列在末节；后续 S6-C/D 本地候选资格另见[包交付记录](../FrameStore-HeadStore/13-local-package-delivery.md)，不重标本次源码证据；应用迁移保留独立出口；未来批量/CU不在本次Accepted范围。
@@ -97,3 +99,27 @@ V4-B/D 的实际 kill 在 public 返回/应用边界，观测到的 data 恢复�
 内部宿主使用原有发布hooks、两项Append后可空action和现有RBF写出观察；factory只有显式internal testHooks非null才转交runtime operations，观察恢复不能绕过根/锁/门/发现或提前裸RBF修尾。RBF新增的IVT仅给测试程序集；现有public consumer仍只用public API。同步 out/OOM/必要close异常继续由Internal/Source负责。上述有限代表不外推任意字节切点、多缓冲输出、恢复再中断、物理设备故障或断电资格。
 
 包注册、隔离 PackageReference、发布、DurableGraph 接入及 CU 不属于本队列。S6 最低出口还要求隔离包消费，所以不能因源码 Accepted 宣布 S6 Accepted。
+
+
+## 2026-10-17：引用初始化 fork / 格式3
+
+本轮按现行04/05/07/08/09/11合同完成引用初始化。两个ForkHead重载返回新HeadId，只发布准确来源header；当前值可属于另一Head，首次本地SingleEntry/CU均可发布。tag改为16B独立selected/owner/ticket映射。统一格式3拒绝1/2，不提供旧格式或旧返回值兼容。
+
+核心源码、历史/Audit、tag及测试分包实施，另有独立只读生产复核；主线程核对代码、预算和CU访问范围，并进行集成运行。删除克隆比较、逐child重开和旧克隆捕获helper；来源读取复用GetOrOpen/准确读取，Audit按来源ticket去重。临时17施工文档已由现行合同吸收并删除，方案可从Git历史追溯。
+
+| 验证 | 实际结果与证据 |
+| --- | --- |
+| Windows Release build | `dotnet build Atelia.Storage.slnx -c Release`：0 warnings / 0 errors；`artifacts/reference-fork/build-final.log` |
+| 完整solution测试 | `dotnet test Atelia.Storage.slnx -c Release --no-build --logger trx --results-directory artifacts/reference-fork/tests-final`：3437 passed、0 failed、10 platform skips、3447 total；六份TRX及`test-summary.json` |
+| 分项 | Primitives75、Binary214、Data339、Rbf856、FrameStore438+4 skips、HeadStore1515+6 skips |
+| 新语义 | `ConditionalUpdateIntegration/ReferenceForkTests`：连续空fork、父子/共享来源首CU、合法未成立回到来源、必要peer错误、header前驱复用及未读替代payload、history回调句柄、来源CU确认失败；均在上述完整suite通过 |
+| 历史/Audit/tag | 精确root预算保持、空fork过渡计费、80个共享空fork仅计真实Entry；tag多key共享value、错跨Head来源/缺selected、selected+source+CUpeer确认、格式1/2拒绝，均在完整suite通过 |
+| 进程窗口 | 完整suite含新增`ReferenceForkProcessTests`六个首CU窗口及fork首次body partial/complete两种恢复窗口；实际PID/READY/kill与源码消费补充证据单列下段 |
+| 范围 | Windows源码与具名进程测试通过；Linux新增资格、真实设备断电、远端Source Link、公开发布及DG迁移未执行；本地包资格单独记录 |
+
+首轮集成发现的旧版本/Entry计数/来源读取次数及history预算断言已按新语义修订；最终完整重跑通过，未放松生产CU/CRC/错误传播规则。旧历史来源、不可变evidence JSON和既有包manifest保持原样。
+
+
+进程补充取证：以`HEADSTORE_PROCESS_EVIDENCE_DIRECTORY=artifacts/reference-fork/process-evidence`运行`ReferenceForkProcessTests|InternalTailProcessTests`筛选，12/12通过；66份独立进程记录、12个实际强杀PID/READY/exitCode见该目录与`process-summary.json`。新增六个首CU窗口为first-end、all-ends、flush-1/2/3、confirmed，另覆盖fork首个body partial/complete尾恢复；RO验证不改文件，RW恢复后再RO复验。不外推设备掉电。
+
+源码消费补充：`.rename/HeadStorePackageSmoke.Source.csproj` Release build及实际运行通过，日志为`artifacts/reference-fork/source-consumer-build.log`、`source-smoke.log`。包含DG风格连续空fork、共享来源tag、首次保存与两层冷开；源码消费不代替隔离包消费。

@@ -15,7 +15,7 @@ internal static class TagTestWire {
     internal static StoreIdentity Identity => FormatTestValues.Identity();
 
     internal static byte[] Header(uint bucketId) {
-        byte[] result = Convert.FromHexString("02000000" + FormatTestValues.IdentityHex + "00000000");
+        byte[] result = Convert.FromHexString("03000000" + FormatTestValues.IdentityHex + "00000000");
         BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(20), bucketId);
         return result;
     }
@@ -63,15 +63,16 @@ internal static class TagTestWire {
         return Seal(Join(fields, nameWire ?? Name(name)));
     }
 
-    internal static byte[] Members(uint localId = 1, SizedPtr? ticket = null) {
-        byte[] bytes = new byte[12];
+    internal static byte[] Members(uint localId = 1, SizedPtr? ticket = null, uint? ownerLocalId = null) {
+        byte[] bytes = new byte[16];
         BinaryPrimitives.WriteUInt32LittleEndian(bytes, localId);
-        BinaryPrimitives.WriteUInt64LittleEndian(bytes.AsSpan(4), (ticket ?? SizedPtr.Create(60, 40)).Packed);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4), ownerLocalId ?? localId);
+        BinaryPrimitives.WriteUInt64LittleEndian(bytes.AsSpan(8), (ticket ?? SizedPtr.Create(60, 40)).Packed);
         return bytes;
     }
 
-    internal static byte[] MemberBytes(this HeadSetTag tag) => Join(tag.Entries.Values
-        .OrderBy(entry => entry.HeadId.LocalId).Select(entry => Members(entry.HeadId.LocalId, entry.Ticket)).ToArray());
+    internal static byte[] MemberBytes(this HeadSetTag tag) => Join(tag.Entries
+        .OrderBy(pair => pair.Key.LocalId).Select(pair => Members(pair.Key.LocalId, pair.Value.Ticket, pair.Value.HeadId.LocalId)).ToArray());
 
     internal static byte[] MemberSequence(int count) => Join(Enumerable.Range(1, count).Select(id => Members((uint)id)).ToArray());
 

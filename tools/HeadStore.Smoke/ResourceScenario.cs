@@ -49,15 +49,15 @@ internal static class ResourceScenario {
                     HeadEntryId selected = heads.PublishHead(initial.HeadId, WritePayload(data, first, 1), out outcome).Unwrap();
                     Confirmed(outcome);
                     if (first + 1 <= size) {
-                        HeadEntryId child = heads.ForkHead(selected, out outcome).Unwrap();
+                        HeadId child = heads.ForkHead(selected, out outcome).Unwrap();
                         Confirmed(outcome);
-                        Require(child.HeadId.LocalId == first + 1, "Automatic child numbering differs.");
-                        HeadEntryId advanced = heads.PublishHead(child.HeadId, WritePayload(data, first + 1, 10), out outcome).Unwrap();
+                        Require(child.LocalId == first + 1, "Automatic child numbering differs.");
+                        HeadEntryId advanced = heads.PublishHead(child, WritePayload(data, first + 1, 10), out outcome).Unwrap();
                         Confirmed(outcome);
                         if (first + 2 <= size) {
-                            HeadEntryId grandchild = heads.ForkHead(advanced, out outcome).Unwrap();
+                            HeadId grandchild = heads.ForkHead(advanced, out outcome).Unwrap();
                             Confirmed(outcome);
-                            Require(grandchild.HeadId.LocalId == first + 2, "Automatic grandchild numbering differs.");
+                            Require(grandchild.LocalId == first + 2, "Automatic grandchild numbering differs.");
                         }
                     }
                     // The first exact fork has a growing source suffix; inherited child history stays fixed.
@@ -68,9 +68,10 @@ internal static class ResourceScenario {
                 }
                 Measure(root, "CreateTag.all.hotAndOrdinary", 1, () => {
                     for (uint id = 1; id <= size; id++) {
-                        HeadEntry head = heads.ReadHead(id).Unwrap();
-                        HeadSetTag tag = heads.CreateTag(names[id - 1], [head.Id.HeadId], out var outcome).Unwrap();
-                        Require(tag.Entries.Count == 1 && tag.Entries[head.Id.HeadId] == head.Id, "Tag captured another Entry.");
+                        HeadId selected = heads.ListHeads().Unwrap().Single(head => head.LocalId == id);
+                        HeadEntry head = heads.ReadHead(selected).Unwrap();
+                        HeadSetTag tag = heads.CreateTag(names[id - 1], [selected], out var outcome).Unwrap();
+                        Require(tag.Entries.Count == 1 && tag.Entries[selected] == head.Id, "Tag captured another Entry.");
                         Confirmed(outcome);
                     }
                     return size;
@@ -169,7 +170,7 @@ internal static class ResourceScenario {
                         }, measurements);
                         Measure(root, $"ReadTag.ref-{id}", iteration, () => {
                             HeadSetTag tag = heads.ReadTag(names[id - 1]).Unwrap();
-                            Require(tag.Entries.Count == 1 && tag.Entries[currentEntries[id - 1].HeadId] == currentEntries[id - 1],
+                            Require(tag.Entries.Count == 1 && tag.Entries[refs.Single(head => head.LocalId == id)] == currentEntries[id - 1],
                                 "Tag member differs from the independently verified history.");
                             return tag;
                         }, measurements);
@@ -203,7 +204,7 @@ internal static class ResourceScenario {
                         for (uint id = 1; id <= size; id++) {
                             HeadEntry entry = heads.ReadHead(id).Unwrap();
                             ExpectedEntry expected = ExpectedHistory(id, size)[0];
-                            Require(entry.Id.HeadId.LocalId == id, "ReadHead returned another ref.");
+                            Require(entry.Id.HeadId.LocalId == expected.LocalHeadId, "ReadHead returned an unexpected Entry owner.");
                             ValidatePayload(data, entry.Payload, expected.Creator, expected.Generation);
                         }
                         return size;
@@ -261,7 +262,7 @@ internal static class ResourceScenario {
             HeadEntryId selected = child % 3 == 2 ? sourceHistory[^2] : sourceHistory[0];
             Require(fork.SourceHeadId == selected.HeadId && fork.SourceEntryTicket.Packed == selected.Ticket.Packed, "Declared exact fork point differs.");
             List<HeadEntryId> childHistory = histories[child];
-            int ownLength = child % 3 == 2 ? 2 : 1;
+            int ownLength = child % 3 == 2 ? 1 : 0;
             Require(childHistory[ownLength] == selected, "Inherited prefix starts at a different exact entryId.");
             int selectedIndex = sourceHistory.IndexOf(selected);
             Require(childHistory.Skip(ownLength).SequenceEqual(sourceHistory.Skip(selectedIndex)), "Inherited prefix closure differs.");
@@ -276,10 +277,10 @@ internal static class ResourceScenario {
                 .Select(generation => new ExpectedEntry(first, first, generation)).ToArray();
         }
         var child = new[] {
-            new ExpectedEntry(first + 1, first + 1, 10), new ExpectedEntry(first + 1, first, 1),
+            new ExpectedEntry(first + 1, first + 1, 10),
             new ExpectedEntry(first, first, 1), new ExpectedEntry(first, first, 0)
         };
-        return id % 3 == 2 ? child : new[] { new ExpectedEntry(id, first + 1, 10) }.Concat(child).ToArray();
+        return child;
     }
 
     private static int SuffixLength(uint first, int size) { return first == 1 ? size : 2; }
@@ -287,12 +288,12 @@ internal static class ResourceScenario {
     private static Counts ExpectedCounts(int size, string[] names) {
         long entries = 0, forks = 0, histories = 0;
         for (uint id = 1; id <= size; id++) {
-            entries += id % 3 == 1 ? 2 + SuffixLength(id, size) : id % 3 == 2 ? 2 : 1;
+            entries += id % 3 == 1 ? 2 + SuffixLength(id, size) : id % 3 == 2 ? 1 : 0;
             forks += id % 3 == 1 ? 0 : 1;
             histories += ExpectedHistory(id, size).Length;
         }
         int[] bucketCounts = names.GroupBy(TagBucket).Select(group => group.Count()).ToArray();
-        return new Counts(size, entries, forks, size, histories, entries - forks, bucketCounts.Length, bucketCounts.Max());
+        return new Counts(size, entries, forks, size, histories, entries, bucketCounts.Length, bucketCounts.Max());
     }
 
     private static byte[] WritePayload(DataStore data, uint creator, int generation) {

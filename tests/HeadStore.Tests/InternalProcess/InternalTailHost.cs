@@ -22,7 +22,7 @@ internal static class InternalTailHost {
         string command = args[0], root = Path.GetFullPath(args[1]), scenario = args[2];
         bool tag = IsTag(scenario);
         switch (command) {
-            case "tail.seed": Seed(command, root); break;
+            case "tail.seed": Seed(command, root, scenario); break;
             case "tail.interrupt": Interrupt(command, root, scenario, tag); break;
             case "tail.readonly-reject": RejectReadOnly(command, root, scenario, tag); break;
             case "tail.recover": ReadState(command, root, scenario, tag, readOnly: false); break;
@@ -42,25 +42,32 @@ internal static class InternalTailHost {
     }
 
     private static bool IsTag(string scenario) => scenario switch {
-        "ref-body-partial" or "ref-body-complete" => false,
+        "ref-body-partial" or "ref-body-complete" or "fork-body-partial" or "fork-body-complete" => false,
         "tag-body-partial" or "tag-body-complete" => true,
         _ => throw new ArgumentException($"Unknown physical-tail scenario '{scenario}'.")
     };
 
     private static string DataRoot(string root) => Path.Combine(root, "data");
     private static string VersionRoot(string root) => Path.Combine(root, "heads");
-    private static string HeadPath(string root) => Path.Combine(VersionRoot(root), HeadStorePaths.GetHeadRelativePath(LocalHeadId));
+    private static bool IsFork(string scenario) => scenario.StartsWith("fork-", StringComparison.Ordinal);
+    private static uint TargetId(string scenario) => IsFork(scenario) ? 2u : LocalHeadId;
+    private static string HeadPath(string root, string scenario) => Path.Combine(VersionRoot(root), HeadStorePaths.GetHeadRelativePath(TargetId(scenario)));
     private static string TagPath(string root) => Path.Combine(VersionRoot(root), "tags", TagNameCodec.GetBucketFileName(TagNameCodec.GetBucketId(TagName)));
 
-    private static void Seed(string command, string root) {
+    private static void Seed(string command, string root, string scenario) {
         Directory.CreateDirectory(root);
         using var data = DataStore.Create(DataRoot(root));
-        using var store = Store.Create(VersionRoot(root), data, reservedHeadIdUpperBound: LocalHeadId);
+        using var store = Store.Create(VersionRoot(root), data, reservedHeadIdUpperBound: 2);
         var entryId = store.CreateHead(LocalHeadId, OldPayload(), out PublicationOutcome outcome).Unwrap();
         Require(outcome == PublicationOutcome.Confirmed, "Seed ref was not confirmed.");
+        if (IsFork(scenario)) {
+            HeadId child = store.ForkHead(2, entryId, out outcome).Unwrap();
+            Require(outcome == PublicationOutcome.Confirmed && store.ReadHead(child).Unwrap().Id == entryId,
+                "Seed fork must resolve the source Entry without cloning it.");
+        }
         InternalProcessHost.Complete(command, new {
             headId = entryId.HeadId.LocalId, ticketOffset = entryId.Ticket.Offset,
-            ticketLength = entryId.Ticket.Length, headLength = new FileInfo(HeadPath(root)).Length
+            ticketLength = entryId.Ticket.Length, headLength = new FileInfo(HeadPath(root, scenario)).Length
         });
     }
 
@@ -68,10 +75,10 @@ internal static class InternalTailHost {
         using var data = DataStore.Open(DataRoot(root));
         using var store = HeadStoreFactory.Open(VersionRoot(root), data, readOnly: false,
             testHooks: new HeadStoreTestHooks { GetRecordedAtUnixMs = () => RecordedAt });
-        var source = store.ReadHead(LocalHeadId).Unwrap();
+        var source = store.ReadHead(TargetId(scenario)).Unwrap();
         byte[] payload = NewPayload();
         int metaLength = RecordMetadataCodec.EncodedSize;
-        string target = HeadPath(root);
+        string target = HeadPath(root, scenario);
         long frameOffset = new FileInfo(target).Length;
         if (tag) {
             Require(StoreIdentity.TryRead(store.HeadStoreId, out StoreIdentity identity), "Missing VS identity.");
@@ -82,7 +89,7 @@ internal static class InternalTailHost {
             frameOffset = RbfScanBoundary.Empty.EndExclusive
                 + RbfFile.MeasureWriteSize(TagBucketHeaderCodec.PayloadSize).Unwrap().AppendLength;
         }
-        RbfWriteSize size = RbfFile.MeasureWriteSize(tag ? 12 : payload.Length, metaLength).Unwrap();
+        RbfWriteSize size = RbfFile.MeasureWriteSize(tag ? 16 : payload.Length, metaLength).Unwrap();
         bool completeBody = scenario.EndsWith("body-complete", StringComparison.Ordinal);
         long cutLength = completeBody ? frameOffset + size.FrameLength - sizeof(uint) : frameOffset + sizeof(uint) + 7;
         long completeLength = frameOffset + size.AppendLength;
@@ -120,7 +127,7 @@ internal static class InternalTailHost {
         };
         try {
             if (tag) { store.CreateTag(TagName, [source.Id.HeadId], out _).Unwrap(); }
-            else { store.PublishHead(source.Id.HeadId, payload, out _).Unwrap(); }
+            else { store.PublishHead(store.ListHeads().Unwrap().Single(id => id.LocalId == TargetId(scenario)), payload, out _).Unwrap(); }
             throw new InvalidOperationException("The writer returned without parking inside its short-write observation.");
         }
         finally { RbfWriteInstrumentation.Current = null; }
@@ -129,18 +136,18 @@ internal static class InternalTailHost {
     private static void RejectReadOnly(string command, string root, string scenario, bool tag) {
         using var data = DataStore.OpenReadOnly(DataRoot(root));
         using var store = Store.OpenReadOnly(VersionRoot(root), data);
-        Require(store.ListHeads().Unwrap().Single().LocalId == LocalHeadId, "Formal ref root discovery failed.");
+        Require(store.ListHeads().Unwrap().Select(id => id.LocalId).Order().SequenceEqual(IsFork(scenario) ? new uint[] { 1, 2 } : new uint[] { 1 }), "Formal ref root/fork discovery failed.");
         Exception? rejection = null;
         try {
             if (tag) { store.ReadTagInfo(TagName).Unwrap(); }
-            else { store.ReadHead(LocalHeadId).Unwrap(); }
+            else { store.ReadHead(TargetId(scenario)).Unwrap(); }
         }
         catch (InvalidDataException error) { rejection = error; }
         Require(rejection is not null, "Fresh RO must reject an incomplete physical tail.");
         InternalProcessHost.Complete(command, new {
             scenario, rejected = true, stage = tag ? "tag-content-open" : "ref-content-open",
             errorType = rejection!.GetType().Name, error = rejection.Message,
-            physicalLength = new FileInfo(tag ? TagPath(root) : HeadPath(root)).Length
+            physicalLength = new FileInfo(tag ? TagPath(root) : HeadPath(root, scenario)).Length
         });
     }
 
@@ -149,8 +156,8 @@ internal static class InternalTailHost {
         var operations = new TailRecoveryOperations();
         using var store = HeadStoreFactory.Open(VersionRoot(root), data, readOnly,
             operations, testHooks: new HeadStoreTestHooks());
-        Require(store.ListHeads().Unwrap().Single().LocalId == LocalHeadId, "Formal ref root discovery failed.");
-        var entry = store.ReadHead(LocalHeadId).Unwrap();
+        Require(store.ListHeads().Unwrap().Select(id => id.LocalId).Order().SequenceEqual(IsFork(scenario) ? new uint[] { 1, 2 } : new uint[] { 1 }), "Formal ref root/fork discovery failed.");
+        var entry = store.ReadHead(TargetId(scenario)).Unwrap();
         bool keepsNew = scenario.EndsWith("body-complete", StringComparison.Ordinal);
         Require(entry.Payload.SequenceEqual(!tag && keepsNew ? NewPayload() : OldPayload()),
             "The recovered ref root was neither the expected complete old nor complete new payload.");
@@ -170,10 +177,10 @@ internal static class InternalTailHost {
                 1).EncodedLength;
             var firstTagOpen = operations.Opened.Single(open => SamePath(open.Path, TagPath(root)));
             metadataRechecked = firstTagOpen.Reads.Any(read => !read.Raw
-                && read.Offset == frameOffset + sizeof(uint) + 12 && read.Length == metaLength);
+                && read.Offset == frameOffset + sizeof(uint) + 16 && read.Length == metaLength);
             Require(metadataRechecked, "The recovered tag's actual small TailMeta was not read by ReadTagInfo.");
             Require(!firstTagOpen.Reads.Any(read => !read.Raw && read.Offset == frameOffset
-                && read.Length == RbfFile.MeasureWriteSize(12, metaLength).Unwrap().FrameLength),
+                && read.Length == RbfFile.MeasureWriteSize(16, metaLength).Unwrap().FrameLength),
                 "ReadTagInfo unexpectedly read the complete root frame.");
             tagInfo = new {
                 name = info.Name, recordedAtUnixMs = info.RecordedAtUnixMs,
@@ -195,8 +202,8 @@ internal static class InternalTailHost {
         object? audit = null;
         if (readOnly) {
             HeadStoreAudit checkedAudit = store.Audit().Unwrap();
-            Require(checkedAudit.HeadCount == 1 && checkedAudit.EntryCount == (!tag && keepsNew ? 2 : 1)
-                && checkedAudit.OriginCount == 0 && checkedAudit.TagBucketCount == (tag ? 1 : 0)
+            Require(checkedAudit.HeadCount == (IsFork(scenario) ? 2 : 1) && checkedAudit.EntryCount == (!tag && keepsNew ? 2 : 1)
+                && checkedAudit.OriginCount == (IsFork(scenario) ? 1 : 0) && checkedAudit.TagBucketCount == (tag ? 1 : 0)
                 && checkedAudit.TagCount == (tag && keepsNew ? 1 : 0), "Full RO Audit counts differ.");
             audit = new {
                 headCount = checkedAudit.HeadCount, entryCount = checkedAudit.EntryCount,
@@ -204,7 +211,7 @@ internal static class InternalTailHost {
                 tagCount = checkedAudit.TagCount
             };
         }
-        string target = tag ? TagPath(root) : HeadPath(root);
+        string target = tag ? TagPath(root) : HeadPath(root, scenario);
         InternalProcessHost.Complete(command, new {
             scenario, readOnly, headPayload = Convert.ToHexString(entry.Payload),
             headTicketOffset = entry.Id.Ticket.Offset, headTicketLength = entry.Id.Ticket.Length,

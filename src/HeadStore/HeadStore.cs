@@ -165,24 +165,31 @@ public sealed partial class HeadStore : IDisposable {
         byte[] captured = payload.ToArray();
         var prepared = PrepareNewTarget(localId);
         if (prepared.IsFailure) { return prepared.Error!; }
-        return PublishNewHead(prepared.Value, captured, automatic, null, null, ref outcome);
+        var published = PublishNewHead(prepared.Value, captured, automatic, null, null, ref outcome, out SizedPtr ticket);
+        return published.IsFailure ? published.Error! : HeadEntryId.Create(published.Value, ticket);
     }
 
-    // All callers supply privately captured owned bytes; this synchronous helper never retains the span.
-    private AteliaResult<HeadEntryId> PublishNewHead(QualifiedHeadTarget target, ReadOnlySpan<byte> captured,
-        bool automatic, ForkOrigin? origin, IRbfFile? sourceFile, scoped ref PublicationOutcome outcome) {
+    // Roots supply privately captured payload; forks contain only a checked, fixed origin header.
+    private AteliaResult<HeadId> PublishNewHead(QualifiedHeadTarget target, ReadOnlySpan<byte> captured,
+        bool automatic, ForkOrigin? origin, HashSet<uint>? dependencies,
+        scoped ref PublicationOutcome outcome, out SizedPtr initialEntryTicket) {
+        initialEntryTicket = default;
         int headerPayloadSize = origin.HasValue
             ? HeadHeaderCodec.WithOriginPayloadSize
             : HeadHeaderCodec.NoOriginPayloadSize;
         var headerSize = RbfFile.MeasureWriteSize(headerPayloadSize);
         if (headerSize.IsFailure) { return headerSize.Error!; }
-        var entrySize = RbfFile.MeasureWriteSize(captured.Length, RecordMetadataCodec.EncodedSize);
-        if (entrySize.IsFailure) { return entrySize.Error!; }
         long headerOffset = RbfScanBoundary.Empty.EndExclusive;
-        long entryOffset = headerOffset + headerSize.Value.AppendLength;
-        if (!SizedPtr.TryCreate(headerOffset, headerSize.Value.FrameLength, out _)
-            || !SizedPtr.TryCreate(entryOffset, entrySize.Value.FrameLength, out _)) {
-            return new HeadStoreRuntimeError("HeadCapacityExceeded", "The initial head frames cannot represent complete tickets.");
+        if (!SizedPtr.TryCreate(headerOffset, headerSize.Value.FrameLength, out _)) {
+            return new HeadStoreRuntimeError("HeadCapacityExceeded", "The HeadHeader cannot represent a complete ticket.");
+        }
+        if (!origin.HasValue) {
+            var entrySize = RbfFile.MeasureWriteSize(captured.Length, RecordMetadataCodec.EncodedSize);
+            if (entrySize.IsFailure) { return entrySize.Error!; }
+            long entryOffset = headerOffset + headerSize.Value.AppendLength;
+            if (!SizedPtr.TryCreate(entryOffset, entrySize.Value.FrameLength, out _)) {
+                return new HeadStoreRuntimeError("HeadCapacityExceeded", "The initial Entry cannot represent a complete ticket.");
+            }
         }
         uint localId = target.LocalId;
         HeadId headId = HeadId.Create(_identity, localId);
@@ -190,22 +197,33 @@ public sealed partial class HeadStore : IDisposable {
         if (!HeadHeaderCodec.TryWrite(_identity, headId, origin, header)) {
             throw new InvalidOperationException("Cannot encode the prepared new head header.");
         }
-        long recordedAt = _testHooks?.GetRecordedAtUnixMs?.Invoke()
-            ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         Span<byte> tailMeta = stackalloc byte[RecordMetadataCodec.EncodedSize];
-        RecordMetadataCodec.TryWrite(recordedAt, tailMeta);
+        if (!origin.HasValue) {
+            long recordedAt = _testHooks?.GetRecordedAtUnixMs?.Invoke()
+                ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            RecordMetadataCodec.TryWrite(recordedAt, tailMeta);
+        }
+        uint[] dependencyIds = dependencies?.ToArray() ?? [];
+        Array.Sort(dependencyIds);
 
+        CleanupErrors errors = default;
         try {
             if (_testHooks?.ConfirmDataDurable is { } confirm) { confirm(); }
             else { _data.ConfirmDurable(); }
-            // The exact source is confirmed after data, before any private child output.
-            sourceFile?.DurableFlush();
+            // An inherited CU still needs its actual member files after the fork is published.
+            // Confirm the same accepted record's direct dependency set after data and before child output.
+            foreach (uint dependency in dependencyIds) {
+                var confirmed = ConfirmTagDependency(dependency);
+                if (confirmed.IsFailure) { return confirmed.Error!; }
+            }
             _pendingHead = _files.CreatePending(_markOwnedCleanupFault);
             EnsureOwnerUsable();
             // All pre-I/O rejections were prepared above. A private Append rejection is a plan failure,
             // so Unwrap stops this owner instead of leaving a healthy owner with an occupied pending.
             _pendingHead.Append(HeadRecordCodec.HeaderTag, header).Unwrap();
-            SizedPtr entryTicket = _pendingHead.Append(HeadRecordCodec.SingleEntryTag, captured, tailMeta).Unwrap();
+            if (!origin.HasValue) {
+                initialEntryTicket = _pendingHead.Append(HeadRecordCodec.SingleEntryTag, captured, tailMeta).Unwrap();
+            }
             _pendingHead.DurableFlush();
             IRbfFile toClose = _pendingHead;
             _pendingHead = null;
@@ -216,12 +234,18 @@ public sealed partial class HeadStore : IDisposable {
             outcome = PublicationOutcome.Confirmed;
             if (automatic) { _autoHeadIdHighWatermark = localId; }
             _testHooks?.AfterPublicationConfirmed?.Invoke();
-            return HeadEntryId.Create(headId, entryTicket);
+            return headId;
         }
         catch (Exception error) {
-            FaultAndCleanup(error);
-            throw;
+            _faulted = true;
+            errors.Add(error);
         }
+        finally {
+            CloseTagDependency(ref errors);
+            if (_faulted) { CleanupOwned(ref errors); }
+            errors.ThrowIfAny();
+        }
+        throw new InvalidOperationException("A failed new-head publication must propagate its exception.");
     }
 
     private AteliaResult<QualifiedHeadTarget> PrepareNewTarget(uint localId) {

@@ -10,7 +10,7 @@ public sealed class ForkPublicationFaultTests {
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ExactOldSourceIsReadTwiceBeforeDataAndSourceFlush_ThenChildIsPublishedWithFreshTime(bool specified) {
+    public void ExactOldSourceIsCheckedBeforeDataAndSourceFlush_ThenHeaderOnlyChildPreservesSourceTime(bool specified) {
         using var f = new ForkFaultFixture();
         byte[] payload = [0xff, 0, 0x80, 0x7f];
         HeadEntry source = f.Store.ReadHead(f.Seed(payload: payload)).Unwrap();
@@ -21,13 +21,13 @@ public sealed class ForkPublicationFaultTests {
         f.Operations.Clear();
         f.Hooks.GetRecordedAtUnixMs = () => { f.Operations.Add("clock"); return -456; };
 
-        HeadEntryId child = Fork(f.Store, source.Id, specified, out PublicationOutcome outcome).Unwrap();
+        HeadId child = Fork(f.Store, source.Id, specified, out PublicationOutcome outcome).Unwrap();
 
         Assert.Equal(PublicationOutcome.Confirmed, outcome);
-        Assert.Equal(TargetId(specified), child.HeadId.LocalId);
-        Assert.NotEqual(source.Id, child);
+        Assert.Equal(TargetId(specified), child.LocalId);
+        Assert.NotEqual(source.Id.HeadId, child);
         Assert.Equal(new[] {
-            "clock", "data:confirm", "flush:1", "pending:create", "append:0", "append:0",
+            "data:confirm", "flush:1", "pending:create", "append:0",
             "flush:0", "close:0", $"rename:{TargetId(specified)}"
         }, PublicationOperations(f.Operations));
         Assert.True(f.Operations.IndexOf("boundary:1") < f.Operations.IndexOf("data:confirm"));
@@ -38,16 +38,16 @@ public sealed class ForkPublicationFaultTests {
         Assert.Equal(0, f.Backend.ListCalls);
         Assert.Equal(2, f.Backend.Opened[1].FlushCalls); // PublishHead and this exact source confirmation.
         Assert.Equal(1, f.Backend.PendingFiles[0].DisposeCalls);
-        HeadEntry childValue = f.Store.ReadHead(child.HeadId).Unwrap();
-        Assert.Equal(child, childValue.Id);
+        HeadEntry childValue = f.Store.ReadHead(child).Unwrap();
+        Assert.Equal(source.Id, childValue.Id);
         Assert.Equal(payload, childValue.Payload.ToArray());
-        Assert.Equal(-456, childValue.RecordedAtUnixMs);
+        Assert.Equal(123, childValue.RecordedAtUnixMs);
         Assert.Equal(123, source.RecordedAtUnixMs);
         Assert.Equal(suffix, f.Store.ReadHead(source.Id.HeadId).Unwrap().Id);
 
         // Dispose flushes the real read log, including complete reads through RbfFrameInfo.
         f.Store.Dispose();
-        Assert.Equal(2, reader.CountCompleteReads(source.Id.Ticket));
+        Assert.Equal(4, reader.CountCompleteReads(source.Id.Ticket)); // Fork and inherited ReadHead each check payload and anchor Fence.
         Assert.Equal(1, reader.CountCompleteReads(suffix.Ticket)); // Only the explicit current read above touches the suffix.
         Assert.Equal(payload, source.Payload.ToArray());
         f.Data.EnsureUsable();
@@ -57,21 +57,22 @@ public sealed class ForkPublicationFaultTests {
     public void ForkOfForkFlushesOnlyItsExactSourceAndLeavesAncestorAndSourceHeadsUnchanged() {
         using var f = new ForkFaultFixture();
         HeadEntryId ancestor = f.Store.ReadHead(f.Seed(payload: [4, 3, 2, 1])).Unwrap().Id;
-        HeadEntryId source = f.Store.ForkHead(2u, ancestor, out _).Unwrap();
-        f.Store.ReadHead(source.HeadId).Unwrap();
+        HeadId emptyFork = f.Store.ForkHead(2u, ancestor, out _).Unwrap();
+        HeadEntryId source = f.Store.ReadHead(emptyFork).Unwrap().Id;
         f.Operations.Clear();
 
-        HeadEntryId child = f.Store.ForkHead(3u, source, out PublicationOutcome outcome).Unwrap();
+        HeadId child = f.Store.ForkHead(3u, source, out PublicationOutcome outcome).Unwrap();
 
         Assert.Equal(PublicationOutcome.Confirmed, outcome);
-        Assert.Equal(new[] { "flush:2", "flush:0" }, f.Operations.Where(op => op.StartsWith("flush:", StringComparison.Ordinal)));
-        Assert.DoesNotContain("forward:1", f.Operations);
-        Assert.DoesNotContain("boundary:1", f.Operations);
+        Assert.Equal(new[] { "flush:1", "flush:0" }, f.Operations.Where(op => op.StartsWith("flush:", StringComparison.Ordinal)));
+        Assert.DoesNotContain("forward:2", f.Operations);
+        Assert.DoesNotContain("boundary:2", f.Operations);
         Assert.DoesNotContain("append:1", f.Operations);
         Assert.DoesNotContain("append:2", f.Operations);
-        Assert.Equal(source, f.Store.ReadHead(source.HeadId).Unwrap().Id);
+        Assert.Equal(ancestor, source);
+        Assert.Equal(source, f.Store.ReadHead(emptyFork).Unwrap().Id);
         Assert.Equal(ancestor, f.Store.ReadHead(ancestor.HeadId).Unwrap().Id);
-        Assert.Equal(new byte[] { 4, 3, 2, 1 }, f.Store.ReadHead(child.HeadId).Unwrap().Payload.ToArray());
+        Assert.Equal(new byte[] { 4, 3, 2, 1 }, f.Store.ReadHead(child).Unwrap().Payload.ToArray());
     }
 
     [Theory]
@@ -132,8 +133,6 @@ public sealed class ForkPublicationFaultTests {
     [InlineData("create")]
     [InlineData("header-before")]
     [InlineData("header-after")]
-    [InlineData("entry-before")]
-    [InlineData("entry-after")]
     [InlineData("flush-before")]
     [InlineData("flush-after")]
     [InlineData("close")]
@@ -177,7 +176,6 @@ public sealed class ForkPublicationFaultTests {
 
     [Theory]
     [InlineData(1)]
-    [InlineData(2)]
     public void PrivateAppendResultRejectionStopsAsPlanFailureWithNotAttempted(int call) {
         using var f = new RuntimeFixture();
         HeadEntryId source = f.Store.ReadHead(f.Seed()).Unwrap().Id;
@@ -278,7 +276,7 @@ public sealed class ForkPublicationFaultTests {
         f.Data.EnsureUsable();
     }
 
-    internal static AteliaResult<HeadEntryId> Fork(HeadStore store, HeadEntryId source, bool specified, out PublicationOutcome outcome) =>
+    internal static AteliaResult<HeadId> Fork(HeadStore store, HeadEntryId source, bool specified, out PublicationOutcome outcome) =>
         specified ? store.ForkHead(2u, source, out outcome) : store.ForkHead(source, out outcome);
 
     private static uint TargetId(bool specified) => specified ? 2u : 18u;

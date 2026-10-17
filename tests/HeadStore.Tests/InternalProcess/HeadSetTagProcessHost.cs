@@ -40,14 +40,14 @@ internal static class HeadSetTagProcessHost {
                 [a.HeadId] = A, [b.HeadId] = B
             }, out outcome).Unwrap();
             Confirmed(outcome);
-            HeadEntryId child = store.ForkHead(3, group[a.HeadId], out outcome).Unwrap();
+            HeadId child = store.ForkHead(3, group[a.HeadId], out outcome).Unwrap();
             Confirmed(outcome);
             store.CreateHead(4, [0xcc], out outcome).Unwrap();
             Confirmed(outcome);
-            coordinates = new(group[a.HeadId].Ticket.Packed, group[b.HeadId].Ticket.Packed, child.Ticket.Packed);
+            coordinates = new(group[a.HeadId].Ticket.Packed, group[b.HeadId].Ticket.Packed, store.ReadHead(child).Unwrap().Id.Ticket.Packed);
         }
         File.WriteAllText(Path.Combine(root, "set-tag-coordinates.json"), JsonSerializer.Serialize(coordinates));
-        InternalProcessHost.Complete("set-tag.seed", new { heads = 4, entries = 6, origins = 1 });
+        InternalProcessHost.Complete("set-tag.seed", new { heads = 4, entries = 5, origins = 1 });
     }
 
     private static void Interrupt(string root, string scenario) {
@@ -99,7 +99,7 @@ internal static class HeadSetTagProcessHost {
         try {
             using var store = HeadStoreFactory.Open(InternalProcessHost.VersionPath(root), data, false, testHooks: hooks);
             HeadId a = store.ReadHead(1).Unwrap().Id.HeadId;
-            HeadId child = store.ReadHead(3).Unwrap().Id.HeadId;
+            HeadId child = store.ListHeads().Unwrap().Single(id => id.LocalId == 3);
             store.CreateTag(Name, [child, a], out outcome).Unwrap();
             throw new InvalidOperationException("CreateTag returned without reaching its kill checkpoint.");
         }
@@ -110,7 +110,7 @@ internal static class HeadSetTagProcessHost {
         using (var data = DataStore.Open(InternalProcessHost.DataPath(root)))
         using (var store = Store.Open(InternalProcessHost.VersionPath(root), data)) {
             for (uint id = 1; id <= 3; id++) {
-                store.PublishHead(store.ReadHead(id).Unwrap().Id.HeadId, Later, out var outcome).Unwrap();
+                store.PublishHead(store.ListHeads().Unwrap().Single(head => head.LocalId == id), Later, out var outcome).Unwrap();
                 Confirmed(outcome);
             }
         }
@@ -137,9 +137,9 @@ internal static class HeadSetTagProcessHost {
                 Require(value.Entries.Count == 2 && value.Entries.Keys.Select(id => id.LocalId).Order().SequenceEqual(new uint[] { 1, 3 }),
                     "A necessary CU peer or unrelated Head leaked into the selected table.");
                 HeadEntryId savedA = value.Entries[a.Id.HeadId];
-                HeadEntryId savedChild = value.Entries[child.Id.HeadId];
+                HeadEntryId savedChild = value.Entries[store.ListHeads().Unwrap().Single(id => id.LocalId == 3)];
                 Require(savedA.Ticket.Packed == expected.A && savedChild.Ticket.Packed == expected.Child
-                    && savedA.HeadId != savedChild.HeadId, "Captured CU/fork positions changed or child identity collapsed.");
+                    && savedA == savedChild, "Shared source coordinates changed or selected child identity was lost.");
                 Require(store.ReadEntry(savedA).Unwrap().Payload.SequenceEqual(A)
                     && store.ReadEntry(savedChild).Unwrap().Payload.SequenceEqual(A), "Exact tagged history failed after cold reopen.");
                 Require(store.ReadTagInfo(Name).Unwrap().EntryCount == 2, "Cold lightweight member count differs.");
@@ -153,7 +153,7 @@ internal static class HeadSetTagProcessHost {
                 == HeadSetTagScanEnd.Complete && scanned == (expectedTag ? 1 : 0), "Cold tag scan differs.");
             if (readOnly) {
                 var audit = store.Audit().Unwrap();
-                Require(audit.HeadCount == 4 && audit.EntryCount == (advanced ? 9 : 6) && audit.OriginCount == 1
+                Require(audit.HeadCount == 4 && audit.EntryCount == (advanced ? 8 : 5) && audit.OriginCount == 1
                     && audit.TagCount == (expectedTag ? 1 : 0), "Cold full Audit did not validate the selected dependencies.");
             }
         }

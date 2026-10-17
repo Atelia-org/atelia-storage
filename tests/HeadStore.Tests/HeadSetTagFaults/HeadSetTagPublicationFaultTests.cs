@@ -83,6 +83,57 @@ public sealed class HeadSetTagPublicationFaultTests {
             f.Events.Where(value => value == "data:confirm" || value.StartsWith("flush:", StringComparison.Ordinal)));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void HeaderOnlySelectedHeadsConfirmThemselvesAndSharedSourceCuDependenciesOnce(bool siblings) {
+        using var f = new ConditionalUpdateFaultFixture();
+        var published = SeedCu(f);
+        HeadId child;
+        HeadId sibling;
+        using (var writer = f.OpenPublic()) {
+            child = writer.ForkHead(4, published[f.Id(1)], out _).Unwrap();
+            sibling = writer.ForkHead(5, published[f.Id(1)], out _).Unwrap();
+        }
+        var store = f.Open();
+        f.Events.Clear();
+
+        HeadSetTag tag = store.CreateTag(Name, siblings ? [sibling, child] : [child], out var outcome).Unwrap();
+
+        Assert.Equal(PublicationOutcome.Confirmed, outcome);
+        Assert.All(tag.Entries, pair => Assert.Equal(published[f.Id(1)], pair.Value));
+        Assert.Equal(siblings ? 2 : 1, tag.Entries.Count);
+        Assert.Equal(siblings
+            ? new[] { "data:confirm", "flush:1", "flush:2", "flush:4", "flush:5" }
+            : new[] { "data:confirm", "flush:1", "flush:2", "flush:4" },
+            f.Events.Where(value => value == "data:confirm" || value.StartsWith("flush:", StringComparison.Ordinal)));
+        Assert.DoesNotContain(f.Operations.Files, file => file.Id == 3);
+        Assert.All(f.Operations.Files.Where(file => file.Id == 2), file => Assert.Equal(1, file.DisposeCalls));
+    }
+
+    [Theory]
+    [InlineData(0u)]
+    [InlineData(1u)]
+    [InlineData(2u)]
+    [InlineData(4u)]
+    public void HeaderOnlySelectionCannotAppendTagAfterDataSourcePeerOrSelectedConfirmationFails(uint failingId) {
+        using var f = new ConditionalUpdateFaultFixture();
+        var published = SeedCu(f);
+        HeadId child;
+        using (var writer = f.OpenPublic()) { child = writer.ForkHead(4, published[f.Id(1)], out _).Unwrap(); }
+        var failure = new IOException("reference tag dependency confirmation");
+        f.Operations.ConfigureOpen = file => { if (file.Id == failingId) { file.FlushFailure = failure; } };
+        var store = f.Open();
+        if (failingId == 0) { f.Hooks.ConfirmDataDurable = () => throw failure; }
+        PublicationOutcome outcome = PublicationOutcome.Confirmed;
+
+        Assert.Same(failure, Assert.Throws<IOException>(() => store.CreateTag(Name, [child], out outcome)));
+
+        Assert.Equal(PublicationOutcome.NotAttempted, outcome);
+        f.AssertFaultCleanup();
+        AssertColdMissing(f);
+    }
+
     [Fact]
     public void UnknownCuWithAllEndsCompleteIsAcceptedAfterReopenAndTagReconfirmsItsDependencies() {
         using var f = new ConditionalUpdateFaultFixture();

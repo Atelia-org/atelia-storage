@@ -10,16 +10,26 @@ internal readonly struct CheckedHeadHeader {
 
     internal HeadId HeadId { get; }
     internal SizedPtr HeaderTicket { get; }
-    internal long InitialEntryOffset { get; }
+    internal long RecordsOffset { get; }
     internal ForkOrigin? Origin { get; }
 
-    internal CheckedHeadHeader(IRbfFile file, HeadHeader header, SizedPtr ticket, long initialEntryOffset) {
+    internal CheckedHeadHeader(IRbfFile file, HeadHeader header, SizedPtr ticket, long recordsOffset) {
         _file = file;
         HeadId = header.HeadId;
         HeaderTicket = ticket;
-        InitialEntryOffset = initialEntryOffset;
+        RecordsOffset = recordsOffset;
         Origin = header.Origin;
     }
 
     internal bool IsFor(IRbfFile file) => ReferenceEquals(_file, file);
+
+    // A root starts with a real SingleEntry; a fork's first local publication may
+    // be either kind, and the header alone is a complete initialized fork.
+    internal bool IsAllowedPublicationKind(long offset, uint tag) =>
+        offset >= RecordsOffset
+        && tag is HeadRecordCodec.SingleEntryTag or HeadRecordCodec.ConditionalUpdateTag
+        && (offset != RecordsOffset || Origin.HasValue || tag == HeadRecordCodec.SingleEntryTag);
+
+    internal bool IsAllowedPublication(RbfFrameInfo info) =>
+        IsAllowedPublicationKind(info.Ticket.Offset, info.Tag) && HeadRecordCodec.IsPublicationShape(info);
 }

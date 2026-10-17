@@ -1,10 +1,10 @@
 # HeadStore：Binary NamedFrameMap payload 专项
 
-HeadSetTag 更新：2026-10-16 本轮实施格式2与具名成员表替换，待[独立验收](16-headset-tags-acceptance.md)。既有 Accepted 保持原 VersionStore/格式1来源；[15重命名记录](15-headstore-renaming-plan.md)不覆盖本行为变化。文档路径已迁移，既有 Clause-ID 保持，普通 Head/CU 的记录形状不变。
+2026-10-17 关联合同更新：HeadStore统一格式3与引用初始化fork，HeadSetTag为16B独立key/value映射；本篇NamedFrameMapCodec的应用内容格式保持，既有源码资格仍按当轮证据解释。当前发布/来源及新增验收见[04](04-versionstore-publication.md)、[05](05-versionstore-names-and-indexes.md)与[09](09-versionstore-immutable-tags.md)。
 
 日期：2026-10-10–11。状态：**Accepted（独立 source-only 源码资格）**，证据见[最终源码验收](12-versionstore-final-acceptance.md)。NamedFrameMapCodec 为已实施的可选应用 codec，普通Head/fork不解释其内容，HeadSetTag只保存EntryId表；JSON 名称映射不扩为 JSON 导入导出 API，CU 已正式接纳，本轮新增资格见[07验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。
 
-本文内聚 NamedFrameMap 的 key、wire 与容量合同，供选择该 codec 的应用显式使用；[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)、[tag 专项](09-versionstore-immutable-tags.md)及 [CU](07-versionstore-cross-ref-conditional-update.md)按各自职责处理发布记录；Head/CU保存opaque bytes，tag只引用位置。NamedFrameMap 是完整 string→FrameAddress 字典；NamedFrameMap 自有集合定义于本篇；bytes 自有结果由 11 公面专项定义；fork 来源一致性由 S5 `[A-VS-REF-HISTORY-CHECKED]` 定义，不消费字典内容比较，FrameAddress codec 由 S2 定义。
+本文内聚 NamedFrameMap 的 key、wire 与容量合同，供选择该 codec 的应用显式使用；[S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)、[tag 专项](09-versionstore-immutable-tags.md)及 [CU](07-versionstore-cross-ref-conditional-update.md)按各自职责处理发布记录；Head/CU保存opaque bytes，tag只引用位置。NamedFrameMap 是完整 string→FrameAddress 字典；NamedFrameMap 自有集合定义于本篇；bytes 自有结果由 11 公面专项定义；fork 准确来源资格由 S5 `[A-VS-REF-HISTORY-CHECKED]` 定义，不消费字典内容比较，FrameAddress codec 由 S2 定义。
 
 ## JSON 名称映射
 
@@ -43,7 +43,7 @@ NamedFrameMap codec 的输入与解码结果使用 `IReadOnlyDictionary<string, 
 | 2，重复 count 次 | 非 null key | BPV1 ordinary BareString，原样保留 UTF-16 code units |
 | 3，每个 key 后 | FrameAddress | S2 `[F-FS-FRAME-ADDRESS-VARINT]`：VarUInt32(FileId) + VarUInt64(SizedPtr.Serialize())，无符号，合法地址 3..15B |
 
-Key MUST 为非 null 的有效 Unicode 字符串：UTF-16 中每个 high surrogate 必须紧邻一个 low surrogate，每个 low surrogate 必须属于这样的配对；输入及持久解码均拒绝未配对 surrogate，不 replacement。empty、中文、emoji、空白、NUL、控制符、路径分隔符及 U+FEFF 仍合法，长度受下述 codeword 预算限制；不剔除 BOM、不 trim、不归一化或大小写折叠，按 Ordinal 比较。这使 key 能无损映射成 JSON 对象属性名；JSON 转义只是文本表示，不进入 key 值或持久编码。这是应用 key，不继承 tag/path 政策。writer 使用 PrepareString 的最短无损选择及 FrameAddress.WriteVarInt 的最短地址表示；reader 接受 BPV1 指定的另一种合法字符串编码、字符串/count 有界冗余前缀及 S2 允许的冗余地址表示，非法 UTF8 明确拒绝而非 replacement。条目无排序要求，reader 按解码后的 Ordinal key 拒重；同 key 不同字符串表示也重复。wire bytes/枚举次序不定义字典语义等值；fork 原样 clone 与来源比较另按 S5 合同，也不承诺同字典产生同 bytes。
+Key MUST 为非 null 的有效 Unicode 字符串：UTF-16 中每个 high surrogate 必须紧邻一个 low surrogate，每个 low surrogate 必须属于这样的配对；输入及持久解码均拒绝未配对 surrogate，不 replacement。empty、中文、emoji、空白、NUL、控制符、路径分隔符及 U+FEFF 仍合法，长度受下述 codeword 预算限制；不剔除 BOM、不 trim、不归一化或大小写折叠，按 Ordinal 比较。这使 key 能无损映射成 JSON 对象属性名；JSON 转义只是文本表示，不进入 key 值或持久编码。这是应用 key，不继承 tag/path 政策。writer 使用 PrepareString 的最短无损选择及 FrameAddress.WriteVarInt 的最短地址表示；reader 接受 BPV1 指定的另一种合法字符串编码、字符串/count 有界冗余前缀及 S2 允许的冗余地址表示，非法 UTF8 明确拒绝而非 replacement。条目无排序要求，reader 按解码后的 Ordinal key 拒重；同 key 不同字符串表示也重复。wire bytes/枚举次序不定义字典语义等值；fork只记录准确来源，读取实际Entry按S5合同，也不承诺同字典产生同 bytes。
 
 首版完整 NamedFrameMap codeword MUST 不超过 **1,048,576B（1MiB）**，包括 count、全部实际 string header/payload 与地址；读写使用同一固定上限，不增加独立 key/count 配额或配置。默认输出精确尺寸为 `M = MeasureVarUInt32(n) + Σ(StringEncodingPlan.EncodedLength + address.MeasureVarInt())`，逐项度量地址并用 checked long 累积，不能用 FrameAddress.EncodedSize 或固定变长宽度代替；捕获过程中按实际条目检查增长，不信任源 Count，超限不得先物化超限完整输出。过长 key 可用 code-unit 数的必然尺寸下界先拒绝，再用现成 plan 确认精确尺寸。Encode 确定拒绝不交付数组；不得截断 key、拆 map 或丢弃条目来适配。
 
@@ -57,7 +57,7 @@ Decode 入口先检查实际输入为1..1MiB，容量及消费 MUST 按 reader �
 
 ## 与发布层的边界
 
-本codec只解释应用显式交付的完整codeword，不承担SingleEntry/tag/CU定位、事务资格或fork来源比较。这些合同分别消费S4、S5及07；bytes公面消费[11专项](11-versionstore-root-payload-bytes-api.md)。调用链为Encode→发布bytes、读取自有bytes→Decode；fork原样复制bytes，内容schema由应用管理。
+本codec只解释应用显式交付的完整codeword，不承担SingleEntry/tag/CU定位、事务资格或fork准确来源资格。这些合同分别消费S4、S5及07；bytes公面消费[11专项](11-versionstore-root-payload-bytes-api.md)。调用链为Encode→发布bytes、读取自有bytes→Decode；fork只保存准确来源，不重新编码或克隆bytes；内容schema由应用管理。
 
 ## 实施验证补充
 

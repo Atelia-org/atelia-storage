@@ -26,27 +26,27 @@ public sealed class PublicForkQueryTests {
             Assert.Equal(33u, automaticRoot.HeadId.LocalId);
             HeadEntryId sameBytesCopy = store.CreateHead(11, [1], out outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            HeadEntryId reservedSibling = store.ForkHead(12, a0, out outcome).Unwrap();
+            HeadId reservedSibling = store.ForkHead(12, a0, out outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            HeadEntryId automaticSibling = store.ForkHead(a0, out outcome).Unwrap();
+            HeadId automaticSibling = store.ForkHead(a0, out outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            HeadEntryId laterPointSibling = store.ForkHead(a1, out outcome).Unwrap();
+            HeadId laterPointSibling = store.ForkHead(a1, out outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            HeadEntryId b1 = store.PublishHead(reservedSibling.HeadId, [0xb1], out outcome).Unwrap();
+            HeadEntryId b1 = store.PublishHead(reservedSibling, [0xb1], out outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            HeadEntryId grandchild = store.ForkHead(b1, out outcome).Unwrap();
+            HeadId grandchild = store.ForkHead(b1, out outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            HeadEntryId backwardsNumberedChild = store.ForkHead(13, automaticRoot, out outcome).Unwrap();
+            HeadId backwardsNumberedChild = store.ForkHead(13, automaticRoot, out outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            Assert.True(backwardsNumberedChild.HeadId.LocalId < automaticRoot.HeadId.LocalId);
+            Assert.True(backwardsNumberedChild.LocalId < automaticRoot.HeadId.LocalId);
             HeadEntryId independentRoot = store.CreateHead(5, [5], out outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
             expected.AddRange([
-                (reservedSibling.HeadId, a0.HeadId, a0.Ticket),
-                (automaticSibling.HeadId, a0.HeadId, a0.Ticket),
-                (laterPointSibling.HeadId, a1.HeadId, a1.Ticket),
-                (grandchild.HeadId, b1.HeadId, b1.Ticket),
-                (backwardsNumberedChild.HeadId, automaticRoot.HeadId, automaticRoot.Ticket)
+                (reservedSibling, a0.HeadId, a0.Ticket),
+                (automaticSibling, a0.HeadId, a0.Ticket),
+                (laterPointSibling, a1.HeadId, a1.Ticket),
+                (grandchild, b1.HeadId, b1.Ticket),
+                (backwardsNumberedChild, automaticRoot.HeadId, automaticRoot.Ticket)
             ]);
             saved = store.ListHeadOrigins(9).Unwrap();
             ForkQueryFixture.AssertEdges(saved, expected.ToArray());
@@ -55,10 +55,10 @@ public sealed class PublicForkQueryTests {
             AssertOwnedListSurface(saved);
             ForkQueryFixture.AssertEdges(store.ListHeadOrigins(int.MaxValue).Unwrap(), expected.ToArray());
 
-            HeadEntryId newChild = store.ForkHead(14, a1, out outcome).Unwrap();
+            HeadId newChild = store.ForkHead(14, a1, out outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
             ForkQueryFixture.AssertEdges(saved, expected.ToArray());
-            expected.Add((newChild.HeadId, a1.HeadId, a1.Ticket));
+            expected.Add((newChild, a1.HeadId, a1.Ticket));
             ForkQueryFixture.AssertEdges(store.ListHeadOrigins(10).Unwrap(), expected.ToArray());
         }
         fixture.Data.EnsureUsable();
@@ -79,37 +79,37 @@ public sealed class PublicForkQueryTests {
         using var fixture = new ForkQueryFixture();
         HeadEntryId a0;
         HeadEntryId a1;
-        HeadEntryId b0;
+        HeadId b0;
         HeadEntryId b1;
-        HeadEntryId sibling;
+        HeadId sibling;
         using (var store = fixture.Create()) {
             a0 = store.CreateHead(7, [1], out _).Unwrap();
             a1 = store.PublishHead(a0.HeadId, [2], out _).Unwrap();
             b0 = store.ForkHead(12, a1, out _).Unwrap();
-            b1 = store.PublishHead(b0.HeadId, [3], out _).Unwrap();
+            b1 = store.PublishHead(b0, [3], out _).Unwrap();
             sibling = store.ForkHead(a0, out _).Unwrap();
         }
         using var reopened = fixture.Open();
         var delivered = new List<HeadEntryId>();
         var heldLists = new List<IReadOnlyList<HeadOriginInfo>>();
-        Assert.Equal(HeadHistoryEnd.Complete, reopened.ReadHeadHistory(b0.HeadId, ForkQueryFixture.Unlimited, entry => {
+        Assert.Equal(HeadHistoryEnd.Complete, reopened.ReadHeadHistory(b0, ForkQueryFixture.Unlimited, entry => {
             delivered.Add(entry.Id);
             IReadOnlyList<HeadOriginInfo> edges = reopened.ListHeadOrigins(3).Unwrap();
-            ForkQueryFixture.AssertEdges(edges, (b0.HeadId, a1.HeadId, a1.Ticket), (sibling.HeadId, a0.HeadId, a0.Ticket));
+            ForkQueryFixture.AssertEdges(edges, (b0, a1.HeadId, a1.Ticket), (sibling, a0.HeadId, a0.Ticket));
             heldLists.Add(edges);
             // A query must also leave the existing mutation guard in force.
             Assert.Equal("HeadStore.HistoryActive", reopened.CreateHead([4], out var outcome).Error!.ErrorCode);
             Assert.Equal(PublicationOutcome.NotAttempted, outcome);
             return true;
         }).Unwrap());
-        Assert.Equal(new[] { b1, b0, a1, a0 }, delivered);
-        fixture.AssertReleased(7, 12, sibling.HeadId.LocalId);
+        Assert.Equal(new[] { b1, a1, a0 }, delivered);
+        fixture.AssertReleased(7, 12, sibling.LocalId);
         HeadEntryId later = reopened.PublishHead(a0.HeadId, [5], out var afterHistory).Unwrap();
         Assert.Equal(PublicationOutcome.Confirmed, afterHistory);
         Assert.NotEqual(a1, later);
         reopened.Dispose();
         foreach (IReadOnlyList<HeadOriginInfo> edges in heldLists) {
-            ForkQueryFixture.AssertEdges(edges, (b0.HeadId, a1.HeadId, a1.Ticket), (sibling.HeadId, a0.HeadId, a0.Ticket));
+            ForkQueryFixture.AssertEdges(edges, (b0, a1.HeadId, a1.Ticket), (sibling, a0.HeadId, a0.Ticket));
         }
     }
 
@@ -152,19 +152,19 @@ public sealed class PublicForkQueryTests {
     public void PrivatePendingIsExcludedAndReadOnlyQueryLeavesAllPersistedBytesUnchanged() {
         using var fixture = new ForkQueryFixture();
         HeadEntryId root;
-        HeadEntryId child;
+        HeadId child;
         using (var store = fixture.Create()) {
             root = store.CreateHead(7, [1], out _).Unwrap();
             child = store.ForkHead(root, out _).Unwrap();
         }
         byte[] rootBytes = File.ReadAllBytes(fixture.HeadPath(root.HeadId.LocalId));
-        byte[] childBytes = File.ReadAllBytes(fixture.HeadPath(child.HeadId.LocalId));
+        byte[] childBytes = File.ReadAllBytes(fixture.HeadPath(child.LocalId));
         File.WriteAllBytes(fixture.PendingPath, childBytes);
         using (var readOnly = fixture.Open(readOnly: true)) {
-            ForkQueryFixture.AssertEdges(readOnly.ListHeadOrigins(2).Unwrap(), (child.HeadId, root.HeadId, root.Ticket));
+            ForkQueryFixture.AssertEdges(readOnly.ListHeadOrigins(2).Unwrap(), (child, root.HeadId, root.Ticket));
         }
         Assert.Equal(rootBytes, File.ReadAllBytes(fixture.HeadPath(root.HeadId.LocalId)));
-        Assert.Equal(childBytes, File.ReadAllBytes(fixture.HeadPath(child.HeadId.LocalId)));
+        Assert.Equal(childBytes, File.ReadAllBytes(fixture.HeadPath(child.LocalId)));
         Assert.Equal(childBytes, File.ReadAllBytes(fixture.PendingPath));
     }
 

@@ -1,12 +1,12 @@
 # HeadStore：root payload bytes 公面与所有权
 
-HeadSetTag 更新：2026-10-16 本轮实施格式2与具名成员表替换，待[独立验收](16-headset-tags-acceptance.md)。既有 Accepted 保持原 VersionStore/格式1来源；[15重命名记录](15-headstore-renaming-plan.md)不覆盖本行为变化。文档路径已迁移，既有 Clause-ID 保持，普通 Head/CU 的记录形状不变。
+引用初始化 fork 更新：2026-10-17 当前合同采用格式3，拒绝格式1/2；fork 只发布来源 header，HeadSetTag 成员为16B独立 key/value 映射。本轮实际源码、进程与包资格见[既有验收入口中的新增轮次](12-versionstore-final-acceptance.md)，未完成验证不沿用旧 Accepted。既有 Clause-ID 与历史证据保持。
 
-日期：2026-10-11。状态：**既有 Head/历史/fork/tag 的 source-only 源码资格 Accepted；批量 CU 已正式接纳并取得本轮独立源码验收 Accepted**。既有范围见[最终源码验收](12-versionstore-final-acceptance.md)，新增 `A-VS-BYTES-BATCH` 接线与证据见[CU 验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。本篇是 S4/S5/tag/CU 的 bytes API 与长度/生命周期唯一权威；不改变身份、根锁、单 driver、ProcessCrashOnly、data-first 或三态证据。旧六包候选不含本轮 CU，程序集拆分另行设计。
+日期：2026-10-11。既有轮次状态：**既有 Head/历史/fork/tag 的 source-only 源码资格 Accepted；批量 CU 已正式接纳并取得CU首轮独立源码验收 Accepted**。既有范围见[最终源码验收](12-versionstore-final-acceptance.md)，新增 `A-VS-BYTES-BATCH` 接线与证据见[CU 验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。本篇是 S4/S5/tag/CU 的 bytes API 与长度/生命周期唯一权威；不改变身份、根锁、单 driver、ProcessCrashOnly、data-first 或三态证据。旧六包候选不含本轮 CU，程序集拆分另行设计。
 
 ## 最小公面
 
-单 Head 输入使用 ReadOnlySpan<byte>，有效长度就是 Span.Length；不另传 length、capacity、IMemoryOwner 或编码 callback。普通 Head 写入返回 HeadEntryId，避免发布后为返回 bytes 再分配结果。ReadHead、ReadEntry 和历史 visitor 交付 HeadEntry。所有发布 mutation 保持必选 out PublicationOutcome，第一条语句初始化 NotAttempted。
+单 Head 输入使用 ReadOnlySpan<byte>，有效长度就是 Span.Length；不另传 length、capacity、IMemoryOwner 或编码 callback。CreateHead/PublishHead 返回真实新 HeadEntryId，避免发布后为返回 bytes 再分配结果；ForkHead 只创建带来源 header，返回新 HeadId。ReadHead、ReadEntry 和历史 visitor 交付 HeadEntry。所有发布 mutation 保持必选 out PublicationOutcome，第一条语句初始化 NotAttempted。
 
 ~~~csharp
 AteliaResult<HeadEntryId> CreateHead(
@@ -20,6 +20,9 @@ AteliaResult<HeadEntryId> PublishHead(
 AteliaResult<IReadOnlyDictionary<HeadId, HeadEntryId>> PublishHeads(
     IReadOnlyDictionary<HeadId, ReadOnlyMemory<byte>> changes,
     out PublicationOutcome outcome);
+AteliaResult<HeadId> ForkHead(HeadEntryId sourceEntryId, out PublicationOutcome outcome);
+AteliaResult<HeadId> ForkHead(
+    uint destLocalHeadId, HeadEntryId sourceEntryId, out PublicationOutcome outcome);
 AteliaResult<HeadEntry> ReadHead(HeadId headId);
 AteliaResult<HeadEntry> ReadHead(uint localHeadId);
 AteliaResult<HeadEntry> ReadEntry(HeadEntryId entryId);
@@ -33,6 +36,8 @@ public sealed class HeadEntry {
 ~~~
 
 代码块展示公共形状与 getter 实现，省略内部构造。结果普通 class、内部构造，无 public setter/init、结构等值/结构 hash、owner/reader 或 Dispose；null 不代表 missing/default 成功。Span 属性每次访问由对象持有的私有 GC byte[] 产生；Span 自身不作为 class 字段。时间直接消费元信息专项，payload 不包含 TailMeta。
+
+ReadHead 返回实际 Entry 的 ID、原时间及 bytes：header-only fork 的结果可能属于来源 Head。调用方保存所选 HeadId 作为 PublishHead/PublishHeads 的目标，不能从 ReadHead(...).Id.HeadId 推导写入目标。fork 不新建 payload 或 Entry 时间，首次本地发布后返回本地真实 Entry。
 
 ReadEntry 只接受库签发、同持久 HSID 的 nondefault EntryId。精确完成位置、完整 CRC/尾 Fence/CU 资格与无回退合同唯一消费 S4 `[A-VS-READ-REVISION]`；返回输入 EntryId、原时间及 root bytes，排除 TailMeta/CU Members，不确认 data 或控制数据。saved EntryId 可在同库重开后使用，裸位置与跨进程导入仍不开放。
 
@@ -50,7 +55,7 @@ owner/mutation/参数准入后先按实际 Span.Length 检查 1..1,048,576B；�
 
 ## HeadSetTag 的独立成员表边界
 
-版本2删除旧bytes tag的CreateTag两个overload、ResolveTag和RootPayload。HeadSetTag只保存HeadId到HeadEntryId的固定表，不保存或复制应用payload；成员输入slice捕获、自然容量、自有不可变表及HeadSetTagInfo/ScanTags的唯一合同见[09](09-versionstore-immutable-tags.md)。HeadEntry继续直接持有GC自有bytes，不新增HeadEntryPayload包装。
+版本2已删除旧bytes tag的CreateTag两个overload、ResolveTag和RootPayload；当前版本3继续硬切，不保留旧reader。HeadSetTag只保存HeadId到HeadEntryId的固定表，不保存或复制应用payload；成员输入slice捕获、自然容量、自有不可变表及HeadSetTagInfo/ScanTags的唯一合同见[09](09-versionstore-immutable-tags.md)。HeadEntry继续直接持有GC自有bytes，不新增HeadEntryPayload包装。
 
 `CreateTag(name, heads, out outcome)` 捕获非空HeadId集合的当前位置；返回HeadSetTag。`ReadTag(name)` 检查完整成员表后交付自有表，其EntryId可供ReadEntry/ForkHead精确使用，但表成功不证明成员当前健康。`ReadTagInfo`/`ScanTags`只交付Name/RecordedAtUnixMs/EntryCount，不读取表或Entry，也不签发成员ID。tag容量不再与MaxHeadEntryPayloadLength耦合。
 

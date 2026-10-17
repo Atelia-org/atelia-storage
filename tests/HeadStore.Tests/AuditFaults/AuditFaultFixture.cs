@@ -49,7 +49,7 @@ internal sealed class AuditFaultFixture : IDisposable {
     }
 
     internal AuditHeadSeed SeedHead(uint localId, ForkOrigin? origin = null, params byte[][] payloads) {
-        if (payloads.Length == 0) { payloads = [OpaquePayload()]; }
+        if (payloads.Length == 0 && origin is null) { payloads = [OpaquePayload()]; }
         HeadId id = HeadId.Create(Identity, localId);
         byte[] header = new byte[origin.HasValue ? HeadHeaderCodec.WithOriginPayloadSize : HeadHeaderCodec.NoOriginPayloadSize];
         if (!HeadHeaderCodec.TryWrite(Identity, id, origin, header)) { throw new InvalidOperationException("Invalid seed header."); }
@@ -79,7 +79,7 @@ internal sealed class AuditFaultFixture : IDisposable {
         Directory.CreateDirectory(Path.Combine(Storage.Root, "tags"));
         uint bucketId = TagPublicFixture.Bucket(name);
         var header = new byte[24];
-        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(header, 2);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(header, 3);
         Identity.TryWrite(header.AsSpan(4, 16));
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(20), bucketId);
         using IRbfFile file = RbfFile.CreateNew(BucketPath(name), RbfCacheMode.Off);

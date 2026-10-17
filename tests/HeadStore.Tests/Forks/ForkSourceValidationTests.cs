@@ -19,11 +19,11 @@ public sealed class ForkSourceValidationTests {
             file.DurableFlush();
         }
         using var store = fixture.Open();
-        HeadEntryId child = store.ForkHead(19, source[0], out var outcome).Unwrap();
+        HeadId child = store.ForkHead(19, source[0], out var outcome).Unwrap();
         Assert.Equal(PublicationOutcome.Confirmed, outcome);
-        Assert.Equal(new byte[] { 1 }, store.ReadHead(child.HeadId).Unwrap().Payload.ToArray());
+        Assert.Equal(new byte[] { 1 }, store.ReadHead(child).Unwrap().Payload.ToArray());
         Assert.Equal("HeadStore.InvalidHeadRecord", store.ReadHead(source[0].HeadId).Error!.ErrorCode);
-        Assert.Equal(new[] { child, source[0] }, ForkFixture.Collect(store, child.HeadId).Select(entry => entry.Id));
+        Assert.Equal(new[] { source[0] }, ForkFixture.Collect(store, child).Select(entry => entry.Id));
     }
 
     [Theory]
@@ -45,23 +45,23 @@ public sealed class ForkSourceValidationTests {
             Assert.Equal(source[1].Ticket, exact.Ticket);
         }
         using var store = fixture.Open();
-        HeadEntryId child = store.ForkHead(source[1], out var outcome).Unwrap();
+        HeadId child = store.ForkHead(source[1], out var outcome).Unwrap();
         Assert.Equal(PublicationOutcome.Confirmed, outcome);
-        Assert.Equal(ForkFixture.Bytes(value: 0xa1), store.ReadHead(child.HeadId).Unwrap().Payload.ToArray());
+        Assert.Equal(ForkFixture.Bytes(value: 0xa1), store.ReadHead(child).Unwrap().Payload.ToArray());
         if (badHead) { Assert.True(store.ReadHead(source[0].HeadId).IsFailure); }
         else { Assert.Equal(source[3], store.ReadHead(source[0].HeadId).Unwrap().Id); }
         if (badInitial) {
             var delivered = new List<HeadEntryId>();
-            var history = store.ReadHeadHistory(child.HeadId, ForkFixture.Unlimited, entry => {
+            var history = store.ReadHeadHistory(child, ForkFixture.Unlimited, entry => {
                 delivered.Add(entry.Id);
                 return true;
             });
             Assert.True(history.IsFailure);
             Assert.StartsWith("Rbf.", history.Error!.ErrorCode);
-            Assert.Equal(new[] { child, source[1] }, delivered);
+            Assert.Equal(new[] { source[1] }, delivered);
         }
         else {
-            Assert.Equal(new[] { child, source[1], source[0] }, ForkFixture.Collect(store, child.HeadId).Select(entry => entry.Id));
+            Assert.Equal(new[] { source[1], source[0] }, ForkFixture.Collect(store, child).Select(entry => entry.Id));
         }
     }
 
@@ -81,9 +81,9 @@ public sealed class ForkSourceValidationTests {
         Assert.Equal(PublicationOutcome.NotAttempted, outcome);
         fixture.AssertNoChild(store, 257);
         Assert.Equal(source[2], store.ReadHead(source[0].HeadId).Unwrap().Id);
-        HeadEntryId healthyChild = store.ForkHead(19, source[2], out outcome).Unwrap();
+        HeadId healthyChild = store.ForkHead(19, source[2], out outcome).Unwrap();
         Assert.Equal(PublicationOutcome.Confirmed, outcome);
-        Assert.Equal(ForkFixture.Bytes(value: 0xa2), store.ReadHead(healthyChild.HeadId).Unwrap().Payload.ToArray());
+        Assert.Equal(ForkFixture.Bytes(value: 0xa2), store.ReadHead(healthyChild).Unwrap().Payload.ToArray());
     }
 
     [Fact]
@@ -177,7 +177,7 @@ public sealed class ForkSourceValidationTests {
     }
 
     [Fact]
-    public void ControlledSourceTimeIsPreservedAndChildSamplesNewTimeWhileSourceFileBytesStayUnchanged() {
+    public void ControlledSourceTimeAndIdentityArePreservedWhileSourceFileBytesStayUnchanged() {
         using var fixture = new ForkFixture();
         using (var initialized = fixture.Create()) { }
         // Extreme legal metadata makes copying the source timestamp detectable without sleeping
@@ -188,20 +188,18 @@ public sealed class ForkSourceValidationTests {
         using (var store = fixture.Open()) {
             var checkedSource = store.ReadHead(source.HeadId).Unwrap();
             Assert.Equal(long.MinValue, checkedSource.RecordedAtUnixMs);
-            long before = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            HeadEntryId child = store.ForkHead(checkedSource.Id, out var outcome).Unwrap();
-            long after = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            HeadId child = store.ForkHead(checkedSource.Id, out var outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            childEntry = store.ReadHead(child.HeadId).Unwrap();
-            Assert.InRange(childEntry.RecordedAtUnixMs, before, after);
-            Assert.NotEqual(checkedSource.RecordedAtUnixMs, childEntry.RecordedAtUnixMs);
+            childEntry = store.ReadHead(child).Unwrap();
+            Assert.Equal(checkedSource.Id, childEntry.Id);
+            Assert.Equal(checkedSource.RecordedAtUnixMs, childEntry.RecordedAtUnixMs);
             Assert.Equal(checkedSource.Payload.ToArray(), childEntry.Payload.ToArray());
             var unchanged = store.ReadHead(source.HeadId).Unwrap();
             Assert.Equal(source, unchanged.Id);
             Assert.Equal(long.MinValue, unchanged.RecordedAtUnixMs);
-            var history = ForkFixture.Collect(store, child.HeadId);
-            Assert.Equal(new[] { child, source }, history.Select(entry => entry.Id));
-            Assert.Equal(long.MinValue, history[1].RecordedAtUnixMs);
+            var history = ForkFixture.Collect(store, child);
+            Assert.Equal(new[] { source }, history.Select(entry => entry.Id));
+            Assert.Equal(long.MinValue, history[0].RecordedAtUnixMs);
         }
         Assert.Equal(sourceFileBefore, File.ReadAllBytes(fixture.HeadPath(7)));
         Assert.Equal("{ \"x\":1 }"u8.ToArray(), childEntry.Payload.ToArray());
@@ -220,10 +218,10 @@ public sealed class ForkSourceValidationTests {
         Assert.Equal("HeadStore.HeadIdExhausted", store.ForkHead(source, out outcome).Error!.ErrorCode);
         Assert.Equal(PublicationOutcome.NotAttempted, outcome);
         Assert.False(File.Exists(fixture.PendingPath));
-        HeadEntryId child = store.ForkHead(19, source, out outcome).Unwrap();
+        HeadId child = store.ForkHead(19, source, out outcome).Unwrap();
         Assert.Equal(PublicationOutcome.Confirmed, outcome);
-        Assert.Equal(19u, child.HeadId.LocalId);
-        Assert.Equal(new[] { child, source }, ForkFixture.Collect(store, child.HeadId).Select(entry => entry.Id));
+        Assert.Equal(19u, child.LocalId);
+        Assert.Equal(new[] { source }, ForkFixture.Collect(store, child).Select(entry => entry.Id));
     }
 
     [Fact]
@@ -250,10 +248,10 @@ public sealed class ForkSourceValidationTests {
         Assert.Equal("HeadStore.InvalidHeadRecord", result.Error!.ErrorCode);
         Assert.Equal(PublicationOutcome.NotAttempted, outcome);
         fixture.AssertNoChild(store, 257);
-        HeadEntryId child = store.ForkHead(source[0], out outcome).Unwrap();
+        HeadId child = store.ForkHead(source[0], out outcome).Unwrap();
         Assert.Equal(PublicationOutcome.Confirmed, outcome);
-        Assert.Equal(257u, child.HeadId.LocalId);
-        Assert.Equal(ForkFixture.Bytes(value: 0xa0), store.ReadHead(child.HeadId).Unwrap().Payload.ToArray());
-        Assert.Equal(new[] { child, source[0] }, ForkFixture.Collect(store, child.HeadId).Select(entry => entry.Id));
+        Assert.Equal(257u, child.LocalId);
+        Assert.Equal(ForkFixture.Bytes(value: 0xa0), store.ReadHead(child).Unwrap().Payload.ToArray());
+        Assert.Equal(new[] { source[0] }, ForkFixture.Collect(store, child).Select(entry => entry.Id));
     }
 }

@@ -1,5 +1,7 @@
 # S6：消费者验证、公共包与交付
 
+2026-10-17 当前HeadStore合同为格式3引用初始化fork与16B独立tag key/value；源码、进程与包资格以[12](../HeadStore/12-versionstore-final-acceptance.md)、[07](../HeadStore/07-versionstore-cross-ref-conditional-update-acceptance.md)、[16](../HeadStore/16-headset-tags-acceptance.md)新增轮次为准，下述Accepted保留旧候选及各轮实际范围。
+
 命名更新：2026-10-16 活跃合同采用 HeadStore/Head/Entry；既有验收与历史包仍保持 VersionStore 来源身份，本轮验证见[重命名记录](../HeadStore/15-headstore-renaming-plan.md)。
 
 状态：**S6-C/D Accepted（既有六包本地候选；Windows 与 WSL2/ext4 隔离包消费）；公开交付与真实接入未取得资格。** 实际候选版本、来源及限定平台见[本地交付记录](13-local-package-delivery.md)。该不可变候选不含本轮 CU；CU 已正式接纳，其新源码/进程/平台资格见[07 验收](../HeadStore/07-versionstore-cross-ref-conditional-update-acceptance.md)，HeadSetTag新候选及四个隔离消费者见[16验收](../HeadStore/16-headset-tags-acceptance.md)，公开发布另行进行。FrameStore S2/S3 与 HeadStore S4/S5 的既有源码验收、V4-B/C/D 的组合/有限资源/应用策略、V4-F 的具名内部进程证据保留各自身份；V4-E 的反例修正及逐条裁决见[HeadStore 源码验收](../HeadStore/12-versionstore-final-acceptance.md)。公开发布与真实消费者切换另行确定范围。
@@ -53,7 +55,7 @@ tool-loop 首次/新 attempt 外发之前 MUST 正常确认该 attempt 的冻结
 | --- | --- |
 | [S2/S3最终源码验收](../FrameStore/02-framestore-final-acceptance.md)、[变长地址增量](../FrameStore/02-framestore-varint-address-implementation.md) | 三种追加/交错Builder、两份地址codec、路径/发号、门/锁/私有data、轮转/恢复、FrameRead及Inventory/Audit；已Accepted结果保持其来源身份 |
 | [S4实施与验收](../HeadStore/04-versionstore-publication.md#实施与验收) | HS借入guard/模式/绑定、建库/锁/唯一pending、Head身份/路径/两域发号/ListHeads、实际需要的 header/head 与恢复后完整性、检查范围、data-first/Outcome及受控清理 |
-| [S5实施与验收](../HeadStore/05-versionstore-names-and-indexes.md#实施与验收) | 固定历史上界/预算/停止/回调、直接精确fork来源及byte clone、指定边界继承历史、ListHeadOrigins header/完整声明图/额度/自有结果 |
+| [S5实施与验收](../HeadStore/05-versionstore-names-and-indexes.md#实施与验收) | 固定历史上界/预算/停止/回调、直接精确fork来源、header-only创建及来源/CU依赖确认、指定边界继承历史、ListHeadOrigins header/完整声明图/额度/自有结果 |
 | [08时间](../HeadStore/08-versionstore-record-metadata.md)、[09tag](../HeadStore/09-versionstore-immutable-tags.md)、[10可选NamedFrameMap](../HeadStore/10-versionstore-rootmap-payload.md)、[11bytes](../HeadStore/11-versionstore-root-payload-bytes-api.md) | 所属格式向量、初始化/扫描、长度/捕获/结果生命周期与内容解释边界；Head固定meta与tag独立meta资格分别保持，tag元信息成功不证明成员表或Entry健康 |
 
 FrameStore既有资格不覆盖新增公共EnsureUsable或HS组合；先取得其新增源码/public证据再接入。S5继承历史使用已实施的[RBF 指定边界逆扫公共重载](../Rbf/rbf-reverse-boundary-plan.md)，V2-A 源码验证单独记录；既有Accepted不自动包含此增量，S6须补充其包消费与组合资格。public消费者不能借反射、internal入口或旧类型补能力；底座合成探针不代替新库/header/身份门或组合实证。
@@ -75,7 +77,7 @@ HeadSetTag元信息组合由[09](../HeadStore/09-versionstore-immutable-tags.md)
 
 single-driver/HistoryActive/TagScanActive/TagCreateActive、取消/回调Dispose及必要清理规则按所属阶段在public调用中复验；历史callback可进入ScanTags并使用独立临时桶槽，tag扫描callback拒绝mutation、递归扫描与进入历史，允许的日常读取按09执行。这些串行轨迹不改标为并发资格。实际Open/正式发现成本、history源anchor及必要前缀读取、ListHeadOrigins规模、tag请求范围桶扫描/连续创建、全桶元信息扫描、bytes复制与资源峰值另测，不把增桶预计记录下降称为端到端提速，也不用codec算术或预算替代性能/平台证据。[07 CU](../HeadStore/07-versionstore-cross-ref-conditional-update.md)已正式接纳，新增组合矩阵与实际结果独立列在[07 验收](../HeadStore/07-versionstore-cross-ref-conditional-update-acceptance.md)，不重标前轮 public 停点或历史探针。
 
-CU 组合必须包含：全部 fresh 成员完成前缀/排列及至少两个既有 Head 的 public 冷重开、data-first 与逐文件完成/flush/确认后安装窗口、未提交 CU 跳过且历史不泄漏、普通覆盖后的旧组资格、同/异长位置复用与必要结构错误、lazy CompletedTail、CU 来源的普通子 SingleEntry byte clone、peer 预算/清理、Audit 已发布计数。真实进程终止、受控异常、镜像截断各自标明证据类别；ProcessCrashOnly 不外推为断电。整组成功只共同确认发布资格，不保证跨调用快照隔离或当前 heads 永远同步。
+CU 组合必须包含：全部 fresh 成员完成前缀/排列及至少两个既有 Head 的 public 冷重开、data-first 与逐文件完成/flush/确认后安装窗口、未提交 CU 跳过且历史不泄漏、普通覆盖后的旧组资格、同/异长位置复用与必要结构错误、lazy CompletedTail、CU来源的header-only fork、首次本地CU与父子同批CU、失败回到准确来源、peer 预算/清理、Audit 已发布计数。真实进程终止、受控异常、镜像截断各自标明证据类别；ProcessCrashOnly 不外推为断电。整组成功只共同确认发布资格，不保证跨调用快照隔离或当前 heads 永远同步。
 
 ### spec [S-DELIVERY-PACK-OWNER] 包入口有单一负责人
 
@@ -105,7 +107,7 @@ CU 组合必须包含：全部 fresh 成员完成前缀/排列及至少两个既
 | `eng/Pack.ps1` | S6 注册包和明确选择/版本算法 |
 | `eng/Test-Package.ps1`、metadata helper | S6 在当前纯 Rbf 三包及纯 Binary 两包隔离验证基础上增加新闭包 smoke，不削弱来源/资产校验 |
 | `eng/Verify-Published.ps1`、发布 workflow/CI | 若纳入公开交付，按实际授权和新 manifest 形态适配 |
-| 根 README / AGENTS.md | 项目实际存在、交付事实变化后更新；FrameStore/HeadStore 与测试项目均已创建，两库已纳入本地候选包清单；HeadStore 已接通普通 Head 真实目录闭环，历史读取、精确 ForkHead 与 ListHeadOrigins 已接通，旧tag闭环已有历史证据，本轮改为格式2 HeadSetTag并独立验收，V4-A 已补只读完整校验 Audit |
+| 根 README / AGENTS.md | 项目实际存在、交付事实变化后更新；FrameStore/HeadStore 与测试项目均已创建，两库已纳入本地候选包清单；HeadStore 已接通普通 Head 真实目录闭环，历史读取、精确 ForkHead 与 ListHeadOrigins 已接通，旧tag闭环已有历史证据，格式2 HeadSetTag已有历史验收，当前格式3改为引用初始化fork与16B独立key/value成员表，新增资格按对应新轮次验收，V4-A 已补只读完整校验 Audit |
 | 旧库维护 | RBF1 分支工作包；main 不再保留旧栈代码、固定包回归或兼容实现 |
 
 ## 实施片

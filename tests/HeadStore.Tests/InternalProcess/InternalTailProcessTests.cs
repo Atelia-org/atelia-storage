@@ -12,6 +12,8 @@ public sealed class InternalTailProcessTests(ITestOutputHelper output) : IDispos
     [Theory]
     [InlineData("ref-body-partial")]
     [InlineData("ref-body-complete")]
+    [InlineData("fork-body-partial")]
+    [InlineData("fork-body-complete")]
     [InlineData("tag-body-partial")]
     [InlineData("tag-body-complete")]
     public async Task RealWriterPrefixThenParentKill_RejectsReadOnlyAndRecoversThroughHeadStore(string scenario) {
@@ -118,9 +120,9 @@ public sealed class InternalTailProcessTests(ITestOutputHelper output) : IDispos
                 Assert.Equal(JsonValueKind.Null, report.GetProperty("action").ValueKind);
             });
             JsonElement audit = verified.GetProperty("audit");
-            Assert.Equal(1, audit.GetProperty("headCount").GetInt64());
+            Assert.Equal(scenario.StartsWith("fork-", StringComparison.Ordinal) ? 2 : 1, audit.GetProperty("headCount").GetInt64());
             Assert.Equal(!tag && completedBody ? 2 : 1, audit.GetProperty("entryCount").GetInt64());
-            Assert.Equal(0, audit.GetProperty("originCount").GetInt64());
+            Assert.Equal(scenario.StartsWith("fork-", StringComparison.Ordinal) ? 1 : 0, audit.GetProperty("originCount").GetInt64());
             Assert.Equal(tag ? 1 : 0, audit.GetProperty("tagBucketCount").GetInt64());
             Assert.Equal(tag && completedBody ? 1 : 0, audit.GetProperty("tagCount").GetInt64());
             AssertUnchanged(repairedBytes);

@@ -148,7 +148,7 @@ public sealed class PublicTagLifecycleTests {
         }
         Assert.True(forward.MoveNext());
         Assert.Equal(1u, forward.Current.Tag);
-        Assert.Equal(12, forward.Current.PayloadLength);
+        Assert.Equal(16, forward.Current.PayloadLength);
         using var metadata = forward.Current.ReadPooledTailMeta().Unwrap();
         Assert.True(RollingCrc.CheckCodewordForward(metadata.TailMeta));
         Assert.InRange(BinaryPrimitives.ReadInt64LittleEndian(metadata.TailMeta), before, after);

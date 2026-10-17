@@ -10,9 +10,9 @@ public sealed class PublicForkTests {
         using var fixture = new ForkFixture();
         byte[][] aBytes = [[0xff], "{\"x\":1}"u8.ToArray(), "{ \"x\":2 }"u8.ToArray(), [0xfe]];
         HeadEntryId[] a = new HeadEntryId[4];
-        HeadEntryId b0;
+        HeadId b0;
         HeadEntryId b1;
-        HeadEntryId c0;
+        HeadId c0;
         HeadEntryId c1;
         HeadEntry savedSource;
         List<HeadEntry> saved;
@@ -33,48 +33,45 @@ public sealed class PublicForkTests {
                 return false;
             }).Unwrap());
             Assert.Equal(a[2], selected);
-            long beforeFork = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             b0 = store.ForkHead(19, selected, out outcome).Unwrap();
-            long afterFork = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            Assert.Equal(19u, b0.HeadId.LocalId);
-            Assert.NotEqual(a[2], b0);
-            var bInitial = store.ReadHead(b0.HeadId).Unwrap();
+            Assert.Equal(19u, b0.LocalId);
+            Assert.NotEqual(a[2].HeadId, b0);
+            var bInitial = store.ReadHead(b0).Unwrap();
             Assert.Equal(aBytes[2], bInitial.Payload.ToArray());
-            Assert.InRange(bInitial.RecordedAtUnixMs, beforeFork, afterFork);
+            Assert.Equal(a[2], bInitial.Id);
+            Assert.Equal(store.ReadEntry(a[2]).Unwrap().RecordedAtUnixMs, bInitial.RecordedAtUnixMs);
             Assert.Equal(savedSource.Id, store.ReadHead(a[0].HeadId).Unwrap().Id);
             Assert.Equal(savedSource.RecordedAtUnixMs, store.ReadHead(a[0].HeadId).Unwrap().RecordedAtUnixMs);
             Assert.Equal(savedSource.Payload.ToArray(), store.ReadHead(a[0].HeadId).Unwrap().Payload.ToArray());
 
-            b1 = store.PublishHead(b0.HeadId, [0xb1], out outcome).Unwrap();
+            b1 = store.PublishHead(b0, [0xb1], out outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
             c0 = store.ForkHead(b1, out outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            Assert.Equal(257u, c0.HeadId.LocalId);
-            Assert.Equal(b1, store.ReadHead(b0.HeadId).Unwrap().Id);
-            c1 = store.PublishHead(c0.HeadId, [0xc1], out outcome).Unwrap();
+            Assert.Equal(257u, c0.LocalId);
+            Assert.Equal(b1, store.ReadHead(b0).Unwrap().Id);
+            c1 = store.PublishHead(c0, [0xc1], out outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
             store.PublishHead(a[0].HeadId, [0xa4], out outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            store.PublishHead(b0.HeadId, [0xb2], out outcome).Unwrap();
+            store.PublishHead(b0, [0xb2], out outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            saved = ForkFixture.Collect(store, c0.HeadId);
-            Assert.Equal(new[] { c1, c0, b1, b0, a[2], a[1], a[0] }, saved.Select(entry => entry.Id));
-            Assert.Equal(saved[1].Payload.ToArray(), saved[2].Payload.ToArray());
-            Assert.NotEqual(saved[1].Id, saved[2].Id);
-            Assert.Equal(saved[3].Payload.ToArray(), saved[4].Payload.ToArray());
-            Assert.NotEqual(saved[3].Id, saved[4].Id);
+            saved = ForkFixture.Collect(store, c0);
+            Assert.Equal(new[] { c1, b1, a[2], a[1], a[0] }, saved.Select(entry => entry.Id));
+            Assert.Equal(new byte[] { 0xb1 }, saved[1].Payload.ToArray());
+            Assert.Equal(aBytes[2], saved[2].Payload.ToArray());
         }
         fixture.Data.EnsureUsable();
         fixture.Data.Dispose();
-        HeadEntryId coldFork;
+        HeadId coldFork;
         using (var data = DataStore.Open(fixture.DataRoot))
         using (var reopened = Store.Open(fixture.Root, data)) {
             Assert.Equal(identity, reopened.HeadStoreId.ToArray());
-            Assert.Equal(saved.Select(entry => entry.Id), ForkFixture.Collect(reopened, c0.HeadId).Select(entry => entry.Id));
+            Assert.Equal(saved.Select(entry => entry.Id), ForkFixture.Collect(reopened, c0).Select(entry => entry.Id));
             // An inherited entryId selected from history can be used after the visitor returns.
             HeadEntryId inherited = default;
-            Assert.Equal(HeadHistoryEnd.VisitorStopped, reopened.ReadHeadHistory(c0.HeadId, ForkFixture.Unlimited, entry => {
+            Assert.Equal(HeadHistoryEnd.VisitorStopped, reopened.ReadHeadHistory(c0, ForkFixture.Unlimited, entry => {
                 if (entry.Id != a[1]) { return true; }
                 inherited = entry.Id;
                 return false;
@@ -83,25 +80,25 @@ public sealed class PublicForkTests {
             // A entryId issued by an older owner keeps its persistent context and exact point.
             coldFork = reopened.ForkHead(a[1], out var outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            Assert.Equal(258u, coldFork.HeadId.LocalId);
-            Assert.Equal(aBytes[1], reopened.ReadHead(coldFork.HeadId).Unwrap().Payload.ToArray());
-            Assert.Equal(new[] { coldFork, a[1], a[0] }, ForkFixture.Collect(reopened, coldFork.HeadId).Select(entry => entry.Id));
-            HeadEntryId inheritedFork = reopened.ForkHead(20, inherited, out outcome).Unwrap();
+            Assert.Equal(258u, coldFork.LocalId);
+            Assert.Equal(aBytes[1], reopened.ReadHead(coldFork).Unwrap().Payload.ToArray());
+            Assert.Equal(new[] { a[1], a[0] }, ForkFixture.Collect(reopened, coldFork).Select(entry => entry.Id));
+            HeadId inheritedFork = reopened.ForkHead(20, inherited, out outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            Assert.Equal(new[] { inheritedFork, a[1], a[0] }, ForkFixture.Collect(reopened, inheritedFork.HeadId).Select(entry => entry.Id));
+            Assert.Equal(new[] { a[1], a[0] }, ForkFixture.Collect(reopened, inheritedFork).Select(entry => entry.Id));
         }
         using (var data = DataStore.OpenReadOnly(fixture.DataRoot))
         using (var readOnly = Store.OpenReadOnly(fixture.Root, data)) {
-            var cold = ForkFixture.Collect(readOnly, c0.HeadId);
+            var cold = ForkFixture.Collect(readOnly, c0);
             Assert.Equal(saved.Select(entry => entry.Id), cold.Select(entry => entry.Id));
             Assert.Equal(saved.Select(entry => entry.RecordedAtUnixMs), cold.Select(entry => entry.RecordedAtUnixMs));
             Assert.Equal(saved.Select(entry => entry.Payload.ToArray()), cold.Select(entry => entry.Payload.ToArray()));
             Assert.Equal(new uint[] { 7, 19, 20, 257, 258 }, readOnly.ListHeads().Unwrap().Select(id => id.LocalId).Order());
-            Assert.Equal(new[] { coldFork, a[1], a[0] }, ForkFixture.Collect(readOnly, coldFork.HeadId).Select(entry => entry.Id));
+            Assert.Equal(new[] { a[1], a[0] }, ForkFixture.Collect(readOnly, coldFork).Select(entry => entry.Id));
         }
         Assert.Equal(aBytes[3], savedSource.Payload.ToArray());
         Assert.Equal(new byte[] { 0xc1 }, saved[0].Payload.ToArray());
-        Assert.Equal(aBytes[2], saved[4].Payload.ToArray());
+        Assert.Equal(aBytes[2], saved[2].Payload.ToArray());
     }
 
     [Theory]
@@ -109,7 +106,7 @@ public sealed class PublicForkTests {
     [InlineData("json")]
     [InlineData("random")]
     [InlineData("maximum")]
-    public void OpaquePayloadIsClonedByteForByteAndOwnedResultsSurviveUpdatesAndDispose(string kind) {
+    public void OpaquePayloadIsReferencedExactlyAndOwnedResultsSurviveUpdatesAndDispose(string kind) {
         using var fixture = new ForkFixture();
         byte[] payload = kind switch {
             "minimum" => [0xff],
@@ -121,28 +118,29 @@ public sealed class PublicForkTests {
         if (kind is "random" or "maximum") { new Random(117).NextBytes(payload); }
         byte[] expected = payload.ToArray();
         HeadEntry sourceEntry;
-        HeadEntry cloneEntry;
+        HeadEntry inheritedEntry;
         List<HeadEntry> history;
         using (var store = fixture.Create()) {
             HeadEntryId source = store.CreateHead(7, payload, out var outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
             payload.AsSpan().Fill(0x77);
             sourceEntry = store.ReadHead(source.HeadId).Unwrap();
-            HeadEntryId clone = store.ForkHead(source, out outcome).Unwrap();
+            HeadId child = store.ForkHead(source, out outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            cloneEntry = store.ReadHead(clone.HeadId).Unwrap();
-            Assert.Equal(expected, cloneEntry.Payload.ToArray());
-            Assert.NotEqual(sourceEntry.Id, cloneEntry.Id);
-            history = ForkFixture.Collect(store, clone.HeadId);
-            Assert.Equal(new[] { clone, source }, history.Select(entry => entry.Id));
+            inheritedEntry = store.ReadHead(child).Unwrap();
+            Assert.Equal(expected, inheritedEntry.Payload.ToArray());
+            Assert.Equal(sourceEntry.Id, inheritedEntry.Id);
+            Assert.Equal(sourceEntry.RecordedAtUnixMs, inheritedEntry.RecordedAtUnixMs);
+            history = ForkFixture.Collect(store, child);
+            Assert.Equal(new[] { source }, history.Select(entry => entry.Id));
             store.PublishHead(source.HeadId, [0x11], out outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            store.PublishHead(clone.HeadId, [0x22], out outcome).Unwrap();
+            store.PublishHead(child, [0x22], out outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
         }
         fixture.Data.Dispose();
         Assert.Equal(expected, sourceEntry.Payload.ToArray());
-        Assert.Equal(expected, cloneEntry.Payload.ToArray());
+        Assert.Equal(expected, inheritedEntry.Payload.ToArray());
         Assert.All(history, entry => Assert.Equal(expected, entry.Payload.ToArray()));
     }
 
@@ -152,9 +150,9 @@ public sealed class PublicForkTests {
         using var store = fixture.Create();
         HeadEntryId source = store.CreateHead(7, [0xff], out _).Unwrap();
         using var builder = fixture.Data.BeginAppend(1, 0, out var early);
-        HeadEntryId clone = store.ForkHead(source, out var outcome).Unwrap();
+        HeadId child = store.ForkHead(source, out var outcome).Unwrap();
         Assert.Equal(PublicationOutcome.Confirmed, outcome);
-        Assert.Equal(new byte[] { 0xff }, store.ReadHead(clone.HeadId).Unwrap().Payload.ToArray());
+        Assert.Equal(new byte[] { 0xff }, store.ReadHead(child).Unwrap().Payload.ToArray());
         Assert.Throws<InvalidOperationException>(() => { fixture.Data.ReadFrame(early); });
         store.Dispose();
         var writer = builder.PayloadAndMeta;
@@ -184,9 +182,9 @@ public sealed class PublicForkTests {
         }).Unwrap());
         fixture.AssertNoChild(store, 19);
         fixture.AssertNoChild(store, 257);
-        HeadEntryId clone = store.ForkHead(19, selected, out var outcome).Unwrap();
+        HeadId child = store.ForkHead(19, selected, out var outcome).Unwrap();
         Assert.Equal(PublicationOutcome.Confirmed, outcome);
-        Assert.Equal(new[] { clone, source[1], source[0] }, ForkFixture.Collect(store, clone.HeadId).Select(entry => entry.Id));
+        Assert.Equal(new[] { source[1], source[0] }, ForkFixture.Collect(store, child).Select(entry => entry.Id));
     }
 
     [Theory]
@@ -208,10 +206,10 @@ public sealed class PublicForkTests {
         fixture.AssertNoChild(store, 19);
         fixture.AssertNoChild(store, 257);
         var confirmed = PublicationOutcome.NotAttempted;
-        HeadEntryId clone = specified ? store.ForkHead(19, source, out confirmed).Unwrap()
+        HeadId child = specified ? store.ForkHead(19, source, out confirmed).Unwrap()
             : store.ForkHead(source, out confirmed).Unwrap();
         Assert.Equal(PublicationOutcome.Confirmed, confirmed);
-        Assert.Equal(specified ? 19u : 257u, clone.HeadId.LocalId);
+        Assert.Equal(specified ? 19u : 257u, child.LocalId);
     }
 
     [Theory]
@@ -262,16 +260,16 @@ public sealed class PublicForkTests {
         var occupied = PublicationOutcome.Confirmed;
         Assert.True(store.ForkHead(7, source, out occupied).IsFailure);
         Assert.Equal(PublicationOutcome.NotAttempted, occupied);
-        HeadEntryId child = store.ForkHead(19, source, out var confirmed).Unwrap();
+        HeadId child = store.ForkHead(19, source, out var confirmed).Unwrap();
         Assert.Equal(PublicationOutcome.Confirmed, confirmed);
         occupied = PublicationOutcome.Confirmed;
         Assert.True(store.ForkHead(19, source, out occupied).IsFailure);
         Assert.Equal(PublicationOutcome.NotAttempted, occupied);
-        Assert.Equal(child, store.ReadHead(19u).Unwrap().Id);
+        Assert.Equal(source, store.ReadHead(19u).Unwrap().Id);
         Assert.Equal(source, store.ReadHead(7u).Unwrap().Id);
-        HeadEntryId automatic = store.ForkHead(source, out confirmed).Unwrap();
+        HeadId automatic = store.ForkHead(source, out confirmed).Unwrap();
         Assert.Equal(PublicationOutcome.Confirmed, confirmed);
-        Assert.Equal(257u, automatic.HeadId.LocalId);
+        Assert.Equal(257u, automatic.LocalId);
         HeadEntryId next = store.CreateHead([3], out confirmed).Unwrap();
         Assert.Equal(PublicationOutcome.Confirmed, confirmed);
         Assert.Equal(258u, next.HeadId.LocalId);
@@ -286,9 +284,9 @@ public sealed class PublicForkTests {
         var outcome = PublicationOutcome.Confirmed;
         Assert.True(store.ForkHead(1, source, out outcome).IsFailure);
         Assert.Equal(PublicationOutcome.NotAttempted, outcome);
-        HeadEntryId fork = store.ForkHead(source, out outcome).Unwrap();
+        HeadId fork = store.ForkHead(source, out outcome).Unwrap();
         Assert.Equal(PublicationOutcome.Confirmed, outcome);
-        Assert.Equal(2u, fork.HeadId.LocalId);
+        Assert.Equal(2u, fork.LocalId);
         Assert.Equal(3u, store.CreateHead([3], out outcome).Unwrap().HeadId.LocalId);
         Assert.Equal(PublicationOutcome.Confirmed, outcome);
     }
@@ -299,10 +297,10 @@ public sealed class PublicForkTests {
         HeadEntryId[] source = fixture.SeedClosed(7, ForkFixture.Bytes(value: 0xa0), ForkFixture.Bytes(value: 0xa1));
         byte[] sourceFileBefore = File.ReadAllBytes(fixture.HeadPath(7));
         using (var store = fixture.Open()) {
-            HeadEntryId child = store.ForkHead(source[0], out var outcome).Unwrap();
+            HeadId child = store.ForkHead(source[0], out var outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
             Assert.Equal(source[1], store.ReadHead(source[1].HeadId).Unwrap().Id);
-            Assert.Equal(new[] { child, source[0] }, ForkFixture.Collect(store, child.HeadId).Select(entry => entry.Id));
+            Assert.Equal(new[] { source[0] }, ForkFixture.Collect(store, child).Select(entry => entry.Id));
         }
         Assert.Equal(sourceFileBefore, File.ReadAllBytes(fixture.HeadPath(7)));
     }

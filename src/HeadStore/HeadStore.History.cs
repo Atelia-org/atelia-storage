@@ -54,7 +54,6 @@ public sealed partial class HeadStore {
         HistoryWork work) {
         var visited = new HashSet<HeadId>();
         ForkOrigin? source = null;
-        HeadEntry? childInitial = null;
 
         while (true) {
             AteliaError? budgetError = work.CheckEntryAvailable();
@@ -74,7 +73,7 @@ public sealed partial class HeadStore {
             RbfReverseEnumerator reverse;
             if (source is ForkOrigin origin) {
                 SizedPtr ticket = origin.SourceEntryTicket;
-                if (ticket.Offset < header.InitialEntryOffset
+                if (ticket.Offset < header.RecordsOffset
                     || file.GetPhysicalOffsetImmediatelyAfter(ticket) > fixedTail) {
                     return InvalidHistoryOrigin("The exact source Entry lies outside the checked header's completed range.");
                 }
@@ -118,7 +117,7 @@ public sealed partial class HeadStore {
                 work.CheckState();
                 if (!hasEntry) {
                     return reverse.TerminationError
-                        ?? new HeadRecordError("The historical sequence ended before its direct initial Entry was proved.");
+                        ?? new HeadRecordError("The historical sequence ended before its checked header or root initial Entry was reached.");
                 }
 
                 RbfFrameInfo info = reverse.Current;
@@ -134,10 +133,18 @@ public sealed partial class HeadStore {
                     }
                     first = false;
                 }
-                bool isInitial = info.Ticket.Offset == header.InitialEntryOffset;
-                if (info.Ticket.Offset < header.InitialEntryOffset || !HeadRecordCodec.IsPublicationShape(info)
-                    || (isInitial && !HeadRecordCodec.IsSingleEntryShape(info))) {
-                    return new HeadRecordError("The historical record is not a legal publication after the checked header and its ordinary initial Entry.");
+                if (info.Ticket == header.HeaderTicket && HeadRecordCodec.IsHeaderShape(info)) {
+                    if (header.Origin is not ForkOrigin nextSource) {
+                        return new HeadRecordError("The root head's direct initial SingleEntry is missing.");
+                    }
+                    source = nextSource;
+                    headId = nextSource.SourceHeadId;
+                    CloseHistoryTemporary();
+                    work.CheckState();
+                    break;
+                }
+                if (!header.IsAllowedPublication(info)) {
+                    return new HeadRecordError("The historical record is not a legal publication after its checked header.");
                 }
 
                 var read = ReadPublication(file, header, info, work.TakeWorkStep, work.CheckState);
@@ -150,26 +157,15 @@ public sealed partial class HeadStore {
                     }
                     continue;
                 }
-                if (childInitial is not null) {
-                    if (!entry.Payload.SequenceEqual(childInitial.Payload)) {
-                        return InvalidHistoryOrigin("The child initial payload is not an exact byte clone of its source Entry.");
-                    }
-                    childInitial = null;
-                }
-
                 work.DeliverEntry();
                 bool keepGoing = visitor(entry);
                 work.CheckState();
                 if (!keepGoing) { return HeadHistoryEnd.VisitorStopped; }
-                if (!isInitial) { continue; }
-                if (header.Origin is not ForkOrigin nextSource) { return HeadHistoryEnd.Complete; }
-
-                childInitial = entry;
-                source = nextSource;
-                headId = nextSource.SourceHeadId;
-                CloseHistoryTemporary();
-                work.CheckState();
-                break;
+                // Root completion is already proved by its checked direct SingleEntry.
+                // Preserve the exact entry/work budget without an additional header read.
+                if (header.Origin is null && info.Ticket.Offset == header.RecordsOffset) {
+                    return HeadHistoryEnd.Complete;
+                }
             }
         }
     }

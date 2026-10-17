@@ -1,8 +1,8 @@
 # HeadStore：Head 记录时间与 TailMeta 格式
 
-HeadSetTag 更新：2026-10-16 本轮实施格式2与具名成员表替换，待[独立验收](16-headset-tags-acceptance.md)。既有 Accepted 保持原 VersionStore/格式1来源；[15重命名记录](15-headstore-renaming-plan.md)不覆盖本行为变化。文档路径已迁移，既有 Clause-ID 保持，普通 Head/CU 的记录形状不变。
+引用初始化 fork 更新：2026-10-17 当前合同采用格式3，拒绝格式1/2；fork 只发布来源 header，HeadSetTag 成员为16B独立 key/value 映射。本轮实际源码、进程与包资格见[既有验收入口中的新增轮次](12-versionstore-final-acceptance.md)，未完成验证不沿用旧 Accepted。既有 Clause-ID 与历史证据保持。
 
-日期：2026-10-10–11。状态：**既有 Head/tag 的 source-only 源码资格 Accepted；CU 已正式接纳，本轮接线通过独立源码验收 Accepted**。既有映射见[最终源码验收](12-versionstore-final-acceptance.md)，CU 增量见[本轮验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。Head/CU 使用固定 8B Unix 毫秒时间及精确 TailMeta 长度判形；tag 已实施并复用时间意义，其独立 schema/CRC 与元信息公面由09定义。组合/包资格见[实施计划](12-versionstore-implementation-plan.md)，旧六包候选不含 CU。
+日期：2026-10-10–11。既有轮次状态：**既有 Head/tag 的 source-only 源码资格 Accepted；CU 已正式接纳，CU首轮接线通过独立源码验收 Accepted**。既有映射见[最终源码验收](12-versionstore-final-acceptance.md)，CU 增量见[CU首轮验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。Head/CU 使用固定 8B Unix 毫秒时间及精确 TailMeta 长度判形；tag 已实施并复用时间意义，其独立 schema/CRC 与元信息公面由09定义。组合/包资格见[实施计划](12-versionstore-implementation-plan.md)，旧六包候选不含 CU。
 
 本文是 S4 的 Head/CU 记录元信息子合同，不是新增实施阶段。规范底座为 [RBF 接口](../Rbf/rbf-interface.md)与[RBF 格式](../Rbf/rbf-format.md)。[S4](04-versionstore-publication.md)负责普通 Head 的 kind、header、root-payload envelope、结果定位及完整宿主尺寸；[S5](05-versionstore-names-and-indexes.md)负责历史/fork；[CU](07-versionstore-cross-ref-conditional-update.md)负责联合提交资格。它们引用本合同，不各自定义时间编码。[09 tag 专项](09-versionstore-immutable-tags.md)仅复用 RecordedAtUnixMs 的意义、取时及8B编码；其变长元信息、独立CRC资格和HeadSetTagInfo/扫描合同不受本文固定形状规则约束。
 
@@ -24,13 +24,13 @@ HeadSetTag 更新：2026-10-16 本轮实施格式2与具名成员表替换，待
 
 RecordedAtUnixMs MUST 表示库在本次发布的私有准备阶段读取的 UTC Unix 毫秒时间，即自 `1970-01-01T00:00:00Z` 起的有符号毫秒数，不计闰秒。它不是业务事件时间、源数据创建时间、fsync 完成时间、调用正常返回时间或某个旧尝试已 Confirmed 的证明。
 
-CreateHead、ForkHead、PublishHead（含同值重发/rewind）MUST 为本次新记录重新取时；所得数值可以与来源或其他记录相同。库在必要输入/来源资格建立后、最终记录私有编码前取时；取时及编码 MUST 在本次 data/源确认和发布输出前完成。读回返回记录中保存的值，不重新取时；fork 原样复制 root-payload bytes，rewind 重新发布所选 root bytes；均不复制来源记录的时间。
+CreateHead、PublishHead（含同值重发/rewind）MUST 为本次真实新记录重新取时；所得数值可以与来源或其他记录相同。库在必要输入/来源资格建立后、最终记录私有编码前取时；取时及编码 MUST 在本次 data/源确认和发布输出前完成。读回返回实际 Entry 保存的值，不重新取时。ForkHead 只发布来源 header，不产生 Entry 或 Entry 时间；未续写 fork 的 ReadHead 交付准确来源的原 RecordedAtUnixMs。首次本地发布及 rewind 是真实新记录，按本条重新取时。
 
 一次 CU 联合提交 MUST 只取时一次，全部 fresh 成员使用同一值；它须在最终元信息私有编码及 data barrier/发布输出前确定；固定 8B 尺寸允许先预测 tickets 再取时。时间既不进入 Members，也不充当事务标识；成员时间是否相等不取代或扩充共同发布判据。
 
 时间 MAY 重复或回退。MUST NOT 为其保存持久水位、跨重开修正或强制单调递增，本层不以它决定发布/历史遍历顺序、去重 EntryId、判定 head/fork 因果、恢复事务或提前结束严格历史查询。应用可自行作近似年代展示/排序，不因此获得存储顺序保证。当前 Head 帧顺序、不可变 ForkOrigin 与 CU Members 继续承担各自职责。
 
-普通读取与历史结果保存本帧的自有时间标量；写 Head 的成功值只返回 HeadEntryId；时间不参与 HeadEntryId 等值/hash 或 ForkOrigin 的 payload bytes 一致性比较。具体公开结果属性由 [11专项](11-versionstore-root-payload-bytes-api.md)定义，不另立元信息结果类型或租借。
+普通读取与历史结果保存本帧的自有时间标量；写 Head 的成功值只返回 HeadEntryId；时间不参与 HeadEntryId 等值/hash 或 ForkOrigin 的准确来源发布资格。具体公开结果属性由 [11专项](11-versionstore-root-payload-bytes-api.md)定义，不另立元信息结果类型或租借。
 
 ## spec [F-VS-RECORD-TAILMETA] 固定字段，以精确长度判别形状
 
@@ -44,7 +44,7 @@ CreateHead、ForkHead、PublishHead（含同值重发/rewind）MUST 为本次新
 
 HeadStore 格式门/Head header 选择本层格式规则；记录形状由文件上下文、FrameTag 和 RbfFrameInfo.TailMetaLength 共同判别。TailMetaLength 不在 meta 中重复编码，不增加 version、flags、presence、padding 预留、Magic 或独立 CRC。现行 SingleEntry 的 payload 是不透明 root bytes；CU payload 仍由自身 schema 定义，不能把 meta 长度当成所有 payload schema 的通用版本。
 
-对本次需要完整资格化的 SingleEntry/CU，reader MUST 精确接受 8B；0B、短/长形状与其他未知长度报错，不回退旧 head、不当 CU 事务不完整、不自动截出已知前缀接受未知扩展。HeadHeader 的 0B 由其 kind 合同另行允许，不表示无时间 SingleEntry。当前 HeadStoreFormatVersion 为 2，不增加旧无时间草案兼容。
+对本次需要完整资格化的 SingleEntry/CU，reader MUST 精确接受 8B；0B、短/长形状与其他未知长度报错，不回退旧 head、不当 CU 事务不完整、不自动截出已知前缀接受未知扩展。HeadHeader 的 0B 由其 kind 合同另行允许，不表示无时间 SingleEntry。当前 HeadStoreFormatVersion 为 3，不增加旧无时间草案兼容。
 
 **Head/CU 以后扩展的约束。** 同一记录 kind 的新 meta schema 只可在现有末尾追加确定宽度字段，每种已定义形状具有唯一长度，先前字段保持不变。当前不分配未来长度/字段，也不实现注册表、版本协商或动态可选字段。新 reader 接受哪些旧长度需在届时 schema 中列明；旧 reader 对未知长度仍拒绝。改变既有字段意义或不兼容 payload 时，须另作 FrameTag/所属格式版本决策，不能复用相同 meta 长度冒充同一形状。tag 的独立变长 schema 不消费本条长度判形/演进规则。
 
@@ -64,7 +64,7 @@ RBF ReadTailMeta/ReadPooledTailMeta 自身仅提供 L2 预览：TrailerCRC 保�
 
 （Informative）按当前 RBF3 的 4B 对齐，原 meta0 改为 meta8，任意合法相同 payload 的 FrameLength/AppendLength 均增加 8B。空 NamedFrameMap payload=1B 的 SingleEntry 从 32B 增至 40B；9B 的 version+时间方案会增加 8B 或 12B，因此首版不保留该 version 字节。header/SourceEntryTicket 范围、完整 SingleEntry 容量与初始化后界只在 S4 推导，不在本专项重复维护。
 
-首个安全实施片是普通 SingleEntry 的 meta8 写入、完整读回与 HeadEntry 时间属性；随后历史/fork/rewind 复用同一 codec，本轮 CU 接线复用一次取时与固定 meta。实施向量须覆盖 `0`、`-1`、完整高位/极值、受控取时重复/回退、同值重发/子初始重新取时（允许同值）、必要记录未知/截短长度与坏内容不回退，以及 CU 尺寸预测/共享时间、异长替代/消歧的无关 peer 后缀不增加 meta 审计，旧 fork 点不扫描源后续更新。wire 极值测试不表示系统时钟能正常生成这些日期；时钟控制可由内部测试机制完成，不因此增加公开时钟 API。
+首个安全实施片是普通 SingleEntry 的 meta8 写入、完整读回与 HeadEntry 时间属性；随后历史/fork/rewind 复用同一 codec，本轮 CU 接线复用一次取时与固定 meta。实施向量须覆盖 `0`、`-1`、完整高位/极值、受控取时重复/回退、同值重发/首次本地发布重新取时（允许同值），空 fork 保留来源 Entry 时间、必要记录未知/截短长度与坏内容不回退，以及 CU 尺寸预测/共享时间、异长替代/消歧的无关 peer 后缀不增加 meta 审计，旧 fork 点不扫描源后续更新。wire 极值测试不表示系统时钟能正常生成这些日期；时钟控制可由内部测试机制完成，不因此增加公开时钟 API。
 
 时间字段独立 golden：`0` → `00 00 00 00 00 00 00 00`；`-1` → `FF FF FF FF FF FF FF FF`；`0x0102030405060708` → `08 07 06 05 04 03 02 01`；`long.MinValue` → `00 00 00 00 00 00 00 80`；`long.MaxValue` → `FF FF FF FF FF FF FF 7F`。不以相同 encoder round-trip 代替这些符号/端序向量。
 

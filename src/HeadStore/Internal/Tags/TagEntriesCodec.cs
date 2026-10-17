@@ -4,26 +4,31 @@ using Atelia.HeadStore.Internal.Format;
 
 namespace Atelia.HeadStore.Internal.Tags;
 
-/// <summary>格式2的 canonical 成员表：递增非零 LocalHeadId 与完整 Packed SizedPtr。</summary>
+/// <summary>格式3的 canonical 成员表：递增所选 Head、实际 Entry 所属 Head 与完整 Packed SizedPtr。</summary>
 internal static class TagEntriesCodec {
-    internal const int MemberEncodedSize = sizeof(uint) + sizeof(ulong);
+    internal const int MemberEncodedSize = sizeof(uint) + sizeof(uint) + sizeof(ulong);
 
-    internal static byte[] Encode(ReadOnlySpan<HeadEntryId> entries, StoreIdentity identity) {
+    internal static byte[] Encode(ReadOnlySpan<HeadId> selectedHeads, ReadOnlySpan<HeadEntryId> entries, StoreIdentity identity) {
         if (identity == default) { throw new ArgumentException("A checked store identity is required.", nameof(identity)); }
+        if (selectedHeads.Length != entries.Length) { throw new ArgumentException("Every selected Head requires one Entry.", nameof(entries)); }
         var measured = TagRecordCodec.MeasurePayloadLength(entries.Length, TagMetadataCodec.MinEncodedSize);
         if (measured.IsFailure) { throw new ArgumentOutOfRangeException(nameof(entries), "The member table exceeds the record capacity."); }
         uint previous = 0;
-        foreach (HeadEntryId entry in entries) {
-            if (!entry.HeadId.BelongsTo(identity) || entry.HeadId.LocalId <= previous || entry.Ticket.Length == 0) {
-                throw new ArgumentException("Entries must be same-store, strictly increasing, and have nonempty complete tickets.", nameof(entries));
+        for (int index = 0; index < entries.Length; index++) {
+            HeadId selected = selectedHeads[index];
+            HeadEntryId entry = entries[index];
+            if (!selected.BelongsTo(identity) || selected.LocalId <= previous
+                || !entry.HeadId.BelongsTo(identity) || entry.Ticket.Length == 0) {
+                throw new ArgumentException("Selected Heads must be same-store and strictly increasing; Entries must have checked same-store owners and complete tickets.", nameof(entries));
             }
-            previous = entry.HeadId.LocalId;
+            previous = selected.LocalId;
         }
         byte[] payload = new byte[measured.Value];
         for (int index = 0; index < entries.Length; index++) {
             Span<byte> member = payload.AsSpan(index * MemberEncodedSize, MemberEncodedSize);
-            BinaryPrimitives.WriteUInt32LittleEndian(member, entries[index].HeadId.LocalId);
-            BinaryPrimitives.WriteUInt64LittleEndian(member[sizeof(uint)..], entries[index].Ticket.Packed);
+            BinaryPrimitives.WriteUInt32LittleEndian(member, selectedHeads[index].LocalId);
+            BinaryPrimitives.WriteUInt32LittleEndian(member[sizeof(uint)..], entries[index].HeadId.LocalId);
+            BinaryPrimitives.WriteUInt64LittleEndian(member[(2 * sizeof(uint))..], entries[index].Ticket.Packed);
         }
         return payload;
     }
@@ -40,8 +45,9 @@ internal static class TagEntriesCodec {
         for (int index = 0; index < entryCount; index++) {
             ReadOnlySpan<byte> member = payload.Slice(index * MemberEncodedSize, MemberEncodedSize);
             uint localId = BinaryPrimitives.ReadUInt32LittleEndian(member);
-            SizedPtr ticket = SizedPtr.FromPacked(BinaryPrimitives.ReadUInt64LittleEndian(member[sizeof(uint)..]));
-            if (localId <= previous || ticket.Length == 0) { return false; }
+            uint ownerLocalId = BinaryPrimitives.ReadUInt32LittleEndian(member[sizeof(uint)..]);
+            SizedPtr ticket = SizedPtr.FromPacked(BinaryPrimitives.ReadUInt64LittleEndian(member[(2 * sizeof(uint))..]));
+            if (localId <= previous || ownerLocalId == 0 || ticket.Length == 0) { return false; }
             previous = localId;
         }
 
@@ -49,8 +55,9 @@ internal static class TagEntriesCodec {
         for (int index = 0; index < entryCount; index++) {
             ReadOnlySpan<byte> member = payload.Slice(index * MemberEncodedSize, MemberEncodedSize);
             HeadId headId = HeadId.Create(identity, BinaryPrimitives.ReadUInt32LittleEndian(member));
-            SizedPtr ticket = SizedPtr.FromPacked(BinaryPrimitives.ReadUInt64LittleEndian(member[sizeof(uint)..]));
-            ownedEntries.Add(headId, HeadEntryId.Create(headId, ticket));
+            HeadId ownerId = HeadId.Create(identity, BinaryPrimitives.ReadUInt32LittleEndian(member[sizeof(uint)..]));
+            SizedPtr ticket = SizedPtr.FromPacked(BinaryPrimitives.ReadUInt64LittleEndian(member[(2 * sizeof(uint))..]));
+            ownedEntries.Add(headId, HeadEntryId.Create(ownerId, ticket));
         }
         entries = ownedEntries;
         return true;

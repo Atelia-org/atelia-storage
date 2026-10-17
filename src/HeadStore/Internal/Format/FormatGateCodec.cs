@@ -8,7 +8,7 @@ internal readonly record struct FormatGate(
 
 /// <summary>44B 普通格式门记录；不执行 I/O，也不证明实际根或 borrowed data 绑定资格。</summary>
 internal static class FormatGateCodec {
-    internal const uint CurrentVersion = 2;
+    internal const uint CurrentVersion = 3;
     internal const int EncodedSize = 44;
 
     internal static bool TryRead(ReadOnlySpan<byte> source, out FormatGate gate) {

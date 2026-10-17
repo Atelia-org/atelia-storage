@@ -158,7 +158,7 @@ public sealed class ForkPreflightFaultTests {
         Assert.Equal(pendingBefore, f.Files.PendingCreateCalls);
         Assert.Equal(0, f.Lock.DisposeCalls);
         Assert.Equal(new byte[] { 99 }, File.ReadAllBytes(f.Files.Paths[2]));
-        Assert.Equal(18u, f.Store.ForkHead(source, out _).Unwrap().HeadId.LocalId);
+        Assert.Equal(18u, f.Store.ForkHead(source, out _).Unwrap().LocalId);
     }
 
     [Fact]
@@ -177,7 +177,7 @@ public sealed class ForkPreflightFaultTests {
         Assert.Equal(0, f.Files.OpenCalls);
         Assert.Equal(pendingBefore, f.Files.PendingCreateCalls);
         Assert.Equal(0, f.Lock.DisposeCalls);
-        Assert.Equal(2u, f.Store.ForkHead(2u, source, out PublicationOutcome specified).Unwrap().HeadId.LocalId);
+        Assert.Equal(2u, f.Store.ForkHead(2u, source, out PublicationOutcome specified).Unwrap().LocalId);
         Assert.Equal(PublicationOutcome.Confirmed, specified);
         f.Operations.Clear();
         Assert.True(f.Store.ForkHead(source, out PublicationOutcome again).IsFailure);
@@ -229,16 +229,14 @@ public sealed class ForkPreflightFaultTests {
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void SourceReadOrClockExceptionBeforeBarrierDoesNotFaultHealthyOwner(bool specified, bool clockFailure) {
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SourceReadExceptionBeforeBarrierDoesNotFaultHealthyOwner(bool specified) {
         using var f = new ForkFaultFixture();
         HeadEntryId source = f.Store.ReadHead(f.Seed()).Unwrap().Id;
-        var failure = new IOException(clockFailure ? "child clock" : "exact source info");
-        if (clockFailure) { f.Hooks.GetRecordedAtUnixMs = () => throw failure; }
-        else { f.Files.Sources[1].FrameInfoFailure = failure; }
+        var failure = new IOException("exact source info");
+        f.Hooks.GetRecordedAtUnixMs = () => throw new InvalidOperationException("Fork must not sample entry time.");
+        f.Files.Sources[1].FrameInfoFailure = failure;
         f.Operations.Clear();
         var outcome = PublicationOutcome.Confirmed;
 

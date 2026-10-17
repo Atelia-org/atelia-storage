@@ -73,30 +73,30 @@ internal static class GraphScenario {
                 heads.EnsureUsable();
                 ValidateGraph(data, savedRoots, 0);
 
-                HeadEntryId branchTwo = heads.ForkHead(2, selectedEntryId, out outcome).Unwrap();
+                HeadId branchTwo = heads.ForkHead(2, selectedEntryId, out outcome).Unwrap();
                 Confirmed(outcome);
-                HeadEntryId branchThree = heads.ForkHead(selectedEntryId, out outcome).Unwrap();
+                HeadId branchThree = heads.ForkHead(selectedEntryId, out outcome).Unwrap();
                 Confirmed(outcome);
-                Require(branchTwo.HeadId.LocalId == 2 && branchThree.HeadId.LocalId == 3, "Reserved and automatic fork allocation changed.");
-                Require(heads.ReadHead(branchTwo.HeadId).Unwrap().Payload.SequenceEqual(selected.Payload), "Reserved fork did not clone source bytes.");
-                Require(heads.ReadHead(branchThree.HeadId).Unwrap().Payload.SequenceEqual(selected.Payload), "Automatic fork did not clone source bytes.");
+                Require(branchTwo.LocalId == 2 && branchThree.LocalId == 3, "Reserved and automatic fork allocation changed.");
+                Require(heads.ReadHead(branchTwo).Unwrap().Payload.SequenceEqual(selected.Payload), "Reserved fork changed source bytes.");
+                Require(heads.ReadHead(branchThree).Unwrap().Payload.SequenceEqual(selected.Payload), "Automatic fork changed source bytes.");
 
                 byte[] branchTwoBytes = WriteGraph(data, 2, reverseAllocation: false);
-                branchTwoEntryId = heads.PublishHead(branchTwo.HeadId, branchTwoBytes, out outcome).Unwrap();
+                branchTwoEntryId = heads.PublishHead(branchTwo, branchTwoBytes, out outcome).Unwrap();
                 Confirmed(outcome);
                 byte[] branchThreeBytes = WriteGraph(data, 3, reverseAllocation: true);
-                heads.PublishHead(branchThree.HeadId, branchThreeBytes, out outcome).Unwrap();
+                heads.PublishHead(branchThree, branchThreeBytes, out outcome).Unwrap();
                 Confirmed(outcome);
-                HeadEntryId deepFork = heads.ForkHead(branchTwoEntryId, out outcome).Unwrap();
+                HeadId deepFork = heads.ForkHead(branchTwoEntryId, out outcome).Unwrap();
                 Confirmed(outcome);
-                Require(deepFork.HeadId.LocalId == 4, "Fork-of-fork automatic allocation changed.");
+                Require(deepFork.LocalId == 4, "Fork-of-fork automatic allocation changed.");
 
                 HeadEntryId rewind = heads.PublishHead(initialEntryId.HeadId, selected.Payload, out outcome).Unwrap();
                 Confirmed(outcome);
                 Require(rewind != selectedEntryId && rewind != initialEntryId, "Rewind must append a new entryId.");
                 heads.CreateTag(RewindTag, [rewind.HeadId], out outcome).Unwrap();
                 Confirmed(outcome);
-                heads.CreateTag(BranchTag, [branchTwo.HeadId, deepFork.HeadId], out outcome).Unwrap();
+                heads.CreateTag(BranchTag, [branchTwo, deepFork], out outcome).Unwrap();
                 Confirmed(outcome);
                 savedTag = heads.ReadTag(SelectedTag).Unwrap();
                 savedTagEntry = heads.ReadEntry(savedTag.Entries.Single().Value).Unwrap();
@@ -108,7 +108,7 @@ internal static class GraphScenario {
                 heads.PublishHead(initialEntryId.HeadId, finalMainBytes, out outcome).Unwrap();
                 Confirmed(outcome);
                 byte[] finalBranchBytes = WriteGraph(data, 6, reverseAllocation: true);
-                heads.PublishHead(branchTwo.HeadId, finalBranchBytes, out outcome).Unwrap();
+                heads.PublishHead(branchTwo, finalBranchBytes, out outcome).Unwrap();
                 Confirmed(outcome);
                 Require(selected.Payload.SequenceEqual(savedTagEntry.Payload), "Later updates changed retained entry/tag bytes.");
             }
@@ -123,7 +123,7 @@ internal static class GraphScenario {
         Require(branchTwoEntryId.HeadId.LocalId == 2, "Retained branch entryId changed after Dispose.");
         Console.WriteLine(JsonSerializer.Serialize(new {
             status = "ok", scenario = "graph-write", pid = Environment.ProcessId,
-            refs = 4, entries = 11, forks = 3, tags = 3
+            refs = 4, entries = 8, forks = 3, tags = 3
         }));
     }
 
@@ -153,11 +153,11 @@ internal static class GraphScenario {
                 mainHistory = History(heads, main.Id.HeadId);
                 List<HeadEntry> twoHistory = History(heads, branchTwo.Id.HeadId);
                 List<HeadEntry> threeHistory = History(heads, branchThree.Id.HeadId);
-                List<HeadEntry> deepHistory = History(heads, deepFork.Id.HeadId);
+                List<HeadEntry> deepHistory = History(heads, heads.ListHeads().Unwrap().Single(id => id.LocalId == 4));
                 ValidateHistory(data, mainHistory, new[] { 4, 0, 1, 0, 0 }, new uint[] { 1, 1, 1, 1, 1 });
-                ValidateHistory(data, twoHistory, new[] { 6, 2, 0, 0, 0 }, new uint[] { 2, 2, 2, 1, 1 });
-                ValidateHistory(data, threeHistory, new[] { 3, 0, 0, 0 }, new uint[] { 3, 3, 1, 1 });
-                ValidateHistory(data, deepHistory, new[] { 2, 2, 0, 0, 0 }, new uint[] { 4, 2, 2, 1, 1 });
+                ValidateHistory(data, twoHistory, new[] { 6, 2, 0, 0 }, new uint[] { 2, 2, 1, 1 });
+                ValidateHistory(data, threeHistory, new[] { 3, 0, 0 }, new uint[] { 3, 1, 1 });
+                ValidateHistory(data, deepHistory, new[] { 2, 0, 0 }, new uint[] { 2, 1, 1 });
                 HeadEntry selected = mainHistory[3];
                 heads.EnsureUsable();
                 HeadEntry exact = heads.ReadEntry(selected.Id).Unwrap();
@@ -165,12 +165,12 @@ internal static class GraphScenario {
                     && exact.Payload.SequenceEqual(selected.Payload), "Cold exact entryId read differs from history.");
                 Require(selected.Id != mainHistory[4].Id && selected.Payload.SequenceEqual(mainHistory[4].Payload), "Same-value entryIds were merged.");
                 Require(mainHistory[1].Id != selected.Id && mainHistory[1].Payload.SequenceEqual(selected.Payload), "Rewind did not preserve the old entryId.");
-                Require(twoHistory[3].Id == selected.Id && threeHistory[2].Id == selected.Id, "Forks inherited a different source point.");
-                Require(twoHistory[4].Id == mainHistory[4].Id && threeHistory[3].Id == mainHistory[4].Id, "Forks lost source initial history.");
+                Require(twoHistory[2].Id == selected.Id && threeHistory[1].Id == selected.Id, "Forks inherited a different source point.");
+                Require(twoHistory[3].Id == mainHistory[4].Id && threeHistory[2].Id == mainHistory[4].Id, "Forks lost source initial history.");
                 Require(twoHistory[2].Payload.SequenceEqual(selected.Payload) && threeHistory[1].Payload.SequenceEqual(selected.Payload), "Fork initial bytes differ from exact source bytes.");
                 Require(deepHistory[0].Payload.SequenceEqual(twoHistory[1].Payload), "Fork-of-fork initial bytes differ from its exact source.");
                 for (int i = 1; i < deepHistory.Count; i++) {
-                    Require(deepHistory[i].Id == twoHistory[i].Id, "Fork-of-fork inherited prefix changed after a source update.");
+                    Require(deepHistory[i].Id == twoHistory[i + 1].Id, "Fork-of-fork inherited prefix changed after a source update.");
                 }
 
                 IReadOnlyList<HeadOriginInfo> forks = heads.ListHeadOrigins(4).Unwrap();
@@ -187,7 +187,7 @@ internal static class GraphScenario {
                 Require(rewindTag.Entries[main.Id.HeadId] == mainHistory[1].Id, "Rewind tag changed after source advancement.");
                 HeadSetTag branchTag = heads.ReadTag(BranchTag).Unwrap();
                 Require(branchTag.Entries.Count == 2 && branchTag.Entries[branchTwo.Id.HeadId] == twoHistory[1].Id
-                    && branchTag.Entries[deepFork.Id.HeadId] == deepFork.Id, "Anonymous tag changed after branch advancement.");
+                    && branchTag.Entries[heads.ListHeads().Unwrap().Single(id => id.LocalId == 4)] == deepFork.Id, "Anonymous tag changed after branch advancement.");
                 savedRoots = NamedFrameMapCodec.Decode(savedTagEntry.Payload).Unwrap();
                 ValidateGraph(data, savedRoots, 0);
                 ValidateGraph(data, NamedFrameMapCodec.Decode(heads.ReadEntry(branchTag.Entries[branchTwo.Id.HeadId]).Unwrap().Payload).Unwrap(), 2);
@@ -207,7 +207,7 @@ internal static class GraphScenario {
                 ValidateInfo(scanned[SelectedTag], 1);
 
                 audit = heads.Audit().Unwrap();
-                Require(audit.HeadCount == 4 && audit.EntryCount == 11 && audit.OriginCount == 3 && audit.TagCount == 3, "Complete HeadStore audit counts changed.");
+                Require(audit.HeadCount == 4 && audit.EntryCount == 8 && audit.OriginCount == 3 && audit.TagCount == 3, "Complete HeadStore audit counts changed.");
                 Require(audit.TagBucketCount is >= 1 and <= 3, "Unexpected tag bucket count.");
                 dataFrames = data.Audit(file => { dataFiles++; }).Unwrap();
                 Require(dataFrames == 24 && dataFiles >= 2, "Complete FrameStore audit did not include all graph records.");

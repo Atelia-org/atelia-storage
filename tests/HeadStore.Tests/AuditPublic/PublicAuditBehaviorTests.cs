@@ -25,39 +25,39 @@ public sealed class PublicAuditBehaviorTests {
         }).Unwrap();
         Assert.Equal(missingAddress, NamedFrameMapCodec.Decode(rootWithAbsentData).Unwrap()["missing-data"]);
         HeadEntryId initial;
-        HeadEntryId child;
-        HeadEntryId nested;
+        HeadId child;
+        HeadId nested;
         string[] names = ["Release", "release", "associated"];
         using (var store = fixture.Storage.Open()) {
             initial = store.CreateHead(7, opaque, out var outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
             store.PublishHead(initial.HeadId, rootWithAbsentData, out _).Unwrap();
             child = store.ForkHead(12, initial, out _).Unwrap();
-            store.PublishHead(child.HeadId, "{\"phase\":\"done\"}"u8, out _).Unwrap();
-            nested = store.ForkHead(13, child, out _).Unwrap();
-            store.CreateTag(names[0], [nested.HeadId], out _).Unwrap();
+            HeadEntryId local = store.PublishHead(child, "{\"phase\":\"done\"}"u8, out _).Unwrap();
+            nested = store.ForkHead(13, local, out _).Unwrap();
+            store.CreateTag(names[0], [nested], out _).Unwrap();
             store.CreateTag(names[1], [initial.HeadId], out _).Unwrap();
-            store.CreateTag(names[2], [initial.HeadId, child.HeadId], out _).Unwrap();
+            store.CreateTag(names[2], [initial.HeadId, child], out _).Unwrap();
         }
         fixture.Data.Dispose();
         var before = fixture.CaptureFiles();
         HeadStoreAudit retained;
         using (var data = DataStore.OpenReadOnly(fixture.Storage.DataRoot))
         using (var readOnly = Store.OpenReadOnly(fixture.Root, data)) {
-            Assert.Equal(opaque, readOnly.ReadHead(nested.HeadId).Unwrap().Payload.ToArray());
+            Assert.Equal("{\"phase\":\"done\"}"u8.ToArray(), readOnly.ReadHead(nested).Unwrap().Payload.ToArray());
             Assert.Equal(rootWithAbsentData, readOnly.ReadHead(initial.HeadId).Unwrap().Payload.ToArray());
-            Assert.Equal(opaque, readOnly.ReadEntry(readOnly.ReadTag("Release").Unwrap().Entries[nested.HeadId]).Unwrap().Payload.ToArray());
+            Assert.Equal("{\"phase\":\"done\"}"u8.ToArray(), readOnly.ReadEntry(readOnly.ReadTag("Release").Unwrap().Entries[nested]).Unwrap().Payload.ToArray());
             Assert.Equal(rootWithAbsentData, readOnly.ReadEntry(readOnly.ReadTag("release").Unwrap().Entries[initial.HeadId]).Unwrap().Payload.ToArray());
             retained = readOnly.Audit().Unwrap();
             long bucketCount = names.Select(TagPublicFixture.Bucket).Distinct().LongCount();
-            AuditPublicFixture.AssertCounts(retained, 3, 5, 2, bucketCount, 3);
-            AuditPublicFixture.AssertCounts(readOnly.Audit().Unwrap(), 3, 5, 2, bucketCount, 3);
+            AuditPublicFixture.AssertCounts(retained, 3, 3, 2, bucketCount, 3);
+            AuditPublicFixture.AssertCounts(readOnly.Audit().Unwrap(), 3, 3, 2, bucketCount, 3);
         }
         fixture.AssertUnchanged(before);
-        Assert.Equal(5L, retained.EntryCount);
+        Assert.Equal(3L, retained.EntryCount);
         using (var data = DataStore.OpenReadOnly(fixture.Storage.DataRoot))
         using (var reopened = Store.OpenReadOnly(fixture.Root, data)) {
-            AuditPublicFixture.AssertCounts(reopened.Audit().Unwrap(), 3, 5, 2,
+            AuditPublicFixture.AssertCounts(reopened.Audit().Unwrap(), 3, 3, 2,
                 names.Select(TagPublicFixture.Bucket).Distinct().LongCount(), 3);
         }
         fixture.AssertUnchanged(before);

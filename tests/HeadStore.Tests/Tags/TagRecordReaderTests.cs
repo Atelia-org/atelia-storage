@@ -166,7 +166,7 @@ public sealed class TagRecordReaderTests {
     [InlineData("oversized")]
     public void TrustedMetadataKeepsNameOccupiedWhenTargetEntriesIsDamaged(string corruption) {
         using var fixture = new TagBucketFixture();
-        int rootLength = corruption switch { "zero" => 0, "oversized" => 1048577, _ => 12 };
+        int rootLength = corruption switch { "zero" => 0, "oversized" => 1048577, _ => 16 };
         SizedPtr target;
         using (IRbfFile writer = fixture.Create(CollisionBucket)) {
             target = TagBucketFixture.Append(writer, "tag-48", new byte[rootLength], TagTestWire.Metadata("tag-48", -99));

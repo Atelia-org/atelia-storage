@@ -75,6 +75,7 @@ public class HeadHeaderTests {
     [InlineData(4)] // Source local zero.
     [InlineData(5)] // Self-origin.
     [InlineData(6)] // Zero ticket.
+    [InlineData(7)] // Retired format 2.
     public void Header_InvalidFieldsCannotClaimMetadata(int mutation) {
         byte[] changed = Convert.FromHexString(FormatTestValues.ForkHeaderHex);
         switch (mutation) {
@@ -85,6 +86,7 @@ public class HeadHeaderTests {
             case 4: changed.AsSpan(24, 4).Clear(); break;
             case 5: changed.AsSpan(20, 4).CopyTo(changed.AsSpan(24, 4)); break;
             case 6: changed.AsSpan(28, 8).Clear(); break;
+            case 7: changed[0] = 2; break;
         }
 
         StoreIdentity identity = FormatTestValues.Identity();

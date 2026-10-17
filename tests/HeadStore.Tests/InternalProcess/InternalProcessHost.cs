@@ -34,6 +34,7 @@ internal static class InternalProcessHost {
             }
             args = args[1..];
             if (args[0].StartsWith("set-tag.", StringComparison.Ordinal)) { return HeadSetTagProcessHost.Run(args); }
+            if (args[0].StartsWith("reference-fork.", StringComparison.Ordinal)) { return ReferenceForkProcessHost.Run(args); }
             if (args[0].StartsWith("cu-", StringComparison.Ordinal)) { return ConditionalUpdateProcessHost.Run(args); }
             if (args[0].StartsWith("tail.", StringComparison.Ordinal)) {
                 return InternalTailHost.Run(args);
@@ -147,8 +148,16 @@ internal static class InternalProcessHost {
             ProvePendingClosed(root);
             Require(StoreIdentity.TryRead(store!.HeadStoreId, out var identity), "Bad store identity.");
             using (var pending = RbfFile.OpenReadOnlyExisting(PendingPath(root), RbfCacheMode.Off)) {
-                var entry = HeadRecordReader.ReadCurrent(pending, identity, HeadId.Create(identity, targetId)).Unwrap();
-                Require(entry.Payload.SequenceEqual(expected), "Private Entry differs from its request.");
+                HeadId pendingId = HeadId.Create(identity, targetId);
+                var header = HeadRecordReader.CheckHeader(pending, identity, pendingId).Unwrap();
+                if (fork) {
+                    Require(header.Origin is not null && pending.TailOffset == header.RecordsOffset,
+                        "Private fork must contain only its checked origin header.");
+                }
+                else {
+                    var entry = HeadRecordReader.ReadCurrent(pending, header).Unwrap();
+                    Require(entry.Payload.SequenceEqual(expected), "Private Entry differs from its request.");
+                }
             }
             Park("interrupt", new { scenario, targetId, pendingFlushes, pendingClosed = true, renameReturned = false });
         };
@@ -226,10 +235,11 @@ internal static class InternalProcessHost {
             if (scenario.EndsWith("-renamed", StringComparison.Ordinal)) {
                 var created = store.ReadHead(target).Unwrap();
                 Require(created.Payload.SequenceEqual(target == ForkId ? Initial : Created), "Created/forked payload differs.");
-                Require(created.RecordedAtUnixMs == RecordedAt, "Created/forked record metadata differs.");
+                Require(target == ForkId || created.RecordedAtUnixMs == RecordedAt, "Created record metadata differs.");
                 var forks = store.ListHeadOrigins(10).Unwrap();
                 if (target == ForkId) {
                     Require(forks.Count == 1, "Fork declaration missing.");
+                    Require(created.Id == OldSource(store), "Fork did not retain the actual source Entry identity and time.");
                     var exact = OldSource(store);
                     Require(forks[0].ChildHeadId.LocalId == ForkId && forks[0].SourceHeadId == exact.HeadId
                         && forks[0].SourceEntryTicket == exact.Ticket, "Fork declaration lost the exact old source.");
@@ -268,7 +278,7 @@ internal static class InternalProcessHost {
                 Require(store.CreateHead(Created, out outcome).Unwrap().HeadId.LocalId == AutomaticId, "Canceled auto creation burned its id.");
             }
             else if (scenario == "fork-specified-private") {
-                Require(store.ForkHead(ForkId, OldSource(store), out outcome).Unwrap().HeadId.LocalId == ForkId, "Canceled fork did not permit fresh creation.");
+                Require(store.ForkHead(ForkId, OldSource(store), out outcome).Unwrap().LocalId == ForkId, "Canceled fork did not permit fresh creation.");
             }
             else {
                 Require(scenario is "tag-private" or "tag-empty", "Only private/empty requests can be retried.");

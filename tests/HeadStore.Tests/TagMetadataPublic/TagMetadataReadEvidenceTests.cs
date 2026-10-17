@@ -16,7 +16,7 @@ public sealed class TagMetadataReadEvidenceTests {
     public void ReadTagRejectsTrustedCountLengthMismatchBeforeRentingOrReadingTheCompleteFrame(int actualCount) {
         using var fixture = new TagPublicationFaultFixture(readOnly: true);
         // Both the RBF frame and every independently assembled member are legal. Only
-        // the trusted count disagrees, so a generic 12-byte alignment guard cannot reject it.
+        // the trusted count disagrees, so a generic 16-byte alignment guard cannot reject it.
         byte[] members = TagTestWire.MemberSequence(actualCount);
         var record = new TagFaultRecord(members, TagFaultFixture.Metadata(entryCount: 1));
         SizedPtr ticket = Assert.Single(fixture.SeedBucket(record).Tickets);

@@ -227,7 +227,7 @@ internal static class ProcessScenario {
             dataFrames = data.Audit(static _ => { }).Unwrap();
             long expectedHeads = checkpoint is "create-confirmed" or "fork-confirmed" ? 2 : 1;
             long expectedEntries = checkpoint is "head-confirmed" or "confirmed-a-active-b"
-                or "create-confirmed" or "fork-confirmed" ? 2 : 1;
+                or "create-confirmed" ? 2 : 1;
             Require(audit.HeadCount == expectedHeads && audit.EntryCount == expectedEntries,
                 "Unexpected physical ref or Entry count after recovery.");
             Require(audit.OriginCount == (checkpoint == "fork-confirmed" ? 1 : 0), "Unexpected fork count.");
@@ -259,6 +259,7 @@ internal static class ProcessScenario {
         if (checkpoint is "create-confirmed" or "fork-confirmed") {
             HeadEntry child = heads.ReadHead(CreatedHead).Unwrap();
             ValidateOpaque(data, child.Payload, expectedPayload, checkpoint == "create-confirmed" ? 1 : 0);
+            if (checkpoint == "fork-confirmed") { Require(child.Id == current.Id, "Header-only fork gained an artificial Entry."); }
         }
         var forks = heads.ListHeadOrigins(8).Unwrap();
         if (checkpoint == "fork-confirmed") {

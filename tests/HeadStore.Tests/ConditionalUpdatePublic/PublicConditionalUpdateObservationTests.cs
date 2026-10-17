@@ -63,7 +63,7 @@ public sealed class PublicConditionalUpdateObservationTests {
         }
         fixture.AssertUnchanged(beforeReadOnly);
 
-        HeadEntryId clone;
+        HeadId child;
         using (var writer = fixture.Open()) {
             Assert.Equal(partial, File.ReadAllBytes(fixture.HeadPath(group.B.HeadId.LocalId)));
             HeadEntry recovered = writer.ReadHead(group.B.HeadId).Unwrap();
@@ -72,11 +72,11 @@ public sealed class PublicConditionalUpdateObservationTests {
             Assert.Equal(a2, writer.ReadHead(group.A.HeadId).Unwrap().Id);
             Assert.Equal(new[] { a2, group.A, group.AInitial },
                 ConditionalUpdatePublicFixture.History(writer, group.A.HeadId).Select(entry => entry.Id));
-            clone = writer.ForkHead(23, group.A, out var outcome).Unwrap();
+            child = writer.ForkHead(23, group.A, out var outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            Assert.Equal(group.RootA, writer.ReadHead(clone.HeadId).Unwrap().Payload.ToArray());
-            Assert.Equal(new[] { clone, group.A, group.AInitial },
-                ConditionalUpdatePublicFixture.History(writer, clone.HeadId).Select(entry => entry.Id));
+            Assert.Equal(group.RootA, writer.ReadHead(child).Unwrap().Payload.ToArray());
+            Assert.Equal(new[] { group.A, group.AInitial },
+                ConditionalUpdatePublicFixture.History(writer, child).Select(entry => entry.Id));
         }
         // Compare after releasing the writable ref's FileShare.None handle. Public target
         // access completed the original suffix without truncating or replacing its CU body.
@@ -84,9 +84,9 @@ public sealed class PublicConditionalUpdateObservationTests {
         using var cold = fixture.Open(readOnly: true);
         Assert.Equal(a2, cold.ReadHead(group.A.HeadId).Unwrap().Id);
         Assert.Equal(group.B, cold.ReadHead(group.B.HeadId).Unwrap().Id);
-        Assert.Equal(new[] { clone, group.A, group.AInitial },
-            ConditionalUpdatePublicFixture.History(cold, clone.HeadId).Select(entry => entry.Id));
-        Assert.Equal(6, cold.Audit().Unwrap().EntryCount);
+        Assert.Equal(new[] { group.A, group.AInitial },
+            ConditionalUpdatePublicFixture.History(cold, child).Select(entry => entry.Id));
+        Assert.Equal(5, cold.Audit().Unwrap().EntryCount);
     }
 
     [Fact]

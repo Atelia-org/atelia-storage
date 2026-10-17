@@ -14,7 +14,7 @@ public sealed class ForkQueryValidationTests {
         bool badInitial, bool badHead) {
         using var fixture = new ForkQueryFixture();
         HeadEntryId[] source = new HeadEntryId[3];
-        HeadEntryId child;
+        HeadId child;
         using (var store = fixture.Create()) {
             source[0] = store.CreateHead(7, ForkQueryFixture.Bytes(0xa0), out _).Unwrap();
             source[1] = store.PublishHead(source[0].HeadId, ForkQueryFixture.Bytes(0xa1), out _).Unwrap();
@@ -27,7 +27,7 @@ public sealed class ForkQueryValidationTests {
         if (badHead) { fixture.FlipPayload(source[2]); }
         fixture.AssertFactoryQualified(7, 12);
         using var readOnly = fixture.Open(readOnly: true);
-        ForkQueryFixture.AssertEdges(readOnly.ListHeadOrigins(2).Unwrap(), (child.HeadId, source[1].HeadId, source[1].Ticket));
+        ForkQueryFixture.AssertEdges(readOnly.ListHeadOrigins(2).Unwrap(), (child, source[1].HeadId, source[1].Ticket));
         if (badHead) {
             Assert.True(readOnly.ReadHead(source[0].HeadId).IsFailure);
         }
@@ -37,7 +37,7 @@ public sealed class ForkQueryValidationTests {
         var actualHistory = readOnly.ReadHeadHistory(source[0].HeadId, ForkQueryFixture.Unlimited, _ => true);
         Assert.True(actualHistory.IsFailure);
         Assert.StartsWith("Rbf.", actualHistory.Error!.ErrorCode);
-        ForkQueryFixture.AssertEdges(readOnly.ListHeadOrigins(2).Unwrap(), (child.HeadId, source[1].HeadId, source[1].Ticket));
+        ForkQueryFixture.AssertEdges(readOnly.ListHeadOrigins(2).Unwrap(), (child, source[1].HeadId, source[1].Ticket));
     }
 
     [Theory]
@@ -168,9 +168,9 @@ public sealed class ForkQueryValidationTests {
     [Theory]
     [InlineData("past-tail")]
     [InlineData("wrong-length")]
-    [InlineData("clone-mismatch")]
+    [InlineData("distinct-local-payload")]
     [InlineData("source-crc")]
-    public void DeclaredSourceTicketAndCloneContentsAreNotAuditedUntilHistoryActuallyVisitsThem(string defect) {
+    public void DeclaredSourceTicketsAreNotAuditedUntilHistoryActuallyVisitsThem(string defect) {
         using var fixture = new ForkQueryFixture();
         HeadEntryId source;
         using (var store = fixture.Create()) {
@@ -182,8 +182,8 @@ public sealed class ForkQueryValidationTests {
             "wrong-length" => HeadEntryId.Create(source.HeadId, SizedPtr.Create(source.Ticket.Offset, source.Ticket.Length + 4)),
             _ => source
         };
-        byte[] clone = ForkQueryFixture.Bytes(defect == "clone-mismatch" ? (byte)0x53 : (byte)0x51);
-        HeadEntryId child = fixture.WriteMirror(12, declared, new QueryRecord(clone))[0];
+        byte[] localPayload = ForkQueryFixture.Bytes(defect == "distinct-local-payload" ? (byte)0x53 : (byte)0x51);
+        HeadEntryId child = fixture.WriteMirror(12, declared, new QueryRecord(localPayload))[0];
         if (defect == "source-crc") { fixture.FlipPayload(source); }
         fixture.AssertFactoryQualified(7, 12);
         using var readOnly = fixture.Open(readOnly: true);
@@ -193,9 +193,14 @@ public sealed class ForkQueryValidationTests {
             delivered.Add(entry.Id);
             return true;
         });
+        if (defect == "distinct-local-payload") {
+            Assert.Equal(HeadHistoryEnd.Complete, history.Unwrap());
+            Assert.Equal(new[] { child, source }, delivered);
+            return;
+        }
         Assert.True(history.IsFailure);
         Assert.Equal(new[] { child }, delivered);
-        if (defect is "past-tail" or "clone-mismatch") {
+        if (defect == "past-tail") {
             Assert.Equal("HeadStore.InvalidForkOrigin", history.Error!.ErrorCode);
         }
         else { Assert.StartsWith("Rbf.", history.Error!.ErrorCode); }
@@ -206,7 +211,7 @@ public sealed class ForkQueryValidationTests {
     public void HeaderQueryDoesNotBypassTheUnderlyingFactoryCurrentEofStructuralQualification() {
         using var fixture = new ForkQueryFixture();
         HeadEntryId initial;
-        HeadEntryId child;
+        HeadId child;
         using (var store = fixture.Create()) {
             initial = store.CreateHead(7, ForkQueryFixture.Bytes(), out _).Unwrap();
             store.PublishHead(initial.HeadId, ForkQueryFixture.Bytes(0x52), out _).Unwrap();
@@ -214,13 +219,13 @@ public sealed class ForkQueryValidationTests {
         }
         fixture.FlipFollowingFence(initial);
         // This shared Fence is also the current head's left boundary. The failure belongs to
-        // RBF factory admission, while the child's complete header and value remain readable.
+        // RBF factory admission; the header-only child still needs that exact source file.
         Assert.Throws<InvalidDataException>(() => {
             using IRbfFile unexpected = RbfFile.OpenReadOnlyExisting(fixture.HeadPath(7), RbfCacheMode.Off);
         });
         fixture.AssertFactoryQualified(12);
         using var readOnly = fixture.Open(readOnly: true);
-        Assert.Equal(child, readOnly.ReadHead(child.HeadId).Unwrap().Id);
+        Assert.Throws<InvalidDataException>(() => { readOnly.ReadHead(child); });
         Assert.Throws<InvalidDataException>(() => { readOnly.ListHeadOrigins(2); });
     }
 }

@@ -1,9 +1,9 @@
 # S4：HeadStore 不透明根 payload 与 Head 发布
 
-HeadSetTag 更新：2026-10-16 本轮实施格式2与具名成员表替换，待[独立验收](16-headset-tags-acceptance.md)。既有 Accepted 保持原 VersionStore/格式1来源；[15重命名记录](15-headstore-renaming-plan.md)不覆盖本行为变化。文档路径已迁移，既有 Clause-ID 保持，普通 Head/CU 的记录形状不变。
+引用初始化 fork 更新：2026-10-17 当前合同采用格式3，拒绝格式1/2；fork 只发布来源 header，HeadSetTag 成员为16B独立 key/value 映射。本轮实际源码、进程与包资格见[既有验收入口中的新增轮次](12-versionstore-final-acceptance.md)，未完成验证不沿用旧 Accepted。既有 Clause-ID 与历史证据保持。
 
-状态：**既有普通 Head 等范围的独立 source-only 源码资格 Accepted；CU 已正式接纳并取得本轮独立源码验收 Accepted**。普通 Head、身份/编号、创建/打开、ForkOrigin、PublicationOutcome 与只读 Audit 的既有实现及限定证据见[最终源码验收](12-versionstore-final-acceptance.md)；CU 增量见[07 验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。V4-F 与 S6-C/D 的既有进程/本地候选资格各自保留，旧六包候选不含 CU。后续见[实施计划](12-versionstore-implementation-plan.md)。
-本文负责发布协议、身份与 Head envelope；时间编码见 [08 元信息专项](08-versionstore-record-metadata.md)，bytes API/所有权见 [11 公面专项](11-versionstore-root-payload-bytes-api.md)，可选 NamedFrameMap codec 见 [10 专项](10-versionstore-rootmap-payload.md)。当前统一格式版本为 2；格式1在门校验时拒绝，不提供双reader、原地转换或无tag旧库例外。
+既有轮次状态：**既有普通 Head 等范围的独立 source-only 源码资格 Accepted；CU 已正式接纳并取得CU首轮独立源码验收 Accepted**。普通 Head、身份/编号、创建/打开、ForkOrigin、PublicationOutcome 与只读 Audit 的既有实现及限定证据见[最终源码验收](12-versionstore-final-acceptance.md)；CU 增量见[07 验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。V4-F 与 S6-C/D 的既有进程/本地候选资格各自保留，旧六包候选不含 CU。后续见[实施计划](12-versionstore-implementation-plan.md)。
+本文负责发布协议、身份与 Head envelope；时间编码见 [08 元信息专项](08-versionstore-record-metadata.md)，bytes API/所有权见 [11 公面专项](11-versionstore-root-payload-bytes-api.md)，可选 NamedFrameMap codec 见 [10 专项](10-versionstore-rootmap-payload.md)。当前统一格式版本为 3；格式1/2在门校验时拒绝，不提供双reader、原地转换或无tag旧库例外。
 前置：[S0](../FrameStore-HeadStore/00-architecture-decisions.md)、[S1](../Rbf/01-rbf-sized-append.md)、[S2](../FrameStore/02-framestore-core.md)、[S3](../FrameStore/03-framestore-interleaved-builders-and-durability.md)。历史与不可变 tag 见 [S5](05-versionstore-names-and-indexes.md)。
 
 ## 目标、归属与范围
@@ -43,14 +43,14 @@ HeadStore MUST 有独立、create-only 的格式门；普通 Head/tag 发布不�
 
 | byte 范围（半开） | 字段 | 编码与校验 |
 | --- | --- | --- |
-| `[0,4)` | HeadStoreFormatVersion | uint32 LittleEndian，当前为 2，选择本层目录/header/发布 envelope schema 及允许的 TailMeta 形状 |
+| `[0,4)` | HeadStoreFormatVersion | uint32 LittleEndian，当前为 3，选择本层目录/header/发布 envelope schema 及允许的 TailMeta 形状 |
 | `[4,20)` | HeadStoreId | 16 个 canonical opaque bytes，非全零，发布库的稳定身份 |
 | `[20,36)` | DataStoreId | 16 个 canonical opaque bytes，逐字节复制借入 data 已资格化的持久 StoreId 编码 |
 | `[36,40)` | ReservedHeadIdUpperBound | uint32 LittleEndian；记为 L，允许 0..uint.MaxValue−1，创建后不变 |
 | `[40,44)` | CRC32C | 前 40B 的 CRC32C，uint32 LittleEndian；init/finalXor 均为 0xffffffff |
 
 两份身份按各自角色逐字节比较，不检查 UUID 结构、不重排字节或 dump CLR struct，不要求两者字节不同。DataStoreId 直接消费 S2 身份编码；HeadStoreId 在初次创建时随机生成非零 128-bit canonical 值，见 `[R-VS-STORE-CREATE]`；满足该合同的 CLR 表示与具体调用由实现决定。FrameStore 与 HeadStore 的格式版本分别解释各自 schema，绑定不要求两层版本号相等。
-版本2必须同时写入格式门、HeadHeader和TagBucketHeader。版本1门直接拒绝；版本2门下混入版本1 header时，在访问该文件时拒绝，不为发现混入扩大Open为全库扫描。不改变FrameStore/RBF版本。
+版本3必须同时写入格式门、HeadHeader和TagBucketHeader。版本1/2门直接拒绝；版本3门下混入版本1/2 header时，在访问该文件时拒绝，不为发现混入扩大Open为全库扫描。不改变FrameStore/RBF版本。
 CRC MUST 使用现成 `RollingCrc.SealCodewordForward` / `CheckCodewordForward`，传入完整 44B codeword；这是普通门记录的唯一 CRC，不加 Magic、第二版本、flags/预留、HeadId、路径、集合或可变分配状态。L 是不可变编号域边界，不是 next counter/占号账本；RBF header 不追加这份 CRC。
 
 **共同只读检查。** Open 与 OpenReadOnly MUST 共用一个内部流程。在 `[S-VS-DATA-BORROW]`、`[S-VS-ROOT-ADMISSION]` 与已持有的 `[S-VS-OWNER-LOCK]` 资格下，使用已从实际借入 owner 捕获的持久 StoreId。以 `FileMode.Open`、`FileAccess.Read`、`FileShare.Read` 打开正式门的临时 FileStream；同一句柄上先要求 Length 恰为 44，再 `ReadExactly` 到固定 44B 栈 buffer。先校验整个 codeword，再解码受支持版本、两份非零身份及合法 L，最后比较 DataStoreId 与借入 data 的身份。不同即拒绝，不按门字段重新寻找或替换 data、不比较 data 路径或实例引用来替代持久身份。
@@ -65,7 +65,7 @@ CRC MUST 使用现成 `RollingCrc.SealCodewordForward` / `CheckCodewordForward`�
 
 调用方选择 root 及可信父路径；实现将路径绝对化，只检查根末组件的普通目录/no-follow 资格，不建立祖先句柄链、物理根别名表或硬链接去重。Create 可创建缺失末级根，父目录须已存在且合格，不递归创建祖先。根/父路径大小写不是持久格式；精确拼写要求只适用于本层受管组件。
 
-版本 2 的必要布局为 `versionstore.lock`、`versionstore.format`、普通目录 `refs` 与 `creating`。实际直接目录项须具有精确名称和 ordinary/no-follow 资格；拒绝受管 symlink、junction/reparse、设备、FIFO 等特殊项，不以宽容路径查找或过滤枚举认领名称。已从实际枚举取得 canonical 名称的项仅再检查类型，不为每个文件重扫父目录。根还允许精确小写的可选普通目录 `tags`；存在时取得相同 ordinary/no-follow 与同文件系统资格，不枚举或审计其桶内容。该目录与正式桶路径由 [S5-B 专项](09-versionstore-immutable-tags.md) 定义，初次建库不预建目录或桶；缺失不由 Open/OpenReadOnly 补造。
+版本 3 的必要布局为 `versionstore.lock`、`versionstore.format`、普通目录 `refs` 与 `creating`。实际直接目录项须具有精确名称和 ordinary/no-follow 资格；拒绝受管 symlink、junction/reparse、设备、FIFO 等特殊项，不以宽容路径查找或过滤枚举认领名称。已从实际枚举取得 canonical 名称的项仅再检查类型，不为每个文件重扫父目录。根还允许精确小写的可选普通目录 `tags`；存在时取得相同 ordinary/no-follow 与同文件系统资格，不枚举或审计其桶内容。该目录与正式桶路径由 [S5-B 专项](09-versionstore-immutable-tags.md) 定义，初次建库不预建目录或桶；缺失不由 Open/OpenReadOnly 补造。
 
 HS 的 root、受管目录及其叶文件 MUST 取得同文件系统/mount 资格；private→formal MUST 使用原生同文件系统、不覆盖 file rename，不退回复制/删除或覆盖。平台采用 S2 `[S-FS-ROOT-ADMISSION]` 已有的严格机制：Windows 普通 disk/no-reparse 与 volume GUID，Linux statx 类型/device/mount identity 及 renameat2 RENAME_NOREPLACE；无法取得资格或未支持平台明确拒绝。HS 根与借入 data 根不要求同文件系统。
 
@@ -73,7 +73,7 @@ HS 的 root、受管目录及其叶文件 MUST 取得同文件系统/mount 资�
 
 ### spec [S-VS-OWNER-LOCK] 独立永久控制文件协调 HS owner
 
-版本 2 使用精确小写 `versionstore.lock`：永久保留的普通空文件，不是 RBF，不存身份、PID、busy、generation 或日志。实际名称、ordinary/no-follow、同文件系统及持有的同一句柄 Length 恰为 0 均 MUST 合格；缺坏时不截断或修复。锁不证明身份、不参与 HeadId/H 或查询结果，借入 data 的锁不能替代它。
+版本 3 使用精确小写 `versionstore.lock`：永久保留的普通空文件，不是 RBF，不存身份、PID、busy、generation 或日志。实际名称、ordinary/no-follow、同文件系统及持有的同一句柄 Length 恰为 0 均 MUST 合格；缺坏时不截断或修复。锁不证明身份、不参与 HeadId/H 或查询结果，借入 data 的锁不能替代它。
 
 Create/可写 Open MUST 取得排斥其他全部 HS owner 的独占锁；OpenReadOnly 取得与只读 owner 兼容、与 writer 互斥的共享锁。Windows writer 使用 FileShare.None、reader 使用 FileShare.Read；Linux 在长期持有的同一 fd 上取得 checked nonblocking flock EX/SH，不依赖 BCL best-effort 锁。不启用 Delete、Inheritable 或 DeleteOnClose。冲突、unsupported 或其他严格锁失败直接拒绝，不等待、轮询或降级。
 
@@ -87,7 +87,7 @@ Create 完成纯参数及借入资格、fresh 输入预检后，才可 bootstrap
 
 Create MUST 为 create-only。纯参数（含合法 L）及 `[S-VS-DATA-BORROW]` 检查先于 HS I/O；fresh 输入只接受不存在末级根、空根或仅有合格空 `versionstore.lock` 的 bootstrap 根。已有门（含短坏门）、初始化目录、发布文件、private 或未知内容均拒绝，不据缺门收养或续作。bootstrap 与获锁重检消费 `[S-VS-OWNER-LOCK]`。
 
-在实际根资格及独占锁下先准备空 `refs`、`creating`，检查这两个目录及锁的资格，再创建正式门；不创建 Head、tag 桶、配置或编号账本。为本次创建生成随机非零 128-bit HSID（可用 RandomNumberGenerator.Fill，遇全零重取），与已捕获的 DataStoreId、L、版本 2 编成既定完整 44B codeword。以 FileMode.CreateNew、FileAccess.Write、FileShare.None 直接创建正式 `versionstore.format`，从长度 0 顺序写完整记录，不预扩长或补字段；Flush(flushToDisk: true) 及单次 close 成功后才交付持原锁的空 owner，H=L。此操作不签发 HeadId/EntryId，不调用 data barrier，不使用私有门、门 rename、初始化日志或读回阶段。
+在实际根资格及独占锁下先准备空 `refs`、`creating`，检查这两个目录及锁的资格，再创建正式门；不创建 Head、tag 桶、配置或编号账本。为本次创建生成随机非零 128-bit HSID（可用 RandomNumberGenerator.Fill，遇全零重取），与已捕获的 DataStoreId、L、版本 3 编成既定完整 44B codeword。以 FileMode.CreateNew、FileAccess.Write、FileShare.None 直接创建正式 `versionstore.format`，从长度 0 顺序写完整记录，不预扩长或补字段；Flush(flushToDisk: true) 及单次 close 成功后才交付持原锁的空 owner，H=L。此操作不签发 HeadId/EntryId，不调用 data barrier，不使用私有门、门 rename、初始化日志或读回阶段。
 
 可打开事实是完整合法门与必要布局均存在；正常 Create 返回另要求写入、flush/close 与 owner 交付全部成功。完整门可能在这些步骤失败前已经存在，后续 Open 按实际门身份/布局准入，不能由它证明旧 Create 正常返回。仅消费 ProcessCrashOnly，不假设 44B 写原子或断电后的目录耐久。
 
@@ -128,7 +128,7 @@ HeadStore 接收/返回完整、不透明的 root-payload bytes，整体替换�
 
 ### spec [A-VS-ROOT-PAYLOAD] 发布记录的 root payload 与 codec 分离
 
-普通 SingleEntry 的整个 RBF payload 是 root-payload bytes；[CU](07-versionstore-cross-ref-conditional-update.md)由自身 envelope 定位 root bytes，排除 Members。发布资格仅检查格式/身份、kind、meta、真实主链位置、完整 CRC、11 专项的长度界及必要 CU 成员判据，不解码内容。无变更 fork 的 exact byte clone 与返回值由 S5 `[S-VS-FORK-FROM-REVISION]` 定义；继承历史的逐 byte 来源比较由 S5 `[A-VS-REF-HISTORY-CHECKED]` 定义。
+普通 SingleEntry 的整个 RBF payload 是 root-payload bytes；[CU](07-versionstore-cross-ref-conditional-update.md)由自身 envelope 定位 root bytes，排除 Members。发布资格仅检查格式/身份、kind、meta、真实主链位置、完整 CRC、11 专项的长度界及必要 CU 成员判据，不解码内容。引用初始化 fork 只在 header 保存准确来源，不创建本地 Entry；返回值由 S5 `[S-VS-FORK-FROM-REVISION]` 定义，继承历史按 `[A-VS-REF-HISTORY-CHECKED]` 接续实际来源 Entry。
 
 ### spec [A-VS-VALIDATION-SCOPE] 按操作依赖校验，完整检查独立施工
 
@@ -136,12 +136,12 @@ HeadStore 接收/返回完整、不透明的 root-payload bytes，整体替换�
 
 | 操作 | 必要内容与保证 |
 | --- | --- |
-| ReadHead | checked header 身份与逆向所访问 head 的完整资格；普通 SingleEntry 直接交付，CU 按07共同判据成立才交付，未成立继续向前；不预读无关初始/中间 payload |
-| ReadHeadHistory / ForkHead | S5 的按需历史节点、精确源与必要来源 bytes 比较；历史早停不访问更旧节点 |
+| ReadHead | checked header 身份与逆向所访问 head 的完整资格；普通 SingleEntry 直接交付，CU 按07共同判据成立才交付，未成立继续向前；正常抵达 checked header 且无本地已接受 Entry 的 fork 精确读取固定来源，不预读无关初始/中间 payload |
+| ReadHeadHistory / ForkHead | S5 的按需历史节点、精确源及其发布资格；历史早停不访问更旧节点 |
 | ListHeadOrigins | 全部 header 声明与来源集合/环检查；不读初始或末 payload |
 | ReadTag / CreateTag / ReadTagInfo | 09 的唯一可信目标名裁决；ReadTag检查完整canonical成员表；CreateTag另捕获当前Entry并确认必要依赖；Info不证明表或成员健康 |
 | ScanTags | 09 的逐桶元信息扫描、Complete/VisitorStopped 与回调合同；不读成员表/Entry或证明全部名称唯一 |
-| 独立完整校验 | 只读检查初始化、全部帧 CRC/envelope、全桶名称重复、tag成员引用及 fork 来源 bytes 一致性；不解释应用 payload/data 业务闭包 |
+| 独立完整校验 | 只读检查初始化、全部帧 CRC/envelope、全桶名称重复、tag成员引用及 fork 来源真实发布资格；不解释应用 payload/data 业务闭包 |
 
 独立完整校验使用下述同步 Audit 入口，不建立通用审计框架。日常成功不得宣称未访问内容健康；完整校验也不自动修复、丢坏帧、回退 head 或改变发布事实。结构不可安全推进、权限/I/O、必要恢复/清理及生命周期错误继续走各操作的失败合同。CU 的完整成员判据决定发布生效，当前值、历史、fork 和 Audit 共用07判据，不能推迟到独立校验。
 
@@ -160,11 +160,11 @@ public sealed class HeadStoreAudit {
 
 结果由库内部构造，只含自有计数，无 setter、owner、lease 或修复能力。Audit MUST 在 `OpenReadOnly` 获得的 owner 上调用；可写 owner 在任何本次 I/O 前返回 `HeadStore.ReadOnlyRequired`。这使完整检查不会经可写惰性打开触发 RBF 恢复。已有 history/tag 扫描 callback 内调用分别返回 HistoryActive/TagScanActive；本操作没有 visitor、递归入口或部分成功报告。owner disposed/fault 先检查，取消抛 OperationCanceledException。
 
-检查覆盖全部正式 Head 的合格 header、直接第二帧普通初始 SingleEntry、每条后续 SingleEntry/CU 的完整 CRC/envelope，以及每个文件的正常 EOF；拒绝未知 kind、tombstone、重复 header 和坏尺寸。物理完整 CU 无论其组是否成立都必须完整检查，合法未提交 CU 可通过但不计作发布快照。检查完整声明图的缺源与环；每条 ForkOrigin 的 exact SizedPtr（offset 和 length）MUST 命中源文件真实主链中的普通 SingleEntry 或共同判据成立 CU，再比较子初始与源 root bytes 的全部 bytes；未提交 CU 来源直接失败。局部随机读 CRC 或尾 Fence 合格不证明主链成员，不接受嵌在其他 payload 内的伪帧。记录时间及 CU Members 不参与 clone 比较，应用 payload 不解码。
+检查覆盖全部正式 Head 的合格 header、全部本地 SingleEntry/CU 的完整 CRC/envelope，以及每个文件的正常 EOF；无来源 root 必须有直接初始 SingleEntry，有来源 fork 可只有 header 或以 SingleEntry/CU 开始。拒绝未知 kind、tombstone、重复 header 和坏尺寸。物理完整 CU 无论其组是否成立都必须完整检查，合法未提交 CU 可通过但不计作发布 Entry。检查完整声明图的缺源与环；每条 ForkOrigin 的 exact SizedPtr（offset 和 length）MUST 命中源文件真实主链中的普通 SingleEntry 或共同判据成立 CU，未提交 CU 来源直接失败。每个来源文件可用待验证 ticket 集合，在扫到成立记录时移除；正常 EOF 后仍有未命中的来源即失败。多个 child 共享来源不重复读取子文件，不比较不存在的克隆 payload。应用 payload 不解码。
 
-全部实际 tag 桶都检查 header、每条记录的完整 CRC、canonical成员表与独立meta（含名称路由/count），按解码后的 Ordinal 名称拒绝重复；不能采用 named 查询的 unknownName 隔离。相同名字必路由同桶，因此去重集合可逐桶释放。逐成员验证所指Entry存在、完整可读及必要CU共同资格；不存在ticket/坏成员/未成立CU拒绝，不把元信息或表健康当作引用健康。内部exact/CU复用短期槽和取消/状态检查，不循环公共ReadEntry填永久cache；成员校验不重复计EntryCount。
+全部实际 tag 桶都检查 header、每条记录的完整 CRC、canonical成员表与独立meta（含名称路由/count），按解码后的 Ordinal 名称拒绝重复；不能采用 named 查询的 unknownName 隔离。相同名字必路由同桶，因此去重集合可逐桶释放。逐成员分别验证 selected Head 存在和目标 Entry 的完整可读/必要CU共同资格；同Head成员指向其实际发布 Entry，跨Head成员必须与selected Head的固定ForkOrigin精确相符，不比较今日当前值。复用本次 checked Head 节点表验证 key/origin；不存在ticket/坏成员/未成立CU拒绝，不把元信息或表健康当作引用健康。内部exact/CU复用短期槽和取消/状态检查，不循环公共ReadEntry填永久cache；成员校验不重复计EntryCount。
 
-HeadCount 包含所有正式 Head，EntryCount 按各文件本地已发布记录计数，即普通 SingleEntry（含每个 Head 的初始记录）加共同判据成立 CU，未提交 CU 不计，不重复展开继承历史；OriginCount 为来源边数，TagBucketCount 包含合法空桶，TagCount 为实际 TagRecord 数。不新增 CU 专用公开计数。只有所有检查、正常 EOF 与必要清理均成功才交付统计。首次内容失败返回失败 Result；结构无法打开、权限/I/O、OOM 等按既有异常合同传播，不汇总为健康计数。纯读或取消不新增 fault，owned 清理失败仍停用并确保锁最后释放。取消检查传入成员exact/CU路径，在成员间、打开前后、完整读取/peer工作前及最终交付前执行；取消不返回完整计数。局部pooled帧/临时文件先清理、根锁最后；Dispose/fault后不继续I/O，主异常优先且各资源只清理一次。取消可中断检查，但不承诺时间或内存配额。
+HeadCount 包含所有正式 Head，EntryCount 按各文件本地已发布记录计数，即实际普通 SingleEntry 加共同判据成立 CU；header-only fork 不增加 EntryCount，未提交 CU 不计，不重复展开继承历史；OriginCount 为来源边数，TagBucketCount 包含合法空桶，TagCount 为实际 TagRecord 数。不新增 CU 专用公开计数。只有所有检查、正常 EOF 与必要清理均成功才交付统计。首次内容失败返回失败 Result；结构无法打开、权限/I/O、OOM 等按既有异常合同传播，不汇总为健康计数。纯读或取消不新增 fault，owned 清理失败仍停用并确保锁最后释放。取消检查传入成员exact/CU路径，在成员间、打开前后、完整读取/peer工作前及最终交付前执行；取消不返回完整计数。局部pooled帧/临时文件先清理、根锁最后；Dispose/fault后不继续I/O，主异常优先且各资源只清理一次。取消可中断检查，但不承诺时间或内存配额。
 
 检查从工厂已准入的身份/布局出发，只审正式 Head/tag 内容；private pending 仍由既有只读打开规则保留，不解释或收养。它不遍历 FrameStore data，也不证明应用依赖闭包、旧调用曾 Confirmed 或断电耐久性。实现应使用短期只读句柄，避免将全库句柄或所有 payload 留存在 owner 中；不增加修复、索引或后台工作。
 
@@ -182,14 +182,14 @@ HeadCount 包含所有正式 Head，EntryCount 按各文件本地已发布记录
 内部 encoder MUST 先检查值非 default、HSID 与宿主预期身份相符及目标容量至少 4B；失败不改变任何目标 bytes，成功只写前 4B，剩余目标不变。复合 reader 先保证剩余至少 4B、切出精确字段，成功才提交消费；截短/零字段失败不提交，宿主负责全部记录的剩余字段及 trailing bytes。两方向不执行 I/O、不新增堆 buffer 或专用错误族，宿主映射为自己的字段错误；可信私有构造只保存已资格化身份值，不在发布确认后的成功值交付中重新解码、读回自身文件或引入可拒绝校验。
 
 HeadId 可以来自正常创建结果、checked 当前/历史读取、checked 来源元数据，或 ListHeads 的 checked 门上下文与 canonical 正式路径。最后一种只提供正式占号/定位身份，不证明文件 header、SingleEntry 或来源健康；持有 HeadId 本身也不证明所声明源存在/成员/发布资格。私有 planned HeadId 不在正式发布前交付应用或签发 EntryId；应用预先选择低号整数不等于取得已发布 HeadId。HeadEntryId 直接复用 HeadId 上下文，仍只按成员/发布合同签发。
-首版不提供整体 HeadId 的公开 EncodedSize、bytes/text codec 或自动序列化适配；应用在特定 HeadStore 的目录/配置上下文保存 LocalId，再按下面的 checked 查询恢复该库的 HeadId。内部 4B 字段不是无上下文的完整身份编码，不承诺自由构造身份或辨认跨库混放的应用目录。
+首版不提供整体 HeadId 的公开 EncodedSize、bytes/text codec 或自动序列化适配；应用在特定HeadStore目录/配置上下文保存LocalId，再由ListHeads取得该LocalId对应的HeadId；下面ReadHead(local)只恢复其当前Entry，未续写fork可能返回来源owner，不能据此恢复selected Head身份。内部 4B 字段不是无上下文的完整身份编码，不承诺自由构造身份或辨认跨库混放的应用目录。
 （Informative）固定 4B 是用户采用的当前容量/编码取舍：每库最多 4,294,967,295 个非零本地编号；不删除、不复用，容量约束终身累计正式创建的 Head，而非 SingleEntry/数据帧或更新次数。自动区有 Max−L 个编号，预留区有 L 个指定槽。唯一分配/不复用/耗尽消费 `[S-VS-REF-ID-DOMAINS]`，不以随机碰撞概率或字段宽度代替证明；不预建 64bit 扩展、逃逸编码或动态宽度。公开值另携已有 HSID：A/B 各有 local=7 时，A 的值误传 B.PublishHead 会被拒绝，纯 local 查询则由调用方保证选对库。20B 逻辑字段之和不成为 CLR ABI，不承诺本次缩宽降低 struct 的内存步长或改善性能；不新增身份、通用 ID 框架或 public StoreId 类型。固定 LE 可直接用 BCL 基元，[已有 UInt32LE](../../src/Binary/BareValueWriter.cs)与[独立 golden](../../tests/Binary.Tests/ScalarTests.cs)仅佐证字段组合，不强加 Binary 依赖，也不构成新 HeadId 实施资格。
 
 ### spec [A-VS-LOCAL-REF-LOOKUP] 本地编号在显式库上下文定位已发布 Head
 
-HeadStore MUST 提供 `ReadHead(uint localHeadId)`，与 `ReadHead(HeadId)` 返回同一种自有 HeadEntry。先检查 owner disposed/fault 与编号非零，再按 `[F-VS-REF-PATHS]` 直接定位并执行既有当前值资格；成功结果的 Id.HeadId 携带本 owner 已 checked 的 HSID。missing/损坏/I/O/模式与恢复语义与 HeadId 入口相同，不以 default、空字典或自由构造 HeadId 代替 checked 读取。查询可访问预留区或自动区的已发布 Head，不受指定创建的上界限制，不存在目标时不创建。
+HeadStore MUST 提供 `ReadHead(uint localHeadId)`，与 `ReadHead(HeadId)` 返回同一种自有 HeadEntry。先检查 owner disposed/fault 与编号非零，再按 `[F-VS-REF-PATHS]` 直接定位并执行既有当前值资格；成功结果的 Id.HeadId 携带本 owner 已 checked 的 HSID，但可能是固定来源 Entry 的所属 Head，与查询目标不同；调用方必须保存选定 HeadId 作为后续写入目标。missing/损坏/I/O/模式与恢复语义与 HeadId 入口相同，不以 default、空字典或自由构造 HeadId 代替 checked 读取。查询可访问预留区或自动区的已发布 Head，不受指定创建的上界限制，不存在目标时不创建。
 
-应用可用常量/枚举选择固定槽位，或保存自动创建结果的 LocalId，冷重开同一库后 ReadHead(local)。这次读取不恢复旧 EntryId 或证明旧尝试 Confirmed。纯 LocalId selector 由调用方显式选择库，不能检测将 A 的本地号误放入 B 的目录；应用 MUST 保持目录与正确库关联，跨库目录另核对其库归属。完整 HeadId 入口仍在 I/O/barrier 前拒绝错误 HSID，不退化为仅 local 比较。
+应用可用常量/枚举选择固定槽位，或保存自动创建结果的 LocalId，冷重开同一库后ReadHead(local)读取当前Entry。若要更新或创建tag，先在ListHeads结果中按LocalId取得选定HeadId；不能用当前Entry.Id.HeadId代替。该发现只证明正式路径身份，读取继续负责内容资格。这次读取不恢复旧EntryId或证明旧尝试Confirmed。纯 LocalId selector 由调用方显式选择库，不能检测将 A 的本地号误放入 B 的目录；应用 MUST 保持目录与正确库关联，跨库目录另核对其库归属。完整 HeadId 入口仍在 I/O/barrier 前拒绝错误 HSID，不退化为仅 local 比较。
 
 ## term `HeadEntryId` 已接受快照的位置身份
 
@@ -224,8 +224,8 @@ HeadStore MUST 提供 `AteliaResult<HeadEntry> ReadEntry(HeadEntryId entryId)`�
 
 ### spec [S-VS-REF-FILE-SINGLE] 每个 Head 保存一个完整快照序列
 
-每个 Head MUST 使用按唯一 HeadId 命名的一个 RBF3 文件。首版不分段、轮转、差分或建立派生 checkpoint；普通更新追加一条完整 root-payload SingleEntry，多个既有 Head 的批量更新分别追加一条07定义的 CU。当前值完整校验本地 header 与本次逆向所需记录，不预读无关初始 SingleEntry、扫描全部历史或递归祖先；初始即末帧时自然校验该记录。
-选尾 MUST 使用真实 RBF 逆向主链和 `showTombstone: true`，检查物理末帧紧贴实际尾部且所访问记录位于 checked header 后界之后或正好从该后界开始，不能将过滤结果或随机 ticket 当成发布成员证明。普通 SingleEntry 直接接受；完整合法 CU 的共同判据成立才接受，未成立跳过并继续向前。只有07的明确不完整见证允许跳过；本次必要 header/record/peer 的未知 kind/格式版/meta 形状、tombstone、坏 CRC/envelope、结构或 I/O 错误皆报错，不以错误回退。header-only 文件不能提供当前值，直接第二帧永远为普通 SingleEntry。第二帧初始化资格不作为每次 ReadHead 的内容前检。未访问初始或中间记录的损坏不撤销健康当前 head；声明的源历史缺/坏在实际历史访问中报错，不据此回退本 Head 的当前 payload。
+每个 Head MUST 使用按唯一 HeadId 命名的一个 RBF3 文件。首版不分段、轮转、差分或建立派生 checkpoint；普通更新追加一条完整 root-payload SingleEntry，多个既有 Head 的批量更新分别追加一条07定义的 CU。当前值完整校验本地 header 与本次逆向所需记录；正常抵达 header 且无已接受本地记录的 fork 精确读取固定来源 Entry，不递归读取源 Head 当前值。不预读无关初始 SingleEntry 或扫描全部历史；初始即末帧时自然校验该记录。
+选尾 MUST 使用真实 RBF 逆向主链和 `showTombstone: true`，检查物理末帧紧贴实际尾部且所访问记录位于 checked header 后界之后或正好从该后界开始，不能将过滤结果或随机 ticket 当成发布成员证明。普通 SingleEntry 直接接受；完整合法 CU 的共同判据成立才接受，未成立跳过并继续向前。只有07的明确不完整见证允许跳过；本次必要 header/record/peer 的未知 kind/格式版/meta 形状、tombstone、坏 CRC/envelope、结构或 I/O 错误皆报错，不以错误回退。无来源 root 必须有直接初始 SingleEntry，header-only root 不提供当前值；有来源 header-only fork 精确读取 ForkOrigin，其首个本地记录可以是 SingleEntry/CU。第二帧初始化资格不作为每次 ReadHead 的内容前检。未访问初始或中间记录的损坏不撤销健康当前 head；声明来源缺/坏在实际使用它的当前值/历史访问中报错；已有本地健康 Entry 的当前读取不因未访问祖先失败。
 普通 PublishHead 的覆盖前检只检查本地物理 head 的合法形状/完整内容，不强制读取上一组 CU 的全部 peer；后续 lazy CompletedTail 的观察解释按07执行。批量 PublishHeads 的输入与结果由11定义，所有目标/确定容量检查及私有捕获先于 data barrier。
 单帧容量与下一帧起点硬界继承 RBF/SizedPtr；下一帧起点超过 SizedPtr.MaxOffset 时明确拒绝追加或要求维护，MUST NOT 隐式回绕、复用完整历史位置或自行拆成多帧发布。MaxOffset 只限制帧起点，最后一个合法帧的末端与尾 Fence 可以越过它，不额外要求文件总长度落在该起点上界内。容量预检使用 RBF 公共 Measure/追加预算 API，并分别检查追加起点；预算 API 不自行验证文件起点，不能把 MaxOffset - TailOffset 当作硬性追加字节预算。
 
@@ -235,10 +235,10 @@ HeadStore MUST 提供 `AteliaResult<HeadEntry> ReadEntry(HeadEntryId entryId)`�
 
 | 路径角色 | 内容与资格 |
 | --- | --- |
-| `refs/<R>.rbf` | 唯一正式 Head 文件，含 header、普通初始 SingleEntry 与后续 SingleEntry/CU 序列 |
+| `refs/<R>.rbf` | 唯一正式 Head 文件；root含header/初始SingleEntry，fork含来源header，均可继续追加SingleEntry/CU |
 | `creating/pending.rbf` | 全部初始化共用的唯一未发布工作文件；冷开裁决消费 `[S-VS-CREATING-WORKSPACE]`，路径不编码 R |
 
-自动/指定创建 MUST 在 `creating/pending.rbf` 完成 header 与完整初始 SingleEntry，flush/close 后，以同文件系统、不覆盖的一次 file rename 发布。不得直接在正式路径写初始化、先公开 header-only、跨卷复制/删除或覆盖既有 Head。fork 的 ForkOrigin 在同一 header 内，不增加第二发布单元；私有 flush 不建立对象或提前交付已发布 HeadId/EntryId。
+自动/指定创建 MUST 在 `creating/pending.rbf` 完成所需初始化：root写header与完整初始SingleEntry，fork只写带准确ForkOrigin的header。flush/close后，以同文件系统、不覆盖的一次file rename发布。不得直接在正式路径写初始化、把未完整初始化的root header先公开、跨卷复制/删除或覆盖既有Head。fork的来源header即为完整文件，不增加第二发布单元；私有flush不建立对象或提前交付已发布HeadId/EntryId。
 
 ReadHead/PublishHead/ListHeads/历史只依据正式文件，不采用 creating。正式 Head 按 `[R-VS-LOCAL-COMPLETE]` 打开并执行允许的恢复后，缺本次所需 header/发布记录或其内容损坏 MUST 报错，不当空槽、不补空字典、不删除或改号；不借访问目标预审初始或全部历史，目录项资格不证明内容健康。异常/进程终止可留 private，但完整 private 不自行成为 Head 或续作旧请求。只读排除且不清理 private；可写仅在独占 owner 下取消已证明私有的文件，不能删除正式对象。rename 结果不明消费 `[R-VS-PUBLICATION-UNKNOWN]`，不以清理回滚。
 
@@ -246,7 +246,7 @@ ReadHead/PublishHead/ListHeads/历史只依据正式文件，不采用 creating�
 
 ### spec [F-VS-REF-PATHS] 正式 Head 文件使用唯一 local 编码
 
-HeadStoreFormatVersion=2 MUST 使用平面布局 `refs/<R>.rbf`。R 为非零完整 LocalHeadId 的恰好 8 个小写 ASCII hex 字符 `[0-9a-f]`，高位在前，不是内部 4B LE 的逐字节 hex。`refs`、`.rbf`为精确小写组件；HSID 来自所属上下文，不在文件名重复。文件名不含应用名称，不新增 bucket/layout 配置或第二位置，不持久化 OS 分隔符。
+HeadStoreFormatVersion=3 MUST 使用平面布局 `refs/<R>.rbf`。R 为非零完整 LocalHeadId 的恰好 8 个小写 ASCII hex 字符 `[0-9a-f]`，高位在前，不是内部 4B LE 的逐字节 hex。`refs`、`.rbf`为精确小写组件；HSID 来自所属上下文，不在文件名重复。文件名不含应用名称，不新增 bucket/layout 配置或第二位置，不持久化 OS 分隔符。
 
 生成/checked 解析 MUST 共用一个内部 codec，供正式发现、目标与历史来源定位复用。解析实际完整文件名，检查精确 8hex/后缀/非零 unsigned 范围，再回编作 Ordinal 比较。不 trim/case-fold/归一化或按 header 改认路径；错大小写/宽度/符号/0x/非 ASCII/空白尾点/后缀/零/额外层级拒绝。codec 不签发 checked 值或公开 hex/path 接口。
 
@@ -298,13 +298,13 @@ CreateHead 与 ForkHead MUST 各有自动/指定入口，共用后续初始化/�
 
 ### spec [F-VS-REF-FRAMES] 首帧判别来源，发布帧组合不透明 payload 与记录元信息
 
-HeadStoreFormatVersion=2 的 Head 文件 MUST 使用 RBF3；首物理帧 FrameTag=0（HeadHeader），普通 SingleEntry 的 FrameTag=1，ConditionalUpdate 的 FrameTag=2。全部帧 MUST 非 tombstone；HeadHeader MUST TailMetaLength=0，SingleEntry/CU 的 TailMeta 消费 `[F-VS-RECORD-TAILMETA]`，首版恰为8B。直接第二帧 MUST 为普通 SingleEntry，CU 只用于既有 Head 的后续追加。kind 由 RBF tag 表达，不在 payload 重复；CU payload/capacity/共同判据唯一见07。格式门与header统一版本2，SingleEntry/CU的记录布局保持；旧格式1门拒绝。必要读取遇到未知 kind、后续 header 或非法组合报错，不能过滤或向前寻找可用替代帧。
+HeadStoreFormatVersion=3 的 Head 文件 MUST 使用 RBF3；首物理帧 FrameTag=0（HeadHeader），普通 SingleEntry 的 FrameTag=1，ConditionalUpdate 的 FrameTag=2。全部帧 MUST 非 tombstone；HeadHeader MUST TailMetaLength=0，SingleEntry/CU 的 TailMeta 消费 `[F-VS-RECORD-TAILMETA]`，首版恰为8B。无来源 root 的直接第二帧 MUST 为普通初始 SingleEntry；有来源 fork 可以只有 header，其第一条本地记录可为 SingleEntry 或 CU。CU 仍只追加到既有正式 Head。kind 由 RBF tag 表达，不在 payload 重复；CU payload/capacity/共同判据唯一见07。格式门与header统一版本3，SingleEntry/CU的记录布局保持；旧格式1/2门拒绝。必要读取遇到未知 kind、后续 header 或非法组合报错，不能过滤或向前寻找可用替代帧。
 
 HeadHeader 的 RBF decoded payload MUST 恰为 **24B 或 36B**，字段如下：
 
 | payload byte 范围（半开） | 字段 | 编码与校验 |
 | --- | --- | --- |
-| `[0,4)` | HeadStoreFormatVersion | uint32 LE，当前2，须与checked格式门的统一版本相等 |
+| `[0,4)` | HeadStoreFormatVersion | uint32 LE，当前3，须与checked格式门的统一版本相等 |
 | `[4,20)` | HeadStoreId | `[F-VS-OWN-FORMAT]` 的16B canonical身份，须与期望HSID逐字节相等 |
 | `[20,24)` | 本 Head 的 HeadId | `[F-VS-REF-ID-4B]` 的非零4B LE，须等于期望目标HeadId |
 | `[24,28)`，仅36B形状 | SourceHeadId | 同一内部4B codec，非零且不同于本Head，绑定期望HSID |
@@ -313,14 +313,14 @@ HeadHeader 的 RBF decoded payload MUST 恰为 **24B 或 36B**，字段如下：
 **来源判别就是完整 payload 的精确长度：24B=无来源，36B=有来源。** 其余长度、截短来源及 trailing bytes 均拒绝；只在真实 RbfFrameInfo 形状与完整 CRC 通过后解码整个 payload，不能按“目前可读到多少 bytes”猜分支。无来源不写零 SourceHeadId/ticket sentinel；不增 presence flag、预留空间、payload Magic/CRC、DataStoreId、HeaderSchemaVersion、初始位置或名称。DataStoreId 由格式门绑定；header 版本选择该文件的记录格式规则、payload schema 与允许的 kind/meta 形状；元信息扩展按专项的末尾追加规则定稿，当前 SingleEntry 仅允许8B。SingleEntry 不重复整库版本/身份，不以 meta 长度推断不兼容 payload。
 期望版本/HSID/自身 HeadId 来自已 checked 的门和正式目标定位；创建时来自本次私有初始化预定值，随后正式门/目标须使用同值，不要求私有文件已发布。MUST NOT 从 header 自身反向认领期望身份。完整 RBF CRC 与全部字段通过后才交付自有元数据；来源元数据不签发 checked HeadEntryId，不递归检查源存在/内容。
 
-SourceEntryTicket 保留字段名，其纯数值检查 MUST 覆盖普通 SingleEntry 与完整 CU frame：`Offset >= Empty.EndExclusive + MeasureWriteSize(24,0).AppendLength`，且 `MeasureWriteSize(1,8).FrameLength <= Length <= SizedPtr.MaxLength`；当前为起点至少60、长度40..268435452。Packed 已表达对齐/可表示范围，不额外要求末端或尾 Fence <= MaxOffset。实际源 header 可能使初始起点更大，数值合法仍不证明源存在、具体成员、CU 共同资格或原样复制一致；这些由 S5 实际访问建立。普通 SingleEntry 自身仍受1MiB root 的宿主尺寸界，CU 的成员 ticket 尺寸由07按实际 count 检查。
+SourceEntryTicket 保留字段名，其纯数值检查 MUST 覆盖普通 SingleEntry 与完整 CU frame：`Offset >= Empty.EndExclusive + MeasureWriteSize(24,0).AppendLength`，且 `MeasureWriteSize(1,8).FrameLength <= Length <= SizedPtr.MaxLength`；当前为起点至少60、长度40..268435452。Packed 已表达对齐/可表示范围，不额外要求末端或尾 Fence <= MaxOffset。实际源 header 可能使初始起点更大，数值合法仍不证明源存在、具体成员、CU 共同资格；这些由 S5 实际访问建立。普通 SingleEntry 自身仍受1MiB root 的宿主尺寸界，CU 的成员 ticket 尺寸由07按实际 count 检查。
 
 SingleEntry 的 RBF payload MUST 为完整 root-payload bytes，actual 长度为1..1,048,576B，无外层版本/身份/Parent/map byte-length/CRC。发布层按 `[A-VS-ROOT-PAYLOAD]`检查边界、kind/meta、实际主链及完整 CRC，不解释 bytes。采用 NamedFrameMap 的应用使用专项完整 codeword 并 exact-consume；发布记录健康不赋予 payload 语义或 data 来源/业务闭包资格。输出前用公共 MeasureWriteSize(M,8) 校验整帧及实际追加起点，完整帧租用前先验 RbfFrameInfo 形状和范围。
 
-**共同 header 检查。** 在已取得的 Idle RBF 句柄上，按期望上下文要求 Format=Rbf3，用 `ScanForward(showTombstone:true)` 只取首物理 header，先检查首 Offset=Empty.EndExclusive、上述形状和 `MeasureWriteSize(L,0).FrameLength`，再完整读/解码身份与来源。MoveNext=false 先传播 TerminationError，再报缺 header；不跳过墓碑或寻找后续替代。保存 checked header ticket、ForkOrigin 及公共 `GetPhysicalOffsetImmediatelyAfter(headerTicket)` 给出的预期初始起点，不预读初始 payload。ReadHead、精确 fork 与 ListHeadOrigins 共用这一窄资格；SingleEntry 自身没有宿主身份，不能省略它。
+**共同 header 检查。** 在已取得的 Idle RBF 句柄上，按期望上下文要求 Format=Rbf3，用 `ScanForward(showTombstone:true)` 只取首物理 header，先检查首 Offset=Empty.EndExclusive、上述形状和 `MeasureWriteSize(L,0).FrameLength`，再完整读/解码身份与来源。MoveNext=false 先传播 TerminationError，再报缺 header；不跳过墓碑或寻找后续替代。保存 checked header ticket、ForkOrigin 及公共 `GetPhysicalOffsetImmediatelyAfter(headerTicket)` 给出的 RecordsOffset（header 后本地记录起点），不预读初始 payload。ReadHead、精确 fork 与 ListHeadOrigins 共用这一窄资格；SingleEntry 自身没有宿主身份，不能省略它。
 
-**初始化格式检查。** 创建的完整文件与独立完整校验另要求直接物理第二帧为普通 SingleEntry，Offset 等于上述初始起点，并完整校验形状、CRC 与 payload 边界；缺帧先传播 TerminationError。S5 历史在逆扫实际抵达该起点时才校验该初始节点，不提前保存其 bytes。日常 ReadHead 成功只证明本次 header/head 健康，不证明初始化、全部历史或来源一致性。
-令 `H=MeasureWriteSize(L,0)`、`S=MeasureWriteSize(M,8)`，初始起点为 `Empty.EndExclusive+H.AppendLength`，初始化后界 `I=初始起点+S.AppendLength`，须与实际checked物理后界一致。当前header FrameLength=52/64B、初始起点60/72；空map最小SingleEntry FrameLength=40B、初始化文件104/116B，最大普通SingleEntry FrameLength=1MiB+36B。这些是公共尺寸推导，不复制wire开销，不证明预约、耐久或平台资格。
+**初始化格式检查。** 无来源 root 的完整创建与 Audit 要求直接第二帧为普通 SingleEntry，Offset 等于 RecordsOffset，并完整校验形状、CRC 与 payload 边界；缺帧先传播 TerminationError。有来源 fork 在创建时只包含合格 header，已是完整正式 Head，后续首条本地记录可为 SingleEntry/CU；Audit 另验证其准确来源的真实发布资格。S5 历史按需检查本地节点及来源，不提前保存初始 bytes。日常 ReadHead 成功只证明本次必要记录健康，不证明全部历史。
+令 `H=MeasureWriteSize(L,0)`、`S=MeasureWriteSize(M,8)`，RecordsOffset=`Empty.EndExclusive+H.AppendLength`。root 初始化后界为 RecordsOffset+S.AppendLength，fork 初始化后界就是 RecordsOffset。当前header FrameLength=52/64B、RecordsOffset=60/72；最小 SingleEntry FrameLength=40B；含1B空map的root初始化文件104B，header-only fork为72B，最大普通SingleEntry FrameLength=1MiB+36B。这些是公共尺寸推导，不复制wire开销，不证明预约、耐久或平台资格。
 
 正式 Head 按 `[R-VS-LOCAL-COMPLETE]` 接受本次所需的恢复后完整记录，包括初始 SingleEntry；最小初始化长度只描述完整格式尺寸，不成为日常读取初始内容的前检。
 
@@ -330,11 +330,11 @@ SingleEntry 的 RBF payload MUST 为完整 root-payload bytes，actual 长度为
 
 header MUST 保存明确的无来源/有来源判别；有来源时 `ForkOrigin = (SourceHeadId, SourceEntryTicket)`，ticket 为源 Head 文件中的 SizedPtr，包含 offset 与 length，MUST NOT 使用 data FrameAddress。来源判别、固定字段及坐标范围唯一消费 `[F-VS-REF-FRAMES]`，数值合法不证明成员资格。来源限同一个 HeadStore 及绑定 data，上下文由格式门与两份 Head header 校验，不重复存 SourceStoreId，不从 CLR 内存布局推导编码。
 
-ForkOrigin MUST 在私有创建时写入，发布后不可改变。无来源表示独立历史起点；相同 payload 不推断来源。有来源表示子初始 SingleEntry 原样复制 exact 源发布记录的 root-payload bytes；子时间和 EntryId 独立。S5 创建时建立源发布资格，历史跳转重新检查 bytes 一致性；均不通过 NamedFrameMap 解码或字典同值证明来源。
+ForkOrigin MUST 在私有创建时写入，发布后不可改变。无来源表示独立历史起点；相同 payload 不推断来源。有来源表示新 Head 以 exact 源 Entry 为既有当前值，header 本身不产生 EntryId、payload 或记录时间。S5 创建和历史跳转重验准确来源资格，不通过 NamedFrameMap 解码或字典同值证明来源。
 
 源 Head MUST 已正式发布，且源 ticket 必须是已接受快照的真实主链位置，不能指向 header、残尾或仅数值合法的位置。新 Head 使用 fresh HeadId，禁止自链接；有效来源只能从新 Head 指向已经存在的 Head，故创建流程形成森林，无需持久 generation 或拓扑编号。跨文件历史另做 visited/cycle 检查，发现缺源、非法成员或循环报错，不截断为正常历史结束；全图声明查询的较窄资格见 S5。完整历史及正式 HeadId 不删除、不搬迁、不复用；未来 GC/删除/分段需重新审定链接保留协议。
 
-声明来源与实际读取源快照是不同资格：checked header 可返回 ForkOrigin 元数据，但不能仅据其中的坐标签发 checked HeadEntryId。当前值访问保持本地路径；S5 定义跨文件历史与全分叉查询的访问范围、预算和错误。
+声明来源与实际读取源快照是不同资格：checked header 可返回 ForkOrigin 元数据，但不能仅据其中的坐标签发 checked HeadEntryId。当前值优先采用已接受本地 Entry；只有正常抵达 checked header 的 fork 才读取准确来源，不跟随源 Head 可变末端；S5 定义跨文件历史与全分叉查询的访问范围、预算和错误。
 
 ## 最小 API 与发布步骤
 
@@ -358,14 +358,14 @@ ListHeads MUST 在 owner disposed/fault guard 后，完整执行 `[F-VS-REF-PATH
 
 ### spec [S-VS-SINGLE-RECORD] 一次 Head 变更由一个 frame 生效
 
-一次 Head 创建 MUST 由一条普通初始 SingleEntry 表达全部根值；普通更新由一条完整 SingleEntry 表达全部根值，批量更新则由07的一条本地 CU 加共同成员判据表达，不分成同 Head 多个根的独立更新。data 构建/确认、私有初始化或纯容量试算均不改变已发布 Head。新 Head 另有正式文件的发现边界，遵循下面的创建协议，不加入 CU。
+一次无来源 root 创建 MUST 由一条普通初始 SingleEntry 表达全部根值；fork 创建只发布带准确来源的 header，不产生新 Entry；普通更新由一条完整 SingleEntry 表达全部根值，批量更新则由07的一条本地 CU 加共同成员判据表达，不分成同 Head 多个根的独立更新。data 构建/确认、私有初始化或纯容量试算均不改变已发布 Head。新 Head 另有正式文件的发现边界，遵循下面的创建协议，不加入 CU。
 
 ### spec [S-VS-ROOTS-AFTER-DATA-CONFIRM] 根发布在必要完成数据确认之后
 
 PublishHead、PublishHeads 及 S5 CreateTag MUST 先完成确定输入、目标/名称及 owner 生命周期准入、私有拷贝与编码、记录/文件容量检查，再同步调用 `data.ConfirmDurable()`，然后向发布 RBF 追加完整记录并 `DurableFlush()`，最后安装内存状态/正常返回。PublishHeads 的 CU 路径先预测全部实际 tickets、私有编码完整 canonical Members 并为整批取时一次，再进入一轮 data barrier、逐成员 Begin/End 和逐文件 flush；详细顺序唯一见07。MUST NOT 仅因 data 有未归还 Builder 而拒绝；未完成 Builder 不获完成或耐久资格。确定拒绝不追加、不调用 data barrier，也不因 guard fault。
 data 屏障消费 S2 `[A-FS-DURABLE-COMPLETED-OUTPUTS]`，覆盖 leased 文件内旧完成输出。应用仍 MUST 保证本次 root payload 所需新增依赖全部已完成、属于绑定 data 且闭包不含 provisional/canceled 地址；屏障成功不证明该闭包，库不遍历业务图验证依赖闭包。无关 B 仍 Building 时，已完成的独立 A 可以发布；A 真正依赖未完成 B 时不能发布。
-库不接受“以前已 flush”标志代替本次 barrier；旧 root payload、历史 rewind、fork 初始快照和 tag 同样走屏障，无需复制 data。库不提供发布 callback，不允许同 driver 的其他应用操作交错；输入访问消费 `[A-VS-BYTES-INPUT]` 的稳定/不重入前提。data flush 失败不得进入本次发布输出；发生异常按所涉 owner/fault 合同停用 HeadStore，不虚称未输出的另一个 owner 同样故障。
-CreateHead 两种入口 MUST 先完成编号/目标、输入/编码/容量及 owner 准入，调用 `data.ConfirmDurable()`，再按 `[S-VS-REF-FILE-PUBLISH]` 初始化/发布完整文件；无关 Builder 不阻断。S5 两种 fork 入口同样 data-first，另确认源 Head 耐久，不先公开 CreateHead 再补来源；清理不补造 Head，不另写 allocation/Init 账本。
+库不接受“以前已 flush”标志代替本次 barrier；旧 root payload、历史 rewind、引用初始化 fork 和 tag 同样走屏障，无需复制 data。库不提供发布 callback，不允许同 driver 的其他应用操作交错；输入访问消费 `[A-VS-BYTES-INPUT]` 的稳定/不重入前提。data flush 失败不得进入本次发布输出；发生异常按所涉 owner/fault 合同停用 HeadStore，不虚称未输出的另一个 owner 同样故障。
+CreateHead 两种入口 MUST 先完成编号/目标、输入/编码/容量及 owner 准入，调用 `data.ConfirmDurable()`，再按 `[S-VS-REF-FILE-PUBLISH]` 初始化/发布完整文件；无关 Builder 不阻断。S5 两种 fork 入口同样 data-first，另按LocalId确认准确来源及成立CU的必要成员文件耐久，不先公开 CreateHead 再补来源；清理不补造 Head，不另写 allocation/Init 账本。
 
 ## term `Publication-Outcome` 本次调用的证据
 
@@ -412,7 +412,7 @@ Outcome 与实例健康是两个事实：NotAttempted 不表示零 I/O 或可直
 | PublishHead（含 rewind）/CreateTag | 调用正式发布文件 Append 之前 | 该记录 Append 成功且发布文件 DurableFlush 正常返回后，立即写回 |
 | PublishHeads（至少两个成员） | 首次 CU 最终输出调用之前；后续局部 pre-I/O 拒绝不能降低整批证据 | 全部 CU 完成且全部参与 Head 的 DurableFlush 正常返回后，立即写回；再安装全部结果 |
 | CreateHead/ForkHead（自动或指定） | 私有 Head 文件 flush/close 后，调用正式 file rename 之前 | 同一次 no-overwrite file rename 正常返回后立即写回 |
-| data ConfirmDurable / fork 源 Head DurableFlush | 不推进，保持 NotAttempted | 不确认本次发布 |
+| data ConfirmDurable / fork 来源及必要 CU peer DurableFlush | 不推进，保持 NotAttempted | 不确认本次发布 |
 | tag 桶 header-only 初始化、flush/close/空桶 rename | 不推进本次 tag，保持 NotAttempted | 只建立桶 metadata，不确认首条 tag |
 
 更新/tag 进入公开 Append 调用后的异常 MUST 保守保留 Unknown，即使该异常可能发生于内部准备阶段；不依据异常类型/消息、旧 TailOffset 或私有 flush 推断没有公开输出。公共 RBF `[S-RBF-APPEND-RESULTPATTERN]` 正常返回的失败 Result 则有 pre-I/O 合同：若它证明本次全部公开发布输出均未发生，MUST 在返回失败 Result 前恢复 NotAttempted。这是唯一的已知拒绝例外，不是输出相位猜测；已有公开输出尝试时，后续局部 pre-I/O 拒绝不能给整个调用降档。多 Head CU 消费同一原则，不为此引入通用输出计数框架。
@@ -423,10 +423,10 @@ Outcome 与实例健康是两个事实：NotAttempted 不表示零 I/O 或可直
 
 **正式 Head 接受恢复后的必要完整事实。** 通过门/data 绑定、正式路径/类型及访问模式/独占准入后，可写访问 MUST 先用 public `RbfFile.OpenExisting` 按 RBF3 单尾合同执行结构恢复，再按 `[F-VS-REF-FRAMES]` 校验 header 及本次实际需要的发布记录。ReadHead 按前述选尾合同处理普通 SingleEntry/成立 CU/未成立 CU；精确 fork、历史和 ListHeadOrigins 分别消费 S5 的访问范围，不把初始内容或完整历史校验放在共同打开前置中。CU 的本地完整不单独建立发布，成员共同资格由07判断；物理恢复不补写旧业务成员。初始化与后续更新统一消费这份恢复合同；MUST NOT 仅因恢复作用于初始 SingleEntry、Action 非 None 或旧恢复报告已不存在而拒绝。无需恢复前初始前缀资格；S5 所需的公共边界逆扫及历史接线已在 V2-A 实施，源码资格见[实施计划](12-versionstore-implementation-plan.md)。
 
-初始 SingleEntry body 已完整而仅缺 RBF 可合法补齐的 Key/Fence 时，CompletedTail 后通过必要身份、kind/meta、CRC 与 payload 边界检查即可建立发布资格；应用取得 bytes 后自行解码。后续残尾被 Truncated 后，从剩余实际完成尾按前述普通 SingleEntry/CU 选值规则检查，不另预读无关初始 payload。若缺必要 header 或已无当前 SingleEntry，MUST 报错，不补造空字典。当前 head 自己损坏 MUST 报错，不丢弃它或回退旧值；未访问历史的坏内容不连带拒绝健康 head。RBF 结构恢复可能已经修改文件，随后 HeadStore 才拒绝本次必要记录；不撤销底层恢复。校验本身不修内容，独立完整校验使用只读路径且不承担修复。只读访问使用 public `OpenReadOnlyExisting`，需要修尾时仍拒绝且不修改；旧点直接读取也不能绕过底座工厂对当前 EOF 的结构准入。
+初始 SingleEntry body 已完整而仅缺 RBF 可合法补齐的 Key/Fence 时，CompletedTail 后通过必要身份、kind/meta、CRC 与 payload 边界检查即可建立发布资格；应用取得 bytes 后自行解码。后续残尾被 Truncated 后，从剩余实际完成尾按前述普通 SingleEntry/CU 选值规则检查，不另预读无关初始 payload。只有正常抵达已 checked header 且没有本地已接受 Entry 时，有来源 fork 才精确读取 ForkOrigin，不读取来源 Head 的可变当前值；无来源 root 缺初始 SingleEntry 必须报错。已接受本地 Entry 的当前读取不预检祖先；不得以来源回退掩盖完整坏记录、必要结构/CRC/envelope 错误，不补造空字典。当前 head 自己损坏 MUST 报错，不丢弃它或回退旧值；未访问历史的坏内容不连带拒绝健康 head。RBF 结构恢复可能已经修改文件，随后 HeadStore 才拒绝本次必要记录；不撤销底层恢复。校验本身不修内容，独立完整校验使用只读路径且不承担修复。只读访问使用 public `OpenReadOnlyExisting`，需要修尾时仍拒绝且不修改；旧点直接读取也不能绕过底座工厂对当前 EOF 的结构准入。
 
 tag 桶继续先执行 [S5-B 专项](09-versionstore-immutable-tags.md)的初始化长度前检，再执行允许的 RBF 恢复与请求名称的损坏裁决，不把 header 修尾认领为初始化；惰性访问不默认扫描全部桶。本条的 Head 政策不改变 tag 或 FrameStore 的初始化保护。
-新 Head 文件发现/private 消费 `[S-VS-REF-FILE-PUBLISH]`；没有正式文件时 private 完整 SingleEntry 不建立 Head。fork 来源与初始 SingleEntry 随同一文件发布，不从 private 推断或续作旧请求。
+新 Head 文件发现/private 消费 `[S-VS-REF-FILE-PUBLISH]`；没有正式文件时 private 完整 SingleEntry 不建立 Head。root 的 header/初始 SingleEntry 或 fork 的带来源 header 随同一文件发布，不从 private 推断或续作旧请求。正式 header-only fork 可以被发现及读取，未发布 private header 仍不可见。
 本次必要 Head 记录的完整坏 frame/未知版本/错误身份/非法 envelope codec MUST 报错；tag 的局部坏记录按专项隔离，但不能由未知名称证明缺失。内容 codec 的错误由应用处理，不能当残尾、missing 或回退旧值。只读模式不隐式修尾。被引用 data 缺失/损坏在应用实际读取时报错，不据此改写已发布 payload。
 Open 不默认扫描所有 Head 历史或 data 图；按需打开/校验目标文件，不将成功 Open 宣称为全库审计或全部根图健康证明。所有必要错误传播显式；资源/I/O fault 不被吞成缺对象。
 重开后已知 HeadId 或当前库本地号用 ReadHead，tag名用checked ReadTag；检查合格的正式 Head 即接受其当前发布事实，无需追溯旧调用结果，也不机械重复 create-only。当前同号/同值不改写某次旧调用的 outcome。指定号码可由应用预先保存，重开 checked 查询实际目标，但不成为尝试 token。自动创建 rename 后交付失败可留下 Head 而调用方无新号；ListHeads 可发现集合，不能按同值精确认领旧调用。动态恢复关联由应用在 payload 或其数据闭包保存业务身份并核对，不增加预交付 HeadId 或自动重试。
@@ -472,17 +472,17 @@ getter 返回只读、只追加的 live view，不复制全集。Count 可增长
 | 门检查 | 全部短前缀/尾随、CRC/双身份/L/未知版本、重新 seal 的零身份或 L=Max、错 data；检查及必要 close 失败先于恢复/pending 清理/输出。两角色身份可同值，L=0/Max−1 合法，重开不改门/L、不按 header 补门 |
 | pending | 空或唯一 pending 的0B/任意中断字节/完整内容均不读回，不用 Length/身份/role/H/正式目标判取消；可写正式发现 H 成功后删除，RO 保留且不为 pending 全扫。隐藏未知项/别名/多项/特殊类型/跨 FS/枚举/清理或删除失败保留拒绝；Head/fork/tag 共用槽，rename 后正式对象保留，不续旧计划 |
 | 路径/发现/发号 | 规范路径独立文本向量及大小写/宽度/Unicode/空白尾点/后缀/层级/类型错误；路径称8而 header称9拒绝。ListHeads 两域/高位/Max/空集合、自有无顺序全集合、坏内容仍列出占号，随后 ReadHead 报错；无内容/data/private 副作用，失败不交部分集合。L=0/256/Max−1，指定非法/已占拒绝先于 barrier，低号不推进 H，自动耗尽仍可占空闲低号；pending 不计 H |
-| Head 宿主与恢复 | 两种 header 后界、header-only 拒绝、实际末 SingleEntry 的成员/墓碑/未知 kind/meta/CRC/TerminationError 与 pooled 租用前尺寸检查；普通 ReadHead 不访问初始或源历史。初始 CRC 坏但 head 健康时当前值成功，初始即 head 时坏记录仍失败；独立初始化检查必须拒绝坏第二帧。初始 body 完整但缺 Key/Fence 可写补齐并接受、再次 None 仍接受；body 被截掉且只余 header 则拒绝。后续更新补齐/截短后检查实际末 SingleEntry；坏 head 不回退，允许已发生恢复保留；只读残尾拒绝且不改 bytes |
+| Head 宿主与恢复 | 两种 header 后界、无来源 header-only 拒绝，有来源 header-only 接续准确来源、实际末 SingleEntry 的成员/墓碑/未知 kind/meta/CRC/TerminationError 与 pooled 租用前尺寸检查；普通 ReadHead 不访问初始或源历史。初始 CRC 坏但 head 健康时当前值成功，初始即 head 时坏记录仍失败；独立初始化检查必须拒绝坏第二帧。初始 body 完整但缺 Key/Fence 可写补齐并接受、再次 None 仍接受；root body 被截掉且只余 header 则拒绝；fork 首次本地残尾截回 header 后接续来源。后续更新补齐/截短后检查实际末 SingleEntry；坏 head 不回退，允许已发生恢复保留；只读残尾拒绝且不改 bytes |
 | 创建与证据 | pending 初始化/flush/close、file rename 前后及 Confirmed 后结果/投影/清理失败；正式对象未创建或完整创建，private 不可见/不续作，正式缺必要帧不作空槽。out 最早初始化、助手异常直接写回、Append pre-I/O Result 例外与 OOM/输出/flush 的 Unknown；data/源确认及空 tag 桶维护保持 NotAttempted 但异常停用；确认后不降档、不 Dispose data。自动丢失结果可 ListHeads 发现而不能按同值认领，指定号码不证明旧尝试确认 |
 | data-first 与应用 | A 全依赖已完成、无关 B Building 时发布成功；B 租用文件中的旧 dirty 输出须确认，B 后续完成重新确认。data flush 失败不尝试根输出，按 FrameStore 合同停用其 Builder/Writer。旧/新/orphan 地址混合与循环闭包由应用负责，不声称自动识别未完成图；应用解码/数据读取及状态安装失败不撤销发布 |
 | 容量 | 0B/超限 root bytes、JSON/任意 bytes 整体更新；最后合法帧末端/Fence 可越过 MaxOffset，下一次追加先于额外 barrier/输出拒绝，不回绕、分帧或复用完整位置 |
 
 HeadId 值/字段独立向量：local=`0x89ABCDEF` → `EF CD AB 89`；1、高位、全 FF 合法，零及0/3/5B拒绝；失败 default/不提交消费、encoder 短目标/默认/错上下文无写入，长目标只改前4B。等值/hash/default/LocalId、同库重开与不同 HS 共借 data 的误传分别验证；Read/Publish/History/Fork 的跨 HSID 拒绝先于 I/O/barrier，mutation 为 NotAttempted。checked 来源元数据/路径身份不证明源健康或签发 EntryId。
 
-HeadEntryId 向量覆盖完整 HSID/local/ticket、同 offset 不同 length、同值重发及子初始/源的不同 EntryId；default 属性/比较/hash 合法而作为输入拒绝。保存值结束查询、关 owner 并重开同 HS 后仍可 fork，直接重读 exact 内容并执行本次确认，不重新扫描源后缀；继承记录返回实际源 HeadId/Ticket 并能关联声明边。确认后构造只保存已资格化值，不重读自身；来源声明/提前 ticket 不能签发 EntryId。LocalId 持久保存与正确库 checked 查询独立验证。
+HeadEntryId 向量覆盖完整 HSID/local/ticket、同 offset 不同 length、同值重发产生不同 EntryId，未续写 fork 返回源的同一 EntryId；default 属性/比较/hash 合法而作为输入拒绝。保存值结束查询、关 owner 并重开同 HS 后仍可 fork，直接重读 exact 内容并执行本次确认，不重新扫描源后缀；继承记录返回实际源 HeadId/Ticket 并能关联声明边。确认后构造只保存已资格化值，不重读自身；来源声明/提前 ticket 不能签发 EntryId。LocalId 持久保存与正确库 checked 查询独立验证。
 
-格式门独立 golden：version=2，HSID bytes=`01..10`、DataID bytes=`11..20`（十六进制），L=256 编为 `00 01 00 00`；44B codeword 的末4B=`12 78 86 09`（CRC32C=`0x09867812`）。不以相同 encoder round-trip 替代。
+格式门独立 golden：version=3，HSID bytes=`01..10`、DataID bytes=`11..20`（十六进制），L=256 编为 `00 01 00 00`；44B codeword 的末4B=`39 6D 46 D4`（CRC32C=`0xd4466d39`）。不以相同 encoder round-trip 替代。
 
-header 独立 golden：version=2、HSID=`01..10`、自身 local=`0x89ABCDEF` 的无来源 payload 为 `02 00 00 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 EF CD AB 89`；有来源追加 source local=`0x76543210` 与 SizedPtr(offset60,length40)，suffix=`10 32 54 76 0A 00 00 3C 00 00 00 00`。覆盖24/36之外长度、截短/尾随、零/错身份/未知版、自来源及非法 ticket；另行重新封装的合法24B帧不是原36B帧截短。
+header 独立 golden：version=3、HSID=`01..10`、自身 local=`0x89ABCDEF` 的无来源 payload 为 `03 00 00 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 EF CD AB 89`；有来源追加 source local=`0x76543210` 与 SizedPtr(offset60,length40)，suffix=`10 32 54 76 0A 00 00 3C 00 00 00 00`。覆盖24/36之外长度、截短/尾随、零/错身份/未知版、自来源及非法 ticket；另行重新封装的合法24B帧不是原36B帧截短。
 
 人为截短正式文件的恢复向量与 private 完整初始化后 rename 的正常创建中断分别取证。旧 RefFrameSchemaProbe 的8B LocalRefId/fixed12/meta0与112→104→112→None现象保持历史身份，不能替代当前格式/新库验收。源码、进程终止、Windows/Linux 与包资格分别报告；组合与交付唯一见 [S6](../FrameStore-HeadStore/06-integration-and-delivery.md)。

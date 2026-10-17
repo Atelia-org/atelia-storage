@@ -1,5 +1,7 @@
 # ref 帧格式与可变初始化边界探针
 
+当前HeadStore已采用格式3引用初始化fork：无来源root仍需初始SingleEntry，有来源fork只发布header。该探针的首两帧和克隆时代初始化向量保留研究历史，不作为当前fork格式或恢复资格，权威见[04](../../docs/HeadStore/04-versionstore-publication.md)。
+
 本探针只使用 BCL 和主线 public Rbf/Data：实验性数值身份/header codec、首两帧 shape/full CRC，以及普通 RBF 尾恢复。没有真正 RefId、FrameAddress、RootMap decoder、VersionStore、格式门或目录发布；15B RootMap bytes 是先前独立 synthetic 地址 golden，首两帧 helper 不替代 RootMap 解码和自有结果资格。
 
 ```powershell

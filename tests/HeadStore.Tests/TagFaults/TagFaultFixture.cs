@@ -41,7 +41,7 @@ internal sealed class TagFaultFixture : IDisposable {
             throw new InvalidOperationException("Invalid fixture identity.");
         }
         byte[] header = new byte[24];
-        BinaryPrimitives.WriteUInt32LittleEndian(header, 2);
+        BinaryPrimitives.WriteUInt32LittleEndian(header, 3);
         Identity.TryWrite(header.AsSpan(4, 16));
         BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(20), BucketId);
         using IRbfFile writer = RbfFile.CreateNew(PathName, RbfCacheMode.Off);
@@ -132,7 +132,7 @@ internal sealed class TagFaultFixture : IDisposable {
     internal static byte[] Metadata(string name = TargetName, long recordedAt = -17, int entryCount = 1) =>
         Tags.TagTestWire.Metadata(name, recordedAt, checked((uint)entryCount));
 
-    internal static byte[] Payload(int length = 12, int salt = 0) => length == 12
+    internal static byte[] Payload(int length = 16, int salt = 0) => length == 16
         ? Tags.TagTestWire.Members(checked((uint)salt + 1))
         : Enumerable.Range(0, length).Select(index => (byte)(index + salt)).ToArray();
 

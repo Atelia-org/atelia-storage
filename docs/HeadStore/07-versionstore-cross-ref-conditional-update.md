@@ -1,8 +1,8 @@
 # HeadStore：ConditionalUpdate 单帧跨 Head 条件发布
 
-HeadSetTag 更新：2026-10-16 本轮实施格式2与具名成员表替换，待[独立验收](16-headset-tags-acceptance.md)。既有 Accepted 保持原 VersionStore/格式1来源；[15重命名记录](15-headstore-renaming-plan.md)不覆盖本行为变化。文档路径已迁移，既有 Clause-ID 保持，普通 Head/CU 的记录形状不变。
+引用初始化 fork 更新：2026-10-17 当前合同采用格式3，拒绝格式1/2；fork 只发布来源 header，HeadSetTag 成员为16B独立 key/value 映射。本轮实际源码、进程与包资格见[既有验收入口中的新增轮次](12-versionstore-final-acceptance.md)，未完成验证不沿用旧 Accepted。既有 Clause-ID 与历史证据保持。
 
-状态：**2026-10-11 CU 及附属重构已实施，独立源码验收 Accepted（Windows / WSL2 Linux）**。本文负责 CU 的记录、共同判据、位置复用与读取算法，已接入 S0/S4/S5；身份字段消费 S4，时间消费[08专项](08-versionstore-record-metadata.md)，批量 bytes 公面消费[11专项](11-versionstore-root-payload-bytes-api.md)。实际验证与资格见[本轮 CU 验收记录](07-versionstore-cross-ref-conditional-update-acceptance.md)。既有[最终源码验收](12-versionstore-final-acceptance.md)和[六包候选](../FrameStore-HeadStore/13-local-package-delivery.md)不包含 CU；新源码不得沿用其包资格。
+既有轮次状态：**2026-10-11 CU 及附属重构已实施，独立源码验收 Accepted（Windows / WSL2 Linux）**。本文负责 CU 的记录、共同判据、位置复用与读取算法，已接入 S0/S4/S5；身份字段消费 S4，时间消费[08专项](08-versionstore-record-metadata.md)，批量 bytes 公面消费[11专项](11-versionstore-root-payload-bytes-api.md)。实际验证与资格见[CU首轮验收记录](07-versionstore-cross-ref-conditional-update-acceptance.md)。既有[最终源码验收](12-versionstore-final-acceptance.md)和[六包候选](../FrameStore-HeadStore/13-local-package-delivery.md)不包含 CU；新源码不得沿用其包资格。
 
 比较基线：[Prepare + Commit 历史方案](extensions/obsolete/versionstore-cross-ref-prepare-commit-candidate.md)。现行合同：[S0](../FrameStore-HeadStore/00-architecture-decisions.md)、[S1 已知尺寸追加](../Rbf/01-rbf-sized-append.md)、[S4 发布](04-versionstore-publication.md)、[S5 历史](05-versionstore-names-and-indexes.md)、[RBF 接口](../Rbf/rbf-interface.md)。可重复研究探针见 [VersionStoreConditionalUpdateProbe](../../experiments/VersionStoreConditionalUpdateProbe/README.md)。
 
@@ -14,7 +14,7 @@ HeadSetTag 更新：2026-10-16 本轮实施格式2与具名成员表替换，待
 
 CU 仅更新同一 HeadStore/绑定 data 中的多个 distinct 既有 Head，不覆盖创建、tag、删除或跨库事务。单 owner/driver、data-first、ProcessCrashOnly、完整历史不复用及停用/清理沿用 S0/S4；不提供跨调用快照隔离。NamedFrameMap 只是可选内容 codec，事务资格不解释 payload 语义。
 
-fork 和继承历史只接受普通 SingleEntry 或满足共同判据的 CU；不完整 CU 不作为来源节点，exact fork anchor 指向不完整 CU 时必须拒绝，不能改选更旧来源。ForkOrigin 仍定位实际 Head/ticket，不追踪参与 Head 的当前 head；子文件的直接第二帧永远是普通 SingleEntry，只复制源 CU 的 root bytes。
+fork 和继承历史只接受普通 SingleEntry 或满足共同判据的 CU；不完整 CU 不作为来源节点，exact fork anchor 指向不完整 CU 时必须拒绝，不能改选更旧来源。ForkOrigin 仍定位实际 Head/ticket，不追踪参与 Head 的当前 head；子文件只写带来源 header，不复制源 CU 或 root bytes；其首次本地发布可为 SingleEntry 或 CU。
 
 HeadSetTag创建复用本篇同一次current-read判据，取得已接受Entry及其必要CU发布文件；只选组内A时公开表只含A，但确认集合包含整个成立组。未成立组触及文件不自动成为确认依赖，必要peer仍先正常打开/恢复再裁决；ReadTag不读取成员，ReadEntry/Audit精确成员读取仍共用本篇判据，不递归peer后来的组。该引用/确认增量由[09](09-versionstore-immutable-tags.md)定义，不把CreateTag合并进PublishHeads事务，也不改变CU payload/FrameTag/meta8。
 
@@ -177,7 +177,7 @@ ReadDesignatedMember(peer, wanted):
 
 当前 `ReadPooledFrame(wanted)` 先检查短读及 HeadLen 与 wanted length 一致，再验证 TrailerCRC 和 PayloadCRC。因此正常异长替换只会产生范围或 framing 拒绝，**CRC 错误直接传播，不进入消歧**。不能把 `ReadFrameInfo(oldTicket)` 的错误 footer/CRC 行为套到这条完整读取路径。allowlist 不包括 state、buffer 或未知错误码，也不捕获异常；后续底层改变检查顺序时须重新核对。非法 Members 坐标不由消歧修复。
 
-逆扫只验证尾部元信息，**不读取 HeadLen**。若异长替换的历史 HeadLen 损坏而后面还有健康尾，Open 可以成功、exact 已报结构错误，逆扫仍能给出不同 actual ticket；直接返回不完整会吞掉该错误。继续逆扫得到真实前驱，再从前驱读取直接后继，才补上实际 HeadLen、长度、右 Fence 和 Trailer 资格。元信息专项只约束需要完整资格化的本地/同ticket记录；本分支的异长实际替代保持RBF必要结构检查，不增加HeadStore meta形状或bytes审计。CU 仅追加到既有正式 Head，目标 slot 前至少已有初始 SingleEntry/header；找不到前驱就是异常，不能伪造前驱或解释为缺席。
+逆扫只验证尾部元信息，**不读取 HeadLen**。若异长替换的历史 HeadLen 损坏而后面还有健康尾，Open 可以成功、exact 已报结构错误，逆扫仍能给出不同 actual ticket；直接返回不完整会吞掉该错误。继续逆扫得到真实前驱，再从前驱读取直接后继，才补上实际 HeadLen、长度、右 Fence 和 Trailer 资格。元信息专项只约束需要完整资格化的本地/同ticket记录；本分支的异长实际替代保持RBF必要结构检查，不增加HeadStore meta形状或bytes审计。CU 仅追加到既有正式 Head，目标 slot 前至少已有 checked header（无来源 root 还须初始 SingleEntry）；找不到前驱就是异常，不能伪造前驱或解释为缺席。
 
 RBF `TailOffset` 属性本身不检查 Dispose/fault，必须保留扫描入口准入；即使 wanted 正好在 EOF，也不能绕过这一 guard。结构检查通过的异长替换即使有未读取的坏 payload，也已足以否定旧 ticket；此查询不宣称替换内容健康。
 
@@ -187,7 +187,7 @@ RBF `TailOffset` 属性本身不检查 Dispose/fault，必须保留扫描入口�
 
 ### 当前值、历史与观察稳定性
 
-各入口仍先校验本地 header；ReadHead 不预读初始 payload，历史按 S5 逐项校验，ListHeadOrigins 只检查 header 与声明图。CU 全组成员资格决定本次发布是否生效，仍须在读取时执行，不能移到独立完整校验中。ReadHead 从本地真实 RBF 逆向链读：合法普通 SingleEntry 直接交付自有 bytes；CU 全组成立才返回，不成立则继续向前。任何实际发现的错误不回退。ReadHeadHistory 复用同一判据；每条成立 CU 产生一次发布 EntryId，未成立 CU 不进入发布历史；同值发布与 rewind 仍是不同位置的 EntryId。CU 的 root payload 和发布证据就在同一帧，HeadEntryId 自然锚定其实际 ticket，只在接受后签发；owned、固定完成上界、预算与 owner mutation guard 保持。
+各入口仍先校验本地 header；无来源 root 必须有直接初始 SingleEntry，有来源 fork 可为 header-only 或以 CU 开始。成员成立判据仅检查实际物理成员，不递归求旧当前值；父子 Head 可同批更新。ReadHead 不预读初始 payload，历史按 S5 逐项校验，ListHeadOrigins 只检查 header 与声明图。CU 全组成员资格决定本次发布是否生效，仍须在读取时执行，不能移到独立完整校验中。ReadHead 从本地真实 RBF 逆向链读：合法普通 SingleEntry 直接交付自有 bytes；CU 全组成立才返回，不成立则继续向前；只有正常抵达自身 checked header 的 fork 才准确读取固定 ForkOrigin，无来源 root 缺初始 Entry 报错。首个本地 CU 未成立时可以回到来源；必要错误不伪装成空 fork。已有本地健康发布不预审来源。ReadHeadHistory 复用同一判据；每条成立 CU 产生一次发布 EntryId，未成立 CU 不进入发布历史；同值发布与 rewind 仍是不同位置的 EntryId。CU 的 root payload 和发布证据就在同一帧，HeadEntryId 自然锚定其实际 ticket，只在接受后签发；owned、固定完成上界、预算与 owner mutation guard 保持。
 
 已完整组的资格对正常后续追加稳定。一个**已成功判为 Uncommitted**的旧组，也不能被未来 fresh 操作复活：缺席或合法替代的见证已经过底层结构裁决。延后打开的 peer 若还能 CompletedTail，说明旧组尚未被成功判作缺席；恢复原 body 可以作为崩溃前 Unknown 操作的接受结果，不能先成功返回“缺席”再采用同一原 body。无需为覆盖式 PublishHead 强制读取所有前一组成员；若增加新观察/并发模型，须另审这种恢复解释。
 
@@ -273,4 +273,4 @@ S0/S4/S5 及入口已同步既有 Head 批量范围、选尾/历史/fork 资格�
 
 本轮范围为正式既有 Head 的 CU envelope + 绑定 data 屏障 + PublishHeads + 当前/历史/fork/Audit 共用判据 + 自有 EntryIds，并验证每个 Begin/End、最终输出、flush 及确认后安装的失败/冷开。Audit 完整检查物理 CU，即使其共同判据未成立；EntryCount 只计普通 SingleEntry 与成立 CU，不计未提交 CU，也不重复展开继承历史。
 
-特有验收包括：Members-first边界/count越界/截短、self/完整表/坏身份/重复项、不同opaque payload的同组与禁用peer decoder；同ticket坏内容硬失败、异长坏HeadLen/缺前驱/后继不符失败、异长未读坏payload不妨碍否定旧ticket但直接读取仍报错；失败旧A/B后新B/C不递归另一组、lazy CompletedTail与观察稳定性、同值/rewind/预算/取消/I/O/fault。历史组验证不交付快照也计工作步，结构后继查询先扣费，peer 不误入继承 visited；CU→普通子SingleEntry仅clone root bytes、排除Members的向量；普通单Head不增加表。新helper全矩阵与k增长成本、Windows/Linux及public包资格分别取证。
+特有验收包括：Members-first边界/count越界/截短、self/完整表/坏身份/重复项、不同opaque payload的同组与禁用peer decoder；同ticket坏内容硬失败、异长坏HeadLen/缺前驱/后继不符失败、异长未读坏payload不妨碍否定旧ticket但直接读取仍报错；失败旧A/B后新B/C不递归另一组、lazy CompletedTail与观察稳定性、同值/rewind/预算/取消/I/O/fault。历史组验证不交付快照也计工作步，结构后继查询先扣费，peer 不误入继承 visited；CU 来源引用初始化 fork、首条本地 CU 成功/未成立回到准确来源、父子/多个共享来源 fork 同批 CU、header 前驱下同长/异长位置复用的向量；普通单Head不增加表。新helper全矩阵与k增长成本、Windows/Linux及public包资格分别取证。

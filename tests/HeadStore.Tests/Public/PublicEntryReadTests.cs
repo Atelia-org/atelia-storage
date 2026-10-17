@@ -35,11 +35,11 @@ public sealed class PublicEntryReadTests {
     public void InheritedHistoryEntryIdCanBeReadExactlyInsideAndAfterVisitor() {
         using var fixture = new HistoryFixture();
         HeadEntryId[] source = fixture.SeedPublic(1, [1], [2], [3]);
-        HeadEntryId child;
+        HeadId child;
         using (var writer = fixture.Open()) { child = writer.ForkHead(2, source[1], out _).Unwrap(); }
         using var owner = fixture.Open();
         var inherited = new List<HeadEntry>();
-        var history = owner.ReadHeadHistory(child.HeadId, HistoryFixture.Unlimited, entry => {
+        var history = owner.ReadHeadHistory(child, HistoryFixture.Unlimited, entry => {
             owner.EnsureUsable();
             var exact = owner.ReadEntry(entry.Id).Unwrap();
             Assert.Equal(entry.Id, exact.Id);
@@ -49,8 +49,8 @@ public sealed class PublicEntryReadTests {
             return true;
         }).Unwrap();
         Assert.Equal(HeadHistoryEnd.Complete, history);
-        Assert.Equal(new[] { child, source[1], source[0] }, inherited.Select(value => value.Id));
-        Assert.Equal(new byte[] { 2 }, owner.ReadEntry(inherited[1].Id).Unwrap().Payload.ToArray());
+        Assert.Equal(new[] { source[1], source[0] }, inherited.Select(value => value.Id));
+        Assert.Equal(new byte[] { 2 }, owner.ReadEntry(inherited[0].Id).Unwrap().Payload.ToArray());
         Assert.Equal(source[2], owner.ReadHead(source[0].HeadId).Unwrap().Id);
     }
 

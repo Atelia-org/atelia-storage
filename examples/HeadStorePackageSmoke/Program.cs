@@ -29,8 +29,8 @@ HeadEntryId selectedEntryId;
 HeadEntryId latest;
 HeadEntryId opaqueInitial;
 HeadEntryId opaqueLatest;
-HeadEntryId reservedFork;
-HeadEntryId automaticFork;
+HeadId reservedFork;
+HeadId automaticFork;
 HeadEntry selected;
 HeadSetTag retainedTag;
 HeadEntry retainedTagEntry;
@@ -73,13 +73,13 @@ using (var data = DataStore.Create(dataPath, rotationThresholdBytes: 128)) {
         Confirmed(outcome);
         automaticFork = heads.ForkHead(selected.Id, out outcome).Unwrap();
         Confirmed(outcome);
-        Require(reservedFork.HeadId.LocalId == 2 && automaticFork.HeadId.LocalId == 4, "Fork allocation changed the reserved/automatic domains.");
+        Require(reservedFork.LocalId == 2 && automaticFork.LocalId == 4, "Fork allocation changed the reserved/automatic domains.");
         Require(heads.ReadHead(initial.HeadId).Unwrap().Id == latest, "Fork changed the source head.");
         VerifyForks(heads, selectedEntryId, initial, reservedFork, automaticFork);
         VerifyForkHistory(heads, reservedFork, selectedEntryId, initial, initialRoots.Payload);
         VerifyForkHistory(heads, automaticFork, selectedEntryId, initial, initialRoots.Payload);
 
-        heads.CreateTag(opaqueTag, [opaqueInitial.HeadId, reservedFork.HeadId], out outcome).Unwrap();
+        heads.CreateTag(opaqueTag, [opaqueInitial.HeadId, reservedFork], out outcome).Unwrap();
         Confirmed(outcome);
         opaqueLatest = heads.PublishHead(opaqueInitial.HeadId, opaqueLatestBytes, out outcome).Unwrap();
         Confirmed(outcome);
@@ -127,8 +127,8 @@ using (var data = DataStore.OpenReadOnly(dataPath)) {
         VerifyForks(heads, selectedEntryId, initial, reservedFork, automaticFork);
         VerifyForkHistory(heads, reservedFork, selectedEntryId, initial, initialRoots.Payload);
         VerifyForkHistory(heads, automaticFork, selectedEntryId, initial, initialRoots.Payload);
-        VerifyRoots(data, heads.ReadHead(reservedFork.HeadId).Unwrap().Payload, initialRoots);
-        VerifyRoots(data, heads.ReadHead(automaticFork.HeadId).Unwrap().Payload, initialRoots);
+        VerifyRoots(data, heads.ReadHead(reservedFork).Unwrap().Payload, initialRoots);
+        VerifyRoots(data, heads.ReadHead(automaticFork).Unwrap().Payload, initialRoots);
         HeadEntry opaque = heads.ReadHead(opaqueInitial.HeadId).Unwrap();
         Require(opaque.Id == opaqueLatest && opaque.Payload.SequenceEqual(opaqueLatestBytes), "Cold opaque root bytes changed.");
         Require(History(heads, opaqueInitial.HeadId).Select(entry => entry.Id)
@@ -136,7 +136,7 @@ using (var data = DataStore.OpenReadOnly(dataPath)) {
         VerifyTags(heads, selectedTag, opaqueTag, selectedEntryId, opaqueInitial, reservedFork, initialRoots.Payload, opaqueInitialBytes);
         VerifyRoots(data, heads.ReadEntry(heads.ReadTag(selectedTag).Unwrap().Entries[selectedEntryId.HeadId]).Unwrap().Payload, initialRoots);
         audit = heads.Audit().Unwrap();
-        Require(audit.HeadCount == 4 && audit.EntryCount == 7 && audit.OriginCount == 2 && audit.TagCount == 2
+        Require(audit.HeadCount == 4 && audit.EntryCount == 5 && audit.OriginCount == 2 && audit.TagCount == 2
             && audit.TagBucketCount is >= 1 and <= 2, "Complete read-only Audit returned unexpected physical totals.");
     }
     data.EnsureUsable();
@@ -148,10 +148,57 @@ using (var data = DataStore.OpenReadOnly(dataPath)) {
     Require(dataFrames == 5, "Data Audit did not cover the actual data frames.");
 }
 HeadStoreAudit batchAudit = VerifyBatchPublication(directory);
+VerifyReferenceForks(directory);
 VerifyReservableWriters();
 Console.WriteLine($"HeadStore public package smoke passed: {audit.HeadCount} heads, {audit.EntryCount} entries, {audit.OriginCount} forks, {audit.TagCount} tags, {dataFrames} data frames; named member tables, exact tagged history/fork identities and cold read-only Audit.");
-Console.WriteLine($"HeadStore package increments passed: {batchAudit.HeadCount} isolated heads, {batchAudit.EntryCount} entries; format 2, CU subset/pair tags, single/CU PublishHeads, exact ReadEntry, both-layer cold reopen, EnsureUsable, healthy RecoveryReports and transitive Data borrow/cancel.");
+Console.WriteLine($"HeadStore package increments passed: {batchAudit.HeadCount} isolated heads, {batchAudit.EntryCount} entries; format 3, CU subset/pair tags, single/CU PublishHeads, exact ReadEntry, both-layer cold reopen, EnsureUsable, healthy RecoveryReports and transitive Data borrow/cancel.");
 Console.WriteLine($"Retained smoke files: {directory}");
+
+
+// The selected Head is the write target; its resolved Entry belongs to its actual source.
+// A fork adds no domain save. Tags retain all selected Heads even when values coincide.
+static void VerifyReferenceForks(string directory) {
+    string dataPath = Path.Combine(directory, "reference-data");
+    string headsPath = Path.Combine(directory, "reference-heads");
+    HeadEntryId source;
+    HeadId child, sibling, emptyGrandchild;
+    HeadEntryId childPublication;
+    using (var data = DataStore.Create(dataPath))
+    using (var heads = Heads.Create(headsPath, data)) {
+        source = heads.CreateHead([0x91], out var outcome).Unwrap(); Confirmed(outcome);
+        child = heads.ForkHead(source, out outcome).Unwrap(); Confirmed(outcome);
+        sibling = heads.ForkHead(source, out outcome).Unwrap(); Confirmed(outcome);
+        HeadEntry before = heads.ReadHead(child).Unwrap();
+        Require(before.Id == source, "Fork introduced a synthetic save identity.");
+        emptyGrandchild = heads.ForkHead(before.Id, out outcome).Unwrap(); Confirmed(outcome);
+        Require(heads.ListHeadOrigins(8).Unwrap().All(edge => edge.SourceHeadId == source.HeadId
+            && edge.SourceEntryTicket == source.Ticket), "Empty fork chain failed to collapse to its actual source.");
+        HeadSetTag tag = heads.CreateTag("shared-source", [source.HeadId, child, sibling, emptyGrandchild], out outcome).Unwrap();
+        Confirmed(outcome);
+        Require(tag.Entries.Count == 4 && tag.Entries.Values.All(id => id == source), "Tag lost shared-source selected Heads.");
+        // First save goes to child, using before.Id as the application's predecessor.
+        childPublication = heads.PublishHead(child, [0x92], out outcome).Unwrap(); Confirmed(outcome);
+        Require(childPublication.HeadId == child && heads.ReadHead(child).Unwrap().Id == childPublication,
+            "Fork's first save went to its source Head.");
+        Require(History(heads, child).Select(entry => entry.Id).SequenceEqual(new[] { childPublication, source }),
+            "First save requires duplicate clone filtering.");
+        heads.PublishHead(source.HeadId, [0x93], out outcome).Unwrap(); Confirmed(outcome);
+    }
+    foreach (bool readOnly in new[] { false, true }) {
+        using var data = readOnly ? DataStore.OpenReadOnly(dataPath) : DataStore.Open(dataPath);
+        using var heads = readOnly ? Heads.OpenReadOnly(headsPath, data) : Heads.Open(headsPath, data);
+        Require(heads.ReadHead(child).Unwrap().Id == childPublication && heads.ReadHead(sibling).Unwrap().Id == source
+            && heads.ReadHead(emptyGrandchild).Unwrap().Id == source, "Cold reference fork changed after its source advanced.");
+        HeadSetTag tag = heads.ReadTag("shared-source").Unwrap();
+        Require(tag.Entries.Keys.OrderBy(id => id.LocalId).SequenceEqual(new[] { source.HeadId, child, sibling, emptyGrandchild }.OrderBy(id => id.LocalId))
+            && tag.Entries.Values.All(id => id == source), "Cold shared-source tag changed keys or exact values.");
+        if (readOnly) {
+            HeadStoreAudit audit = heads.Audit().Unwrap();
+            Require(audit.HeadCount == 4 && audit.EntryCount == 3 && audit.OriginCount == 3 && audit.TagCount == 1,
+                "Reference-fork Audit counted cloned Entries.");
+        }
+    }
+}
 
 static HeadStoreAudit VerifyBatchPublication(string directory) {
     string dataPath = Path.Combine(directory, "batch-data");
@@ -280,8 +327,8 @@ static void VerifyPublicationKind(string headsPath, HeadEntryId entryId, uint ex
     var scan = file.ScanForward().GetEnumerator();
     Require(scan.MoveNext(), "Package-created Head is missing its header.");
     using (var header = file.ReadPooledFrame(scan.Current.Ticket).Unwrap()) {
-        Require(header.Tag == 0 && BinaryPrimitives.ReadUInt32LittleEndian(header.PayloadAndMeta) == 2,
-            "The public package did not create HeadStore format 2.");
+        Require(header.Tag == 0 && BinaryPrimitives.ReadUInt32LittleEndian(header.PayloadAndMeta) == 3,
+            "The public package did not create HeadStore format 3.");
     }
     using var frame = file.ReadPooledFrame(entryId.Ticket).Unwrap();
     Require(frame.Ticket == entryId.Ticket && frame.Tag == expectedTag && frame.TailMetaLength == 8
@@ -380,34 +427,34 @@ static List<HeadEntry> History(Heads heads, HeadId headId) {
     return entries;
 }
 
-static void VerifyForkHistory(Heads heads, HeadEntryId fork, HeadEntryId selected, HeadEntryId initial, byte[] payload) {
-    List<HeadEntry> history = History(heads, fork.HeadId);
-    Require(history.Select(entry => entry.Id).SequenceEqual(new[] { fork, selected, initial }),
+static void VerifyForkHistory(Heads heads, HeadId fork, HeadEntryId selected, HeadEntryId initial, byte[] payload) {
+    List<HeadEntry> history = History(heads, fork);
+    Require(history.Select(entry => entry.Id).SequenceEqual(new[] { selected, initial }),
         "Fork inherited a different source point or included later source history.");
     Require(history.All(entry => entry.Payload.SequenceEqual(payload)), "Fork history changed exact source bytes.");
 }
 
-static void VerifyForks(Heads heads, HeadEntryId selected, HeadEntryId initial, params HeadEntryId[] forks) {
+static void VerifyForks(Heads heads, HeadEntryId selected, HeadEntryId initial, params HeadId[] forks) {
     IReadOnlyList<HeadOriginInfo> graph = heads.ListHeadOrigins(4).Unwrap();
     Require(graph.Count == forks.Length, "ListHeadOrigins changed the declaration count.");
-    foreach (HeadEntryId fork in forks) {
-        HeadOriginInfo edge = graph.Single(info => info.ChildHeadId == fork.HeadId);
+    foreach (HeadId fork in forks) {
+        HeadOriginInfo edge = graph.Single(info => info.ChildHeadId == fork);
         Require(edge.SourceHeadId == initial.HeadId && edge.SourceEntryTicket == selected.Ticket,
             "ListHeadOrigins changed the complete exact source coordinate.");
     }
 }
 
 static void VerifyTags(Heads heads, string selectedName, string opaqueName, HeadEntryId selected,
-    HeadEntryId opaque, HeadEntryId fork, byte[] selectedBytes, byte[] opaqueBytes) {
+    HeadEntryId opaque, HeadId fork, byte[] selectedBytes, byte[] opaqueBytes) {
     HeadSetTag selectedTag = heads.ReadTag(selectedName).Unwrap();
     Require(selectedTag.Entries.Count == 2 && selectedTag.Entries[selected.HeadId] == selected
         && selectedTag.Entries[opaque.HeadId] == opaque, "Selected member table changed after later publications.");
     HeadSetTag forkTag = heads.ReadTag(opaqueName).Unwrap();
     Require(forkTag.Entries.Count == 2 && forkTag.Entries[opaque.HeadId] == opaque
-        && forkTag.Entries[fork.HeadId] == fork, "Tag lost the fork child identity.");
+        && forkTag.Entries[fork] == selected, "Tag lost the fork child identity.");
     Require(heads.ReadEntry(selectedTag.Entries[selected.HeadId]).Unwrap().Payload.SequenceEqual(selectedBytes), "Tagged historical Entry bytes changed.");
     Require(heads.ReadEntry(forkTag.Entries[opaque.HeadId]).Unwrap().Payload.SequenceEqual(opaqueBytes), "Tagged opaque Entry bytes changed.");
-    Require(heads.ReadEntry(forkTag.Entries[fork.HeadId]).Unwrap().Payload.SequenceEqual(selectedBytes), "Tagged fork Entry bytes changed.");
+    Require(heads.ReadEntry(forkTag.Entries[fork]).Unwrap().Payload.SequenceEqual(selectedBytes), "Tagged fork Entry bytes changed.");
     VerifyInfo(heads.ReadTagInfo(selectedName).Unwrap(), selectedName, 2);
     var scanned = new Dictionary<string, HeadSetTagInfo>(StringComparer.Ordinal);
     HeadSetTagScanEnd end = heads.ScanTags(info => {

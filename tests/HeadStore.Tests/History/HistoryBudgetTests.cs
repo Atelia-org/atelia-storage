@@ -65,17 +65,17 @@ public sealed class HeadHistoryBudgetTests {
     }
 
     [Fact]
-    public void InheritedAnchorRepeatedCompleteReadsAreChargedAndExactTwelveStepsComplete() {
+    public void InheritedAnchorRepeatedCompleteReadsAndForkHeaderTransitionAreCharged() {
         using var fixture = new HistoryFixture();
         HeadEntryId source = fixture.SeedPublic(1, [1])[0];
         HeadEntryId child = fixture.WriteMirror(2, source, new HistoryRecord([1]))[0];
         using var store = fixture.Open();
-        // Child: enter/header 3 + Entry MoveNext/full 2 = 5.
+        // Child: enter/header 3 + Entry MoveNext/full 2 + checked-header MoveNext 1 = 6.
         // Source: enter/header 3 + GetScanBoundaryAfter full 1 + boundary ScanReverse full 1
         // + anchor MoveNext 1 + Entry full 1 = 7. The three actual anchor reads each cost a step.
-        Assert.Equal(new[] { child, source }, HistoryFixture.Collect(store, child.HeadId, new(2, 12)).Select(entry => entry.Id));
+        Assert.Equal(new[] { child, source }, HistoryFixture.Collect(store, child.HeadId, new(2, 13)).Select(entry => entry.Id));
         var delivered = new List<HeadEntryId>();
-        var result = store.ReadHeadHistory(child.HeadId, new(2, 11), entry => {
+        var result = store.ReadHeadHistory(child.HeadId, new(2, 12), entry => {
             delivered.Add(entry.Id);
             return true;
         });
@@ -91,6 +91,37 @@ public sealed class HeadHistoryBudgetTests {
         using var store = fixture.Open();
         Assert.Equal("HeadStore.HistoryBudgetExceeded", store.ReadHeadHistory(child.HeadId, new(2, 5), _ => true).Error!.ErrorCode);
         Assert.Equal(HeadHistoryEnd.VisitorStopped, store.ReadHeadHistory(child.HeadId, new(2, 5), _ => false).Unwrap());
+        fixture.AssertReleased(2);
+    }
+
+
+    [Fact]
+    public void HeaderOnlyForkChargesTransitionAndExactSourceWorkWithoutDeliveringAClone() {
+        using var fixture = new HistoryFixture();
+        HeadEntryId source = fixture.SeedPublic(1, [1])[0];
+        fixture.WriteMirror(2, source);
+        using var store = fixture.Open();
+        // Empty fork: enter/header 3 + reverse header 1; exact root source: 7.
+        Assert.Equal(new[] { source }, HistoryFixture.Collect(store, fixture.Id(2), new(1, 11)).Select(entry => entry.Id));
+        var delivered = new List<HeadEntryId>();
+        var limited = store.ReadHeadHistory(fixture.Id(2), new(1, 10), entry => {
+            delivered.Add(entry.Id);
+            return true;
+        });
+        Assert.Equal("HeadStore.HistoryBudgetExceeded", limited.Error!.ErrorCode);
+        Assert.Empty(delivered);
+        fixture.AssertReleased(1, 2);
+    }
+
+    [Fact]
+    public void HeaderOnlyForkCannotResolveMissingSourceForFreeAfterExhaustingWork() {
+        using var fixture = new HistoryFixture();
+        fixture.WriteMirror(2, fixture.DeclaredInitial(19, 1));
+        using var store = fixture.Open();
+        Assert.Equal("HeadStore.HistoryBudgetExceeded",
+            store.ReadHeadHistory(fixture.Id(2), new(1, 4), _ => true).Error!.ErrorCode);
+        Assert.Equal("HeadStore.HeadNotFound",
+            store.ReadHeadHistory(fixture.Id(2), new(1, 5), _ => true).Error!.ErrorCode);
         fixture.AssertReleased(2);
     }
 

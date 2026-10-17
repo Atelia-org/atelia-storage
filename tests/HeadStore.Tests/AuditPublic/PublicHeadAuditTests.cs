@@ -81,9 +81,7 @@ public sealed class PublicHeadAuditTests {
     [Theory]
     [InlineData("past-tail")]
     [InlineData("same-offset-wrong-length")]
-    [InlineData("clone-bytes")]
-    [InlineData("clone-length")]
-    public void DeclaredForkEdgesNeedExactSourceTicketsAndInitialByteClones(string defect) {
+    public void DeclaredForkEdgesNeedExactSourceTicketsEvenWithHealthyLocalEntries(string defect) {
         using var fixture = new AuditPublicFixture();
         HeadEntryId source;
         using (var writer = fixture.Storage.Open()) {
@@ -95,12 +93,7 @@ public sealed class PublicHeadAuditTests {
             "same-offset-wrong-length" => SizedPtr.Create(source.Ticket.Offset, source.Ticket.Length + 4),
             _ => source.Ticket
         };
-        byte[] clone = defect switch {
-            "clone-bytes" => AuditPublicFixture.Bytes(0x53),
-            "clone-length" => AuditPublicFixture.Bytes(length: 127),
-            _ => AuditPublicFixture.Bytes()
-        };
-        fixture.WriteHead(12, 7, declared, new AuditHeadRecord(clone), new AuditHeadRecord([0x54]));
+        fixture.WriteHead(12, 7, declared, new AuditHeadRecord([0x53]), new AuditHeadRecord([0x54]));
         var before = fixture.CaptureFiles();
         using (var readOnly = fixture.OpenReadOnly()) {
             HeadOriginInfo edge = Assert.Single(readOnly.ListHeadOrigins(2).Unwrap());
@@ -109,6 +102,28 @@ public sealed class PublicHeadAuditTests {
             Assert.Equal(new byte[] { 0x52 }, readOnly.ReadHead(7u).Unwrap().Payload.ToArray());
             Assert.True(readOnly.Audit().IsFailure);
             Assert.Single(readOnly.ListHeadOrigins(2).Unwrap());
+        }
+        fixture.AssertUnchanged(before);
+    }
+
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ForkMayHaveNoLocalEntryOrAnIndependentFirstPayload(bool publishLocal) {
+        using var fixture = new AuditPublicFixture();
+        HeadEntryId source;
+        using (var writer = fixture.Storage.Open()) {
+            source = writer.CreateHead(7, [0x51], out _).Unwrap();
+        }
+        AuditHeadRecord[] records = publishLocal ? [new AuditHeadRecord([0x52, 0x53])] : [];
+        fixture.WriteHead(12, 7, source.Ticket, records);
+        var before = fixture.CaptureFiles();
+        using (var readOnly = fixture.OpenReadOnly()) {
+            HeadId child = Assert.Single(readOnly.ListHeads().Unwrap(), id => id.LocalId == 12);
+            if (publishLocal) { Assert.Equal(new byte[] { 0x52, 0x53 }, readOnly.ReadHead(child).Unwrap().Payload.ToArray()); }
+            else { Assert.Equal(source, readOnly.ReadHead(child).Unwrap().Id); }
+            AuditPublicFixture.AssertCounts(readOnly.Audit().Unwrap(), 2, publishLocal ? 2 : 1, 1);
         }
         fixture.AssertUnchanged(before);
     }

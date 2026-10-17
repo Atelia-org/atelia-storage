@@ -21,9 +21,7 @@ public sealed partial class HeadStore {
         bool deferOwnedCleanup = false, HashSet<uint>? dependencies = null) {
         RequireConditionalContext(file, header);
         CheckConditionalState(checkState);
-        if (info.Ticket.Offset < header.InitialEntryOffset
-            || !HeadRecordCodec.IsPublicationShape(info)
-            || (info.Ticket.Offset == header.InitialEntryOffset && !HeadRecordCodec.IsSingleEntryShape(info))) {
+        if (!header.IsAllowedPublication(info)) {
             return new HeadRecordError("The selected physical record is not a legal publication after its checked header.");
         }
 
@@ -105,6 +103,22 @@ public sealed partial class HeadStore {
                 return new HeadRecordError("The current physical record must end at the actual EOF.");
             }
             first = false;
+            if (info.Ticket == header.HeaderTicket && HeadRecordCodec.IsHeaderShape(info)) {
+                if (header.Origin is not ForkOrigin origin) {
+                    return new HeadRecordError("A root Head must contain its initial SingleEntry.");
+                }
+                var opened = GetOrOpen(origin.SourceHeadId.LocalId);
+                if (opened.IsFailure) { return opened.Error!; }
+                IRbfFile source = opened.Value!;
+                var sourceHeader = HeadRecordReader.CheckHeader(source, _identity, origin.SourceHeadId);
+                if (sourceHeader.IsFailure) { return sourceHeader.Error!; }
+                var exact = ReadExactPublication(source, sourceHeader.Value, origin.SourceEntryTicket,
+                    dependencies: dependencies);
+                if (exact.IsFailure) { return exact.Error!; }
+                return exact.Value.Entry is { } sourceEntry
+                    ? sourceEntry
+                    : new HeadRecordError("The exact fork origin is not a published Entry.");
+            }
             var publication = ReadPublication(file, header, info, dependencies: dependencies);
             if (publication.IsFailure) { return publication.Error!; }
             if (publication.Value.Entry is { } entry) { return entry; }
@@ -121,10 +135,15 @@ public sealed partial class HeadStore {
         CheckConditionalState(null);
         if (!hasRecord) { return reverse.TerminationError ?? new HeadRecordError("A current publication is missing."); }
         RbfFrameInfo info = reverse.Current;
-        if (info.Ticket.Offset < header.InitialEntryOffset
-            || file.GetPhysicalOffsetImmediatelyAfter(info.Ticket) != file.TailOffset
-            || !HeadRecordCodec.IsPublicationShape(info)
-            || (info.Ticket.Offset == header.InitialEntryOffset && !HeadRecordCodec.IsSingleEntryShape(info))) {
+        if (file.GetPhysicalOffsetImmediatelyAfter(info.Ticket) != file.TailOffset) {
+            return new HeadRecordError("The current physical record has an invalid local publication shape.");
+        }
+        if (info.Ticket == header.HeaderTicket && HeadRecordCodec.IsHeaderShape(info)) {
+            return header.Origin.HasValue
+                ? AteliaResult<bool>.Success(true)
+                : new HeadRecordError("A root Head must contain its initial SingleEntry.");
+        }
+        if (!header.IsAllowedPublication(info)) {
             return new HeadRecordError("The current physical record has an invalid local publication shape.");
         }
         var read = file.ReadPooledFrame(info.Ticket);
@@ -158,7 +177,8 @@ public sealed partial class HeadStore {
     private static AteliaResult<CheckedPublication> CheckPublicationFrame(RbfPooledFrame frame,
         CheckedHeadHeader header, SizedPtr wanted) {
         int payloadLength = frame.PayloadAndMeta.Length - frame.TailMetaLength;
-        if (frame.Ticket != wanted || frame.IsTombstone
+        if (!header.IsAllowedPublicationKind(wanted.Offset, frame.Tag)
+            || frame.Ticket != wanted || frame.IsTombstone
             || frame.TailMetaLength != RecordMetadataCodec.EncodedSize
             || payloadLength < 1
             || !RecordMetadataCodec.TryRead(frame.PayloadAndMeta[payloadLength..], out long recordedAtUnixMs)) {
@@ -176,8 +196,7 @@ public sealed partial class HeadStore {
             rootOffset = 0;
         }
         else if (frame.Tag == HeadRecordCodec.ConditionalUpdateTag) {
-            if (wanted.Offset == header.InitialEntryOffset
-                || !ConditionalUpdateCodec.TryRead(frame.PayloadAndMeta[..payloadLength], header.HeadId.LocalId,
+            if (!ConditionalUpdateCodec.TryRead(frame.PayloadAndMeta[..payloadLength], header.HeadId.LocalId,
                     wanted, out rootOffset)) {
                 return new HeadRecordError("The complete ConditionalUpdate has an invalid envelope, member table, root payload, or self ticket.");
             }
@@ -262,7 +281,7 @@ public sealed partial class HeadStore {
         CheckConditionalState(checkState);
         long tail = peer.TailOffset;
         if (wanted.Offset == tail) { return false; }
-        if (wanted.Offset > tail || wanted.Offset < header.InitialEntryOffset) {
+        if (wanted.Offset > tail || wanted.Offset < header.RecordsOffset) {
             return new HeadRecordError("The designated member offset is outside its checked head's completed range.");
         }
 
@@ -340,9 +359,7 @@ public sealed partial class HeadStore {
 
     private static AteliaError? CheckConditionalObservation(RbfFrameInfo info, CheckedHeadHeader header) {
         if (info.Ticket == header.HeaderTicket && HeadRecordCodec.IsHeaderShape(info)) { return null; }
-        if (info.IsTombstone || info.Ticket.Offset < header.InitialEntryOffset
-            || info.Tag is not (HeadRecordCodec.SingleEntryTag or HeadRecordCodec.ConditionalUpdateTag)
-            || (info.Ticket.Offset == header.InitialEntryOffset && info.Tag != HeadRecordCodec.SingleEntryTag)) {
+        if (info.IsTombstone || !header.IsAllowedPublicationKind(info.Ticket.Offset, info.Tag)) {
             return new HeadRecordError("The observed physical member chain has an unknown or misplaced kind or tombstone.");
         }
         return null;

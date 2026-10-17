@@ -109,7 +109,7 @@ public sealed class HistoryFaultTests {
     public void FailedCloseDuringSourceHopDoesNotOpenSourceOrRetryTemporary() {
         using var f = new HistoryFaultFixture();
         HistorySeed source = f.Seed(1, HistoryFaultFixture.Payload());
-        HistorySeed child = f.SeedFork(2, source);
+        HistorySeed child = f.SeedPublishedFork(2, source);
         HistorySeed cached = f.Seed(3, HistoryFaultFixture.Payload(3));
         f.Store.ReadHead(cached.HeadId).Unwrap();
         var closeFailure = new IOException("child hop close");
@@ -270,9 +270,9 @@ public sealed class HistoryFaultTests {
     public void MultiHeadTraversalRetainsOnlyCurrentTemporaryHandleAndDoesNotPopulatePermanentCache() {
         using var f = new HistoryFaultFixture();
         HistorySeed source = f.Seed(1, HistoryFaultFixture.Payload());
-        HistorySeed child = f.SeedFork(2, source);
-        HistorySeed grandchild = f.SeedFork(3, child);
-        HistorySeed tip = f.SeedFork(4, grandchild);
+        HistorySeed child = f.SeedPublishedFork(2, source);
+        HistorySeed grandchild = f.SeedPublishedFork(3, child);
+        HistorySeed tip = f.SeedPublishedFork(4, grandchild);
         f.Files.BeforeOpen = (_, _) => Assert.All(f.Files.Opened, file => Assert.Equal(1, file.DisposeCalls));
         int visits = 0;
 
@@ -350,22 +350,25 @@ public sealed class HistoryFaultTests {
     }
 
     [Theory]
-    [InlineData(8, 0, 0, 0)]
-    [InlineData(9, 1, 0, 1)]
-    [InlineData(10, 1, 1, 2)]
+    [InlineData(9, 0, 0, 0)]
+    [InlineData(10, 1, 0, 1)]
     [InlineData(11, 1, 1, 2)]
-    [InlineData(12, 1, 1, 3)]
+    [InlineData(12, 1, 1, 2)]
+    [InlineData(13, 1, 1, 3)]
     public void SourceHelperCompleteReadsArePaidBeforeRealRbfCalls(long workSteps, int boundaryCalls,
         int boundaryReverseCalls, int completeReads) {
         using var f = new HistoryFaultFixture();
         HistorySeed source = f.Seed(1, HistoryFaultFixture.Payload());
-        HistorySeed child = f.SeedFork(2, source);
+        HistorySeed child = f.SeedPublishedFork(2, source);
         var received = new List<HeadEntry>();
+        // Child enter/header/Entry/header transition costs 6; source enter/header reaches 9.
+        // 10 pays GetScanBoundaryAfter; 11 pays boundary ScanReverse; 12 pays anchor MoveNext;
+        // 13 pays the third complete anchor read and finishes at the source root's initial Entry.
 
         var result = f.Store.ReadHeadHistory(child.HeadId, new HeadHistoryBudget(2, workSteps),
             entry => { received.Add(entry); return true; });
 
-        if (workSteps == 12) {
+        if (workSteps == 13) {
             Assert.Equal(HeadHistoryEnd.Complete, result.Unwrap());
             Assert.Equal(2, received.Count);
         }
@@ -377,7 +380,7 @@ public sealed class HistoryFaultTests {
         Assert.Equal(1, sourceFile.DisposeCalls);
         Assert.Equal(boundaryCalls, sourceFile.GetBoundaryCalls);
         Assert.Equal(boundaryReverseCalls, sourceFile.BoundaryReverseCalls);
-        Assert.Equal(workSteps == 8 ? 0 : 1, sourceFile.FrameInfoCalls);
+        Assert.Equal(workSteps == 9 ? 0 : 1, sourceFile.FrameInfoCalls);
         // These are actual reader requests, including the two helper-internal complete anchor reads.
         Assert.Equal(completeReads, sourceFile.CountCompleteReads(source.Tickets[0]));
         Assert.Equal(0, f.Lock.DisposeCalls);

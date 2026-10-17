@@ -2,6 +2,8 @@
 
 HeadStore 借入一个 FrameStore，发布应用解释的不透明 root-payload bytes，并提供Head、历史、fork、HeadSetTag与只读Audit。公开用法见 [Atelia.HeadStore](../../src/HeadStore/README.md)。本页只做导航，不增加合同或重标验收范围。
 
+当前采用引用初始化 fork：只在 header 保存准确来源，不生成克隆 Entry，ForkHead 返回新 HeadId；HeadSetTag 的16B成员独立保存 selected Head 与实际 Entry owner。统一格式3拒绝1/2；当前合同见04/05/07/09/11，实际新增验证见下表，不沿用旧Accepted。临时施工清单已完成并删除，合同与验收归入既有文档。
+
 精确 EntryId 读取、公共组合 guard 与惰性物理 RecoveryReports 已实施，新增资格见[下游公面增量验收](../FrameStore-HeadStore/14-downstream-api-refinement-acceptance.md)。[下游公面完善计划](../FrameStore-HeadStore/14-downstream-api-refinement-plan.md)的获准施工队列已收束，只保留延后事项的重访条件，不重复加入旧阶段队列。
 
 2026-10-16 已完成[HeadStore 行为保持重命名](15-headstore-renaming-plan.md)：活跃公面与工程统一采用 HeadStore/Head/Entry，验证状态以该篇为准；[HeadSetTag成员表替换](16-headset-tags-plan.md)已实施，统一格式2、删除旧bytes/Related公面；目标合同见09，新增资格见[16验收记录](16-headset-tags-acceptance.md)，Windows源码、进程与本地包消费已通过。既有VersionStore验收与包来源不重标。文档目录已改为 `docs/HeadStore/`，重命名记录与 HeadSetTag 专项分别调整为 15、16 号；其余 basename 和既有 Clause-ID 保持。
@@ -34,7 +36,8 @@ NamedFrameMap 是应用显式选择的 codec，普通 Head、历史、fork、tag
 | --- | --- |
 | S4/S5 与 08–11 的既有独立源码资格，含 V4-E/V4-F | [最终源码验收](12-versionstore-final-acceptance.md)；该 Accepted 不含 CU |
 | `PublishHeads` / CU 的独立源码、具名进程窗口与两平台增量 | [07 CU 验收](07-versionstore-cross-ref-conditional-update-acceptance.md) |
-| HeadSetTag格式2、正式成员引用、故障/取消及具名进程窗口 | [16验收记录](16-headset-tags-acceptance.md)，Windows源码、进程与本地包消费通过 |
+| HeadSetTag格式2首轮、正式成员引用、故障/取消及具名进程窗口（历史） | [16验收记录](16-headset-tags-acceptance.md)，Windows源码、进程与本地包消费通过 |
+| 引用初始化fork/格式3与16B独立key/value映射 | [12本轮新增验收](12-versionstore-final-acceptance.md)、[07 CU](07-versionstore-cross-ref-conditional-update-acceptance.md)、[16 tag](16-headset-tags-acceptance.md)；仅按新增轮次实际结果判定 |
 | 已实施分片、历史命令及组合验证 | [实施计划](12-versionstore-implementation-plan.md) |
 | V4-C 的限定 Linux 平台与资源观察 | [Linux / 资源验收](12-versionstore-linux-resource-acceptance.md)，保持其当轮范围 |
 

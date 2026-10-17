@@ -36,7 +36,7 @@ public sealed partial class HeadStore {
         catch (Exception error) { errors.Add(error); }
         finally {
             CloseConditionalPeer(ref errors);
-            CloseAuditResource(ref resources.Child, ref errors);
+            CloseAuditResource(ref resources.Member, ref errors);
             CloseAuditResource(ref resources.File, ref errors);
             CloseAuditResource(ref resources.Buckets, ref errors);
             if (_faulted) { CleanupOwned(ref errors); }
@@ -101,7 +101,7 @@ public sealed partial class HeadStore {
             checkState();
             var header = TagRecordReader.CheckHeader(resources.File, _identity, target.BucketId, checkState);
             if (header.IsFailure) { return header.Error!; }
-            AteliaError? contentError = AuditTagFrames(resources, header.Value, checkState);
+            AteliaError? contentError = AuditTagFrames(resources, header.Value, nodes, checkState);
             CloseAuditResource(ref resources.File);
             checkState();
             if (contentError is not null) { return contentError; }
@@ -117,12 +117,8 @@ public sealed partial class HeadStore {
             if (origin.SourceHeadId == pair.Key || !nodes.TryGetValue(origin.SourceHeadId, out AuditHeadNode? source)) {
                 return InvalidHistoryOrigin("A declared source is self-linked or missing from the checked formal head set.");
             }
-            source.Children ??= [];
-            if (!source.Children.TryGetValue(origin.SourceEntryTicket, out List<AuditHeadNode>? children)) {
-                children = [];
-                source.Children.Add(origin.SourceEntryTicket, children);
-            }
-            children.Add(pair.Value);
+            source.PendingOrigins ??= [];
+            source.PendingOrigins.Add(origin.SourceEntryTicket);
             resources.OriginCount = checked(resources.OriginCount + 1);
         }
 
@@ -152,7 +148,7 @@ public sealed partial class HeadStore {
         var header = HeadRecordReader.CheckHeader(file, _identity, node.HeadId, BeforeHeaderWork, checkState);
         checkState();
         if (header.IsFailure) { return header.Error!; }
-        if (header.Value.HeaderTicket != node.HeaderTicket || header.Value.InitialEntryOffset != node.InitialOffset
+        if (header.Value.HeaderTicket != node.HeaderTicket || header.Value.RecordsOffset != node.RecordsOffset
             || header.Value.Origin != node.Origin) {
             return new HeadHeaderError("The formal head header differs from its checked immutable declaration.");
         }
@@ -174,25 +170,27 @@ public sealed partial class HeadStore {
             return new HeadHeaderError("The first physical frame differs from its checked HeadHeader.");
         }
 
-        bool hasInitial = false;
+        bool hasLocalRecord = false;
         while (true) {
             checkState();
             bool hasEntry = forward.MoveNext();
             checkState();
             if (!hasEntry) {
                 if (forward.TerminationError is { } error) { return error; }
-                if (!hasInitial) { return new HeadRecordError("The direct second physical initial Entry is missing."); }
-                if (node.Children is { Count: > 0 }) {
+                if (!hasLocalRecord && header.Origin is null) {
+                    return new HeadRecordError("The root head's direct initial SingleEntry is missing.");
+                }
+                if (node.PendingOrigins is { Count: > 0 }) {
                     return InvalidHistoryOrigin("A declared exact source ticket is not a published entry member of its formal head's physical chain.");
                 }
                 return null;
             }
             RbfFrameInfo info = forward.Current;
-            if (!hasInitial && (info.Ticket.Offset != header.InitialEntryOffset || !HeadRecordCodec.IsSingleEntryShape(info))) {
-                return new HeadRecordError("The ordinary initial Entry is not the direct second physical frame.");
+            if (!hasLocalRecord && info.Ticket.Offset != header.RecordsOffset) {
+                return new HeadRecordError("The first local publication does not directly follow its checked header.");
             }
-            hasInitial = true;
-            if (!HeadRecordCodec.IsPublicationShape(info)) {
+            hasLocalRecord = true;
+            if (!header.IsAllowedPublication(info)) {
                 return new HeadRecordError("The physical head chain contains an invalid publication record.");
             }
             if (info.Tag == HeadRecordCodec.ConditionalUpdateTag) {
@@ -201,14 +199,13 @@ public sealed partial class HeadStore {
                 if (published.IsFailure) { return published.Error!; }
                 HeadEntry? entry = published.Value.Entry;
                 if (entry is null) {
-                    if (node.Children is not null && node.Children.ContainsKey(info.Ticket)) {
+                    if (node.PendingOrigins is not null && node.PendingOrigins.Contains(info.Ticket)) {
                         return InvalidHistoryOrigin("A declared exact source CU is not a published entry.");
                     }
                     continue;
                 }
                 resources.EntryCount = checked(resources.EntryCount + 1);
-                AteliaError? sourceError = AuditSourceChildren(resources, node, info.Ticket, entry.Payload, checkState);
-                if (sourceError is not null) { return sourceError; }
+                node.PendingOrigins?.Remove(info.Ticket);
                 continue;
             }
 
@@ -217,52 +214,12 @@ public sealed partial class HeadStore {
             using RbfPooledFrame frame = read.Value!;
             checkState();
             resources.EntryCount = checked(resources.EntryCount + 1);
-            AteliaError? cloneError = AuditSourceChildren(resources, node, info.Ticket,
-                frame.PayloadAndMeta[..^frame.TailMetaLength], checkState);
-            if (cloneError is not null) { return cloneError; }
+            node.PendingOrigins?.Remove(info.Ticket);
         }
-    }
-
-    private AteliaError? AuditSourceChildren(AuditResources resources, AuditHeadNode node, SizedPtr ticket,
-        ReadOnlySpan<byte> sourcePayload, Action checkState) {
-        if (node.Children is null || !node.Children.TryGetValue(ticket, out List<AuditHeadNode>? children)) { return null; }
-        foreach (AuditHeadNode child in children) {
-            AteliaError? cloneError = AuditForkClone(resources, child, sourcePayload, checkState);
-            if (cloneError is not null) { return cloneError; }
-        }
-        node.Children.Remove(ticket);
-        return null;
-    }
-
-    private AteliaError? AuditForkClone(AuditResources resources, AuditHeadNode child,
-        ReadOnlySpan<byte> sourcePayload, Action checkState) {
-        checkState();
-        resources.Child = _files.OpenHead(child.Target, readOnly: true, _markOwnedCleanupFault);
-        checkState();
-        var header = CheckAuditHeader(resources.Child, child, checkState);
-        if (header.IsFailure) { return header.Error!; }
-        checkState();
-        var next = resources.Child.ReadFrameInfoImmediatelyAfter(header.Value.HeaderTicket);
-        checkState();
-        if (next.IsFailure) { return next.Error!; }
-        if (!next.Value.HasValue || next.Value.Value.Ticket.Offset != header.Value.InitialEntryOffset) {
-            return new HeadRecordError("The fork's direct second physical initial Entry is missing.");
-        }
-        var read = HeadRecordReader.ReadCheckedSingleEntryFrame(next.Value.Value, checkState);
-        if (read.IsFailure) { return read.Error!; }
-        using (RbfPooledFrame initial = read.Value!) {
-            checkState();
-            if (!sourcePayload.SequenceEqual(initial.PayloadAndMeta[..^initial.TailMetaLength])) {
-                return InvalidHistoryOrigin("The fork's initial root bytes differ from its exact main-chain source Entry.");
-            }
-        }
-        CloseAuditResource(ref resources.Child);
-        checkState();
-        return null;
     }
 
     private AteliaError? AuditTagFrames(AuditResources resources, CheckedTagBucketHeader header,
-        Action checkState) {
+        Dictionary<HeadId, AuditHeadNode> nodes, Action checkState) {
         checkState();
         var forward = resources.File!.ScanForward(showTombstone: true).GetEnumerator();
         checkState();
@@ -287,24 +244,31 @@ public sealed partial class HeadStore {
             if (!names.Add(tag.Name)) {
                 return new TagDuplicateNameError("The formal tag bucket contains multiple Ordinal-equal names.");
             }
-            foreach (HeadEntryId entryId in tag.Entries.Values) {
+            foreach (var pair in tag.Entries) {
                 checkState();
-                AteliaError? BeforeMemberWork() { checkState(); return null; }
-                var resolved = _files.ResolveHead(entryId.HeadId.LocalId, _markOwnedCleanupFault);
+                HeadEntryId entryId = pair.Value;
+                if (!nodes.TryGetValue(pair.Key, out AuditHeadNode? selected)) {
+                    return InvalidHistoryOrigin("A HeadSetTag selected Head is missing from the checked formal head set.");
+                }
+                if (pair.Key != entryId.HeadId
+                    && (selected.Origin is not ForkOrigin origin || origin.SourceHeadId != entryId.HeadId
+                        || origin.SourceEntryTicket != entryId.Ticket)) {
+                    return InvalidHistoryOrigin("A cross-Head HeadSetTag member differs from its selected Head's exact fixed origin.");
+                }
+                if (!nodes.TryGetValue(entryId.HeadId, out AuditHeadNode? entryOwner)) {
+                    return InvalidHistoryOrigin("A HeadSetTag Entry owner is missing from the checked formal head set.");
+                }
+                resources.Member = _files.OpenHead(entryOwner.Target, readOnly: true, _markOwnedCleanupFault);
                 checkState();
-                if (resolved.IsFailure) { return resolved.Error!; }
-                resources.Child = _files.OpenHead(resolved.Value, readOnly: true, _markOwnedCleanupFault);
-                checkState();
-                var memberHeader = HeadRecordReader.CheckHeader(resources.Child, _identity, entryId.HeadId,
-                    BeforeMemberWork, checkState);
+                var memberHeader = CheckAuditHeader(resources.Member, entryOwner, checkState);
                 if (memberHeader.IsFailure) { return memberHeader.Error!; }
-                var member = ReadExactPublication(resources.Child, memberHeader.Value, entryId.Ticket,
+                var member = ReadExactPublication(resources.Member, memberHeader.Value, entryId.Ticket,
                     checkState, deferOwnedCleanup: true);
                 if (member.IsFailure) { return member.Error!; }
                 if (member.Value.Entry is null) {
                     return new HeadRecordError("A HeadSetTag member is not a published Entry.");
                 }
-                CloseAuditResource(ref resources.Child);
+                CloseAuditResource(ref resources.Member);
                 checkState();
             }
             resources.TagCount = checked(resources.TagCount + 1);
@@ -327,7 +291,7 @@ public sealed partial class HeadStore {
 
     private sealed class AuditResources {
         internal IRbfFile? File;
-        internal IRbfFile? Child;
+        internal IRbfFile? Member;
         internal IEnumerator<QualifiedTagBucketTarget>? Buckets;
         internal long HeadCount;
         internal long EntryCount;
@@ -340,9 +304,9 @@ public sealed partial class HeadStore {
         internal QualifiedHeadTarget Target { get; } = target;
         internal HeadId HeadId { get; } = header.HeadId;
         internal SizedPtr HeaderTicket { get; } = header.HeaderTicket;
-        internal long InitialOffset { get; } = header.InitialEntryOffset;
+        internal long RecordsOffset { get; } = header.RecordsOffset;
         internal ForkOrigin? Origin { get; } = header.Origin;
-        internal Dictionary<SizedPtr, List<AuditHeadNode>>? Children;
+        internal HashSet<SizedPtr>? PendingOrigins;
         internal byte State;
     }
 }

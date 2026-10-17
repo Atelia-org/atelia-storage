@@ -75,7 +75,7 @@ public sealed class TagQueryResourceFaultTests {
         Exception failure = stage == "rent" ? new OutOfMemoryException("full root rent") : new IOException(stage);
         f.Tags.ConfigureOpen = file => {
             file.BeforeRead = (offset, length, raw) => {
-                bool atMetadata = !raw && offset == seed.Tickets[0].Offset + 4 + 12 && length == 23;
+                bool atMetadata = !raw && offset == seed.Tickets[0].Offset + 4 + 16 && length == 23;
                 bool atComplete = !raw && offset == seed.Tickets[0].Offset && length == seed.Tickets[0].Length;
                 if ((stage == "metadata" && atMetadata) || (stage == "complete" && atComplete)) { throw failure; }
             };
@@ -116,7 +116,7 @@ public sealed class TagQueryResourceFaultTests {
         var lockClose = new IOException("owner lock close");
         f.Tags.ConfigureOpen = file => {
             file.BeforeRead = (offset, length, raw) => {
-                if (!raw && offset == seed.Tickets[0].Offset + 4 + 12 && length == 23) { throw primary; }
+                if (!raw && offset == seed.Tickets[0].Offset + 4 + 16 && length == 23) { throw primary; }
             };
             file.DisposeFailure = bucketClose;
         };

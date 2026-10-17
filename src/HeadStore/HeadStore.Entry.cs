@@ -29,9 +29,9 @@ public sealed partial class HeadStore {
 
     /// <summary>重验已签发 exact 位置；null 只表示完整合法但未成立的 CU。</summary>
     private AteliaResult<PublicationRead> ReadExactPublication(IRbfFile file, CheckedHeadHeader header, SizedPtr ticket,
-        Action? checkState = null, bool deferOwnedCleanup = false) {
+        Action? checkState = null, bool deferOwnedCleanup = false, HashSet<uint>? dependencies = null) {
         CheckConditionalState(checkState);
-        if (ticket.Offset < header.InitialEntryOffset
+        if (ticket.Offset < header.RecordsOffset
             || file.GetPhysicalOffsetImmediatelyAfter(ticket) > file.TailOffset) {
             return new HeadRecordError("The exact publication lies outside the checked header's completed range.");
         }
@@ -40,11 +40,11 @@ public sealed partial class HeadStore {
         CheckConditionalState(checkState);
         if (readInfo.IsFailure) { return readInfo.Error!; }
         RbfFrameInfo info = readInfo.Value;
-        if (!HeadRecordCodec.IsPublicationShape(info)
-            || (ticket.Offset == header.InitialEntryOffset && !HeadRecordCodec.IsSingleEntryShape(info))) {
+        if (!header.IsAllowedPublication(info)) {
             return new HeadRecordError("The exact physical record has an invalid publication shape.");
         }
-        var read = ReadPublication(file, header, info, checkState: checkState, deferOwnedCleanup: deferOwnedCleanup);
+        var read = ReadPublication(file, header, info, checkState: checkState,
+            deferOwnedCleanup: deferOwnedCleanup, dependencies: dependencies);
         if (read.IsFailure || read.Value.Entry is null) { return read; }
 
         // CRC does not cover the following Fence. Retain the successful exact anchor

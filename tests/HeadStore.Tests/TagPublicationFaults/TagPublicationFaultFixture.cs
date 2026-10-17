@@ -54,7 +54,7 @@ internal sealed class TagPublicationFaultFixture : IDisposable {
         return HeadId.Create(Identity, localId);
     }
 
-    internal TagBucketSeed SeedBucket(params TagFaultRecord[] records) => SeedBucketWithVersion(2, records);
+    internal TagBucketSeed SeedBucket(params TagFaultRecord[] records) => SeedBucketWithVersion(3, records);
 
     internal TagBucketSeed SeedBucketWithVersion(uint version, params TagFaultRecord[] records) {
         Directory.CreateDirectory(Path.GetDirectoryName(BucketPath)!);
@@ -70,7 +70,7 @@ internal sealed class TagPublicationFaultFixture : IDisposable {
     }
 
     internal static TagFaultRecord Record(string name = Name, byte[]? payload = null) =>
-        new(payload ?? TagFaultFixture.Payload(), TagFaultFixture.Metadata(name, entryCount: (payload?.Length ?? 12) / 12));
+        new(payload ?? TagFaultFixture.Payload(), TagFaultFixture.Metadata(name, entryCount: (payload?.Length ?? 16) / 16));
 
     internal void CorruptRoot(SizedPtr ticket) {
         using var file = new FileStream(BucketPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);

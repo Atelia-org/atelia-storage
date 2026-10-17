@@ -74,7 +74,7 @@ internal sealed class RecoveryReportFailureFixture : IDisposable {
     internal void RewriteTagHeader(uint headerBucket) {
         File.Delete(TagPath);
         byte[] header = new byte[24];
-        BinaryPrimitives.WriteUInt32LittleEndian(header, 2);
+        BinaryPrimitives.WriteUInt32LittleEndian(header, 3);
         Assert.True(Identity.TryWrite(header.AsSpan(4, 16)));
         BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(20), headerBucket);
         using var file = RbfFile.CreateNew(TagPath, RbfCacheMode.Off);

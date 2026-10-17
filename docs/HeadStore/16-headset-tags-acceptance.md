@@ -75,3 +75,8 @@
 完整日志见 `artifacts/headset-tags/pack-final.log`、`package-consumers.log` 及隔离目录的 `logs/`。首次pack遇到Windows构建输出DLL复制的MSB3021访问拒绝，未生成正式manifest；保留partial stage后从相同干净提交重试成功，未改生产代码或覆盖已完成候选。包的固定来源始终为 `886439a`，后续验收文档提交不改变其身份。复验应在该来源的干净checkout使用新的仓外WorkDirectory，同版本仅可复用来源及hash完全相同的候选。
 
 HeadStore包消费者实际验证双成员表、fork子身份、CU subset/pair、格式2 header、两层冷重开、成员ReadEntry与只读Audit。没有推送Git提交、公开发布NuGet包或修改下游pin；未测试远端Source Link下载、Linux新增资格及设备掉电。调用方按硬切API/格式2使用，不提供旧bytes/Related适配、双reader或数据迁移。
+
+
+## 2026-10-17：引用初始化增量
+
+本轮统一格式3，成员改为16B selected Head + actual Entry owner + ticket，允许多个keys共享来源。key/owner分离、selected+source+CUpeer确认及跨Head Audit校验已在Windows完整solution测试通过。本页上文格式2/12B包与证据保留原资格。完整命令、统计、进程及本地包证据集中见[12验收记录的新增轮次](12-versionstore-final-acceptance.md#2026-10-17引用初始化-fork--格式3)，不在此复制另一套结果。

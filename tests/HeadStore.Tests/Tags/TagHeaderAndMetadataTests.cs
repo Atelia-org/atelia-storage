@@ -10,7 +10,7 @@ namespace Atelia.HeadStore.Tests.Tags;
 public sealed class TagHeaderAndMetadataTests {
     [Fact]
     public void BucketHeaderMatchesIndependentCanonicalIdentityGolden() {
-        byte[] golden = Convert.FromHexString("020000000102030405060708090A0B0C0D0E0F1074010000");
+        byte[] golden = Convert.FromHexString("030000000102030405060708090A0B0C0D0E0F1074010000");
         Assert.Equal(24, TagBucketHeaderCodec.PayloadSize);
         Assert.True(TagBucketHeaderCodec.TryRead(golden, TagTestWire.Identity, 0x174, out TagBucketHeader header));
         Assert.Equal(0x174u, header.BucketId);

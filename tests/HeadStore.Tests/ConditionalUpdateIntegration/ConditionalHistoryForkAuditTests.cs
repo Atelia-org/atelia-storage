@@ -8,48 +8,45 @@ public sealed class ConditionalHistoryForkAuditTests {
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ExactCuForkClonesOnlyRootIntoOrdinaryInitialAndExcludesLaterSourceHistory(bool specified) {
+    public void ExactCuForkStoresOnlyHeaderAndExcludesLaterSourceHistory(bool specified) {
         using var fixture = new HistoryFixture();
         HeadEntryId initial = fixture.SeedPublic(1, [0x11, 0xff])[0];
         fixture.SeedPublic(2, [0x22]);
         byte[] root = [0, 0xff, 0x80, 0x7f, 3];
         HeadEntryId source;
-        HeadEntryId child;
+        HeadId child;
         HeadEntry saved;
         using (var store = fixture.Open()) {
             var published = Publish(store, fixture, (1, root), (2, new byte[] { 0x32, 0x33 }));
             source = published[fixture.Id(1)];
             HeadEntryId later = store.PublishHead(initial.HeadId, [0x41], out _).Unwrap();
             child = (specified ? store.ForkHead(3, source, out _) : store.ForkHead(source, out _)).Unwrap();
-            HeadEntry value = store.ReadHead(child.HeadId).Unwrap();
+            HeadEntry value = store.ReadHead(child).Unwrap();
             Assert.Equal(root, value.Payload.ToArray());
-            var history = HistoryFixture.Collect(store, child.HeadId);
-            Assert.Equal(new[] { child, source, initial }, history.Select(entry => entry.Id));
+            var history = HistoryFixture.Collect(store, child);
+            Assert.Equal(new[] { source, initial }, history.Select(entry => entry.Id));
             Assert.DoesNotContain(history, entry => entry.Id == later);
-            Assert.Equal(root, history[1].Payload.ToArray());
-            saved = history[1];
+            Assert.Equal(root, history[0].Payload.ToArray());
+            Assert.Equal(source, value.Id);
+            saved = history[0];
             Assert.Equal(later, store.ReadHead(source.HeadId).Unwrap().Id);
         }
 
-        // Read the physical child after the writer owner is closed: header then one ordinary root frame.
-        using (IRbfFile file = RbfFile.OpenReadOnlyExisting(fixture.HeadPath(child.HeadId.LocalId), RbfCacheMode.Off)) {
+        // A fork is physically complete with only its checked origin-bearing header.
+        using (IRbfFile file = RbfFile.OpenReadOnlyExisting(fixture.HeadPath(child.LocalId), RbfCacheMode.Off)) {
             var forward = file.ScanForward(showTombstone: true).GetEnumerator();
             Assert.True(forward.MoveNext());
             Assert.Equal(0u, forward.Current.Tag);
-            Assert.True(forward.MoveNext());
-            Assert.Equal(1u, forward.Current.Tag);
-            Assert.Equal(root.Length, forward.Current.PayloadLength);
-            Assert.Equal(child.Ticket, forward.Current.Ticket);
             Assert.False(forward.MoveNext());
             Assert.Null(forward.TerminationError);
         }
         using (var cold = fixture.Open(readOnly: true)) {
             var audit = cold.Audit().Unwrap();
             Assert.Equal(3, audit.HeadCount);
-            Assert.Equal(6, audit.EntryCount); // 3 initial + both CU members + later ordinary A.
+            Assert.Equal(5, audit.EntryCount); // 2 initial + both CU members + later ordinary A.
             Assert.Equal(1, audit.OriginCount);
-            Assert.Equal(new[] { child, source, initial },
-                HistoryFixture.Collect(cold, child.HeadId).Select(entry => entry.Id));
+            Assert.Equal(new[] { source, initial },
+                HistoryFixture.Collect(cold, child).Select(entry => entry.Id));
         }
         Assert.Equal(root, saved.Payload.ToArray());
     }
@@ -59,11 +56,11 @@ public sealed class ConditionalHistoryForkAuditTests {
         using var fixture = new HistoryFixture();
         HeadEntryId ancestor = fixture.SeedPublic(1, [1])[0];
         using var store = fixture.Open();
-        HeadEntryId fork = store.ForkHead(2, ancestor, out _).Unwrap();
+        HeadId fork = store.ForkHead(2, ancestor, out _).Unwrap();
         var group = Publish(store, fixture, (1, new byte[] { 0xa1 }), (2, new byte[] { 0xb1 }));
-        var history = HistoryFixture.Collect(store, fork.HeadId);
+        var history = HistoryFixture.Collect(store, fork);
         // A is checked as B's CU peer before the inherited exact A0 is entered.
-        Assert.Equal(new[] { group[fork.HeadId], fork, ancestor }, history.Select(entry => entry.Id));
+        Assert.Equal(new[] { group[fork], ancestor }, history.Select(entry => entry.Id));
     }
 
     [Fact]
@@ -173,7 +170,7 @@ public sealed class ConditionalHistoryForkAuditTests {
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void CuSourceRequiresExactChildRootBytesAndLength(bool sameLength) {
+    public void CuSourceAllowsIndependentFirstLocalPayload(bool sameLength) {
         using var fixture = new HistoryFixture();
         fixture.SeedPublic(1, [1]);
         fixture.SeedPublic(2, [2]);
@@ -189,9 +186,11 @@ public sealed class ConditionalHistoryForkAuditTests {
             delivered.Add(entry.Id);
             return true;
         });
-        Assert.Equal("HeadStore.InvalidForkOrigin", history.Error!.ErrorCode);
-        Assert.Equal(new[] { child }, delivered);
-        Assert.Equal("HeadStore.InvalidForkOrigin", store.Audit().Error!.ErrorCode);
+        Assert.Equal(HeadHistoryEnd.Complete, history.Unwrap());
+        Assert.Equal(child, delivered[0]);
+        Assert.Equal(source, delivered[1]);
+        Assert.Equal(3, delivered.Count);
+        Assert.Equal(5, store.Audit().Unwrap().EntryCount);
     }
 
     [Theory]

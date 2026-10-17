@@ -160,6 +160,7 @@ public sealed partial class HeadStore {
             var header = HeadRecordReader.CheckHeader(source, _identity, head,
                 BeforeHeadWork, EnsureOwnerUsable);
             if (header.IsFailure) { return header.Error!; }
+            dependencies.Add(head.LocalId);
             var current = ReadPublishedCurrent(source, header.Value, dependencies);
             if (current.IsFailure) { return current.Error!; }
             entries[index] = current.Value!.Id;
@@ -173,7 +174,7 @@ public sealed partial class HeadStore {
         var finalPlan = new TagMetadataEncodingPlan(new TagMetadata(name, recordedAt, entries.Length),
             plan.NamePlan, plan.EncodedLength);
         byte[] tailMeta = TagMetadataCodec.Encode(in finalPlan);
-        byte[] payload = TagEntriesCodec.Encode(entries, _identity);
+        byte[] payload = TagEntriesCodec.Encode(captured, entries, _identity);
         var result = new HeadSetTag(name, recordedAt, ownedEntries);
         uint[] dependencyIds = dependencies.ToArray();
         Array.Sort(dependencyIds);
@@ -273,8 +274,8 @@ public sealed partial class HeadStore {
     private static HeadSetTagInfo CreateTagInfo(TagMetadata metadata) =>
         new(metadata.Name, metadata.RecordedAtUnixMs, metadata.EntryCount);
 
-    // Selected Heads may already be cached; CU peers are confirmed one at a time
-    // without turning this operation's dependency set into permanent owned state.
+    // Fork and tag share this dependency confirmation. Selected/source Heads may be
+    // cached; CU peers are confirmed individually without retaining extra owned state.
     private AteliaResult<bool> ConfirmTagDependency(uint localId) {
         EnsureOwnerUsable();
         IRbfFile file;

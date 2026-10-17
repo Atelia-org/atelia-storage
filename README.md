@@ -1,6 +1,6 @@
 # atelia-storage
 
-2026-10-16 已完成行为保持的 HeadStore 重命名及 Windows Release 源码验收；本轮验收见[重命名记录](docs/HeadStore/15-headstore-renaming-plan.md)。下述既有源码、进程和包证据仍对应原 VersionStore revision，不自动成为本轮资格。本轮已按[HeadSetTag方案](docs/HeadStore/16-headset-tags-plan.md)完成格式2与具名成员表替换；删除旧bytes/Related API，统一拒绝格式1，源码/进程/包结果另见[16验收记录](docs/HeadStore/16-headset-tags-acceptance.md)，Windows源码、进程及四个隔离包消费者已通过。
+当前 HeadStore 合同已转为引用初始化 fork：新 fork 只发布准确来源 header，返回新 HeadId，不产生克隆 Entry；格式3统一拒绝1/2，HeadSetTag成员以16B分别保存所选Head及实际Entry owner。合同归[HeadStore文档](docs/HeadStore/README.md)，本轮实际源码、进程与包资格见[现有验收记录中的新增轮次](docs/HeadStore/12-versionstore-final-acceptance.md)，未验证范围不沿用旧Accepted。[重命名记录](docs/HeadStore/15-headstore-renaming-plan.md)及[格式2 HeadSetTag验收](docs/HeadStore/16-headset-tags-acceptance.md)继续保留历史来源。
 
 Atelia 的 .NET 10 存储基础库，使用 MIT 许可证。main 面向 **RBF3 / FrameStore / HeadStore 新栈**：当前底座为 `Atelia.Primitives`、`Atelia.Data`、`Atelia.Rbf`，另有独立的 `Atelia.Binary` 基元 codec（BCL + 纯托管 K4os.Compression.LZ4 `[1.3.8]`）；FrameStore 已实现[公开持久化闭环](src/FrameStore/README.md)，Inventory/Audit 同步物理检查已实现、已纳入本地候选包清单；HeadStore 已接通普通 Head 公开持久化闭环、有界历史读取、精确 fork 创建与声明分叉图查询，并提供tag/元信息与独立只读Audit；本轮tag改为捕获所选Heads当前位置的HeadSetTag，ReadTag交付固定成员表，Audit检查成员引用，以及多 Head 条件提交 `PublishHeads`（见 [实施计划](docs/HeadStore/12-versionstore-implementation-plan.md)）。
 

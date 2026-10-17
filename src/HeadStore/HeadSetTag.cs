@@ -17,7 +17,7 @@ public sealed class HeadSetTag {
     /// <summary>记录保存的有符号 UTC Unix 毫秒值，不保证单调。</summary>
     public long RecordedAtUnixMs { get; }
 
-    /// <summary>固定的 HeadId 到 HeadEntryId 映射；key 等于 value.HeadId，不承诺枚举顺序。</summary>
+    /// <summary>所选 HeadId 到实际已接受 HeadEntryId 的固定映射；多个 Head 可引用同一 Entry，不承诺枚举顺序。</summary>
     /// <remarks>成员表通过完整记录校验，不表示每个成员当前仍健康；可按需调用 ReadEntry。</remarks>
     public IReadOnlyDictionary<HeadId, HeadEntryId> Entries { get; }
 

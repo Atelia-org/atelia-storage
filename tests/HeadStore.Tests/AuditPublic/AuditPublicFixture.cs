@@ -20,7 +20,7 @@ internal sealed class AuditPublicFixture : IDisposable {
 
     internal byte[] Header(uint id, uint sourceId = 0, SizedPtr sourceTicket = default) {
         byte[] bytes = new byte[sourceId == 0 ? 24 : 36];
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes, 2);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes, 3);
         Storage.Identity.CopyTo(bytes, 4);
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(20), id);
         if (sourceId != 0) {

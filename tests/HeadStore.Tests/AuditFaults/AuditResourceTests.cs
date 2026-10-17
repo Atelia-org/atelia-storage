@@ -242,24 +242,19 @@ public sealed class AuditResourceTests {
     }
 
     [Fact]
-    public void ForkCloneChildReadErrorPrecedesBothLiveReaderCloseFailuresAndReleasesLockLast() {
+    public void SourceEntryReadErrorForHeaderOnlyForkPrecedesReaderCloseFailureAndReleasesLockLast() {
         using var f = new AuditFaultFixture();
         AuditHeadSeed source = f.SeedHead(1);
-        AuditHeadSeed child = f.SeedHead(2, new ForkOrigin(source.HeadId, source.Tickets[0]), source.Payloads[0]);
-        f.OrderHeads(source, child);
-        var primary = new IOException("actual child clone read");
-        var childClose = new IOException("clone child close");
-        var sourceClose = new IOException("clone source close");
+        AuditHeadSeed child = f.SeedHead(2, new ForkOrigin(source.HeadId, source.Tickets[0]));
+        f.OrderHeads(child, source);
+        var primary = new IOException("actual referenced source read");
+        var sourceClose = new IOException("source reader close");
         f.Files.ConfigureOpen = file => {
             file.BeforeRead = (offset, length, raw) => {
-                if (raw) { return; }
-                if (file.Id == source.HeadId.LocalId && offset == source.Tickets[0].Offset && length == source.Tickets[0].Length) {
+                if (!raw && file.Id == source.HeadId.LocalId
+                    && offset == source.Tickets[0].Offset && length == source.Tickets[0].Length) {
+                    // Discovery closes are healthy; fault only the actual source Entry reader.
                     file.DisposeFailure = sourceClose;
-                }
-                if (file.Id == child.HeadId.LocalId && offset == child.Tickets[0].Offset && length == child.Tickets[0].Length) {
-                    // Defer the close fault until this actual complete clone read: discovery closes remain healthy.
-                    Assert.Equal(2, f.Files.ActiveFiles);
-                    file.DisposeFailure = childClose;
                     throw primary;
                 }
             };
@@ -267,29 +262,29 @@ public sealed class AuditResourceTests {
 
         var observed = Assert.Throws<AggregateException>(() => f.Store.Audit());
 
-        Assert.Equal(new Exception[] { primary, childClose, sourceClose }, AuditFaultFixture.Flatten(observed));
-        Assert.Equal(2, f.Files.MaximumActiveFiles);
-        Assert.Equal(new[] { "ref:close:2", "ref:close:1", "lock:close" }, f.Closes()[^3..]);
+        Assert.Equal(new Exception[] { primary, sourceClose }, AuditFaultFixture.Flatten(observed));
+        Assert.Equal(1, f.Files.MaximumActiveFiles);
+        Assert.Equal(new[] { "ref:close:1", "lock:close" }, f.Closes()[^2..]);
         f.AssertFaultedAndCleaned();
         f.AssertNoWrites();
     }
 
     [Fact]
-    public void ManyHeadsUseAtMostTwoShortReadersAndDoNotPopulateOwnerCache() {
+    public void ManyHeaderOnlyForksShareOneCheckedSourceAndDoNotPopulateOwnerCache() {
         using var f = new AuditFaultFixture();
         const int count = 80;
         AuditHeadSeed source = f.SeedHead(1);
         for (uint id = 2; id <= count; id++) {
-            f.SeedHead(id, new ForkOrigin(source.HeadId, source.Tickets[0]), source.Payloads[0]);
+            f.SeedHead(id, new ForkOrigin(source.HeadId, source.Tickets[0]));
         }
         byte[][] before = Enumerable.Range(1, count).Select(id => File.ReadAllBytes(f.Storage.HeadPath((uint)id))).ToArray();
 
         HeadStoreAudit first = f.Store.Audit().Unwrap();
 
         Assert.Equal((long)count, first.HeadCount);
-        Assert.Equal((long)count, first.EntryCount);
+        Assert.Equal(1L, first.EntryCount);
         Assert.Equal((long)count - 1, first.OriginCount);
-        Assert.InRange(f.Files.MaximumActiveFiles, 1, 2);
+        Assert.Equal(1, f.Files.MaximumActiveFiles);
         Assert.Equal(0, f.Files.ActiveFiles);
         Assert.Equal(0, f.Files.ListCalls); // The full target set is not first materialized through ListHeads.
         Assert.All(f.Files.Opened, file => Assert.Equal(1, file.DisposeCalls));

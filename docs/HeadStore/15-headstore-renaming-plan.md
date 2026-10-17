@@ -1,5 +1,7 @@
 # HeadStore 术语与符号重命名方案
 
+后续合同更新（2026-10-17）：本文保留当轮方案与证据语境。当前引用初始化 fork 采用格式3，取消初始克隆，ForkHead返回HeadId；HeadSetTag采用16B独立key/value映射。现行合同以[04](04-versionstore-publication.md)、[05](05-versionstore-names-and-indexes.md)、[09](09-versionstore-immutable-tags.md)为准；本文格式1/2、clone、key==owner及对应旧Accepted不覆盖该重构。
+
 续接更新（2026-10-16）：本文以下保留重命名验收当轮状态；后续 HeadSetTag 格式2替换已实施并取得 Windows 源码、进程及本地包消费资格，见[16验收记录](16-headset-tags-acceptance.md)。文中的“下一片/尚未实施”不再表示当前待办。
 
 日期：2026-10-16。状态：行为保持重命名已完成，独立源码复核与 Windows Release 验收通过；未提交、打包或发布。本文记录迁移对照和本轮交付；[HeadSetTag 方案](16-headset-tags-plan.md)负责下一片用具名固定成员表替换旧 bytes tag，尚未实施。第3节是原名到目标名的核验对照，不再作为要求用户逐项 IDE 操作的待办。既有 VersionStore 验收与包证据保留原 revision 身份。

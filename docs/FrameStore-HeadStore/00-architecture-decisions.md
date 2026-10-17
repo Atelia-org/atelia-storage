@@ -136,25 +136,25 @@ tag 创建后不改；Head rewind 追加旧 payload 的新快照，不截掉已�
 
 2026-10-11 用户正式接纳 [07 ConditionalUpdate](../HeadStore/07-versionstore-cross-ref-conditional-update.md) 及必要读取重构。`PublishHeads` 只更新同库多个 distinct 既有 Head，全部输入先私有捕获；空集合拒绝、单成员用普通 SingleEntry、至少两个成员逐文件各写一条 fresh CU。每份 canonical Members 包括自身实际 ticket，全部指定 CU 完整合法且完整成员表相等才共同成立；不补旧组，不引入 TxId、Prepared 日志、全局 heads 或恢复执行。
 
-当前值、历史、fork 与 Audit 共用07资格；未提交 CU 不进入当前值/发布历史，exact fork 来源未提交必须拒绝。子初始永远为普通 SingleEntry，仅 clone root bytes。普通 PublishHead 覆盖只检查本地物理 head，不强制确认上一组 peer；lazy CompletedTail 解释、exact-first/有限错误 allowlist/异长真实前驱后继消歧由07定义。单 driver、data-first、ProcessCrashOnly、完整历史不复用及 owned 清理保持；不承诺跨调用快照隔离、跨 Head 全序、创建/tag/跨库事务或断电耐久。
+当前值、历史、fork 与 Audit 共用07资格；未提交 CU 不进入当前值/发布历史，exact fork 来源未提交必须拒绝。引用初始化fork只发布带准确来源header，不产生初始克隆Entry；fork首条本地发布可为SingleEntry或CU。普通 PublishHead 覆盖只检查本地物理 head，不强制确认上一组 peer；lazy CompletedTail 解释、exact-first/有限错误 allowlist/异长真实前驱后继消歧由07定义。单 driver、data-first、ProcessCrashOnly、完整历史不复用及 owned 清理保持；不承诺跨调用快照隔离、跨 Head 全序、创建/tag/跨库事务或断电耐久。
 
 ### decision [S-VS-REF-FORK-LINK] 创建来源连接完整发布历史
 
 2026-10-09 用户要求检验文件顺序的表达能力，并使 fork 后仍可遍历完整历史、查询全部分叉。本轮保留文件内发布顺序，在 Head 首帧采用不可变 `ForkOrigin = 源 HeadId + 源快照 SizedPtr`；无来源表示独立起点，有来源只指向创建时选中的 exact 已接受快照，不追踪源 head。字段及初始化资格由 S4 `[S-VS-REF-FORK-ORIGIN]` 定义。
 
-S5 MUST 通过按 EntryId fork 内部校验源发布记录并原样 clone root-payload bytes，保留子初始完整 SingleEntry，并使历史沿来源接续源发布前缀；同值的源与子初始 EntryId 都保留。ListHeadOrigins 从全部正式 Head 的 checked 首帧声明派生图，包括预留区/自动区 Head 与多层分叉；不写源孩子表或持久反向索引。ListHeadOrigins 的单项正式 Head 数量预算、全成功后自有边结果及迭代图/清理合同由 S5 `[A-VS-FORKS-CHECKED]` 唯一定义；首版不保留跨调用反向缓存。声明边查询不等于源历史健康审计，实际跳转的成员/内容/循环校验和公共 RBF 后缀定位成本见 S5。
+S5 MUST 通过按EntryId fork内部校验准确源发布记录，只在新Head的header保存ForkOrigin，不创建克隆Entry；两个ForkHead重载返回新HeadId。无本地已接受Entry的当前读取与历史按需接续实际来源Entry，连续空fork直接指向实际Entry owner；真实同值发布仍各有不同EntryId。data确认后须确认准确来源及必要CU成员文件，再私有初始化和一次正式发布；不递归确认祖先。ListHeadOrigins 从全部正式 Head 的 checked 首帧声明派生图，包括预留区/自动区 Head 与多层分叉；不写源孩子表或持久反向索引。ListHeadOrigins 的单项正式 Head 数量预算、全成功后自有边结果及迭代图/清理合同由 S5 `[A-VS-FORKS-CHECKED]` 唯一定义；首版不保留跨调用反向缓存。声明边查询不等于源历史健康审计，实际跳转的成员/内容/循环校验和公共 RBF 后缀定位成本见 S5。
 
 该结构表达发布编辑森林，不解释每次修改的业务意图、多父 merge 或应用状态因果；rewind 仍是新的发布，不删撤回前的记录。完整历史不删除/复用，未来 GC/分段需保留链接资格后另行审定。
 
 ### decision [S-VS-REF-ID-ONLY] Head 不命名，以固定预留区与自动编号定位
 
-2026-10-10 用户采用 uint32 LocalHeadId；格式门上界与 Head 自身/ForkOrigin 来源/CU 成员字段固定 4B LittleEndian，ticket 字段固定完整 8B。值及 Head/CU 字段合同见 S4 `[F-VS-REF-ID-4B]`，不提供旧 8B ID 草案兼容。2026-10-11旧格式1 Related注记曾采用VarUInt32/Serialize+VarUInt64；本轮格式2将其删除，HeadSetTag成员改为4B LocalHeadId+8B Packed LE，不改变既有Head/CU字段。
+2026-10-10 用户采用 uint32 LocalHeadId；格式门上界与 Head 自身/ForkOrigin 来源/CU 成员字段固定 4B LittleEndian，ticket 字段固定完整 8B。值及 Head/CU 字段合同见 S4 `[F-VS-REF-ID-4B]`，不提供旧 8B ID 草案兼容。2026-10-11旧格式1 Related注记曾采用VarUInt32/Serialize+VarUInt64；格式2将其删除；当前格式3的HeadSetTag成员为selected LocalHeadId 4B + entry-owner LocalHeadId 4B +完整Packed ticket 8B，key/value可分离，不改变既有Head/CU字段。
 
 2026-10-10 用户采用：**去掉 branch 名称；创建 HeadStore 时持久预留低号区；CreateHead/ForkHead 提供自动或指定目标两种入口；指定目标只能来自预留区，不支持任意指定 ID。** 应用管理名称、枚举角色、摘要/缩略图等语义；库不提供 branch 绑定、alias、名称索引或原子命名 fork。
 
 S4 MUST 将不可变预留上界 L 保存于格式门：0 无效，1..L 仅应用指定 create-only，高于 L 仅自动分配；允许 L=0，要求 L<uint.MaxValue，不预创建 Head，不支持后续扩区。自动编号由完整正式集合与 L 恢复单一内存水位；低号创建不推进水位，自动耗尽不阻断空闲预留目标。已正式身份/完整历史不删除、不复用。
 
-新 Head/fork MUST 只发布一个完整 Head 文件，采用 `refs/<8hex>.rbf`；private 完成 header/初始 SingleEntry 并 flush/close 后一次 no-overwrite file rename 公开。应用在库上下文保存 LocalId 并通过 checked 本地查询恢复 HeadId，完整 HeadId 仍保留 HSID 防错。合同唯一见 S4 `[S-VS-REF-ID-DOMAINS]`、`[A-VS-LOCAL-REF-LOOKUP]` 与 `[S-VS-REF-FILE-PUBLISH]`。
+新Head/fork MUST只发布一个完整Head文件，采用 `refs/<8hex>.rbf`；private中root完成header/初始SingleEntry，fork仅写来源header，flush/close后一次no-overwrite file rename公开。应用在库上下文保存LocalId，由ListHeads按LocalId恢复selected HeadId；ReadHead(local)只恢复当前Entry，未续写fork的Entry可能属于来源Head，不用其Id.HeadId代替写入目标。完整HeadId仍保留HSID防错。合同唯一见 S4 `[S-VS-REF-ID-DOMAINS]`、`[A-VS-LOCAL-REF-LOOKUP]` 与 `[S-VS-REF-FILE-PUBLISH]`。
 
 （Informative）固定槽位适合应用常量/枚举；动态目录由应用管理。元数据可与业务根放入同一 NamedFrameMap 原子发布，独立目录 Head 登记则是另一次发布，可能留下未登记对象，不保证跨 Head 原子性。命名不可变 tag 继续保留，其名称政策独立定稿；指定号码仅改善恢复定位，不成为创建尝试 token 或证明 Unknown 已 Confirmed。
 
@@ -221,7 +221,7 @@ HeadStore 借入一个 data FrameStore，拥有独立发布目录；44B 格式�
 
 HeadId是稳定对象身份；HeadEntryId定位已接受发布，不作Unknown尝试token。来源可以是完成发布、checked Entry读取或完整HeadSetTag表恢复；表读取不证明成员当前健康，ReadEntry/Fork保留既有exact协议。历史返回后可fork/rewind；CreateTag只捕获调用时当前Heads，不接受历史ID任意组合。旧bytes/Related书签退出，DG历史图书签由其迁移任务另行设计。
 
-CreateHead/PublishHead/ForkHead在发布root payload前同步data ConfirmDurable，无可复用receipt；无关Builder不阻断，应用保证必要依赖完成。CreateTag先捕获当前成员，data确认后逐个确认去重必要发布文件（成立CU含完整同组依赖），再写正式表。tag沿目标桶可靠结构扫描，以独立checked meta裁决唯一可信目标名；其他unknownName不阻断唯一可信命中，零命中时才使缺失不确定。ReadTag检查完整canonical表，Info/Scan只交Name/time/EntryCount。1024桶、自然容量、CRC信任边界、初始化、稳定捕获、guard与Audit引用检查唯一见[09](../HeadStore/09-versionstore-immutable-tags.md)，不保留跨调用索引或保证O(1)。本轮统一格式2拒绝格式1，新资格见[16验收](../HeadStore/16-headset-tags-acceptance.md)。
+CreateHead/PublishHead在发布root payload前、ForkHead在发布引用header前同步data ConfirmDurable，无可复用receipt；无关Builder不阻断，应用保证必要依赖完成。CreateTag先捕获当前成员，data确认后逐个确认去重必要发布文件（成立CU含完整同组依赖），再写正式表。tag沿目标桶可靠结构扫描，以独立checked meta裁决唯一可信目标名；其他unknownName不阻断唯一可信命中，零命中时才使缺失不确定。ReadTag检查完整canonical表，Info/Scan只交Name/time/EntryCount。1024桶、自然容量、CRC信任边界、初始化、稳定捕获、guard与Audit引用检查唯一见[09](../HeadStore/09-versionstore-immutable-tags.md)，不保留跨调用索引或保证O(1)。当前统一格式3拒绝格式1/2，引用初始化fork的tag确认集合还包含所选header-only Head、实际Entry owner及必要CU peers；Audit分别验证key存在和value/固定来源关系。新资格按新增轮次见[16验收](../HeadStore/16-headset-tags-acceptance.md)。
 
 HeadStore 内部投影安装与消费者安装应用状态分别负责。发布已确认后前者失败仍保留 Confirmed 并停用库实例，完整受控teardown先失效、非锁owned资源单次逐一清理、锁最后；应用安装失败时，从实际已发布 bytes 自行解码重新加载，不撤销发布、不要求业务 callback。同步 mutation 的 Result/必选 out PublicationOutcome 及公开 Append/flush/rename 证据边界由 S4 `[A-VS-PUBLICATION-EVIDENCE]` 定稿；该证据不持久化，自动创建异常不保证交付丢失的 HeadId。外部工具 exactly-once 和模拟确定性不是存储层保证。
 

@@ -51,8 +51,8 @@ public sealed class PublicTagAuditTests {
 
     [Theory]
     [InlineData(0)]
-    [InlineData(11)]
-    [InlineData(13)]
+    [InlineData(15)]
+    [InlineData(17)]
     public void TrustedMetadataAndScanCompleteDoNotQualifyInvalidRootLengths(int length) {
         using var fixture = new AuditPublicFixture();
         fixture.Storage.WriteMirror("A", new TagPublicRecord("A", new byte[length]));

@@ -26,7 +26,7 @@ public sealed class TagReadScopeTests {
         f.Close();
         Assert.DoesNotContain(f.LoggedReads(), read => IsComplete(read, f.Records.ToArray()));
         Assert.Contains(f.LoggedReads(), read => IsMetadata(read, f.Records[0], 32768, 23));
-        Assert.Contains(f.LoggedReads(), read => IsMetadata(read, f.Records[1], 16380, 23));
+        Assert.Contains(f.LoggedReads(), read => IsMetadata(read, f.Records[1], 21840, 23));
 
         f.Open();
         header = f.CheckHeader();
@@ -45,7 +45,7 @@ public sealed class TagReadScopeTests {
     public void TrustedOtherNameWithCorruptEntriesDoesNotBlockAHealthyTargetOrTriggerACompleteRead() {
         using var f = new TagFaultFixture(
             new TagFaultRecord(TagFaultFixture.Payload(), TagFaultFixture.Metadata(TagFaultFixture.OtherName)),
-            new TagFaultRecord(TagFaultFixture.Payload(12, 3), TagFaultFixture.Metadata()));
+            new TagFaultRecord(TagFaultFixture.Payload(16, 3), TagFaultFixture.Metadata()));
         // The healthy successor keeps factory EOF qualification separate from the bad root.
         f.FlipClosedByte(f.Records[0].Offset + 4);
         f.Open();
@@ -133,7 +133,7 @@ public sealed class TagReadScopeTests {
         Assert.Empty(f.Rents);
         f.Close();
         Assert.DoesNotContain(f.LoggedReads(), read => IsComplete(read, f.Records[0]));
-        Assert.DoesNotContain(f.LoggedReads(), read => IsMetadata(read, f.Records[0], 12, metadataLength));
+        Assert.DoesNotContain(f.LoggedReads(), read => IsMetadata(read, f.Records[0], 16, metadataLength));
     }
 
     [Theory]
@@ -148,7 +148,7 @@ public sealed class TagReadScopeTests {
         Assert.True(TagRecordReader.ScanNamed(f.File, header, TagFaultFixture.TargetName).Unwrap().UnknownName);
         Assert.Empty(f.Rents);
         f.Close();
-        Assert.DoesNotContain(f.LoggedReads(), read => IsMetadata(read, f.Records[0], 12, 23));
+        Assert.DoesNotContain(f.LoggedReads(), read => IsMetadata(read, f.Records[0], 16, 23));
     }
 
     [Fact]

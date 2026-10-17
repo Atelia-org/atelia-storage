@@ -8,26 +8,20 @@ public sealed class InheritedHistoryTests {
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void InheritedChainIncludesEachCloneAndExactSourcePrefixAndExcludesBadSourceSuffix(bool readOnly) {
+    public void InheritedChainIncludesOnlyRealPublicationsAndExactSourcePrefixAndExcludesBadSourceSuffix(bool readOnly) {
         using var fixture = new HistoryFixture();
         HeadEntryId[] a = fixture.SeedPublic(1,
             HistoryFixture.Bytes(value: 0xa0), HistoryFixture.Bytes(value: 0xa1),
             HistoryFixture.Bytes(value: 0xa2), HistoryFixture.Bytes(value: 0xa3));
         HeadEntryId[] b = fixture.WriteMirror(2, a[2],
-            new HistoryRecord(HistoryFixture.Bytes(value: 0xa2), -20), new HistoryRecord(HistoryFixture.Bytes(value: 0xb1), -30));
-        HeadEntryId[] c = fixture.WriteMirror(3, b[1],
-            new HistoryRecord(HistoryFixture.Bytes(value: 0xb1), 40), new HistoryRecord(HistoryFixture.Bytes(value: 0xc1), 10));
+            new HistoryRecord(HistoryFixture.Bytes(value: 0xb1), -30));
+        HeadEntryId[] c = fixture.WriteMirror(3, b[0],
+            new HistoryRecord(HistoryFixture.Bytes(value: 0xc1), 10));
         fixture.FlipPayload(a[3]);
         using var store = fixture.Open(readOnly);
-        // C: enter/header 3 + 2 records * 2 = 7.
-        // B/A: enter/header 3 + two anchor-helper complete reads 2 + records * 2 = 9/11.
-        var entries = HistoryFixture.Collect(store, fixture.Id(3), new(7, 27));
-        Assert.Equal(new[] { c[1], c[0], b[1], b[0], a[2], a[1], a[0] }, entries.Select(entry => entry.Id));
-        Assert.Equal(entries[1].Payload.ToArray(), entries[2].Payload.ToArray());
-        Assert.NotEqual(entries[1].Id, entries[2].Id);
-        Assert.Equal(entries[3].Payload.ToArray(), entries[4].Payload.ToArray());
-        Assert.NotEqual(entries[3].Id, entries[4].Id);
-        Assert.Equal(new long[] { 10, 40, -30, -20 }, entries.Take(4).Select(entry => entry.RecordedAtUnixMs));
+        var entries = HistoryFixture.Collect(store, fixture.Id(3));
+        Assert.Equal(new[] { c[0], b[0], a[2], a[1], a[0] }, entries.Select(entry => entry.Id));
+        Assert.Equal(new long[] { 10, -30 }, entries.Take(2).Select(entry => entry.RecordedAtUnixMs));
         if (!readOnly) { fixture.AssertReleased(1, 2, 3); }
         // The excluded A3 is still bad: history success cannot certify the source's current head.
         Assert.StartsWith("Rbf.", store.ReadHead(fixture.Id(1)).Error!.ErrorCode);
@@ -65,12 +59,12 @@ public sealed class InheritedHistoryTests {
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void UnequalCloneBytesFailBeforeSourceIsDeliveredEvenWhenApplicationValuesCouldMatch(bool sameLength) {
+    public void FirstLocalPayloadMayDifferFromSourceAndBothRealEntriesAreDelivered(bool sameLength) {
         using var fixture = new HistoryFixture();
         byte[] sourceBytes = "{\"x\":1}"u8.ToArray();
-        byte[] cloneBytes = sameLength ? "{\"x\":2}"u8.ToArray() : "{ \"x\":1 }"u8.ToArray();
+        byte[] localBytes = sameLength ? "{\"x\":2}"u8.ToArray() : "{ \"x\":1 }"u8.ToArray();
         HeadEntryId source = fixture.SeedPublic(1, sourceBytes)[0];
-        HeadEntryId child = fixture.WriteMirror(2, source, new HistoryRecord(cloneBytes))[0];
+        HeadEntryId child = fixture.WriteMirror(2, source, new HistoryRecord(localBytes))[0];
         using var store = fixture.Open();
         Assert.Equal(HeadHistoryEnd.VisitorStopped, store.ReadHeadHistory(child.HeadId, new(1, 5), _ => false).Unwrap());
         var delivered = new List<HeadEntryId>();
@@ -78,28 +72,30 @@ public sealed class InheritedHistoryTests {
             delivered.Add(entry.Id);
             return true;
         });
-        Assert.Equal("HeadStore.InvalidForkOrigin", result.Error!.ErrorCode);
-        Assert.Equal(new[] { child }, delivered);
+        Assert.Equal(HeadHistoryEnd.Complete, result.Unwrap());
+        Assert.Equal(new[] { child, source }, delivered);
         fixture.AssertReleased(1, 2);
         Assert.Equal(source, store.ReadHead(source.HeadId).Unwrap().Id);
     }
 
-    [Fact]
-    public void RequiredBadSourceAnchorFailsWithoutDeliveringItAndRetainsChildPrefix() {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RequiredBadSourceAnchorFailsWithoutDeliveringItAndRetainsOnlyRealChildPrefix(bool hasLocalEntry) {
         using var fixture = new HistoryFixture();
         byte[] payload = HistoryFixture.Bytes();
         HeadEntryId source = fixture.SeedPublic(1, payload)[0];
-        HeadEntryId child = fixture.WriteMirror(2, source, new HistoryRecord(payload))[0];
+        HeadEntryId[] local = fixture.WriteMirror(2, source, hasLocalEntry ? [new HistoryRecord(payload)] : []);
         fixture.FlipPayload(source);
         using var store = fixture.Open();
         var delivered = new List<HeadEntryId>();
-        var result = store.ReadHeadHistory(child.HeadId, HistoryFixture.Unlimited, entry => {
+        var result = store.ReadHeadHistory(fixture.Id(2), HistoryFixture.Unlimited, entry => {
             delivered.Add(entry.Id);
             return true;
         });
         Assert.True(result.IsFailure);
         Assert.StartsWith("Rbf.", result.Error!.ErrorCode);
-        Assert.Equal(new[] { child }, delivered);
+        Assert.Equal(local, delivered);
         fixture.AssertReleased(1, 2);
     }
 

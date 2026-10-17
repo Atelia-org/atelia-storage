@@ -134,13 +134,13 @@ public sealed class PublicConditionalUpdateLifecycleTests {
     }
 
     [Fact]
-    public void EstablishedGroupSurvivesSingleHeadCoverAndOldCuForkCopiesOnlyRootWithDataTagsAndAudit() {
+    public void EstablishedGroupSurvivesSingleHeadCoverAndOldCuForkReferencesExactRootWithDataTagsAndAudit() {
         using var fixture = new ConditionalUpdatePublicFixture();
         HeadEntryId a0;
         HeadEntryId b0;
         IReadOnlyDictionary<HeadId, HeadEntryId> group;
         HeadEntryId a2;
-        HeadEntryId child;
+        HeadId child;
         FrameAddress addressA;
         FrameAddress addressB;
         byte[] rootA;
@@ -177,18 +177,19 @@ public sealed class PublicConditionalUpdateLifecycleTests {
             Assert.Equal(group[a0.HeadId], selected);
             child = cold.ForkHead(23, selected, out var outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            Assert.Equal(rootA, cold.ReadHead(child.HeadId).Unwrap().Payload.ToArray());
-            Assert.Equal(new[] { child, group[a0.HeadId], a0 }, ConditionalUpdatePublicFixture.History(cold, child.HeadId).Select(entry => entry.Id));
+            Assert.Equal(rootA, cold.ReadHead(child).Unwrap().Payload.ToArray());
+            Assert.Equal(new[] { group[a0.HeadId], a0 }, ConditionalUpdatePublicFixture.History(cold, child).Select(entry => entry.Id));
             HeadOriginInfo edge = Assert.Single(cold.ListHeadOrigins(3).Unwrap());
-            Assert.Equal(child.HeadId, edge.ChildHeadId);
+            Assert.Equal(child, edge.ChildHeadId);
             Assert.Equal(a0.HeadId, edge.SourceHeadId);
             Assert.Equal(group[a0.HeadId].Ticket, edge.SourceEntryTicket);
         }
-        using (IRbfFile file = RbfFile.OpenReadOnlyExisting(fixture.HeadPath(23), RbfCacheMode.Off))
-        using (var frame = file.ReadPooledFrame(child.Ticket).Unwrap()) {
-            Assert.Equal(1u, frame.Tag);
-            Assert.Equal(8, frame.TailMetaLength);
-            Assert.Equal(rootA, frame.PayloadAndMeta[..^8].ToArray());
+        using (IRbfFile file = RbfFile.OpenReadOnlyExisting(fixture.HeadPath(23), RbfCacheMode.Off)) {
+            var frames = file.ScanForward(showTombstone: true).GetEnumerator();
+            Assert.True(frames.MoveNext());
+            Assert.Equal(0u, frames.Current.Tag);
+            Assert.False(frames.MoveNext());
+            Assert.Null(frames.TerminationError);
         }
         using (var data = DataStore.OpenReadOnly(fixture.DataRoot))
         using (var cold = Store.OpenReadOnly(fixture.Root, data)) {
@@ -204,7 +205,7 @@ public sealed class PublicConditionalUpdateLifecycleTests {
                 Assert.Equal(info.EntryCount, tag.EntryCount);
                 return true;
             }).Unwrap());
-            using var frameA = data.ReadFrame(NamedFrameMapCodec.Decode(cold.ReadHead(child.HeadId).Unwrap().Payload).Unwrap()["state"]).Unwrap();
+            using var frameA = data.ReadFrame(NamedFrameMapCodec.Decode(cold.ReadHead(child).Unwrap().Payload).Unwrap()["state"]).Unwrap();
             using var frameB = data.ReadFrame(NamedFrameMapCodec.Decode(cold.ReadHead(b0.HeadId).Unwrap().Payload).Unwrap()["state"]).Unwrap();
             Assert.Equal(dataA, frameA.PayloadAndMeta.ToArray());
             Assert.Equal(dataB, frameB.PayloadAndMeta.ToArray());
@@ -212,7 +213,7 @@ public sealed class PublicConditionalUpdateLifecycleTests {
             Assert.Equal(addressB, NamedFrameMapCodec.Decode(rootB).Unwrap()["state"]);
             var audit = cold.Audit().Unwrap();
             Assert.Equal(3, audit.HeadCount);
-            Assert.Equal(6, audit.EntryCount);
+            Assert.Equal(5, audit.EntryCount);
             Assert.Equal(1, audit.OriginCount);
             Assert.Equal(1, audit.TagCount);
         }

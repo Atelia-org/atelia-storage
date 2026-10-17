@@ -18,14 +18,14 @@ public sealed class HeadSetTagBehaviorTests {
         using var f = new PublicHeadStoreFixture();
         HeadEntryId a;
         HeadEntryId b;
-        HeadEntryId child;
+        HeadId child;
         HeadSetTag saved;
         using (var store = HeadStore.Create(f.Root, f.Data, 256)) {
             a = store.CreateHead(1, [0xa1], out _).Unwrap();
             b = store.CreateHead(2, [0xb1], out _).Unwrap();
             var c = store.CreateHead(3, [0xc1], out _).Unwrap();
             child = store.ForkHead(4, a, out _).Unwrap();
-            HeadId[] input = [default, b.HeadId, child.HeadId, a.HeadId, default];
+            HeadId[] input = [default, b.HeadId, child, a.HeadId, default];
             saved = store.CreateTag("selected", input.AsSpan(1, 3), out var outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
             Array.Fill(input, c.HeadId);
@@ -33,9 +33,8 @@ public sealed class HeadSetTagBehaviorTests {
             store.PublishHead(b.HeadId, [0xb2], out _).Unwrap();
             Assert.Equal(a, saved.Entries[a.HeadId]);
             Assert.Equal(b, saved.Entries[b.HeadId]);
-            Assert.Equal(child, saved.Entries[child.HeadId]);
+            Assert.Equal(a, saved.Entries[child]);
             Assert.DoesNotContain(c.HeadId, saved.Entries.Keys);
-            Assert.All(saved.Entries, pair => Assert.Equal(pair.Key, pair.Value.HeadId));
         }
         f.Data.Dispose();
         Assert.Equal(3, saved.Entries.Count);
@@ -45,16 +44,44 @@ public sealed class HeadSetTagBehaviorTests {
             Assert.Equal(saved.Entries.OrderBy(p => p.Key.LocalId), cold.Entries.OrderBy(p => p.Key.LocalId));
             Assert.Equal(new byte[] { 0xa1 }, writer.ReadEntry(cold.Entries[a.HeadId]).Unwrap().Payload.ToArray());
             Assert.Equal(new byte[] { 0xb1 }, writer.ReadEntry(cold.Entries[b.HeadId]).Unwrap().Payload.ToArray());
-            Assert.Equal(child, cold.Entries[child.HeadId]);
+            Assert.Equal(a, cold.Entries[child]);
             var fork = writer.ForkHead(5, cold.Entries[a.HeadId], out _).Unwrap();
-            Assert.NotEqual(a.HeadId, fork.HeadId);
-            Assert.Equal(new byte[] { 0xa1 }, writer.ReadEntry(fork).Unwrap().Payload.ToArray());
+            Assert.NotEqual(a.HeadId, fork);
+            Assert.Equal(a, writer.ReadHead(fork).Unwrap().Id);
+            Assert.Equal(new byte[] { 0xa1 }, writer.ReadHead(fork).Unwrap().Payload.ToArray());
             Assert.Equal(3, writer.ReadTagInfo("selected").Unwrap().EntryCount);
         }
         using var readData = DataStore.OpenReadOnly(f.DataRoot);
         using var reader = HeadStore.OpenReadOnly(f.Root, readData);
         Assert.Equal(1, reader.Audit().Unwrap().TagCount);
         Assert.Equal(saved.RecordedAtUnixMs, reader.ReadTag("selected").Unwrap().RecordedAtUnixMs);
+    }
+
+    [Fact]
+    public void MultipleHeaderOnlyHeadsRetainIndependentTagKeysForOneSourceAcrossAdvanceAndColdAudit() {
+        using var f = new PublicHeadStoreFixture();
+        HeadEntryId source;
+        HeadId child;
+        HeadId sibling;
+        HeadId grandchild;
+        using (var writer = HeadStore.Create(f.Root, f.Data, 256)) {
+            source = writer.CreateHead(1, [0xa1], out _).Unwrap();
+            child = writer.ForkHead(2, source, out _).Unwrap();
+            sibling = writer.ForkHead(3, source, out _).Unwrap();
+            grandchild = writer.ForkHead(4, writer.ReadHead(child).Unwrap().Id, out _).Unwrap();
+            var tag = writer.CreateTag("shared-source", [grandchild, sibling, child, source.HeadId], out _).Unwrap();
+            Assert.Equal(new[] { source.HeadId, child, sibling, grandchild }, tag.Entries.Keys.OrderBy(id => id.LocalId));
+            Assert.All(tag.Entries, pair => Assert.Equal(source, pair.Value));
+            writer.PublishHead(source.HeadId, [0xa2], out _).Unwrap();
+            writer.PublishHead(child, [0xc1], out _).Unwrap();
+        }
+        using var reader = HeadStore.OpenReadOnly(f.Root, f.Data);
+        var restored = reader.ReadTag("shared-source").Unwrap();
+        Assert.Equal(4, restored.Entries.Count);
+        Assert.All(restored.Entries, pair => Assert.Equal(source, pair.Value));
+        Assert.Equal(1, reader.Audit().Unwrap().TagCount);
+        Assert.Equal(source, reader.ReadHead(sibling).Unwrap().Id);
+        Assert.Equal(source, reader.ReadHead(grandchild).Unwrap().Id);
     }
 
     [Theory]
@@ -171,15 +198,37 @@ public sealed class HeadSetTagBehaviorTests {
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void OldGateIsRejectedEvenWhenItHasNoTagsOrHeads(bool populated) {
+    [InlineData("wrong-origin")]
+    [InlineData("root-cross-owner")]
+    [InlineData("missing-selected")]
+    public void CanonicalCrossHeadTableIsReadableButAuditChecksSelectedHeadAndItsExactOrigin(string defect) {
+        using var f = new ConditionalUpdateFaultFixture();
+        HeadId child;
+        using (var writer = f.OpenPublic()) { child = writer.ForkHead(4, f.Initial[1], out _).Unwrap(); }
+        HeadId selected = defect == "root-cross-owner" ? f.Id(3) : child;
+        HeadEntryId member = defect == "wrong-origin" ? f.Initial[2] : f.Initial[1];
+        if (defect == "missing-selected") { File.Delete(f.HeadPath(4)); }
+        WriteTag(f, "broken-selected-reference", member, selected);
+
+        using var reader = f.OpenPublic(readOnly: true);
+        HeadSetTag restored = reader.ReadTag("broken-selected-reference").Unwrap();
+        Assert.Equal(member, restored.Entries[selected]);
+        Assert.Equal(member, reader.ReadEntry(member).Unwrap().Id);
+        Assert.True(reader.Audit().IsFailure);
+    }
+
+    [Theory]
+    [InlineData(false, 1u)]
+    [InlineData(true, 1u)]
+    [InlineData(false, 2u)]
+    [InlineData(true, 2u)]
+    public void OldGateIsRejectedEvenWhenItHasNoTagsOrHeads(bool populated, uint version) {
         using var f = new PublicHeadStoreFixture();
         using (var writer = HeadStore.Create(f.Root, f.Data, 256)) {
             if (populated) { writer.CreateHead(1, [1], out _).Unwrap(); }
         }
         byte[] gate = File.ReadAllBytes(f.GatePath);
-        BinaryPrimitives.WriteUInt32LittleEndian(gate, 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(gate, version);
         RollingCrc.SealCodewordForward(gate);
         File.WriteAllBytes(f.GatePath, gate);
         var before = f.CaptureFiles();
@@ -189,13 +238,15 @@ public sealed class HeadSetTagBehaviorTests {
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void VersionTwoGateDoesNotSilentlyAcceptAnOldHeadOrBucketHeader(bool bucket) {
+    [InlineData(false, 1u)]
+    [InlineData(true, 1u)]
+    [InlineData(false, 2u)]
+    [InlineData(true, 2u)]
+    public void VersionThreeGateDoesNotSilentlyAcceptAnOldHeadOrBucketHeader(bool bucket, uint version) {
         using var f = new ConditionalUpdateFaultFixture();
         string path;
         byte[] header = new byte[24];
-        BinaryPrimitives.WriteUInt32LittleEndian(header, 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(header, version);
         f.Identity.TryWrite(header.AsSpan(4, 16));
         if (bucket) {
             uint id = TagPublicFixture.Bucket("old-header");
@@ -223,17 +274,17 @@ public sealed class HeadSetTagBehaviorTests {
         f.AssertUnchanged(before);
     }
 
-    private static void WriteTag(ConditionalUpdateFaultFixture f, string name, HeadEntryId member) {
+    private static void WriteTag(ConditionalUpdateFaultFixture f, string name, HeadEntryId member, HeadId? selected = null) {
         uint bucket = TagPublicFixture.Bucket(name);
         Directory.CreateDirectory(Path.Combine(f.Root, "tags"));
         string path = Path.Combine(f.Root, "tags", $"{bucket:x8}.rbf");
         byte[] header = new byte[24];
-        BinaryPrimitives.WriteUInt32LittleEndian(header, 2);
+        BinaryPrimitives.WriteUInt32LittleEndian(header, 3);
         f.Identity.TryWrite(header.AsSpan(4, 16));
         BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(20), bucket);
         using IRbfFile file = RbfFile.CreateNew(path, RbfCacheMode.Off);
         file.Append(0, header).Unwrap();
-        file.Append(1, TagTestWire.Members(member.HeadId.LocalId, member.Ticket), TagTestWire.Metadata(name)).Unwrap();
+        file.Append(1, TagTestWire.Members((selected ?? member.HeadId).LocalId, member.Ticket, member.HeadId.LocalId), TagTestWire.Metadata(name)).Unwrap();
         file.DurableFlush();
     }
 }
