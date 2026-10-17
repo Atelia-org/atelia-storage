@@ -14,7 +14,7 @@ public sealed partial class HeadStore {
         if (rejection is not null) { return rejection; }
         if (IsReadOnly) { return new HeadStoreRuntimeError("ReadOnly", "This HeadStore owner is read-only."); }
         if (!IsLocalEntryId(sourceEntryId)) { return InvalidEntryId(); }
-        if (_autoHeadIdHighWatermark == uint.MaxValue) {
+        if (_autoHeadIdHighWatermark >= MaxLocalHeadId) {
             return new HeadStoreRuntimeError("HeadIdExhausted", "The automatic head identifier domain is exhausted.");
         }
         return ForkNewHead(checked(_autoHeadIdHighWatermark + 1), sourceEntryId, automatic: true, ref outcome);
@@ -41,7 +41,7 @@ public sealed partial class HeadStore {
         if (prepared.IsFailure) { return prepared.Error!; }
 
         HeadId sourceHeadId = sourceEntryId.HeadId;
-        var opened = GetOrOpen(sourceHeadId.LocalId);
+        var opened = GetOrOpen(sourceHeadId.GetLocalId(_identity));
         if (opened.IsFailure) { return opened.Error!; }
         IRbfFile sourceFile = opened.Value!;
         var header = HeadRecordReader.CheckHeader(sourceFile, _identity, sourceHeadId);
@@ -57,8 +57,8 @@ public sealed partial class HeadStore {
     }
 
     private bool IsLocalEntryId(HeadEntryId entryId) =>
-        entryId.HeadId.BelongsTo(_identity) && entryId.Ticket.Packed != 0;
+        entryId.HeadId.TryGetLocalId(_identity, out _) && entryId.Ticket.Packed != 0;
 
     private static AteliaError InvalidEntryId() =>
-        new HeadStoreRuntimeError("ArgumentError", "A nondefault published HeadEntryId bound to this HeadStore is required.");
+        new HeadStoreRuntimeError("HeadNotFound", "The entry owner cannot be located in this HeadStore.");
 }

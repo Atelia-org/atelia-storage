@@ -148,13 +148,13 @@ S5 MUST 通过按EntryId fork内部校验准确源发布记录，只在新Head�
 
 ### decision [S-VS-REF-ID-ONLY] Head 不命名，以固定预留区与自动编号定位
 
-2026-10-10 用户采用 uint32 LocalHeadId；格式门上界与 Head 自身/ForkOrigin 来源/CU 成员字段固定 4B LittleEndian，ticket 字段固定完整 8B。值及 Head/CU 字段合同见 S4 `[F-VS-REF-ID-4B]`，不提供旧 8B ID 草案兼容。2026-10-11旧格式1 Related注记曾采用VarUInt32/Serialize+VarUInt64；格式2将其删除；当前格式3的HeadSetTag成员为selected LocalHeadId 4B + entry-owner LocalHeadId 4B +完整Packed ticket 8B，key/value可分离，不改变既有Head/CU字段。
+2026-10-10 用户采用 uint32 LocalHeadId；格式门上界与 Head 自身/ForkOrigin 来源/CU 成员字段固定 4B LittleEndian，ticket 字段固定完整 8B。值及 Head/CU 字段合同见 S4 `[F-VS-REF-ID-4B]`，不提供旧 8B ID 草案兼容。2026-10-11旧格式1 Related注记曾采用VarUInt32/Serialize+VarUInt64；格式2将其删除；当前格式4的HeadSetTag成员为selected LocalHeadId 4B + entry-owner LocalHeadId 4B +完整Packed ticket 8B，key/value可分离，不改变既有Head/CU字段。
 
 2026-10-10 用户采用：**去掉 branch 名称；创建 HeadStore 时持久预留低号区；CreateHead/ForkHead 提供自动或指定目标两种入口；指定目标只能来自预留区，不支持任意指定 ID。** 应用管理名称、枚举角色、摘要/缩略图等语义；库不提供 branch 绑定、alias、名称索引或原子命名 fork。
 
-S4 MUST 将不可变预留上界 L 保存于格式门：0 无效，1..L 仅应用指定 create-only，高于 L 仅自动分配；允许 L=0，要求 L<uint.MaxValue，不预创建 Head，不支持后续扩区。自动编号由完整正式集合与 L 恢复单一内存水位；低号创建不推进水位，自动耗尽不阻断空闲预留目标。已正式身份/完整历史不删除、不复用。
+S4 MUST 将不可变预留上界 L 保存于格式门：0 无效，1..L 仅应用指定 create-only，高于 L 仅自动分配；允许 L=0，要求 L<MaxLocalHeadId（0x00FFFFFF），不预创建 Head，不支持后续扩区。自动编号由完整正式集合与 L 恢复单一内存水位；低号创建不推进水位，自动耗尽不阻断空闲预留目标。已正式身份/完整历史不删除、不复用。
 
-新Head/fork MUST只发布一个完整Head文件，采用 `refs/<8hex>.rbf`；private中root完成header/初始SingleEntry，fork仅写来源header，flush/close后一次no-overwrite file rename公开。应用在库上下文保存LocalId，由ListHeads按LocalId恢复selected HeadId；ReadHead(local)只恢复当前Entry，未续写fork的Entry可能属于来源Head，不用其Id.HeadId代替写入目标。完整HeadId仍保留HSID防错。合同唯一见 S4 `[S-VS-REF-ID-DOMAINS]`、`[A-VS-LOCAL-REF-LOOKUP]` 与 `[S-VS-REF-FILE-PUBLISH]`。
+新Head/fork MUST只发布一个完整Head文件，采用 `refs/<8hex>.rbf`；private中root完成header/初始SingleEntry，fork仅写来源header，flush/close后一次no-overwrite file rename公开。应用在库上下文保存LocalId，由ListHeads按GetLocalHeadId返回值恢复selected HeadId；ReadHead(local)只恢复当前Entry，未续写fork的Entry可能属于来源Head，不用其Id.HeadId代替写入目标。HeadId使用4B上下文Handle，按S4的容量及概率性跨库检测边界解释。合同唯一见 S4 `[S-VS-REF-ID-DOMAINS]`、`[A-VS-LOCAL-REF-LOOKUP]` 与 `[S-VS-REF-FILE-PUBLISH]`。
 
 （Informative）固定槽位适合应用常量/枚举；动态目录由应用管理。元数据可与业务根放入同一 NamedFrameMap 原子发布，独立目录 Head 登记则是另一次发布，可能留下未登记对象，不保证跨 Head 原子性。命名不可变 tag 继续保留，其名称政策独立定稿；指定号码仅改善恢复定位，不成为创建尝试 token 或证明 Unknown 已 Confirmed。
 
@@ -221,7 +221,7 @@ HeadStore 借入一个 data FrameStore，拥有独立发布目录；44B 格式�
 
 HeadId是稳定对象身份；HeadEntryId定位已接受发布，不作Unknown尝试token。来源可以是完成发布、checked Entry读取或完整HeadSetTag表恢复；表读取不证明成员当前健康，ReadEntry/Fork保留既有exact协议。历史返回后可fork/rewind；CreateTag只捕获调用时当前Heads，不接受历史ID任意组合。旧bytes/Related书签退出，DG历史图书签由其迁移任务另行设计。
 
-CreateHead/PublishHead在发布root payload前、ForkHead在发布引用header前同步data ConfirmDurable，无可复用receipt；无关Builder不阻断，应用保证必要依赖完成。CreateTag先捕获当前成员，data确认后逐个确认去重必要发布文件（成立CU含完整同组依赖），再写正式表。tag沿目标桶可靠结构扫描，以独立checked meta裁决唯一可信目标名；其他unknownName不阻断唯一可信命中，零命中时才使缺失不确定。ReadTag检查完整canonical表，Info/Scan只交Name/time/EntryCount。1024桶、自然容量、CRC信任边界、初始化、稳定捕获、guard与Audit引用检查唯一见[09](../HeadStore/09-versionstore-immutable-tags.md)，不保留跨调用索引或保证O(1)。当前统一格式3拒绝格式1/2，引用初始化fork的tag确认集合还包含所选header-only Head、实际Entry owner及必要CU peers；Audit分别验证key存在和value/固定来源关系。新资格按新增轮次见[16验收](../HeadStore/16-headset-tags-acceptance.md)。
+CreateHead/PublishHead在发布root payload前、ForkHead在发布引用header前同步data ConfirmDurable，无可复用receipt；无关Builder不阻断，应用保证必要依赖完成。CreateTag先捕获当前成员，data确认后逐个确认去重必要发布文件（成立CU含完整同组依赖），再写正式表。tag沿目标桶可靠结构扫描，以独立checked meta裁决唯一可信目标名；其他unknownName不阻断唯一可信命中，零命中时才使缺失不确定。ReadTag检查完整canonical表，Info/Scan只交Name/time/EntryCount。1024桶、自然容量、CRC信任边界、初始化、稳定捕获、guard与Audit引用检查唯一见[09](../HeadStore/09-versionstore-immutable-tags.md)，不保留跨调用索引或保证O(1)。当前统一格式4拒绝格式1/2/3，引用初始化fork的tag确认集合还包含所选header-only Head、实际Entry owner及必要CU peers；Audit分别验证key存在和value/固定来源关系。新资格按新增轮次见[16验收](../HeadStore/16-headset-tags-acceptance.md)。
 
 HeadStore 内部投影安装与消费者安装应用状态分别负责。发布已确认后前者失败仍保留 Confirmed 并停用库实例，完整受控teardown先失效、非锁owned资源单次逐一清理、锁最后；应用安装失败时，从实际已发布 bytes 自行解码重新加载，不撤销发布、不要求业务 callback。同步 mutation 的 Result/必选 out PublicationOutcome 及公开 Append/flush/rename 证据边界由 S4 `[A-VS-PUBLICATION-EVIDENCE]` 定稿；该证据不持久化，自动创建异常不保证交付丢失的 HeadId。外部工具 exactly-once 和模拟确定性不是存储层保证。
 

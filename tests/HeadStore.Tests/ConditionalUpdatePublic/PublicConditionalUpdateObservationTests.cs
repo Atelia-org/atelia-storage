@@ -28,7 +28,7 @@ public sealed class PublicConditionalUpdateObservationTests {
             Assert.Empty(delivered);
             Assert.Throws<InvalidDataException>(() => { readOnly.ReadHead(group.B.HeadId); });
         }
-        Assert.Equal(partial, File.ReadAllBytes(fixture.HeadPath(group.B.HeadId.LocalId)));
+        Assert.Equal(partial, File.ReadAllBytes(fixture.HeadPath(group.B.HeadId.GetLocalId(fixture.Identity))));
         fixture.AssertUnchanged(before);
     }
 
@@ -39,13 +39,13 @@ public sealed class PublicConditionalUpdateObservationTests {
         var (complete, partial) = RemoveLastKeyAndFence(fixture, group.B);
         HeadEntryId a2;
         using (var writer = fixture.Open()) {
-            Assert.Equal(partial, File.ReadAllBytes(fixture.HeadPath(group.B.HeadId.LocalId)));
+            Assert.Equal(partial, File.ReadAllBytes(fixture.HeadPath(group.B.HeadId.GetLocalId(fixture.Identity))));
             a2 = writer.PublishHead(group.A.HeadId, [0xa2], out var outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
             Assert.Equal(a2, writer.ReadHead(group.A.HeadId).Unwrap().Id);
-            Assert.Equal(partial, File.ReadAllBytes(fixture.HeadPath(group.B.HeadId.LocalId)));
+            Assert.Equal(partial, File.ReadAllBytes(fixture.HeadPath(group.B.HeadId.GetLocalId(fixture.Identity))));
             // A's local preflight does not keep a handle to B or trigger B's recovery.
-            using var untouchedPeer = new FileStream(fixture.HeadPath(group.B.HeadId.LocalId),
+            using var untouchedPeer = new FileStream(fixture.HeadPath(group.B.HeadId.GetLocalId(fixture.Identity)),
                 FileMode.Open, FileAccess.ReadWrite, FileShare.None);
         }
         var beforeReadOnly = fixture.CaptureFiles();
@@ -65,7 +65,7 @@ public sealed class PublicConditionalUpdateObservationTests {
 
         HeadId child;
         using (var writer = fixture.Open()) {
-            Assert.Equal(partial, File.ReadAllBytes(fixture.HeadPath(group.B.HeadId.LocalId)));
+            Assert.Equal(partial, File.ReadAllBytes(fixture.HeadPath(group.B.HeadId.GetLocalId(fixture.Identity))));
             HeadEntry recovered = writer.ReadHead(group.B.HeadId).Unwrap();
             Assert.Equal(group.B, recovered.Id);
             Assert.Equal(group.RootB, recovered.Payload.ToArray());
@@ -80,7 +80,7 @@ public sealed class PublicConditionalUpdateObservationTests {
         }
         // Compare after releasing the writable ref's FileShare.None handle. Public target
         // access completed the original suffix without truncating or replacing its CU body.
-        Assert.Equal(complete, File.ReadAllBytes(fixture.HeadPath(group.B.HeadId.LocalId)));
+        Assert.Equal(complete, File.ReadAllBytes(fixture.HeadPath(group.B.HeadId.GetLocalId(fixture.Identity))));
         using var cold = fixture.Open(readOnly: true);
         Assert.Equal(a2, cold.ReadHead(group.A.HeadId).Unwrap().Id);
         Assert.Equal(group.B, cold.ReadHead(group.B.HeadId).Unwrap().Id);
@@ -150,7 +150,7 @@ public sealed class PublicConditionalUpdateObservationTests {
 
     private static (byte[] Complete, byte[] Partial) RemoveLastKeyAndFence(
         ConditionalUpdatePublicFixture fixture, HeadEntryId entryId) {
-        string path = fixture.HeadPath(entryId.HeadId.LocalId);
+        string path = fixture.HeadPath(entryId.HeadId.GetLocalId(fixture.Identity));
         byte[] complete = File.ReadAllBytes(path);
         int suffixWordLength;
         using (IRbfFile file = RbfFile.OpenReadOnlyExisting(path, RbfCacheMode.Off)) {

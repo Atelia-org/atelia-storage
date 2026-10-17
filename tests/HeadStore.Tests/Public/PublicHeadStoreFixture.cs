@@ -25,6 +25,13 @@ internal sealed class PublicHeadStoreFixture : IDisposable {
         Data = DataStore.Create(DataRoot);
     }
 
+    internal Atelia.HeadStore.Internal.Format.StoreIdentity Identity {
+        get {
+            Assert.True(Atelia.HeadStore.Internal.Format.StoreIdentity.TryRead(File.ReadAllBytes(GatePath).AsSpan(4, 16), out var identity));
+            return identity;
+        }
+    }
+
     internal string HeadPath(uint localId) => Path.Combine(Root, "refs", $"{localId:x8}.rbf");
 
     internal HeadEntryId SeedClosed(uint reservedUpper = 256, uint localId = 7, byte[]? payload = null) {

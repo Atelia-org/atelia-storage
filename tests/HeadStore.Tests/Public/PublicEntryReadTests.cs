@@ -61,7 +61,7 @@ public sealed class PublicEntryReadTests {
         HeadEntry issued = fixture.Store.ReadHead(id).Unwrap();
         fixture.Store.PublishHead(id, [3], out _).Unwrap();
         fixture.Store.PublishHead(id, [4], out _).Unwrap();
-        var file = fixture.Files.Opened[id.LocalId];
+        var file = fixture.Files.Opened[id.GetLocalId(fixture.Identity)];
         int scans = file.ReverseScanCalls;
         int flushes = file.FlushCalls;
         file.PooledReads.Clear();
@@ -90,9 +90,9 @@ public sealed class PublicEntryReadTests {
     public void DefaultAndForeignPublicEntryIdAreRejectedBeforeDiscoveryIo() {
         using var fixture = new RuntimeFixture();
         using var foreign = new PublicHeadStoreFixture();
-        HeadEntryId other = foreign.SeedClosed();
-        Assert.Equal("HeadStore.ArgumentError", fixture.Store.ReadEntry(default).Error!.ErrorCode);
-        Assert.Equal("HeadStore.ArgumentError", fixture.Store.ReadEntry(other).Error!.ErrorCode);
+        HeadEntryId other = HeadEntryId.Create(HeadIdTestExtensions.ForeignHeadId(fixture.Identity, 7), foreign.SeedClosed().Ticket);
+        Assert.Equal("HeadStore.HeadNotFound", fixture.Store.ReadEntry(default).Error!.ErrorCode);
+        Assert.Equal("HeadStore.HeadNotFound", fixture.Store.ReadEntry(other).Error!.ErrorCode);
         Assert.Empty(fixture.Operations);
         Assert.Equal(0, fixture.Files.ResolveCalls);
         Assert.Equal(0, fixture.Files.OpenCalls);

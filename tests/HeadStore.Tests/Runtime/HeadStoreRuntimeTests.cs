@@ -100,6 +100,50 @@ public class HeadStoreRuntimeTests {
     }
 
     [Fact]
+    public void SameHandleKeyFromDifferentFullIdentityMayReadHealthyTargetHead() {
+        using var f = new RuntimeFixture();
+        HeadId target = f.Seed(payload: [0x41, 0x42]);
+        byte[] foreignBytes = f.Store.HeadStoreId.ToArray();
+        foreignBytes[15] ^= 1;
+        Assert.True(StoreIdentity.TryRead(foreignBytes, out StoreIdentity foreignIdentity));
+        Assert.NotEqual(f.Identity, foreignIdentity);
+        HeadId foreignHandle = HeadId.Create(foreignIdentity, 1);
+        Assert.Equal(target, foreignHandle);
+        Assert.Equal(1u, f.Store.GetLocalHeadId(foreignHandle).Unwrap());
+        HeadEntry actual = f.Store.ReadHead(foreignHandle).Unwrap();
+        Assert.Equal(target, actual.Id.HeadId);
+        Assert.Equal(new byte[] { 0x41, 0x42 }, actual.Payload.ToArray());
+    }
+
+    [Fact]
+    public void DecodeLocalHeadIdRemainsAvailableInsideHistoryVisitorWithoutIo() {
+        using var f = new RuntimeFixture();
+        HeadId target = f.Seed();
+        int visits = 0;
+        HeadHistoryEnd end = f.Store.ReadHeadHistory(target, new HeadHistoryBudget(1, 20), entry => {
+            visits++;
+            int operations = f.Operations.Count;
+            Assert.Equal(1u, f.Store.GetLocalHeadId(entry.Id.HeadId).Unwrap());
+            Assert.Equal("HeadStore.HeadNotFound", f.Store.GetLocalHeadId(default).Error!.ErrorCode);
+            Assert.Equal(operations, f.Operations.Count);
+            return false;
+        }).Unwrap();
+        Assert.Equal(HeadHistoryEnd.VisitorStopped, end);
+        Assert.Equal(1, visits);
+    }
+
+    [Fact]
+    public void DecodeLocalHeadIdDoesNotProbeExistenceOrPerformIo() {
+        using var f = new RuntimeFixture();
+        HeadId uncreated = HeadId.Create(f.Identity, HeadStore.MaxLocalHeadId);
+        Assert.Equal(HeadStore.MaxLocalHeadId, f.Store.GetLocalHeadId(uncreated).Unwrap());
+        Assert.Equal("HeadStore.HeadNotFound", f.Store.GetLocalHeadId(default).Error!.ErrorCode);
+        Assert.Equal("HeadStore.HeadNotFound", f.Store.GetLocalHeadId(HeadId.Create(f.Identity, HeadStore.MaxLocalHeadId + 1)).Error!.ErrorCode);
+        Assert.Empty(f.Operations);
+        Assert.Equal("HeadStore.HeadNotFound", f.Store.ReadHead(uncreated).Error!.ErrorCode);
+    }
+
+    [Fact]
     public void Publish_RejectsUnrepresentableRealTailBeforeClockAndDataBarrier() {
         using var f = new RuntimeFixture();
         HeadId id = f.Seed();

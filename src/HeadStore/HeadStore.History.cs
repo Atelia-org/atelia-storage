@@ -20,7 +20,7 @@ public sealed partial class HeadStore {
     public AteliaResult<HeadHistoryEnd> ReadHeadHistory(HeadId headId, HeadHistoryBudget budget,
         Func<HeadEntry, bool> visitor, CancellationToken cancellationToken = default) {
         EnsureOwnerUsable();
-        if (!headId.BelongsTo(_identity)) { return InvalidHead(); }
+        if (!headId.TryGetLocalId(_identity, out _)) { return InvalidHead(); }
         if (visitor is null || budget.MaxEntries <= 0 || budget.MaxWorkSteps <= 0) {
             return new HeadStoreRuntimeError("ArgumentError", "A nonnull visitor and two positive history budgets are required.");
         }
@@ -61,7 +61,7 @@ public sealed partial class HeadStore {
             if (!visited.Add(headId)) { return InvalidHistoryOrigin("The inherited head path contains a cycle."); }
             budgetError = work.TakeWorkStep();
             if (budgetError is not null) { return budgetError; }
-            var opened = GetHistoryHead(headId.LocalId, work);
+            var opened = GetHistoryHead(headId.GetLocalId(_identity), work);
             if (opened.IsFailure) { return opened.Error!; }
             IRbfFile file = opened.Value!;
             var checkedHeader = HeadRecordReader.CheckHeader(file, _identity, headId, work.TakeWorkStep, work.CheckState);

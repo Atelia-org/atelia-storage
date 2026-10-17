@@ -11,7 +11,7 @@ internal static class HeadStoreFactory {
         HeadStoreFactoryOperations? operations = null, HeadStoreTestHooks? testHooks = null) {
         ArgumentException.ThrowIfNullOrWhiteSpace(rootPath);
         ArgumentNullException.ThrowIfNull(data);
-        if (reservedHeadIdUpperBound == uint.MaxValue) {
+        if (reservedHeadIdUpperBound >= HeadStore.MaxLocalHeadId) {
             throw new ArgumentOutOfRangeException(nameof(reservedHeadIdUpperBound));
         }
         string root = Path.GetFullPath(rootPath);

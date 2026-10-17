@@ -139,3 +139,16 @@ V4-B/D 的实际 kill 在 public 返回/应用边界，观测到的 data 恢复�
 六包及对应symbols/manifest生成成功，12个包产物hash通过验证。四个实际隔离public PackageReference消费者各仅直接引用一个Atelia包，实际闭包分别为Rbf三包、Binary+K4os两包、FrameStore五个Atelia+K4os、HeadStore六个Atelia+K4os，全部通过；168份本地源码checksum、PDB、静态Source Link、来源及冻结cache bytes检查通过。HeadStore消费者覆盖共享来源tag、连续空fork、首次保存和两层冷重开，实际运行不借ProjectReference。
 
 manifest位于`artifacts/reference-fork/feed/0.6.0-referencefork-local.20261017062944/manifest.0.6.0-referencefork-local.20261017062944.json`；隔离assets和逐项日志保留在`W:/AteliaStorage-referencefork-0.6.0-referencefork-local.20261017062944/logs/`，包括`head-store-smoke.log`与`metadata-check.log`；运行参数另存`artifacts/reference-fork/package-run.json`。消费方可固定该版本或从对应source revision重新验收；日常PackageReference不会自动跟随兄弟仓源码。未推送Git、公开发布包、更新DG pin或取得Linux/断电/远端Source Link下载资格。
+
+
+## 2026-10-17 紧凑 Handle / 格式4增量
+
+当前合同见04：HeadId改为4B零固定XOR编码、24bit本地编号、GetLocalHeadId上下文解码；低频完整身份和内部raw-local字段布局保留，统一版本4拒绝1/2/3。HeadEntryId、fork、CU、tag消费该Handle语义；跨库值可能相等/误命中，准确记录验证保持。公开持久codec及准确起点历史API不在本轮。
+
+Windows 本轮 Release build 为 **0 warning / 0 error**，完整 `dotnet test Atelia.Storage.slnx -c Release --no-build` 为 **3506 passed / 0 failed / 10 platform skips**（HeadStore 1557 passed / 6 skipped）。包含现有系统及内部进程测试；不将其扩大为设备断电或新增 Linux 资格。实际 `Unsafe.SizeOf` 断言验证 HeadId 从原24B降为4B、HeadEntryId从原32B降为16B；尚未提供12B公开持久codec。
+
+Data 的15项映射测试通过，另有独立Python缩域穷举及32bit边界见证，证明与复算入口见[Data规范](../Data/zero-preserving-xor32.md)。新增验证覆盖同key不同完整身份的允许误命中、同key外库header仍被完整身份校验拒绝、24bit上下界及耗尽、默认与越界的HeadNotFound、GetLocalHeadId无I/O/visitor/owner生命周期、CU/tag保持raw-local排序与越界拒绝。三个独立设计视角和后续生产/测试反向复核已收敛。
+
+日志与六份TRX在`artifacts/compact-handles/`：`build-final.log`、`tests-final.log`、`tests-final/`及`test-summary.json`；数学见证在`math/probe.json`。首次编译的13项测试迁移错误、首次回归的77项失败保留在`build-first.log`/`tests-first.log`，根因为测试投影迁移、旧格式常量、超域固定编号及旧错误码/golden，修正后取得上述最终结果，未降低生产检查。
+
+本轮包资格在提交源码后独立验证并追加；此前所有Accepted保留原revision，不能沿用为本增量资格。FrameStore接入紧凑Handle、公开Handle持久codec和准确起点历史均留给后续专项。

@@ -48,8 +48,8 @@ public sealed class RecoveryReportsViewTests {
             second = seed.CreateHead(19, [2], out _).Unwrap();
             seed.CreateTag(name, [first.HeadId], out _).Unwrap();
         }
-        TailImage firstImage = RecoveryReportsFixture.Damage(fixture.HeadPath(first.HeadId.LocalId), completeTail: true);
-        TailImage secondImage = RecoveryReportsFixture.Damage(fixture.HeadPath(second.HeadId.LocalId), completeTail: false, prefixLength: 3);
+        TailImage firstImage = RecoveryReportsFixture.Damage(fixture.HeadPath(first.HeadId.GetLocalId(fixture.Identity)), completeTail: true);
+        TailImage secondImage = RecoveryReportsFixture.Damage(fixture.HeadPath(second.HeadId.GetLocalId(fixture.Identity)), completeTail: false, prefixLength: 3);
         TailImage tagImage = RecoveryReportsFixture.Damage(fixture.OnlyTagPath(), completeTail: true);
         uint bucket = RecoveryReportsFixture.LocalId(tagImage.Path);
         using var store = fixture.Open();
@@ -62,7 +62,7 @@ public sealed class RecoveryReportsViewTests {
         int afterFirst = view.Count;
         Assert.Equal(1, afterFirst - beforeFirst);
         HeadStoreRecoveryReport[] firstInterval = Interval(view, beforeFirst, afterFirst);
-        firstImage.AssertReport(Assert.Single(firstInterval), HeadStoreRecoveryFileKind.Head, first.HeadId.LocalId);
+        firstImage.AssertReport(Assert.Single(firstInterval), HeadStoreRecoveryFileKind.Head, first.HeadId.GetLocalId(fixture.Identity));
 
         int beforeTag = view.Count;
         Assert.Equal(first, Assert.Single(store.ReadTag(name).Unwrap().Entries).Value);
@@ -74,11 +74,11 @@ public sealed class RecoveryReportsViewTests {
         Assert.Equal(second, store.ReadEntry(second).Unwrap().Id);
         int afterSecond = view.Count;
         Assert.Equal(1, afterSecond - beforeSecond);
-        secondImage.AssertReport(Assert.Single(Interval(view, beforeSecond, afterSecond)), HeadStoreRecoveryFileKind.Head, second.HeadId.LocalId);
+        secondImage.AssertReport(Assert.Single(Interval(view, beforeSecond, afterSecond)), HeadStoreRecoveryFileKind.Head, second.HeadId.GetLocalId(fixture.Identity));
         Assert.Equal(firstInterval, Interval(view, beforeFirst, afterFirst));
         Assert.Equal(new[] { HeadStoreRecoveryFileKind.Head, HeadStoreRecoveryFileKind.TagBucket, HeadStoreRecoveryFileKind.Head },
             view.Select(report => report.FileKind));
-        Assert.Equal(new[] { first.HeadId.LocalId, bucket, second.HeadId.LocalId }, view.Select(report => report.LocalId));
+        Assert.Equal(new[] { first.HeadId.GetLocalId(fixture.Identity), bucket, second.HeadId.GetLocalId(fixture.Identity) }, view.Select(report => report.LocalId));
         HeadStoreRecoveryReport[] saved = view.ToArray();
         AssertReadOnlySurface(view);
 
@@ -117,7 +117,7 @@ public sealed class RecoveryReportsViewTests {
         string dataPath = Directory.EnumerateFiles(Path.Combine(fixture.DataRoot, "active"), "*.rbf").Single();
         uint fileId = RecoveryReportsFixture.LocalId(dataPath);
         TailImage dataImage = RecoveryReportsFixture.Damage(dataPath, completeTail: true);
-        TailImage headImage = RecoveryReportsFixture.Damage(fixture.HeadPath(current.HeadId.LocalId), completeTail: false);
+        TailImage headImage = RecoveryReportsFixture.Damage(fixture.HeadPath(current.HeadId.GetLocalId(fixture.Identity)), completeTail: false);
         using (var data = DataStore.Open(fixture.DataRoot)) {
             var fsReport = Assert.Single(data.RecoveryReports);
             Assert.Equal(fileId, fsReport.Key);
@@ -128,7 +128,7 @@ public sealed class RecoveryReportsViewTests {
                 var view = store.RecoveryReports;
                 Assert.Empty(view);
                 Assert.Equal(current, store.ReadHead(current.HeadId).Unwrap().Id);
-                headImage.AssertReport(Assert.Single(view), HeadStoreRecoveryFileKind.Head, current.HeadId.LocalId);
+                headImage.AssertReport(Assert.Single(view), HeadStoreRecoveryFileKind.Head, current.HeadId.GetLocalId(fixture.Identity));
                 Assert.Equal(fsReport, Assert.Single(data.RecoveryReports));
             }
             data.EnsureUsable();

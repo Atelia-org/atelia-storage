@@ -253,7 +253,7 @@ internal static class ProcessScenario {
         else { Require(current.Id.Ticket.Packed != seed.BaselineTicket, "Publication did not create a new entryId."); }
 
         var refs = heads.ListHeads().Unwrap();
-        uint[] actualIds = refs.Select(id => id.LocalId).Order().ToArray();
+        uint[] actualIds = refs.Select(id => heads.GetLocalHeadId(id).Unwrap()).Order().ToArray();
         uint[] expectedIds = checkpoint is "create-confirmed" or "fork-confirmed" ? [BaselineHead, CreatedHead] : [BaselineHead];
         Require(actualIds.SequenceEqual(expectedIds), "The formal ref set differs from the public checkpoint.");
         if (checkpoint is "create-confirmed" or "fork-confirmed") {
@@ -265,7 +265,7 @@ internal static class ProcessScenario {
         if (checkpoint == "fork-confirmed") {
             Require(forks.Count == 1, "Expected one declared fork.");
             HeadOriginInfo fork = forks[0];
-            Require(fork.ChildHeadId.LocalId == CreatedHead && fork.SourceHeadId == current.Id.HeadId
+            Require(heads.GetLocalHeadId(fork.ChildHeadId).Unwrap() == CreatedHead && fork.SourceHeadId == current.Id.HeadId
                 && fork.SourceEntryTicket.Packed == seed.BaselineTicket, "The fork source is not the selected exact entryId.");
         }
         else { Require(forks.Count == 0, "An unrelated operation created a fork."); }

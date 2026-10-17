@@ -71,7 +71,7 @@ internal static class ReferenceForkProcessHost {
             using var store = HeadStoreFactory.Open(InternalProcessHost.VersionPath(root), data, false, testHooks: hooks);
             // The selected HeadIds are targets, even though all old Entries belong to Head 1.
             var changes = store.ListHeads().Unwrap().ToDictionary(id => id,
-                id => (ReadOnlyMemory<byte>)new byte[] { 0x72, (byte)id.LocalId });
+                id => (ReadOnlyMemory<byte>)new byte[] { 0x72, (byte)id.GetLocalId(store) });
             store.PublishHeads(changes, out outcome).Unwrap();
             throw new InvalidOperationException("First CU returned without reaching the checkpoint.");
         }
@@ -83,7 +83,7 @@ internal static class ReferenceForkProcessHost {
         using (var data = readOnly ? DataStore.OpenReadOnly(InternalProcessHost.DataPath(root)) : DataStore.Open(InternalProcessHost.DataPath(root)))
         using (var store = readOnly ? Store.OpenReadOnly(InternalProcessHost.VersionPath(root), data) : Store.Open(InternalProcessHost.VersionPath(root), data)) {
             var origins = store.ListHeadOrigins(8).Unwrap();
-            Require(origins.Count == 2 && origins.All(origin => origin.SourceHeadId.LocalId == 1), "Fork declarations changed.");
+            Require(origins.Count == 2 && origins.All(origin => origin.SourceHeadId.GetLocalId(store) == 1), "Fork declarations changed.");
             var source = origins[0];
             Require(origins.All(origin => origin.SourceEntryTicket == source.SourceEntryTicket), "Fork sources split.");
             foreach (HeadId id in store.ListHeads().Unwrap()) {
@@ -91,7 +91,7 @@ internal static class ReferenceForkProcessHost {
                 Require(partial
                     ? current.Id.HeadId == source.SourceHeadId && current.Id.Ticket == source.SourceEntryTicket
                         && current.Payload.SequenceEqual(new byte[] { 0x71 })
-                    : current.Id.HeadId == id && current.Payload.SequenceEqual(new byte[] { 0x72, (byte)id.LocalId }),
+                    : current.Id.HeadId == id && current.Payload.SequenceEqual(new byte[] { 0x72, (byte)id.GetLocalId(store) }),
                     "First CU cold current failed to choose either exact source or complete new group.");
                 var history = new List<HeadEntry>();
                 Require(store.ReadHeadHistory(id, new(16, 256), entry => { history.Add(entry); return true; }).Unwrap()

@@ -21,7 +21,7 @@ public sealed class HeadRecordReaderTests : IDisposable {
         }
     }
 
-    private static HeadId Id => HeadId.Create(Identity, 0x89abcdef);
+    private static HeadId Id => HeadId.Create(Identity, 0x89abcd);
 
     private string NewPath(string role) {
         string parent = Directory.Exists(@"W:\") ? @"W:\" : Path.GetTempPath();

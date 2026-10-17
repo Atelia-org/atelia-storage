@@ -362,7 +362,7 @@ public sealed class TagScanResourceTests {
         var lockClose = new IOException("lock close");
         f.Tags.ConfigureOpen = file => file.DisposeFailure = bucketClose;
         f.Operations.ConfigureEnumerator = cursor => cursor.DisposeFailure = cursorClose;
-        f.Heads.Opened[cached.LocalId].DisposeFailure = cacheClose;
+        f.Heads.Opened[cached.GetLocalId(f.Identity)].DisposeFailure = cacheClose;
         f.Lock.DisposeFailure = lockClose;
 
         var observed = Assert.Throws<AggregateException>(() => f.Store.ScanTags(_ => throw primary));

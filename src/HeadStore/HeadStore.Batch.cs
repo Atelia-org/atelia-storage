@@ -22,14 +22,14 @@ public sealed partial class HeadStore {
         List<CapturedHeadChange> captured = [];
         HashSet<uint> seen = [];
         foreach (var pair in changes) {
-            if (!pair.Key.BelongsTo(_identity)) { return InvalidHead(); }
-            if (!seen.Add(pair.Key.LocalId)) {
+            if (!pair.Key.TryGetLocalId(_identity, out uint localId)) { return InvalidHead(); }
+            if (!seen.Add(localId)) {
                 return new HeadStoreRuntimeError("ArgumentError", "A batch must contain distinct actual HeadIds.");
             }
             if (pair.Value.Length is < 1 or > MaxHeadEntryPayloadLength) {
                 return new HeadStoreRuntimeError("ArgumentError", "Root payload length must be between 1 and 1,048,576 bytes.");
             }
-            captured.Add(new CapturedHeadChange(pair.Key, pair.Value.Span.ToArray()));
+            captured.Add(new CapturedHeadChange(pair.Key, localId, pair.Value.Span.ToArray()));
         }
         EnsureOwnerUsable();
         if (captured.Count == 0) {
@@ -49,7 +49,7 @@ public sealed partial class HeadStore {
             }
         }
 
-        captured.Sort(static (left, right) => left.HeadId.LocalId.CompareTo(right.HeadId.LocalId));
+        captured.Sort(static (left, right) => left.LocalId.CompareTo(right.LocalId));
         long tableLength = ConditionalUpdateCodec.CountSize + (long)ConditionalUpdateCodec.MemberSize * captured.Count;
         // Complete capacity checks before opening any target. No arbitrary member-count ceiling is added.
         foreach (CapturedHeadChange change in captured) {
@@ -65,7 +65,7 @@ public sealed partial class HeadStore {
         var members = new ConditionalUpdateMember[captured.Count];
         for (int index = 0; index < captured.Count; index++) {
             CapturedHeadChange change = captured[index];
-            var opened = GetOrOpen(change.HeadId.LocalId);
+            var opened = GetOrOpen(change.LocalId);
             if (opened.IsFailure) { return opened.Error!; }
             IRbfFile file = opened.Value!;
             var checkedHeader = HeadRecordReader.CheckHeader(file, _identity, change.HeadId);
@@ -77,7 +77,7 @@ public sealed partial class HeadStore {
             }
             change.File = file;
             change.Ticket = predicted;
-            members[index] = new ConditionalUpdateMember(change.HeadId.LocalId, predicted);
+            members[index] = new ConditionalUpdateMember(change.LocalId, predicted);
         }
         byte[] encodedMembers = ConditionalUpdateCodec.EncodeMembers(members);
         long recordedAt = _testHooks?.GetRecordedAtUnixMs?.Invoke()
@@ -99,7 +99,7 @@ public sealed partial class HeadStore {
                 completedAny = true;
             }
             foreach (CapturedHeadChange change in captured) {
-                _testHooks?.BeforeConditionalUpdateFlush?.Invoke(change.HeadId.LocalId);
+                _testHooks?.BeforeConditionalUpdateFlush?.Invoke(change.LocalId);
                 change.File!.DurableFlush();
             }
             outcome = PublicationOutcome.Confirmed;
@@ -120,7 +120,7 @@ public sealed partial class HeadStore {
         AteliaResult<SizedPtr> appended = default;
         CleanupErrors errors = default;
         try {
-            _testHooks?.BeforeConditionalUpdateBegin?.Invoke(change.HeadId.LocalId);
+            _testHooks?.BeforeConditionalUpdateBegin?.Invoke(change.LocalId);
             builder = change.File!.BeginAppend(change.PayloadLength,
                 RecordMetadataCodec.EncodedSize, out SizedPtr actualTicket);
             began = true;
@@ -131,7 +131,7 @@ public sealed partial class HeadStore {
             WriteCapturedBytes(writer, encodedMembers);
             WriteCapturedBytes(writer, change.Payload);
             WriteCapturedBytes(writer, tailMeta);
-            _testHooks?.BeforeConditionalUpdateEnd?.Invoke(change.HeadId.LocalId);
+            _testHooks?.BeforeConditionalUpdateEnd?.Invoke(change.LocalId);
             outcome = PublicationOutcome.Unknown;
             appended = builder.EndAppend(HeadRecordCodec.ConditionalUpdateTag);
             if (appended.IsFailure) {
@@ -161,8 +161,9 @@ public sealed partial class HeadStore {
         writer.Advance(bytes.Length);
     }
 
-    private sealed class CapturedHeadChange(HeadId headId, byte[] payload) {
+    private sealed class CapturedHeadChange(HeadId headId, uint localId, byte[] payload) {
         internal readonly HeadId HeadId = headId;
+        internal readonly uint LocalId = localId;
         internal readonly byte[] Payload = payload;
         internal int PayloadLength;
         internal int FrameLength;

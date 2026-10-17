@@ -70,7 +70,7 @@ internal sealed class ForkQueryFixture : IDisposable {
     }
 
     internal void FlipPayload(HeadEntryId entryId) =>
-        FlipByte(entryId.HeadId.LocalId, entryId.Ticket.Offset + entryId.Ticket.Length / 2);
+        FlipByte(entryId.HeadId.GetLocalId(Identity), entryId.Ticket.Offset + entryId.Ticket.Length / 2);
 
     internal void FlipHeaderPayload(uint localId) {
         SizedPtr ticket;
@@ -84,10 +84,10 @@ internal sealed class ForkQueryFixture : IDisposable {
 
     internal void FlipFollowingFence(HeadEntryId entryId) {
         long end;
-        using (IRbfFile file = RbfFile.OpenReadOnlyExisting(HeadPath(entryId.HeadId.LocalId), RbfCacheMode.Off)) {
+        using (IRbfFile file = RbfFile.OpenReadOnlyExisting(HeadPath(entryId.HeadId.GetLocalId(Identity)), RbfCacheMode.Off)) {
             end = file.GetPhysicalOffsetImmediatelyAfter(entryId.Ticket);
         }
-        FlipByte(entryId.HeadId.LocalId, end - 1);
+        FlipByte(entryId.HeadId.GetLocalId(Identity), end - 1);
     }
 
     private void FlipByte(uint localId, long offset) {

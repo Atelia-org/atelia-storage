@@ -13,6 +13,9 @@ public sealed partial class HeadStore : IDisposable {
     /// <summary>单条完整 HeadEntry payload 的最大长度，单位 bytes。</summary>
     public const int MaxHeadEntryPayloadLength = 1_048_576;
 
+    /// <summary>可定位的最大本地 Head 编号；自动号不复用。</summary>
+    public const uint MaxLocalHeadId = 0x00ff_ffff;
+
     /// <summary>单个 tag 名称的最大长度，单位 UTF-16 code units。</summary>
     public const int MaxTagNameCodeUnits = 1024;
 
@@ -41,11 +44,11 @@ public sealed partial class HeadStore : IDisposable {
         ArgumentNullException.ThrowIfNull(data);
         ArgumentNullException.ThrowIfNull(files);
         ArgumentNullException.ThrowIfNull(ownerLock);
-        if (reservedHeadIdUpperBound == uint.MaxValue) {
+        if (reservedHeadIdUpperBound >= MaxLocalHeadId) {
             throw new ArgumentOutOfRangeException(nameof(reservedHeadIdUpperBound));
         }
         uint highWatermark = autoHeadIdHighWatermark ?? reservedHeadIdUpperBound;
-        if (highWatermark < reservedHeadIdUpperBound) {
+        if (highWatermark < reservedHeadIdUpperBound || highWatermark > MaxLocalHeadId) {
             throw new ArgumentOutOfRangeException(nameof(autoHeadIdHighWatermark));
         }
         byte[] identityBytes = new byte[StoreIdentity.EncodedSize];
@@ -138,7 +141,7 @@ public sealed partial class HeadStore : IDisposable {
         AteliaError? rejection = GetMutationRejection();
         if (rejection is not null) { return rejection; }
         if (IsReadOnly) { return new HeadStoreRuntimeError("ReadOnly", "This HeadStore owner is read-only."); }
-        if (_autoHeadIdHighWatermark == uint.MaxValue) {
+        if (_autoHeadIdHighWatermark >= MaxLocalHeadId) {
             return new HeadStoreRuntimeError("HeadIdExhausted", "The automatic head identifier domain is exhausted.");
         }
         return CreateNewHead(checked(_autoHeadIdHighWatermark + 1), payload, automatic: true, ref outcome);
@@ -260,17 +263,25 @@ public sealed partial class HeadStore : IDisposable {
         }
     }
 
+    /// <summary>在此 owner 的身份上下文中解码本地编号，不执行 I/O。</summary>
+    /// <remarks>只检查数值范围；不证明文件存在或 Handle 来自此库。跨库误用允许漏检。</remarks>
+    public AteliaResult<uint> GetLocalHeadId(HeadId headId) {
+        EnsureOwnerUsable();
+        return headId.TryGetLocalId(_identity, out uint localId)
+            ? AteliaResult<uint>.Success(localId) : InvalidHead();
+    }
+
     /// <summary>读取此库指定非零本地编号的 checked 当前Entry。</summary>
     public AteliaResult<HeadEntry> ReadHead(uint localHeadId) {
         EnsureOwnerUsable();
-        if (localHeadId == 0) { return InvalidHead(); }
+        if (localHeadId is 0 or > MaxLocalHeadId) { return InvalidHead(); }
         return ReadCurrent(HeadId.Create(_identity, localHeadId));
     }
 
     /// <summary>读取最新 checked 发布Entry；合法未提交 CU 不进入当前值，必要错误仍阻断回退。</summary>
     public AteliaResult<HeadEntry> ReadHead(HeadId headId) {
         EnsureOwnerUsable();
-        if (!headId.BelongsTo(_identity)) { return InvalidHead(); }
+        if (!headId.TryGetLocalId(_identity, out _)) { return InvalidHead(); }
         return ReadCurrent(headId);
     }
 
@@ -282,7 +293,7 @@ public sealed partial class HeadStore : IDisposable {
         AteliaError? rejection = GetMutationRejection();
         if (rejection is not null) { return rejection; }
         if (IsReadOnly) { return new HeadStoreRuntimeError("ReadOnly", "This HeadStore owner is read-only."); }
-        if (!headId.BelongsTo(_identity)) { return InvalidHead(); }
+        if (!headId.TryGetLocalId(_identity, out _)) { return InvalidHead(); }
         if (payload.Length is < 1 or > MaxHeadEntryPayloadLength) {
             return new HeadStoreRuntimeError("ArgumentError", "Root payload length must be between 1 and 1,048,576 bytes.");
         }
@@ -297,7 +308,7 @@ public sealed partial class HeadStore : IDisposable {
         scoped ref PublicationOutcome outcome) {
         var measured = RbfFile.MeasureWriteSize(captured.Length, RecordMetadataCodec.EncodedSize);
         if (measured.IsFailure) { return measured.Error!; }
-        var opened = GetOrOpen(headId.LocalId);
+        var opened = GetOrOpen(headId.GetLocalId(_identity));
         if (opened.IsFailure) { return opened.Error!; }
         IRbfFile file = opened.Value!;
         long tail = file.TailOffset;
@@ -337,7 +348,7 @@ public sealed partial class HeadStore : IDisposable {
     }
 
     private AteliaResult<HeadEntry> ReadCurrent(HeadId headId) {
-        var opened = GetOrOpen(headId.LocalId);
+        var opened = GetOrOpen(headId.GetLocalId(_identity));
         if (opened.IsFailure) { return opened.Error!; }
         IRbfFile file = opened.Value!;
         var header = HeadRecordReader.CheckHeader(file, _identity, headId);
@@ -391,7 +402,7 @@ public sealed partial class HeadStore : IDisposable {
     }
 
     private static AteliaError InvalidHead() =>
-        new HeadStoreRuntimeError("ArgumentError", "A nondefault HeadId bound to this HeadStore is required.");
+        new HeadStoreRuntimeError("HeadNotFound", "The head cannot be located in this HeadStore.");
 
     private void EnsureOwnerUsable() {
         ObjectDisposedException.ThrowIf(_disposed, this);

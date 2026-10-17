@@ -65,12 +65,12 @@ internal sealed class ForkQueryFaultFixture : IDisposable {
     }
 
     internal void Order(params ForkQuerySeed[] seeds) =>
-        Operations.EntryPaths = seeds.Select(seed => HeadPath(seed.HeadId.LocalId)).ToArray();
+        Operations.EntryPaths = seeds.Select(seed => HeadPath(seed.HeadId.GetLocalId(Identity))).ToArray();
 
     internal void CorruptPayload(ForkQuerySeed seed, int index) {
         SizedPtr ticket = seed.Tickets[index];
         // Only use this before the corresponding writer/reader is acquired.
-        using var stream = new FileStream(HeadPath(seed.HeadId.LocalId), FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        using var stream = new FileStream(HeadPath(seed.HeadId.GetLocalId(Identity)), FileMode.Open, FileAccess.ReadWrite, FileShare.None);
         long offset = ticket.Offset + ticket.Length / 2;
         stream.Position = offset;
         int value = stream.ReadByte();

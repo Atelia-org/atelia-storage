@@ -8,18 +8,18 @@ namespace Atelia.HeadStore.Tests.Tags;
 public sealed class TagEntriesCodecTests {
     [Fact]
     public void CanonicalTableUsesFullPackedTicketsAndRetainsItsCheckedStoreIdentity() {
-        byte[] wire = Convert.FromHexString("01000000010000000A00003C00000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF");
+        byte[] wire = Convert.FromHexString("01000000010000000A00003C00000000FFFFFF00FFFFFF00FFFFFFFFFFFFFFFF");
         SizedPtr firstTicket = SizedPtr.Create(60, 40);
         Assert.Equal(wire, TagTestWire.Join(TagTestWire.Members(1, firstTicket),
-            TagTestWire.Members(uint.MaxValue, SizedPtr.FromPacked(ulong.MaxValue))));
+            TagTestWire.Members(HeadStore.MaxLocalHeadId, SizedPtr.FromPacked(ulong.MaxValue))));
         Assert.Equal(16, TagEntriesCodec.MemberEncodedSize);
         Assert.True(TagEntriesCodec.TryRead(wire, TagTestWire.Identity, 2, out var entries));
         HeadId first = HeadId.Create(TagTestWire.Identity, 1);
-        HeadId last = HeadId.Create(TagTestWire.Identity, uint.MaxValue);
+        HeadId last = HeadId.Create(TagTestWire.Identity, HeadStore.MaxLocalHeadId);
         Assert.Equal(firstTicket, entries[first].Ticket);
         Assert.Equal(ulong.MaxValue, entries[last].Ticket.Packed);
         Assert.All(entries, pair => Assert.Equal(pair.Key, pair.Value.HeadId));
-        HeadEntryId[] ordered = entries.Values.OrderBy(entry => entry.HeadId.LocalId).ToArray();
+        HeadEntryId[] ordered = entries.Values.OrderBy(entry => entry.HeadId.GetLocalId(TagTestWire.Identity)).ToArray();
         Assert.Equal(wire, TagEntriesCodec.Encode([first, last], ordered, TagTestWire.Identity));
         Array.Clear(wire);
         Assert.Equal(firstTicket, entries[first].Ticket);
@@ -46,6 +46,8 @@ public sealed class TagEntriesCodecTests {
     [InlineData("reverse")]
     [InlineData("zero-id")]
     [InlineData("zero-owner")]
+    [InlineData("large-selected")]
+    [InlineData("large-owner")]
     [InlineData("default-ticket")]
     [InlineData("zero-length-ticket")]
     [InlineData("short")]
@@ -65,6 +67,7 @@ public sealed class TagEntriesCodecTests {
             Assert.Equal(PublicationOutcome.NotAttempted, outcome);
             Assert.Equal(HeadSetTagScanEnd.Complete, store.ScanTags(info => {
                 Assert.Equal(count, info.EntryCount);
+                Assert.Equal(1u, store.GetLocalHeadId(selected).Unwrap());
                 return true;
             }).Unwrap());
         }
@@ -76,6 +79,8 @@ public sealed class TagEntriesCodecTests {
         "reverse" => (TagTestWire.Join(TagTestWire.Members(2), TagTestWire.Members(1)), 2),
         "zero-id" => (TagTestWire.Members(0), 1),
         "zero-owner" => (TagTestWire.Members(1, ownerLocalId: 0), 1),
+        "large-selected" => (TagTestWire.Members(HeadStore.MaxLocalHeadId + 1, ownerLocalId: 1), 1),
+        "large-owner" => (TagTestWire.Members(1, ownerLocalId: HeadStore.MaxLocalHeadId + 1), 1),
         "default-ticket" => (TagTestWire.Members(1, default(SizedPtr)), 1),
         "zero-length-ticket" => (TagTestWire.Members(1, SizedPtr.Create(60, 0)), 1),
         "short" => (TagTestWire.Members()[..^1], 1),

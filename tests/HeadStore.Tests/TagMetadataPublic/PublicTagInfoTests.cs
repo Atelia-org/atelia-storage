@@ -24,7 +24,7 @@ public sealed class PublicTagInfoTests {
             Assert.Equal(1, retained.EntryCount);
             Assert.Equal(long.MaxValue, store.ReadTagInfo("tag-65").Unwrap().RecordedAtUnixMs);
             Assert.StartsWith("Rbf.", store.ReadTag("tag-48").Error!.ErrorCode);
-            Assert.Equal(TagTestWire.Members(2), store.ReadTag("tag-65").Unwrap().MemberBytes());
+            Assert.Equal(TagTestWire.Members(2), store.ReadTag("tag-65").Unwrap().MemberBytes(fixture.Identity));
             if (!readOnly) {
                 Assert.Equal("HeadStore.DuplicateTagName", store.CreateTag("tag-48", [head], out var outcome).Error!.ErrorCode);
                 Assert.Equal(PublicationOutcome.NotAttempted, outcome);

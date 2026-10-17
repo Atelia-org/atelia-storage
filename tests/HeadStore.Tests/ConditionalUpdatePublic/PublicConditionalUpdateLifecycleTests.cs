@@ -15,9 +15,9 @@ public sealed class PublicConditionalUpdateLifecycleTests {
         HeadEntryId high;
         HeadEntryId highest;
         IReadOnlyDictionary<HeadId, HeadEntryId> published;
-        using (var store = fixture.Create(uint.MaxValue - 1)) {
-            highest = store.CreateHead(uint.MaxValue - 1, [1], out _).Unwrap();
-            high = store.CreateHead(0x80000000, [2], out _).Unwrap();
+        using (var store = fixture.Create(HeadStore.MaxLocalHeadId - 1)) {
+            highest = store.CreateHead(HeadStore.MaxLocalHeadId - 1, [1], out _).Unwrap();
+            high = store.CreateHead(0x800000, [2], out _).Unwrap();
             low = store.CreateHead(7, [3], out _).Unwrap();
             published = store.PublishHeads(ConditionalUpdatePublicFixture.Changes(
                 (highest.HeadId, [4]), (high.HeadId, [5]), (low.HeadId, [6])), out var outcome).Unwrap();

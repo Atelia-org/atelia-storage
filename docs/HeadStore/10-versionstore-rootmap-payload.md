@@ -1,6 +1,6 @@
 # HeadStore：Binary NamedFrameMap payload 专项
 
-2026-10-17 关联合同更新：HeadStore统一格式3与引用初始化fork，HeadSetTag为16B独立key/value映射；本篇NamedFrameMapCodec的应用内容格式保持，既有源码资格仍按当轮证据解释。当前发布/来源及新增验收见[04](04-versionstore-publication.md)、[05](05-versionstore-names-and-indexes.md)与[09](09-versionstore-immutable-tags.md)。
+2026-10-17 关联合同更新：HeadStore统一格式4、4B紧凑Handle与24bit本地编号，引用初始化fork及16B HeadSetTag成员布局保持；本篇NamedFrameMapCodec的应用内容格式保持。当前身份/发布合同见[04](04-versionstore-publication.md)、来源见[05](05-versionstore-names-and-indexes.md)、tag见[09](09-versionstore-immutable-tags.md)；紧凑Handle本轮资格待[12新增验收](12-versionstore-final-acceptance.md)记录，既有源码及格式3资格仍按当轮证据解释，不沿用为本轮Accepted。
 
 日期：2026-10-10–11。状态：**Accepted（独立 source-only 源码资格）**，证据见[最终源码验收](12-versionstore-final-acceptance.md)。NamedFrameMapCodec 为已实施的可选应用 codec，普通Head/fork不解释其内容，HeadSetTag只保存EntryId表；JSON 名称映射不扩为 JSON 导入导出 API，CU 已正式接纳，本轮新增资格见[07验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。
 

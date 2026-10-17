@@ -1,6 +1,6 @@
 # HeadStore 当前续接与 VersionStore 历史实施记录
 
-2026-10-17 当前续接：引用初始化 fork 按现行 [04](04-versionstore-publication.md)/[05](05-versionstore-names-and-indexes.md)/[07](07-versionstore-cross-ref-conditional-update.md)/[09](09-versionstore-immutable-tags.md)/[11](11-versionstore-root-payload-bytes-api.md) 合同实施。统一格式3拒绝1/2；ForkHead返回新HeadId且只发布来源header；当前/历史使用实际来源Entry，HeadSetTag改为16B独立key/value映射。本轮Windows源码、具名进程窗口和四个隔离包消费者已通过；实际命令、来源与范围在[12现有验收记录](12-versionstore-final-acceptance.md)、[07 CU验收](07-versionstore-cross-ref-conditional-update-acceptance.md)及[16 tag验收](16-headset-tags-acceptance.md)各自追加，不沿用旧Accepted。以下V0–V4与2026-10-16格式2均保留当轮来源；其克隆、单文件来源确认与12B同owner成员表描述不再是当前合同。
+2026-10-17 当前续接：紧凑Handle按现行[04](04-versionstore-publication.md)/[05](05-versionstore-names-and-indexes.md)/[07](07-versionstore-cross-ref-conditional-update.md)/[09](09-versionstore-immutable-tags.md)/[11](11-versionstore-root-payload-bytes-api.md)合同实施。统一格式4拒绝1/2/3；HeadId为4B上下文编码、本地号限制24bit，GetLocalHeadId替代HeadId.LocalId。引用初始化fork与16B独立tag key/value保持。本轮实际资格待[12新增验收](12-versionstore-final-acceptance.md)填写，不沿用格式3或更早Accepted；此前引用初始化fork的Windows源码、具名进程窗口及四个隔离包消费者通过记录，仍在12、[07 CU验收](07-versionstore-cross-ref-conditional-update-acceptance.md)、[16 tag验收](16-headset-tags-acceptance.md)保留当轮命令、来源与范围。以下V0–V4与2026-10-16格式2均保留历史来源；其克隆、单文件来源确认与12B同owner成员表描述不再是当前合同。
 
 下文保留 2026-10-10/11 各片实施及验证的 VersionStore 原名、命令、统计和 revision，作为历史记录，不是待重做的队列或 HeadStore 新包资格。当前合同请从[模块入口](README.md)读取；生产指南为 [Atelia.HeadStore](../../src/HeadStore/README.md)。
 

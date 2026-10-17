@@ -22,7 +22,7 @@ internal static class HeadHeaderCodec {
         ReadOnlySpan<byte> payload, StoreIdentity expectedIdentity, HeadId expectedHeadId, out HeadHeader header) {
         header = default;
         if (payload.Length is not (NoOriginPayloadSize or WithOriginPayloadSize) ||
-            !expectedHeadId.BelongsTo(expectedIdentity) ||
+            !expectedHeadId.TryGetLocalId(expectedIdentity, out _) ||
             BinaryPrimitives.ReadUInt32LittleEndian(payload) != FormatGateCodec.CurrentVersion ||
             !StoreIdentity.TryRead(payload.Slice(4, StoreIdentity.EncodedSize), out StoreIdentity actualIdentity) ||
             actualIdentity != expectedIdentity ||
@@ -47,9 +47,9 @@ internal static class HeadHeaderCodec {
     internal static bool TryWrite(
         StoreIdentity expectedIdentity, HeadId headId, ForkOrigin? origin, Span<byte> destination) {
         int payloadSize = origin.HasValue ? WithOriginPayloadSize : NoOriginPayloadSize;
-        if (!headId.BelongsTo(expectedIdentity) || destination.Length < payloadSize) { return false; }
+        if (!headId.TryGetLocalId(expectedIdentity, out _) || destination.Length < payloadSize) { return false; }
         if (origin is ForkOrigin source &&
-            (!source.SourceHeadId.BelongsTo(expectedIdentity) || source.SourceHeadId == headId ||
+            (!source.SourceHeadId.TryGetLocalId(expectedIdentity, out _) || source.SourceHeadId == headId ||
             !IsValidSourceTicket(source.SourceEntryTicket))) { return false; }
 
         Span<byte> payload = destination[..payloadSize];

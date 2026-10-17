@@ -251,7 +251,7 @@ public sealed class AuditResourceTests {
         var sourceClose = new IOException("source reader close");
         f.Files.ConfigureOpen = file => {
             file.BeforeRead = (offset, length, raw) => {
-                if (!raw && file.Id == source.HeadId.LocalId
+                if (!raw && file.Id == source.HeadId.GetLocalId(f.Identity)
                     && offset == source.Tickets[0].Offset && length == source.Tickets[0].Length) {
                     // Discovery closes are healthy; fault only the actual source Entry reader.
                     file.DisposeFailure = sourceClose;

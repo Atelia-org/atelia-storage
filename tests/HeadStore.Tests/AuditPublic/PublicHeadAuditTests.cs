@@ -72,7 +72,7 @@ public sealed class PublicHeadAuditTests {
         }
         var before = fixture.CaptureFiles();
         using (var readOnly = fixture.OpenReadOnly()) {
-            Assert.Equal(7u, Assert.Single(readOnly.ListHeads().Unwrap()).LocalId);
+            Assert.Equal(7u, Assert.Single(readOnly.ListHeads().Unwrap()).GetLocalId(fixture.Storage.Identity));
             Assert.True(readOnly.Audit().IsFailure);
         }
         fixture.AssertUnchanged(before);
@@ -120,7 +120,7 @@ public sealed class PublicHeadAuditTests {
         fixture.WriteHead(12, 7, source.Ticket, records);
         var before = fixture.CaptureFiles();
         using (var readOnly = fixture.OpenReadOnly()) {
-            HeadId child = Assert.Single(readOnly.ListHeads().Unwrap(), id => id.LocalId == 12);
+            HeadId child = Assert.Single(readOnly.ListHeads().Unwrap(), id => id.GetLocalId(fixture.Storage.Identity) == 12);
             if (publishLocal) { Assert.Equal(new byte[] { 0x52, 0x53 }, readOnly.ReadHead(child).Unwrap().Payload.ToArray()); }
             else { Assert.Equal(source, readOnly.ReadHead(child).Unwrap().Id); }
             AuditPublicFixture.AssertCounts(readOnly.Audit().Unwrap(), 2, publishLocal ? 2 : 1, 1);

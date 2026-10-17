@@ -74,7 +74,7 @@ public sealed class TagScanCallbackTests {
             Assert.Equal(current.Payload.ToArray(), exact.Payload.ToArray());
             Assert.Equal(info.Name, f.Store.ReadTagInfo(info.Name).Unwrap().Name);
             Assert.Equal(info.Name == TagScanFaultFixture.Name ? TagPublicFixture.Members(1) : TagPublicFixture.Members(3),
-                f.Store.ReadTag(info.Name).Unwrap().MemberBytes());
+                f.Store.ReadTag(info.Name).Unwrap().MemberBytes(f.Identity));
             Assert.Empty(f.Store.ListHeadOrigins(1).Unwrap());
             Assert.Single(f.Tags.Opened);
             Assert.Single(scan.Reads, read => !read.Raw && read.Offset == seed.Header.Offset && read.Length == seed.Header.Length);
@@ -137,7 +137,7 @@ public sealed class TagScanCallbackTests {
             Assert.Equal(2, f.Tags.Opened.Count);
             Assert.Equal(1, f.Tags.Opened[1].DisposeCalls);
             Assert.Equal(0, scan.DisposeCalls);
-            Assert.Equal(TagPublicFixture.Members(2), f.Store.ReadTag(TagScanFaultFixture.OtherBucketName).Unwrap().MemberBytes());
+            Assert.Equal(TagPublicFixture.Members(2), f.Store.ReadTag(TagScanFaultFixture.OtherBucketName).Unwrap().MemberBytes(f.Identity));
             Assert.Equal(3, f.Tags.Opened.Count);
             Assert.Equal(1, f.Tags.Opened[2].DisposeCalls);
             Assert.Equal(0, scan.DisposeCalls);
@@ -164,7 +164,7 @@ public sealed class TagScanCallbackTests {
             Func<HeadSetTagInfo, bool> visitor = info => {
                 Assert.Equal(TagScanFaultFixture.Name, info.Name);
                 Assert.Equal(id, f.Store.ReadHead(id).Unwrap().Id.HeadId);
-                Assert.Equal(0, f.Heads.Opened[id.LocalId].DisposeCalls);
+                Assert.Equal(0, f.Heads.Opened[id.GetLocalId(f.Identity)].DisposeCalls);
                 if (cancelScan) { cancellation.Cancel(); }
                 return false;
             };
@@ -173,14 +173,14 @@ public sealed class TagScanCallbackTests {
                     Assert.Throws<OperationCanceledException>(() => f.Store.ScanTags(visitor, cancellation.Token)).CancellationToken);
             }
             else { Assert.Equal(HeadSetTagScanEnd.VisitorStopped, f.Store.ScanTags(visitor).Unwrap()); }
-            Assert.Equal(0, f.Heads.Opened[id.LocalId].DisposeCalls);
+            Assert.Equal(0, f.Heads.Opened[id.GetLocalId(f.Identity)].DisposeCalls);
             Assert.All(f.Tags.Opened, file => Assert.Equal(1, file.DisposeCalls));
             return true;
         }).Unwrap());
 
         Assert.Equal(2, visits);
         Assert.Equal(1, f.Heads.OpenCalls);
-        Assert.Equal(1, f.Heads.Opened[id.LocalId].DisposeCalls);
+        Assert.Equal(1, f.Heads.Opened[id.GetLocalId(f.Identity)].DisposeCalls);
         Assert.Equal(2, f.Tags.OpenCalls);
         Assert.Equal(0, f.Lock.DisposeCalls);
         Assert.Equal(HeadSetTagScanEnd.Complete, f.Store.ScanTags(_ => true).Unwrap());

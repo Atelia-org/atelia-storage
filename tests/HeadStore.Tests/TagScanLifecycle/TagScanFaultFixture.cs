@@ -51,7 +51,7 @@ internal sealed class TagScanFaultFixture : IDisposable {
     internal TagBucketSeed SeedBucket(string name = Name, params TagPublicRecord[] records) {
         Directory.CreateDirectory(Path.GetDirectoryName(BucketPath(name))!);
         byte[] header = new byte[24];
-        BinaryPrimitives.WriteUInt32LittleEndian(header, 3);
+        BinaryPrimitives.WriteUInt32LittleEndian(header, 4);
         Identity.TryWrite(header.AsSpan(4, 16));
         BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(20), TagPublicFixture.Bucket(name));
         using IRbfFile file = RbfFile.CreateNew(BucketPath(name), RbfCacheMode.Off);

@@ -18,6 +18,9 @@ internal readonly struct StoreIdentity : IEquatable<StoreIdentity> {
     internal ulong First => _first;
     internal ulong Second => _second;
 
+    // Canonical bytes 0..3, little-endian. Stable mapping parameter, not a secret.
+    internal uint HandleKey => unchecked((uint)_first);
+
     internal static StoreIdentity CreateRandom() {
         Span<byte> bytes = stackalloc byte[EncodedSize];
         StoreIdentity identity;

@@ -13,7 +13,7 @@ public sealed class PublicTagReadScopeTests {
         File.WriteAllBytes(fixture.BucketPath("Release"), []); // Canonical path, invalid RBF content.
         byte[] untouched = File.ReadAllBytes(fixture.BucketPath("Release"));
         using (var store = fixture.Open()) {
-            Assert.Equal(TagTestWire.Members(0xff), store.ReadTag("A").Unwrap().MemberBytes());
+            Assert.Equal(TagTestWire.Members(0xff), store.ReadTag("A").Unwrap().MemberBytes(fixture.Identity));
             string collision = TagPublicFixture.Collision("A");
             Assert.True(store.CreateTag(collision, [head], out var outcome).IsSuccess);
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
@@ -21,7 +21,7 @@ public sealed class PublicTagReadScopeTests {
         }
         Assert.Equal(untouched, File.ReadAllBytes(fixture.BucketPath("Release")));
         using var cold = fixture.Open(readOnly: true);
-        Assert.Equal(TagTestWire.Members(0xff), cold.ReadTag("A").Unwrap().MemberBytes());
+        Assert.Equal(TagTestWire.Members(0xff), cold.ReadTag("A").Unwrap().MemberBytes(fixture.Identity));
     }
 
     [Theory]
@@ -35,7 +35,7 @@ public sealed class PublicTagReadScopeTests {
         fixture.FlipRoot("tag-48", tickets[0]);
         var before = fixture.CaptureFiles();
         using (var store = fixture.Open(readOnly)) {
-            Assert.Equal(TagTestWire.Members(0x81), store.ReadTag("tag-65").Unwrap().MemberBytes());
+            Assert.Equal(TagTestWire.Members(0x81), store.ReadTag("tag-65").Unwrap().MemberBytes(fixture.Identity));
             var damaged = store.ReadTag("tag-48");
             Assert.True(damaged.IsFailure);
             Assert.StartsWith("Rbf.", damaged.Error!.ErrorCode);
@@ -43,7 +43,7 @@ public sealed class PublicTagReadScopeTests {
                 Assert.Equal("HeadStore.DuplicateTagName", store.CreateTag("tag-48", [head], out var outcome).Error!.ErrorCode);
                 Assert.Equal(PublicationOutcome.NotAttempted, outcome);
             }
-            Assert.Equal(TagTestWire.Members(0x81), store.ReadTag("tag-65").Unwrap().MemberBytes());
+            Assert.Equal(TagTestWire.Members(0x81), store.ReadTag("tag-65").Unwrap().MemberBytes(fixture.Identity));
         }
         fixture.AssertUnchanged(before);
         using var healthyWriter = fixture.Open();
@@ -65,7 +65,7 @@ public sealed class PublicTagReadScopeTests {
             Assert.Equal("HeadStore.InvalidTagEntries", store.ReadTag("tag-48").Error!.ErrorCode);
             Assert.Equal("HeadStore.DuplicateTagName", store.CreateTag("tag-48", [head], out var outcome).Error!.ErrorCode);
             Assert.Equal(PublicationOutcome.NotAttempted, outcome);
-            Assert.Equal(TagTestWire.Members(0x81), store.ReadTag("tag-65").Unwrap().MemberBytes());
+            Assert.Equal(TagTestWire.Members(0x81), store.ReadTag("tag-65").Unwrap().MemberBytes(fixture.Identity));
         }
         fixture.AssertUnchanged(before);
         using var next = fixture.Open();
@@ -89,7 +89,7 @@ public sealed class PublicTagReadScopeTests {
         string missing = TagPublicFixture.Collision("tag-48", "tag-65");
         var before = fixture.CaptureFiles();
         using (var store = fixture.Open(readOnly)) {
-            Assert.Equal(TagTestWire.Members(0xff), store.ReadTag("tag-48").Unwrap().MemberBytes());
+            Assert.Equal(TagTestWire.Members(0xff), store.ReadTag("tag-48").Unwrap().MemberBytes(fixture.Identity));
             Assert.Equal("HeadStore.TagLookupUncertain", store.ReadTag(missing).Error!.ErrorCode);
             if (!readOnly) {
                 Assert.Equal("HeadStore.DuplicateTagName", store.CreateTag("tag-48", [head], out var occupied).Error!.ErrorCode);
@@ -97,7 +97,7 @@ public sealed class PublicTagReadScopeTests {
                 Assert.Equal("HeadStore.TagLookupUncertain", store.CreateTag(missing, [head], out var uncertain).Error!.ErrorCode);
                 Assert.Equal(PublicationOutcome.NotAttempted, uncertain);
             }
-            Assert.Equal(TagTestWire.Members(0xff), store.ReadTag("tag-48").Unwrap().MemberBytes());
+            Assert.Equal(TagTestWire.Members(0xff), store.ReadTag("tag-48").Unwrap().MemberBytes(fixture.Identity));
             Assert.Equal(new[] { head }, store.ListHeads().Unwrap());
         }
         fixture.AssertUnchanged(before);
@@ -116,7 +116,7 @@ public sealed class PublicTagReadScopeTests {
             Assert.Equal("HeadStore.DuplicateTagName", store.ReadTag("A").Error!.ErrorCode);
             Assert.Equal("HeadStore.DuplicateTagName", store.CreateTag("A", [head], out var outcome).Error!.ErrorCode);
             Assert.Equal(PublicationOutcome.NotAttempted, outcome);
-            Assert.Equal(TagTestWire.Members(2), store.ReadTag(other).Unwrap().MemberBytes());
+            Assert.Equal(TagTestWire.Members(2), store.ReadTag(other).Unwrap().MemberBytes(fixture.Identity));
         }
         fixture.AssertUnchanged(before);
         using var next = fixture.Open();

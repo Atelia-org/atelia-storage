@@ -35,6 +35,30 @@ public sealed class ConditionalUpdateWireTests {
         ]));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MemberLocalRangeAcceptsMaximumAndRejectsNextValueForHostOrPeer(bool highestIsHost) {
+        byte[] payload = Convert.FromHexString(GoldenHex);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(16), HeadStore.MaxLocalHeadId);
+        // Both records have a valid 68B shape; the high member may be the actual host.
+        BinaryPrimitives.WriteUInt64LittleEndian(payload.AsSpan(20), s_self.Packed);
+        uint host = highestIsHost ? HeadStore.MaxLocalHeadId : 1;
+        Assert.True(Codec.TryRead(payload, host, s_self, out int rootOffset));
+        Assert.Equal(28, rootOffset);
+        Assert.Equal(payload[..28], Codec.EncodeMembers([
+            new ConditionalUpdateMember(1, s_self), new ConditionalUpdateMember(HeadStore.MaxLocalHeadId, s_self)
+        ]));
+
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(16), HeadStore.MaxLocalHeadId + 1);
+        host = highestIsHost ? HeadStore.MaxLocalHeadId + 1 : 1;
+        Assert.False(Codec.TryRead(payload, host, s_self, out rootOffset));
+        Assert.Equal(0, rootOffset);
+        Assert.Throws<ArgumentException>(() => Codec.EncodeMembers([
+            new ConditionalUpdateMember(1, s_self), new ConditionalUpdateMember(HeadStore.MaxLocalHeadId + 1, s_self)
+        ]));
+    }
+
     [Fact]
     public void GroupEqualityIgnoresRootsAndRequiresAllPackedBits() {
         byte[] first = Convert.FromHexString(GoldenHex);

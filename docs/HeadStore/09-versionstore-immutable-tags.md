@@ -1,8 +1,8 @@
 # S5-B 专项：HeadSetTag 具名固定成员表
 
-状态：2026-10-17 当前合同采用格式3与引用初始化 fork；16B成员表分别保存所选 Head 与实际 Entry owner。实际本轮源码、进程与包资格由[现有验收记录的新增轮次](16-headset-tags-acceptance.md)维护；未完成验证不沿用旧 Accepted。格式2/HeadSetTag 首轮及更早 bytes/Related 的证据保留原 revision。
+状态：2026-10-17 当前合同采用格式4、紧凑 Handle 与引用初始化 fork；16B成员表分别保存所选 Head 与实际 Entry owner。实际本轮源码、进程与包资格由[现有验收记录的新增轮次](16-headset-tags-acceptance.md)维护；未完成验证不沿用旧 Accepted。格式2/HeadSetTag 首轮及更早 bytes/Related 的证据保留原 revision。
 
-本篇负责成员表、名称/桶、独立元信息、稳定捕获、依赖确认、查询与扫描。统一版本3、身份、借入 data、根/锁、pending、单 driver、ProcessCrashOnly、PublicationOutcome 与清理消费 [S4](04-versionstore-publication.md)。HeadEntry bytes 的长度和所有权由 [11](11-versionstore-root-payload-bytes-api.md)负责；tag 不再保存任意 bytes。
+本篇负责成员表、名称/桶、独立元信息、稳定捕获、依赖确认、查询与扫描。统一版本4、身份、借入 data、根/锁、pending、单 driver、ProcessCrashOnly、PublicationOutcome 与清理消费 [S4](04-versionstore-publication.md)。HeadEntry bytes 的长度和所有权由 [11](11-versionstore-root-payload-bytes-api.md)负责；tag 不再保存任意 bytes。
 
 ## 需求、边界与公开结果
 
@@ -29,11 +29,11 @@ HeadSetTag 为 sealed、自有不可变对象，内部构造，具有 Name、Rec
 
 TagName MUST 为 non-null .NET string，按 `string.Length` 接受 **1..1024 个 UTF-16 code units**。HeadStore 提供 `public const int MaxTagNameCodeUnits = 1024`，不提供实例配置；CreateTag、ReadTag 与 ReadTagInfo 在文件 I/O 前共用准入，超长查询不能探桶后报 TagNotFound。相等使用 StringComparer.Ordinal；Release 与 release 可以分别创建。MUST 原样保留 code units，不 trim、normalize、大小写转换或 replacement。空串被拒绝；非空空白、NUL、控制符、路径分隔符、U+FEFF 与未配对 surrogate 均合法。长度单位不是 scalar、grapheme 或编码字节数。
 
-名称是字段，不成为路径组件，不继承 branch 或历史旧栈的 ASCII、128B、文件名字符限制。当前版本3统一拒绝版本1/2格式门；即使旧库没有 tag，也不猜测旧布局或迁移成员表。
+名称是字段，不成为路径组件，不继承 branch 或历史旧栈的 ASCII、128B、文件名字符限制。当前版本4统一拒绝版本1/2/3格式门；即使旧库没有 tag，也不猜测旧布局或迁移成员表。
 
 ### spec [F-VS-TAG-NAME-BPV1] 名称复用普通无损字符串
 
-HeadStoreFormatVersion=3 MUST 选择 [BPV1 ordinary BareString](../Binary/bare-primitive-value.md)。writer 使用 BareValueEncoding.PrepareString 与 BareValueWriter.WriteString(in plan)；reader 使用现成 BareValueReader.ReadString(3072)。不使用 nullable/control、压缩、独立名称版本或手写 UTF 编码。
+HeadStoreFormatVersion=4 MUST 选择 [BPV1 ordinary BareString](../Binary/bare-primitive-value.md)。writer 使用 BareValueEncoding.PrepareString 与 BareValueWriter.WriteString(in plan)；reader 使用现成 BareValueReader.ReadString(3072)。不使用 nullable/control、压缩、独立名称版本或手写 UTF 编码。
 
 BPV 保留完整 UTF-16 code units，未配对 surrogate 可走 UTF-16LE；默认 writer 选择较短无损 payload，持平选 UTF-16LE。reader 接受另一种合法字符串表示及有界冗余前缀，非法 UTF-8 拒绝。相等、重复与路由基于解码 code units，不能以 wire bytes、默认编码重算或 hash 相同代替 fullname 等值。
 
@@ -41,13 +41,13 @@ BPV 保留完整 UTF-16 code units，未配对 surrogate 可走 UTF-16LE；默�
 
 ### spec [F-VS-TAG-MEMBERS] 固定宽度 canonical 成员表
 
-TagRecord Payload 按 selected LocalHeadId 严格递增保存成员，每项为 `uint32 LE selected LocalHeadId + uint32 LE entry-owner LocalHeadId + uint64 LE SizedPtr.Packed`，恰为16B。两个 ID 均非零，Store 身份由 checked 桶 header 绑定，不重复到每项。EntryCount 只在 TailMeta 保存一次；完整解码要求 `PayloadLength == 16L * EntryCount`，拒绝零 ID、重复/乱序 selected ID、default/零长度 ticket、截短或尾随 bytes；不同 selected keys 可以引用同一 owner/ticket。ticket 保留完整 Packed bits，使用 Packed/FromPacked，不替换为 offset、时间或应用 FrameAddress。
+TagRecord Payload 按 selected LocalHeadId 严格递增保存成员，每项为 `uint32 LE selected LocalHeadId + uint32 LE entry-owner LocalHeadId + uint64 LE SizedPtr.Packed`，恰为16B。两个 ID 均为1..MaxLocalHeadId，Store 身份由 checked 桶 header 绑定，不重复到每项。EntryCount 只在 TailMeta 保存一次；完整解码要求 `PayloadLength == 16L * EntryCount`，拒绝零/越界 ID、重复/乱序 selected ID、default/零长度 ticket、截短或尾随 bytes；不同 selected keys 可以引用同一 owner/ticket。ticket 保留完整 Packed bits，使用 Packed/FromPacked，不替换为 offset、时间或应用 FrameAddress。
 
 成员表解码只证明本条完整记录中的字段资格，不遍历成员文件。其内部 HeadEntryId 恢复依赖 checked 格式、身份、完整 RBF CRC 与正常写入协议；普通 ReadEntry/ForkHead 保持 S4 的精确读取和来源协议，不因本片增加全链定位扫描。Audit 保持全库物理与引用健康检查。
 
 ### spec [F-VS-TAG-METADATA] 独立 CRC 的可变长元信息
 
-统一版本3与 FrameTag 选择 schema，不由 TailMetaLength 猜版本。TailMeta 依次保存：
+统一版本4与 FrameTag 选择 schema，不由 TailMetaLength 猜版本。TailMeta 依次保存：
 
 | 字段 | 编码与资格 |
 | --- | --- |
@@ -84,7 +84,7 @@ RbfFile.MeasureWriteSize(16 * n, T) 成功
 
 ### spec [F-VS-TAG-ROUTING] 按原 code units 固定分桶
 
-HeadStoreFormatVersion=3 MUST 固定 FNV-1a 64-bit：逐个原 UTF-16 code unit 按 low byte、high byte 输入，不加 BOM、terminator 或长度前缀；U+FEFF/NUL 原样参与。初值14695981039346656037，每 byte 先 XOR 再乘1099511628211，算术取模2^64。固定 `B=1024`，`BucketId=(hash ^ (hash >> 10)) & 1023`，范围0..1023。路径为 `tags/<BucketId 的8位小写 ASCII hex>.rbf`，如 `tags/00000174.rbf`；BPV codeword 不参与 hash，不保存 hash/B/算法名，不使用 string.GetHashCode 或 replacement surrogate 的文本编码入口。
+HeadStoreFormatVersion=4 MUST 固定 FNV-1a 64-bit：逐个原 UTF-16 code unit 按 low byte、high byte 输入，不加 BOM、terminator 或长度前缀；U+FEFF/NUL 原样参与。初值14695981039346656037，每 byte 先 XOR 再乘1099511628211，算术取模2^64。固定 `B=1024`，`BucketId=(hash ^ (hash >> 10)) & 1023`，范围0..1023。路径为 `tags/<BucketId 的8位小写 ASCII hex>.rbf`，如 `tags/00000174.rbf`；BPV codeword 不参与 hash，不保存 hash/B/算法名，不使用 string.GetHashCode 或 replacement surrogate 的文本编码入口。
 
 相等名称必同桶、跨进程稳定，hash/桶碰撞仍按 Ordinal fullname 区分。这些参数绑定统一格式版本，不能随运行配置或实现更换。FNV 常量与 XOR folding 形式见 [RFC 9923 §2–§3](https://datatracker.ietf.org/doc/html/rfc9923#section-3)；这里固定一次折叠，不宣称全64-bit折叠或分布最优。1024桶限制潜在文件数，每个实际创建桶增加一个 header，仍不轮转。
 
@@ -152,7 +152,7 @@ TagScanActive拒绝递归scan、进入ReadHeadHistory及全部mutation；允许R
 
 CreateTag 第一条语句设置outcome=NotAttempted，检查owner/可写/history/scan准入及名称。进入窄TagCreateActive guard，finally退出；所有mutation在活跃时拒绝，包括递归CreateTag，返回HeadStore.TagCreateActive。guard覆盖取时和内部hook，不是线程锁或通用操作框架；不公开callback，不新增创建期间任意查询支持，Dispose不被mutation guard拒绝。
 
-按自然容量预检并复制HeadId有效slice，拒绝空/default/外库/重复，按LocalId排序。名称查重和真实输出位置预检后，用既有current-read内核为每个选择取得已接受EntryId及普通/CU依赖；缺失/必要损坏/I/O失败立即终止。未成立CU只按07明确见证跳过，不回退掩盖损坏。必要peer先正常打开/恢复再裁决，不能把可CompletedTail的peer先作缺席；不扩大为全库preflight。
+按自然容量预检并复制HeadId有效slice，拒绝空/default/解码越界/重复，按当前owner解码的LocalId排序；不保证识别全部外库Handle。名称查重和真实输出位置预检后，用既有current-read内核为每个选择取得已接受EntryId及普通/CU依赖；缺失/必要损坏/I/O失败立即终止。未成立CU只按07明确见证跳过，不回退掩盖损坏。必要peer先正常打开/恢复再裁决，不能把可CompletedTail的peer先作缺席；不扩大为全库preflight。
 
 准备完整成员表、meta及自有返回对象后，先data.ConfirmDurable，再按LocalId顺序确认去重后的必要发布文件D，最后输出TagRecord。所选集合S与D不同：只选A且A来自A/B CU，Entries只有A，D仍含A/B。只收集最终被接受Entry的依赖，不把跳过未成立组时触及的全部文件当成员。D 始终包含所选 Head 的正式文件；普通Entry另依赖实际 owner，成立CU另依赖该组全部文件。仅选择 header-only C，C→A的CU且peer为B时，Entries只有 C→A-entry，D为{C,A,B}。不把所选身份从 value.HeadId 反推，也不追确认全部祖先。应用data闭包仍由应用保证。
 
@@ -180,4 +180,4 @@ TagCount/TagBucketCount计新成员表及实际桶；验证成员时不重复增
 
 named查询为O(目标桶记录数+meta字节)，连续同桶创建可为O(n²)；ReadTag只为唯一目标完整表增加读取。扫描仍为全部实际桶meta，成员/时间筛选不变索引。没有持久索引、轮转、确认缓存、并发读快照或总RSS保证。
 
-验收细目和具名过程证据由[16验收记录](16-headset-tags-acceptance.md)维护：格式3/拒1和2门与混入旧header、16B独立key/value映射、共享来源/连续空fork、成员canonical/自然容量、唯一可信名隔离、输入slice与自有值、CU依赖确认顺序、hook重入/Dispose、Audit取消/cleanup与新增进程窗口。旧bytes tag证据仅作历史依据，不重标本片Accepted；Release、实际进程终止、平台与隔离包消费分别记录。
+验收细目和具名过程证据由[16验收记录](16-headset-tags-acceptance.md)维护：格式4/拒1、2和3门与混入旧header、16B独立key/value映射、共享来源/连续空fork、成员canonical/自然容量、唯一可信名隔离、输入slice与自有值、CU依赖确认顺序、hook重入/Dispose、Audit取消/cleanup与新增进程窗口。旧bytes tag证据仅作历史依据，不重标本片Accepted；Release、实际进程终止、平台与隔离包消费分别记录。

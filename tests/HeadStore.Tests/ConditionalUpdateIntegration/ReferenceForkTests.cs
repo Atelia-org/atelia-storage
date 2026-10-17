@@ -28,7 +28,7 @@ public sealed class ReferenceForkTests {
             }
         }
         foreach (HeadId child in children) {
-            using IRbfFile file = RbfFile.OpenReadOnlyExisting(f.HeadPath(child.LocalId), RbfCacheMode.Off);
+            using IRbfFile file = RbfFile.OpenReadOnlyExisting(f.HeadPath(child.GetLocalId(f.Identity)), RbfCacheMode.Off);
             var records = file.ScanForward(showTombstone: true).GetEnumerator();
             Assert.True(records.MoveNext());
             Assert.Equal(0u, records.Current.Tag);

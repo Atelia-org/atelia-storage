@@ -73,20 +73,20 @@ internal sealed class HistoryFixture : IDisposable {
     internal static byte[] Bytes(int length = 128, byte value = 0x51) => Enumerable.Repeat(value, length).ToArray();
 
     internal void FlipPayload(HeadEntryId entryId) {
-        FlipByte(entryId.HeadId.LocalId, entryId.Ticket.Offset + entryId.Ticket.Length / 2);
+        FlipByte(entryId.HeadId.GetLocalId(Identity), entryId.Ticket.Offset + entryId.Ticket.Length / 2);
     }
 
     internal void FlipTrailer(HeadEntryId entryId) {
         // RBF3's documented encoded TrailerCodeword occupies [L-20,L-4); no CRC is recomputed.
-        FlipByte(entryId.HeadId.LocalId, entryId.Ticket.Offset + entryId.Ticket.Length - 20);
+        FlipByte(entryId.HeadId.GetLocalId(Identity), entryId.Ticket.Offset + entryId.Ticket.Length - 20);
     }
 
     internal void FlipFollowingFence(HeadEntryId entryId) {
         long end;
-        using (IRbfFile file = RbfFile.OpenReadOnlyExisting(HeadPath(entryId.HeadId.LocalId), RbfCacheMode.Off)) {
+        using (IRbfFile file = RbfFile.OpenReadOnlyExisting(HeadPath(entryId.HeadId.GetLocalId(Identity)), RbfCacheMode.Off)) {
             end = file.GetPhysicalOffsetImmediatelyAfter(entryId.Ticket);
         }
-        FlipByte(entryId.HeadId.LocalId, end - 1);
+        FlipByte(entryId.HeadId.GetLocalId(Identity), end - 1);
     }
 
     private void FlipByte(uint localId, long offset) {

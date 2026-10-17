@@ -79,7 +79,7 @@ internal sealed class AuditFaultFixture : IDisposable {
         Directory.CreateDirectory(Path.Combine(Storage.Root, "tags"));
         uint bucketId = TagPublicFixture.Bucket(name);
         var header = new byte[24];
-        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(header, 3);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(header, 4);
         Identity.TryWrite(header.AsSpan(4, 16));
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(20), bucketId);
         using IRbfFile file = RbfFile.CreateNew(BucketPath(name), RbfCacheMode.Off);
@@ -96,11 +96,11 @@ internal sealed class AuditFaultFixture : IDisposable {
 
     internal string BucketPath(string name) => Path.Combine(Storage.Root, "tags", $"{TagPublicFixture.Bucket(name):x8}.rbf");
     internal void OrderHeads(params AuditHeadSeed[] seeds) =>
-        Operations.HeadPaths = seeds.Select(seed => Storage.HeadPath(seed.HeadId.LocalId)).ToArray();
+        Operations.HeadPaths = seeds.Select(seed => Storage.HeadPath(seed.HeadId.GetLocalId(Identity))).ToArray();
     internal void OrderTags(params string[] names) => Operations.TagPaths = names.Select(BucketPath).ToArray();
 
     internal void CorruptHeadPayload(AuditHeadSeed seed, int index) => FlipClosedByte(
-        Storage.HeadPath(seed.HeadId.LocalId), seed.Tickets[index].Offset + 4);
+        Storage.HeadPath(seed.HeadId.GetLocalId(Identity)), seed.Tickets[index].Offset + 4);
 
     internal static void FlipClosedByte(string path, long offset) {
         using var file = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);

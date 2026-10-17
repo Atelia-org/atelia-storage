@@ -13,6 +13,7 @@ namespace Atelia.HeadStore.Tests.RecoveryReportsPublic;
 /// <summary>真实公开工厂与离线尾部镜像；不作为进程终止、断电或发布恢复证据。</summary>
 internal sealed class RecoveryReportsFixture : IDisposable {
     private readonly PublicHeadStoreFixture _storage = new();
+    internal Atelia.HeadStore.Internal.Format.StoreIdentity Identity => _storage.Identity;
     internal string Root => _storage.Root;
     internal string DataRoot => _storage.DataRoot;
     internal DataStore Data => _storage.Data;

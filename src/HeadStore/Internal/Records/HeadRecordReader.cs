@@ -12,8 +12,8 @@ internal static class HeadRecordReader {
         Func<AteliaError?>? beforeWork = null, Action? checkState = null
     ) {
         ArgumentNullException.ThrowIfNull(file);
-        if (expectedIdentity == default || !expectedHeadId.BelongsTo(expectedIdentity)) {
-            throw new ArgumentException("The expected HeadId must belong to the checked store identity.", nameof(expectedHeadId));
+        if (expectedIdentity == default || !expectedHeadId.TryGetLocalId(expectedIdentity, out _)) {
+            throw new ArgumentException("The expected HeadId must decode to a valid local number in this store context.", nameof(expectedHeadId));
         }
         if (file.Format != RbfFormat.Rbf3) { return new HeadHeaderError("Head files must use RBF3."); }
 

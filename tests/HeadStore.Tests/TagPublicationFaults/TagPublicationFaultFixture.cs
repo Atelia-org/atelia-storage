@@ -54,7 +54,7 @@ internal sealed class TagPublicationFaultFixture : IDisposable {
         return HeadId.Create(Identity, localId);
     }
 
-    internal TagBucketSeed SeedBucket(params TagFaultRecord[] records) => SeedBucketWithVersion(3, records);
+    internal TagBucketSeed SeedBucket(params TagFaultRecord[] records) => SeedBucketWithVersion(4, records);
 
     internal TagBucketSeed SeedBucketWithVersion(uint version, params TagFaultRecord[] records) {
         Directory.CreateDirectory(Path.GetDirectoryName(BucketPath)!);

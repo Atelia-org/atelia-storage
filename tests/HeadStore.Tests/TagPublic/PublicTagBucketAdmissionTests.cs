@@ -109,7 +109,7 @@ public sealed class PublicTagBucketAdmissionTests {
         using (var writer = fixture.Open()) {
             Assert.Equal(before[Path.GetRelativePath(fixture.Root, path)], File.ReadAllBytes(path)); // Still lazy.
             if (completeRecordTail) {
-                Assert.Equal(TagTestWire.Members(0xff), writer.ReadTag("A").Unwrap().MemberBytes());
+                Assert.Equal(TagTestWire.Members(0xff), writer.ReadTag("A").Unwrap().MemberBytes(fixture.Identity));
                 Assert.True(writer.CreateTag("A", [head], out var outcome).IsFailure);
                 Assert.Equal(PublicationOutcome.NotAttempted, outcome);
             }
@@ -117,7 +117,7 @@ public sealed class PublicTagBucketAdmissionTests {
         }
         Assert.Equal(complete, File.ReadAllBytes(path));
         using var cold = fixture.Open(readOnly: true);
-        if (completeRecordTail) { Assert.Equal(TagTestWire.Members(0xff), cold.ReadTag("A").Unwrap().MemberBytes()); }
+        if (completeRecordTail) { Assert.Equal(TagTestWire.Members(0xff), cold.ReadTag("A").Unwrap().MemberBytes(fixture.Identity)); }
         else { Assert.Equal("HeadStore.TagNotFound", cold.ReadTag("A").Error!.ErrorCode); }
     }
 

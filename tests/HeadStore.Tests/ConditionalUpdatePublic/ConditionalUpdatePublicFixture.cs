@@ -11,6 +11,7 @@ namespace Atelia.HeadStore.Tests.ConditionalUpdatePublic;
 /// <summary>真实公开工厂与独立 CU envelope；不复制 RBF framing/CRC，也不作为进程终止证据。</summary>
 internal sealed class ConditionalUpdatePublicFixture : IDisposable {
     private readonly PublicHeadStoreFixture _storage = new();
+    internal Atelia.HeadStore.Internal.Format.StoreIdentity Identity => _storage.Identity;
     internal string Root => _storage.Root;
     internal string DataRoot => _storage.DataRoot;
     internal DataStore Data => _storage.Data;
@@ -60,7 +61,7 @@ internal sealed class ConditionalUpdatePublicFixture : IDisposable {
 
     internal void AssertWire(HeadEntryId entryId, IReadOnlyDictionary<HeadId, HeadEntryId> entryIds,
         byte[] root, long minimumTime, long maximumTime, long? expectedTime = null) {
-        using IRbfFile file = RbfFile.OpenReadOnlyExisting(HeadPath(entryId.HeadId.LocalId), RbfCacheMode.Off);
+        using IRbfFile file = RbfFile.OpenReadOnlyExisting(HeadPath(entryId.HeadId.GetLocalId(Identity)), RbfCacheMode.Off);
         using RbfPooledFrame frame = file.ReadPooledFrame(entryId.Ticket).Unwrap();
         Assert.Equal(entryId.Ticket, frame.Ticket);
         Assert.Equal(2u, frame.Tag);
@@ -74,9 +75,9 @@ internal sealed class ConditionalUpdatePublicFixture : IDisposable {
         Assert.Equal(checked((uint)entryIds.Count), count);
         Assert.Equal(4 + 12 * entryIds.Count + root.Length, payload.Length);
         int index = 0;
-        foreach (var (headId, member) in entryIds.OrderBy(pair => pair.Key.LocalId)) {
+        foreach (var (headId, member) in entryIds.OrderBy(pair => pair.Key.GetLocalId(Identity))) {
             int start = 4 + 12 * index++;
-            Assert.Equal(headId.LocalId, BinaryPrimitives.ReadUInt32LittleEndian(payload[start..]));
+            Assert.Equal(headId.GetLocalId(Identity), BinaryPrimitives.ReadUInt32LittleEndian(payload[start..]));
             Assert.Equal(member.Ticket.Packed, BinaryPrimitives.ReadUInt64LittleEndian(payload[(start + 4)..]));
         }
         Assert.Equal(root, payload[(4 + 12 * entryIds.Count)..].ToArray());

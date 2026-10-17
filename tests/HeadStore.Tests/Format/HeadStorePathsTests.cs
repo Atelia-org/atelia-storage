@@ -7,9 +7,9 @@ public class HeadStorePathsTests {
     [Theory]
     [InlineData(1u, "00000001.rbf")]
     [InlineData(7u, "00000007.rbf")]
-    [InlineData(0x80000000u, "80000000.rbf")]
-    [InlineData(0x89ABCDEFu, "89abcdef.rbf")]
-    [InlineData(uint.MaxValue, "ffffffff.rbf")]
+    [InlineData(0x00800000u, "00800000.rbf")]
+    [InlineData(0x00ABCDEFu, "00abcdef.rbf")]
+    [InlineData(HeadStore.MaxLocalHeadId, "00ffffff.rbf")]
     public void HeadName_IndependentTextGoldensAreBigEndianHexOfLocalValue(uint localId, string expected) {
         Assert.Equal(expected, HeadStorePaths.GetHeadFileName(localId));
         Assert.Equal(Path.Combine("refs", expected), HeadStorePaths.GetHeadRelativePath(localId));
@@ -20,6 +20,8 @@ public class HeadStorePathsTests {
     [Theory]
     [InlineData("")]
     [InlineData("00000000.rbf")]
+    [InlineData("01000000.rbf")]
+    [InlineData("ffffffff.rbf")]
     [InlineData("1.rbf")]
     [InlineData("000000001.rbf")]
     [InlineData("100000000.rbf")]
@@ -53,6 +55,7 @@ public class HeadStorePathsTests {
     public void ZeroCannotBeFormattedAndManagedNamesRemainExactLowercase() {
         Assert.Throws<ArgumentOutOfRangeException>(() => HeadStorePaths.GetHeadFileName(0));
         Assert.Throws<ArgumentOutOfRangeException>(() => HeadStorePaths.GetHeadRelativePath(0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => HeadStorePaths.GetHeadFileName(HeadStore.MaxLocalHeadId + 1));
         Assert.Equal("versionstore.format", HeadStorePaths.FormatFileName);
         Assert.Equal("versionstore.lock", HeadStorePaths.LockFileName);
         Assert.Equal("refs", HeadStorePaths.HeadsDirectoryName);

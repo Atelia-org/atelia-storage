@@ -99,7 +99,7 @@ internal static class HeadSetTagProcessHost {
         try {
             using var store = HeadStoreFactory.Open(InternalProcessHost.VersionPath(root), data, false, testHooks: hooks);
             HeadId a = store.ReadHead(1).Unwrap().Id.HeadId;
-            HeadId child = store.ListHeads().Unwrap().Single(id => id.LocalId == 3);
+            HeadId child = store.ListHeads().Unwrap().Single(id => id.GetLocalId(store) == 3);
             store.CreateTag(Name, [child, a], out outcome).Unwrap();
             throw new InvalidOperationException("CreateTag returned without reaching its kill checkpoint.");
         }
@@ -110,7 +110,7 @@ internal static class HeadSetTagProcessHost {
         using (var data = DataStore.Open(InternalProcessHost.DataPath(root)))
         using (var store = Store.Open(InternalProcessHost.VersionPath(root), data)) {
             for (uint id = 1; id <= 3; id++) {
-                store.PublishHead(store.ListHeads().Unwrap().Single(head => head.LocalId == id), Later, out var outcome).Unwrap();
+                store.PublishHead(store.ListHeads().Unwrap().Single(head => head.GetLocalId(store) == id), Later, out var outcome).Unwrap();
                 Confirmed(outcome);
             }
         }
@@ -134,10 +134,10 @@ internal static class HeadSetTagProcessHost {
                 && child.Payload.SequenceEqual(advanced ? Later : A), "Cold current Entries differ.");
             if (expectedTag) {
                 HeadSetTag value = tag.Unwrap();
-                Require(value.Entries.Count == 2 && value.Entries.Keys.Select(id => id.LocalId).Order().SequenceEqual(new uint[] { 1, 3 }),
+                Require(value.Entries.Count == 2 && value.Entries.Keys.Select(id => id.GetLocalId(store)).Order().SequenceEqual(new uint[] { 1, 3 }),
                     "A necessary CU peer or unrelated Head leaked into the selected table.");
                 HeadEntryId savedA = value.Entries[a.Id.HeadId];
-                HeadEntryId savedChild = value.Entries[store.ListHeads().Unwrap().Single(id => id.LocalId == 3)];
+                HeadEntryId savedChild = value.Entries[store.ListHeads().Unwrap().Single(id => id.GetLocalId(store) == 3)];
                 Require(savedA.Ticket.Packed == expected.A && savedChild.Ticket.Packed == expected.Child
                     && savedA == savedChild, "Shared source coordinates changed or selected child identity was lost.");
                 Require(store.ReadEntry(savedA).Unwrap().Payload.SequenceEqual(A)

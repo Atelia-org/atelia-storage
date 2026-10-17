@@ -47,7 +47,7 @@ public sealed class PublicLifecycleTests {
                 Directory.EnumerateFileSystemEntries(fixture.Root).Select(Path.GetFileName).Order(StringComparer.Ordinal));
             byte[] gate = File.ReadAllBytes(fixture.GatePath);
             Assert.Equal(44, gate.Length);
-            Assert.Equal(3u, BinaryPrimitives.ReadUInt32LittleEndian(gate));
+            Assert.Equal(4u, BinaryPrimitives.ReadUInt32LittleEndian(gate));
             Assert.Equal(identity, gate.AsSpan(4, 16).ToArray());
             Assert.Equal(fixture.Data.StoreId.ToArray(), gate.AsSpan(20, 16).ToArray());
             Assert.Equal(256u, BinaryPrimitives.ReadUInt32LittleEndian(gate.AsSpan(36)));
@@ -56,8 +56,8 @@ public sealed class PublicLifecycleTests {
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
             automatic = store.CreateHead([0x80], out outcome).Unwrap().HeadId;
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            Assert.Equal(7u, reserved.LocalId);
-            Assert.Equal(257u, automatic.LocalId);
+            Assert.Equal(7u, reserved.GetLocalId(fixture.Identity));
+            Assert.Equal(257u, automatic.GetLocalId(fixture.Identity));
             oldEntry = store.ReadHead(reserved).Unwrap();
             published = store.PublishHead(reserved, json, out outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
@@ -66,7 +66,7 @@ public sealed class PublicLifecycleTests {
             oldList = store.ListHeads().Unwrap();
         }
         Assert.Equal(new byte[] { 0xff, 0x00, 0xfe }, oldEntry.Payload.ToArray());
-        Assert.Equal(new uint[] { 7, 257 }, oldList.Select(id => id.LocalId).Order());
+        Assert.Equal(new uint[] { 7, 257 }, oldList.Select(id => id.GetLocalId(fixture.Identity)).Order());
         fixture.Data.EnsureUsable();
         var address = fixture.Data.Append(9, [4]).Unwrap();
         fixture.Data.ConfirmDurable();
@@ -78,7 +78,7 @@ public sealed class PublicLifecycleTests {
             Assert.Equal(256u, reopened.ReservedHeadIdUpperBound);
             Assert.Equal(published, reopened.ReadHead(reserved).Unwrap().Id);
             Assert.Equal(automatic, reopened.ReadHead(257u).Unwrap().Id.HeadId);
-            Assert.Equal(258u, reopened.CreateHead([0xfd], out var outcome).Unwrap().HeadId.LocalId);
+            Assert.Equal(258u, reopened.CreateHead([0xfd], out var outcome).Unwrap().HeadId.GetLocalId(fixture.Identity));
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
             using var frame = data.ReadFrame(address).Unwrap();
             Assert.Equal(new byte[] { 4 }, frame.PayloadAndMeta.ToArray());
@@ -88,7 +88,7 @@ public sealed class PublicLifecycleTests {
             Assert.True(readOnly.IsReadOnly);
             Assert.Equal(published, readOnly.ReadHead(reserved).Unwrap().Id);
             Assert.Equal(json, readOnly.ReadHead(reserved).Unwrap().Payload.ToArray());
-            Assert.Equal(new uint[] { 7, 257, 258 }, readOnly.ListHeads().Unwrap().Select(id => id.LocalId).Order());
+            Assert.Equal(new uint[] { 7, 257, 258 }, readOnly.ListHeads().Unwrap().Select(id => id.GetLocalId(fixture.Identity)).Order());
         }
     }
 
@@ -117,21 +117,21 @@ public sealed class PublicLifecycleTests {
     }
 
     [Fact]
-    public void IndependentHeadStoresMayBorrowOneDataButHeadIdsKeepSeparateIdentities() {
+    public void IndependentHeadStoresMayBorrowOneDataButRetainTheirOwnLocalHeads() {
         using var fixture = new PublicHeadStoreFixture();
         string otherRoot = Path.Combine(fixture.Sandbox, "other-store");
         using var first = Store.Create(fixture.Root, fixture.Data);
         using var second = Store.Create(otherRoot, fixture.Data);
         var firstId = first.CreateHead([0xff], out _).Unwrap().HeadId;
         var secondId = second.CreateHead([0xfe], out _).Unwrap().HeadId;
-        Assert.Equal(firstId.LocalId, secondId.LocalId);
-        Assert.NotEqual(firstId, secondId);
+        Assert.Equal(firstId.GetLocalId(first), secondId.GetLocalId(second));
+
         Assert.NotEqual(first.HeadStoreId.ToArray(), second.HeadStoreId.ToArray());
-        Assert.True(second.ReadHead(firstId).IsFailure);
+        Assert.True(second.ReadHead(HeadIdTestExtensions.ForeignHeadId(second, 1)).IsFailure);
         Assert.True(second.ReadHead(default(HeadId)).IsFailure);
         Assert.True(second.ReadHead(0u).IsFailure);
         var outcome = PublicationOutcome.Confirmed;
-        Assert.True(second.PublishHead(firstId, [1], out outcome).IsFailure);
+        Assert.True(second.PublishHead(HeadIdTestExtensions.ForeignHeadId(second, 1), [1], out outcome).IsFailure);
         Assert.Equal(PublicationOutcome.NotAttempted, outcome);
         Assert.Equal(new byte[] { 0xfe }, second.ReadHead(secondId).Unwrap().Payload.ToArray());
         fixture.Data.EnsureUsable();

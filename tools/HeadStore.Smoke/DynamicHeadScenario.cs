@@ -31,7 +31,7 @@ internal static class DynamicHeadScenario {
         using var heads = Heads.Create(Path.Combine(root, "heads"), data, reservedHeadIdUpperBound: DirectoryHead);
         HeadEntryId registered = heads.CreateHead(ObjectBytes(RegisteredObject), out var outcome).Unwrap();
         Confirmed(outcome);
-        Require(registered.HeadId.LocalId == RegisteredHead, "Unexpected first automatic object id.");
+        Require(heads.GetLocalHeadId(registered.HeadId).Unwrap() == RegisteredHead, "Unexpected first automatic object id.");
 
         byte[] directoryBytes = JsonSerializer.SerializeToUtf8Bytes(new DirectoryState(1, "directory",
             [new DirectoryEntry(RegisteredObject, RegisteredHead)]));
@@ -39,7 +39,7 @@ internal static class DynamicHeadScenario {
         Confirmed(directoryOutcome);
         HeadEntryId created = heads.CreateHead(ObjectBytes(UnregisteredObject), out var createdOutcome).Unwrap();
         Confirmed(createdOutcome);
-        Require(created.HeadId.LocalId == UnregisteredHead, "Unexpected second automatic object id.");
+        Require(heads.GetLocalHeadId(created.HeadId).Unwrap() == UnregisteredHead, "Unexpected second automatic object id.");
 
         var manifest = new Manifest(Convert.ToBase64String(data.StoreId), Convert.ToBase64String(heads.HeadStoreId),
             directory.Ticket.Packed, created.Ticket.Packed, Convert.ToBase64String(directoryBytes));
@@ -85,7 +85,7 @@ internal static class DynamicHeadScenario {
     }
 
     private static Summary Validate(Heads heads, Manifest manifest) {
-        uint[] discovered = heads.ListHeads().Unwrap().Select(id => id.LocalId).Order().ToArray();
+        uint[] discovered = heads.ListHeads().Unwrap().Select(id => heads.GetLocalHeadId(id).Unwrap()).Order().ToArray();
         Require(discovered.SequenceEqual(new uint[] { DirectoryHead, RegisteredHead, UnregisteredHead }),
             "ListHeads must discover the confirmed object independently of the application directory.");
         HeadEntry directory = heads.ReadHead(DirectoryHead).Unwrap();

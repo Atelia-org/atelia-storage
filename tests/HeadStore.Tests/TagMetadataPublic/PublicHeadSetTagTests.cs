@@ -78,8 +78,8 @@ public sealed class PublicHeadSetTagTests {
         store.CreateTag("two", [second.HeadId, first.HeadId], out _).Unwrap();
         AssertInfo(store.ReadTagInfo("one").Unwrap(), "one", 1);
         AssertInfo(store.ReadTagInfo("two").Unwrap(), "two", 2);
-        Assert.Equal(new uint[] { 7, 8 }, store.ListHeads().Unwrap().Select(id => id.LocalId));
-        Assert.Equal(257u, store.CreateHead([4], out _).Unwrap().HeadId.LocalId);
+        Assert.Equal(new uint[] { 7, 8 }, store.ListHeads().Unwrap().Select(id => id.GetLocalId(fixture.Identity)));
+        Assert.Equal(257u, store.CreateHead([4], out _).Unwrap().HeadId.GetLocalId(fixture.Identity));
     }
 
     [Fact]

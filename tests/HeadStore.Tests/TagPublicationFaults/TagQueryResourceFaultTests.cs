@@ -27,7 +27,7 @@ public sealed class TagQueryResourceFaultTests {
         Assert.Equal(new[] { 23, 23, seed.Tickets[1].Length }, file.Rents);
         Assert.Equal(1, file.DisposeCalls);
         f.Store.Dispose();
-        Assert.Equal(target, retained.MemberBytes());
+        Assert.Equal(target, retained.MemberBytes(f.Identity));
         f.Data.EnsureUsable();
     }
 
@@ -87,7 +87,7 @@ public sealed class TagQueryResourceFaultTests {
         Assert.Equal(1, Assert.Single(f.Tags.Opened).DisposeCalls);
         Assert.Equal(0, f.Lock.DisposeCalls);
         f.Tags.ConfigureOpen = null;
-        Assert.Equal(seed.Records[0].Payload, f.Store.ReadTag(TagPublicationFaultFixture.Name).Unwrap().MemberBytes());
+        Assert.Equal(seed.Records[0].Payload, f.Store.ReadTag(TagPublicationFaultFixture.Name).Unwrap().MemberBytes(f.Identity));
         if (!readOnly) { Assert.NotNull(f.Store.CreateTag(TagPublicationFaultFixture.OtherName, [f.SelectedHead], out _).Unwrap()); }
     }
 

@@ -33,7 +33,7 @@ public sealed class ConditionalHistoryForkAuditTests {
         }
 
         // A fork is physically complete with only its checked origin-bearing header.
-        using (IRbfFile file = RbfFile.OpenReadOnlyExisting(fixture.HeadPath(child.LocalId), RbfCacheMode.Off)) {
+        using (IRbfFile file = RbfFile.OpenReadOnlyExisting(fixture.HeadPath(child.GetLocalId(fixture.Identity)), RbfCacheMode.Off)) {
             var forward = file.ScanForward(showTombstone: true).GetEnumerator();
             Assert.True(forward.MoveNext());
             Assert.Equal(0u, forward.Current.Tag);
@@ -215,7 +215,7 @@ public sealed class ConditionalHistoryForkAuditTests {
         Assert.StartsWith("Rbf.", rejected.Error!.ErrorCode);
         Assert.Equal(PublicationOutcome.NotAttempted, outcome);
         Assert.False(File.Exists(fixture.HeadPath(3)));
-        Assert.DoesNotContain(reopened.ListHeads().Unwrap(), id => id.LocalId == 3);
+        Assert.DoesNotContain(reopened.ListHeads().Unwrap(), id => id.GetLocalId(fixture.Identity) == 3);
     }
 
     [Fact]

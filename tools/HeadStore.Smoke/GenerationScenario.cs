@@ -212,7 +212,7 @@ internal static class GenerationScenario {
     }
 
     private static Summary ValidateStore(DataStore data, Heads heads) {
-        Require(heads.ListHeads().Unwrap().Select(id => id.LocalId).SequenceEqual(new uint[] { 1 }),
+        Require(heads.ListHeads().Unwrap().Select(id => heads.GetLocalHeadId(id).Unwrap()).SequenceEqual(new uint[] { 1 }),
             "Unexpected formal ref set.");
         HeadEntry head = heads.ReadHead(1).Unwrap();
         var history = new List<HeadEntry>();

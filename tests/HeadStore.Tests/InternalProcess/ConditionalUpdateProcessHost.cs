@@ -114,12 +114,12 @@ internal static class ConditionalUpdateProcessHost {
             if (hasFork) {
                 var fork = store.ReadHead(4u).Unwrap();
                 InternalProcessHost.Require(fork.Payload.SequenceEqual(partial ? Old(1) : New(1)), "CU fork did not resolve its exact source root bytes.");
-                InternalProcessHost.Require(forks[0].ChildHeadId.LocalId == 4 && forks[0].SourceHeadId == entryIds[1].HeadId
+                InternalProcessHost.Require(forks[0].ChildHeadId.GetLocalId(store) == 4 && forks[0].SourceHeadId == entryIds[1].HeadId
                     && forks[0].SourceEntryTicket == entryIds[1].Ticket, "CU fork lost its exact checked source.");
-                InternalProcessHost.Require(History(store, store.ListHeads().Unwrap().Single(id => id.LocalId == 4)).Count == (partial ? 1 : 2), "CU fork inherited history differs.");
+                InternalProcessHost.Require(History(store, store.ListHeads().Unwrap().Single(id => id.GetLocalId(store) == 4)).Count == (partial ? 1 : 2), "CU fork inherited history differs.");
                 HeadSetTag captured = store.ReadTag("after-cu-reopen").Unwrap();
                 InternalProcessHost.Require(captured.Entries.Count == 2 && captured.Entries[entryIds[1].HeadId] == entryIds[1]
-                    && captured.Entries[store.ListHeads().Unwrap().Single(id => id.LocalId == 4)] == entryIds[1], "Cold tag did not retain the accepted CU and fork positions.");
+                    && captured.Entries[store.ListHeads().Unwrap().Single(id => id.GetLocalId(store) == 4)] == entryIds[1], "Cold tag did not retain the accepted CU and fork positions.");
                 InternalProcessHost.Require(store.ReadEntry(captured.Entries[entryIds[1].HeadId]).Unwrap().Payload.SequenceEqual(partial ? Old(1) : New(1)),
                     "Cold tag member lost its exact accepted Entry.");
             }
@@ -136,7 +136,7 @@ internal static class ConditionalUpdateProcessHost {
         using (var store = Store.Open(InternalProcessHost.VersionPath(root), data)) {
             var source = store.ReadHead(1u).Unwrap();
             HeadId fork = store.ForkHead(4u, source.Id, out PublicationOutcome outcome).Unwrap();
-            InternalProcessHost.Require(outcome == PublicationOutcome.Confirmed && fork.LocalId == 4, "Fresh CU fork was not confirmed.");
+            InternalProcessHost.Require(outcome == PublicationOutcome.Confirmed && fork.GetLocalId(store) == 4, "Fresh CU fork was not confirmed.");
             var child = store.ReadHead(fork).Unwrap();
             InternalProcessHost.Require(child.Id == source.Id && child.Payload.SequenceEqual(IsPartial(scenario) ? Old(1) : New(1)), "Fork source is not the exact accepted CU Entry.");
             // The old child was killed before/inside CU flush. This fresh request

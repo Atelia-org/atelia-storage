@@ -12,7 +12,7 @@ public sealed class HeadRecoveryReportsTests {
     public void InitialAndLaterCompletedTailsAreReportedOnCurrentOrExactAccess(bool later, bool exact) {
         using var fixture = new RecoveryReportsFixture();
         HeadEntryId current = fixture.SeedHead(later);
-        TailImage image = RecoveryReportsFixture.Damage(fixture.HeadPath(current.HeadId.LocalId), completeTail: true);
+        TailImage image = RecoveryReportsFixture.Damage(fixture.HeadPath(current.HeadId.GetLocalId(fixture.Identity)), completeTail: true);
         using (var store = fixture.Open()) {
             IReadOnlyList<HeadStoreRecoveryReport> view = store.RecoveryReports;
             Assert.Empty(view); // Admission discovers paths without opening their RBF contents.
@@ -20,7 +20,7 @@ public sealed class HeadRecoveryReportsTests {
             Assert.Empty(view);
             var entry = exact ? store.ReadEntry(current).Unwrap() : store.ReadHead(current.HeadId).Unwrap();
             Assert.Equal(current, entry.Id);
-            image.AssertReport(Assert.Single(view), HeadStoreRecoveryFileKind.Head, current.HeadId.LocalId);
+            image.AssertReport(Assert.Single(view), HeadStoreRecoveryFileKind.Head, current.HeadId.GetLocalId(fixture.Identity));
             HeadStoreRecoveryReport saved = view[0];
             Assert.Equal(current, store.ReadHead(current.HeadId).Unwrap().Id);
             Assert.Equal(current, store.ReadEntry(current).Unwrap().Id);
@@ -41,11 +41,11 @@ public sealed class HeadRecoveryReportsTests {
     public void PartialNextHeadIsReportedWithExactDiscardedLengthAndNoTicket(int prefixLength) {
         using var fixture = new RecoveryReportsFixture();
         HeadEntryId current = fixture.SeedHead(later: true);
-        TailImage image = RecoveryReportsFixture.Damage(fixture.HeadPath(current.HeadId.LocalId), completeTail: false, prefixLength);
+        TailImage image = RecoveryReportsFixture.Damage(fixture.HeadPath(current.HeadId.GetLocalId(fixture.Identity)), completeTail: false, prefixLength);
         using (var store = fixture.Open()) {
             Assert.Empty(store.RecoveryReports);
             Assert.Equal(current, store.ReadHead(current.HeadId).Unwrap().Id);
-            image.AssertReport(Assert.Single(store.RecoveryReports), HeadStoreRecoveryFileKind.Head, current.HeadId.LocalId);
+            image.AssertReport(Assert.Single(store.RecoveryReports), HeadStoreRecoveryFileKind.Head, current.HeadId.GetLocalId(fixture.Identity));
         }
         image.AssertRestored();
     }
@@ -63,7 +63,7 @@ public sealed class HeadRecoveryReportsTests {
             source = seed.PublishHead(sourceInitial.HeadId, [2], out _).Unwrap();
             child = seed.ForkHead(19, source, out _).Unwrap();
         }
-        TailImage image = RecoveryReportsFixture.Damage(fixture.HeadPath(source.HeadId.LocalId), completeTail);
+        TailImage image = RecoveryReportsFixture.Damage(fixture.HeadPath(source.HeadId.GetLocalId(fixture.Identity)), completeTail);
         using (var store = fixture.Open()) {
             var view = store.RecoveryReports;
             var delivered = new List<HeadEntryId>();
@@ -73,7 +73,7 @@ public sealed class HeadRecoveryReportsTests {
                 return true;
             }).Unwrap());
             Assert.Equal(new[] { source, sourceInitial }, delivered);
-            image.AssertReport(Assert.Single(view), HeadStoreRecoveryFileKind.Head, source.HeadId.LocalId);
+            image.AssertReport(Assert.Single(view), HeadStoreRecoveryFileKind.Head, source.HeadId.GetLocalId(fixture.Identity));
             HeadStoreRecoveryReport saved = view[0];
             RecoveryReportsFixture.AssertReleased(image.Path); // The action does not retain the history temporary.
             Assert.Equal(HeadHistoryEnd.Complete, store.ReadHeadHistory(child, RecoveryReportsFixture.Unlimited, _ => true).Unwrap());
@@ -93,8 +93,8 @@ public sealed class HeadRecoveryReportsTests {
             source = seed.CreateHead(7, [1], out _).Unwrap();
             child = seed.ForkHead(19, source, out _).Unwrap();
         }
-        TailImage sourceImage = RecoveryReportsFixture.Damage(fixture.HeadPath(source.HeadId.LocalId), completeTail: false);
-        TailImage childImage = RecoveryReportsFixture.Damage(fixture.HeadPath(child.LocalId), completeTail: true);
+        TailImage sourceImage = RecoveryReportsFixture.Damage(fixture.HeadPath(source.HeadId.GetLocalId(fixture.Identity)), completeTail: false);
+        TailImage childImage = RecoveryReportsFixture.Damage(fixture.HeadPath(child.GetLocalId(fixture.Identity)), completeTail: true);
         using (var store = fixture.Open()) {
             var view = store.RecoveryReports;
             Assert.Empty(view);
@@ -103,8 +103,8 @@ public sealed class HeadRecoveryReportsTests {
             Assert.Equal(source.HeadId, edge.SourceHeadId);
             Assert.Equal(source.Ticket, edge.SourceEntryTicket);
             Assert.Equal(2, view.Count);
-            sourceImage.AssertReport(Assert.Single(view, report => report.LocalId == source.HeadId.LocalId), HeadStoreRecoveryFileKind.Head, source.HeadId.LocalId);
-            childImage.AssertReport(Assert.Single(view, report => report.LocalId == child.LocalId), HeadStoreRecoveryFileKind.Head, child.LocalId);
+            sourceImage.AssertReport(Assert.Single(view, report => report.LocalId == source.HeadId.GetLocalId(fixture.Identity)), HeadStoreRecoveryFileKind.Head, source.HeadId.GetLocalId(fixture.Identity));
+            childImage.AssertReport(Assert.Single(view, report => report.LocalId == child.GetLocalId(fixture.Identity)), HeadStoreRecoveryFileKind.Head, child.GetLocalId(fixture.Identity));
             var saved = view.ToArray();
             RecoveryReportsFixture.AssertReleased(sourceImage.Path);
             RecoveryReportsFixture.AssertReleased(childImage.Path);
@@ -127,7 +127,7 @@ public sealed class HeadRecoveryReportsTests {
     public void ReadOnlyHeadOpenChannelsRejectRecoveryWithoutChangingAnyBytesOrReports(string channel, bool completeTail) {
         using var fixture = new RecoveryReportsFixture();
         HeadEntryId current = fixture.SeedHead(later: true);
-        RecoveryReportsFixture.Damage(fixture.HeadPath(current.HeadId.LocalId), completeTail);
+        RecoveryReportsFixture.Damage(fixture.HeadPath(current.HeadId.GetLocalId(fixture.Identity)), completeTail);
         var before = fixture.CaptureFiles();
         using var store = fixture.Open(readOnly: true);
         var view = store.RecoveryReports;

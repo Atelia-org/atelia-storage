@@ -1,6 +1,6 @@
 # HeadStore：ConditionalUpdate 单帧跨 Head 条件发布
 
-引用初始化 fork 更新：2026-10-17 当前合同采用格式3，拒绝格式1/2；fork 只发布来源 header，HeadSetTag 成员为16B独立 key/value 映射。本轮实际源码、进程与包资格见[既有验收入口中的新增轮次](12-versionstore-final-acceptance.md)，未完成验证不沿用旧 Accepted。既有 Clause-ID 与历史证据保持。
+紧凑 Handle 更新：2026-10-17 当前合同采用格式4，拒绝格式1/2/3；fork 只发布来源 header，HeadSetTag 成员为16B独立 key/value 映射。本轮实际源码、进程与包资格见[既有验收入口中的新增轮次](12-versionstore-final-acceptance.md)，未完成验证不沿用旧 Accepted。既有 Clause-ID 与历史证据保持。
 
 既有轮次状态：**2026-10-11 CU 及附属重构已实施，独立源码验收 Accepted（Windows / WSL2 Linux）**。本文负责 CU 的记录、共同判据、位置复用与读取算法，已接入 S0/S4/S5；身份字段消费 S4，时间消费[08专项](08-versionstore-record-metadata.md)，批量 bytes 公面消费[11专项](11-versionstore-root-payload-bytes-api.md)。实际验证与资格见[CU首轮验收记录](07-versionstore-cross-ref-conditional-update-acceptance.md)。既有[最终源码验收](12-versionstore-final-acceptance.md)和[六包候选](../FrameStore-HeadStore/13-local-package-delivery.md)不包含 CU；新源码不得沿用其包资格。
 
@@ -38,7 +38,7 @@ CU 消费 S4 `[F-VS-REF-ID-4B]`：LocalHeadId 固定 4B LE，公开值另携同�
 
 准确说，消除循环只要求 ticket 的编码宽度不随值变化；已知 HeadId 的编码长度也能事先度量。固定 HeadId 是本协议按用户提议采用的方向，不是正确性额外要求。不得对包含待定 tickets 的整个 payload 做未经解决的变长压缩，再拿未确定的 stored 长度预约。
 
-Members 唯一、有界，跨 Head CU 至少两个成员。Count 解码后在集合分配前要求 `4 + 12L × count + 1 <= 实际 payload 长度 <= 268435416`，checked 地为 root payload 保留至少 1B；表解码后剩余 root payload 必须在 1..1MiB。不能用 count 直接分配未验规模的集合，不把 root bytes 当 Members 的尾部扩展。以实际 count=k 计算 `pMin=4+12k+1`、`pMax=min(4+12k+1MiB,268435416)`，再用公共 `MeasureWriteSize(pMin,8)` / `MeasureWriteSize(pMax,8)` 得出每个成员 ticket 可接受的 frame 长度区间；不得只凭普通 SingleEntry 或 k=2 的全局下界接受与本表不可能相容的长度。解码须检查每个非零 LocalHeadId 与 ticket 的坐标/上述帧尺寸约束，拒绝 default、零长度、截短和非法项；自定位检查不能代替整表 codec 校验。所有文件、身份、尺寸与追加起点均先检查。它是本次内部调用生成的私有值，不接受调用方提供旧表或任意 prepared tickets。
+Members 唯一、有界，跨 Head CU 至少两个成员。Count 解码后在集合分配前要求 `4 + 12L × count + 1 <= 实际 payload 长度 <= 268435416`，checked 地为 root payload 保留至少 1B；表解码后剩余 root payload 必须在 1..1MiB。不能用 count 直接分配未验规模的集合，不把 root bytes 当 Members 的尾部扩展。以实际 count=k 计算 `pMin=4+12k+1`、`pMax=min(4+12k+1MiB,268435416)`，再用公共 `MeasureWriteSize(pMin,8)` / `MeasureWriteSize(pMax,8)` 得出每个成员 ticket 可接受的 frame 长度区间；不得只凭普通 SingleEntry 或 k=2 的全局下界接受与本表不可能相容的长度。解码须检查每个1..MaxLocalHeadId范围内的 LocalHeadId 与 ticket 的坐标/上述帧尺寸约束，拒绝 default、零长度、截短和非法项；自定位检查不能代替整表 codec 校验。所有文件、身份、尺寸与追加起点均先检查。它是本次内部调用生成的私有值，不接受调用方提供旧表或任意 prepared tickets。
 
 PublishHeads的输入捕获、空/单成员分流、自有EntryId字典与共用Outcome唯一消费[11公面专项](11-versionstore-root-payload-bytes-api.md) `[A-VS-BYTES-BATCH]`；本篇定义两个及以上既有Head的CU执行路径。
 

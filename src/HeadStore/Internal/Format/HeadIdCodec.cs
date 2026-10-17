@@ -10,14 +10,14 @@ internal static class HeadIdCodec {
         headId = default;
         if (source.Length != EncodedSize || expectedIdentity == default) { return false; }
         uint localId = BinaryPrimitives.ReadUInt32LittleEndian(source);
-        if (localId == 0) { return false; }
+        if (localId is 0 or > HeadStore.MaxLocalHeadId) { return false; }
         headId = HeadId.Create(expectedIdentity, localId);
         return true;
     }
 
     internal static bool TryWrite(HeadId headId, StoreIdentity expectedIdentity, Span<byte> destination) {
-        if (!headId.BelongsTo(expectedIdentity) || destination.Length < EncodedSize) { return false; }
-        BinaryPrimitives.WriteUInt32LittleEndian(destination, headId.LocalId);
+        if (!headId.TryGetLocalId(expectedIdentity, out _) || destination.Length < EncodedSize) { return false; }
+        BinaryPrimitives.WriteUInt32LittleEndian(destination, headId.GetLocalId(expectedIdentity));
         return true;
     }
 }

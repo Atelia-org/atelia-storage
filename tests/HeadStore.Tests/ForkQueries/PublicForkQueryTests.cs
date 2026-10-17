@@ -23,7 +23,7 @@ public sealed class PublicForkQueryTests {
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
             HeadEntryId automaticRoot = store.CreateHead([9], out outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            Assert.Equal(33u, automaticRoot.HeadId.LocalId);
+            Assert.Equal(33u, automaticRoot.HeadId.GetLocalId(fixture.Identity));
             HeadEntryId sameBytesCopy = store.CreateHead(11, [1], out outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
             HeadId reservedSibling = store.ForkHead(12, a0, out outcome).Unwrap();
@@ -38,7 +38,7 @@ public sealed class PublicForkQueryTests {
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
             HeadId backwardsNumberedChild = store.ForkHead(13, automaticRoot, out outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            Assert.True(backwardsNumberedChild.LocalId < automaticRoot.HeadId.LocalId);
+            Assert.True(backwardsNumberedChild.GetLocalId(fixture.Identity) < automaticRoot.HeadId.GetLocalId(fixture.Identity));
             HeadEntryId independentRoot = store.CreateHead(5, [5], out outcome).Unwrap();
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
             expected.AddRange([
@@ -103,7 +103,7 @@ public sealed class PublicForkQueryTests {
             return true;
         }).Unwrap());
         Assert.Equal(new[] { b1, a1, a0 }, delivered);
-        fixture.AssertReleased(7, 12, sibling.LocalId);
+        fixture.AssertReleased(7, 12, sibling.GetLocalId(fixture.Identity));
         HeadEntryId later = reopened.PublishHead(a0.HeadId, [5], out var afterHistory).Unwrap();
         Assert.Equal(PublicationOutcome.Confirmed, afterHistory);
         Assert.NotEqual(a1, later);
@@ -143,7 +143,7 @@ public sealed class PublicForkQueryTests {
         Assert.True(limited.IsFailure);
         Assert.Equal("HeadStore.ForkQueryBudgetExceeded", limited.Error!.ErrorCode);
         // A pure budget refusal does not fault a healthy writer or consume a target.
-        Assert.Equal(13u, store.CreateHead(13, [2], out var outcome).Unwrap().HeadId.LocalId);
+        Assert.Equal(13u, store.CreateHead(13, [2], out var outcome).Unwrap().HeadId.GetLocalId(fixture.Identity));
         Assert.Equal(PublicationOutcome.Confirmed, outcome);
         Assert.Empty(store.ListHeadOrigins(4).Unwrap());
     }
@@ -157,14 +157,14 @@ public sealed class PublicForkQueryTests {
             root = store.CreateHead(7, [1], out _).Unwrap();
             child = store.ForkHead(root, out _).Unwrap();
         }
-        byte[] rootBytes = File.ReadAllBytes(fixture.HeadPath(root.HeadId.LocalId));
-        byte[] childBytes = File.ReadAllBytes(fixture.HeadPath(child.LocalId));
+        byte[] rootBytes = File.ReadAllBytes(fixture.HeadPath(root.HeadId.GetLocalId(fixture.Identity)));
+        byte[] childBytes = File.ReadAllBytes(fixture.HeadPath(child.GetLocalId(fixture.Identity)));
         File.WriteAllBytes(fixture.PendingPath, childBytes);
         using (var readOnly = fixture.Open(readOnly: true)) {
             ForkQueryFixture.AssertEdges(readOnly.ListHeadOrigins(2).Unwrap(), (child, root.HeadId, root.Ticket));
         }
-        Assert.Equal(rootBytes, File.ReadAllBytes(fixture.HeadPath(root.HeadId.LocalId)));
-        Assert.Equal(childBytes, File.ReadAllBytes(fixture.HeadPath(child.LocalId)));
+        Assert.Equal(rootBytes, File.ReadAllBytes(fixture.HeadPath(root.HeadId.GetLocalId(fixture.Identity))));
+        Assert.Equal(childBytes, File.ReadAllBytes(fixture.HeadPath(child.GetLocalId(fixture.Identity))));
         Assert.Equal(childBytes, File.ReadAllBytes(fixture.PendingPath));
     }
 

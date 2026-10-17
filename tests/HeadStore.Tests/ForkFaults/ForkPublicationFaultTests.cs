@@ -24,7 +24,7 @@ public sealed class ForkPublicationFaultTests {
         HeadId child = Fork(f.Store, source.Id, specified, out PublicationOutcome outcome).Unwrap();
 
         Assert.Equal(PublicationOutcome.Confirmed, outcome);
-        Assert.Equal(TargetId(specified), child.LocalId);
+        Assert.Equal(TargetId(specified), child.GetLocalId(f.Identity));
         Assert.NotEqual(source.Id.HeadId, child);
         Assert.Equal(new[] {
             "data:confirm", "flush:1", "pending:create", "append:0",

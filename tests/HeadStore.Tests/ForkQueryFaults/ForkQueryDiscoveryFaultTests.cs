@@ -65,7 +65,7 @@ public sealed class ForkQueryDiscoveryFaultTests {
         using var f = new ForkQueryFaultFixture();
         ForkQuerySeed first = f.Seed(1);
         ForkQuerySeed second = f.Seed(18);
-        string excess = f.HeadPath(uint.MaxValue);
+        string excess = f.HeadPath(HeadStore.MaxLocalHeadId);
         File.WriteAllBytes(excess, [0]);
         f.Operations.EntryPaths = [f.HeadPath(1), f.HeadPath(18), excess];
 
@@ -74,7 +74,7 @@ public sealed class ForkQueryDiscoveryFaultTests {
         Assert.Equal("HeadStore.ForkQueryBudgetExceeded", result.Error!.ErrorCode);
         Assert.Null(result.Value);
         Assert.Equal(new uint[] { 1, 18 }, f.Files.Opened.Select(file => file.LocalId));
-        Assert.DoesNotContain($"open:{uint.MaxValue}:rw", f.Events);
+        Assert.DoesNotContain($"open:{HeadStore.MaxLocalHeadId}:rw", f.Events);
         Assert.Equal(1, f.Files.MaximumActiveFiles);
         Assert.Equal(0, f.Files.ListCalls);
         ForkQueryEnumerator enumerator = Assert.Single(f.Operations.Enumerators);
@@ -206,7 +206,7 @@ public sealed class ForkQueryDiscoveryFaultTests {
         Assert.Same(close, Assert.Throws<IOException>(() => f.Store.ListHeadOrigins(1)));
 
         ForkQueryHeadFile file = Assert.Single(f.Files.Opened);
-        Assert.Equal(seed.HeadId.LocalId, file.LocalId);
+        Assert.Equal(seed.HeadId.GetLocalId(f.Identity), file.LocalId);
         Assert.Equal(1, file.DisposeCalls);
         Assert.DoesNotContain("open:18:rw", f.Events);
         Assert.Equal(1, Assert.Single(f.Operations.Enumerators).DisposeCalls);

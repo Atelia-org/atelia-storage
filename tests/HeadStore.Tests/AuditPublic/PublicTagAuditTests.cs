@@ -19,8 +19,8 @@ public sealed class PublicTagAuditTests {
         }
         var before = fixture.CaptureFiles();
         using (var readOnly = fixture.OpenReadOnly()) {
-            Assert.Equal(1u, Assert.Single(readOnly.ReadTag(upper).Unwrap().Entries).Key.LocalId);
-            Assert.Equal(2u, Assert.Single(readOnly.ReadTag(lower).Unwrap().Entries).Key.LocalId);
+            Assert.Equal(1u, Assert.Single(readOnly.ReadTag(upper).Unwrap().Entries).Key.GetLocalId(fixture.Storage.Identity));
+            Assert.Equal(2u, Assert.Single(readOnly.ReadTag(lower).Unwrap().Entries).Key.GetLocalId(fixture.Storage.Identity));
             AuditPublicFixture.AssertCounts(readOnly.Audit().Unwrap(), 2, 2, 0, 1, 2);
         }
         fixture.AssertUnchanged(before);
@@ -39,7 +39,7 @@ public sealed class PublicTagAuditTests {
             List<string> names = [];
             Assert.Equal(HeadSetTagScanEnd.Complete, readOnly.ScanTags(info => { names.Add(info.Name); return true; }).Unwrap());
             Assert.Equal(new[] { "tag-48", "tag-65" }, names);
-            Assert.Equal(2u, Assert.Single(readOnly.ReadTag("tag-65").Unwrap().Entries).Key.LocalId);
+            Assert.Equal(2u, Assert.Single(readOnly.ReadTag("tag-65").Unwrap().Entries).Key.GetLocalId(fixture.Storage.Identity));
             var audited = readOnly.Audit();
             Assert.True(audited.IsFailure);
             Assert.StartsWith("Rbf.", audited.Error!.ErrorCode);
@@ -80,9 +80,9 @@ public sealed class PublicTagAuditTests {
             var delivered = new List<HeadSetTagInfo>();
             Assert.Equal(HeadSetTagScanEnd.Complete, readOnly.ScanTags(info => { delivered.Add(info); return true; }).Unwrap());
             Assert.Equal(3, delivered.Count);
-            Assert.Equal(3u, Assert.Single(readOnly.ReadTag(unique).Unwrap().Entries).Key.LocalId);
+            Assert.Equal(3u, Assert.Single(readOnly.ReadTag(unique).Unwrap().Entries).Key.GetLocalId(fixture.Storage.Identity));
             Assert.True(readOnly.Audit().IsFailure);
-            Assert.Equal(3u, Assert.Single(readOnly.ReadTag(unique).Unwrap().Entries).Key.LocalId);
+            Assert.Equal(3u, Assert.Single(readOnly.ReadTag(unique).Unwrap().Entries).Key.GetLocalId(fixture.Storage.Identity));
         }
         fixture.AssertUnchanged(before);
     }
@@ -95,10 +95,10 @@ public sealed class PublicTagAuditTests {
         fixture.Storage.WriteMirror("tag-48", new("tag-48", fixture.TagMembers(1)), new("tag-65", fixture.TagMembers(2), corruptMetadata));
         var before = fixture.CaptureFiles();
         using (var readOnly = fixture.OpenReadOnly()) {
-            Assert.Equal(1u, Assert.Single(readOnly.ReadTag("tag-48").Unwrap().Entries).Key.LocalId);
+            Assert.Equal(1u, Assert.Single(readOnly.ReadTag("tag-48").Unwrap().Entries).Key.GetLocalId(fixture.Storage.Identity));
             Assert.Equal("tag-48", readOnly.ReadTagInfo("tag-48").Unwrap().Name);
             Assert.True(readOnly.Audit().IsFailure);
-            Assert.Equal(1u, Assert.Single(readOnly.ReadTag("tag-48").Unwrap().Entries).Key.LocalId);
+            Assert.Equal(1u, Assert.Single(readOnly.ReadTag("tag-48").Unwrap().Entries).Key.GetLocalId(fixture.Storage.Identity));
         }
         fixture.AssertUnchanged(before);
     }
@@ -122,9 +122,9 @@ public sealed class PublicTagAuditTests {
         if (defect == "tombstone") { AuditPublicFixture.MakeTombstone(fixture.Storage.BucketPath("tag-48"), tickets[1]); }
         var before = fixture.CaptureFiles();
         using (var readOnly = fixture.OpenReadOnly()) {
-            Assert.Equal(1u, Assert.Single(readOnly.ReadTag("tag-48").Unwrap().Entries).Key.LocalId);
+            Assert.Equal(1u, Assert.Single(readOnly.ReadTag("tag-48").Unwrap().Entries).Key.GetLocalId(fixture.Storage.Identity));
             Assert.True(readOnly.Audit().IsFailure);
-            Assert.Equal(1u, Assert.Single(readOnly.ReadTag("tag-48").Unwrap().Entries).Key.LocalId);
+            Assert.Equal(1u, Assert.Single(readOnly.ReadTag("tag-48").Unwrap().Entries).Key.GetLocalId(fixture.Storage.Identity));
         }
         fixture.AssertUnchanged(before);
     }
@@ -138,9 +138,9 @@ public sealed class PublicTagAuditTests {
         fixture.Storage.WriteMirrorHeader("Release", badHeader, new TagPublicRecord("Release", fixture.TagMembers(2)));
         var before = fixture.CaptureFiles();
         using (var readOnly = fixture.OpenReadOnly()) {
-            Assert.Equal(1u, Assert.Single(readOnly.ReadTag("A").Unwrap().Entries).Key.LocalId);
+            Assert.Equal(1u, Assert.Single(readOnly.ReadTag("A").Unwrap().Entries).Key.GetLocalId(fixture.Storage.Identity));
             Assert.True(readOnly.Audit().IsFailure);
-            Assert.Equal(1u, Assert.Single(readOnly.ReadTag("A").Unwrap().Entries).Key.LocalId);
+            Assert.Equal(1u, Assert.Single(readOnly.ReadTag("A").Unwrap().Entries).Key.GetLocalId(fixture.Storage.Identity));
         }
         fixture.AssertUnchanged(before);
     }

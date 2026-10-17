@@ -123,8 +123,8 @@ public sealed class PublicHistoryTests {
         using var fixture = new HistoryFixture();
         using var other = new HistoryFixture();
         using var store = fixture.Open();
-        Assert.Equal("HeadStore.ArgumentError", store.ReadHeadHistory(default, HistoryFixture.Unlimited, _ => true).Error!.ErrorCode);
-        Assert.Equal("HeadStore.ArgumentError", store.ReadHeadHistory(other.Id(7), HistoryFixture.Unlimited, _ => true).Error!.ErrorCode);
+        Assert.Equal("HeadStore.HeadNotFound", store.ReadHeadHistory(default, HistoryFixture.Unlimited, _ => true).Error!.ErrorCode);
+        Assert.Equal("HeadStore.HeadNotFound", store.ReadHeadHistory(HeadIdTestExtensions.ForeignHeadId(fixture.Identity, 7), HistoryFixture.Unlimited, _ => true).Error!.ErrorCode);
         Assert.Equal("HeadStore.ArgumentError", store.ReadHeadHistory(fixture.Id(7), HistoryFixture.Unlimited, null!).Error!.ErrorCode);
         var initial = store.CreateHead(7, [1], out var outcome).Unwrap();
         Assert.Equal(PublicationOutcome.Confirmed, outcome);

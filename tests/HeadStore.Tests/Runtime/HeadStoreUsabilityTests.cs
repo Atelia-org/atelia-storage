@@ -69,7 +69,7 @@ public sealed class HeadStoreUsabilityTests {
         Assert.Single(fixture.Store.ListHeads().Unwrap());
         Assert.Equal(saved.Id, fixture.Store.ReadEntry(saved.Id).Unwrap().Id);
         Assert.Equal(saved.Id, fixture.Store.ReadHead(id).Unwrap().Id);
-        Assert.Equal("HeadStore.ArgumentError", fixture.Store.ReadEntry(default).Error!.ErrorCode);
+        Assert.Equal("HeadStore.HeadNotFound", fixture.Store.ReadEntry(default).Error!.ErrorCode);
         fixture.Store.Dispose();
         fixture.Store.Dispose();
         Assert.Equal(1, fixture.Files.Opened[1].DisposeCalls);
@@ -108,12 +108,16 @@ public sealed class HeadStoreUsabilityTests {
         var fault = Assert.Throws<InvalidOperationException>(fixture.Store.EnsureUsable);
         Assert.Contains("HeadStore is faulted", fault.Message);
         Assert.Throws<InvalidOperationException>(() => fixture.Store.ReadEntry(default));
+        Assert.Throws<InvalidOperationException>(() => fixture.Store.GetLocalHeadId(id));
+        Assert.Throws<InvalidOperationException>(() => fixture.Store.GetLocalHeadId(default));
         Assert.Empty(fixture.Operations);
         fixture.Store.Dispose();
         fixture.Operations.Clear();
         var closed = Assert.Throws<ObjectDisposedException>(fixture.Store.EnsureUsable);
         Assert.Equal(typeof(HeadStore).FullName, closed.ObjectName);
         Assert.Throws<ObjectDisposedException>(() => fixture.Store.ReadEntry(default));
+        Assert.Throws<ObjectDisposedException>(() => fixture.Store.GetLocalHeadId(id));
+        Assert.Throws<ObjectDisposedException>(() => fixture.Store.GetLocalHeadId(default));
         Assert.Empty(fixture.Operations);
     }
 

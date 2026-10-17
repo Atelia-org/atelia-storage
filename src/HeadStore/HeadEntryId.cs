@@ -2,8 +2,8 @@ using Atelia.Data;
 
 namespace Atelia.HeadStore;
 
-/// <summary>已接受Entry的自有位置值，保存完整 head 身份与完整 SizedPtr ticket。</summary>
-/// <remarks>值操作独立于 owner 生命周期；值本身不证明当前内容健康或旧调用的发布证据。</remarks>
+/// <summary>已接受Entry的自有位置值，保存紧凑 head 定位值与完整 SizedPtr ticket。</summary>
+/// <remarks>值操作独立于 owner 生命周期；值本身不证明当前内容健康或旧调用的发布证据。跨库定位误用仅概率检出。</remarks>
 public readonly struct HeadEntryId : IEquatable<HeadEntryId> {
     private readonly HeadId _headId;
     private readonly SizedPtr _ticket;
@@ -25,7 +25,7 @@ public readonly struct HeadEntryId : IEquatable<HeadEntryId> {
         return new HeadEntryId(headId, ticket);
     }
 
-    /// <summary>比较完整 head 身份和 ticket 的全部 Packed bits，包含长度。</summary>
+    /// <summary>比较 head 编码值和 ticket 的全部 Packed bits，包含长度。</summary>
     public bool Equals(HeadEntryId other) {
         return _headId == other._headId && _ticket.Packed == other._ticket.Packed;
     }
@@ -40,12 +40,12 @@ public readonly struct HeadEntryId : IEquatable<HeadEntryId> {
         return HashCode.Combine(_headId, _ticket.Packed);
     }
 
-    /// <summary>比较完整Entry位置值。</summary>
+    /// <summary>比较紧凑 Head 编码与完整 ticket。</summary>
     public static bool operator ==(HeadEntryId left, HeadEntryId right) {
         return left.Equals(right);
     }
 
-    /// <summary>比较完整Entry位置值。</summary>
+    /// <summary>比较紧凑 Head 编码与完整 ticket。</summary>
     public static bool operator !=(HeadEntryId left, HeadEntryId right) {
         return !left.Equals(right);
     }

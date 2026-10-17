@@ -11,7 +11,7 @@ public sealed class DirectoryHeadStoreFilesTests {
     [Theory]
     [InlineData(0u)]
     [InlineData(256u)]
-    [InlineData(uint.MaxValue - 1)]
+    [InlineData(HeadStore.MaxLocalHeadId - 1)]
     public void CreateHasOnlyGateLockAndEmptyNecessaryLayout(uint reservedUpperBound) {
         using var fixture = new StorageFixture();
         byte[] id = fixture.Create(reservedUpperBound);
@@ -45,7 +45,7 @@ public sealed class DirectoryHeadStoreFilesTests {
     [Fact]
     public void InvalidReservedBoundAndMissingParentDoNotCreateAncestors() {
         using var fixture = new StorageFixture();
-        Assert.Throws<ArgumentOutOfRangeException>(() => HeadStore.Create(fixture.Root, fixture.Data, uint.MaxValue));
+        Assert.Throws<ArgumentOutOfRangeException>(() => HeadStore.Create(fixture.Root, fixture.Data, HeadStore.MaxLocalHeadId));
         Assert.False(Directory.Exists(fixture.Root));
         string parent = Path.Combine(fixture.BasePath, "missing-parent");
         Assert.ThrowsAny<IOException>(() => HeadStore.Create(Path.Combine(parent, "version"), fixture.Data));
@@ -103,7 +103,7 @@ public sealed class DirectoryHeadStoreFilesTests {
         foreach (int offset in new[] { 0, 4, 20, 36 }) {
             byte[] bad = valid.ToArray();
             if (offset == 0) { BinaryPrimitives.WriteUInt32LittleEndian(bad, 1); }
-            else if (offset == 36) { BinaryPrimitives.WriteUInt32LittleEndian(bad.AsSpan(offset), uint.MaxValue); }
+            else if (offset == 36) { BinaryPrimitives.WriteUInt32LittleEndian(bad.AsSpan(offset), HeadStore.MaxLocalHeadId); }
             else { bad.AsSpan(offset, 16).Clear(); }
             RollingCrc.SealCodewordForward(bad);
             invalid.Add(bad);
@@ -173,13 +173,13 @@ public sealed class DirectoryHeadStoreFilesTests {
     public void ListIsPathOnlyOwnedAndIncludesBothNumberDomainsAndDamagedFiles() {
         using var fixture = new StorageFixture();
         fixture.Create(256);
-        foreach (uint id in new[] { 1u, 256u, 257u, 0x89abcdefu, uint.MaxValue }) {
+        foreach (uint id in new[] { 1u, 256u, 257u, 0x00abcdefu, HeadStore.MaxLocalHeadId }) {
             File.WriteAllBytes(fixture.HeadPath(id), [0]);
         }
         IReadOnlyList<HeadId> listed;
         using (var owner = HeadStore.OpenReadOnly(fixture.Root, fixture.Data)) {
             listed = owner.ListHeads().Unwrap();
-            Assert.Equal(new[] { 1u, 256u, 257u, 0x89abcdefu, uint.MaxValue }, listed.Select(x => x.LocalId).Order());
+            Assert.Equal(new[] { 1u, 256u, 257u, 0x00abcdefu, HeadStore.MaxLocalHeadId }, listed.Select(x => owner.GetLocalHeadId(x).Unwrap()).Order());
             Assert.Throws<InvalidDataException>(() => owner.ReadHead(listed[0]));
         }
         Assert.Equal(5, listed.Count);

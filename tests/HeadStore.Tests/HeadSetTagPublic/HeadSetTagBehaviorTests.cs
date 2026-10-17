@@ -41,7 +41,7 @@ public sealed class HeadSetTagBehaviorTests {
         using (var data = DataStore.Open(f.DataRoot))
         using (var writer = HeadStore.Open(f.Root, data)) {
             HeadSetTag cold = writer.ReadTag("selected").Unwrap();
-            Assert.Equal(saved.Entries.OrderBy(p => p.Key.LocalId), cold.Entries.OrderBy(p => p.Key.LocalId));
+            Assert.Equal(saved.Entries.OrderBy(p => p.Key.GetLocalId(f.Identity)), cold.Entries.OrderBy(p => p.Key.GetLocalId(f.Identity)));
             Assert.Equal(new byte[] { 0xa1 }, writer.ReadEntry(cold.Entries[a.HeadId]).Unwrap().Payload.ToArray());
             Assert.Equal(new byte[] { 0xb1 }, writer.ReadEntry(cold.Entries[b.HeadId]).Unwrap().Payload.ToArray());
             Assert.Equal(a, cold.Entries[child]);
@@ -70,7 +70,7 @@ public sealed class HeadSetTagBehaviorTests {
             sibling = writer.ForkHead(3, source, out _).Unwrap();
             grandchild = writer.ForkHead(4, writer.ReadHead(child).Unwrap().Id, out _).Unwrap();
             var tag = writer.CreateTag("shared-source", [grandchild, sibling, child, source.HeadId], out _).Unwrap();
-            Assert.Equal(new[] { source.HeadId, child, sibling, grandchild }, tag.Entries.Keys.OrderBy(id => id.LocalId));
+            Assert.Equal(new[] { source.HeadId, child, sibling, grandchild }, tag.Entries.Keys.OrderBy(id => id.GetLocalId(f.Identity)));
             Assert.All(tag.Entries, pair => Assert.Equal(source, pair.Value));
             writer.PublishHead(source.HeadId, [0xa2], out _).Unwrap();
             writer.PublishHead(child, [0xc1], out _).Unwrap();
@@ -92,13 +92,12 @@ public sealed class HeadSetTagBehaviorTests {
     [InlineData("missing")]
     public void InvalidSelectionCannotPublishAPartialNamedTable(string defect) {
         using var f = new ConditionalUpdateFaultFixture();
-        using var other = new ConditionalUpdateFaultFixture();
         using var store = f.OpenPublic();
         HeadId[] selection = defect switch {
             "empty" => [],
             "default" => [f.Id(1), default],
             "duplicate" => [f.Id(1), f.Id(1)],
-            "foreign" => [f.Id(1), other.Id(1)],
+            "foreign" => [f.Id(1), HeadIdTestExtensions.ForeignHeadId(f.Identity)],
             _ => [f.Id(1), HeadId.Create(f.Identity, 99)]
         };
         var result = store.CreateTag("rejected", selection, out var outcome);
@@ -222,6 +221,8 @@ public sealed class HeadSetTagBehaviorTests {
     [InlineData(true, 1u)]
     [InlineData(false, 2u)]
     [InlineData(true, 2u)]
+    [InlineData(false, 3u)]
+    [InlineData(true, 3u)]
     public void OldGateIsRejectedEvenWhenItHasNoTagsOrHeads(bool populated, uint version) {
         using var f = new PublicHeadStoreFixture();
         using (var writer = HeadStore.Create(f.Root, f.Data, 256)) {
@@ -242,7 +243,9 @@ public sealed class HeadSetTagBehaviorTests {
     [InlineData(true, 1u)]
     [InlineData(false, 2u)]
     [InlineData(true, 2u)]
-    public void VersionThreeGateDoesNotSilentlyAcceptAnOldHeadOrBucketHeader(bool bucket, uint version) {
+    [InlineData(false, 3u)]
+    [InlineData(true, 3u)]
+    public void VersionFourGateDoesNotSilentlyAcceptAnOldHeadOrBucketHeader(bool bucket, uint version) {
         using var f = new ConditionalUpdateFaultFixture();
         string path;
         byte[] header = new byte[24];
@@ -279,12 +282,12 @@ public sealed class HeadSetTagBehaviorTests {
         Directory.CreateDirectory(Path.Combine(f.Root, "tags"));
         string path = Path.Combine(f.Root, "tags", $"{bucket:x8}.rbf");
         byte[] header = new byte[24];
-        BinaryPrimitives.WriteUInt32LittleEndian(header, 3);
+        BinaryPrimitives.WriteUInt32LittleEndian(header, 4);
         f.Identity.TryWrite(header.AsSpan(4, 16));
         BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(20), bucket);
         using IRbfFile file = RbfFile.CreateNew(path, RbfCacheMode.Off);
         file.Append(0, header).Unwrap();
-        file.Append(1, TagTestWire.Members((selected ?? member.HeadId).LocalId, member.Ticket, member.HeadId.LocalId), TagTestWire.Metadata(name)).Unwrap();
+        file.Append(1, TagTestWire.Members((selected ?? member.HeadId).GetLocalId(f.Identity), member.Ticket, member.HeadId.GetLocalId(f.Identity)), TagTestWire.Metadata(name)).Unwrap();
         file.DurableFlush();
     }
 }

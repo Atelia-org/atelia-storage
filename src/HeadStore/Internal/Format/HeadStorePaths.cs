@@ -13,7 +13,7 @@ internal static class HeadStorePaths {
     internal const string PendingFileName = "pending.rbf";
 
     internal static string GetHeadFileName(uint localHeadId) {
-        ArgumentOutOfRangeException.ThrowIfZero(localHeadId);
+        if (localHeadId is 0 or > HeadStore.MaxLocalHeadId) { throw new ArgumentOutOfRangeException(nameof(localHeadId)); }
         return localHeadId.ToString("x8", CultureInfo.InvariantCulture) + ".rbf";
     }
 
@@ -23,7 +23,7 @@ internal static class HeadStorePaths {
 
     internal static bool TryParseHeadFileName(ReadOnlySpan<char> name, out uint localHeadId) {
         localHeadId = 0;
-        if (!TryParseHexFileName(name, out uint value) || value == 0) { return false; }
+        if (!TryParseHexFileName(name, out uint value) || value is 0 or > HeadStore.MaxLocalHeadId) { return false; }
         localHeadId = value;
         return true;
     }

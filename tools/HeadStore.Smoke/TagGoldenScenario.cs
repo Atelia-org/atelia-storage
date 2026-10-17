@@ -52,7 +52,7 @@ internal static class TagGoldenScenario {
                 HeadSetTagInfo info = heads.ReadTagInfo(golden.Name).Unwrap();
                 Require(StringComparer.Ordinal.Equals(golden.Name, info.Name), "Writer changed the original name code units.");
                 entries.Add(new Entry(golden.Label, CodeUnits(info.Name), info.RecordedAtUnixMs,
-                    info.EntryCount, selected.HeadId.LocalId, selected.Ticket.Packed));
+                    info.EntryCount, heads.GetLocalHeadId(selected.HeadId).Unwrap(), selected.Ticket.Packed));
             }
             // Each tag keeps its selected Entry, even when the same Head advances.
             _ = heads.PublishHead(source.HeadId, [0x42, 0x11], out outcome).Unwrap();
@@ -86,7 +86,7 @@ internal static class TagGoldenScenario {
 
     private static void ValidatePublic(Heads heads, Manifest manifest) {
         Require(manifest.Entries.Length == Goldens.Length, "The fixture must contain all fixed vectors.");
-        Require(heads.ListHeads().Unwrap().Select(id => id.LocalId).SequenceEqual(new uint[] { 1 }),
+        Require(heads.ListHeads().Unwrap().Select(id => heads.GetLocalHeadId(id).Unwrap()).SequenceEqual(new uint[] { 1 }),
             "Creating tags changed the formal ref set.");
         HeadEntry currentSource = heads.ReadHead(1).Unwrap();
         Require(currentSource.Id.Ticket.Packed != manifest.SourceTicket
@@ -135,7 +135,7 @@ internal static class TagGoldenScenario {
         Require(tag.Name == name && tag.RecordedAtUnixMs == expected.RecordedAtUnixMs && tag.Entries.Count == 1,
             "The complete tag differs from its metadata.");
         var member = tag.Entries.Single();
-        Require(member.Key == member.Value.HeadId && member.Key.LocalId == expected.LocalHeadId
+        Require(member.Key == member.Value.HeadId && heads.GetLocalHeadId(member.Key).Unwrap() == expected.LocalHeadId
             && member.Value.Ticket.Packed == expected.Ticket, "The exact tag member changed.");
         Require(heads.ReadEntry(member.Value).Unwrap().Payload.SequenceEqual(Payload(index)), "The tagged historical Entry changed bytes.");
     }
@@ -157,7 +157,7 @@ internal static class TagGoldenScenario {
             using (var header = file.ReadPooledFrame(scan.Current.Ticket).Unwrap()) {
                 ReadOnlySpan<byte> bytes = header.PayloadAndMeta;
                 Require(header.Tag == 0 && !header.IsTombstone && header.TailMetaLength == 0 && bytes.Length == 24
-                    && BinaryPrimitives.ReadUInt32LittleEndian(bytes) == 3
+                    && BinaryPrimitives.ReadUInt32LittleEndian(bytes) == 4
                     && bytes.Slice(4, 16).SequenceEqual(Convert.FromBase64String(manifest.HeadStoreId))
                     && BinaryPrimitives.ReadUInt32LittleEndian(bytes[20..]) == bucket, "Bucket header identity/format/id differs from its fixed golden path.");
             }

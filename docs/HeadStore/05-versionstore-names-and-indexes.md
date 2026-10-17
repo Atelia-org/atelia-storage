@@ -1,6 +1,6 @@
 # S5：Head 历史、fork 与 tag 施工导航
 
-引用初始化 fork 更新：2026-10-17 当前合同采用格式3，拒绝格式1/2；fork 只发布来源 header，HeadSetTag 成员为16B独立 key/value 映射。本轮实际源码、进程与包资格见[既有验收入口中的新增轮次](12-versionstore-final-acceptance.md)，未完成验证不沿用旧 Accepted。既有 Clause-ID 与历史证据保持。
+紧凑 Handle 更新：2026-10-17 当前合同采用格式4，拒绝格式1/2/3；fork 只发布来源 header，HeadSetTag 成员为16B独立 key/value 映射。本轮实际源码、进程与包资格见[既有验收入口中的新增轮次](12-versionstore-final-acceptance.md)，未完成验证不沿用旧 Accepted。既有 Clause-ID 与历史证据保持。
 
 既有轮次状态：**既有历史/fork/tag 等范围的独立 source-only 源码资格 Accepted；CU 已正式接纳并取得CU首轮独立源码验收 Accepted**。历史 visitor/预算/清理、精确 ForkHead、ListHeadOrigins 及09的 tag 公开闭环的既有资格见[最终源码验收](12-versionstore-final-acceptance.md)。CU 来源、历史判据与预算增量见[07 验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。公开进程、受控故障、文件镜像与包消费分别记录，旧六包候选不含 CU；后续见[实施计划](12-versionstore-implementation-plan.md)。
 本文负责历史、fork 与声明图查询；Head 格式/身份/编号及发布协议消费 [S4](04-versionstore-publication.md)，记录时间见 [08 专项](08-versionstore-record-metadata.md)，bytes 结果见 [11 专项](11-versionstore-root-payload-bytes-api.md)。不可变 tag 由 [09 专项](09-versionstore-immutable-tags.md)定义，安排在 Head、历史与 fork 之后施工。
@@ -147,7 +147,7 @@ HeadSetTag固定所选Heads的当前EntryId，创建只接受HeadId slice；不�
 
 ## 应用映射与固定槽位
 
-固定角色由应用常量/枚举选择预留号，动态 Head 由应用保存 LocalId，在正确库上下文ReadHead(local)取得checked当前Entry；更新/创建tag前用ListHeads按LocalId取得selected HeadId，不能用来源Entry.Id.HeadId代替；合同见 S4 `[A-VS-LOCAL-REF-LOOKUP]`。无独立 branch binding、全局应用名称查重或 name→Head 索引。
+固定角色由应用常量/枚举选择预留号，动态 Head 由应用保存 LocalId，在正确库上下文ReadHead(local)取得checked当前Entry；更新/创建tag前用ListHeads按GetLocalHeadId返回值取得selected HeadId，不能用来源Entry.Id.HeadId代替；合同见 S4 `[A-VS-LOCAL-REF-LOOKUP]`。无独立 branch binding、全局应用名称查重或 name→Head 索引。
 
 摘要/缩略图/人物区域等元数据可作为 data 帧，与业务根一起放入同一 Head 的 NamedFrameMap 整体发布。独立目录 Head 登记动态对象若顺序调用单 Head 发布，创建后登记前中断仍可能留下未登记 Head；ListHeads 可发现实际集合，应用自行核对业务身份。07 CU 只可共同更新多个既有 Head，不把新 Head 创建与目录登记并为一批。
 

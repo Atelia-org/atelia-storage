@@ -6,15 +6,15 @@ namespace Atelia.HeadStore.Tests.Format;
 public class HeadIdCodecTests {
     [Theory]
     [InlineData(1u, "01000000")]
-    [InlineData(0x80000000u, "00000080")]
-    [InlineData(0x89ABCDEFu, "EFCDAB89")]
-    [InlineData(uint.MaxValue, "FFFFFFFF")]
+    [InlineData(0x00800000u, "00008000")]
+    [InlineData(0x00ABCDEFu, "EFCDAB00")]
+    [InlineData(HeadStore.MaxLocalHeadId, "FFFFFF00")]
     public void LocalField_IndependentLittleEndianGoldens(uint localId, string hex) {
         StoreIdentity identity = FormatTestValues.Identity();
         byte[] golden = Convert.FromHexString(hex);
         Assert.True(HeadIdCodec.TryRead(golden, identity, out HeadId headId));
-        Assert.Equal(localId, headId.LocalId);
-        Assert.True(headId.BelongsTo(identity));
+        Assert.Equal(localId, headId.GetLocalId(identity));
+        Assert.True(headId.TryGetLocalId(identity, out _));
         byte[] destination = Enumerable.Repeat((byte)0xA5, 7).ToArray();
         Assert.True(HeadIdCodec.TryWrite(headId, identity, destination));
         Assert.Equal(golden, destination[..4]);
@@ -37,8 +37,18 @@ public class HeadIdCodecTests {
     public void LocalField_RejectsZeroAndMissingContext() {
         Assert.False(HeadIdCodec.TryRead(new byte[4], FormatTestValues.Identity(), out HeadId zero));
         Assert.Equal(default, zero);
-        Assert.False(HeadIdCodec.TryRead(Convert.FromHexString("EFCDAB89"), default, out HeadId contextless));
+        Assert.False(HeadIdCodec.TryRead(Convert.FromHexString("EFCDAB00"), default, out HeadId contextless));
         Assert.Equal(default, contextless);
+    }
+
+    [Theory]
+    [InlineData(HeadStore.MaxLocalHeadId + 1)]
+    [InlineData(uint.MaxValue)]
+    public void LocalField_RejectsOutOfRangeRawNumbers(uint localId) {
+        byte[] wire = new byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(wire, localId);
+        Assert.False(HeadIdCodec.TryRead(wire, FormatTestValues.Identity(), out HeadId value));
+        Assert.Equal(default, value);
     }
 
     [Fact]

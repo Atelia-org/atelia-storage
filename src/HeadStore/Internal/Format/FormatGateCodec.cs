@@ -8,7 +8,7 @@ internal readonly record struct FormatGate(
 
 /// <summary>44B 普通格式门记录；不执行 I/O，也不证明实际根或 borrowed data 绑定资格。</summary>
 internal static class FormatGateCodec {
-    internal const uint CurrentVersion = 3;
+    internal const uint CurrentVersion = 4;
     internal const int EncodedSize = 44;
 
     internal static bool TryRead(ReadOnlySpan<byte> source, out FormatGate gate) {
@@ -21,14 +21,14 @@ internal static class FormatGateCodec {
         }
 
         uint upperBound = BinaryPrimitives.ReadUInt32LittleEndian(source[36..]);
-        if (upperBound == uint.MaxValue) { return false; }
+        if (upperBound >= HeadStore.MaxLocalHeadId) { return false; }
         gate = new FormatGate(headStoreId, dataStoreId, upperBound);
         return true;
     }
 
     internal static bool TryWrite(FormatGate gate, Span<byte> destination) {
         if (gate.HeadStoreId == default || gate.DataStoreId == default ||
-            gate.ReservedHeadIdUpperBound == uint.MaxValue || destination.Length < EncodedSize) {
+            gate.ReservedHeadIdUpperBound >= HeadStore.MaxLocalHeadId || destination.Length < EncodedSize) {
             return false;
         }
 

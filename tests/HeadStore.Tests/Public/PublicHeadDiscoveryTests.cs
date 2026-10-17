@@ -12,12 +12,12 @@ public sealed class PublicHeadDiscoveryTests {
         File.WriteAllBytes(fixture.PendingPath, [0xff, 0x00]);
         using (var writer = Store.Open(fixture.Root, fixture.Data)) {
             Assert.False(File.Exists(fixture.PendingPath));
-            Assert.Equal(new uint[] { 7, 300 }, writer.ListHeads().Unwrap().Select(id => id.LocalId).Order());
-            Assert.Equal(20u, writer.CreateHead(20, [2], out var outcome).Unwrap().HeadId.LocalId);
+            Assert.Equal(new uint[] { 7, 300 }, writer.ListHeads().Unwrap().Select(id => id.GetLocalId(fixture.Identity)).Order());
+            Assert.Equal(20u, writer.CreateHead(20, [2], out var outcome).Unwrap().HeadId.GetLocalId(fixture.Identity));
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            Assert.Equal(301u, writer.CreateHead([3], out outcome).Unwrap().HeadId.LocalId);
+            Assert.Equal(301u, writer.CreateHead([3], out outcome).Unwrap().HeadId.GetLocalId(fixture.Identity));
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            Assert.Equal(new uint[] { 7, 20, 300, 301 }, writer.ListHeads().Unwrap().Select(id => id.LocalId).Order());
+            Assert.Equal(new uint[] { 7, 20, 300, 301 }, writer.ListHeads().Unwrap().Select(id => id.GetLocalId(fixture.Identity)).Order());
         }
         Assert.Equal(new byte[] { 0xff }, File.ReadAllBytes(fixture.HeadPath(300)));
         using (var readOnly = Store.OpenReadOnly(fixture.Root, fixture.Data)) {
@@ -25,7 +25,7 @@ public sealed class PublicHeadDiscoveryTests {
             Assert.Equal(new byte[] { 0xff }, readOnly.ReadHead(7u).Unwrap().Payload.ToArray());
         }
         using var cold = Store.Open(fixture.Root, fixture.Data);
-        Assert.Equal(302u, cold.CreateHead([4], out _).Unwrap().HeadId.LocalId);
+        Assert.Equal(302u, cold.CreateHead([4], out _).Unwrap().HeadId.GetLocalId(fixture.Identity));
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public sealed class PublicHeadDiscoveryTests {
         using (var writer = Store.Open(fixture.Root, fixture.Data)) {
             Assert.False(File.Exists(fixture.PendingPath));
             Assert.Equal(new[] { healthy }, writer.ListHeads().Unwrap());
-            Assert.Equal(257u, writer.CreateHead([0xfe], out var outcome).Unwrap().HeadId.LocalId);
+            Assert.Equal(257u, writer.CreateHead([0xfe], out var outcome).Unwrap().HeadId.GetLocalId(fixture.Identity));
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
         }
         Assert.Equal(before[Path.Combine("refs", "00000007.rbf")], File.ReadAllBytes(fixture.HeadPath(7)));
@@ -92,14 +92,14 @@ public sealed class PublicHeadDiscoveryTests {
         using var fixture = new PublicHeadStoreFixture();
         using (var store = Store.Create(fixture.Root, fixture.Data, 256)) {
             Assert.Empty(store.ListHeads().Unwrap());
-            Assert.Equal(7u, store.CreateHead(7, [7], out _).Unwrap().HeadId.LocalId);
-            Assert.Equal(257u, store.CreateHead([1], out _).Unwrap().HeadId.LocalId);
-            Assert.Equal(20u, store.CreateHead(20, [2], out _).Unwrap().HeadId.LocalId);
-            Assert.Equal(258u, store.CreateHead([3], out _).Unwrap().HeadId.LocalId);
-            Assert.Equal(new uint[] { 7, 20, 257, 258 }, store.ListHeads().Unwrap().Select(id => id.LocalId).Order());
+            Assert.Equal(7u, store.CreateHead(7, [7], out _).Unwrap().HeadId.GetLocalId(fixture.Identity));
+            Assert.Equal(257u, store.CreateHead([1], out _).Unwrap().HeadId.GetLocalId(fixture.Identity));
+            Assert.Equal(20u, store.CreateHead(20, [2], out _).Unwrap().HeadId.GetLocalId(fixture.Identity));
+            Assert.Equal(258u, store.CreateHead([3], out _).Unwrap().HeadId.GetLocalId(fixture.Identity));
+            Assert.Equal(new uint[] { 7, 20, 257, 258 }, store.ListHeads().Unwrap().Select(id => id.GetLocalId(fixture.Identity)).Order());
         }
         using var cold = Store.Open(fixture.Root, fixture.Data);
-        Assert.Equal(259u, cold.CreateHead([4], out _).Unwrap().HeadId.LocalId);
+        Assert.Equal(259u, cold.CreateHead([4], out _).Unwrap().HeadId.GetLocalId(fixture.Identity));
     }
 
     [Fact]
@@ -112,28 +112,28 @@ public sealed class PublicHeadDiscoveryTests {
         Assert.True(store.CreateHead(0, [1], out outcome).IsFailure);
         Assert.Equal(PublicationOutcome.NotAttempted, outcome);
         Assert.Empty(store.ListHeads().Unwrap());
-        Assert.Equal(1u, store.CreateHead([1], out outcome).Unwrap().HeadId.LocalId);
+        Assert.Equal(1u, store.CreateHead([1], out outcome).Unwrap().HeadId.GetLocalId(fixture.Identity));
         Assert.Equal(PublicationOutcome.Confirmed, outcome);
     }
 
     [Fact]
     public void LastAutomaticIdDoesNotWrapAndExhaustionLeavesReservedSlotsUsableAfterColdOpen() {
         using var fixture = new PublicHeadStoreFixture();
-        using (var store = Store.Create(fixture.Root, fixture.Data, uint.MaxValue - 1)) {
-            Assert.Equal(uint.MaxValue, store.CreateHead([0xff], out var outcome).Unwrap().HeadId.LocalId);
+        using (var store = Store.Create(fixture.Root, fixture.Data, HeadStore.MaxLocalHeadId - 1)) {
+            Assert.Equal(HeadStore.MaxLocalHeadId, store.CreateHead([0xff], out var outcome).Unwrap().HeadId.GetLocalId(fixture.Identity));
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
             Assert.Equal("HeadStore.HeadIdExhausted", store.CreateHead([1], out outcome).Error!.ErrorCode);
             Assert.Equal(PublicationOutcome.NotAttempted, outcome);
-            Assert.True(store.CreateHead(uint.MaxValue, [1], out outcome).IsFailure);
+            Assert.True(store.CreateHead(HeadStore.MaxLocalHeadId, [1], out outcome).IsFailure);
             Assert.Equal(PublicationOutcome.NotAttempted, outcome);
-            Assert.Equal(1u, store.CreateHead(1, [2], out outcome).Unwrap().HeadId.LocalId);
+            Assert.Equal(1u, store.CreateHead(1, [2], out outcome).Unwrap().HeadId.GetLocalId(fixture.Identity));
             Assert.Equal(PublicationOutcome.Confirmed, outcome);
-            Assert.Equal(new uint[] { 1, uint.MaxValue }, store.ListHeads().Unwrap().Select(id => id.LocalId).Order());
+            Assert.Equal(new uint[] { 1, HeadStore.MaxLocalHeadId }, store.ListHeads().Unwrap().Select(id => id.GetLocalId(fixture.Identity)).Order());
         }
         using var cold = Store.Open(fixture.Root, fixture.Data);
         Assert.Equal("HeadStore.HeadIdExhausted", cold.CreateHead([3], out var coldOutcome).Error!.ErrorCode);
         Assert.Equal(PublicationOutcome.NotAttempted, coldOutcome);
-        Assert.Equal(2u, cold.CreateHead(2, [4], out coldOutcome).Unwrap().HeadId.LocalId);
+        Assert.Equal(2u, cold.CreateHead(2, [4], out coldOutcome).Unwrap().HeadId.GetLocalId(fixture.Identity));
         Assert.Equal(PublicationOutcome.Confirmed, coldOutcome);
     }
 
@@ -141,12 +141,12 @@ public sealed class PublicHeadDiscoveryTests {
     public void ListHeadsReturnsOwnedReadOnlyUnsignedPathIdentitiesWithoutReadingContents() {
         using var fixture = new PublicHeadStoreFixture();
         using (var empty = Store.Create(fixture.Root, fixture.Data, 256)) { }
-        uint[] numbers = [1, 256, 0x80000000, uint.MaxValue];
+        uint[] numbers = [1, 256, 0x800000, HeadStore.MaxLocalHeadId];
         foreach (uint localId in numbers) { File.WriteAllBytes(fixture.HeadPath(localId), [0xff]); }
         IReadOnlyList<HeadId> result;
         using (var store = Store.Open(fixture.Root, fixture.Data)) {
             result = store.ListHeads().Unwrap();
-            Assert.Equal(numbers, result.Select(id => id.LocalId).Order());
+            Assert.Equal(numbers, result.Select(id => id.GetLocalId(fixture.Identity)).Order());
             if (result is IList<HeadId> collection) {
                 Assert.True(collection.IsReadOnly);
                 Assert.Throws<NotSupportedException>(() => collection.Clear());
@@ -154,9 +154,9 @@ public sealed class PublicHeadDiscoveryTests {
             Assert.Equal("HeadStore.HeadIdExhausted", store.CreateHead([1], out var outcome).Error!.ErrorCode);
             Assert.Equal(PublicationOutcome.NotAttempted, outcome);
         }
-        Assert.Equal(numbers, result.Select(id => id.LocalId).Order());
+        Assert.Equal(numbers, result.Select(id => id.GetLocalId(fixture.Identity)).Order());
         using var readOnly = Store.OpenReadOnly(fixture.Root, fixture.Data);
-        Assert.Equal(result.OrderBy(id => id.LocalId), readOnly.ListHeads().Unwrap().OrderBy(id => id.LocalId));
+        Assert.Equal(result.OrderBy(id => id.GetLocalId(fixture.Identity)), readOnly.ListHeads().Unwrap().OrderBy(id => id.GetLocalId(fixture.Identity)));
     }
 
     [Fact]

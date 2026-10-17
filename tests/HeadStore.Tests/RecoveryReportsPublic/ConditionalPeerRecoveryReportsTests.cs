@@ -26,7 +26,7 @@ public sealed class ConditionalPeerRecoveryReportsTests {
             a = group[initialA.HeadId];
             b = group[initialB.HeadId];
         }
-        TailImage image = RecoveryReportsFixture.Damage(fixture.HeadPath(b.HeadId.LocalId), completeTail);
+        TailImage image = RecoveryReportsFixture.Damage(fixture.HeadPath(b.HeadId.GetLocalId(fixture.Identity)), completeTail);
         var before = fixture.CaptureFiles();
         using (var readOnly = fixture.Open(readOnly: true)) {
             Assert.Throws<InvalidDataException>(() => HeadRecoveryReportsTests.Access(readOnly, a, channel));
@@ -38,7 +38,7 @@ public sealed class ConditionalPeerRecoveryReportsTests {
             var view = writer.RecoveryReports;
             Assert.Empty(view);
             HeadRecoveryReportsTests.Access(writer, a, channel);
-            image.AssertReport(Assert.Single(view), HeadStoreRecoveryFileKind.Head, b.HeadId.LocalId);
+            image.AssertReport(Assert.Single(view), HeadStoreRecoveryFileKind.Head, b.HeadId.GetLocalId(fixture.Identity));
             HeadStoreRecoveryReport saved = view[0];
             RecoveryReportsFixture.AssertReleased(image.Path); // A necessary peer is a temporary, not a cached ref.
             HeadRecoveryReportsTests.Access(writer, a, channel); // The next peer factory returns None.

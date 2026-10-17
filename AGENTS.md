@@ -1,6 +1,8 @@
 # atelia-storage 协作入口
 
-- 当前 HeadStore 采用引用初始化 fork，ForkHead 返回新 HeadId、仅发布准确来源 header，不产生克隆 Entry；统一格式3拒绝1/2，HeadSetTag的16B成员分别保存所选Head与实际Entry owner。现行合同见[04](docs/HeadStore/04-versionstore-publication.md)/[05](docs/HeadStore/05-versionstore-names-and-indexes.md)/[09](docs/HeadStore/09-versionstore-immutable-tags.md)，本轮实际资格见[12新增验收](docs/HeadStore/12-versionstore-final-acceptance.md)及07/16对应新增轮次；未验证范围不得沿用旧Accepted。[重命名记录](docs/HeadStore/15-headstore-renaming-plan.md)、格式2及旧VersionStore源码/进程/包资格均保留当轮来源。
+- 当前 HeadStore 采用引用初始化 fork，ForkHead 返回新 HeadId、仅发布准确来源 header，不产生克隆 Entry；统一格式4拒绝1/2/3，HeadSetTag的16B成员分别保存所选Head与实际Entry owner。现行合同见[04](docs/HeadStore/04-versionstore-publication.md)/[05](docs/HeadStore/05-versionstore-names-and-indexes.md)/[09](docs/HeadStore/09-versionstore-immutable-tags.md)，本轮实际资格见[12新增验收](docs/HeadStore/12-versionstore-final-acceptance.md)及07/16对应新增轮次；未验证范围不得沿用旧Accepted。[重命名记录](docs/HeadStore/15-headstore-renaming-plan.md)、格式2及旧VersionStore源码/进程/包资格均保留当轮来源。
+
+紧凑Handle合同见[04](docs/HeadStore/04-versionstore-publication.md)：HeadId为4B上下文编码，本地编号上限0x00FFFFFF；跨库误用检测允许碰撞，GetLocalHeadId替代HeadId.LocalId。内部字段仍为raw local，完整128bit库身份保留在低频门/header；旧轮次资格不代表格式4已验证。
 
 使用简体中文交流，保留技术标识符原文。先读根 [README](README.md)，新栈任务按模块进入 [FrameStore 文档](docs/FrameStore/README.md)、[HeadStore 文档](docs/HeadStore/README.md) 或 [RBF 规范](docs/Rbf/rbf-interface.md)；跨层边界与交付见[共同入口](docs/FrameStore-HeadStore/README.md)。旧栈任务应切换到 RBF1 维护分支；归档与历史来源见 [RBF1 退役记录](docs/rbf1-retirement.md)。
 

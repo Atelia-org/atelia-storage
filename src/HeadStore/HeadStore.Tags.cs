@@ -33,9 +33,9 @@ public sealed partial class HeadStore {
             if (measured.IsFailure) { return measured.Error!; }
             HeadId[] captured = heads.ToArray();
             foreach (HeadId head in captured) {
-                if (!head.BelongsTo(_identity)) { return InvalidHead(); }
+                if (!head.TryGetLocalId(_identity, out _)) { return InvalidHead(); }
             }
-            Array.Sort(captured, static (left, right) => left.LocalId.CompareTo(right.LocalId));
+            Array.Sort(captured, (left, right) => left.GetLocalId(_identity).CompareTo(right.GetLocalId(_identity)));
             for (int index = 1; index < captured.Length; index++) {
                 if (captured[index - 1] == captured[index]) {
                     return new HeadStoreRuntimeError("ArgumentError", "A tag cannot select the same Head twice.");
@@ -154,13 +154,13 @@ public sealed partial class HeadStore {
         AteliaError? BeforeHeadWork() { EnsureOwnerUsable(); return null; }
         for (int index = 0; index < captured.Length; index++) {
             HeadId head = captured[index];
-            var opened = GetOrOpen(head.LocalId);
+            var opened = GetOrOpen(head.GetLocalId(_identity));
             if (opened.IsFailure) { return opened.Error!; }
             IRbfFile source = opened.Value!;
             var header = HeadRecordReader.CheckHeader(source, _identity, head,
                 BeforeHeadWork, EnsureOwnerUsable);
             if (header.IsFailure) { return header.Error!; }
-            dependencies.Add(head.LocalId);
+            dependencies.Add(head.GetLocalId(_identity));
             var current = ReadPublishedCurrent(source, header.Value, dependencies);
             if (current.IsFailure) { return current.Error!; }
             entries[index] = current.Value!.Id;

@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Text;
+using System.Runtime.CompilerServices;
 using Atelia.Data;
 using Atelia.FrameStore;
 using Atelia.Rbf;
@@ -14,6 +15,7 @@ if (Directory.Exists(directory) || File.Exists(directory)) {
     throw new IOException("HeadStore smoke directory must be fresh.");
 }
 Directory.CreateDirectory(directory);
+VerifyCompactHandles();
 string dataPath = Path.Combine(directory, "data");
 string headsPath = Path.Combine(directory, "heads");
 const string selectedTag = "selected/历史😀";
@@ -47,7 +49,7 @@ using (var data = DataStore.Create(dataPath, rotationThresholdBytes: 128)) {
         Confirmed(outcome);
         opaqueInitial = heads.CreateHead(opaqueInitialBytes, out outcome).Unwrap();
         Confirmed(outcome);
-        Require(opaqueInitial.HeadId.LocalId == 3, "Automatic allocation entered the reserved range.");
+        Require(heads.GetLocalHeadId(opaqueInitial.HeadId).Unwrap() == 3, "Automatic allocation entered the reserved range.");
         selectedEntryId = heads.PublishHead(initial.HeadId, initialRoots.Payload, out outcome).Unwrap();
         Confirmed(outcome);
         Require(selectedEntryId != initial, "Equal bytes must retain distinct publication entryIds.");
@@ -73,7 +75,7 @@ using (var data = DataStore.Create(dataPath, rotationThresholdBytes: 128)) {
         Confirmed(outcome);
         automaticFork = heads.ForkHead(selected.Id, out outcome).Unwrap();
         Confirmed(outcome);
-        Require(reservedFork.LocalId == 2 && automaticFork.LocalId == 4, "Fork allocation changed the reserved/automatic domains.");
+        Require(heads.GetLocalHeadId(reservedFork).Unwrap() == 2 && heads.GetLocalHeadId(automaticFork).Unwrap() == 4, "Fork allocation changed the reserved/automatic domains.");
         Require(heads.ReadHead(initial.HeadId).Unwrap().Id == latest, "Fork changed the source head.");
         VerifyForks(heads, selectedEntryId, initial, reservedFork, automaticFork);
         VerifyForkHistory(heads, reservedFork, selectedEntryId, initial, initialRoots.Payload);
@@ -115,7 +117,7 @@ using (var data = DataStore.OpenReadOnly(dataPath)) {
         Require(data.IsReadOnly && heads.IsReadOnly, "Cold verification must use read-only owners.");
         Require(data.StoreId.SequenceEqual(dataIdentity) && heads.HeadStoreId.SequenceEqual(headsIdentity),
             "Cold reopen changed a persisted identity.");
-        Require(heads.ListHeads().Unwrap().Select(id => id.LocalId).Order().SequenceEqual(new uint[] { 1, 2, 3, 4 }),
+        Require(heads.ListHeads().Unwrap().Select(id => heads.GetLocalHeadId(id).Unwrap()).Order().SequenceEqual(new uint[] { 1, 2, 3, 4 }),
             "Cold discovery changed the formal ref set.");
         HeadEntry current = heads.ReadHead(initial.HeadId).Unwrap();
         Require(current.Id == latest, "Cold ReadHead returned a different current entryId.");
@@ -151,7 +153,7 @@ HeadStoreAudit batchAudit = VerifyBatchPublication(directory);
 VerifyReferenceForks(directory);
 VerifyReservableWriters();
 Console.WriteLine($"HeadStore public package smoke passed: {audit.HeadCount} heads, {audit.EntryCount} entries, {audit.OriginCount} forks, {audit.TagCount} tags, {dataFrames} data frames; named member tables, exact tagged history/fork identities and cold read-only Audit.");
-Console.WriteLine($"HeadStore package increments passed: {batchAudit.HeadCount} isolated heads, {batchAudit.EntryCount} entries; format 3, CU subset/pair tags, single/CU PublishHeads, exact ReadEntry, both-layer cold reopen, EnsureUsable, healthy RecoveryReports and transitive Data borrow/cancel.");
+Console.WriteLine($"HeadStore package increments passed: {batchAudit.HeadCount} isolated heads, {batchAudit.EntryCount} entries; format 4, CU subset/pair tags, single/CU PublishHeads, exact ReadEntry, both-layer cold reopen, EnsureUsable, healthy RecoveryReports and transitive Data borrow/cancel.");
 Console.WriteLine($"Retained smoke files: {directory}");
 
 
@@ -190,7 +192,7 @@ static void VerifyReferenceForks(string directory) {
         Require(heads.ReadHead(child).Unwrap().Id == childPublication && heads.ReadHead(sibling).Unwrap().Id == source
             && heads.ReadHead(emptyGrandchild).Unwrap().Id == source, "Cold reference fork changed after its source advanced.");
         HeadSetTag tag = heads.ReadTag("shared-source").Unwrap();
-        Require(tag.Entries.Keys.OrderBy(id => id.LocalId).SequenceEqual(new[] { source.HeadId, child, sibling, emptyGrandchild }.OrderBy(id => id.LocalId))
+        Require(tag.Entries.Keys.OrderBy(id => heads.GetLocalHeadId(id).Unwrap()).SequenceEqual(new[] { source.HeadId, child, sibling, emptyGrandchild }.OrderBy(id => heads.GetLocalHeadId(id).Unwrap()))
             && tag.Entries.Values.All(id => id == source), "Cold shared-source tag changed keys or exact values.");
         if (readOnly) {
             HeadStoreAudit audit = heads.Audit().Unwrap();
@@ -273,10 +275,6 @@ static HeadStoreAudit VerifyBatchPublication(string directory) {
         Require(retainedReports.Count == 0, "Healthy batch publication unexpectedly recovered a tail.");
     }
     Require(retainedReports.Count == 0, "The saved recovery view became unreadable or changed after Dispose.");
-    VerifyPublicationKind(headsPath, single, 1);
-    VerifyPublicationKind(headsPath, cuA, 2);
-    VerifyPublicationKind(headsPath, cuB, 2);
-    VerifyPublicationKind(headsPath, latestA, 1);
 
     // Both layers are new owners on each reopen; none of these reads use the original cache.
     using (var data = DataStore.Open(dataPath))
@@ -289,6 +287,10 @@ static HeadStoreAudit VerifyBatchPublication(string directory) {
     using (var heads = Heads.OpenReadOnly(headsPath, data)) {
         VerifyBatchReads(heads, expected, latestA, cuB);
         VerifyBatchTags(heads, cuA, cuB, cuABytes, cuBBytes);
+        VerifyPublicationKind(heads, headsPath, single, 1);
+        VerifyPublicationKind(heads, headsPath, cuA, 2);
+        VerifyPublicationKind(heads, headsPath, cuB, 2);
+        VerifyPublicationKind(heads, headsPath, latestA, 1);
         HeadStoreAudit audit = heads.Audit().Unwrap();
         Require(audit.HeadCount == 2 && audit.EntryCount == 6 && audit.OriginCount == 0
             && audit.TagCount == 2 && audit.TagBucketCount is >= 1 and <= 2, "Isolated batch Audit returned unexpected totals.");
@@ -321,18 +323,32 @@ static void VerifyBatchReads(Heads heads, IReadOnlyDictionary<HeadEntryId, byte[
     }
 }
 
-static void VerifyPublicationKind(string headsPath, HeadEntryId entryId, uint expectedTag) {
-    string headPath = Path.Combine(headsPath, "refs", $"{entryId.HeadId.LocalId:x8}.rbf");
+static void VerifyPublicationKind(Heads heads, string headsPath, HeadEntryId entryId, uint expectedTag) {
+    string headPath = Path.Combine(headsPath, "refs", $"{heads.GetLocalHeadId(entryId.HeadId).Unwrap():x8}.rbf");
     using var file = RbfFile.OpenReadOnlyExisting(headPath, RbfCacheMode.Off);
     var scan = file.ScanForward().GetEnumerator();
     Require(scan.MoveNext(), "Package-created Head is missing its header.");
     using (var header = file.ReadPooledFrame(scan.Current.Ticket).Unwrap()) {
-        Require(header.Tag == 0 && BinaryPrimitives.ReadUInt32LittleEndian(header.PayloadAndMeta) == 3,
-            "The public package did not create HeadStore format 3.");
+        Require(header.Tag == 0 && BinaryPrimitives.ReadUInt32LittleEndian(header.PayloadAndMeta) == 4,
+            "The public package did not create HeadStore format 4.");
     }
     using var frame = file.ReadPooledFrame(entryId.Ticket).Unwrap();
     Require(frame.Ticket == entryId.Ticket && frame.Tag == expectedTag && frame.TailMetaLength == 8
         && !frame.IsTombstone, "PublishHeads chose a different physical Entry/CU record kind.");
+}
+
+static void VerifyCompactHandles() {
+    Require(Unsafe.SizeOf<HeadId>() == 4 && Unsafe.SizeOf<HeadEntryId>() == 16,
+        "Compact Handle runtime sizes differ from the public contract.");
+    Require(Heads.MaxLocalHeadId == 0x00FF_FFFF, "HeadStore local-id range changed.");
+    const uint key = 0xA5C3_1987;
+    Require(ZeroPreservingXor32.Apply(0, key) == 0 && ZeroPreservingXor32.Apply(key, key) == key,
+        "The public Data mapping changed its zero-preserving special cases.");
+    foreach (uint value in new uint[] { 1, Heads.MaxLocalHeadId, key, uint.MaxValue }) {
+        uint encoded = ZeroPreservingXor32.Apply(value, key);
+        Require(encoded != 0 && ZeroPreservingXor32.Apply(encoded, key) == value,
+            "The public Data mapping did not round-trip a nonzero value.");
+    }
 }
 
 static void VerifyReservableWriters() {

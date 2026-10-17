@@ -130,7 +130,7 @@ public sealed class TagMetadataReadEvidenceTests {
     public void CaptureReadsAndConfirmsItsCurrentHeadBeforePublishingTheName() {
         using var fixture = new TagPublicationFaultFixture();
         HeadEntryId selected = fixture.Store.ReadHead(fixture.SeedHead()).Unwrap().Id;
-        var source = fixture.Heads.Opened[selected.HeadId.LocalId];
+        var source = fixture.Heads.Opened[selected.HeadId.GetLocalId(fixture.Identity)];
         int beforeFlush = source.FlushCalls;
         int beforeAppend = source.AppendCalls;
         fixture.SeedBucket();
@@ -140,17 +140,16 @@ public sealed class TagMetadataReadEvidenceTests {
         Assert.Equal(selected, tag.Entries[selected.HeadId]);
         Assert.Equal(beforeFlush + 1, source.FlushCalls);
         Assert.Equal(beforeAppend, source.AppendCalls);
-        Assert.Contains($"read:{selected.HeadId.LocalId}", fixture.Events);
-        Assert.Contains($"flush:{selected.HeadId.LocalId}", fixture.Events);
-        Assert.True(fixture.Events.IndexOf("data:confirm") < fixture.Events.IndexOf($"flush:{selected.HeadId.LocalId}"));
+        Assert.Contains($"read:{selected.HeadId.GetLocalId(fixture.Identity)}", fixture.Events);
+        Assert.Contains($"flush:{selected.HeadId.GetLocalId(fixture.Identity)}", fixture.Events);
+        Assert.True(fixture.Events.IndexOf("data:confirm") < fixture.Events.IndexOf($"flush:{selected.HeadId.GetLocalId(fixture.Identity)}"));
         PublicHeadSetTagTests.AssertInfo(fixture.Store.ReadTagInfo(TagPublicationFaultFixture.Name).Unwrap(), TagPublicationFaultFixture.Name, 1);
     }
 
     [Fact]
     public void DefaultForeignAndDuplicateHeadsRejectBeforePathsClockDataOrOutput() {
         using var fixture = new TagPublicationFaultFixture();
-        using var foreignFixture = new TagPublicationFaultFixture();
-        HeadId foreign = foreignFixture.SeedHead();
+        HeadId foreign = HeadIdTestExtensions.ForeignHeadId(fixture.Identity);
         HeadId local = fixture.SeedHead();
         HeadId[][] invalid = [[], [default], [foreign], [local, local]];
         fixture.Events.Clear();

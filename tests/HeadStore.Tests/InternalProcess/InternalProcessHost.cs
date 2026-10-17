@@ -226,7 +226,7 @@ internal static class InternalProcessHost {
             Require(File.Exists(PendingPath(root)) == (privateFile && mode == "ro-before"), "Pending preservation/cancellation differs.");
             uint target = scenario.StartsWith("fork-", StringComparison.Ordinal) ? ForkId : AutomaticId;
             uint[] expectedIds = scenario.EndsWith("-renamed", StringComparison.Ordinal) ? [SourceId, target] : [SourceId];
-            Require(store.ListHeads().Unwrap().Select(id => id.LocalId).Order().SequenceEqual(expectedIds.Order()), "Formal ref membership differs.");
+            Require(store.ListHeads().Unwrap().Select(id => id.GetLocalId(store)).Order().SequenceEqual(expectedIds.Order()), "Formal ref membership differs.");
             var current = store.ReadHead(SourceId).Unwrap();
             Require(current.Payload.SequenceEqual(scenario == "ref-append" ? Appended : Current), "Source/current payload differs.");
             if (scenario == "ref-append") {
@@ -241,7 +241,7 @@ internal static class InternalProcessHost {
                     Require(forks.Count == 1, "Fork declaration missing.");
                     Require(created.Id == OldSource(store), "Fork did not retain the actual source Entry identity and time.");
                     var exact = OldSource(store);
-                    Require(forks[0].ChildHeadId.LocalId == ForkId && forks[0].SourceHeadId == exact.HeadId
+                    Require(forks[0].ChildHeadId.GetLocalId(store) == ForkId && forks[0].SourceHeadId == exact.HeadId
                         && forks[0].SourceEntryTicket == exact.Ticket, "Fork declaration lost the exact old source.");
                 }
                 else { Require(forks.Count == 0, "Ordinary creation gained fork origin."); }
@@ -275,10 +275,10 @@ internal static class InternalProcessHost {
         using (var store = Store.Open(VersionPath(root), data)) {
             PublicationOutcome outcome;
             if (scenario == "create-auto-private") {
-                Require(store.CreateHead(Created, out outcome).Unwrap().HeadId.LocalId == AutomaticId, "Canceled auto creation burned its id.");
+                Require(store.CreateHead(Created, out outcome).Unwrap().HeadId.GetLocalId(store) == AutomaticId, "Canceled auto creation burned its id.");
             }
             else if (scenario == "fork-specified-private") {
-                Require(store.ForkHead(ForkId, OldSource(store), out outcome).Unwrap().LocalId == ForkId, "Canceled fork did not permit fresh creation.");
+                Require(store.ForkHead(ForkId, OldSource(store), out outcome).Unwrap().GetLocalId(store) == ForkId, "Canceled fork did not permit fresh creation.");
             }
             else {
                 Require(scenario is "tag-private" or "tag-empty", "Only private/empty requests can be retried.");
@@ -331,7 +331,7 @@ internal static class InternalProcessHost {
     private static void VerifyConflict(string root) {
         using (var data = DataStore.OpenReadOnly(DataPath(root)))
         using (var store = Store.OpenReadOnly(VersionPath(root), data)) {
-            Require(store.ListHeads().Unwrap().Select(id => id.LocalId).Order().SequenceEqual(new[] { SourceId, AutomaticId }), "Conflict target identity was not discoverable.");
+            Require(store.ListHeads().Unwrap().Select(id => id.GetLocalId(store)).Order().SequenceEqual(new[] { SourceId, AutomaticId }), "Conflict target identity was not discoverable.");
             Require(store.ReadHead(AutomaticId).Unwrap().Payload.SequenceEqual(Conflict), "Conflict target content was replaced.");
             Require(store.ReadHead(SourceId).Unwrap().Payload.SequenceEqual(Current), "Source changed during conflict.");
             Require(File.Exists(PendingPath(root)), "RO consumed conflict pending.");
@@ -346,7 +346,7 @@ internal static class InternalProcessHost {
             Require(!File.Exists(PendingPath(root)), "RW did not cancel the failed private request.");
             Require(store.ReadHead(AutomaticId).Unwrap().Payload.SequenceEqual(Conflict), "RW adopted the failed request over the actual formal target.");
             HeadEntryId fresh = store.CreateHead(Appended, out var outcome).Unwrap();
-            Require(outcome == PublicationOutcome.Confirmed && fresh.HeadId.LocalId == AutomaticId + 1,
+            Require(outcome == PublicationOutcome.Confirmed && fresh.HeadId.GetLocalId(store) == AutomaticId + 1,
                 "RW high watermark did not come from the actual formal set.");
         }
         Require(File.ReadAllBytes(HeadPath(root, AutomaticId)).SequenceEqual(before), "RW changed the conflict target.");
@@ -359,7 +359,7 @@ internal static class InternalProcessHost {
             Require(!File.Exists(PendingPath(root)), "Canceled conflict request reappeared.");
             Require(store.ReadHead(AutomaticId).Unwrap().Payload.SequenceEqual(Conflict), "Conflict target changed after fresh publication.");
             Require(store.ReadHead(AutomaticId + 1).Unwrap().Payload.SequenceEqual(Appended), "Fresh automatic request differs.");
-            Require(store.ListHeads().Unwrap().Select(id => id.LocalId).Order()
+            Require(store.ListHeads().Unwrap().Select(id => id.GetLocalId(store)).Order()
                 .SequenceEqual(new[] { SourceId, AutomaticId, AutomaticId + 1 }), "Recovered formal set differs.");
         }
         Complete("verify-conflict-recovered", new { targetId = AutomaticId, pending = false });

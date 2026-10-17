@@ -54,7 +54,7 @@ public sealed partial class HeadStore {
                     // Capture dependencies from this same accepted record, while its checked
                     // CU table is still leased. Rejected candidates contribute nothing.
                     if (dependencies is not null) {
-                        dependencies.Add(header.HeadId.LocalId);
+                        dependencies.Add(header.HeadId.GetLocalId(_identity));
                         if (frame.Tag == HeadRecordCodec.ConditionalUpdateTag) {
                             ReadOnlySpan<byte> members = frame.PayloadAndMeta[..publication.PayloadLength];
                             int count = ConditionalUpdateCodec.GetMemberCount(members);
@@ -107,7 +107,7 @@ public sealed partial class HeadStore {
                 if (header.Origin is not ForkOrigin origin) {
                     return new HeadRecordError("A root Head must contain its initial SingleEntry.");
                 }
-                var opened = GetOrOpen(origin.SourceHeadId.LocalId);
+                var opened = GetOrOpen(origin.SourceHeadId.GetLocalId(_identity));
                 if (opened.IsFailure) { return opened.Error!; }
                 IRbfFile source = opened.Value!;
                 var sourceHeader = HeadRecordReader.CheckHeader(source, _identity, origin.SourceHeadId);
@@ -174,7 +174,7 @@ public sealed partial class HeadStore {
         return result;
     }
 
-    private static AteliaResult<CheckedPublication> CheckPublicationFrame(RbfPooledFrame frame,
+    private AteliaResult<CheckedPublication> CheckPublicationFrame(RbfPooledFrame frame,
         CheckedHeadHeader header, SizedPtr wanted) {
         int payloadLength = frame.PayloadAndMeta.Length - frame.TailMetaLength;
         if (!header.IsAllowedPublicationKind(wanted.Offset, frame.Tag)
@@ -196,7 +196,7 @@ public sealed partial class HeadStore {
             rootOffset = 0;
         }
         else if (frame.Tag == HeadRecordCodec.ConditionalUpdateTag) {
-            if (!ConditionalUpdateCodec.TryRead(frame.PayloadAndMeta[..payloadLength], header.HeadId.LocalId,
+            if (!ConditionalUpdateCodec.TryRead(frame.PayloadAndMeta[..payloadLength], header.HeadId.GetLocalId(_identity),
                     wanted, out rootOffset)) {
                 return new HeadRecordError("The complete ConditionalUpdate has an invalid envelope, member table, root payload, or self ticket.");
             }
@@ -213,7 +213,7 @@ public sealed partial class HeadStore {
             CheckConditionalState(checkState);
             ConditionalUpdateCodec.GetMember(membersPayload, index, out uint localId, out SizedPtr wanted);
             // The local complete read already established codec, self and this exact table.
-            if (localId == localHeader.HeadId.LocalId) { continue; }
+            if (localId == localHeader.HeadId.GetLocalId(_identity)) { continue; }
             var matched = CheckConditionalMember(localFile, localHeader, localId, wanted,
                 membersPayload, beforeWork, checkState);
             if (matched.IsFailure) { return matched.Error!; }
@@ -256,7 +256,7 @@ public sealed partial class HeadStore {
     private AteliaResult<IRbfFile> GetConditionalPeer(IRbfFile localFile, CheckedHeadHeader localHeader,
         uint localId, Action? checkState) {
         CheckConditionalState(checkState);
-        if (localId == localHeader.HeadId.LocalId) { return AteliaResult<IRbfFile>.Success(localFile); }
+        if (localId == localHeader.HeadId.GetLocalId(_identity)) { return AteliaResult<IRbfFile>.Success(localFile); }
         if (_ownedHeads.TryGetValue(localId, out OwnedHead? owned)) { return AteliaResult<IRbfFile>.Success(owned.File!); }
         if (_historyHeadId == localId && _historyHead is { } historyFile) { return AteliaResult<IRbfFile>.Success(historyFile); }
         if (_conditionalPeer is not null) { throw new InvalidOperationException("The previous conditional peer was not released."); }

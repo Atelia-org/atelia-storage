@@ -31,7 +31,7 @@ public sealed class TagChainMembershipTests {
         var before = fixture.CaptureFiles();
         using (var reader = fixture.OpenReadOnly()) {
             var member = Assert.Single(reader.ReadTag("A").Unwrap().Entries);
-            Assert.Equal(7u, member.Key.LocalId);
+            Assert.Equal(7u, member.Key.GetLocalId(fixture.Storage.Identity));
             Assert.Equal(member.Key, member.Value.HeadId);
             Assert.Equal(embedded, member.Value.Ticket);
             Assert.True(reader.Audit().IsFailure);

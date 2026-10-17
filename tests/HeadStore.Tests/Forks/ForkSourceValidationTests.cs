@@ -211,16 +211,16 @@ public sealed class ForkSourceValidationTests {
         using (var initialized = fixture.Create()) { }
         // A controlled official path tests cold H reconstruction without billions of creations.
         // ReadHead, rather than the mirror's internal coordinate, supplies the source entryId.
-        fixture.WriteControlledHead(uint.MaxValue, new ForkRecord([0xff]));
+        fixture.WriteControlledHead(HeadStore.MaxLocalHeadId, new ForkRecord([0xff]));
         using var store = fixture.Open();
-        HeadEntryId source = store.ReadHead(uint.MaxValue).Unwrap().Id;
+        HeadEntryId source = store.ReadHead(HeadStore.MaxLocalHeadId).Unwrap().Id;
         var outcome = PublicationOutcome.Confirmed;
         Assert.Equal("HeadStore.HeadIdExhausted", store.ForkHead(source, out outcome).Error!.ErrorCode);
         Assert.Equal(PublicationOutcome.NotAttempted, outcome);
         Assert.False(File.Exists(fixture.PendingPath));
         HeadId child = store.ForkHead(19, source, out outcome).Unwrap();
         Assert.Equal(PublicationOutcome.Confirmed, outcome);
-        Assert.Equal(19u, child.LocalId);
+        Assert.Equal(19u, child.GetLocalId(fixture.Identity));
         Assert.Equal(new[] { source }, ForkFixture.Collect(store, child).Select(entry => entry.Id));
     }
 
@@ -250,7 +250,7 @@ public sealed class ForkSourceValidationTests {
         fixture.AssertNoChild(store, 257);
         HeadId child = store.ForkHead(source[0], out outcome).Unwrap();
         Assert.Equal(PublicationOutcome.Confirmed, outcome);
-        Assert.Equal(257u, child.LocalId);
+        Assert.Equal(257u, child.GetLocalId(fixture.Identity));
         Assert.Equal(ForkFixture.Bytes(value: 0xa0), store.ReadHead(child).Unwrap().Payload.ToArray());
         Assert.Equal(new[] { source[0] }, ForkFixture.Collect(store, child).Select(entry => entry.Id));
     }

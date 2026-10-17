@@ -11,7 +11,7 @@ public class HeadStoreCreationTests {
         f.Files.OpenFailure = new IOException("Creation must not reopen its newly published ref.");
         var first = f.Store.CreateHead("{\"hello\":1}"u8, out var outcome).Unwrap();
         Assert.Equal(PublicationOutcome.Confirmed, outcome);
-        Assert.Equal(301u, first.HeadId.LocalId);
+        Assert.Equal(301u, first.HeadId.GetLocalId(f.Identity));
         Assert.Equal(new[] {
             "prepare:301", "clock", "data:confirm", "pending:create", "append:0", "append:0",
             "flush:0", "close:0", "rename:301"
@@ -21,10 +21,10 @@ public class HeadStoreCreationTests {
         Assert.Equal(1, f.Files.PendingFiles[0].DisposeCalls);
         var specified = f.Store.CreateHead(20u, [5], out var specifiedOutcome).Unwrap();
         Assert.Equal(PublicationOutcome.Confirmed, specifiedOutcome);
-        Assert.Equal(20u, specified.HeadId.LocalId);
+        Assert.Equal(20u, specified.HeadId.GetLocalId(f.Identity));
         var next = f.Store.CreateHead([6], out var nextOutcome).Unwrap();
         Assert.Equal(PublicationOutcome.Confirmed, nextOutcome);
-        Assert.Equal(302u, next.HeadId.LocalId);
+        Assert.Equal(302u, next.HeadId.GetLocalId(f.Identity));
         f.Files.OpenFailure = null;
         var read = f.Store.ReadHead(first.HeadId).Unwrap();
         Assert.Equal(first, read.Id);
@@ -71,7 +71,7 @@ public class HeadStoreCreationTests {
         Assert.Equal(PublicationOutcome.NotAttempted, specifiedOutcome);
         Assert.Empty(f.Operations);
         Assert.Equal(0, f.Lock.DisposeCalls);
-        Assert.Equal(18u, f.Store.CreateHead([1], out _).Unwrap().HeadId.LocalId);
+        Assert.Equal(18u, f.Store.CreateHead([1], out _).Unwrap().HeadId.GetLocalId(f.Identity));
     }
 
     [Theory]
@@ -84,7 +84,7 @@ public class HeadStoreCreationTests {
         Assert.Equal(PublicationOutcome.NotAttempted, outcome);
         Assert.Empty(f.Operations);
         Assert.Equal(0, f.Lock.DisposeCalls);
-        Assert.Equal(1u, f.Store.CreateHead(1u, [1], out _).Unwrap().HeadId.LocalId);
+        Assert.Equal(1u, f.Store.CreateHead(1u, [1], out _).Unwrap().HeadId.GetLocalId(f.Identity));
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public class HeadStoreCreationTests {
         Assert.True(f.Store.CreateHead(1u, [1], out var specifiedOutcome).IsFailure);
         Assert.Equal(PublicationOutcome.NotAttempted, specifiedOutcome);
         Assert.Empty(f.Operations);
-        Assert.Equal(1u, f.Store.CreateHead([1], out var autoOutcome).Unwrap().HeadId.LocalId);
+        Assert.Equal(1u, f.Store.CreateHead([1], out var autoOutcome).Unwrap().HeadId.GetLocalId(f.Identity));
         Assert.Equal(PublicationOutcome.Confirmed, autoOutcome);
     }
 
@@ -108,14 +108,14 @@ public class HeadStoreCreationTests {
         Assert.Equal(new[] { "prepare:1" }, f.Operations);
         Assert.Equal(0, f.Files.OpenCalls);
         Assert.Equal(0, f.Lock.DisposeCalls);
-        Assert.Equal(18u, f.Store.CreateHead([3], out _).Unwrap().HeadId.LocalId);
+        Assert.Equal(18u, f.Store.CreateHead([3], out _).Unwrap().HeadId.GetLocalId(f.Identity));
         Assert.Equal(new byte[] { 99 }, File.ReadAllBytes(f.Files.Paths[1]));
     }
 
     [Fact]
     public void Create_LastAutomaticIdExhaustsOnlyAutomaticDomain_AndSpecifiedRemainsAvailable() {
-        using var f = new RuntimeFixture(reservedUpper: uint.MaxValue - 1);
-        Assert.Equal(uint.MaxValue, f.Store.CreateHead([1], out var lastOutcome).Unwrap().HeadId.LocalId);
+        using var f = new RuntimeFixture(reservedUpper: HeadStore.MaxLocalHeadId - 1);
+        Assert.Equal(HeadStore.MaxLocalHeadId, f.Store.CreateHead([1], out var lastOutcome).Unwrap().HeadId.GetLocalId(f.Identity));
         Assert.Equal(PublicationOutcome.Confirmed, lastOutcome);
         f.Operations.Clear();
         var exhausted = f.Store.CreateHead([2], out var outcome);
@@ -124,7 +124,7 @@ public class HeadStoreCreationTests {
         Assert.Equal(PublicationOutcome.NotAttempted, outcome);
         Assert.Empty(f.Operations);
         Assert.Equal(0, f.Lock.DisposeCalls);
-        Assert.Equal(1u, f.Store.CreateHead(1u, [3], out _).Unwrap().HeadId.LocalId);
+        Assert.Equal(1u, f.Store.CreateHead(1u, [3], out _).Unwrap().HeadId.GetLocalId(f.Identity));
         f.Operations.Clear();
         Assert.True(f.Store.CreateHead([4], out var nextOutcome).IsFailure);
         Assert.Equal(PublicationOutcome.NotAttempted, nextOutcome);
@@ -172,7 +172,7 @@ public class HeadStoreCreationTests {
         Assert.DoesNotContain("data:confirm", f.Operations);
         Assert.Equal(0, f.Lock.DisposeCalls);
         f.Hooks.GetRecordedAtUnixMs = null;
-        Assert.Equal(18u, f.Store.CreateHead([1], out _).Unwrap().HeadId.LocalId);
+        Assert.Equal(18u, f.Store.CreateHead([1], out _).Unwrap().HeadId.GetLocalId(f.Identity));
     }
 
     [Fact]
@@ -377,8 +377,8 @@ public class HeadStoreCreationTests {
     public void ListHeads_ReturnsCompleteOwnedImmutablePathIdsIncludingBadContentAndMax() {
         using var f = new RuntimeFixture();
         HeadId low = f.Seed(1);
-        HeadId high = f.Seed(0x80000000);
-        HeadId max = f.Seed(uint.MaxValue);
+        HeadId high = f.Seed(0x00800000);
+        HeadId max = f.Seed(HeadStore.MaxLocalHeadId);
         File.WriteAllBytes(f.Files.Paths[1], [99]);
         var listed = f.Store.ListHeads().Unwrap();
         Assert.Equal(3, listed.Count);

@@ -95,7 +95,7 @@ public sealed class HeadSetTagCaptureTests {
 
         var tag = store.CreateTag("slice", input.AsSpan(1, 2), out _).Unwrap();
 
-        Assert.Equal(new[] { f.Id(1), f.Id(2) }, tag.Entries.Keys.OrderBy(id => id.LocalId));
+        Assert.Equal(new[] { f.Id(1), f.Id(2) }, tag.Entries.Keys.OrderBy(id => id.GetLocalId(f.Identity)));
         Assert.Equal(f.Initial[1], tag.Entries[f.Id(1)]);
         Assert.Equal(f.Initial[2], tag.Entries[f.Id(2)]);
         Array.Clear(input);

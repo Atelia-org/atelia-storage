@@ -174,7 +174,7 @@ public sealed class PublicTagLifecycleTests {
         byte[] originalTag = File.ReadAllBytes(fixture.BucketPath("A"));
         using (var store = fixture.Open()) {
             store.PublishHead(initial.HeadId, [0x42], out _).Unwrap();
-            Assert.Equal(257u, store.CreateHead([0x43], out _).Unwrap().HeadId.LocalId);
+            Assert.Equal(257u, store.CreateHead([0x43], out _).Unwrap().HeadId.GetLocalId(fixture.Identity));
             Assert.Equal(initial, store.ReadTag("A").Unwrap().Entries[initial.HeadId]);
         }
         Assert.Equal(originalTag, File.ReadAllBytes(fixture.BucketPath("A")));

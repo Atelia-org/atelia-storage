@@ -41,7 +41,7 @@ internal sealed class TagFaultFixture : IDisposable {
             throw new InvalidOperationException("Invalid fixture identity.");
         }
         byte[] header = new byte[24];
-        BinaryPrimitives.WriteUInt32LittleEndian(header, 3);
+        BinaryPrimitives.WriteUInt32LittleEndian(header, 4);
         Identity.TryWrite(header.AsSpan(4, 16));
         BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(20), BucketId);
         using IRbfFile writer = RbfFile.CreateNew(PathName, RbfCacheMode.Off);

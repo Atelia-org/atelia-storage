@@ -70,7 +70,7 @@ internal sealed class ForkFixture : IDisposable {
     internal static byte[] Bytes(int length = 128, byte value = 0x51) => Enumerable.Repeat(value, length).ToArray();
 
     internal void FlipPayload(HeadEntryId entryId) =>
-        FlipByte(entryId.HeadId.LocalId, entryId.Ticket.Offset + entryId.Ticket.Length / 2);
+        FlipByte(entryId.HeadId.GetLocalId(Identity), entryId.Ticket.Offset + entryId.Ticket.Length / 2);
 
     internal void FlipHeaderPayload(uint localId) {
         SizedPtr ticket;
@@ -84,10 +84,10 @@ internal sealed class ForkFixture : IDisposable {
 
     internal void FlipFollowingFence(HeadEntryId entryId) {
         long end;
-        using (IRbfFile file = RbfFile.OpenReadOnlyExisting(HeadPath(entryId.HeadId.LocalId), RbfCacheMode.Off)) {
+        using (IRbfFile file = RbfFile.OpenReadOnlyExisting(HeadPath(entryId.HeadId.GetLocalId(Identity)), RbfCacheMode.Off)) {
             end = file.GetPhysicalOffsetImmediatelyAfter(entryId.Ticket);
         }
-        FlipByte(entryId.HeadId.LocalId, end - 1);
+        FlipByte(entryId.HeadId.GetLocalId(Identity), end - 1);
     }
 
     private void FlipByte(uint localId, long offset) {
@@ -102,7 +102,7 @@ internal sealed class ForkFixture : IDisposable {
     internal void AssertNoChild(Store store, uint localId) {
         Assert.False(File.Exists(HeadPath(localId)));
         Assert.False(File.Exists(PendingPath));
-        Assert.DoesNotContain(store.ListHeads().Unwrap(), id => id.LocalId == localId);
+        Assert.DoesNotContain(store.ListHeads().Unwrap(), id => id.GetLocalId(Identity) == localId);
     }
 
     internal static List<HeadEntry> Collect(Store store, HeadId headId) {

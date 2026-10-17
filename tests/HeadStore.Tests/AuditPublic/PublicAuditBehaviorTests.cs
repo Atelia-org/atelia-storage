@@ -94,13 +94,13 @@ public sealed class PublicAuditBehaviorTests {
     public void TagMembersAreFormalDependenciesEvenWhenMetadataAndTableRemainReadable() {
         using var fixture = new AuditPublicFixture();
         SizedPtr declared = SizedPtr.Create(SizedPtr.MaxOffset, 4);
-        fixture.Storage.WriteMirror("A", new TagPublicRecord("A", TagTestWire.Members(uint.MaxValue, declared)));
+        fixture.Storage.WriteMirror("A", new TagPublicRecord("A", TagTestWire.Members(HeadStore.MaxLocalHeadId, declared)));
         var before = fixture.CaptureFiles();
         using (var readOnly = fixture.OpenReadOnly()) {
             HeadSetTagInfo info = readOnly.ReadTagInfo("A").Unwrap();
             Assert.Equal(1, info.EntryCount);
             var member = Assert.Single(readOnly.ReadTag("A").Unwrap().Entries);
-            Assert.Equal(uint.MaxValue, member.Key.LocalId);
+            Assert.Equal(HeadStore.MaxLocalHeadId, member.Key.GetLocalId(fixture.Storage.Identity));
             Assert.Equal(declared, member.Value.Ticket);
             Assert.True(readOnly.ReadEntry(member.Value).IsFailure);
             Assert.Empty(readOnly.ListHeads().Unwrap());

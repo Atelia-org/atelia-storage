@@ -15,7 +15,7 @@ internal static class TagTestWire {
     internal static StoreIdentity Identity => FormatTestValues.Identity();
 
     internal static byte[] Header(uint bucketId) {
-        byte[] result = Convert.FromHexString("03000000" + FormatTestValues.IdentityHex + "00000000");
+        byte[] result = Convert.FromHexString("04000000" + FormatTestValues.IdentityHex + "00000000");
         BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(20), bucketId);
         return result;
     }
@@ -71,8 +71,15 @@ internal static class TagTestWire {
         return bytes;
     }
 
-    internal static byte[] MemberBytes(this HeadSetTag tag) => Join(tag.Entries
-        .OrderBy(pair => pair.Key.LocalId).Select(pair => Members(pair.Key.LocalId, pair.Value.Ticket, pair.Value.HeadId.LocalId)).ToArray());
+    internal static byte[] MemberBytes(this HeadSetTag tag, StoreIdentity? identity = null) => Join(tag.Entries
+        .OrderBy(pair => pair.Key.GetLocalId(identity ?? Identity)).Select(pair => Members(pair.Key.GetLocalId(identity ?? Identity), pair.Value.Ticket, pair.Value.HeadId.GetLocalId(identity ?? Identity))).ToArray());
+
+    internal static byte[] MemberBytes(this HeadSetTag tag, byte[] identityBytes) {
+        if (!StoreIdentity.TryRead(identityBytes, out StoreIdentity identity)) {
+            throw new ArgumentException("Invalid fixture identity.", nameof(identityBytes));
+        }
+        return tag.MemberBytes(identity);
+    }
 
     internal static byte[] MemberSequence(int count) => Join(Enumerable.Range(1, count).Select(id => Members((uint)id)).ToArray());
 

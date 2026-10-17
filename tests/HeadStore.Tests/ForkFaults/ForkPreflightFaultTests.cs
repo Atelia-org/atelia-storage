@@ -158,12 +158,12 @@ public sealed class ForkPreflightFaultTests {
         Assert.Equal(pendingBefore, f.Files.PendingCreateCalls);
         Assert.Equal(0, f.Lock.DisposeCalls);
         Assert.Equal(new byte[] { 99 }, File.ReadAllBytes(f.Files.Paths[2]));
-        Assert.Equal(18u, f.Store.ForkHead(source, out _).Unwrap().LocalId);
+        Assert.Equal(18u, f.Store.ForkHead(source, out _).Unwrap().GetLocalId(f.Identity));
     }
 
     [Fact]
     public void ExhaustedAutomaticDomainRejectsWithoutOpeningSource_WhileReservedTargetStillWorks() {
-        using var f = new RuntimeFixture(autoHeadIdHighWatermark: uint.MaxValue);
+        using var f = new RuntimeFixture(autoHeadIdHighWatermark: HeadStore.MaxLocalHeadId);
         HeadEntryId source = f.Store.CreateHead(1u, [7], out _).Unwrap();
         int pendingBefore = f.Files.PendingCreateCalls;
         f.Operations.Clear();
@@ -177,7 +177,7 @@ public sealed class ForkPreflightFaultTests {
         Assert.Equal(0, f.Files.OpenCalls);
         Assert.Equal(pendingBefore, f.Files.PendingCreateCalls);
         Assert.Equal(0, f.Lock.DisposeCalls);
-        Assert.Equal(2u, f.Store.ForkHead(2u, source, out PublicationOutcome specified).Unwrap().LocalId);
+        Assert.Equal(2u, f.Store.ForkHead(2u, source, out PublicationOutcome specified).Unwrap().GetLocalId(f.Identity));
         Assert.Equal(PublicationOutcome.Confirmed, specified);
         f.Operations.Clear();
         Assert.True(f.Store.ForkHead(source, out PublicationOutcome again).IsFailure);

@@ -4,7 +4,7 @@ using Atelia.HeadStore.Internal.Format;
 
 namespace Atelia.HeadStore.Internal.Tags;
 
-/// <summary>格式3的 canonical 成员表：递增所选 Head、实际 Entry 所属 Head 与完整 Packed SizedPtr。</summary>
+/// <summary>格式4的 canonical 成员表：递增所选 Head、实际 Entry 所属 Head 与完整 Packed SizedPtr。</summary>
 internal static class TagEntriesCodec {
     internal const int MemberEncodedSize = sizeof(uint) + sizeof(uint) + sizeof(ulong);
 
@@ -17,17 +17,17 @@ internal static class TagEntriesCodec {
         for (int index = 0; index < entries.Length; index++) {
             HeadId selected = selectedHeads[index];
             HeadEntryId entry = entries[index];
-            if (!selected.BelongsTo(identity) || selected.LocalId <= previous
-                || !entry.HeadId.BelongsTo(identity) || entry.Ticket.Length == 0) {
-                throw new ArgumentException("Selected Heads must be same-store and strictly increasing; Entries must have checked same-store owners and complete tickets.", nameof(entries));
+            if (!selected.TryGetLocalId(identity, out _) || selected.GetLocalId(identity) <= previous
+                || !entry.HeadId.TryGetLocalId(identity, out _) || entry.Ticket.Length == 0) {
+                throw new ArgumentException("Selected Heads must decode in range and strictly increase; Entries must have in-range owners and complete tickets.", nameof(entries));
             }
-            previous = selected.LocalId;
+            previous = selected.GetLocalId(identity);
         }
         byte[] payload = new byte[measured.Value];
         for (int index = 0; index < entries.Length; index++) {
             Span<byte> member = payload.AsSpan(index * MemberEncodedSize, MemberEncodedSize);
-            BinaryPrimitives.WriteUInt32LittleEndian(member, selectedHeads[index].LocalId);
-            BinaryPrimitives.WriteUInt32LittleEndian(member[sizeof(uint)..], entries[index].HeadId.LocalId);
+            BinaryPrimitives.WriteUInt32LittleEndian(member, selectedHeads[index].GetLocalId(identity));
+            BinaryPrimitives.WriteUInt32LittleEndian(member[sizeof(uint)..], entries[index].HeadId.GetLocalId(identity));
             BinaryPrimitives.WriteUInt64LittleEndian(member[(2 * sizeof(uint))..], entries[index].Ticket.Packed);
         }
         return payload;
@@ -47,7 +47,7 @@ internal static class TagEntriesCodec {
             uint localId = BinaryPrimitives.ReadUInt32LittleEndian(member);
             uint ownerLocalId = BinaryPrimitives.ReadUInt32LittleEndian(member[sizeof(uint)..]);
             SizedPtr ticket = SizedPtr.FromPacked(BinaryPrimitives.ReadUInt64LittleEndian(member[(2 * sizeof(uint))..]));
-            if (localId <= previous || ownerLocalId == 0 || ticket.Length == 0) { return false; }
+            if (localId <= previous || localId > HeadStore.MaxLocalHeadId || ownerLocalId is 0 or > HeadStore.MaxLocalHeadId || ticket.Length == 0) { return false; }
             previous = localId;
         }
 

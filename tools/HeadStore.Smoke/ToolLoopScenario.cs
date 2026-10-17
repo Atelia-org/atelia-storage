@@ -201,7 +201,7 @@ internal static class ToolLoopScenario {
 
     private static ApplicationSnapshot ReadCurrent(DataStore data, HeadOwner heads) {
         IReadOnlyList<HeadId> refs = heads.ListHeads().Unwrap();
-        Require(refs.Count == 1 && refs[0].LocalId == ApplicationHead, "The application must own exactly its fixed ref.");
+        Require(refs.Count == 1 && heads.GetLocalHeadId(refs[0]).Unwrap() == ApplicationHead, "The application must own exactly its fixed ref.");
         return ReadSingleEntry(data, heads, heads.ReadHead(ApplicationHead).Unwrap());
     }
 

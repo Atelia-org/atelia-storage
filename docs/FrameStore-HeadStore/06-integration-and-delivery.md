@@ -1,6 +1,6 @@
 # S6：消费者验证、公共包与交付
 
-2026-10-17 当前HeadStore合同为格式3引用初始化fork与16B独立tag key/value；源码、进程与包资格以[12](../HeadStore/12-versionstore-final-acceptance.md)、[07](../HeadStore/07-versionstore-cross-ref-conditional-update-acceptance.md)、[16](../HeadStore/16-headset-tags-acceptance.md)新增轮次为准，下述Accepted保留旧候选及各轮实际范围。
+2026-10-17 当前HeadStore合同为格式4紧凑Handle、引用初始化fork与16B独立tag key/value；源码、进程与包资格以[12](../HeadStore/12-versionstore-final-acceptance.md)、[07](../HeadStore/07-versionstore-cross-ref-conditional-update-acceptance.md)、[16](../HeadStore/16-headset-tags-acceptance.md)新增轮次为准，下述Accepted保留旧候选及各轮实际范围。
 
 命名更新：2026-10-16 活跃合同采用 HeadStore/Head/Entry；既有验收与历史包仍保持 VersionStore 来源身份，本轮验证见[重命名记录](../HeadStore/15-headstore-renaming-plan.md)。
 
@@ -107,7 +107,7 @@ CU 组合必须包含：全部 fresh 成员完成前缀/排列及至少两个既
 | `eng/Pack.ps1` | S6 注册包和明确选择/版本算法 |
 | `eng/Test-Package.ps1`、metadata helper | S6 在当前纯 Rbf 三包及纯 Binary 两包隔离验证基础上增加新闭包 smoke，不削弱来源/资产校验 |
 | `eng/Verify-Published.ps1`、发布 workflow/CI | 若纳入公开交付，按实际授权和新 manifest 形态适配 |
-| 根 README / AGENTS.md | 项目实际存在、交付事实变化后更新；FrameStore/HeadStore 与测试项目均已创建，两库已纳入本地候选包清单；HeadStore 已接通普通 Head 真实目录闭环，历史读取、精确 ForkHead 与 ListHeadOrigins 已接通，旧tag闭环已有历史证据，格式2 HeadSetTag已有历史验收，当前格式3改为引用初始化fork与16B独立key/value成员表，新增资格按对应新轮次验收，V4-A 已补只读完整校验 Audit |
+| 根 README / AGENTS.md | 项目实际存在、交付事实变化后更新；FrameStore/HeadStore 与测试项目均已创建，两库已纳入本地候选包清单；HeadStore 已接通普通 Head 真实目录闭环，历史读取、精确 ForkHead 与 ListHeadOrigins 已接通，旧tag闭环已有历史证据，格式2 HeadSetTag已有历史验收，当前格式4采用紧凑Handle、引用初始化fork与16B独立key/value成员表，新增资格按对应新轮次验收，V4-A 已补只读完整校验 Audit |
 | 旧库维护 | RBF1 分支工作包；main 不再保留旧栈代码、固定包回归或兼容实现 |
 
 ## 实施片

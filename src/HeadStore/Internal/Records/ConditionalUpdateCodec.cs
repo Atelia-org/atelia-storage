@@ -20,7 +20,7 @@ internal static class ConditionalUpdateCodec {
     internal static bool TryRead(ReadOnlySpan<byte> payload, uint hostLocalId,
         SizedPtr selfTicket, out int rootOffset) {
         rootOffset = default;
-        if (hostLocalId == 0 || payload.Length < MinimumPayloadLength || payload.Length > MaxPayloadLength) {
+        if (hostLocalId is 0 or > HeadStore.MaxLocalHeadId || payload.Length < MinimumPayloadLength || payload.Length > MaxPayloadLength) {
             return false;
         }
         uint count = BinaryPrimitives.ReadUInt32LittleEndian(payload);
@@ -36,7 +36,7 @@ internal static class ConditionalUpdateCodec {
         bool foundSelf = false;
         for (int index = 0; index < (int)count; index++) {
             GetMember(payload, index, out uint localId, out SizedPtr ticket);
-            if (localId <= previous || !IsValidMemberTicket(ticket, minimumLength, maximumLength)) { return false; }
+            if (localId <= previous || localId > HeadStore.MaxLocalHeadId || !IsValidMemberTicket(ticket, minimumLength, maximumLength)) { return false; }
             previous = localId;
             if (localId == hostLocalId) {
                 if (ticket != selfTicket) { return false; }
@@ -75,7 +75,7 @@ internal static class ConditionalUpdateCodec {
         GetMemberLengthBounds((int)tableLength, out int minimumLength, out int maximumLength);
         uint previous = 0;
         foreach (ConditionalUpdateMember member in members) {
-            if (member.LocalHeadId <= previous || !IsValidMemberTicket(member.Ticket, minimumLength, maximumLength)) {
+            if (member.LocalHeadId <= previous || member.LocalHeadId > HeadStore.MaxLocalHeadId || !IsValidMemberTicket(member.Ticket, minimumLength, maximumLength)) {
                 throw new ArgumentException("CU members must have strictly increasing nonzero local identifiers and valid tickets.", nameof(members));
             }
             previous = member.LocalHeadId;

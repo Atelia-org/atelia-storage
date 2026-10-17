@@ -66,7 +66,7 @@ internal static class InternalTailHost {
                 "Seed fork must resolve the source Entry without cloning it.");
         }
         InternalProcessHost.Complete(command, new {
-            headId = entryId.HeadId.LocalId, ticketOffset = entryId.Ticket.Offset,
+            headId = entryId.HeadId.GetLocalId(store), ticketOffset = entryId.Ticket.Offset,
             ticketLength = entryId.Ticket.Length, headLength = new FileInfo(HeadPath(root, scenario)).Length
         });
     }
@@ -127,7 +127,7 @@ internal static class InternalTailHost {
         };
         try {
             if (tag) { store.CreateTag(TagName, [source.Id.HeadId], out _).Unwrap(); }
-            else { store.PublishHead(store.ListHeads().Unwrap().Single(id => id.LocalId == TargetId(scenario)), payload, out _).Unwrap(); }
+            else { store.PublishHead(store.ListHeads().Unwrap().Single(id => id.GetLocalId(store) == TargetId(scenario)), payload, out _).Unwrap(); }
             throw new InvalidOperationException("The writer returned without parking inside its short-write observation.");
         }
         finally { RbfWriteInstrumentation.Current = null; }
@@ -136,7 +136,7 @@ internal static class InternalTailHost {
     private static void RejectReadOnly(string command, string root, string scenario, bool tag) {
         using var data = DataStore.OpenReadOnly(DataRoot(root));
         using var store = Store.OpenReadOnly(VersionRoot(root), data);
-        Require(store.ListHeads().Unwrap().Select(id => id.LocalId).Order().SequenceEqual(IsFork(scenario) ? new uint[] { 1, 2 } : new uint[] { 1 }), "Formal ref root/fork discovery failed.");
+        Require(store.ListHeads().Unwrap().Select(id => id.GetLocalId(store)).Order().SequenceEqual(IsFork(scenario) ? new uint[] { 1, 2 } : new uint[] { 1 }), "Formal ref root/fork discovery failed.");
         Exception? rejection = null;
         try {
             if (tag) { store.ReadTagInfo(TagName).Unwrap(); }
@@ -156,7 +156,7 @@ internal static class InternalTailHost {
         var operations = new TailRecoveryOperations();
         using var store = HeadStoreFactory.Open(VersionRoot(root), data, readOnly,
             operations, testHooks: new HeadStoreTestHooks());
-        Require(store.ListHeads().Unwrap().Select(id => id.LocalId).Order().SequenceEqual(IsFork(scenario) ? new uint[] { 1, 2 } : new uint[] { 1 }), "Formal ref root/fork discovery failed.");
+        Require(store.ListHeads().Unwrap().Select(id => id.GetLocalId(store)).Order().SequenceEqual(IsFork(scenario) ? new uint[] { 1, 2 } : new uint[] { 1 }), "Formal ref root/fork discovery failed.");
         var entry = store.ReadHead(TargetId(scenario)).Unwrap();
         bool keepsNew = scenario.EndsWith("body-complete", StringComparison.Ordinal);
         Require(entry.Payload.SequenceEqual(!tag && keepsNew ? NewPayload() : OldPayload()),

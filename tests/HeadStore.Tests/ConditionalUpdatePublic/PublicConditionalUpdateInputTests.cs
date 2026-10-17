@@ -77,17 +77,14 @@ public sealed class PublicConditionalUpdateInputTests {
     [InlineData("missing")]
     public void InvalidActualInputIsNotAttemptedAndDoesNotAppendAnyMember(string kind) {
         using var fixture = new ConditionalUpdatePublicFixture();
-        using var other = new ConditionalUpdatePublicFixture();
         HeadEntryId a;
         HeadEntryId b;
         HeadEntryId missing;
-        HeadEntryId foreign;
         using (var store = fixture.Create()) {
             a = store.CreateHead(7, [1], out _).Unwrap();
             b = store.CreateHead(19, [2], out _).Unwrap();
             missing = store.CreateHead(23, [3], out _).Unwrap();
         }
-        using (var store = other.Create()) { foreign = store.CreateHead(7, [9], out _).Unwrap(); }
         File.Delete(fixture.HeadPath(23));
         var entries = new List<KeyValuePair<HeadId, ReadOnlyMemory<byte>>> {
             new(a.HeadId, new byte[] { 4 }), new(b.HeadId, new byte[] { 5 })
@@ -96,7 +93,7 @@ public sealed class PublicConditionalUpdateInputTests {
             case "empty": entries.Clear(); break;
             case "duplicate": entries.Add(new(a.HeadId, new byte[] { 6 })); break;
             case "default": entries.Add(new(default, new byte[] { 6 })); break;
-            case "foreign": entries.Add(new(foreign.HeadId, new byte[] { 6 })); break;
+            case "foreign": entries.Add(new(HeadIdTestExtensions.ForeignHeadId(fixture.Identity, 7), new byte[] { 6 })); break;
             case "zero-root": entries.Add(new(missing.HeadId, ReadOnlyMemory<byte>.Empty)); break;
             case "oversize-root": entries.Add(new(missing.HeadId, new byte[Store.MaxHeadEntryPayloadLength + 1])); break;
             case "missing": entries.Add(new(missing.HeadId, new byte[] { 6 })); break;

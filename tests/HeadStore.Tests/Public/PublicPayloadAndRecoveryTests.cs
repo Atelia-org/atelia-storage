@@ -50,7 +50,7 @@ public sealed class PublicPayloadAndRecoveryTests {
         }
         fixture.AssertUnchanged(before);
         using var healthy = Store.Open(fixture.Root, fixture.Data);
-        Assert.Equal(257u, healthy.CreateHead([0xff], out _).Unwrap().HeadId.LocalId);
+        Assert.Equal(257u, healthy.CreateHead([0xff], out _).Unwrap().HeadId.GetLocalId(fixture.Identity));
     }
 
     [Fact]
@@ -67,12 +67,12 @@ public sealed class PublicPayloadAndRecoveryTests {
             }
             Assert.True(store.PublishHead(default, [1], out var rejectedOutcome).IsFailure);
             Assert.Equal(PublicationOutcome.NotAttempted, rejectedOutcome);
-            Assert.Equal(new uint[] { 7, 8 }, store.ListHeads().Unwrap().Select(value => value.LocalId).Order());
+            Assert.Equal(new uint[] { 7, 8 }, store.ListHeads().Unwrap().Select(value => value.GetLocalId(fixture.Identity)).Order());
         }
         fixture.AssertUnchanged(before);
         using var cold = Store.Open(fixture.Root, fixture.Data);
         Assert.Equal(id, cold.ReadHead(7u).Unwrap().Id.HeadId);
-        Assert.Equal(257u, cold.CreateHead([2], out _).Unwrap().HeadId.LocalId);
+        Assert.Equal(257u, cold.CreateHead([2], out _).Unwrap().HeadId.GetLocalId(fixture.Identity));
     }
 
     [Theory]
@@ -88,7 +88,7 @@ public sealed class PublicPayloadAndRecoveryTests {
             initial = store.CreateHead(initialBytes, out _).Unwrap();
             latest = store.PublishHead(initial.HeadId, latestBytes, out _).Unwrap();
         }
-        PublicHeadStoreFixture.FlipPayloadByte(fixture.HeadPath(initial.HeadId.LocalId), initial.Ticket);
+        PublicHeadStoreFixture.FlipPayloadByte(fixture.HeadPath(initial.HeadId.GetLocalId(fixture.Identity)), initial.Ticket);
         var before = fixture.CaptureFiles();
         using (var cold = readOnly ? Store.OpenReadOnly(fixture.Root, fixture.Data) : Store.Open(fixture.Root, fixture.Data)) {
             var current = cold.ReadHead(initial.HeadId).Unwrap();
@@ -108,7 +108,7 @@ public sealed class PublicPayloadAndRecoveryTests {
             var initial = store.CreateHead(Enumerable.Repeat((byte)0xff, 128).ToArray(), out _).Unwrap();
             latest = store.PublishHead(initial.HeadId, Enumerable.Repeat((byte)0xfe, 128).ToArray(), out _).Unwrap();
         }
-        PublicHeadStoreFixture.FlipPayloadByte(fixture.HeadPath(latest.HeadId.LocalId), latest.Ticket);
+        PublicHeadStoreFixture.FlipPayloadByte(fixture.HeadPath(latest.HeadId.GetLocalId(fixture.Identity)), latest.Ticket);
         var before = fixture.CaptureFiles();
         using (var cold = readOnly ? Store.OpenReadOnly(fixture.Root, fixture.Data) : Store.Open(fixture.Root, fixture.Data)) {
             Assert.True(cold.ReadHead(latest.HeadId).IsFailure);
@@ -130,7 +130,7 @@ public sealed class PublicPayloadAndRecoveryTests {
                 current = store.PublishHead(current.HeadId, expected, out _).Unwrap();
             }
         }
-        string path = fixture.HeadPath(current.HeadId.LocalId);
+        string path = fixture.HeadPath(current.HeadId.GetLocalId(fixture.Identity));
         byte[] complete = File.ReadAllBytes(path);
         // Missing Key and Fence, with a complete body: public RBF recovery may append those bytes.
         File.WriteAllBytes(path, complete[..^8]);
@@ -154,7 +154,7 @@ public sealed class PublicPayloadAndRecoveryTests {
     public void PartialNextFrameIsRecoveredOnlyOnWritableTargetAccess() {
         using var fixture = new PublicHeadStoreFixture();
         HeadEntryId current = fixture.SeedClosed();
-        string path = fixture.HeadPath(current.HeadId.LocalId);
+        string path = fixture.HeadPath(current.HeadId.GetLocalId(fixture.Identity));
         byte[] complete = File.ReadAllBytes(path);
         File.WriteAllBytes(path, [.. complete, 1]);
         var before = fixture.CaptureFiles();
@@ -173,7 +173,7 @@ public sealed class PublicPayloadAndRecoveryTests {
     public void HeaderOnlyFormalHeadOccupiesPathButCannotSupplyCurrentEntry() {
         using var fixture = new PublicHeadStoreFixture();
         HeadEntryId initial = fixture.SeedClosed();
-        string path = fixture.HeadPath(initial.HeadId.LocalId);
+        string path = fixture.HeadPath(initial.HeadId.GetLocalId(fixture.Identity));
         byte[] image = File.ReadAllBytes(path);
         File.WriteAllBytes(path, image[..checked((int)initial.Ticket.Offset)]);
         var before = fixture.CaptureFiles();

@@ -1,6 +1,6 @@
 # HeadStore：root payload bytes 公面与所有权
 
-引用初始化 fork 更新：2026-10-17 当前合同采用格式3，拒绝格式1/2；fork 只发布来源 header，HeadSetTag 成员为16B独立 key/value 映射。本轮实际源码、进程与包资格见[既有验收入口中的新增轮次](12-versionstore-final-acceptance.md)，未完成验证不沿用旧 Accepted。既有 Clause-ID 与历史证据保持。
+紧凑 Handle 更新：2026-10-17 当前合同采用格式4，拒绝格式1/2/3；fork 只发布来源 header，HeadSetTag 成员为16B独立 key/value 映射。本轮实际源码、进程与包资格见[既有验收入口中的新增轮次](12-versionstore-final-acceptance.md)，未完成验证不沿用旧 Accepted。既有 Clause-ID 与历史证据保持。
 
 日期：2026-10-11。既有轮次状态：**既有 Head/历史/fork/tag 的 source-only 源码资格 Accepted；批量 CU 已正式接纳并取得CU首轮独立源码验收 Accepted**。既有范围见[最终源码验收](12-versionstore-final-acceptance.md)，新增 `A-VS-BYTES-BATCH` 接线与证据见[CU 验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。本篇是 S4/S5/tag/CU 的 bytes API 与长度/生命周期唯一权威；不改变身份、根锁、单 driver、ProcessCrashOnly、data-first 或三态证据。旧六包候选不含本轮 CU，程序集拆分另行设计。
 
@@ -25,6 +25,7 @@ AteliaResult<HeadId> ForkHead(
     uint destLocalHeadId, HeadEntryId sourceEntryId, out PublicationOutcome outcome);
 AteliaResult<HeadEntry> ReadHead(HeadId headId);
 AteliaResult<HeadEntry> ReadHead(uint localHeadId);
+AteliaResult<uint> GetLocalHeadId(HeadId headId);
 AteliaResult<HeadEntry> ReadEntry(HeadEntryId entryId);
 
 public sealed class HeadEntry {
@@ -39,7 +40,7 @@ public sealed class HeadEntry {
 
 ReadHead 返回实际 Entry 的 ID、原时间及 bytes：header-only fork 的结果可能属于来源 Head。调用方保存所选 HeadId 作为 PublishHead/PublishHeads 的目标，不能从 ReadHead(...).Id.HeadId 推导写入目标。fork 不新建 payload 或 Entry 时间，首次本地发布后返回本地真实 Entry。
 
-ReadEntry 只接受库签发、同持久 HSID 的 nondefault EntryId。精确完成位置、完整 CRC/尾 Fence/CU 资格与无回退合同唯一消费 S4 `[A-VS-READ-REVISION]`；返回输入 EntryId、原时间及 root bytes，排除 TailMeta/CU Members，不确认 data 或控制数据。saved EntryId 可在同库重开后使用，裸位置与跨进程导入仍不开放。
+ReadEntry 只接受库签发的 nondefault EntryId；HeadId在当前owner上解码并检查范围，跨库误用只按S4的短Handle边界检测，不保证拒绝全部外库值。精确完成位置、完整 CRC/尾 Fence/CU 资格与无回退合同唯一消费 S4 `[A-VS-READ-REVISION]`；返回输入 EntryId、原时间及 root bytes，排除 TailMeta/CU Members，不确认 data 或控制数据。saved EntryId 可在同库重开后使用，裸位置与跨进程导入仍不开放。
 
 ### spec [A-VS-BYTES-INPUT] 同步捕获，调用方保持稳定
 
@@ -55,13 +56,13 @@ owner/mutation/参数准入后先按实际 Span.Length 检查 1..1,048,576B；�
 
 ## HeadSetTag 的独立成员表边界
 
-版本2已删除旧bytes tag的CreateTag两个overload、ResolveTag和RootPayload；当前版本3继续硬切，不保留旧reader。HeadSetTag只保存HeadId到HeadEntryId的固定表，不保存或复制应用payload；成员输入slice捕获、自然容量、自有不可变表及HeadSetTagInfo/ScanTags的唯一合同见[09](09-versionstore-immutable-tags.md)。HeadEntry继续直接持有GC自有bytes，不新增HeadEntryPayload包装。
+版本2已删除旧bytes tag的CreateTag两个overload、ResolveTag和RootPayload；当前版本4继续硬切，不保留旧reader。HeadSetTag只保存HeadId到HeadEntryId的固定表，不保存或复制应用payload；成员输入slice捕获、自然容量、自有不可变表及HeadSetTagInfo/ScanTags的唯一合同见[09](09-versionstore-immutable-tags.md)。HeadEntry继续直接持有GC自有bytes，不新增HeadEntryPayload包装。
 
 `CreateTag(name, heads, out outcome)` 捕获非空HeadId集合的当前位置；返回HeadSetTag。`ReadTag(name)` 检查完整成员表后交付自有表，其EntryId可供ReadEntry/ForkHead精确使用，但表成功不证明成员当前健康。`ReadTagInfo`/`ScanTags`只交付Name/RecordedAtUnixMs/EntryCount，不读取表或Entry，也不签发成员ID。tag容量不再与MaxHeadEntryPayloadLength耦合。
 
 ### spec [A-VS-BYTES-BATCH] 批量输入只增加可放入集合的视图
 
-PublishHeads 接收 `IReadOnlyDictionary<HeadId, ReadOnlyMemory<byte>> changes`，返回 `AteliaResult<IReadOnlyDictionary<HeadId, HeadEntryId>>`；成功值是自有只读字典，正常接口及集合 cast 不能改写 backing。没有 payload 输出或部分成功，所有成员共享一个 outcome。入口第一条语句初始化 NotAttempted；先逐项枚举并检查持久上下文、default/实际重复 HeadId 和 1..1MiB 长度，以私有集合捕获；不继承 comparer、不信任 Count。枚举器的必要 Dispose/清理也 MUST 在 barrier/输出前完成，失败不交付捕获结果；按私有实际成员数选择路径。空批次拒绝，一个成员 MUST 使用普通 SingleEntry 发布路径，两个及以上 MUST 使用 [07 CU](07-versionstore-cross-ref-conditional-update.md)。全部目标必须为同库既有正式 Head，不创建或分配新 HeadId。
+PublishHeads 接收 `IReadOnlyDictionary<HeadId, ReadOnlyMemory<byte>> changes`，返回 `AteliaResult<IReadOnlyDictionary<HeadId, HeadEntryId>>`；成功值是自有只读字典，正常接口及集合 cast 不能改写 backing。没有 payload 输出或部分成功，所有成员共享一个 outcome。入口第一条语句初始化 NotAttempted；先逐项枚举并按S4解码检查编号范围、default/实际重复 HeadId 和 1..1MiB 长度，以私有集合捕获；不继承 comparer、不信任 Count。枚举器的必要 Dispose/清理也 MUST 在 barrier/输出前完成，失败不交付捕获结果；按私有实际成员数选择路径。空批次拒绝，一个成员 MUST 使用普通 SingleEntry 发布路径，两个及以上 MUST 使用 [07 CU](07-versionstore-cross-ref-conditional-update.md)。全部目标必须为同库既有正式 Head，不创建或分配新 HeadId。
 
 ReadOnlyMemory 仅用于放入普通集合，不转移 ownership；调用方在整个同步调用期间保持集合和全部 backing buffer 稳定、有效且不重入。库访问 Span 后分别复制有效 slice，全部副本完成才进入发布协议。单成员路径与 PublishHead 共用捕获后的普通 SingleEntry 内核，直接使用已捕获的私有 bytes，不再次复制 payload 或调用另一公开 mutation。自定义枚举器/MemoryManager 访问可能执行调用方代码，沿用 single-driver 前提，不新增并发快照/违约诊断。
 

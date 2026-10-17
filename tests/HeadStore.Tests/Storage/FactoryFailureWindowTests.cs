@@ -146,7 +146,7 @@ public sealed class FactoryFailureWindowTests {
     public void FormalEnumerationDisposeFailurePrecedesPendingCancellationAndLockIsLast() {
         using var fixture = new StorageFixture();
         fixture.Create();
-        File.WriteAllBytes(fixture.HeadPath(uint.MaxValue), [0]);
+        File.WriteAllBytes(fixture.HeadPath(HeadStore.MaxLocalHeadId), [0]);
         File.WriteAllBytes(fixture.PendingPath, [1]);
         var primary = new IOException("controlled refs enumeration failure");
         var cleanup = new IOException("controlled refs enumerator close failure");

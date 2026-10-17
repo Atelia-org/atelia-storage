@@ -142,7 +142,7 @@ public sealed class HeadSetTagAuditResourceTests {
                 var changes = new Dictionary<HeadId, ReadOnlyMemory<byte>> {
                     [a.HeadId] = new byte[] { 0xa1 }, [b.HeadId] = new byte[] { 0xb1 }
                 };
-                foreach (var pair in writer.PublishHeads(changes, out _).Unwrap()) { Published.Add(pair.Key.LocalId, pair.Value); }
+                foreach (var pair in writer.PublishHeads(changes, out _).Unwrap()) { Published.Add(pair.Key.GetLocalId(identity), pair.Value); }
                 writer.CreateTag("audited-cu", [a.HeadId], out _).Unwrap();
             }
             Assert.True(StoreIdentity.TryRead(Data.StoreId, out var dataIdentity));

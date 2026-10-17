@@ -1,6 +1,11 @@
 # Atelia.HeadStore
 
-当前采用 `Atelia.HeadStore` 与 `HeadId / HeadEntryId / HeadEntry` 公面。引用初始化 fork 只发布准确来源 header，ForkHead 返回新 HeadId，统一格式3拒绝1/2；HeadSetTag成员为16B独立key/value映射。本轮实际源码、进程与包资格见[现有验收入口的新增轮次](../../docs/HeadStore/12-versionstore-final-acceptance.md)；此前[重命名](../../docs/HeadStore/15-headstore-renaming-plan.md)、[格式2 HeadSetTag](../../docs/HeadStore/16-headset-tags-acceptance.md)与VersionStore证据保留当轮来源，不代替本轮资格。
+当前采用 `Atelia.HeadStore` 与 `HeadId / HeadEntryId / HeadEntry` 公面。引用初始化 fork 只发布准确来源 header，ForkHead 返回新 HeadId，统一格式4拒绝1/2/3；HeadSetTag成员为16B独立key/value映射。本轮实际源码、进程与包资格见[现有验收入口的新增轮次](../../docs/HeadStore/12-versionstore-final-acceptance.md)；此前[重命名](../../docs/HeadStore/15-headstore-renaming-plan.md)、[格式2 HeadSetTag](../../docs/HeadStore/16-headset-tags-acceptance.md)与VersionStore证据保留当轮来源，不代替本轮资格。
+
+`HeadId`仅保存4B上下文编码；`HeadEntryId`另保存完整8B ticket，托管对齐尺寸以本轮测试为准，不提供12B公开编码。低频门/header仍保存完整128bit HeadStoreId；HandleKey取其canonical前4B LittleEndian。`GetLocalHeadId(id)`在当前owner上纯解码，返回Result、无I/O、不证明存在，替代旧`id.LocalId`；返回值只能在调用方选定的库上下文解释。default/解码越界与实际缺失统一为HeadNotFound，完整记录/CRC/CU验证保持。
+
+本地号限制1..`MaxLocalHeadId`（0x00FFFFFF），终身最多16,777,215个Head，不复用。零固定XOR以key可逆映射，key高8bit不同的库对必被范围门拒绝；高8bit相同时通常不能靠范围门区分，跨库值可相等、可误命中，不能当作每操作独立的1/256风险。算法证明见[Data数学规范](../../docs/Data/zero-preserving-xor32.md)，唯一Head合同见[04](../../docs/HeadStore/04-versionstore-publication.md#headid-值与内部字段编码)。内部持久字段仍保存raw local，HeadSetTag成员仍为16B；本次未提供公开Handle持久codec或准确起点历史入口。
+
 
 设计、当前计划与验收索引见 [HeadStore 文档](../../docs/HeadStore/README.md)。
 
@@ -10,11 +15,11 @@ HeadStore 借入一个 FrameStore，发布不透明 root-payload bytes。每个 
 
 当前源码包含：
 
-- 持久上下文绑定的 `HeadId`、完整位置 `HeadEntryId`、自有 `HeadEntry` 与 `PublicationOutcome`。
+- 紧凑上下文编码值 `HeadId`、完整位置 `HeadEntryId`、自有 `HeadEntry` 与 `PublicationOutcome`。
 - 内部格式门、Head header/ForkOrigin、meta8 和规范路径 codec。
 - 真实目录与公开 `Create/Open/OpenReadOnly`，独立 owner 锁、绑定 data 的格式门和唯一 pending 工作区。
 - 自动/预留区指定 `CreateHead`、`ListHeads`、必要 header/head 校验、opaque bytes 自有读取与 data-first 的 `PublishHead`。
-- `ReadEntry`：精确重读同持久 HSID 的库签发 EntryId，返回原位置/时间和自有 root bytes；共同 CU 资格与目标尾 Fence 仍须成立。
+- `ReadEntry`：精确重读在当前owner上下文使用的库签发 EntryId，返回原位置/时间和自有 root bytes；共同 CU 资格与目标尾 Fence 仍须成立。
 - 公共 `EnsureUsable`：先检查 HS 自身 Dispose/fault，再检查实际借入 data 的生命周期；纯检查无 I/O 或确认，失败不额外停用 HS。
 - `RecoveryReports`：本 owner 惰性打开 Head/tag 桶期间的成功物理修尾动作，只读累计视图；仅追加非 None 报告，fault/Dispose 后仍可读取。
 - `PublishHeads`：私有捕获实际输入，空批拒绝、单成员普通 SingleEntry、至少两个成员 fresh CU；canonical 自绑定成员表、整批一次取时、data-first 与全部文件确认，返回自有只读 EntryId 字典。
@@ -40,7 +45,7 @@ HeadEntry exact = store.ReadEntry(saved).Unwrap();
 // exact.Id == saved；原 RecordedAtUnixMs；Payload 仅含 root bytes。
 ```
 
-`ReadEntry` 支持 RO/RW，只接受 nondefault、同持久 HSID 的库签发值，并在发现 I/O 前拒绝 default/foreign 输入。它按既有模式惰性打开目标，重验必要 header、完成范围、完整 CRC/envelope/meta、CU 共同资格与成功目标的尾 Fence；合法未成立 CU 返回 `HeadStore.InvalidHeadRecord`，不改选当前值或更旧点。该入口不确认 data/源文件、不发布或产生 Outcome。成员来源仍依赖库签发值、完整位置不删除/复用与无外部改写；无裸 ticket/位置构造或跨进程匿名 EntryId 导入。重读旧点不为重新定位目标扫描本地后缀；CU 必要 peer 与异长消歧仍可能访问多个文件。自有结果可在后续读、owner fault/Dispose 后继续使用。
+`ReadEntry` 支持 RO/RW，只接受 nondefault 库签发值，在发现 I/O 前拒绝 default/当前owner解码越界输入；范围内的错库值仍可能误命中。它按既有模式惰性打开目标，重验必要 header、完成范围、完整 CRC/envelope/meta、CU 共同资格与成功目标的尾 Fence；合法未成立 CU 返回 `HeadStore.InvalidHeadRecord`，不改选当前值或更旧点。该入口不确认 data/源文件、不发布或产生 Outcome。成员来源仍依赖库签发值、完整位置不删除/复用与无外部改写；无裸 ticket/位置构造或跨进程匿名 EntryId 导入。重读旧点不为重新定位目标扫描本地后缀；CU 必要 peer 与异长消歧仍可能访问多个文件。自有结果可在后续读、owner fault/Dispose 后继续使用。
 
 观察一次访问期间的物理恢复：
 
@@ -81,7 +86,7 @@ var result = store.ReadHeadHistory(headId, new HeadHistoryBudget(100, 1000), ent
 只保存LocalId后，冷重开时区分所选分支与当前Entry：
 
 ```csharp
-HeadId selectedHead = store.ListHeads().Unwrap().Single(id => id.LocalId == savedLocalId);
+HeadId selectedHead = store.ListHeads().Unwrap().Single(id => store.GetLocalHeadId(id).Unwrap() == savedLocalId);
 HeadEntry current = store.ReadHead(selectedHead).Unwrap();
 // current.Id.HeadId可能是来源Head；继续写入selectedHead。
 store.PublishHead(selectedHead, nextPayload, out PublicationOutcome outcome).Unwrap();
@@ -103,7 +108,7 @@ foreach (var pair in savedTag.Entries) {
 }
 ```
 
-后续发布不改变表；未续写fork子Head捕获的是实际来源Entry身份，多个keys可以共用一个value。磁盘成员为selected LocalHeadId 4B + entry-owner LocalHeadId 4B +完整ticket 8B，按selected ID排序。仅选header-only C且C的来源是A/B CU中的A时，表只含C→A-entry，确认集合仍含{C,A,B}。PublishHeads与CreateTag是两个操作，不提供发布并命名事务。格式门与所有header统一版本3，拒绝版本1/2门，不猜测转换；路径仍是versionstore.format/lock、refs/tags。
+后续发布不改变表；未续写fork子Head捕获的是实际来源Entry身份，多个keys可以共用一个value。磁盘成员为selected LocalHeadId 4B + entry-owner LocalHeadId 4B +完整ticket 8B，按selected ID排序。仅选header-only C且C的来源是A/B CU中的A时，表只含C→A-entry，确认集合仍含{C,A,B}。PublishHeads与CreateTag是两个操作，不提供发布并命名事务。格式门与所有header统一版本4，拒绝版本1/2/3门，不猜测转换；路径仍是versionstore.format/lock、refs/tags。
 
 `ReadTag`只检查唯一可信名称、完整RBF帧和canonical成员表，不打开成员文件。其恢复的HeadEntryId是定位值；表成功而随后ReadEntry失败可以同时成立。ReadEntry/Fork保持精确内容/尾Fence/CU资格与既有来源协议，不新增全链定位扫描。元信息整体健康但表坏时，名称仍占用，ReadTagInfo可成功，ReadTag/Audit失败。
 

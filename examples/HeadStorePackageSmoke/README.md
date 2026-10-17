@@ -15,6 +15,8 @@ dotnet run --project HeadStorePackageSmoke.csproj -c Release --no-restore -p:Sto
 
 程序还通过传递 `Atelia.Data` 公面验证 `ChunkedReservableWriter` / `SinkReservableWriter` 的普通 borrow 跨 `Commit → Advance`，以及 Chunked 外层对两种 inner writer 的 `Advance(0)`、`Reset`、`Dispose` 嵌套取消；结束外层借用后，inner 保留已推进的输出和可用性。仅检查这些成功输出/取消路径，不证明任意 pool、sink 或清理故障的行为。
 
-格式2/HeadSetTag历史迁移与包资格见[16验收记录](../../docs/HeadStore/16-headset-tags-acceptance.md)，Windows四个隔离PackageReference消费者已通过；当前格式3/引用初始化fork与16B独立key/value成员表的包资格按该记录新增轮次单列，此前候选不自动取得本片资格。
+格式2/HeadSetTag历史迁移与包资格见[16验收记录](../../docs/HeadStore/16-headset-tags-acceptance.md)，Windows四个隔离PackageReference消费者已通过；格式3/引用初始化fork与16B独立key/value成员表的包资格按该记录新增轮次单列。当前 consumer 使用格式4；此前候选不自动取得本轮资格，必须以本轮真实包消费结果为准。
 
 失败抛异常并返回非零，成功 stdout 仅给计数摘要和保留路径。包交付使用仓库 `eng/Test-Package.ps1` 的隔离 cache/config 和 assets/source 检查；本程序不是完整 API 验收。跨 Head 的失败/进程终止、物理恢复、断电、性能和应用恢复策略仍各自需要独立证据。
+
+紧凑 Handle 检查覆盖 `HeadId` 的4B和 `HeadEntryId` 的16B托管尺寸、24bit本地文件号上限，以及经传递依赖调用 Data 的 `ZeroPreservingXor32.Apply` 零保留与往返。文件号通过活的 owner 的 `GetLocalHeadId` 解释；冷重开后仍验证保留 Handle 的纯值身份、发现集合与精确 Entry。这个入口不提供独立的 Handle 持久化 codec。

@@ -1,6 +1,6 @@
 # HeadStore：Head 记录时间与 TailMeta 格式
 
-引用初始化 fork 更新：2026-10-17 当前合同采用格式3，拒绝格式1/2；fork 只发布来源 header，HeadSetTag 成员为16B独立 key/value 映射。本轮实际源码、进程与包资格见[既有验收入口中的新增轮次](12-versionstore-final-acceptance.md)，未完成验证不沿用旧 Accepted。既有 Clause-ID 与历史证据保持。
+紧凑 Handle 更新：2026-10-17 当前合同采用格式4，拒绝格式1/2/3；HeadId采用4B上下文编码与24bit本地编号，fork仍只发布来源header，HeadSetTag成员仍为16B独立key/value映射。本轮实际资格由[12新增验收](12-versionstore-final-acceptance.md)记录，未完成验证不沿用旧Accepted；引用初始化fork/格式3与其他既有Clause-ID、历史证据保持当轮来源。
 
 日期：2026-10-10–11。既有轮次状态：**既有 Head/tag 的 source-only 源码资格 Accepted；CU 已正式接纳，CU首轮接线通过独立源码验收 Accepted**。既有映射见[最终源码验收](12-versionstore-final-acceptance.md)，CU 增量见[CU首轮验收](07-versionstore-cross-ref-conditional-update-acceptance.md)。Head/CU 使用固定 8B Unix 毫秒时间及精确 TailMeta 长度判形；tag 已实施并复用时间意义，其独立 schema/CRC 与元信息公面由09定义。组合/包资格见[实施计划](12-versionstore-implementation-plan.md)，旧六包候选不含 CU。
 

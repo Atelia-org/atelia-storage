@@ -42,6 +42,8 @@ public class FormatGateTests {
     [InlineData(1)] // Zero HeadStoreId.
     [InlineData(2)] // Zero DataStoreId.
     [InlineData(3)] // Reserved upper bound Max.
+    [InlineData(4)] // Retired format 2.
+    [InlineData(5)] // Retired format 3.
     public void Gate_ValidCrcDoesNotAuthorizeInvalidFields(int mutation) {
         byte[] changed = Convert.FromHexString(FormatTestValues.GateHex);
         switch (mutation) {
@@ -49,6 +51,8 @@ public class FormatGateTests {
             case 1: changed.AsSpan(4, 16).Clear(); break;
             case 2: changed.AsSpan(20, 16).Clear(); break;
             case 3: changed.AsSpan(36, 4).Fill(0xFF); break;
+            case 4: changed[0] = 2; break;
+            case 5: changed[0] = 3; break;
         }
 
         RollingCrc.SealCodewordForward(changed);
@@ -59,7 +63,7 @@ public class FormatGateTests {
 
     [Theory]
     [InlineData(0u)]
-    [InlineData(uint.MaxValue - 1)]
+    [InlineData(HeadStore.MaxLocalHeadId - 1)]
     public void Gate_BothRolesMayHaveSameIdentityAndLegalBoundaryValues(uint upperBound) {
         StoreIdentity identity = FormatTestValues.Identity();
         FormatGate expected = new(identity, identity, upperBound);
@@ -72,7 +76,7 @@ public class FormatGateTests {
     [Fact]
     public void RejectedGateWrite_DoesNotPartiallyModifyDestination() {
         StoreIdentity identity = FormatTestValues.Identity();
-        FormatGate[] invalid = [default, new(default, identity, 0), new(identity, default, 0), new(identity, identity, uint.MaxValue)];
+        FormatGate[] invalid = [default, new(default, identity, 0), new(identity, default, 0), new(identity, identity, HeadStore.MaxLocalHeadId)];
         foreach (FormatGate gate in invalid) {
             byte[] destination = Enumerable.Repeat((byte)0xA5, 48).ToArray();
             Assert.False(FormatGateCodec.TryWrite(gate, destination));

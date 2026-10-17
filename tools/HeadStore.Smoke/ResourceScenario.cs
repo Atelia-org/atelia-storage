@@ -45,19 +45,19 @@ internal static class ResourceScenario {
                 for (uint first = 1; first <= size; first += 3) {
                     HeadEntryId initial = heads.CreateHead(WritePayload(data, first, 0), out var outcome).Unwrap();
                     Confirmed(outcome);
-                    Require(initial.HeadId.LocalId == first, "Automatic root numbering differs.");
+                    Require(heads.GetLocalHeadId(initial.HeadId).Unwrap() == first, "Automatic root numbering differs.");
                     HeadEntryId selected = heads.PublishHead(initial.HeadId, WritePayload(data, first, 1), out outcome).Unwrap();
                     Confirmed(outcome);
                     if (first + 1 <= size) {
                         HeadId child = heads.ForkHead(selected, out outcome).Unwrap();
                         Confirmed(outcome);
-                        Require(child.LocalId == first + 1, "Automatic child numbering differs.");
+                        Require(heads.GetLocalHeadId(child).Unwrap() == first + 1, "Automatic child numbering differs.");
                         HeadEntryId advanced = heads.PublishHead(child, WritePayload(data, first + 1, 10), out outcome).Unwrap();
                         Confirmed(outcome);
                         if (first + 2 <= size) {
                             HeadId grandchild = heads.ForkHead(advanced, out outcome).Unwrap();
                             Confirmed(outcome);
-                            Require(grandchild.LocalId == first + 2, "Automatic grandchild numbering differs.");
+                            Require(heads.GetLocalHeadId(grandchild).Unwrap() == first + 2, "Automatic grandchild numbering differs.");
                         }
                     }
                     // The first exact fork has a growing source suffix; inherited child history stays fixed.
@@ -68,7 +68,7 @@ internal static class ResourceScenario {
                 }
                 Measure(root, "CreateTag.all.hotAndOrdinary", 1, () => {
                     for (uint id = 1; id <= size; id++) {
-                        HeadId selected = heads.ListHeads().Unwrap().Single(head => head.LocalId == id);
+                        HeadId selected = heads.ListHeads().Unwrap().Single(head => heads.GetLocalHeadId(head).Unwrap() == id);
                         HeadEntry head = heads.ReadHead(selected).Unwrap();
                         HeadSetTag tag = heads.CreateTag(names[id - 1], [selected], out var outcome).Unwrap();
                         Require(tag.Entries.Count == 1 && tag.Entries[selected] == head.Id, "Tag captured another Entry.");
@@ -129,7 +129,7 @@ internal static class ResourceScenario {
                 for (int iteration = 1; iteration <= Repetitions; iteration++) {
                     IReadOnlyList<HeadId> refs = Measure(root, "ListHeads", iteration, () => {
                         IReadOnlyList<HeadId> result = heads.ListHeads().Unwrap();
-                        Require(result.Count == size && result.Select(id => id.LocalId).Order().SequenceEqual(Enumerable.Range(1, size).Select(id => (uint)id)), "Head discovery differs.");
+                        Require(result.Count == size && result.Select(id => heads.GetLocalHeadId(id).Unwrap()).Order().SequenceEqual(Enumerable.Range(1, size).Select(id => (uint)id)), "Head discovery differs.");
                         return result;
                     }, measurements);
                     IReadOnlyList<HeadOriginInfo> forks = Measure(root, "ListHeadOrigins", iteration, () => {
@@ -170,7 +170,7 @@ internal static class ResourceScenario {
                         }, measurements);
                         Measure(root, $"ReadTag.ref-{id}", iteration, () => {
                             HeadSetTag tag = heads.ReadTag(names[id - 1]).Unwrap();
-                            Require(tag.Entries.Count == 1 && tag.Entries[refs.Single(head => head.LocalId == id)] == currentEntries[id - 1],
+                            Require(tag.Entries.Count == 1 && tag.Entries[refs.Single(head => heads.GetLocalHeadId(head).Unwrap() == id)] == currentEntries[id - 1],
                                 "Tag member differs from the independently verified history.");
                             return tag;
                         }, measurements);
@@ -204,7 +204,7 @@ internal static class ResourceScenario {
                         for (uint id = 1; id <= size; id++) {
                             HeadEntry entry = heads.ReadHead(id).Unwrap();
                             ExpectedEntry expected = ExpectedHistory(id, size)[0];
-                            Require(entry.Id.HeadId.LocalId == expected.LocalHeadId, "ReadHead returned an unexpected Entry owner.");
+                            Require(heads.GetLocalHeadId(entry.Id.HeadId).Unwrap() == expected.LocalHeadId, "ReadHead returned an unexpected Entry owner.");
                             ValidatePayload(data, entry.Payload, expected.Creator, expected.Generation);
                         }
                         return size;
@@ -235,29 +235,29 @@ internal static class ResourceScenario {
         var currentEntries = new HeadEntryId[size];
         long total = 0;
         foreach (HeadId id in refs) {
-            ExpectedEntry[] expected = ExpectedHistory(id.LocalId, size);
+            ExpectedEntry[] expected = ExpectedHistory(heads.GetLocalHeadId(id).Unwrap(), size);
             var entryIds = new List<HeadEntryId>(expected.Length);
             HeadHistoryEnd end = heads.ReadHeadHistory(id, new HeadHistoryBudget(expected.Length + 1L, 100L + expected.Length * 4L), entry => {
                 Require(entryIds.Count < expected.Length, "History visited the source's later suffix.");
                 ExpectedEntry item = expected[entryIds.Count];
-                Require(entry.Id.HeadId.LocalId == item.LocalHeadId, "History entryId ownership differs.");
+                Require(heads.GetLocalHeadId(entry.Id.HeadId).Unwrap() == item.LocalHeadId, "History entryId ownership differs.");
                 ValidatePayload(data, entry.Payload, item.Creator, item.Generation);
                 entryIds.Add(entry.Id);
                 return true;
             }).Unwrap();
             Require(end == HeadHistoryEnd.Complete && entryIds.Count == expected.Length && entryIds.Distinct().Count() == entryIds.Count, "History closure/unique entryId count differs.");
-            currentEntries[id.LocalId - 1] = entryIds[0];
-            histories.Add(id.LocalId, entryIds);
+            currentEntries[heads.GetLocalHeadId(id).Unwrap() - 1] = entryIds[0];
+            histories.Add(heads.GetLocalHeadId(id).Unwrap(), entryIds);
             total += entryIds.Count;
         }
         Require(total == expectedTotal, "Total inherited history count differs.");
-        Require(forks.Select(fork => fork.ChildHeadId.LocalId).Order().SequenceEqual(
+        Require(forks.Select(fork => heads.GetLocalHeadId(fork.ChildHeadId).Unwrap()).Order().SequenceEqual(
             Enumerable.Range(1, size).Select(id => (uint)id).Where(id => id % 3 != 1)), "Fork child set differs.");
         foreach (HeadOriginInfo fork in forks) {
-            uint child = fork.ChildHeadId.LocalId;
+            uint child = heads.GetLocalHeadId(fork.ChildHeadId).Unwrap();
             uint first = ((child - 1) / 3) * 3 + 1;
             uint source = child % 3 == 2 ? first : first + 1;
-            Require(child % 3 != 1 && fork.SourceHeadId.LocalId == source, "Declared fork parent differs.");
+            Require(child % 3 != 1 && heads.GetLocalHeadId(fork.SourceHeadId).Unwrap() == source, "Declared fork parent differs.");
             List<HeadEntryId> sourceHistory = histories[source];
             HeadEntryId selected = child % 3 == 2 ? sourceHistory[^2] : sourceHistory[0];
             Require(fork.SourceHeadId == selected.HeadId && fork.SourceEntryTicket.Packed == selected.Ticket.Packed, "Declared exact fork point differs.");

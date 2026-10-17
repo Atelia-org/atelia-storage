@@ -8,25 +8,43 @@ namespace Atelia.HeadStore.Tests.Values;
 
 public class HeadValueTests {
     [Fact]
-    public void HeadId_EqualityIncludesEveryIdentityBitAndFullLocalValue() {
-        byte[] originalBytes = Convert.FromHexString(FormatTestValues.IdentityHex);
-        Assert.True(StoreIdentity.TryRead(originalBytes, out StoreIdentity identity));
-        HeadId original = HeadId.Create(identity, 0x89ABCDEF);
-        Assert.Equal(0x89ABCDEFu, original.LocalId);
-        Array.Clear(originalBytes);
-        Assert.True(original.BelongsTo(FormatTestValues.Identity()));
-        Assert.Equal(original, HeadId.Create(FormatTestValues.Identity(), 0x89ABCDEF));
-        Assert.NotEqual(original, HeadId.Create(identity, 0x09ABCDEF));
+    public void HeadId_CompactValuesDecodeWithOwnerContextAndKeepSpecifiedSizes() {
+        StoreIdentity identity = FormatTestValues.Identity();
+        HeadId original = HeadId.Create(identity, HeadStore.MaxLocalHeadId);
+        Assert.Equal(HeadStore.MaxLocalHeadId, original.GetLocalId(identity));
+        Assert.True(original.TryGetLocalId(identity, out uint local));
+        Assert.Equal(HeadStore.MaxLocalHeadId, local);
+        Assert.Equal(4, System.Runtime.CompilerServices.Unsafe.SizeOf<HeadId>());
+        Assert.Equal(16, System.Runtime.CompilerServices.Unsafe.SizeOf<HeadEntryId>());
+        Assert.NotEqual(original, HeadId.Create(identity, HeadStore.MaxLocalHeadId - 1));
+    }
 
-        byte[] canonical = Convert.FromHexString(FormatTestValues.IdentityHex);
-        for (int bit = 0; bit < 128; bit++) {
-            byte[] changed = canonical.ToArray();
-            changed[bit / 8] ^= (byte)(1 << (bit % 8));
-            Assert.True(StoreIdentity.TryRead(changed, out StoreIdentity foreignIdentity));
-            HeadId foreign = HeadId.Create(foreignIdentity, original.LocalId);
-            Assert.NotEqual(original, foreign);
-            Assert.False(original.BelongsTo(foreignIdentity));
-        }
+    [Fact]
+    public void HeadId_SameHandleKeyAllowsDifferentFullIdentitiesToHaveEqualValues() {
+        StoreIdentity first = FormatTestValues.Identity();
+        byte[] changed = Convert.FromHexString(FormatTestValues.IdentityHex);
+        changed[15] ^= 1;
+        Assert.True(StoreIdentity.TryRead(changed, out StoreIdentity other));
+        Assert.NotEqual(first, other);
+        HeadId left = HeadId.Create(first, 7);
+        HeadId right = HeadId.Create(other, 7);
+        Assert.Equal(left, right);
+        Assert.Equal(left.GetHashCode(), right.GetHashCode());
+        Assert.True(left.TryGetLocalId(other, out uint local));
+        Assert.Equal(7u, local);
+        Assert.Single(new HashSet<HeadId> { left, right });
+    }
+
+    [Fact]
+    public void HeadId_DifferentHighKeyByteRejectsLocalRangeDeterministically() {
+        StoreIdentity first = FormatTestValues.Identity();
+        byte[] changed = Convert.FromHexString(FormatTestValues.IdentityHex);
+        changed[3] ^= 0x80;
+        Assert.True(StoreIdentity.TryRead(changed, out StoreIdentity other));
+        HeadId left = HeadId.Create(first, 7);
+        Assert.NotEqual(left, HeadId.Create(other, 7));
+        Assert.False(left.TryGetLocalId(other, out uint local));
+        Assert.Equal(0u, local);
     }
 
     [Fact]
@@ -34,29 +52,28 @@ public class HeadValueTests {
         StoreIdentity first = FormatTestValues.Identity();
         byte[] persisted = Convert.FromHexString(FormatTestValues.IdentityHex);
         Assert.True(StoreIdentity.TryRead(persisted, out StoreIdentity reopened));
-        HeadId left = HeadId.Create(first, uint.MaxValue);
-        HeadId right = HeadId.Create(reopened, uint.MaxValue);
+        HeadId left = HeadId.Create(first, HeadStore.MaxLocalHeadId);
+        HeadId right = HeadId.Create(reopened, HeadStore.MaxLocalHeadId);
         Assert.True(left == right);
         Assert.False(left != right);
         Assert.True(left.Equals((object)right));
         Assert.Equal(left.GetHashCode(), right.GetHashCode());
         Assert.False(left.Equals(null));
-        Assert.False(left.Equals(left.LocalId));
+        Assert.False(left.Equals(HeadStore.MaxLocalHeadId));
         Assert.Single(new HashSet<HeadId> { left, right });
     }
 
     [Fact]
-    public void HeadId_DefaultSupportsPureValuesButBelongsToNoValidContext() {
+    public void HeadId_DefaultSupportsPureValuesButCannotDecodeToLegalLocalNumber() {
         HeadId left = default;
         HeadId right = default;
-        Assert.Equal(0u, left.LocalId);
         Assert.True(left.Equals(right));
         Assert.True(left == right);
         Assert.False(left != right);
         Assert.Equal(left.GetHashCode(), right.GetHashCode());
-        Assert.False(left.BelongsTo(default));
-        Assert.False(left.BelongsTo(FormatTestValues.Identity()));
-        Assert.False(HeadId.Create(FormatTestValues.Identity(), 1).BelongsTo(default));
+        Assert.False(left.TryGetLocalId(default, out _));
+        Assert.False(left.TryGetLocalId(FormatTestValues.Identity(), out _));
+        Assert.False(HeadId.Create(FormatTestValues.Identity(), 1).TryGetLocalId(default, out _));
     }
 
     [Fact]
@@ -95,9 +112,8 @@ public class HeadValueTests {
 
     [Fact]
     public void Values_PublicSurfaceHasOnlyReadonlyProjectionsAndNoPositionConstructorsOrCodecs() {
-        AssertOpaqueValueSurface(typeof(HeadId), "LocalId");
+        AssertOpaqueValueSurface(typeof(HeadId));
         AssertOpaqueValueSurface(typeof(HeadEntryId), "HeadId", "Ticket");
-        Assert.Equal(typeof(uint), typeof(HeadId).GetProperty("LocalId")!.PropertyType);
         Assert.Equal(typeof(HeadId), typeof(HeadEntryId).GetProperty("HeadId")!.PropertyType);
         Assert.Equal(typeof(SizedPtr), typeof(HeadEntryId).GetProperty("Ticket")!.PropertyType);
     }

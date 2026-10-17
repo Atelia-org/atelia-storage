@@ -65,7 +65,7 @@ internal sealed class HistoryFaultFixture : IDisposable {
 
     internal void CorruptPayload(HistorySeed seed, int index) {
         SizedPtr ticket = seed.Tickets[index];
-        using var stream = new FileStream(Files.Paths[seed.HeadId.LocalId], FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        using var stream = new FileStream(Files.Paths[seed.HeadId.GetLocalId(Identity)], FileMode.Open, FileAccess.ReadWrite, FileShare.None);
         // Mutate a publicly generated frame; no RBF wire construction or resealing is used.
         long offset = ticket.Offset + ticket.Length / 2;
         stream.Position = offset;

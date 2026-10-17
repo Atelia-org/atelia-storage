@@ -15,7 +15,7 @@ public sealed partial class HeadStore {
     public AteliaResult<HeadEntry> ReadEntry(HeadEntryId entryId) {
         EnsureOwnerUsable();
         if (!IsLocalEntryId(entryId)) { return InvalidEntryId(); }
-        var opened = GetOrOpen(entryId.HeadId.LocalId);
+        var opened = GetOrOpen(entryId.HeadId.GetLocalId(_identity));
         if (opened.IsFailure) { return opened.Error!; }
         IRbfFile file = opened.Value!;
         var header = HeadRecordReader.CheckHeader(file, _identity, entryId.HeadId);

@@ -12,13 +12,13 @@ public class HeadHeaderTests {
     [InlineData(true, FormatTestValues.ForkHeaderHex)]
     public void Header_IndependentGoldensPreserveContextAndNullableOrigin(bool hasOrigin, string hex) {
         StoreIdentity identity = FormatTestValues.Identity();
-        HeadId own = HeadId.Create(identity, 0x89ABCDEF);
+        HeadId own = HeadId.Create(identity, 0x00ABCDEF);
         byte[] golden = Convert.FromHexString(hex);
         Assert.True(HeadHeaderCodec.TryRead(golden, identity, own, out HeadHeader header));
         Assert.Equal(own, header.HeadId);
         Assert.Equal(hasOrigin, header.Origin.HasValue);
         ForkOrigin? expectedOrigin = hasOrigin
-            ? new ForkOrigin(HeadId.Create(identity, 0x76543210), SizedPtr.Create(60, 40))
+            ? new ForkOrigin(HeadId.Create(identity, 0x00543210), SizedPtr.Create(60, 40))
             : null;
         Assert.Equal(expectedOrigin, header.Origin);
         byte[] destination = Enumerable.Repeat((byte)0xA5, golden.Length + 3).ToArray();
@@ -37,7 +37,7 @@ public class HeadHeaderTests {
     public void Header_RejectsEveryOtherWidthAndKeepsResultDefault() {
         byte[] golden = Convert.FromHexString(FormatTestValues.ForkHeaderHex);
         StoreIdentity identity = FormatTestValues.Identity();
-        HeadId own = HeadId.Create(identity, 0x89ABCDEF);
+        HeadId own = HeadId.Create(identity, 0x00ABCDEF);
         for (int length = 0; length <= 40; length++) {
             if (length is 24 or 36) { continue; }
             byte[] source = new byte[length];
@@ -58,13 +58,24 @@ public class HeadHeaderTests {
         byte[] golden = Convert.FromHexString(FormatTestValues.HeaderHex);
         StoreIdentity identity = FormatTestValues.Identity();
         StoreIdentity foreign = FormatTestValues.DataIdentity();
-        HeadId own = HeadId.Create(identity, 0x89ABCDEF);
+        HeadId own = HeadId.Create(identity, 0x00ABCDEF);
         Assert.False(HeadHeaderCodec.TryRead(golden, default, own, out _));
         Assert.False(HeadHeaderCodec.TryRead(golden, identity, default, out _));
         Assert.False(HeadHeaderCodec.TryRead(golden, foreign, own, out _));
-        Assert.False(HeadHeaderCodec.TryRead(golden, foreign, HeadId.Create(foreign, own.LocalId), out _));
-        Assert.False(HeadHeaderCodec.TryRead(golden, identity, HeadId.Create(identity, own.LocalId - 1), out _));
-        Assert.False(HeadHeaderCodec.TryRead(golden, identity, HeadId.Create(foreign, own.LocalId), out _));
+        Assert.False(HeadHeaderCodec.TryRead(golden, foreign, HeadId.Create(foreign, own.GetLocalId(identity)), out _));
+        Assert.False(HeadHeaderCodec.TryRead(golden, identity, HeadId.Create(identity, own.GetLocalId(identity) - 1), out _));
+        Assert.False(HeadHeaderCodec.TryRead(golden, identity, HeadId.Create(foreign, own.GetLocalId(identity)), out _));
+    }
+
+    [Fact]
+    public void Header_StillRequiresEveryPersistedIdentityBitWhenHandleKeysMatch() {
+        StoreIdentity identity = FormatTestValues.Identity();
+        byte[] changed = Convert.FromHexString(FormatTestValues.IdentityHex);
+        changed[15] ^= 1;
+        Assert.True(StoreIdentity.TryRead(changed, out StoreIdentity foreign));
+        HeadId own = HeadId.Create(identity, 0x00ABCDEF);
+        Assert.Equal(own, HeadId.Create(foreign, 0x00ABCDEF));
+        Assert.False(HeadHeaderCodec.TryRead(Convert.FromHexString(FormatTestValues.HeaderHex), foreign, own, out _));
     }
 
     [Theory]
@@ -76,6 +87,9 @@ public class HeadHeaderTests {
     [InlineData(5)] // Self-origin.
     [InlineData(6)] // Zero ticket.
     [InlineData(7)] // Retired format 2.
+    [InlineData(8)] // Retired format 3.
+    [InlineData(9)] // Own local above 24-bit domain.
+    [InlineData(10)] // Source local above 24-bit domain.
     public void Header_InvalidFieldsCannotClaimMetadata(int mutation) {
         byte[] changed = Convert.FromHexString(FormatTestValues.ForkHeaderHex);
         switch (mutation) {
@@ -87,10 +101,13 @@ public class HeadHeaderTests {
             case 5: changed.AsSpan(20, 4).CopyTo(changed.AsSpan(24, 4)); break;
             case 6: changed.AsSpan(28, 8).Clear(); break;
             case 7: changed[0] = 2; break;
+            case 8: changed[0] = 3; break;
+            case 9: BinaryPrimitives.WriteUInt32LittleEndian(changed.AsSpan(20), HeadStore.MaxLocalHeadId + 1); break;
+            case 10: BinaryPrimitives.WriteUInt32LittleEndian(changed.AsSpan(24), HeadStore.MaxLocalHeadId + 1); break;
         }
 
         StoreIdentity identity = FormatTestValues.Identity();
-        Assert.False(HeadHeaderCodec.TryRead(changed, identity, HeadId.Create(identity, 0x89ABCDEF), out HeadHeader header));
+        Assert.False(HeadHeaderCodec.TryRead(changed, identity, HeadId.Create(identity, 0x00ABCDEF), out HeadHeader header));
         Assert.Equal(default, header);
     }
 
@@ -101,7 +118,7 @@ public class HeadHeaderTests {
         byte[] changed = Convert.FromHexString(FormatTestValues.ForkHeaderHex);
         BinaryPrimitives.WriteUInt64LittleEndian(changed.AsSpan(28), SizedPtr.Create(offset, length).Packed);
         StoreIdentity identity = FormatTestValues.Identity();
-        Assert.False(HeadHeaderCodec.TryRead(changed, identity, HeadId.Create(identity, 0x89ABCDEF), out HeadHeader header));
+        Assert.False(HeadHeaderCodec.TryRead(changed, identity, HeadId.Create(identity, 0x00ABCDEF), out HeadHeader header));
         Assert.Equal(default, header);
     }
 
@@ -109,7 +126,7 @@ public class HeadHeaderTests {
     public void Header_LastLegalSourceStartCanHaveEndBeyondMaxOffset() {
         StoreIdentity identity = FormatTestValues.Identity();
         HeadId own = HeadId.Create(identity, 7);
-        ForkOrigin origin = new(HeadId.Create(identity, uint.MaxValue), SizedPtr.Create(SizedPtr.MaxOffset, 40));
+        ForkOrigin origin = new(HeadId.Create(identity, HeadStore.MaxLocalHeadId), SizedPtr.Create(SizedPtr.MaxOffset, 40));
         byte[] wire = new byte[36];
         Assert.True(HeadHeaderCodec.TryWrite(identity, own, origin, wire));
         Assert.True(HeadHeaderCodec.TryRead(wire, identity, own, out HeadHeader header));

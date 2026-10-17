@@ -96,7 +96,7 @@ internal sealed partial class DirectoryHeadStoreFiles : IHeadStoreFiles, IHeadSt
 
     public AteliaResult<QualifiedHeadTarget> ResolveHead(uint localId, Action markOwnedCleanupFault) {
         ArgumentNullException.ThrowIfNull(markOwnedCleanupFault);
-        if (localId == 0) { return InvalidLocalId(); }
+        if (localId is 0 or > HeadStore.MaxLocalHeadId) { return InvalidLocalId(); }
         string path = HeadPath(localId);
         HeadStorePlatform.RequireDirectory(HeadsPath, markOwnedCleanupFault);
         if (!HeadStorePlatform.TryRequireFile(path, markOwnedCleanupFault)) {
@@ -173,7 +173,7 @@ internal sealed partial class DirectoryHeadStoreFiles : IHeadStoreFiles, IHeadSt
 
     public AteliaResult<QualifiedHeadTarget> PrepareNewHead(uint localId, Action markOwnedCleanupFault) {
         ArgumentNullException.ThrowIfNull(markOwnedCleanupFault);
-        if (localId == 0) { return InvalidLocalId(); }
+        if (localId is 0 or > HeadStore.MaxLocalHeadId) { return InvalidLocalId(); }
         HeadStorePlatform.RequireDirectory(HeadsPath, markOwnedCleanupFault);
         HeadStorePlatform.RequireSameFileSystem(_root, HeadsPath, markOwnedCleanupFault);
         string path = HeadPath(localId);
@@ -228,7 +228,7 @@ internal sealed partial class DirectoryHeadStoreFiles : IHeadStoreFiles, IHeadSt
     private string HeadPath(uint localId) => Path.Combine(_root, HeadStorePaths.GetHeadRelativePath(localId));
 
     private static AteliaError InvalidLocalId() =>
-        new HeadStoreRuntimeError("ArgumentError", "A nonzero local head number is required.");
+        new HeadStoreRuntimeError("HeadNotFound", "The head cannot be located in this HeadStore.");
 
     private static InvalidDataException InvalidEntry(string name) =>
         new($"Unexpected HeadStore directory entry '{name}'.");

@@ -1,6 +1,6 @@
 # HeadStore source-only public consumer
 
-这是独立 console consumer，只直接 `ProjectReference` 主线 `HeadStore`，经其依赖使用 FrameStore、Rbf、Binary/Data 的 public API；`IsPackable=false`。没有 `InternalsVisibleTo`、反射、internal API、EventJournal/RbfSegmentStore 或业务依赖。它不是PackageReference、公开包交付或DurableGraph接入证据。当前使用格式3/引用初始化fork及16B独立key/value成员表；格式2/HeadSetTag的历史Windows源码及进程结果保留原资格，新增实际运行与进程结果见[16记录](../../docs/HeadStore/16-headset-tags-acceptance.md)，旧统计仅保留原轮资格。
+这是独立 console consumer，只直接 `ProjectReference` 主线 `HeadStore`，经其依赖使用 FrameStore、Rbf、Binary/Data 的 public API；`IsPackable=false`。没有 `InternalsVisibleTo`、反射、internal API、EventJournal/RbfSegmentStore 或业务依赖。它不是PackageReference、公开包交付或DurableGraph接入证据。当前使用格式4、4B `HeadId`、引用初始化fork及16B独立key/value成员表。格式2/3的历史Windows源码及进程结果保留原资格，见[16记录](../../docs/HeadStore/16-headset-tags-acceptance.md)；格式4须按本轮实际运行另行取证。
 
 先在仓根串行完成 Release 构建，然后用两个独立进程写入与冷读；`graph-write` 的应用 root 必须缺失或为空，不自动删除已有数据：
 
@@ -16,7 +16,7 @@ Linux 命令相同，换成 Linux 文件系统上的 fresh 路径。graph 成功
 
 已知尺寸 Builder 在写内容前取得地址，先写第一份 node 的前缀，再写/完成第二份 node，最后完成第一份 node；多代图交换 A/B 的申请顺序。每代同时覆盖普通 buffer `Append`、未知尺寸 `BeginAppend()` 与已知尺寸 `BeginAppend(..., out address)`，只依据实际返回地址读取，断言循环跨文件。采用128B软轮转阈值；六代图共24个应用帧。
 
-版本流程包括指定 Head 1、相同 bytes 重复发布及新旧 generation 分离；历史 visitor 停在非 head 的精确 EntryId，调用返回后分别创建预留 Head 2 与自动 Head 3，再独立推进；两个ForkHead重载返回新HeadId，读取未续写fork得到真实来源Entry，写入仍用所选HeadId。Head 2 的公开 head 再自动 fork 为 Head 4；来源后续推进不会扩大子 Head 的继承前缀。SelectedTag在duplicate仍为当前值时创建，之后历史读取选取该点；Head 1 rewind追加旧bytes后捕获其当前位置。BranchTag同时捕获branch2与deepFork子Head，随后来源推进不改各tag成员。
+版本流程包括指定 Head 1、相同 bytes 重复发布及新旧 generation 分离；历史 visitor 停在非 head 的精确 EntryId，调用返回后分别创建预留 Head 2 与自动 Head 3，再独立推进；两个ForkHead重载返回新HeadId，读取未续写fork得到真实来源Entry，写入仍用所选HeadId。本地文件号由活的 owner 调用 `GetLocalHeadId` 解释；冷重开时通过 `ListHeads` 与该方法恢复所选 Head，不能从继承 Entry 的 owner 推断所选 Head。owner 关闭后仍可比较保留的 Handle 值。Head 2 的公开 head 再自动 fork 为 Head 4；来源后续推进不会扩大子 Head 的继承前缀。SelectedTag在duplicate仍为当前值时创建，之后历史读取选取该点；Head 1 rewind追加旧bytes后捕获其当前位置。BranchTag同时捕获branch2与deepFork子Head，随后来源推进不改各tag成员。
 
 冷读核对四个完整 NamedFrameMap、所有实际 node/self/peer 地址、完整继承历史、三条精确 ForkOrigin 声明、三份不可变 tag、`ReadTagInfo/ScanTags`成员数与保存时间，并用ReadTag成员ID精确读取原bytes。独立只读 `HeadStore.Audit` 应得到4 Heads、8个真实物理本地 entries（fork不增加克隆记录）、3 forks、3 tags；随后 FrameStore `Audit` 校验24个图帧。返回的HeadEntry、HeadSetTag、HeadSetTagInfo和解码字典在两个 owner Dispose 后再次使用。
 
