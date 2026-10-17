@@ -182,4 +182,15 @@ Windows Release build最终为 **0 warning / 0 error**；定向测试 **82 passe
 
 ### 本地包交付
 
-源码资格不替代包消费；本增量的干净提交来源、唯一版本和四个隔离PackageReference结果在完成本地交付后记于此处。旧候选、历史JSON和此前Accepted均保持原来源。本轮未授权公开发布、推送、DG pin/接线验收或远端Source Link下载。
+本轮源码为 `c6fb64a97ebc066e10c480e4439f20a2067683a2`；从干净提交制作唯一版本 **`0.8.0-persistenthandles-local.20261017105233`**。六包及symbols生成成功，12份产物SHA256逐项与manifest复核一致。四个新鲜隔离public PackageReference消费者全部通过，各自仅直接引用一个Atelia包，实际闭包为Rbf三包、Binary两包、FrameStore六包、HeadStore七包；没有ProjectReference或旧栈包混入。
+
+包内portable PDB、静态Source Link、来源revision、169份本地源码checksum及冻结cache字节均通过。HeadStore包消费者实际验证4B/12B磁盘往返、无owner解码、选中C的单/批发布、固定旧点ReadEntry/Fork/ReadEntryHistory、普通/CU历史前缀、inclusive分页和冷开Audit；不是仅调用源码fixture。
+
+```powershell
+./eng/Pack.ps1 -Version 0.8.0-persistenthandles-local.20261017105233 -OutputDirectory artifacts/persistent-handles/feed/0.8.0-persistenthandles-local.20261017105233
+./eng/Test-Package.ps1 -Version 0.8.0-persistenthandles-local.20261017105233 -FeedDirectory artifacts/persistent-handles/feed/0.8.0-persistenthandles-local.20261017105233 -WorkDirectory W:/AteliaStorage-persistenthandles-0.8.0-persistenthandles-local.20261017105233
+```
+
+manifest位于上述feed目录；完整消费者日志、assets和保留的存储文件位于上述仓外workspace。主线程独立复核产物与实际assets的结果保留在 `artifacts/persistent-handles/verified-packages.json`、`verified-consumers.json`，参数及最终状态见 `package-run.json`，汇总见 `verification.json`。复验应使用该源码提交及新的仓外WorkDirectory，不能把仅补写本验收记录的后续提交冒充包来源。
+
+旧候选、历史JSON和此前Accepted均保持原来源。本轮没有推送或公开发布；DG pin/接线、FrameStore紧凑Handle、Linux、远端Source Link下载和设备断电均未取得本增量资格。
