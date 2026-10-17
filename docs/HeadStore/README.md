@@ -1,5 +1,7 @@
 # HeadStore 文档入口
 
+待实施设计：[持久 Handle 与准确 Entry 起点历史](18-persistent-handles-and-entry-history-plan.md)。该方案回应下游 P1/P2/P3，基于已实施的格式4紧凑 Handle；公开 codec 和新历史入口尚未实现，不沿用既有验收资格。
+
 HeadStore 借入一个 FrameStore，发布应用解释的不透明 root-payload bytes，并提供Head、历史、fork、HeadSetTag与只读Audit。公开用法见 [Atelia.HeadStore](../../src/HeadStore/README.md)。本页只做导航，不增加合同或重标验收范围。
 
 紧凑Handle合同见[04](04-versionstore-publication.md)：HeadId为4B上下文编码，本地编号上限0x00FFFFFF；跨库误用检测允许碰撞，GetLocalHeadId替代HeadId.LocalId。内部字段仍为raw local，完整128bit库身份保留在低频门/header；旧轮次资格不代表格式4已验证。
