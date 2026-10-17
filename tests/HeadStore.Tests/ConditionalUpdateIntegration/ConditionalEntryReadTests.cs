@@ -92,7 +92,8 @@ public sealed class ConditionalEntryReadTests {
         using var owner = fixture.Open();
         int deliveries = 0;
         int tagDeliveries = 0;
-        var history = owner.ReadHeadHistory(fixture.Id(1), new(1, 9), entry => {
+        // The same-ticket peer's GetScanBoundaryAfter performs one additional complete read.
+        var history = owner.ReadHeadHistory(fixture.Id(1), new(1, 10), entry => {
             deliveries++;
             Assert.Equal(group[fixture.Id(1)], entry.Id);
             owner.EnsureUsable();
@@ -111,7 +112,7 @@ public sealed class ConditionalEntryReadTests {
         Assert.Equal(1, deliveries);
         Assert.Equal(1, tagDeliveries);
         int rejectedDeliveries = 0;
-        var insufficient = owner.ReadHeadHistory(fixture.Id(1), new(1, 8), _ => { rejectedDeliveries++; return false; });
+        var insufficient = owner.ReadHeadHistory(fixture.Id(1), new(1, 9), _ => { rejectedDeliveries++; return false; });
         Assert.Equal("HeadStore.HistoryBudgetExceeded", insufficient.Error!.ErrorCode);
         Assert.Equal(0, rejectedDeliveries);
     }

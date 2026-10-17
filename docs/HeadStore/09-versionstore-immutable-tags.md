@@ -172,6 +172,8 @@ data/依赖确认、目录建立和空桶初始化仍为NotAttempted。缺桶按
 
 Audit消费S4的只读全库物理/名称/来源检查，并逐个验证每份HeadSetTag的成员引用。canonical表合格不等于 key/value 的引用健康。selected Head 必须存在；同Head value须为其实际发布 Entry，跨Head value须与该selected Head的固定ForkOrigin精确相符，且准确来源Entry已发布。不要求等于今日当前值，不重放创建时刻。不存在key文件/ticket、错来源、坏成员、必要peer错误或未成立CU必须失败。检查 key/origin 复用本次 Audit 的 checked Head 节点表，不逐成员重开 selected 文件。用内部精确读取复用07判据，不循环公开ReadEntry填永久cache、不递归检查peer后来的组，不解码应用payload/data图。
 
+全部Head主链检查成功后，跨Head成员复用已证明的ForkOrigin主链资格；同Head成员在既有短期owner句柄上，另从首帧正扫至完整ticket相等，证明它属于真实主链。扫描只补结构成员见证，不重读前缀payload或重复计EntryCount；遇到TerminationError必须传播。每tag的key唯一，同Head时key就是owner，因此每个同Head成员只需一段结构前缀与O(1)额外状态，不收集全库tag引用；不同tag引用同一旧点可重复扫描。完整CRC和尾Fence可读的离线内嵌frame镜像仍须拒绝；这种镜像违反正常RBF3 writer的marker-free输出，不作为真实写入/进程崩溃轨迹，也不扩大普通ReadEntry/Fork的全链前置要求。
+
 桶扫描句柄与短期成员槽分开；成员及CU peer沿既有短期资源机制逐个访问。cancellation/state检查必须传入内部exact/CU路径，在成员间、文件打开前后、完整读取/peer工作前及最终交付前执行；取消中断不返回完整计数。局部pooled帧和临时文件先清理，根锁最后；已Dispose/fault后不得继续I/O，cleanup失败不被正常完成/取消路径吞掉。主异常优先、各资源只清理一次。纯只读/取消不新增fault，owned清理失败仍停用。
 
 TagCount/TagBucketCount计新成员表及实际桶；验证成员时不重复增加EntryCount。所有统计只在全库遍历、成员引用检查与必要清理成功后交付。ForkOrigin须命中实际主链中的已接受Entry，不再比较子克隆，不把它复制成普通ReadEntry/Fork的全链前置扫描。

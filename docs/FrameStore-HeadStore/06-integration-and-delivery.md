@@ -19,7 +19,7 @@ DurableGraph 是需求来源；S0 已记录兄弟仓的定位观察，实际接�
 | 简单多根状态 | 两类自定义 binary records 与一个 NamedFrameMap | 不依赖 EventFrameHeader/应用 Parent；一次完整发布全部根 |
 | 循环引用图 | A↔B/self-reference，跨文件依赖与多个根地址 | 已知尺寸租借的提前地址、交错完成与全集耐久确认；应用循环由 opaque 数据表达 |
 
-两个模型用同一套 public API 写 data、自动或指定 CreateHead、PublishHead/ReadHead，枚举旧快照、创建 tag 并冷重开。固定角色用预留号，动态目录保存 LocalId 并在正确库 checked 定位。所选真实 EntryId 经自动/指定 ForkHead 建立精确 ForkOrigin 与初始 SingleEntry，一次 file rename 发布；只传 roots 表示无来源起点。ReadHeadHistory 遍历继承前缀，ListHeadOrigins 查询全部声明边；无 CreateCommit/PreparedPublication 或默认多对象事务。
+两个模型用同一套 public API 写 data、自动或指定 CreateHead、PublishHead/ReadHead，枚举旧快照、创建 tag 并冷重开。固定角色用预留号，动态目录保存 LocalId 并由 ListHeads 在正确库恢复所选 HeadId。所选真实 EntryId 经自动/指定 ForkHead 建立准确 ForkOrigin，仅将带来源 header 的新文件一次 rename 发布并返回新 HeadId；未续写 fork 的 ReadHead 返回真实来源 Entry，后续写入仍使用所选 HeadId。CreateHead(payload) 建立无来源起点及初始 SingleEntry。ReadHeadHistory 遍历继承前缀，ListHeadOrigins 查询全部声明边；无 CreateCommit/PreparedPublication 或默认多对象事务。
 覆盖相同字典的重复发布、新旧 EntryId 分离与多个 tag；ReadHeadHistory 固定完成上界，经同步 visitor 交付自有 HeadEntry，调用结束后旧字典仍可使用。rewind 追加旧字典，保留全部既有完整记录。不同 Builder 申请/完成次序构建相同逻辑图时，只按返回地址取回，不依靠文件选择或大小排序。
 仓内已提供可独立运行的 [HeadStore.Smoke](../../tools/HeadStore.Smoke/README.md)：多根/循环图、历史选点/fork/rewind/tag 由新进程冷读验证。Windows 两层锁与六个公开停点的实际强杀见 [V4-B 记录](../HeadStore/12-versionstore-implementation-plan.md#v4-b-验证记录2026-10-11)。这不是 DurableGraph 接入、内部写入窗口或整张 S6 矩阵完成的证据。 WSL2/ext4与Windows的有限资源消费者、平台用例及原生锁实测见 [V4-C记录](../HeadStore/12-versionstore-linux-resource-acceptance.md)；历史 EventJournal 单独 tmpfs 回归与新栈 ext4 资格分开，旧栈已从 main 退役。
 

@@ -32,7 +32,7 @@ ConditionalUpdate:
 
 各成员可以有不同 root-payload bytes 和帧尺寸，相同的是完整 Members 表。Count 为固定4B uint32 LE，每项为4B LocalHeadId + 8B Packed ticket；表后全部剩余 payload 是本 Head 的 root payload，不增加另一层 byte-length。完整 CRC 覆盖整个记录。发布/事务判据不调用 NamedFrameMap decoder；调用方在进入 PublishHeads 前自行编码，入口按11公面专项逐项复制 bytes。Members ticket 是对应 Head 文件的 SizedPtr，不能替换为 data FrameAddress。
 
-CU 消费 S4 `[F-VS-REF-ID-4B]`：LocalHeadId 固定 4B LE，公开值另携同一 HS 上下文，入口拒绝错上下文；ticket 固定 8B Packed LE，不使用 Serialize/VarUInt。Members 按非零 LocalHeadId 严格递增形成 canonical 表，重复、乱序及零 ID 均拒绝。root payload 直接消费 S4 `[A-VS-ROOT-PAYLOAD]` 的 bytes 范围，保持 1..1MiB；应用使用 NamedFrameMap 时才消费 [NamedFrameMap 专项](10-versionstore-rootmap-payload.md)。CU 的 FrameTag 固定为 2，完整 stored payload 上限为 `RbfFile.MaxPayloadAndMetaLength - 8 = 268435416B`，完整 frame 上限为 `SizedPtr.MaxLength = 268435452B`；不另增加任意成员数硬限。CU自身不新增payload kind/version；本轮HeadSetTag将统一门与header版本提升至2，SingleEntry/CU记录布局保持，旧版本门拒绝。meta 消费专项，两定位字段的解码不证明发布。
+CU 消费 S4 `[F-VS-REF-ID-4B]`：LocalHeadId 固定 4B LE，公开值另携同一 HS 上下文，入口拒绝错上下文；ticket 固定 8B Packed LE，不使用 Serialize/VarUInt。Members 按非零 LocalHeadId 严格递增形成 canonical 表，重复、乱序及零 ID 均拒绝。root payload 直接消费 S4 `[A-VS-ROOT-PAYLOAD]` 的 bytes 范围，保持 1..1MiB；应用使用 NamedFrameMap 时才消费 [NamedFrameMap 专项](10-versionstore-rootmap-payload.md)。CU 的 FrameTag 固定为 2，完整 stored payload 上限为 `RbfFile.MaxPayloadAndMetaLength - 8 = 268435416B`，完整 frame 上限为 `SizedPtr.MaxLength = 268435452B`；不另增加任意成员数硬限。CU自身不新增payload kind/version；当前统一门与header版本为3，拒绝版本1/2，SingleEntry/CU记录布局保持。meta 消费专项，两定位字段的解码不证明发布。
 
 在预测 CU tickets 前先捕获全部私有 root-payload bytes，长度 rᵢ 已确定。CU payload 长度精确为 4 + 12k + rᵢ，用 checked long 校验，再调用 MeasureWriteSize(payloadLength,8) 并以可信 TailOffset/SizedPtr 预测各 ticket。固定宽度的成员项不依赖 ticket 数值，root payload 的编码也不依赖 CU 自身 tickets，无尺寸循环；不引入成员 padding。相对原8B HeadId草案，每表少4k bytes，全组少4k² bytes。
 
@@ -157,7 +157,11 @@ ReadDesignatedMember(peer, wanted):
     wanted.offset > tail: 报 Error
 
     exact = peer.ReadPooledFrame(wanted)
-    exact 成功: 返回完整帧，继续统一检查 kind / codec / meta形状 / self / Members
+    exact 成功:
+        完整检查 kind / codec / meta形状 / self；非法则报 Error
+        boundary = peer.GetScanBoundaryAfter(wanted)
+        boundary 失败: 直接传播；不进入长度消歧
+        尾 Fence 合格后才按 SingleEntry / Members 返回不匹配或成立
     exact 的异常 / CRC / 其他非歧义错误: 直接传播
 
     // 当前完整读取仅 Rbf.ArgumentError / Rbf.FramingError 允许长度消歧
@@ -181,7 +185,7 @@ ReadDesignatedMember(peer, wanted):
 
 RBF `TailOffset` 属性本身不检查 Dispose/fault，必须保留扫描入口准入；即使 wanted 正好在 EOF，也不能绕过这一 guard。结构检查通过的异长替换即使有未读取的坏 payload，也已足以否定旧 ticket；此查询不宣称替换内容健康。
 
-精确读成功仍校验 HeadLen 与 wanted length、TrailerCRC 与 PayloadCRC。同起点的异长替代不能在该完整读中误成功；起点主链资格来自内部协议生成的可信位置、正常结构打开与不变完整前缀。随机读取 API 自身不证明任意外部 ticket 的主链成员身份。
+精确读成功仍校验 HeadLen 与 wanted length、TrailerCRC 与 PayloadCRC；这些不覆盖尾 Fence。同ticket的完整合法peer必须再由GetScanBoundaryAfter核验尾Fence，成功后才可成为成立成员或SingleEntry/异表CU的合法否定见证；Fence失败直接传播，不能进入长度消歧。所选本地CU已由合法peer见证否定时，仍按现行短路规则处理，不额外检查本地CU的尾Fence。同起点的异长替代不能在该完整读中误成功；异长结构反证保持前述后继查询，不增加替换payload读取。起点主链资格来自内部协议生成的可信位置、正常结构打开与不变完整前缀。随机读取 API 自身不证明任意外部 ticket 的主链成员身份。
 
 按可信 start 定位实际 FrameInfo 的新 RBF 入口延期，仅在真实失败查询成本要求触发时评估。内部 `ReadFrameInfoAt` 不是现成公共合同；当前消歧现场逆扫取得真实前驱即可消费公开 `ReadFrameInfoImmediatelyAfter`。不给 Members 增加前驱字段，不把暖缓存作为冷读证明。
 
@@ -220,7 +224,7 @@ RBF `TailOffset` 属性本身不检查 Dispose/fault，必须保留扫描入口�
 
 写入只触及本批 k 个 Head。每个组的精确 ticket 校验只访问它的成员与必要 bytes，不需要所有 N 个 Heads；全部 k 张完整表比较仍是 O(k²) 元数据工作，并需读取所选 peer 的完整帧 bytes/CRC；不解析其 NamedFrameMap 内容。已成立组的精确读取不扫描 peer 后续历史。连续失败后缀的本地逆扫会累积；异长消歧可能扫描 peer 后缀及真实前驱，再作一次结构后继查询，但不读替换 payload。一次 ReadHead 回退多个旧 CU 时，读取范围是这些被检查组成员集合的并集，不能宣称始终只读最终成立组的成员。
 
-ReadHeadHistory 共用 S5 的 MaxEntries / MaxWorkSteps：只有向 visitor 交付成立的发布记录才计一项快照；每次进入 peer、forward/reverse MoveNext 尝试和完整帧读取均按既有规则计一步，包括无输出的组验证和失败定位。CU 异长消歧的 ReadFrameInfoImmediatelyAfter 结构后继查询另计一步，S5 计费表包含此项；每个动作前检查并扣费。继承历史的 source anchor 完整读、GetScanBoundaryAfter 与指定边界 ScanReverse 的完整读也按 S5 计费；CU 异长槽位消歧仍保留自身的后缀定位路径，不能借这份历史优化省略。复用已读本地 CU 不重复计一次 peer 读取；peer 访问不加入 ForkOrigin 继承路径的 visited，也不递归另一组。临时 peer 句柄登记在 owner 可清理槽，匹配已有文件时借用，其他 peer 逐个关闭；当前历史/本地句柄加至多一个 peer 句柄，额外 handles 保持 O(1)，不将全部成员文件安装成长驻缓存。
+ReadHeadHistory 共用 S5 的 MaxEntries / MaxWorkSteps：只有向 visitor 交付成立的发布记录才计一项快照；每次进入 peer、forward/reverse MoveNext 尝试和完整帧读取均按既有规则计一步，包括无输出的组验证和失败定位。同ticket peer的GetScanBoundaryAfter会再次完整读取指定帧，须在调用前另扣一步；额度不足不得探测其Fence。CU 异长消歧的 ReadFrameInfoImmediatelyAfter 结构后继查询另计一步，S5 计费表包含此项；每个动作前检查并扣费。继承历史的 source anchor 完整读、GetScanBoundaryAfter 与指定边界 ScanReverse 的完整读也按 S5 计费；CU 异长槽位消歧仍保留自身的后缀定位路径，不能借这份历史优化省略。复用已读本地 CU 不重复计一次 peer 读取；peer 访问不加入 ForkOrigin 继承路径的 visited，也不递归另一组。临时 peer 句柄登记在 owner 可清理槽，匹配已有文件时借用，其他 peer 逐个关闭；当前历史/本地句柄加至多一个 peer 句柄，额外 handles 保持 O(1)，不将全部成员文件安装成长驻缓存。
 
 预算耗尽或取消不是 Uncommitted 见证，不能继续回退并把旧值作为成功结果；历史按既有预算/结束合同报告未完成范围，不声称全历史已验证。bytes、底层物理 I/O 与文件工厂内部检查/恢复另作成本测量，不新增字节预算或 ReadHead/ForkHead 预算参数；工作步仍不是固定读取范围或时延保证。
 

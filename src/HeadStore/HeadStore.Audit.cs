@@ -268,10 +268,53 @@ public sealed partial class HeadStore {
                 if (member.Value.Entry is null) {
                     return new HeadRecordError("A HeadSetTag member is not a published Entry.");
                 }
+                if (pair.Key == entryId.HeadId) {
+                    // Cross-Head members match an Origin already proved by AuditHeadFrames.
+                    // A same-Head tag ticket has no such witness: exact CRC/Fence alone can
+                    // also describe an offline embedded frame outside the physical chain.
+                    AteliaError? membership = CheckAuditTagMemberChain(resources.Member, memberHeader.Value,
+                        entryId.Ticket, checkState);
+                    if (membership is not null) { return membership; }
+                }
                 CloseAuditResource(ref resources.Member);
                 checkState();
             }
             resources.TagCount = checked(resources.TagCount + 1);
+        }
+    }
+
+    private static AteliaError? CheckAuditTagMemberChain(IRbfFile file, CheckedHeadHeader header,
+        SizedPtr wanted, Action checkState) {
+        checkState();
+        var forward = file.ScanForward(showTombstone: true).GetEnumerator();
+        checkState();
+        bool hasHeader = forward.MoveNext();
+        checkState();
+        if (!hasHeader) {
+            return forward.TerminationError ?? new HeadHeaderError("The checked HeadHeader is missing from the physical chain.");
+        }
+        RbfFrameInfo first = forward.Current;
+        checkState();
+        if (first.Ticket != header.HeaderTicket || !HeadRecordCodec.IsHeaderShape(first)) {
+            return new HeadHeaderError("The first physical frame differs from its checked HeadHeader.");
+        }
+
+        // The earlier whole-Head audit checked every publication and normal EOF. This
+        // prefix only proves that this exact accepted ticket belongs to that same chain.
+        while (true) {
+            checkState();
+            bool hasEntry = forward.MoveNext();
+            checkState();
+            if (!hasEntry) {
+                return forward.TerminationError
+                    ?? InvalidHistoryOrigin("A HeadSetTag member ticket is not in its formal Head's physical chain.");
+            }
+            RbfFrameInfo info = forward.Current;
+            checkState();
+            if (info.Ticket == wanted) { return null; }
+            if (info.Ticket.Offset >= wanted.Offset) {
+                return InvalidHistoryOrigin("A HeadSetTag member ticket is not in its formal Head's physical chain.");
+            }
         }
     }
 

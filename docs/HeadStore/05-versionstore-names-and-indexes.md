@@ -87,7 +87,7 @@ visitor 返回 true 表示继续，false 表示已接收当前项并正常选点
 | 预算 | 计费与拒绝边界 |
 | --- | --- |
 | MaxEntries | 每次交付 checked 自有快照计一项；交付上限用完且起点尚未证成，继续遍历前即失败，不为探测下一项执行额外 I/O |
-| MaxWorkSteps | 每次进入一个 Head（含 CU peer 访问）、每次 forward/reverse MoveNext 尝试、每次完整帧读取各计一步；包括 header 资格、source anchor 核验、CU 无输出组验证/消歧、重复实际读取及返回 false 的尝试。CU 异长定位的 ReadFrameInfoImmediatelyAfter 结构后继查询另计一步。GetScanBoundaryAfter 与边界逆扫重验 anchor 的每次完整读也在动作前分别扣费，不能以 helper 封装漏计；复用已读本地 CU 不重复计 peer 读取，不复制 RBF 帧长度/CRC 算法 |
+| MaxWorkSteps | 每次进入一个 Head（含 CU peer 访问）、每次 forward/reverse MoveNext 尝试、每次完整帧读取各计一步；包括 header 资格、source anchor 核验、CU 无输出组验证/消歧、重复实际读取及返回 false 的尝试。同ticket CU peer在完整读取后以GetScanBoundaryAfter核验尾Fence，其再次完整读取另计一步，须先扣费，额度不足不得探测Fence。CU 异长定位的 ReadFrameInfoImmediatelyAfter 结构后继查询另计一步。GetScanBoundaryAfter 与边界逆扫重验 anchor 的每次完整读也在动作前分别扣费，不能以 helper 封装漏计；复用已读本地 CU 不重复计 peer 读取，不复制 RBF 帧长度/CRC 算法 |
 
 额度不足返回错误码 `HeadStore.HistoryBudgetExceeded` 的失败 Result，不返回正常 BudgetExhausted/partial-success 或公开 usage 摘要。先复检 owner/fault/token，再判继续工作的额度；visitor false 优先正常停止，visitor true 且真实无来源起点已经证成则 Complete，返回数恰好用完不阻碍该结果。尚需资格检查才能证明起点时，所需步骤也必须有额度；禁止越额探测或根据数量猜祖先不存在。已交付前缀仍可保存，但预算失败、正常早停都不证明未访问历史完整。
 工作步是算法入口次数，不是物理 I/O bytes、耗时、单帧大小或 RSS 上界；工厂 Open 的内部结构检查/恢复、缓存预读和一次同步读/CRC/envelope解码不能被这些计数拆分或抢占。visitor 自己的查询/data 读取及结果积累另计。进入 Head 的一步约束访问 Head 数；文件打开前后、每个扫描/完整读和回调之间检查 cancellationToken。完整读取前先以已取得的 RbfFrameInfo 检查 S4 该版本的记录尺寸上限，不先租用超限全帧再拒绝；解码仍消费 S4 字段/容量检查，不能为满足工作预算取消它们。每查询全帧请求字节额度、硬内存/时限等独立预算留待真实大 payload 成本或调用方限额需求出现后设计。

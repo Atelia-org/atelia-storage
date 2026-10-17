@@ -307,6 +307,14 @@ public sealed partial class HeadStore {
             }
             errors.ThrowIfAny();
             CheckConditionalState(checkState);
+            if (result.IsFailure) { return result; }
+            // Return the peer lease before the boundary helper rereads its complete body.
+            // Both accepted members and same-ticket false witnesses need this trailing Fence.
+            workError = BeforeConditionalWork(beforeWork, checkState);
+            if (workError is not null) { return workError; }
+            var boundary = peer.GetScanBoundaryAfter(wanted);
+            CheckConditionalState(checkState);
+            if (boundary.IsFailure) { return boundary.Error!; }
             return result;
         }
         CheckConditionalState(checkState);

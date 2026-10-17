@@ -2,6 +2,8 @@
 
 2026-10-17 引用初始化 fork 的新增资格见本文末节；下述 V4-E/V4-F 保持原 revision、名称与范围，不作为格式3证据。
 
+引用初始化 fork 之后的健壮性维护（CU peer 尾 Fence、tag 主链成员核对及底层 buffer 清理）与独立源码/包验证见[本轮维护状态](../../maintenance/2026-10-16.md)。公开 API 与格式3保持，旧资格不重标为该增量的证据。
+
 日期：2026-10-11。V4-E审查基线：`9e751d4`；V4-F组合增量基线：`3274558`。本记录消费 [S4](04-versionstore-publication.md)、[S5](05-versionstore-names-and-indexes.md)、[08](08-versionstore-record-metadata.md)–[11](11-versionstore-root-payload-bytes-api.md) 的已实施合同及 [S6](../FrameStore-HeadStore/06-integration-and-delivery.md) 的分层取证要求；不增加协议或重标历史运行结果。
 
 状态：**Accepted（独立 source-only 源码资格）。** S4/S5及08–11的已实施 ref/历史/fork/tag/Audit/可选 RootMap 合同取得本记录限定的资格；V4-E发现的P2已修复并通过两平台回归。V4-F的具名内部窗口和组合增量单列在末节；后续 S6-C/D 本地候选资格另见[包交付记录](../FrameStore-HeadStore/13-local-package-delivery.md)，不重标本次源码证据；应用迁移保留独立出口；未来批量/CU不在本次Accepted范围。

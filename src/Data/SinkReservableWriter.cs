@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.ExceptionServices;
 using Atelia.Data.Binary;
 using Atelia.Data.Hashing;
 
@@ -268,13 +269,19 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
 
     /// <summary>Resets the writer to its initial state, returning all rented buffers to the pool.</summary>
     /// <param name="newSink">新的 Sink，若为 null 则保持当前 Sink</param>
+    /// <remarks>
+    /// Attempts every rented buffer return and clears local state before rethrowing the first cleanup exception
+    /// with its original stack. A failed return is not retried. Continued writing after cleanup failure is not guaranteed.
+    /// </remarks>
     public void Reset(IByteSink? newSink = null) {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
+        Exception? cleanupError = null;
         foreach (var c in _chunks) {
             if (c.IsRented) {
                 c.IsRented = false;
-                _pool.Return(c.Buffer);
+                try { _pool.Return(c.Buffer); }
+                catch (Exception error) { cleanupError ??= error; }
             }
         }
         _chunks.Clear();
@@ -292,13 +299,18 @@ public sealed class SinkReservableWriter : IReservableBufferWriter, IDisposable 
         if (newSink is not null) {
             _sink = newSink;
         }
+        if (cleanupError is not null) { ExceptionDispatchInfo.Capture(cleanupError).Throw(); }
     }
 
+    /// <summary>Releases owned buffers and marks the writer disposed even if cleanup throws.</summary>
+    /// <remarks>Propagates the first cleanup exception after attempting every rented buffer return.</remarks>
     public void Dispose() {
         if (_disposed) { return; }
-        Reset();
-        _disposed = true;
-        GC.SuppressFinalize(this);
+        try { Reset(); }
+        finally {
+            _disposed = true;
+            GC.SuppressFinalize(this);
+        }
     }
     #endregion
 

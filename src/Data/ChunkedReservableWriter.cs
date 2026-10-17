@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.ExceptionServices;
 
 namespace Atelia.Data;
 
@@ -365,15 +366,23 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     private bool _disposed = false;
 
     /// <summary>Resets the writer to its initial state, returning all rented buffers to the pool.</summary>
-    /// <remarks>Ends this writer's ordinary borrow; the borrowed inner writer and previously flushed bytes are retained.</remarks>
+    /// <remarks>
+    /// Ends this writer's ordinary borrow; the borrowed inner writer and previously flushed bytes are retained.
+    /// Attempts every rented buffer return and clears local state even if borrow cancellation or a return fails,
+    /// then rethrows the first cleanup exception with its original stack. Failed cancellation or returns are not retried.
+    /// Continued writing after cleanup failure is not guaranteed.
+    /// </remarks>
     public void Reset() {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        CancelOrdinaryBorrow();
+        Exception? cleanupError = null;
+        try { CancelOrdinaryBorrow(); }
+        catch (Exception error) { cleanupError = error; }
         // 归还所有租借的缓冲区
         foreach (var c in _chunks) {
             if (c.IsRented) {
                 c.IsRented = false;
-                _pool.Return(c.Buffer);
+                try { _pool.Return(c.Buffer); }
+                catch (Exception error) { cleanupError ??= error; }
             }
         }
         _chunks.Clear();
@@ -382,6 +391,7 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
         _length = 0;
         _flushedLength = 0;
         // ReservationTracker 保留 token serial，避免 Reset 后旧 token 被重新签发。
+        if (cleanupError is not null) { ExceptionDispatchInfo.Capture(cleanupError).Throw(); }
     }
 
     #region Core State Properties
@@ -408,9 +418,14 @@ public class ChunkedReservableWriter : IReservableBufferWriter, IDisposable {
     #endregion
 
     /// <summary>Releases all resources used by the writer, returning rented memory to the pool.</summary>
+    /// <remarks>
+    /// Marks the writer disposed even if cleanup throws. The first cleanup exception is propagated after all
+    /// local cleanup attempts; the borrowed inner writer is not disposed.
+    /// </remarks>
     public void Dispose() {
-        if (!_disposed) {
-            Reset();
+        if (_disposed) { return; }
+        try { Reset(); }
+        finally {
             _disposed = true;
             GC.SuppressFinalize(this);
         }

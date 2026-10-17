@@ -130,7 +130,9 @@ var audit = check.Audit(cancellationToken).Unwrap();
 
 先关闭同根 writer，再取得只读 owner。Audit 检查所有正式 Head 的初始化和全部物理 SingleEntry/CU、fork 来源真实主链 exact ticket/共同发布资格，以及全部tag的完整canonical成员表/meta、名称重复与成员引用可读性。无来源root须有初始SingleEntry，有来源fork允许零本地记录。完整 CU 即使未提交仍检查；未提交 CU 可通过但不能作为 fork 来源。成功计数只在全部 EOF 和必要清理完成后返回；EntryCount 计普通 SingleEntry 加成立 CU，排除未提交 CU，header-only fork不增加计数，不重复展开继承历史。可写 owner 返回 `HeadStore.ReadOnlyRequired`，history/tag callback 内也拒绝；取消和普通读异常不因检查本身停用 owner，owned 清理失败仍停用。临时打开全部只读，不恢复、修复或缓存全库句柄。
 
-Audit不解码应用bytes、不遍历data，也不审private pending内容。HeadSetTag成员是正式引用，selected key文件不存在、跨Head成员不等于该key固定ForkOrigin、目标Entry不存在/损坏/未成立CU必须失败；不与今日当前值比较；成员验证不重复计EntryCount。取消与状态检查传入内部exact/CU工作，局部pooled帧和临时文件先清理、根锁最后，不循环公共ReadEntry填永久cache。首次错误即失败，没有部分健康报告；当前实现保留 O(Head 数) 的图/被引用位置以及当前桶名称集合，具体短期句柄/pooled帧边界随tag成员路径单独核验（不含调用前已有缓存或平台路径检查句柄）。取消不是资源额度；系统规模资格另行测量。精确合同见 S4 `[A-VS-AUDIT]`。
+Audit不解码应用bytes、不遍历data，也不审private pending内容。HeadSetTag成员是正式引用，selected key文件不存在、跨Head成员不等于该key固定ForkOrigin、目标Entry不存在/损坏/未成立CU必须失败；不与今日当前值比较；成员验证不重复计EntryCount。跨Head成员复用本次全Head审计已证明的Origin主链资格；同Head成员在现有短期owner句柄上另正扫一段结构前缀，以完整ticket相等证明真实主链成员，额外状态O(1)，不重读前缀payload。不同tag可重复扫描同一前缀，不建立全库tag引用索引。CRC与尾Fence可读的离线内嵌frame镜像仍被拒绝；该镜像违反正常RBF3 writer的marker-free输出，不代表真实写入或进程崩溃轨迹，也不改变普通ReadEntry/Fork的精确读取合同。
+
+取消与状态检查传入内部exact/CU及成员结构扫描，局部pooled帧和临时文件先清理、根锁最后，不循环公共ReadEntry填永久cache。首次错误即失败，没有部分健康报告；当前实现保留 O(Head 数) 的图/被引用位置以及当前桶名称集合，具体短期句柄/pooled帧边界随tag成员路径单独核验（不含调用前已有缓存或平台路径检查句柄）。取消不是资源额度；系统规模资格另行测量。精确合同见 S4 `[A-VS-AUDIT]`。
 
 `NamedFrameMapCodec` 已可独立消费。应用从 FrameStore 正常追加取得地址，用 `Encode(frames)` 生成自有 byte[]；取得 root bytes 后，显式 `Decode(payload)` 得到自有 Ordinal 冻结字典。空 NamedFrameMap 编成单字节 `00`，而 HeadStore 的空 payload 不合法。JSON 或其他编码的应用无需使用 NamedFrameMapCodec。
 

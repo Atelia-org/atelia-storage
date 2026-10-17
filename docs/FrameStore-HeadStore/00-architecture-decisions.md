@@ -217,7 +217,7 @@ HeadStore 借入一个 data FrameStore，拥有独立发布目录；44B 格式�
 2026-10-09 门内容与绑定检查已定于 S4 `[F-VS-OWN-FORMAT]`：独立普通定长记录，借入身份匹配且必要关闭成功后才进入本次 Open 的发布文件恢复/私有清理/输出。2026-10-10 建库/根锁/随机HSID/工作区合同另已定稿，直接消费 `[S-VS-DIRECTORY-LIFECYCLE]` 与 S4；RBF3 约束用于发布帧文件，不将两层格式版本合为一个版本，协议闭合不证明HS平台或运行验收。
 2026-10-10 借入准入定稿于 S4 `[S-VS-DATA-BORROW]`：工厂在本次 HS I/O 前消费 S2 `[A-FS-ENSURE-USABLE]` 的窄 guard，再核对模式与身份；调用方负责持续串行及 data 生命周期。该公共转发已在 [骨架与后续实施计划](../HeadStore/12-versionstore-implementation-plan.md) 所述 V0 实施；不能用纯身份/模式属性代替检查，也不从原 FrameStore Accepted 推定新增资格。
 
-完整 payload 使当前值无需 replay 历史或递归祖先；历史沿本地帧链/ForkOrigin 遍历发布前缀，返回自有 bytes。自动/指定 ForkHead 同文件发布精确来源与完整初始快照；CreateHead(payload) 是独立起点。全分叉图从正式首帧派生，应用名称映射不产生新边。
+每条实际 Entry 保存完整 payload，当前值无需 replay 历史。未续写 fork 直接读取固定 ForkOrigin 指向的实际 Entry，不递归读取来源 Head 的当前值；历史沿本地帧链/ForkOrigin 遍历发布前缀，返回自有 bytes。自动/指定 ForkHead 仅发布带准确来源的 header，返回新 HeadId；CreateHead(payload) 发布无来源 header 与初始 SingleEntry，建立独立起点。全分叉图从正式首帧派生，应用名称映射不产生新边。
 
 HeadId是稳定对象身份；HeadEntryId定位已接受发布，不作Unknown尝试token。来源可以是完成发布、checked Entry读取或完整HeadSetTag表恢复；表读取不证明成员当前健康，ReadEntry/Fork保留既有exact协议。历史返回后可fork/rewind；CreateTag只捕获调用时当前Heads，不接受历史ID任意组合。旧bytes/Related书签退出，DG历史图书签由其迁移任务另行设计。
 
