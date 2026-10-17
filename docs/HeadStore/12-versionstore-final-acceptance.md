@@ -151,4 +151,11 @@ Data 的15项映射测试通过，另有独立Python缩域穷举及32bit边界�
 
 日志与六份TRX在`artifacts/compact-handles/`：`build-final.log`、`tests-final.log`、`tests-final/`及`test-summary.json`；数学见证在`math/probe.json`。首次编译的13项测试迁移错误、首次回归的77项失败保留在`build-first.log`/`tests-first.log`，根因为测试投影迁移、旧格式常量、超域固定编号及旧错误码/golden，修正后取得上述最终结果，未降低生产检查。
 
-本轮包资格在提交源码后独立验证并追加；此前所有Accepted保留原revision，不能沿用为本增量资格。FrameStore接入紧凑Handle、公开Handle持久codec和准确起点历史均留给后续专项。
+本轮源码提交为 `34cd0e8aec59b449673f3fa07ff3d2daca89cde9`；通用Data数学功能单独提交于 `1149ab3`。从该干净源码提交制作本地版本 `0.7.0-compacthandles-local.20261017092721`，六包及symbols成功生成，12份包hash复核通过。四个实际隔离public PackageReference消费者全部通过，分别仅直接引用Rbf、Binary、FrameStore、HeadStore；实际闭包为3/2/6/7包，无源码ProjectReference，169份本地源码checksum、PDB、静态Source Link及冻结cache检查通过。HeadStore包消费者还直接验证Data变换、4B/16B值尺寸、24bit上限及格式4，既有冷重开/fork/CU/tag/Audit组合继续通过。
+
+```powershell
+./eng/Pack.ps1 -Version 0.7.0-compacthandles-local.20261017092721 -OutputDirectory artifacts/compact-handles/feed/0.7.0-compacthandles-local.20261017092721
+./eng/Test-Package.ps1 -Version 0.7.0-compacthandles-local.20261017092721 -FeedDirectory artifacts/compact-handles/feed/0.7.0-compacthandles-local.20261017092721 -WorkDirectory W:/AteliaStorage-compacthandles-0.7.0-compacthandles-local.20261017092721
+```
+
+manifest在上述feed目录；实际消费者assets和逐项日志保留在上述仓外workspace。参数与独立复核摘要为`artifacts/compact-handles/package-run.json`及`verification.json`。此前所有Accepted保留原revision；本轮未推送Git、公开发布包、更新DG依赖或验证远端Source Link下载。FrameStore接入紧凑Handle、公开Handle持久codec和准确起点历史均留给后续专项。
