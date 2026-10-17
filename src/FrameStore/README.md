@@ -2,7 +2,7 @@
 
 设计、当前计划与验收索引见 [FrameStore 文档](../../docs/FrameStore/README.md)。
 
-FrameStore 已实现 [S2](../../docs/FrameStore/02-framestore-core.md) 的公开持久化闭环：真实目录 `Create/Open/OpenReadOnly`、三种追加、交错 Builder、随机读取、同步耐久确认及归档。S2/S3 已取得[独立源码验收](../../docs/FrameStore/02-framestore-final-acceptance.md)。项目参加 solution 构建和测试，已纳入主线本地候选包清单；HeadStore 已完成 Head/history/fork/tag/Audit。包试用入口及限定资格见[本地交付记录](../../docs/FrameStore-VersionStore/13-local-package-delivery.md)。
+FrameStore 已实现 [S2](../../docs/FrameStore/02-framestore-core.md) 的公开持久化闭环：真实目录 `Create/Open/OpenReadOnly`、三种追加、交错 Builder、随机读取、同步耐久确认及归档。S2/S3 已取得[独立源码验收](../../docs/FrameStore/02-framestore-final-acceptance.md)。项目参加 solution 构建和测试，已纳入主线本地候选包清单；HeadStore 已完成 Head/history/fork/tag/Audit。包试用入口及限定资格见[本地交付记录](../../docs/FrameStore-HeadStore/13-local-package-delivery.md)。
 
 ```csharp
 using Atelia.FrameStore;
@@ -35,7 +35,7 @@ writer 的 `Length` 现在表示本次 Builder 的用户 `Reserved + Advanced` �
 
 `StoreId` 是持久身份的 16 个 opaque bytes，`IsReadOnly` 表示访问模式。`RecoveryReports` 按 FileId 保留本次可写 Open 的物理恢复报告；Create/RO 为空。格式/布局不合格拒绝，真实 I/O 错误保持原异常；ReadFrame 的非法 default 地址和底座读取拒绝使用 Result，实际缺失路径仍抛文件缺失异常。owner 输出/清理故障后停止使用，Dispose 按单次释放规则先关数据、最后关锁，不隐式确认。
 
-`StoreId`、`IsReadOnly` 是纯保存值，fault/Dispose 后仍可读取，不能证明当前可用。公共 `EnsureUsable()` 已直接转发现有内部检查；其窄转发合同见 [S2](../../docs/FrameStore/02-framestore-core.md) `[A-FS-ENSURE-USABLE]`，借入入口/持续责任见 [S4](../../docs/VersionStore/04-versionstore-publication.md) `[S-VS-DATA-BORROW]`。新增验证与 VS 骨架接线见[本轮记录](../../docs/VersionStore/12-versionstore-implementation-plan.md)，不重标原 Accepted 证据。
+`StoreId`、`IsReadOnly` 是纯保存值，fault/Dispose 后仍可读取，不能证明当前可用。公共 `EnsureUsable()` 已直接转发现有内部检查；其窄转发合同见 [S2](../../docs/FrameStore/02-framestore-core.md) `[A-FS-ENSURE-USABLE]`，借入入口/持续责任见 [S4](../../docs/HeadStore/04-versionstore-publication.md) `[S-VS-DATA-BORROW]`。新增验证与 VS 骨架接线见[本轮记录](../../docs/HeadStore/12-versionstore-implementation-plan.md)，不重标原 Accepted 证据。
 
 成功的 `FrameRead` 独立拥有 buffer，需调用方 Dispose，可在 store fault/关闭后使用。`Payload` 与 `TailMeta` 从保留的 `PayloadAndMeta` 零复制切片，不重复解码；`TailMetaLength` 仍提供分界长度。FrameRead.Dispose 后三个 bytes getter 都抛 ObjectDisposedException，包括空 Payload/空 TailMeta；已取得的 span 不得越过 Dispose。地址必须同时知道所属 store；不公开裸 RBF writer 或路径导入。
 

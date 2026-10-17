@@ -1,7 +1,7 @@
 # FrameLog：FrameStore 有序帧日志候选扩展
 
 日期：2026-10-05；2026-10-07 同步 VersionStore 简化。状态：**Draft / 可选扩展候选；需求、去留、API 与实施范围尚未确认；新栈首版不依赖本扩展**。
-候选依赖：[S0 边界](../../FrameStore-VersionStore/00-architecture-decisions.md)、[S1 RBF 能力](../../Rbf/01-rbf-sized-append.md)、[S2 FrameStore 核心](../02-framestore-core.md)；交错构建的消费资格可参阅 [S3](../03-framestore-interleaved-builders-and-durability.md)。依赖方向为扩展使用核心；核心定稿、实施和 Accepted 出口不等待本扩展。
+候选依赖：[S0 边界](../../FrameStore-HeadStore/00-architecture-decisions.md)、[S1 RBF 能力](../../Rbf/01-rbf-sized-append.md)、[S2 FrameStore 核心](../02-framestore-core.md)；交错构建的消费资格可参阅 [S3](../03-framestore-interleaved-builders-and-durability.md)。依赖方向为扩展使用核心；核心定稿、实施和 Accepted 出口不等待本扩展。
 
 本文承接原 S2 中的日志术语、`[S-FS-LOG-ORDERED]`、`[A-FS-LOG-CURSOR]` 及相关工程问题和验收要求，保留条款标识用于追溯。下文 MUST/MUST NOT 描述选用该候选后拟建立的合同，不表示已确认需要实施。
 
@@ -67,5 +67,5 @@ cursor 内部可包含文件编号及 RbfScanBoundary，调用方不拆解或自
 
 ## VersionStore 候选的状态
 
-[S4](../../VersionStore/04-versionstore-publication.md) 与 [S5](../../VersionStore/05-versionstore-names-and-indexes.md) 已采用单文件 ref 的完整字典快照、独立 branch 绑定和分桶 tag。它们不需要跨文件发布全序；旧“私有 control FrameLog”草案已被替代，不能用其历史引用证明本扩展具有实际消费者。
+[S4](../../HeadStore/04-versionstore-publication.md) 与 [S5](../../HeadStore/05-versionstore-names-and-indexes.md) 已采用单文件 ref 的完整字典快照、独立 branch 绑定和分桶 tag。它们不需要跨文件发布全序；旧“私有 control FrameLog”草案已被替代，不能用其历史引用证明本扩展具有实际消费者。
 本扩展只有在独立有序日志需求明确后才讨论接纳；不以 data 帧的物理排列替代应用因果关系，也不把 ref 将来的局部分段自动升级为 FrameStore 核心要求。

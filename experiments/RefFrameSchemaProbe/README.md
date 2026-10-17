@@ -21,4 +21,4 @@ dotnet run --project experiments/RefFrameSchemaProbe/Probe.csproj -c Release --n
 
 正式目录应按协议只包含flush/close后的完整初始化；上述人为截短文件不是合法目录发布中断的证据。它专门检验当时设计中拒绝正式缺坏初始化的边界，不能被解释为正常rename会产生半初始化，亦不扩大ProcessCrashOnly故障模型。
 
-2026-10-10 政策更新：用户采用 [S4 `[R-VS-LOCAL-COMPLETE]`](../../docs/VersionStore/04-versionstore-publication.md) 的“接受恢复后初始化完整”。创建在同篇 `[S-VS-CREATING-WORKSPACE]` 已定的唯一 `creating/pending.rbf` 完整flush/close后rename发布；cold只裁决可丢弃工作区，不读私有内容/前缀或还原目标，W取消/RO保留。正式ref先按现有public RBF恢复，再校验必要首两帧/内容，不再需要恢复前前缀保护。本探针的补尾现象因而不再构成设计阻塞；项目、原始JSON、75项断言及旧格式保持不变，当前4B LocalRefId/变长RootMap/meta8与真正VersionStore的运行时验收仍需随实施取得。
+2026-10-10 政策更新：用户采用 [S4 `[R-VS-LOCAL-COMPLETE]`](../../docs/HeadStore/04-versionstore-publication.md) 的“接受恢复后初始化完整”。创建在同篇 `[S-VS-CREATING-WORKSPACE]` 已定的唯一 `creating/pending.rbf` 完整flush/close后rename发布；cold只裁决可丢弃工作区，不读私有内容/前缀或还原目标，W取消/RO保留。正式ref先按现有public RBF恢复，再校验必要首两帧/内容，不再需要恢复前前缀保护。本探针的补尾现象因而不再构成设计阻塞；项目、原始JSON、75项断言及旧格式保持不变，当前4B LocalRefId/变长RootMap/meta8与真正VersionStore的运行时验收仍需随实施取得。

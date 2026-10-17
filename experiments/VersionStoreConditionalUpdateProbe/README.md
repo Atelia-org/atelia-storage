@@ -1,6 +1,6 @@
 # ConditionalUpdate 研究探针
 
-对应 [ConditionalUpdate 跨 ref 事务设计稿](../../docs/VersionStore/07-versionstore-cross-ref-conditional-update.md)。只使用生产 Rbf 的 public API，通过合成 payload 验证共同成员表、提前 ticket、残尾恢复和未完成位置复用；不是 VersionStore 实现或最终持久格式，不注册 solution 或生产 pack。
+对应 [ConditionalUpdate 跨 ref 事务设计稿](../../docs/HeadStore/07-versionstore-cross-ref-conditional-update.md)。只使用生产 Rbf 的 public API，通过合成 payload 验证共同成员表、提前 ticket、残尾恢复和未完成位置复用；不是 VersionStore 实现或最终持久格式，不注册 solution 或生产 pack。
 
 在仓根串行运行，输出目录必须尚不存在；真实文件放 W:，不自动删除镜像：
 

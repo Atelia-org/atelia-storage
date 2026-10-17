@@ -1,16 +1,16 @@
 # atelia-storage
 
-2026-10-16 已完成行为保持的 HeadStore 重命名及 Windows Release 源码验收；本轮验收见[重命名记录](docs/VersionStore/13-headstore-renaming-plan.md)。下述既有源码、进程和包证据仍对应原 VersionStore revision，不自动成为本轮资格。本轮已按[HeadSetTag方案](docs/VersionStore/14-headset-tags-plan.md)完成格式2与具名成员表替换；删除旧bytes/Related API，统一拒绝格式1，源码/进程/包结果另见[14验收记录](docs/VersionStore/14-headset-tags-acceptance.md)，Windows源码、进程及四个隔离包消费者已通过。
+2026-10-16 已完成行为保持的 HeadStore 重命名及 Windows Release 源码验收；本轮验收见[重命名记录](docs/HeadStore/15-headstore-renaming-plan.md)。下述既有源码、进程和包证据仍对应原 VersionStore revision，不自动成为本轮资格。本轮已按[HeadSetTag方案](docs/HeadStore/16-headset-tags-plan.md)完成格式2与具名成员表替换；删除旧bytes/Related API，统一拒绝格式1，源码/进程/包结果另见[16验收记录](docs/HeadStore/16-headset-tags-acceptance.md)，Windows源码、进程及四个隔离包消费者已通过。
 
-Atelia 的 .NET 10 存储基础库，使用 MIT 许可证。main 面向 **RBF3 / FrameStore / HeadStore 新栈**：当前底座为 `Atelia.Primitives`、`Atelia.Data`、`Atelia.Rbf`，另有独立的 `Atelia.Binary` 基元 codec（BCL + 纯托管 K4os.Compression.LZ4 `[1.3.8]`）；FrameStore 已实现[公开持久化闭环](src/FrameStore/README.md)，Inventory/Audit 同步物理检查已实现、已纳入本地候选包清单；HeadStore 已接通普通 Head 公开持久化闭环、有界历史读取、精确 fork 创建与声明分叉图查询，并提供tag/元信息与独立只读Audit；本轮tag改为捕获所选Heads当前位置的HeadSetTag，ReadTag交付固定成员表，Audit检查成员引用，以及多 Head 条件提交 `PublishHeads`（见 [实施计划](docs/VersionStore/12-versionstore-implementation-plan.md)）。
+Atelia 的 .NET 10 存储基础库，使用 MIT 许可证。main 面向 **RBF3 / FrameStore / HeadStore 新栈**：当前底座为 `Atelia.Primitives`、`Atelia.Data`、`Atelia.Rbf`，另有独立的 `Atelia.Binary` 基元 codec（BCL + 纯托管 K4os.Compression.LZ4 `[1.3.8]`）；FrameStore 已实现[公开持久化闭环](src/FrameStore/README.md)，Inventory/Audit 同步物理检查已实现、已纳入本地候选包清单；HeadStore 已接通普通 Head 公开持久化闭环、有界历史读取、精确 fork 创建与声明分叉图查询，并提供tag/元信息与独立只读Audit；本轮tag改为捕获所选Heads当前位置的HeadSetTag，ReadTag交付固定成员表，Audit检查成员引用，以及多 Head 条件提交 `PublishHeads`（见 [实施计划](docs/HeadStore/12-versionstore-implementation-plan.md)）。
 
-下游反馈驱动的公面增量也已实施：HS 精确 `ReadEntry`、组合 `EnsureUsable` 和惰性 `RecoveryReports`，FS 用户 `Length` 与 `Payload`/`TailMeta` 切片。获准队列已收束，分片源码与实际运行资格见[增量验收](docs/FrameStore-VersionStore/14-downstream-api-refinement-acceptance.md)；旧六包候选不含 CU 或这些 API，包交付另行验证。
+下游反馈驱动的公面增量也已实施：HS 精确 `ReadEntry`、组合 `EnsureUsable` 和惰性 `RecoveryReports`，FS 用户 `Length` 与 `Payload`/`TailMeta` 切片。获准队列已收束，分片源码与实际运行资格见[增量验收](docs/FrameStore-HeadStore/14-downstream-api-refinement-acceptance.md)；旧六包候选不含 CU 或这些 API，包交付另行验证。
 
 RBF1 专属源码、测试、toolkit、工程脚本及设计资料已从 main 退役；main 的 `Atelia.Rbf` 只支持 RBF3。RBF1 维护与公开交付归 `RBF1` 分支，退役前完整 main 快照由 `archive/rbf1-main-2026-10-16` 标签保留，范围、历史来源和验证见 [RBF1 退役记录](docs/rbf1-retirement.md)。不在 main 建立第二份旧栈归档副本。
 
 | 当前边界 | 底层与交付方式 | 入口 |
 | --- | --- | --- |
-| main | 仅 RBF3；pack 顺序 Primitives → Data → Rbf → Binary → FrameStore → HeadStore；Binary 不依赖前三包 | [RBF 接口](docs/Rbf/rbf-interface.md)、[格式](docs/Rbf/rbf-format.md)、[FrameStore 文档](docs/FrameStore/README.md)、[HeadStore 文档](docs/VersionStore/README.md)、[跨层决策与交付](docs/FrameStore-VersionStore/README.md) |
+| main | 仅 RBF3；pack 顺序 Primitives → Data → Rbf → Binary → FrameStore → HeadStore；Binary 不依赖前三包 | [RBF 接口](docs/Rbf/rbf-interface.md)、[格式](docs/Rbf/rbf-format.md)、[FrameStore 文档](docs/FrameStore/README.md)、[HeadStore 文档](docs/HeadStore/README.md)、[跨层决策与交付](docs/FrameStore-HeadStore/README.md) |
 | RBF1 维护线 | 旧栈维护与公开发版按该分支及具体包来源 | [RBF1 分支](https://github.com/Atelia-org/atelia-storage/tree/RBF1)、[历史过渡与公开包来源](docs/rbf1-reference-transition.md) |
 
 已公开的 `0.2.0-rbf1-preview.1` 五包属于 RBF1 系列，来源 commit 为 `3e9554e2ea70f769607e80b3fc11a85506050533`。旧消费者继续使用明确版本的 PackageReference 和[对应来源指南](https://github.com/Atelia-org/atelia-storage/blob/3e9554e2ea70f769607e80b3fc11a85506050533/README.md)；main 不提供 RBF1 读取、运行时桥接或格式迁移。存储包版本独立于消费者自己的版本。
@@ -36,7 +36,7 @@ solution build/test 覆盖 main 底座、Binary、FrameStore 和 HeadStore；旧
 
 `eng/Test-Package.ps1` 在尚不存在的仓外目录建立独立 NuGet cache/config 与 MSBuild 边界，四个独立 consumer 分别直接精确 PackageReference Rbf、Binary、FrameStore、HeadStore；检查 Rbf 三包、Binary + K4os 两包、FrameStore 五个 Atelia + K4os、HeadStore 六个 Atelia + K4os 的闭包与 public API。包 manifest、静态 Source Link 和本地源码 checksum 检查保留；源码测试不替代包消费，远端 Source Link、真实应用旧数据兼容和公开发布各自需要证据。验证 workspace 保留日志、assets 与 manifest。
 
-候选容器规范化和确定性构建规则由 `eng/Pack.ps1` 维护；应区分候选 hash 与 nuget.org 签名后的公开包 hash。同平台重打包比较完整 nupkg/snupkg，不能只比较 DLL。当前准备本地六包候选及隔离消费，入口与实际结果见[本地交付记录](docs/FrameStore-VersionStore/13-local-package-delivery.md)，不执行公开发布；发布资格和参数仍需按具体提交另行验收。
+候选容器规范化和确定性构建规则由 `eng/Pack.ps1` 维护；应区分候选 hash 与 nuget.org 签名后的公开包 hash。同平台重打包比较完整 nupkg/snupkg，不能只比较 DLL。当前准备本地六包候选及隔离消费，入口与实际结果见[本地交付记录](docs/FrameStore-HeadStore/13-local-package-delivery.md)，不执行公开发布；发布资格和参数仍需按具体提交另行验收。
 
 消费仓日常使用自己的固定 PackageReference；显式源码联调只适用于匹配 main RBF3 合同的消费者。排障时先核对实际 assets、包 manifest 和来源 commit，再阅读对应源码。
 
@@ -44,7 +44,7 @@ solution build/test 覆盖 main 底座、Binary、FrameStore 和 HeadStore；旧
 
 公共 binary codec 的规范见 [Bare Primitive Value](docs/Binary/bare-primitive-value.md)，实现入口为 [Atelia.Binary](src/Binary/README.md)：schema 驱动的基元、宽容 reader、精确尺寸与显式受控 Brotli/LZ4 block。源码/包资格单列于[实施验收](docs/Binary/bare-primitive-value-acceptance.md)。[Tagged Value](docs/Binary/tagged-value-intent.md) 仍仅为意向，优先评估 CBOR 等成熟标准。
 
-新栈文档按 [FrameStore](docs/FrameStore/README.md) 和 [HeadStore](docs/VersionStore/README.md) 归类，[共同入口](docs/FrameStore-VersionStore/README.md)保留跨层决策与交付。[S1 公共尺寸计算与提前 ticket](docs/Rbf/01-rbf-sized-append.md)已 Accepted，源码资格见[阶段验收记录](docs/Rbf/01-rbf-sized-append-acceptance.md)；S2/S3 已取得[FrameStore 独立源码验收](docs/FrameStore/02-framestore-final-acceptance.md)，S4/S5及已实施专项取得[HeadStore 独立源码验收](docs/VersionStore/12-versionstore-final-acceptance.md)，两个新库已注册到主线包清单。V4-F已补具名内部进程窗口和剩余组合；新增CU / `PublishHeads`取得[独立源码验收](docs/VersionStore/07-versionstore-cross-ref-conditional-update-acceptance.md)，旧六包候选不包含该增量；S6-C/D本地候选与隔离包消费资格见[交付记录](docs/FrameStore-VersionStore/13-local-package-delivery.md)，公开发布与下游迁移另行进行。历史测试与当前增量分开记录，不以源码 Accepted 推定包已交付。
+新栈文档按 [FrameStore](docs/FrameStore/README.md) 和 [HeadStore](docs/HeadStore/README.md) 归类，[共同入口](docs/FrameStore-HeadStore/README.md)保留跨层决策与交付。[S1 公共尺寸计算与提前 ticket](docs/Rbf/01-rbf-sized-append.md)已 Accepted，源码资格见[阶段验收记录](docs/Rbf/01-rbf-sized-append-acceptance.md)；S2/S3 已取得[FrameStore 独立源码验收](docs/FrameStore/02-framestore-final-acceptance.md)，S4/S5及已实施专项取得[HeadStore 独立源码验收](docs/HeadStore/12-versionstore-final-acceptance.md)，两个新库已注册到主线包清单。V4-F已补具名内部进程窗口和剩余组合；新增CU / `PublishHeads`取得[独立源码验收](docs/HeadStore/07-versionstore-cross-ref-conditional-update-acceptance.md)，旧六包候选不包含该增量；S6-C/D本地候选与隔离包消费资格见[交付记录](docs/FrameStore-HeadStore/13-local-package-delivery.md)，公开发布与下游迁移另行进行。历史测试与当前增量分开记录，不以源码 Accepted 推定包已交付。
 
 - 协作约束见 [AGENTS.md](AGENTS.md)；当前 RBF1 维护边界、归档与验收见 [退役记录](docs/rbf1-retirement.md)。
 - 旧栈指南与 [EventJournal 历史设计](https://github.com/Atelia-org/atelia-storage/tree/043f77aa68700568499ceb965c049f8362e4253f/docs/EventJournal)保留在 Git 历史中，提供模型和事实背景，不是 main 新栈的规范权威。具体公开包以固定来源为准。

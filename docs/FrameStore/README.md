@@ -2,7 +2,7 @@
 
 FrameStore 是独立的多文件不可变 Frame 分配器，负责地址、文件生命周期、随机读取与同步耐久确认。公开用法见 [Atelia.FrameStore](../../src/FrameStore/README.md)。本页只做导航，不增加合同；实现 FrameStore 无须先通读 VersionStore 文档。
 
-用户 Length 与 Payload/TailMeta 切片已实施；本轮独立源码与 Windows Release 资格见[下游公面增量验收](../FrameStore-VersionStore/14-downstream-api-refinement-acceptance.md)，合同归入 S2。既有验收及旧候选保持其原范围。
+用户 Length 与 Payload/TailMeta 切片已实施；本轮独立源码与 Windows Release 资格见[下游公面增量验收](../FrameStore-HeadStore/14-downstream-api-refinement-acceptance.md)，合同归入 S2。既有验收及旧候选保持其原范围。
 
 ## 最小阅读路径
 
@@ -19,7 +19,7 @@ FrameStore 是独立的多文件不可变 Frame 分配器，负责地址、文�
 | RBF 尺寸计算、已知尺寸 Builder 与提前 ticket | [S1：公共尺寸与提前 ticket](../Rbf/01-rbf-sized-append.md)；RBF 身份、writer/recovery/Dispose 仍以 [RBF 接口](../Rbf/rbf-interface.md)及[格式](../Rbf/rbf-format.md)为准 |
 | FrameAddress 变长 codec 的基元编码 | 地址合同在 S2；底层编码见 [Bare Primitive Value](../Binary/bare-primitive-value.md) |
 
-共同边界由 [S0：总体决策](../FrameStore-VersionStore/00-architecture-decisions.md)记录；VersionStore 如何发布根不属于 FrameStore 合同。
+共同边界由 [S0：总体决策](../FrameStore-HeadStore/00-architecture-decisions.md)记录；VersionStore 如何发布根不属于 FrameStore 合同。
 
 ## 当前状态与验收
 
@@ -31,13 +31,13 @@ FrameStore 是独立的多文件不可变 Frame 分配器，负责地址、文�
 | public 跨进程锁、强杀与冷重开 | [R1 过程验收](02-framestore-process-acceptance.md) |
 | 独立 public 消费、资源与规模观察 | [R2 消费与资源验收](02-framestore-consumer-resource-acceptance.md) |
 | 收尾后新增的 FrameAddress 变长 codec | [变长编码实施验证](02-framestore-varint-address-implementation.md)，不沿用旧 R3 的 hash 或平台结果 |
-| 为上层借入新增的 `EnsureUsable()` 消费验证 | [VersionStore 实施计划 V0](../VersionStore/12-versionstore-implementation-plan.md#v0已完成骨架和关键局部2026-10-10)，合同仍在 S2 |
+| 为上层借入新增的 `EnsureUsable()` 消费验证 | [VersionStore 实施计划 V0](../HeadStore/12-versionstore-implementation-plan.md#v0已完成骨架和关键局部2026-10-10)，合同仍在 S2 |
 
 较早的实施切片按需查阅：[格式与运行核心](02-framestore-core-implementation.md)、[公开持久化闭环](02-framestore-persistence-implementation.md)、[同步物理检查](02-framestore-inspection-implementation.md)。它们保留历史范围，不替代最终验收。
 
 ## 包、组合与历史材料
 
-- 跨层消费者和交付要求见 [S6](../FrameStore-VersionStore/06-integration-and-delivery.md)；已有六包本地候选及限定平台隔离消费结果见[交付记录](../FrameStore-VersionStore/13-local-package-delivery.md)。源码 Accepted、包消费与公开交付各有独立资格。
+- 跨层消费者和交付要求见 [S6](../FrameStore-HeadStore/06-integration-and-delivery.md)；已有六包本地候选及限定平台隔离消费结果见[交付记录](../FrameStore-HeadStore/13-local-package-delivery.md)。源码 Accepted、包消费与公开交付各有独立资格。
 - 本目录 [evidence](evidence/) 的 JSON 是不可变历史快照；内含原路径、revision、hash 与运行事实按当轮解释，移动文档不改写证据内容。
 - [FrameBatch 规划器](extensions/framestore-batch-planner-candidate.md)与 [FrameLog](extensions/framelog-candidate.md)均为未接纳、未实施的候选；核心实施及验收不等待它们。
-- 跨模块评审和未决讨论仍在[共享目录](../FrameStore-VersionStore/README.md)，按任务查阅，不作为本模块的第二份规范。
+- 跨模块评审和未决讨论仍在[共享目录](../FrameStore-HeadStore/README.md)，按任务查阅，不作为本模块的第二份规范。

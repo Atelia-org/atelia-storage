@@ -1,6 +1,6 @@
 # RootMap 基元组合探针
 
-2026-10-10 修订。实验项目，不属于 solution 或生产 pack；合同权威为 [S4](../../docs/VersionStore/04-versionstore-publication.md) 的 `[F-VS-ROOTMAP-BPV1]`。
+2026-10-10 修订。实验项目，不属于 solution 或生产 pack；合同权威为 [S4](../../docs/HeadStore/04-versionstore-publication.md) 的 `[F-VS-ROOTMAP-BPV1]`。
 
 直接引用主线 public Binary/FrameStore/Rbf API，组合 `VarUInt32(count) + (ordinary BareString + FrameAddress VarInt)×count`。地址通过 `MeasureVarInt` / `WriteVarInt` / `ReadVarInt` 消费真实 public codec：`VarUInt32(FileId) + VarUInt64(SizedPtr.Serialize())`；原有 fixed12 `TryRead/TryWrite` 保留。Binary 当前依赖精确 K4os.Compression.LZ4 `[1.3.8]`，本探针不调用压缩，也不复制 FrameStore/RBF framing encoder。
 

@@ -13,6 +13,6 @@ dotnet run --project HeadStorePackageSmoke.csproj -c Release --no-restore -p:Sto
 
 程序还通过传递 `Atelia.Data` 公面验证 `ChunkedReservableWriter` / `SinkReservableWriter` 的普通 borrow 跨 `Commit → Advance`，以及 Chunked 外层对两种 inner writer 的 `Advance(0)`、`Reset`、`Dispose` 嵌套取消；结束外层借用后，inner 保留已推进的输出和可用性。仅检查这些成功输出/取消路径，不证明任意 pool、sink 或清理故障的行为。
 
-本轮格式2/HeadSetTag迁移与新包资格见[14验收记录](../../docs/VersionStore/14-headset-tags-acceptance.md)，Windows四个隔离PackageReference消费者已通过；此前候选不自动取得本片资格。
+本轮格式2/HeadSetTag迁移与新包资格见[16验收记录](../../docs/HeadStore/16-headset-tags-acceptance.md)，Windows四个隔离PackageReference消费者已通过；此前候选不自动取得本片资格。
 
 失败抛异常并返回非零，成功 stdout 仅给计数摘要和保留路径。包交付使用仓库 `eng/Test-Package.ps1` 的隔离 cache/config 和 assets/source 检查；本程序不是完整 API 验收。跨 Head 的失败/进程终止、物理恢复、断电、性能和应用恢复策略仍各自需要独立证据。

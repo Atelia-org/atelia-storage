@@ -273,7 +273,7 @@ public static class BareValueEncoding {
 | VarUInt16 / VarUInt32 / VarUInt64 | ushort / uint / ulong | 对应 MeasureVarUIntX |
 | VarInt16 / VarInt32 / VarInt64 | short / int / long | 对应 MeasureVarIntX |
 
-示意消费（Informative）：FrameStore 的固定 address codec 使用 BCL LE 基元保持 12B；新增变长 codec 组合本层的 VarUInt32 与 VarUInt64，票据通过 SizedPtr.Serialize/Deserialize 转换。VersionStore 使用 VarUInt32(count)、逐项 WriteString(key) 与 FrameAddress 变长 codec 组合 RootMap；完整记录的字段/版本/限额以 [S4](../VersionStore/04-versionstore-publication.md) 为准。本层不引用 FrameStore，也不定义地址资格。
+示意消费（Informative）：FrameStore 的固定 address codec 使用 BCL LE 基元保持 12B；新增变长 codec 组合本层的 VarUInt32 与 VarUInt64，票据通过 SizedPtr.Serialize/Deserialize 转换。VersionStore 使用 VarUInt32(count)、逐项 WriteString(key) 与 FrameAddress 变长 codec 组合 RootMap；完整记录的字段/版本/限额以 [S4](../HeadStore/04-versionstore-publication.md) 为准。本层不引用 FrameStore，也不定义地址资格。
 受控使用（Informative）：PrepareControlledString(value, ValueCompression.Brotli) → 用 EncodedLength 预算 → WritePreparedValue(plan) → ReadControlledString。bytes 的 null 显式使用 ControlledValueEncodingPlan.Null；PrepareControlledBytes(span) 表示非 null bytes，empty span 不表示 null。调用方按 schema 选择 string/bytes reader；同一个 plan 类型不承诺自动识别内层类型。
 
 ## 独立 golden 与验收向量

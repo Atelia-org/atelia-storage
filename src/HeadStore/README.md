@@ -1,10 +1,10 @@
 # Atelia.HeadStore
 
-当前采用 `Atelia.HeadStore` 名称与 `HeadId / HeadEntryId / HeadEntry` 公面；2026-10-16 行为保持重命名已通过独立源码复核与 Windows Release 验收，状态见[重命名记录](../../docs/VersionStore/13-headstore-renaming-plan.md)。既有验收仍对应原 VersionStore revision。本轮已完成格式2与HeadSetTag成员表替换，并通过Windows源码、进程和本地包消费验收，实际资格见[14验收记录](../../docs/VersionStore/14-headset-tags-acceptance.md)；旧bytes/Related API退出，不沿用旧tag验收。
+当前采用 `Atelia.HeadStore` 名称与 `HeadId / HeadEntryId / HeadEntry` 公面；2026-10-16 行为保持重命名已通过独立源码复核与 Windows Release 验收，状态见[重命名记录](../../docs/HeadStore/15-headstore-renaming-plan.md)。既有验收仍对应原 VersionStore revision。本轮已完成格式2与HeadSetTag成员表替换，并通过Windows源码、进程和本地包消费验收，实际资格见[16验收记录](../../docs/HeadStore/16-headset-tags-acceptance.md)；旧bytes/Related API退出，不沿用旧tag验收。
 
-设计、当前计划与验收索引见 [HeadStore 文档](../../docs/VersionStore/README.md)。
+设计、当前计划与验收索引见 [HeadStore 文档](../../docs/HeadStore/README.md)。
 
-本项目参加 solution 构建与测试，已纳入主线本地候选包清单。普通 Head/历史/fork/tag/Audit 等既有范围取得[独立源码验收](../../docs/VersionStore/12-versionstore-final-acceptance.md)。本轮 CU 已正式接纳并实施，新增范围取得独立源码验收 Accepted，范围与实际验证见[07 CU 验收](../../docs/VersionStore/07-versionstore-cross-ref-conditional-update-acceptance.md)。[原六包候选](../../docs/FrameStore-VersionStore/13-local-package-delivery.md)不含 CU，版本/manifest/来源不变；HeadSetTag新候选及四个隔离消费者见[14验收记录](../../docs/VersionStore/14-headset-tags-acceptance.md)，公开发布另行进行。设计入口为[S4](../../docs/VersionStore/04-versionstore-publication.md)与[07](../../docs/VersionStore/07-versionstore-cross-ref-conditional-update.md)。
+本项目参加 solution 构建与测试，已纳入主线本地候选包清单。普通 Head/历史/fork/tag/Audit 等既有范围取得[独立源码验收](../../docs/HeadStore/12-versionstore-final-acceptance.md)。本轮 CU 已正式接纳并实施，新增范围取得独立源码验收 Accepted，范围与实际验证见[07 CU 验收](../../docs/HeadStore/07-versionstore-cross-ref-conditional-update-acceptance.md)。[原六包候选](../../docs/FrameStore-HeadStore/13-local-package-delivery.md)不含 CU，版本/manifest/来源不变；HeadSetTag新候选及四个隔离消费者见[16验收记录](../../docs/HeadStore/16-headset-tags-acceptance.md)，公开发布另行进行。设计入口为[S4](../../docs/HeadStore/04-versionstore-publication.md)与[07](../../docs/HeadStore/07-versionstore-cross-ref-conditional-update.md)。
 
 HeadStore 借入一个 FrameStore，发布不透明 root-payload bytes。每个 Head 是独立 RBF3 文件中的完整快照序列；应用选择内容 codec 并保证 data 依赖闭包。PublishHeads 以 CU 的完整成员表共同裁决多个同库既有 Head 的发布资格，普通单 Head 更新仍为 SingleEntry；不提供跨调用快照隔离或创建/tag/跨库事务。
 
@@ -61,7 +61,7 @@ for (int index = beforeCount; index < afterCount; index++) {
 
 仅记录成功 RBF open 返回的非 None 动作；记录早于必要 header/CU/tag 初始化保护和资源移交检查，因此后续读取、visitor、取消或清理失败仍保留已执行动作，异常后也可取得 afterCount。报告不证明发布成立、root/data 图健康或旧调用 Confirmed，`NotAttempted` 可以伴随 lazy 修尾。RBF 工厂失败可能已改 bytes 却没有成功报告，台账不合成 None 或提供完整失败取证；借入 FS 的恢复报告仍归 FS。独立导出日志时一并保存 HeadStoreId，报告不签发 HeadEntryId。
 
-可独立运行的 [HeadStore.Smoke](../../tools/HeadStore.Smoke/README.md) 仅通过 public API 演示多根/循环 data、历史选点、两种 fork、rewind/tag 及新进程只读重开。solution 中的 SystemIntegration 测试另负责真实子进程锁矩阵和公开停点强杀；内部写入窗口、断电和包消费不由这些停点证明。 同一consumer的 resource-write/resource-read 提供16/64/256个Head的有限资源观察，平台实测和测量边界见 [V4-C记录](../../docs/VersionStore/12-versionstore-linux-resource-acceptance.md)。
+可独立运行的 [HeadStore.Smoke](../../tools/HeadStore.Smoke/README.md) 仅通过 public API 演示多根/循环 data、历史选点、两种 fork、rewind/tag 及新进程只读重开。solution 中的 SystemIntegration 测试另负责真实子进程锁矩阵和公开停点强杀；内部写入窗口、断电和包消费不由这些停点证明。 同一consumer的 resource-write/resource-read 提供16/64/256个Head的有限资源观察，平台实测和测量边界见 [V4-C记录](../../docs/HeadStore/12-versionstore-linux-resource-acceptance.md)。
 
 其中[应用策略示例](../../tools/HeadStore.Smoke/README.md#应用策略示例)用四个NamedFrameMap根演示tool-loop冻结请求/Started确认、uncertain或receipt查询恢复，以及单driver的operationId/generation合并。应用边界强杀、冷恢复与过期/重复回包拒绝由跨进程测试验证；外部receipt和应用结算规则属于示例，不成为存储的自动重试或exactly-once合同。
 
