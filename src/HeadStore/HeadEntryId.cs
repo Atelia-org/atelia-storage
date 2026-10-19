@@ -56,8 +56,8 @@ public readonly struct HeadEntryId : IEquatable<HeadEntryId> {
         return true;
     }
 
-    // 库操作由完成发布、checked Entry read 或完整 checked HeadSetTag 成员表恢复调用。
-    // 公开 TryRead 也能恢复定位值；所有坐标仍须在使用时精确检查。
+    // 库操作由完成发布、checked Entry read、checked header 声明或完整 checked HeadSetTag 成员表恢复调用。
+    // 与公开 TryRead 一样只构造定位值；header 声明不授予来源发布资格，使用时仍须精确检查。
     internal static HeadEntryId Create(HeadId headId, SizedPtr ticket) {
         return new HeadEntryId(headId, ticket);
     }

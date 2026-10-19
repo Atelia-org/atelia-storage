@@ -7,6 +7,46 @@ using Atelia.HeadStore.Internal.Runtime;
 namespace Atelia.HeadStore;
 
 public sealed partial class HeadStore {
+    /// <summary>读取指定 Head 的已检查 header 中声明的固定创建来源；独立根没有来源。</summary>
+    /// <remarks>
+    /// 只访问所选 Head，不枚举其他 Head 或读取来源 Entry，也不证明来源存在、发布成立或整图健康。
+    /// 可在历史 visitor 内串行调用；借用已有句柄，其他目标用临时句柄，不增加长期缓存。
+    /// 可写惰性打开仍可能执行正常尾恢复；只读打开不修复。
+    /// </remarks>
+    public AteliaResult<HeadOrigin> ReadHeadOrigin(HeadId headId) {
+        EnsureOwnerUsable();
+        if (!headId.TryGetLocalId(_identity, out uint localId)) { return InvalidHead(); }
+        AteliaError? BeforeHeaderWork() { EnsureOwnerUsable(); return null; }
+
+        IRbfFile? temporary = null;
+        CleanupErrors errors = default;
+        AteliaResult<HeadOrigin> result = default;
+        try {
+            var resolved = _files.ResolveHead(localId, _markOwnedCleanupFault);
+            EnsureOwnerUsable();
+            if (resolved.IsFailure) { result = resolved.Error!; }
+            else {
+                IRbfFile file = GetForkQueryHead(resolved.Value, ref temporary, EnsureOwnerUsable);
+                var header = HeadRecordReader.CheckHeader(file, _identity, headId, BeforeHeaderWork, EnsureOwnerUsable);
+                EnsureOwnerUsable();
+                if (header.IsFailure) { result = header.Error!; }
+                else {
+                    HeadEntryId? source = header.Value.Origin is ForkOrigin origin
+                        ? HeadEntryId.Create(origin.SourceHeadId, origin.SourceEntryTicket) : null;
+                    result = new HeadOrigin(source);
+                }
+            }
+        }
+        catch (Exception error) { errors.Add(error); }
+        finally {
+            CloseForkQueryTemporary(ref temporary, ref errors);
+            if (_faulted) { CleanupOwned(ref errors); }
+        }
+        errors.ThrowIfAny();
+        EnsureOwnerUsable();
+        return result;
+    }
+
     /// <summary>在单次有界扫描中检查全部正式 head header，交付完整、自有的创建来源边集合。</summary>
     /// <remarks>预算包含无来源根；不读取 Entry 或逐边校验源 ticket。历史 visitor 可以串行调用。</remarks>
     public AteliaResult<IReadOnlyList<HeadOriginInfo>> ListHeadOrigins(int maxHeads,

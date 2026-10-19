@@ -17,6 +17,7 @@
 | ForkHead(sourceEntryId) | 自动编号，从精确源快照创建 fork | 仅 header/ForkOrigin，一次文件发布；返回新 HeadId |
 | ForkHead(destLocalHeadId, sourceEntryId) | 在空闲预留号创建 fork | 同上，指定目标 create-only |
 | ListHeadOrigins(maxHeads, cancellationToken) | 查询全部正式 Head 声明的创建来源边 | checked header 与完整图；单次自有只读结果，无跨调用缓存 |
+| ReadHeadOrigin(headId) | 读取指定 Head 的固定创建来源 | 只检查目标 header；不检查来源 Entry 或完整图，不枚举其他 Head |
 | CreateTag / ReadTag | 捕获所选Head当前位置或读取不可变成员表 | 09 的稳定捕获/依赖确认、唯一可信名裁决与完整canonical表读取 |
 | ReadTagInfo / ScanTags | 按名读取或同步逐项交付 tag 元信息 | 09 的独立 checked 元信息；不证明成员表/Entry健康或签发成员EntryId |
 | 无来源复制 / rewind 便利流程 | 旧 payload 新建独立 Head / 追加回原 Head | 调用 S4 CreateHead / PublishHead |
@@ -114,6 +115,27 @@ anchor资格可能耗尽工作预算而零回调；anchor已交付后，连续�
 
 （Informative）Gym 在 visitor 中选中旧快照 `R` 并返回 false，待 ReadHeadHistory 返回 VisitorStopped 后，再调用 `ForkHead(R.Id)` 或 `ForkHead(destLocalHeadId, R.Id)` 保留来源；只要独立起点时用 CreateHead(R.Payload) 入口。rewind 调用 `PublishHead(oldHeadId, R.Payload)` 追加新 EntryId，保留原发布历史。data 根帧共享，不复制其图；tick、RNG、业务父状态与推演规则继续由应用保存。
 
+## 指定 Head 的创建来源
+
+### spec [A-VS-HEAD-ORIGIN-CHECKED] 所选 header 的声明值
+
+```csharp
+public readonly struct HeadOrigin {
+    public HeadEntryId? SourceEntryId { get; }
+    // 仅库内部构造；null 表示已查询的 Head 为独立根。
+}
+
+AteliaResult<HeadOrigin> ReadHeadOrigin(HeadId headId);
+```
+
+`ReadHeadOrigin` 在任何发现 I/O 前检查 owner disposed/fault 与当前库上下文中的 HeadId 范围；非法或缺失目标返回现有 HeadNotFound，坏 header 返回所属读取失败，不可将失败改为无来源。它只定位所选正式 Head，检查实际首帧的完整 CRC、格式、身份与来源字段结构，交付独立自有值。独立根的 SourceEntryId 为 null；fork 返回固定准确来源位置，父线推进与子线首次本地发布不改变此声明。default HeadOrigin 可读但不证明查询成功，不增加 IsValid、public 构造或专用持久 codec。
+
+本查询 MUST NOT 枚举其他 Head、读取来源 Entry、检查来源文件存在、追当前值或验证全图。SourceEntryId 是定位值，不授予发布资格；后续 ReadEntry/ForkHead 必须按现有合同独立验证。需要完整声明图及缺源/环检查时使用 ListHeadOrigins；应用自有登记子集可逐个查询并自行检查子集的森林约束。两者共用不可变 header 来源，不能因返回值形状不同形成第二权威。
+
+调用复用匹配的 owned/history 句柄，其他目标使用局部临时句柄并在交付前关闭，MUST NOT 因查询增加长期句柄缓存。允许在历史或 tag visitor 内串行调用，无应用 callback、数量预算或取消参数。局部句柄关闭前清槽，异常与最后关闭失败按既有主错误优先/owned cleanup 合同处理；最后 owner/fault 检查通过才返回结果。格式/读取失败本身不新增健康 writer fault；实际可写打开/恢复及 owned 清理失败仍按 S4 停用和清理。只读不修复，可写正常 lazy recovery 及 RecoveryReports 保持，不另行确认 data、flush、发布或检查 pending。
+
+本层访问限定为所选 header，不承诺整次调用固定 I/O：目标路径资格、工厂完成尾准入及正常恢复仍可能有成本。新增源码、进程、平台和包资格须分别取得，既有 ListHeadOrigins 的验收不自动覆盖本入口。
+
 ## 全部分叉查询
 
 ### spec [A-VS-FORKS-CHECKED] 正式 Head 的首帧声明完整分叉图
@@ -140,7 +162,7 @@ AteliaResult<IReadOnlyList<HeadOriginInfo>> ListHeadOrigins(
 **一个临时图。** 扫描与构图属于同一次 single-driver 操作，不允许 mutation 交错。用一个本次调用的 HeadId 节点表保存所有 checked 正式身份、可选来源及检查状态；完整目录正常结束并必要关闭成功后，逐来源核对 SourceHeadId 属于同一已 checked 集合，拒绝自链接。无来源根仍在表中，不作为缺源；源 header 已在本次扫描校验，不再逐边打开。全图环检查 MUST 使用迭代三色或等价的已完成节点记忆，每节点仅作常数次图访问；禁止递归深链或从每个节点重新追完整祖先链，也不以 HeadId 大小替代来源图检查。不排序，不引入持久 generation、拓扑编号或通用图框架。
 
 **仅交付完整自有边集合。** 全部资格、图校验、必要清理、结果构造及最终 owner/fault/token 复检通过后，才返回非 null 自有列表；无来源 Head 不输出，有来源的每个 child 恰输出一项，零边成功为空列表。任一失败或取消不交付部分成功、visitor 前缀、正常 BudgetExhausted 或“没有孩子”的结论。输出顺序没有跨调用稳定、编号排序或时间顺序承诺。
-HeadOriginInfo 是普通非 record readonly struct，仅有三个只读属性及内部构造，无 setter/init、带参 public 构造、Deconstruct、专用整体等值/hash/codec、owner/reader 或 Dispose。它平铺逻辑 ForkOrigin，避免再公开嵌套来源类型；SourceEntryTicket 保留完整 SizedPtr（含 length），MUST NOT 包装成 checked 源 HeadEntryId。default 属性可读取，但不是库成功列表中的有效边，不新增 IsValid/default 错误族。结果仅声明本次已 checked 创建关系，不定位每条源 ticket、不校验源 Entry 内容与共同发布资格，不证明全部历史/data 图健康或旧调用曾 Confirmed；内部构造也不是防伪认证。
+HeadOriginInfo 是普通非 record readonly struct，仅有三个只读属性及内部构造，无 setter/init、带参 public 构造、Deconstruct、专用整体等值/hash/codec、owner/reader 或 Dispose。它平铺逻辑 ForkOrigin，避免再公开嵌套来源类型；SourceEntryTicket 保留完整 SizedPtr（含 length）。声明位置不能被解释为已验证发布的源 EntryId；HeadEntryId 的公开 codec 或 ReadHeadOrigin 返回的定位值也不授予这种资格。default 属性可读取，但不是库成功列表中的有效边，不新增 IsValid/default 错误族。结果仅声明本次已 checked 创建关系，不定位每条源 ticket、不校验源 Entry 内容与共同发布资格，不证明全部历史/data 图健康或旧调用曾 Confirmed；内部构造也不是防伪认证。
 列表内部使用唯一自有数组和只实现 IReadOnlyList/IEnumerable 的私有薄封装；不外露可变 array/List、IList 或能取得 backing 的 ICollection.SyncRoot，不复用下一调用 scratch 或长期缓存。HeadOriginInfo 内的 HeadId/SizedPtr 都是自有值，无需复制业务对象。查询结束、后续查询/创建及 owner fault/Dispose 不改变已交付列表；反射、Unsafe 等越过正常接口的改写不在此保证内。
 
 **句柄与失败。** 本查询无应用 callback，按既有串行前提执行，不新增 ListForksActive/busy 或改写 HistoryActive。历史 visitor 可调用它；匹配 HeadId 时复用可用的既有 owner/历史当前句柄，不重复独占打开、不关闭借用句柄。其他 Head 逐个使用本方法局部临时句柄，绝不覆盖历史当前临时槽；关闭前取出并清空局部槽，finally 只清理仍登记的资源，每个句柄仅尝试一次。目录枚举器、当前 pooled 帧和全部临时句柄的正常/异常退出，消费 S4 的 owned 清理/主错误优先规则；最后关闭失败不能被空列表或预算错误掩盖。

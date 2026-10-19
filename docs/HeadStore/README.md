@@ -4,6 +4,8 @@
 
 HeadStore 借入一个 FrameStore，发布应用解释的不透明 root-payload bytes，并提供Head、历史、fork、HeadSetTag与只读Audit。公开用法见 [Atelia.HeadStore](../../src/HeadStore/README.md)。本页只做导航，不增加合同或重标验收范围。
 
+新增 `ReadHeadOrigin(headId)` 只读指定 header 的固定来源声明，返回 `HeadOrigin.SourceEntryId`（独立根为 null）；不枚举其他 Head 或读取来源 Entry。合同归[S5 定向来源](05-versionstore-names-and-indexes.md#指定-head-的创建来源)，既有全集查询资格不自动覆盖此增量，运行验收另行记录。
+
 紧凑Handle合同见[04](04-versionstore-publication.md)：HeadId为4B上下文编码，本地编号上限0x00FFFFFF；跨库误用检测允许碰撞，GetLocalHeadId替代HeadId.LocalId。内部字段仍为raw local，完整128bit库身份保留在低频门/header；旧轮次资格不代表格式4已验证。
 
 当前采用引用初始化 fork：只在 header 保存准确来源，不生成克隆 Entry，ForkHead 返回新 HeadId；HeadSetTag 的16B成员独立保存 selected Head 与实际 Entry owner。统一格式4拒绝1/2/3；当前合同见04/05/07/09/11，实际新增验证见下表，不沿用旧Accepted。临时施工清单已完成并删除，合同与验收归入既有文档。

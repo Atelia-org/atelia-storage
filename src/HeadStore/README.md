@@ -25,6 +25,7 @@ HeadStore 借入一个 FrameStore，发布不透明 root-payload bytes。每个 
 - `PublishHeads`：私有捕获实际输入，空批拒绝、单成员普通 SingleEntry、至少两个成员 fresh CU；canonical 自绑定成员表、整批一次取时、data-first 与全部文件确认，返回自有只读 EntryId 字典。
 - `ReadHeadHistory / ReadEntryHistory`：从固定完成尾或准确inclusive Entry起点，使用同一 `HeadHistoryBudget`、逐项visitor、自有快照与exact ForkOrigin前缀接续；预算、早停和访问范围分别裁决。
 - 自动/预留区指定 `ForkHead`：精确读取EntryId定位值，包括codec导入值，data 后按LocalId确认来源及必要CU peers，只发布带 ForkOrigin 的 header，返回新HeadId；不扫描源后续历史。
+- `ReadHeadOrigin(headId)`：仅检查指定 Head 的 header，返回自有 `HeadOrigin.SourceEntryId` 声明值；独立根为 null，不读取来源或枚举其他 Head。合同见[S5](../../docs/HeadStore/05-versionstore-names-and-indexes.md#指定-head-的创建来源)，新增资格须另行验证。
 - `ListHeadOrigins(maxHeads, cancellationToken)`：检查所有正式首帧及声明图，交付自有只读 `HeadOriginInfo` 边列表，不读取 SingleEntry 或重读来源 ticket。
 - 私有初始化后一次不覆盖文件移动发布；异常停用、资源单次清理和锁最后释放。
 - `CreateTag / ReadTag`：捕获所选Heads当前位置的自有不可变`HeadSetTag`；1024个惰性桶、独立CRC元信息查重、data后确认必要发布文件，再写成员表。`ReadTagInfo / ScanTags`只交付名称、时间和成员数。
@@ -116,7 +117,9 @@ store.PublishHead(selectedHead, nextPayload, out PublicationOutcome outcome).Unw
 
 ListHeads只发现正式身份，ReadHead继续检查内容；这是只保存local的替代流程。已保存公开HeadId编码时可直接TryRead恢复所选Head，再由使用入口检查。
 
-`ListHeadOrigins` 的正整数 `maxHeads` 包含全部正式 Head，连没有来源的根也计数；恰好达到额度且枚举正常结束可成功，超额返回 `HeadStore.ForkQueryBudgetExceeded`，不交付部分图。每次查询重新检查 header、缺源与环，不保留跨调用索引。结果只声明创建关系；`SourceEntryTicket` 不是新签发的源 EntryId，也不证明源Entry或全库内容健康。查询可在历史 visitor 内执行，借用同文件句柄；其他临时句柄逐个关闭，不加入长期缓存。
+只需指定 Head 的来源时使用 `store.ReadHeadOrigin(selectedHead).Unwrap().SourceEntryId`。成功且 null 表示独立根；空 fork、父线继续发布与子线首次发布均不改变固定来源。该值可持久编码或交给 ReadEntry/ForkHead，使用时仍独立验证来源。查询只限定目标 header 访问范围，不保证来源文件存在或 Entry 可读，也不验证整图；所选文件正常打开/尾恢复仍有成本。坏目标不能当作新根；无关文件和来源 Entry 的损坏不由本查询检查。借用已有 owned/history 句柄，其他目标临时打开并关闭，不增加长期缓存；必要清理失败不会交付成功。只读不修尾，可写惰性恢复及 RecoveryReports 仍沿用既有合同。
+
+`ListHeadOrigins` 的正整数 `maxHeads` 包含全部正式 Head，连没有来源的根也计数；恰好达到额度且枚举正常结束可成功，超额返回 `HeadStore.ForkQueryBudgetExceeded`，不交付部分图。每次查询重新检查 header、缺源与环，不保留跨调用索引。结果只声明创建关系；`SourceEntryTicket` 不授来源发布资格，也不证明源Entry或全库内容健康。查询可在历史 visitor 内执行，借用同文件句柄；其他临时句柄逐个关闭，不加入长期缓存。
 
 `CreateTag(name, heads, out outcome)` 接受非空HeadId的ReadOnlySpan，捕获调用时当前已接受EntryId，返回不可变具名表；不接受任意bytes、Related或历史EntryId组合。名称继续按1..1024个原UTF-16 code units/Ordinal比较，create-only。输入slice先私有复制，拒绝default、当前key解码越界、重复、缺失或必要坏成员；不保证识别所有外库Handle。
 

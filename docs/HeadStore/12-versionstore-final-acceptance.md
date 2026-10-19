@@ -194,3 +194,14 @@ Windows Release build最终为 **0 warning / 0 error**；定向测试 **82 passe
 manifest位于上述feed目录；完整消费者日志、assets和保留的存储文件位于上述仓外workspace。主线程独立复核产物与实际assets的结果保留在 `artifacts/persistent-handles/verified-packages.json`、`verified-consumers.json`，参数及最终状态见 `package-run.json`，汇总见 `verification.json`。复验应使用该源码提交及新的仓外WorkDirectory，不能把仅补写本验收记录的后续提交冒充包来源。
 
 旧候选、历史JSON和此前Accepted均保持原来源。本轮没有推送或公开发布；DG pin/接线、FrameStore紧凑Handle、Linux、远端Source Link下载和设备断电均未取得本增量资格。
+
+
+## 2026-10-19 定向 Head 来源查询源码验收
+
+由 DurableGraph DB-096 的指定成员目录查询需求驱动，在 `f8868b5` 上新增 `ReadHeadOrigin(HeadId) → AteliaResult<HeadOrigin>`。`HeadOrigin.SourceEntryId` 为可空的 header 声明定位值；不授来源发布资格。复用单目标解析、checked header、owned/history 借用和临时句柄清理，不调用全集枚举或读取来源 Entry，不改变格式4/Handle encoding v1/既有查询合同。规范归 [S5](05-versionstore-names-and-indexes.md) 的 `[A-VS-HEAD-ORIGIN-CHECKED]`。
+
+实施、回归编写与独立源码质疑分为有界工作包；主线程独立检查 diff 并执行 Release solution build（0警告/0错误）及完整 solution tests：**3608 passed、10平台跳过、0 failed**。其中 HeadStore 为1659通过/6跳过，FrameStore438通过/4跳过；新增 PublicHeadOriginTests 与 HeadOriginResourceTests 的29条全部通过。跳过为当前 Windows 环境不适用的平台/链接用例，不能作为 Linux 资格。
+
+新增用例证明 root/空fork/父推进子首存/冷重开，来源缺失或非法不扩大 header 查询资格；访问计数和真实读日志为0 List/Visit、不读 source/Entry；坏目标拒绝、无关坏文件隔离、owned/history/temp 借用、主错误与清理错误、RO/RW 工厂失败差异，以及仅所选目标的正常不完整尾恢复。没有本增量的进程中止、掉电或全平台新验收。
+
+主线程运行工件位于下游本机 `.artifacts/db096-targeted-origin/{storage-build.log,storage-tests.log,storage-tests/,storage-test-summary.json}`。本段记录源码资格；普通包须从本增量的干净提交经 `eng/Pack.ps1` 与 `eng/Test-Package.ps1` 另取资格。HeadStorePackageSmoke 已补 root、空fork、首存及 RW/RO 冷来源调用，不能把其源码存在当作实际运行结果。后续固定版本、manifest 与消费日志由对应交付记录说明，不借用上一轮包的资格。

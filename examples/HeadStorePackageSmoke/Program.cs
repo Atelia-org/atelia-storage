@@ -260,7 +260,11 @@ static void VerifyReferenceForks(string directory) {
     using (var data = DataStore.Create(dataPath))
     using (var heads = Heads.Create(headsPath, data)) {
         source = heads.CreateHead([0x91], out var outcome).Unwrap(); Confirmed(outcome);
+        Require(heads.ReadHeadOrigin(source.HeadId).Unwrap().SourceEntryId is null,
+            "An independent root declared a fork source.");
         child = heads.ForkHead(source, out outcome).Unwrap(); Confirmed(outcome);
+        HeadOrigin retainedOrigin = heads.ReadHeadOrigin(child).Unwrap();
+        Require(retainedOrigin.SourceEntryId == source, "Empty fork origin did not retain its exact source.");
         sibling = heads.ForkHead(source, out outcome).Unwrap(); Confirmed(outcome);
         HeadEntry before = heads.ReadHead(child).Unwrap();
         Require(before.Id == source, "Fork introduced a synthetic save identity.");
@@ -272,6 +276,8 @@ static void VerifyReferenceForks(string directory) {
         Require(tag.Entries.Count == 4 && tag.Entries.Values.All(id => id == source), "Tag lost shared-source selected Heads.");
         // First save goes to child, using before.Id as the application's predecessor.
         childPublication = heads.PublishHead(child, [0x92], out outcome).Unwrap(); Confirmed(outcome);
+        Require(heads.ReadHeadOrigin(child).Unwrap().SourceEntryId == source
+            && retainedOrigin.SourceEntryId == source, "First local publication changed the fixed fork origin.");
         Require(childPublication.HeadId == child && heads.ReadHead(child).Unwrap().Id == childPublication,
             "Fork's first save went to its source Head.");
         Require(History(heads, child).Select(entry => entry.Id).SequenceEqual(new[] { childPublication, source }),
@@ -281,6 +287,9 @@ static void VerifyReferenceForks(string directory) {
     foreach (bool readOnly in new[] { false, true }) {
         using var data = readOnly ? DataStore.OpenReadOnly(dataPath) : DataStore.Open(dataPath);
         using var heads = readOnly ? Heads.OpenReadOnly(headsPath, data) : Heads.Open(headsPath, data);
+        Require(heads.ReadHeadOrigin(source.HeadId).Unwrap().SourceEntryId is null
+            && new[] { child, sibling, emptyGrandchild }.All(id => heads.ReadHeadOrigin(id).Unwrap().SourceEntryId == source),
+            "Cold targeted origins changed after the child and source advanced.");
         Require(heads.ReadHead(child).Unwrap().Id == childPublication && heads.ReadHead(sibling).Unwrap().Id == source
             && heads.ReadHead(emptyGrandchild).Unwrap().Id == source, "Cold reference fork changed after its source advanced.");
         HeadSetTag tag = heads.ReadTag("shared-source").Unwrap();
@@ -292,6 +301,7 @@ static void VerifyReferenceForks(string directory) {
                 "Reference-fork Audit counted cloned Entries.");
         }
     }
+    Console.WriteLine("Targeted origin package chain passed: root, empty fork, first local save and both-layer cold read-only reopen.");
 }
 
 static HeadStoreAudit VerifyBatchPublication(string directory) {
